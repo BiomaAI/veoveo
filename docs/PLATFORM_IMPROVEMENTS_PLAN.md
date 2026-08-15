@@ -1,10 +1,12 @@
 # Platform Reliability And Operability Implementation Plan
 
-Status: implementation plan. The plan records accepted direction and delivery order.
-it does not claim that the planned contracts or commands exist. Each phase requires a
-separate implementation change with its own tests and documentation closure.
+Status: reviewed implementation plan. Core correctness work is approved as the release
+gate. Downstream ergonomics, optional tooling, and evidence-gated capacity work are
+independent tracks. The plan does not claim that any planned contract or command exists.
+Each phase requires a separate implementation change with its own tests and
+documentation closure.
 
-Baseline: Veoveo main `b6e2069f` on 2026-08-14. The input was the reviewed client
+Baseline: Veoveo main `3029df8f` on 2026-08-14. The input was the reviewed client
 package `veoveo-platform-improvements-2026-08-14`, containing thirteen requests and
 six reference diffs. The diffs describe intent from an earlier integration snapshot.
 They are not a merge series.
@@ -23,16 +25,16 @@ completion contract and the mandatory hardware-GPU boundary.
 | MCP Tasks extension, SEP-2663 | durable detached work, task updates, input requests, terminal results, and canonical task identities |
 | MCP Apps SEP-1865 / `ext-apps` `2026-01-26` | `ui://` application resources, `text/html;profile=mcp-app`, sandboxed frames, host context, lifecycle notifications, and the `postMessage` bridge |
 | Veoveo reactive App resource adapter | repository-owned projection from final MCP resource notifications to contentless App wakes. It is not part of SEP-1865 |
-| JSON Schema Draft 2020-12 | closed agent, deployment, resource-reference, model, provenance, and GPU-admission schemas |
+| JSON Schema Draft 2020-12 | closed agent, deployment, domain-reference, model, provenance, and qualified GPU-admission schemas |
 | OAuth 2.1 draft 13, RFC 6750, RFC 7523, RFC 8414, RFC 8707, RFC 9207, and RFC 9728 | browser and machine authorization, `private_key_jwt`, metadata discovery, resource indicators, issuer validation, and protected-resource discovery |
 | RFC 9110 | HTTP authority, header, cache, redirect, and error behavior for the BFF, gateway, and hosted servers |
 | RFC 7946 | public longitude/latitude coordinate order used by Map GeoJSON and the Map-specific DuckDB Spatial axis policy |
 | DuckDB 1.5.5 and its Spatial extension | typed `POINT_2D` distance path, `geometry_always_xy`, materialized scoring, and restart-stable Map analytics |
-| Kubernetes/K3s 1.36.2 and Helm 4.2.3 | selected-release ownership, rendered Secret closure, managed-field inspection, hooks, mutation, and deployment receipts |
-| Kubernetes server-side apply managed fields | pre-mutation field-owner conflict detection and reviewed ownership transfer. Helm remains the release owner |
+| Kubernetes/K3s 1.36.2 and Helm 4.2.3 | rendered Secret-reference closure for disposable development profiles. Helm and the installation reconciliation controller retain mutation ownership |
+| Kubernetes server-side apply managed fields | optional read-only conflict diagnostics only if selected development scope passes its evidence gate. This plan does not transfer field ownership or replay Helm state |
 | NVIDIA DRA Driver for GPUs 0.4.1, `resource.nvidia.com/v1beta1`, CUDA, and NVML | exact GPU identity, full-device or MIG capacity, memory admission, and hardware evidence. The repository implements only its declared qualified DRA profile |
 | Docker Buildx 0.35.0, BuildKit 0.31.2, and Dockerfile frontend 1.25.0 | secret-mounted private Git credentials and trust inputs, cache isolation, SBOM, and maximum-mode provenance |
-| `veoveo.io/deployment/v6` and `veoveo.io/deployment-lock/v6` | delivered deployment baseline. Selected-release ownership makes a hard cut to v7, and accelerator-memory admission makes a later hard cut to v8 |
+| `veoveo.io/deployment/v6` and `veoveo.io/deployment-lock/v6` | delivered disposable-development baseline. This plan reserves no successor version. An approved evidence-gated profile change uses the next version available when it lands |
 | `veoveo.io/image-build-plan/v2` and `veoveo.io/image-build-run/v2` | current typed image plan and execution evidence. Credential source paths and bytes never enter either document |
 
 Every dependency or infrastructure component touched during implementation must be
@@ -47,16 +49,18 @@ platform state. An accepted task, operator input, or resource update survives to
 rotation, process exit, and lease transfer. Correctable input errors remain inside the
 current episode and carry bounded guidance.
 
-Deployment will separate planning from mutation. A selected release will own a closed
-set of Kubernetes objects, Secret requirements, and hooks. The executor will prove that
-set against the complete lock before it issues a write. An unselected source will not
-receive a mutation request.
+Disposable development deployment will gain a pure rendered closure for non-optional
+Secret references before its existing mutation path can run. It will not create or
+rewrite installation Secret material. Selected-release development iteration remains
+evidence-gated and cannot become an enterprise installation API or a smoke-harness
+orchestration responsibility.
 
 Map will use one explicit longitude/latitude interpretation. Standalone MCP Apps will
-reuse the Console security boundary and upstream stream fanout. Model and GPU settings
-will be admitted through closed typed contracts. Frames and Time will return references
-that downstream compilers can admit without searching a catalog. Private Git inputs
-will reach dependency fetch only through BuildKit secrets.
+reuse the Console security boundary and upstream stream fanout. Frames and Time will
+return references that downstream compilers can admit without searching a catalog.
+Approved optional model controls will use provider-admitted typed contracts. Qualified
+GPU capacity work and private build inputs will proceed only after their evidence or
+downstream-need gates pass.
 
 ## Delivery Ledger
 
@@ -64,22 +68,35 @@ will reach dependency fetch only through BuildKit secrets.
 |---|---|---|---|
 | `AGENT-CONTINUATION-001` | P0 | retain the delivered durable runtime. Audit lineage and add crash-window evidence before adding new persistence | 1 |
 | `TOOL-DIAGNOSTICS-002` | P0 | implement against final MCP errors and current Rig, not the obsolete reference module | 1 |
-| `DEPLOY-SCOPE-003` | P0 | add selected-release ownership through deployment schema v7 | 2 |
-| `SECRET-CLOSURE-004` | P0 | require a mutation-free rendered closure before any Kubernetes write | 2 |
-| `APP-HOST-005` | P1 | add the standalone route through the existing Console BFF, frame, bridge, and session | 4 |
-| `STREAM-FANOUT-006` | P1 | retain the delivered auth-scoped per-URI listener pool. Add capacity and multi-tab evidence | 4 |
+| `DEPLOY-SCOPE-003` | evidence-gated | first prove a concrete disposable-development iteration need. Do not make it an enterprise API or reserve a schema revision | 2B |
+| `SECRET-CLOSURE-004` | P0 | add pure rendered validation of owner-supplied Secret references before the existing development mutation path | 2A |
+| `APP-HOST-005` | ergonomic | add the standalone route through the existing Console BFF, frame, bridge, and session | 4 |
+| `STREAM-FANOUT-006` | retain and verify | retain the delivered auth-scoped per-URI listener pool. Add capacity and multi-tab evidence | 4 |
 | `CREDENTIAL-REFRESH-007` | P0, elevated from P1 | repair the missing agent resource listener and make replacement readiness atomic | 1 |
-| `RESOURCE-DISCOVERY-008` | P1 | add typed references, bounded search, canonical handoff, and read budgets | 5 |
-| `REASONING-CONTROLS-009` | P1 | add omitted, disabled, and named effort modes with provider capability validation | 6 |
-| `ACCELERATOR-ADMISSION-010` | P1 | add declared persistent and peak memory through deployment schema v8 | 7 |
-| `SOURCE-PROVENANCE-011` | P2 | add used-source Frames references and effective Time authority references | 8 |
+| `RESOURCE-DISCOVERY-008` | ergonomic | retain domain-owned canonical URIs. Add canonical task handoff, bounded domain discovery, pagination, and agent read budgets without a universal token | 5 |
+| `REASONING-CONTROLS-009` | optional | add only for an approved provider configuration need, with capability validation | 6 |
+| `ACCELERATOR-ADMISSION-010` | evidence-gated | require measured same-device contention and qualified workload data before changing the deployment profile | 7 |
+| `SOURCE-PROVENANCE-011` | ergonomic | add used-source Frames references and effective Time authority references | 8 |
 | `SPATIAL-TYPING-012` | P1, elevated from P2 | correct Map axis and distance semantics before further spatial query expansion | 3 |
-| `PRIVATE-BUILD-INPUTS-013` | P2 | add one BuildKit-secret contract across every Rust builder family | 9 |
+| `PRIVATE-BUILD-INPUTS-013` | optional | add one opt-in BuildKit-secret contract for repository-managed builders without constraining external build systems | 9 |
 
 `STREAM-FANOUT-006` does not authorize a second browser or gateway fanout system. The
 current Console BFF already reference-counts one upstream listener per auth scope and
 resource URI. Implementation changes only its bounds, refresh evidence, and standalone
 host coverage unless tests prove a different deficiency.
+
+### Delivery posture
+
+| Track | Included work | Completion meaning |
+|---|---|---|
+| core correctness | agent listener refresh, safe tool diagnostics, continuation crash evidence, rendered Secret-reference closure, and Map spatial correction | required before this plan's correctness release closes |
+| downstream ergonomics | standalone Apps, bounded resource handoff and discovery, and Frames/Time provenance | each milestone may ship independently after its own acceptance |
+| optional tooling | provider reasoning controls and private BuildKit inputs | starts only for an approved downstream need and never blocks core closure |
+| evidence-gated capacity | selected-release development iteration and GPU memory admission | starts only after the phase records the required evidence and an owner approves the contract change |
+
+No client request is accepted as one indivisible implementation. The plan adopts the
+useful outcome and rejects a mechanism when it would create parallel identity,
+installation authority, or build ownership.
 
 ## Repository Invariants
 
@@ -97,12 +114,21 @@ host coverage unless tests prove a different deficiency.
 - Authentication, authorization, transport, timeout, and internal diagnostics remain
   generic at the model boundary. No phase exposes database errors, credentials,
   provider bodies, hidden reasoning, or policy internals.
-- A selected deployment operation reads the complete lock but mutates only its selected
-  ownership set. Read access to unselected sources does not grant mutation authority.
-- Secret values never enter a deployment plan, error, log, receipt, build argument,
-  cache key, SBOM, provenance statement, or test fixture.
-- Smoke lifecycle, retry, assertion, evidence, and cleanup logic remains in Rust. The
-  `xtask` command only builds and dispatches the typed harness.
+- Typed deployment profiles remain disposable-development inputs. They are not an
+  enterprise installation API, and smoke verification does not own installation
+  orchestration.
+- Canonical identity remains each domain's governed resource URI and MCP resource link.
+  No universal hash-derived resource token or parallel public identity is added.
+- Real Secret values never enter a deployment plan, error, log, receipt, build
+  argument, cache key, SBOM, provenance statement, or committed test fixture. Ephemeral
+  synthetic canaries may prove redaction and are destroyed with the test environment.
+- Installation Secret bytes remain owner-supplied. Repository tooling may validate
+  references and key presence but does not create, replace, or transfer ownership of
+  those Secrets.
+- Smoke assertions, evidence, and scenario-local lifecycle remain in Rust. Installation
+  orchestration remains with Helm and the installation reconciliation controller. The
+  `xtask` smoke command only builds and dispatches the typed verification harness.
+- Optional and evidence-gated tracks do not block the core correctness release.
 
 ## Reference Patch Policy
 
@@ -121,20 +147,75 @@ host coverage unless tests prove a different deficiency.
 |---|---|---|
 | 0. Baseline and contract locks | none | accepted decisions, protocol versions, owners, and hard-cut surfaces are recorded |
 | 1. Agent connection and correction | 0 | resource wakes survive refresh. Safe invalid input is corrected in one episode. The crash matrix passes |
-| 2. Deployment safety v7 | 0 | selected release and Secret closure pass zero-write and preservation acceptance |
+| 2A. Development Secret closure | 0 | owner-supplied Secret references close before the existing disposable-profile mutation path, with zero writes on failure |
+| 2B. Selected development scope | evidence gate in 2A | an approved local iteration design preserves unselected sources without becoming installation orchestration |
 | 3. Map spatial correction | 0 | axis, typed distance, cursor invalidation, and restart evidence pass |
 | 4. Standalone Apps | 1 for stable resource listeners | any authorized App opens through the shared host. Multi-tab use stays within explicit capacity |
-| 5. Resource identity and discovery | 1 | canonical handoff, lookup, pagination, and byte/read budgets pass across selected domains |
-| 6. Model reasoning | 1 | provider capability and exact request-rendering tests pass without fallback |
-| 7. GPU memory admission v8 | 2 | every co-located group fits declared capacity with headroom on real hardware |
-| 8. Frames and Time provenance | 5 for canonical references | downstream admission accepts exact source references without catalog search |
-| 9. Private build inputs | 0 | clean-cache builds pass in every Rust family and evidence contains no canary bytes |
-| 10. Integrated closure | 1 through 9 | source gates, cluster checks, GPU checks, browser checks, docs, examples, and deletion audits pass |
+| 5. Resource handoff and discovery | 1 | domain URIs remain canonical while handoff, lookup, pagination, and byte/read budgets pass in the selected domains |
+| 6. Optional model reasoning | approved provider need | provider capability and exact request-rendering tests pass without fallback |
+| 7. Evidence-gated GPU memory admission | measured same-device need and 2A | qualified co-located groups fit declared capacity with headroom on real hardware |
+| 8. Frames and Time provenance | 0 | downstream admission accepts exact domain-owned source references without catalog search |
+| 9. Optional private build inputs | approved repository-managed build need | clean-cache builds pass in every opted-in builder family and evidence contains no canary bytes |
+| 10. Core closure and independent milestone closure | applicable completed phases | core gates close together. Every other track closes independently with its own evidence |
 
-Phases 1, 2, and 3 may proceed in parallel after phase 0 because their code ownership is
-disjoint. Phase 9 may also proceed independently. The commit order within each phase is
-fixed below. A later concern must not be folded into an earlier contract commit merely
-to reduce the number of schema revisions.
+Phases 1, 2A, and 3 may proceed in parallel after phase 0 because their code ownership
+is disjoint. Phases 4, 5, and 8 are independent ergonomic milestones after their stated
+prerequisites. Phases 2B and 7 pause at their evidence gates. Phases 6 and 9 do not start
+without an approved downstream need. The commit order within each active phase is fixed
+below. A later concern must not be folded into an earlier contract commit merely to
+reduce the number of schema revisions.
+
+## Test-Driven Delivery Method
+
+Every active implementation concern begins with an executable statement of the missing
+behavior. A regression test targets the smallest owning layer that can prove the defect.
+A contract addition begins with an acceptance test written against the proposed public
+shape. Integration and hardware claims begin with a qualified scenario that cannot pass
+through a mock or fallback.
+
+Use this red-green-refactor sequence:
+
+1. Write one focused test with the final behavior in its name and assertions.
+2. Run it against the recorded baseline. Confirm that it fails because the behavior is
+   missing, not because the fixture, dependency, credentials, or environment is broken.
+3. Record the exact command, baseline revision, failing assertion, and bounded output in
+   the change or review evidence. Do not commit a deliberately failing shared branch.
+4. Implement the smallest change in the component that owns the contract. Do not make a
+   neighboring layer compensate for the failure.
+5. Run the focused test until it passes, then run the owning crate or application suite.
+6. Refactor only while the focused and owning suites remain green.
+7. Run the applicable integration, cluster, GPU, or headed-browser acceptance. A unit
+   mock cannot close a claim about live transport, Kubernetes mutation, hardware, or
+   browser rendering.
+8. Commit the test and fix together as one coherent green concern. A test-only commit is
+   acceptable only when it passes and captures existing correct behavior without hiding
+   an expected failure.
+
+If the first correctly scoped test passes on the baseline, investigate before changing
+code. Existing behavior may already satisfy the client outcome. In that case retain the
+implementation, strengthen only missing evidence, and record the request as verified
+rather than forcing a redundant rewrite.
+
+### Red-green planning matrix
+
+| Request | First red or characterization test | Green proof |
+|---|---|---|
+| agent continuation | crash after task settlement, wake claim, and input answer at each documented transaction boundary | restart produces one terminal wake, one consume transaction, and one receipt. If baseline passes, no persistence change lands |
+| tool diagnostics | read an unknown governed URI and a protected failing URI through the current agent adapter | safe invalid input reaches the same episode with bounded guidance, while protected failures remain generic |
+| selected development scope | no red test before the 2B evidence gate | after approval, two independent releases prove that the development driver issues no request for the unselected owner |
+| Secret closure | use an audited fake and disposable cluster with a missing referenced Secret before the current development path starts | the same scenario fails before any mutating Kubernetes or Helm verb |
+| standalone App | request a valid authorized `/apps/...` route and exercise bootstrap through the existing BFF | the shared frame opens with Console-equivalent auth, CSP, sandbox, bridge, and return behavior |
+| stream fanout | open two tabs for one auth scope and URI, then close them independently | one upstream listener serves both and is cancelled after the final subscriber. If baseline passes, only bounds evidence changes |
+| credential refresh | rotate a short-lived token while a declared resource subscription is active | replacement subscription acknowledgement precedes epoch publication and wakes continue without polling |
+| resource handoff | run a terminal task and bounded domain listing that currently presents competing identifiers or an unbounded collection | one canonical domain result URI is presented, exact lookup remains possible, and pagination and read budgets close |
+| reasoning controls | only after approval, render omitted, disabled, each named effort, and one unsupported provider/model pair | exact admitted wire fields render, unsupported configuration fails before connection, and no fallback occurs |
+| GPU memory admission | only after the evidence gate, run qualified co-located workloads whose measured peak exceeds admitted headroom | profile validation rejects unsafe placement and qualified real hardware passes the locked capacity plan |
+| Frames and Time provenance | compile output from a conversion that uses known revisions and one prefetched unused revision | only effective typed source references reach the downstream compiler without catalog search |
+| spatial typing | run a representative longitude/latitude distance, effective-setting check, and old-cursor fixture | the typed spherical distance and axis are correct, the score is reused once, and the old cursor fails |
+| private build inputs | only after approval, resolve an immutable private dependency from an empty cache with a canary credential | opted-in repository builders fetch through secret mounts, compile offline, and leak no canary bytes into evidence |
+
+The red transcript is review evidence, not a permanent expected-failure test. The green
+test remains in the repository as the regression or conformance gate.
 
 ## Phase 0: Baseline And Contract Locks
 
@@ -151,9 +232,10 @@ maps browser subscription UUIDs to resource URIs, opens one upstream listener fo
 first subscriber, and cancels that listener after the final subscriber leaves.
 
 Deployment v6 owns exact source revisions and release lists, but its `ResourceSet` is
-profile-global. `profile-up` validates the full profile and then applies the namespace,
-GPU allocator, raw manifests, ConfigMaps, managed Secrets, gateway activation, and all
-Helm releases. It checks the installation gateway Secret only after earlier mutations.
+profile-global. The disposable development path validates the full profile and then
+performs its existing repository-local setup. It checks some installation-owned Secret
+requirements only after earlier mutations. This plan may close that validation gap but
+does not broaden the path into an enterprise installer.
 
 Map loads the trusted Spatial extension but leaves `geometry_always_xy` at the engine
 default. Its distance queries use generic point construction, and source-feature
@@ -163,11 +245,11 @@ ordering. Cursor query digests do not name the distance algorithm revision.
 ### Contract preparation
 
 1. Update `mcp/contract/DESIGN.md` in the first protocol-changing commit. Record the
-   safe diagnostic data subset, canonical resource reference, wire caps, and final MCP
-   error mapping.
-2. Update `deploy/contract/DESIGN.md` before generating deployment v7. Record ownership
-   keys, selected-release planning, Secret closure, field conflict behavior, receipts,
-   and the prohibition on touching unselected resources.
+   safe diagnostic data subset, canonical URI handoff, wire caps, and final MCP error
+   mapping. Domain-owned resource identities remain in their server designs.
+2. Update `deploy/contract/DESIGN.md` with the pure rendered Secret-reference closure
+   before changing the disposable development path. Do not allocate a new deployment
+   schema version unless an approved typed field actually changes.
 3. Update the owning server `DESIGN.md` beside Frames, Time, and Map when each output or
    algorithm changes. Each design keeps its `Standards And Protocols` section current.
 4. Update `mcp/apps-extension/DESIGN.md` when the standalone host becomes an advertised
@@ -182,6 +264,8 @@ ordering. Cursor query digests do not name the distance algorithm revision.
 - The accepted and rejected patch behavior is represented in design text.
 - Every new public or installation schema has one owner and one version transition.
 - No implementation phase relies on an unstated legacy alias.
+- The core, ergonomic, optional, and evidence-gated tracks have separate approval and
+  completion boundaries.
 
 ## Phase 1: Agent Connection, Correction, And Continuation
 
@@ -323,76 +407,36 @@ Integration evidence uses the Rust agent smoke harness and a real SurrealDB inst
 The token-expiry scenario needs a short-lived test issuer and the final Gateway MCP
 path. It must not replace resource-notification evidence with polling.
 
-## Phase 2: Deployment Safety And Selected Ownership
+## Phase 2: Development Profile Secret Closure And Conditional Selection
 
-### 2.1 Hard cut deployment v6 to v7
+### 2A.1 Preserve the installation boundary
 
-Selected release ownership changes the controlled profile shape and therefore requires
-`veoveo.io/deployment/v7` and `veoveo.io/deployment-lock/v7`. The implementation removes
-v6 parsing when v7 lands. Examples, external fixtures, compatibility manifests,
-generated schemas, lock files, and documentation move in the same change.
+Typed deployment profiles remain confined to disposable repository-development
+environments. Production and enterprise installations continue to reconcile separate
+platform and extension Helm applications from installation-owned desired state. This
+phase does not create an enterprise deployment API, install a reconciliation
+controller, or grant the smoke harness installation authority.
 
-Add these typed concepts to `deploy/contract`:
+The installation owner supplies every Secret through its secret-management and
+Kubernetes reconciliation path. Veoveo repository tooling does not create, patch,
+replace, copy, or transfer ownership of a Secret. The required P0 change is a pure
+closure check before the existing disposable-development mutation path performs its
+first write.
+
+### 2A.2 Build the rendered Secret-reference closure
+
+Add focused internal types to `deploy/contract` without changing the public deployment
+schema unless a new serialized field is required:
 
 | Type | Contract |
 |---|---|
-| `DeploymentReleaseId` | unique `(source, release)` identity within one profile |
 | `KubernetesObjectKey` | group, version, kind, namespace or cluster scope, and name |
-| `ReleaseOwnership` | exact raw manifests, ConfigMaps, managed Secrets, gateway activation objects, Helm-rendered objects, and hooks owned by one release |
-| `SharedResourceOwnership` | an explicit profile-level owner for intentionally shared prerequisites. A selected operation can read but cannot rewrite it unless selected |
-| `ReleaseHook` | closed phase, object identity, timeout, and ownership. Arbitrary shell hooks are excluded |
-| `DeploymentReceipt` | profile and lock digests, selected release, planned ownership digest, executed object keys, hook results, runtime image digests, and terminal result |
+| `SecretReferenceRequirement` | referring object, exact field path, Secret name, optional key, optionality, and reference kind |
+| `SecretClosure` | profile and lock digests, complete sorted requirements, presence results, and terminal validation status without Secret values |
 
-Every mutable profile resource acquires exactly one owner. The validator rejects an
-unowned resource, duplicate ownership, a namespaced object without the profile
-namespace, a cluster-scoped object without explicit installation ownership, and an
-ownership collision across selected and unselected releases.
-
-The canonical repository command is:
-
-```sh
-cargo xtask smoke profile-release-up \
-  --profile "$PROFILE" \
-  --lock "$LOCK" \
-  --source "$SOURCE_ID" \
-  --release "$RELEASE_ID"
-```
-
-Full-profile `cargo xtask smoke profile-up` remains a distinct operation for initial
-convergence. It invokes the same planner with all release identities selected. `xtask`
-builds and dispatches the typed Rust deployment harness. The harness owns planning,
-execution, assertions, evidence, and cleanup. There is no optional selector whose
-omission changes the meaning of one command.
-
-### 2.2 Build a pure deployment planner
-
-Split the current orchestration into plan and execute modules before adding behavior.
-The planner may read files, exact Git objects, registry manifests, chart archives, and
-the Kubernetes API. It cannot invoke a mutating Kubernetes, Helm, Docker, Git, or hook
-operation.
-
-The plan contains:
-
-- the complete validated profile and lock digest.
-- the selected source revision and release identity.
-- exact chart archive, values, and runtime image digests.
-- rendered Kubernetes objects as typed metadata plus canonical bytes.
-- the selected ownership set and selected hooks.
-- unselected ownership keys used only for overlap rejection.
-- managed and external Secret requirements.
-- managed-field conflicts.
-- the intended mutation order and a digest over the complete plan.
-
-Source resolution reads the complete lock but checks out only source content needed by
-the selected release. It does not fetch unrelated large-file objects. The planner
-rejects an unresolved exact revision, mutable chart coordinate, missing registry
-manifest, runtime/attestation digest confusion, or values injection into a chart that
-does not declare the matching contract.
-
-### 2.3 Close Secret requirements before mutation
-
-Parse every selected rendered Kubernetes document. Walk the admitted workload kinds
-and collect non-optional references from:
+Resolve the complete v6 profile and exact lock through the existing pure contract path.
+Render every admitted chart and raw object that the disposable profile already intends
+to use. Parsing walks these non-optional references:
 
 - container and init-container `env[].valueFrom.secretKeyRef`.
 - container and init-container `envFrom[].secretRef`.
@@ -401,73 +445,76 @@ and collect non-optional references from:
 - Ingress and Gateway TLS certificate references.
 - chart-owned custom-resource fields explicitly registered by the deployment contract.
 
-Each requirement records object key, field path, Secret name, optional key, optionality,
-and ownership class. Unknown workload kinds with unregistered Secret-bearing shapes fail
-planning rather than passing an incomplete closure.
+An admitted custom resource with an unregistered Secret-bearing shape makes the closure
+unverifiable and fails before mutation. The closure cannot silently claim completeness
+for an unknown shape.
 
-Managed Secret values are loaded and format-validated in memory during planning. The
-plan retains only names, key names, value-presence flags, and validation results. An
-external Secret read accepts authoritative NotFound as a missing dependency. Forbidden,
-timeout, malformed, and transport results fail closed under distinct operator-facing
-codes without suggesting that the Secret is absent.
+The trusted disposable-development driver may read an existing Secret only when it
+already has that authority and key-presence validation requires it. It discards values
+immediately after the check. The closure, diagnostics, logs, errors, and evidence retain
+only names, required keys, presence flags, and bounded failure codes. Authoritative
+NotFound means a missing dependency. Forbidden, timeout, malformed, and transport
+failures remain distinct and fail closed.
 
-Execution creates a managed Secret with an atomic create operation. An AlreadyExists
-result triggers an ownership and content-digest comparison. It never falls through to
-an overwrite. A concurrently created incompatible object aborts the release before any
-later mutation.
+### 2A.3 Insert one zero-write gate
 
-### 2.4 Preflight managed fields
+The existing disposable-development path must compute and validate the complete closure
+before Namespace creation, allocator changes, raw manifest application, ConfigMap
+creation, gateway activation, Helm invocation, or hooks. A failed closure returns
+without issuing a mutating Kubernetes or Helm request.
 
-For every selected live object, compare the planned field set with `metadata.managedFields`.
-The planner reports the conflicting manager, operation, API version, object key, and
-exact field paths. It rejects conflicts before hooks and writes.
+This phase adds no selected executor and no new lifecycle command. Rust smoke code owns
+the assertions and API-audit evidence. Helm and the installation reconciliation
+controller retain installation orchestration.
 
-A separate reviewed ownership-transfer operation may use server-side apply only after a
-dry-run proves that the selected field values and every unowned field remain unchanged.
-It preserves Helm labels, annotations, and release metadata. Stored Helm manifests are
-never replayed as raw Kubernetes YAML.
+### 2B.1 Require evidence before selected-release design
 
-### 2.5 Execute the selected plan
+`DEPLOY-SCOPE-003` pauses until a downstream development workflow records all of the
+following:
 
-The executor accepts only a plan produced in the same process and rechecks its profile,
-lock, selected release, and live precondition digests immediately before mutation. It
-runs only selected hooks and objects in declared order. Helm uses bounded atomic
-behavior where the chart path supports it. A failed release cannot leave an unrelated
-release rolling.
+- measured full-profile iteration time and the target bound.
+- the exact independently owned release that needs isolated iteration.
+- proof that ordinary Helm or GitOps selection cannot meet the disposable-development
+  need without unsafe ownership overlap.
+- a named owner for the development driver outside smoke verification.
+- an architecture review confirming that the command cannot be mistaken for an
+  enterprise installation API.
 
-The executor must not issue `apply`, `patch`, `create`, `delete`, `replace`, Helm
-upgrade, or hook requests for an unselected ownership key. This request-level audit is
-the primary preservation proof. Before-and-after canonical owned-field bytes provide a
-secondary proof for every unselected object. API-generated metadata and controller
-status are recorded separately because controllers may update them without a Veoveo
-request.
+No command name or deployment schema revision is reserved before this gate passes. If
+approved, the design may introduce typed release ownership in the next available
+profile version. It must read the complete lock, reject selected/unselected ownership
+collisions, and preserve all unselected owned fields. The smoke harness verifies those
+claims but does not perform the installation.
 
-### Deployment acceptance matrix
+Read-only managed-field inspection may then explain a selected/unselected collision.
+It does not invoke server-side apply, transfer ownership, replay stored Helm manifests,
+or claim that repository tooling owns controller-managed objects.
 
-| Test | Required proof |
-|---|---|
-| missing managed environment input | planning fails and the fake or audited Kubernetes client records zero writes |
-| missing external Secret key | planning fails before Namespace or allocator creation |
-| forbidden Secret read | failure is not classified as NotFound and no write occurs |
-| concurrent managed Secret create | incompatible AlreadyExists aborts without overwrite |
-| ownership overlap | selected and unselected object collision is named before mutation |
-| selected release | only selected object keys and hooks appear in the execution receipt |
-| unselected extension | no mutation request targets it and canonical owned-field bytes remain unchanged |
-| managed-field conflict | manager and field paths are reported before hook execution |
-| ownership transfer | dry-run and live result have zero unintended spec differences and retain Helm metadata |
-| exact closure | live container image IDs equal runtime digests from the selected lock |
-| idempotent rerun | a second selected apply produces no unexpected object or hook change |
+### Phase 2 acceptance matrix
 
-Focused gates:
+| Track | Test | Required proof |
+|---|---|---|
+| required 2A | missing Secret | complete rendering fails before the API audit log records any mutating verb |
+| required 2A | missing Secret key | key absence is reported without retaining or printing another key or value |
+| required 2A | forbidden Secret read | failure is not classified as NotFound and no write occurs |
+| required 2A | unknown custom-resource shape | closure is reported as unverifiable before mutation |
+| required 2A | successful closure | the existing development path receives one immutable closure tied to exact profile and lock digests |
+| conditional 2B | evidence gate | measured need, target bound, driver owner, and architecture approval are recorded |
+| conditional 2B | unselected source | no installation request targets an unselected ownership key and its owned fields remain unchanged |
+| conditional 2B | managed-field observation | selected ownership conflicts are diagnostic only and no ownership-changing request occurs |
+| conditional 2B | enterprise boundary | enterprise examples and reconciliation contracts acquire no development command or profile dependency |
+
+Focused required gates:
 
 ```sh
 cargo test -p veoveo-deploy-contract
 cargo test -p veoveo-deployment-smoke
 ```
 
-Cluster acceptance runs against a disposable Kubernetes/K3s installation through the
-Rust deployment harness. The missing-Secret scenario captures the API audit log from
-before planning and proves that no mutating verb was issued.
+Required cluster acceptance uses a disposable Kubernetes/K3s installation. The
+missing-Secret scenario captures the API audit log before validation and proves that no
+mutating verb was issued. Conditional 2B tests do not enter the required gate until its
+evidence and architecture review are accepted.
 
 ## Phase 3: Map Spatial Axis And Distance Hard Cut
 
@@ -597,74 +644,79 @@ browser only after proving a hardware-backed WebGPU adapter or WebGL context. Lo
 the last hardware graphics API stops the run. API-only checks and screenshots cannot
 substitute for the visual workflow.
 
-## Phase 5: Canonical Resource Identity And Discovery
+## Phase 5: Canonical Resource Handoff And Bounded Discovery
 
-### 5.1 Add shared reference types
+### 5.1 Preserve domain-owned identity
 
-Add a focused module under `mcp/contract` for canonical resource handoff. Update
-`docs/CODEMAP.md` in that implementation change. The closed types are:
+The canonical public identity remains the resource URI owned by each domain and the MCP
+resource link that carries it across servers. Artifact occurrences retain fresh opaque
+UUIDv7 identities. Content digests remain integrity and provenance fields rather than
+public addresses.
 
-| Type | Contract |
-|---|---|
-| `ResourceToken` | `r_` plus the base64url-no-pad encoding of a full 32-byte SHA-256 identity digest. Rust and JSON Schema enforce exactly 45 ASCII bytes and the lowercase prefix |
-| `CanonicalResourceReference` | canonical resource URI, token, kind, immutable revision when applicable, and typed SHA-256 digest when content-addressed |
-| `ResourceIndexItem` | token, URI, kind, short status, bounded discriminator fields, and no full payload |
-| `ResourceSearchRequest` | exact known identity or bounded filters, result limit, and opaque cursor |
-| `ResourceReadBudget` | per-response, cumulative episode, read-count, family-count, wall-time, page-depth, and result-count limits |
+Do not add a universal `ResourceToken`, a hash-derived parallel identifier, or a shared
+index item that erases domain vocabulary. Do not migrate a working domain URI merely to
+make identifiers look uniform. `mcp/contract` may own generic bounds and handoff rules,
+but every server continues to own its resource grammar, search filters, result
+discriminators, and authorization semantics.
 
-`ResourceToken` is derived from the canonical complete internal identity with a
-domain-separated SHA-256 input. The service stores or can deterministically resolve the
-mapping. Truncation is forbidden. A token and its resource document identifier are
-byte-identical.
-
-When an existing domain uses a different public identifier, its migration is a domain
-hard cut. The old URI is removed when the new output lands. No alias reader remains.
-Rollout may proceed one domain at a time because each server owns its URI scheme, but a
-single domain cannot publish both shapes.
+Before changing a domain, add characterization tests for its terminal results, exact
+lookup, growing collections, pagination, and serialized sizes. A domain that already
+presents one canonical URI and bounded discovery receives evidence only. It does not
+receive a new schema for consistency with another server.
 
 ### 5.2 Canonical task handoff
 
-A successful task result presents exactly one public follow-on `result_uri` in
-structured content. Its adjacent text contains a short status without another opaque
-identifier. Full provenance, artifacts, child records, and internal task routing remain
-in the canonical resource document.
+When a successful task produces an addressable domain product, its structured terminal
+result presents exactly one follow-on `result_uri` using that domain's canonical URI.
+Adjacent text contains a short status without another opaque product identifier. Full
+provenance, artifacts, child records, and internal routing remain in typed structured
+content or the canonical resource document.
 
-The platform Task status URI remains the lifecycle identity. It does not compete with
-the domain `result_uri`: task status answers how work progressed, while the result URI
-identifies the completed domain product. Terminal results name both fields by role when
-both are present.
+The platform Task status URI remains the lifecycle identity. It answers how work
+progressed. The domain `result_uri` identifies the completed product. A result names
+both roles explicitly when both are present. A task that produces no addressable domain
+product is not forced to invent a resource.
 
-### 5.3 Search and wire bounds
+### 5.3 Keep discovery domain-specific and bounded
 
-Every growing collection exposes pagination. Older known items remain reachable by
-exact identity or bounded search without loading the current full collection. Index
-responses include only discriminator fields needed to choose an item.
+Every growing collection exposes stable pagination through its owning domain types.
+Older known items remain reachable by canonical URI or exact domain identity without
+loading the current full collection. Index responses carry only the domain-owned
+discriminator fields needed to select an item. Filters, limits, sort order, and opaque
+cursors remain typed in the server that understands them.
 
-Apply the serialized response-byte cap after final MCP serialization rather than by an
-estimate of Rust heap size. A result that exceeds the cap fails closed before transport
-with a machine-readable budget diagnostic. Structured content appears once. Text blocks
-carry only a short identity-free status unless the protocol requires a human-readable
-explanation.
+The agent kernel owns cumulative episode resource-read budgets. The shared MCP layer
+owns serialized response-size enforcement and conformance checks. Apply the byte cap
+after final MCP serialization rather than estimating Rust heap size. An oversized result
+fails before transport with a machine-readable budget diagnostic. Structured content
+appears once. Text carries only a short identity-free status unless the protocol
+requires a human-readable explanation.
 
-Start the domain rollout with Optimization and one task-heavy server because they
-exercise canonical result handoff. Continue with Map, Frames, Time, Media, Stream,
-Reason, View, and Recording after the shared conformance profile passes. Static
-well-known docs retain their existing canonical URIs.
+Begin with characterization tests for Optimization and one other task-heavy server.
+Continue only into domains whose tests expose an unbounded collection, competing result
+identity, duplicate presentation, or missing exact lookup. Static well-known documents
+and already-canonical domain resources remain unchanged.
 
 ### Resource acceptance matrix
 
 | Test | Required proof |
 |---|---|
-| grammar | runtime and generated schema accept the same exact token length and alphabet |
-| canonical handoff | a terminal task contains one domain result URI and no competing identifier in text |
-| lookup | an older known token resolves without listing the full collection |
-| pagination | every growing index returns stable order and an opaque next cursor |
+| identity audit | each product has one domain-owned canonical URI and no hash-derived parallel public identity |
+| canonical handoff | an addressable terminal product contains one domain result URI and no competing product identifier in text |
+| no-product task | a terminal task without an addressable product does not fabricate a resource URI |
+| exact lookup | an older known canonical URI or domain ID resolves without listing the full collection |
+| pagination | each changed growing index returns stable order and an opaque domain-owned cursor |
 | duplicate presentation | the model sees structured payload once and a short status beside it |
 | response cap | serialization beyond the limit produces no partial response |
 | episode budget | read count, family count, bytes, time, and page depth fail independently |
-| correction | an unknown token reports the requested URI and safe copy-and-retry guidance |
+| correction | an unknown canonical URI reports only the requested URI and safe copy-and-retry guidance |
 
 ## Phase 6: Provider-Neutral Reasoning Controls
+
+This optional track starts only when an agent-manifest owner needs explicit reasoning
+control for an admitted provider and model. The approval records the endpoint class,
+models, required modes, and operational reason. Veoveo does not add configuration merely
+because a provider exposes a wire field.
 
 ### 6.1 Model the three states
 
@@ -706,15 +758,30 @@ authorization headers, provider response bodies, and base URLs containing creden
 The reference patch's `none`-only enum is not an intermediate state. The implementation
 lands the full closed model and capability validation in one hard cut.
 
-## Phase 7: Accelerator Memory Admission
+## Phase 7: Evidence-Gated Accelerator Memory Admission
 
-### 7.1 Hard cut deployment v7 to v8
+### 7.1 Qualify the need before changing the schema
 
-GPU memory fields change the controlled deployment profile after selected ownership has
-landed. Introduce `veoveo.io/deployment/v8` and `veoveo.io/deployment-lock/v8`, then
-remove v7 parsing. Keep this schema transition separate from phase 2 commits.
+This track does not begin from a proposed schema. First capture the exact same-device
+group, physical device or MIG profile, workload replicas, model and runtime revisions,
+steady reservations, transient operations, and observed NVML peaks. The evidence must
+show that device identity and replica-count admission alone cannot prevent an unsafe
+co-location.
 
-Extend each `GpuWorkloadPlacement` with typed positive MiB reservations:
+The gate requires a reproducible hardware scenario that fails the proposed headroom
+rule on the current profile, a named owner for every reservation, and an architecture
+review of the capacity model. Mocked CUDA and estimated vendor marketing numbers cannot
+satisfy it. If the current placement is already exclusive or comfortably bounded, this
+track remains closed.
+
+Only an accepted gate may add memory fields to `GpuWorkloadPlacement`. That change uses
+the next available deployment profile and lock version at implementation time. The plan
+does not reserve v7, v8, or a dependency on selected-release development scope.
+
+### 7.2 Add conservative typed reservations
+
+The accepted profile change extends each affected `GpuWorkloadPlacement` with typed
+positive MiB reservations:
 
 - persistent memory held while the workload is ready.
 - peak memory required during its admitted maximum operation.
@@ -725,7 +792,7 @@ headroom. Full-device capacity comes from qualified DRA device inventory and a m
 NVML hardware probe. MIG capacity comes from the admitted MIG profile and the allocated
 partition. Missing or inconsistent capacity fails closed.
 
-### 7.2 Use conservative peak admission
+### 7.3 Use conservative peak admission
 
 The first implementation admits a same-device group only when the sum of every replica's
 declared peak plus group headroom fits the selected physical device or MIG partition.
@@ -742,7 +809,7 @@ The cuOpt RMM pool, renderer allocations, simulation baseline, inference engines
 encode/decode reservations receive their own workload entries rather than inheriting a
 generic GPU number.
 
-### 7.3 Report reservations and observations
+### 7.4 Report reservations and observations
 
 Deployment diagnostics show physical UUID, partition identity, total memory, declared
 persistent and peak reservations, headroom, and current observed use. Observed use is
@@ -833,6 +900,12 @@ cargo test -p veoveo-time-mcp
 
 ## Phase 9: Private Git And Trust Inputs For Image Builds
 
+This optional track starts only when a repository-managed builder must resolve an exact
+private Git dependency. It does not make Veoveo's BuildKit workflow mandatory for an
+external extension. A downstream publisher may continue to use its own build system and
+join Veoveo through the published image, chart, fragment, binding, and conformance
+contracts.
+
 ### 9.1 Define one operator interface
 
 Use repository-owned names:
@@ -855,7 +928,8 @@ admitted mode, and bytes are excluded.
 
 ### 9.2 Separate fetch from compile
 
-Every Rust builder family performs a dependency-fetch step with these optional mounts:
+Every opted-in repository-managed Rust builder family performs a dependency-fetch step
+with these optional mounts:
 
 - `veoveo-git-credentials` at a fixed `/run/secrets` path.
 - `veoveo-git-ca-bundle` at a fixed `/run/secrets` path.
@@ -864,11 +938,11 @@ The process configures Git's credential helper and CA path for that command only
 verification remains enabled. Cargo uses the Git CLI for credential-helper support.
 After fetch completes, the compile step runs offline without either secret mount.
 
-Apply the same contract to the shared trixie and bookworm artifact builders and every
-standalone Rust builder still executing `cargo build`. Prefer moving a standalone image
-onto the shared artifact family when that removes duplicate build logic without
-changing its runtime base. Otherwise reuse the exact secret IDs, process configuration,
-and tests.
+Apply the same contract to each repository-managed family selected by the approved use
+case. Prefer moving an opted-in standalone image onto a shared artifact family when that
+removes duplicate build logic without changing its runtime base. Otherwise reuse the
+exact secret IDs, process configuration, and tests. Do not modify an unrelated builder
+merely to make every Dockerfile expose the option.
 
 Build arguments cannot carry credentials or CA bytes. A missing credential causes the
 immutable private revision fetch to fail. It never substitutes a public dependency,
@@ -889,7 +963,7 @@ credential helper file or authenticated URL.
 
 | Test | Required proof |
 |---|---|
-| clean cache | the locked private revision resolves with the secret in each Rust builder family |
+| clean cache | the locked private revision resolves with the secret in each opted-in repository builder family |
 | missing credential | fetch fails closed without a fallback and without printing the credential-free URL as an authenticated URL |
 | CA | the admitted custom root succeeds. Malformed or absent required trust fails with verification still enabled |
 | host mapping | only the locked Git host can receive the single validated override |
@@ -897,15 +971,16 @@ credential helper file or authenticated URL.
 | layer and cache scan | no canary bytes or helper file occur in image layers or exported cache |
 | evidence scan | plan, run, trace, SBOM, provenance, logs, and metadata contain no canary bytes or source path |
 
-Focused gates include `veoveo-image-build-control` tests and qualified builds for both
-shared Rust bases plus every standalone Rust family. BuildKit versions remain exact.
+Focused gates include `veoveo-image-build-control` tests and clean-cache qualified builds
+for every opted-in repository-managed family. External build systems are outside this
+gate. BuildKit versions remain exact.
 
-## Phase 10: Integrated Closure
+## Phase 10: Core Closure And Independent Milestone Closure
 
 ### Source gates
 
-Run focused gates with each commit. Before the final rollout, run the repository-wide
-non-visual source gate:
+Run focused gates with each commit. Before closing the core release or any independent
+milestone that changes shared contracts, run the repository-wide non-visual source gate:
 
 ```sh
 cargo fmt --all -- --check
@@ -922,15 +997,21 @@ configuration fields.
 
 ### Integration gates
 
-| Gate | Environment | Required result |
-|---|---|---|
-| agent recovery | Gateway, SurrealDB, short-lived OAuth issuer, and controlled crash points | one continuation and terminal receipt, same-episode correction, and preserved resource wakes |
-| selected deployment | disposable Kubernetes/K3s cluster with API audit evidence | zero writes on failed closure and no mutation request for unselected ownership |
-| spatial restart | pinned DuckDB Spatial extension and persistent test database | stable distance, order, and new cursor behavior after reopen |
-| standalone App | headed hardware-backed browser and authenticated Gateway | cold return, shared CSP/sandbox/bridge, and one upstream listener across tabs |
-| GPU admission | qualified NVIDIA DRA cluster and concurrent real workloads | declared peak fits hardware, survives replacement, and uses no fallback |
-| provenance | Frames and Time servers plus downstream compiler fixture | exact references admit directly without catalog search |
-| private builds | managed BuildKit with empty local and registry caches | immutable fetch succeeds and canary scans remain empty |
+Run the core gates together. Run another row only when its independent milestone or
+approved conditional track is closing.
+
+| Track | Gate | Environment | Required result |
+|---|---|---|---|
+| core | agent recovery | Gateway, SurrealDB, short-lived OAuth issuer, and controlled crash points | one continuation and terminal receipt, same-episode correction, and preserved resource wakes |
+| core | Secret closure | disposable Kubernetes/K3s cluster with API audit evidence | zero writes when an owner-supplied Secret or key is missing |
+| core | spatial restart | pinned DuckDB Spatial extension and persistent test database | stable distance, order, and new cursor behavior after reopen |
+| ergonomic | standalone App | headed hardware-backed browser and authenticated Gateway | cold return, shared CSP/sandbox/bridge, and one upstream listener across tabs |
+| ergonomic | resource handoff | selected task-heavy servers and agent read ledger | one canonical domain result URI, exact lookup, bounded pagination, and independent budget failures |
+| ergonomic | provenance | Frames and Time servers plus downstream compiler fixture | exact references admit directly without catalog search |
+| optional | reasoning | approved provider/model matrix without production credentials | omitted and exact admitted modes render while unsupported configuration fails before connection |
+| optional | private builds | managed BuildKit with empty local and registry caches | immutable fetch succeeds and canary scans remain empty in opted-in builders |
+| evidence-gated | selected development scope | disposable cluster and independently owned release fixtures | the approved development driver issues no request for the unselected owner |
+| evidence-gated | GPU admission | qualified NVIDIA DRA cluster and concurrent real workloads | declared peak fits hardware, survives replacement, and uses no fallback |
 
 No integration gate may replace a missing event-driven path with provider polling,
 resource polling, task polling beyond the official Tasks correctness contract, API-only
@@ -938,35 +1019,32 @@ visual checks, or CPU rendering.
 
 ## Commit Plan
 
-Each row is a reviewable checkpoint. A commit may split further when one concern grows,
-but adjacent rows should not be collapsed across ownership boundaries.
+Each row is a reviewable green checkpoint after its focused red test has been observed.
+A commit may split further when one concern grows, but adjacent rows must not collapse
+ownership boundaries. Conditional rows do not enter the sequence before approval.
 
-| Order | Commit concern | Minimum coherent result |
-|---|---|---|
-| 1 | Rig listener/request surface | exact pinned dependency exposes typed listener readiness and request freshness without Veoveo policy leakage |
-| 2 | agent listener rotation | acknowledged make-before-break listener and durable resource wakes |
-| 3 | resource reads and safe diagnostics | bounded read tool, final MCP error classification, and same-episode unit test |
-| 4 | continuation crash evidence | lineage audit, required migration only if a gap exists, and crash matrix |
-| 5 | deployment v7 ownership contract | types, validation, schemas, examples, locks, compatibility manifest, and design |
-| 6 | pure deployment plan and Secret closure | rendered closure with zero-write tests |
-| 7 | managed fields and selected executor | conflict preflight, canonical command, execution receipt, and preservation tests |
-| 8 | DuckDB spatial axis type | runtime setting, Map/DuckDB selections, and extension-backed tests |
-| 9 | Map distance query hard cut | typed score, materialized CTE, cursor v2, restart evidence, and Map design |
-| 10 | standalone App route and auth return | typed route, renamed return-path contract, authorized bootstrap, and shared host |
-| 11 | App stream bounds and browser acceptance | explicit capacity, refresh cleanup, multi-tab proof, and Helm ingress |
-| 12 | shared resource reference contract | token, reference, index, budget, and conformance types |
-| 13 | domain resource rollout | one commit per domain hard cut, beginning with Optimization |
-| 14 | reasoning capability contract | full typed model, provider validation, exact requests, and diagnostics |
-| 15 | deployment v8 GPU memory contract | schema, locks, examples, admission math, and focused tests |
-| 16 | GPU runtime evidence | DRA/NVML diagnostics, replacement proof, and hardware acceptance |
-| 17 | Frames provenance | used-source references, artifact projection, and tests |
-| 18 | Time provenance | effective data authority, clock authority distinction, and tests |
-| 19 | BuildKit private inputs | canonical interface, every builder family, evidence redaction, and docs |
-| 20 | integrated closure | repository-wide gates, smoke evidence, hard-cut audit, and final plan ledger update |
-
-Deployment v7 and v8 are deliberately separate. The first release-safety change can
-ship without waiting for GPU memory qualification, and the later memory fields receive
-their own schema review and acceptance.
+| Sequence | Track | Commit concern | Minimum coherent green result |
+|---|---|---|---|
+| 1 | core | Rig listener/request surface | typed listener readiness and request freshness with its focused adapter test |
+| 2 | core | agent listener rotation | acknowledged make-before-break listener, durable resource wakes, and token-rotation regression test |
+| 3 | core | resource reads and safe diagnostics | bounded read adapter, final MCP error classification, redaction, and same-episode correction tests |
+| 4 | core | continuation crash evidence | characterization matrix and a migration only if a baseline test proves a lineage gap |
+| 5 | core | rendered Secret-reference closure | pure closure, distinct read failures, and API-audited zero-write tests without Secret creation |
+| 6 | core | DuckDB spatial axis type | runtime setting, Map/DuckDB selections, and extension-backed failing-then-green test |
+| 7 | core | Map distance query hard cut | typed score, materialized CTE, cursor hard cut, and restart regression test |
+| 8 | ergonomic | standalone App route and auth return | typed route, authorized bootstrap, shared host, and route/auth tests |
+| 9 | ergonomic | App stream bounds | characterization of existing fanout plus only the missing capacity, cleanup, and browser evidence |
+| 10 | ergonomic | task result handoff and resource budgets | canonical domain URI rule, serialized cap, agent ledger, and conformance tests |
+| 11 | ergonomic | bounded domain discovery | one green commit per domain whose characterization test exposed a gap |
+| 12 | ergonomic | shared SHA-256 provenance type | one constrained digest type and schema/runtime parity tests |
+| 13 | ergonomic | Frames provenance | used-source references, artifact projection, and compiler fixture |
+| 14 | ergonomic | Time provenance | effective data and clock authority with compiler fixture |
+| 15 | optional | reasoning capability contract | approved provider matrix, typed model, exact requests, and diagnostics |
+| 16 | optional | BuildKit private inputs | opted-in builder interface, clean-cache test, evidence redaction, and docs |
+| 17 | evidence-gated | selected development ownership | next-version contract and preservation tests only after the 2B gate |
+| 18 | evidence-gated | GPU memory contract | next-version schema and admission tests only after hardware evidence is accepted |
+| 19 | evidence-gated | GPU runtime evidence | DRA/NVML diagnostics, replacement proof, and hardware acceptance |
+| 20 | applicable track | closure | repository-wide gates, required environment evidence, hard-cut audit, and ledger update for the track being closed |
 
 ## Documentation And Generated Artifact Closure
 
@@ -976,13 +1054,16 @@ old behavior.
 
 Required documentation updates include:
 
-- `mcp/contract/DESIGN.md` for resource errors, references, budgets, and handoff.
+- `mcp/contract/DESIGN.md` for resource errors, canonical URI handoff, shared bounds, and
+  conformance without a universal resource identity.
 - `docs/RMCP_3_MIGRATION.md` if the post-migration listener repair changes its
   implementation report or remaining rollout evidence.
 - `docs/AUTONOMY_HARNESS.md` and `docs/TECH_DESIGN.md` for delivered continuation and
   model behavior.
-- `deploy/contract/DESIGN.md`, `docs/LOCAL_DEPLOYMENT_PROFILES.md`, and
-  `docs/ENTERPRISE_DEPLOYMENT.md` for v7 and v8.
+- `deploy/contract/DESIGN.md` and `docs/LOCAL_DEPLOYMENT_PROFILES.md` for the required
+  Secret-reference closure and any later approved development-profile revision.
+- `docs/ARCHITECTURE_DECISIONS.md` only through an explicit replacement decision if a
+  future proposal changes installation ownership. This plan does not make that change.
 - `mcp/apps-extension/DESIGN.md` and Console documentation for the standalone host.
 - Map, Frames, Time, Reason, and Optimization `DESIGN.md` files for their owned
   contract changes.
@@ -992,34 +1073,56 @@ Required documentation updates include:
   added or moved.
 
 Generated schemas, compatibility manifests, example profiles, deployment locks, Helm
-values schemas, and conformance fixtures change with their source types. Generated
-outputs are never edited independently of their typed owner.
+values schemas, and conformance fixtures change only when their source types change.
+Generated outputs are never edited independently of their typed owner. An internal
+validation addition does not force a public schema revision.
 
 ## Definition Of Done
 
-The program is complete when all ledger rows have delivered evidence and these claims
-are simultaneously true:
+### Core correctness release
+
+The required program is complete when its red evidence has been observed, its permanent
+tests pass, and these claims are simultaneously true:
 
 - resource notifications remain active across initial connection, token rotation,
   process restart, and lease handoff.
 - correctable resource and domain input errors can be repaired within one bounded
   episode without leaking protected diagnostics.
 - continuation crash points produce one terminal wake, one consume transaction, and one
-  durable receipt.
-- a failed Secret or managed-field preflight causes no Kubernetes mutation.
-- a selected release cannot write an unselected ownership key.
+  durable receipt, or baseline characterization proves the delivered transaction already
+  supplies that result.
+- a failed rendered Secret-reference closure causes no Kubernetes or Helm mutation and
+  repository tooling creates or rewrites no Secret.
 - Map uses the explicit longitude/latitude axis and new cursor domain on every open.
-- standalone Apps share the Console security and stream boundaries.
-- resource results expose one canonical follow-on URI with bounded discovery and read
-  behavior.
+- hard-cut searches find no old cursor reader, obsolete protocol constant, CPU fallback,
+  universal resource token, Secret-management path, or provider status polling.
+
+### Independent ergonomic milestones
+
+Each milestone closes without waiting for the others:
+
+- standalone Apps share the Console security, identity, sandbox, bridge, and stream
+  boundaries.
+- addressable task products expose one canonical domain result URI with bounded exact
+  lookup, discovery, serialization, and agent reads.
+- Frames and Time return exact typed source references consumed directly by a downstream
+  compiler.
+
+### Optional and evidence-gated tracks
+
+An optional track is done only after its recorded approval and tests pass:
+
 - reasoning modes are explicit, provider-admitted, restart-stable, and never silently
   substituted.
-- GPU placement is admitted by device identity and memory headroom on real NVIDIA
-  hardware.
-- Frames and Time return exact typed source references consumed directly by a
-  downstream compiler.
-- private Git credentials and trust inputs never escape their dependency-fetch secret
-  mounts.
-- hard-cut searches find no old deployment schemas, route aliases, cursor readers,
-  configuration aliases, obsolete protocol constants, CPU fallback, or provider status
-  polling.
+- private Git credentials and trust inputs never escape the opted-in dependency-fetch
+  secret mounts, while external builders remain independent.
+
+An evidence-gated track is done only after its gate and hardware or cluster acceptance:
+
+- selected development iteration, if approved, cannot issue an installation request for
+  an unselected ownership key and does not enter enterprise contracts.
+- GPU memory admission, if approved, uses qualified revision-specific reservations and
+  real NVIDIA capacity without a CPU, alternate-model, or software fallback.
+
+No optional or evidence-gated row blocks the core correctness release or an unrelated
+ergonomic milestone.
