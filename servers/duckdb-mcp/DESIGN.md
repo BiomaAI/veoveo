@@ -70,7 +70,7 @@ duckdb__export
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; query, mutation, ingest, and export select a declared direct or durable execution mode. |
 | DuckDB SQL | The pinned DuckDB dialect is accepted inside the hardened database boundary. Veoveo does not claim a narrower ISO SQL subset or translate SQL through another query language. |
 | CSV, JSON/NDJSON, and [Apache Parquet](https://parquet.apache.org/docs/) | Governed source materialization and immutable export. Parsing behavior is pinned to the installed DuckDB release and explicit read options. |
-| DuckDB Spatial | Locally pinned extension support for OGC-style geometry operations, WGS84/EPSG CRS transformation, GeoJSON, WKB, spatial indexes, and spatial joins. |
+| DuckDB Spatial | Locally pinned extension support for OGC-style geometry operations, WGS84/EPSG CRS transformation, GeoJSON, WKB, spatial indexes, and spatial joins. The generic SQL server explicitly retains native `geometry_always_xy = false` semantics. |
 | [Mapbox Vector Tile 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | SQL can compute MVT geometry and tile blobs. Tile identity, archives, styles, and serving remain Map responsibilities. |
 | HTTPS | Allowlisted external sources are downloaded by the governed materializer. Caller SQL never receives network authority. |
 | OAuth bearer and signed JWT identity | The gateway authorizes the public MCP resource; the hosted service verifies its short-lived assertion and caller authority before deriving an owner database. |
@@ -477,9 +477,10 @@ path, and copies it into the runtime image.
 
 Every server connection loads that exact absolute file before external access
 and configuration changes are disabled. The service never runs `INSTALL` at
-runtime. Startup opens an in-memory hardened connection and verifies
-`ST_Point`/`ST_AsText`; a missing or incompatible extension prevents the server
-from listening.
+runtime. The shared engine receives the closed `Native` axis policy and sets
+`geometry_always_xy = false`. Startup opens an in-memory hardened connection,
+reads that effective setting, and verifies `ST_Point`/`ST_AsText`; a missing,
+incompatible, or misconfigured extension prevents the server from listening.
 
 The installed extension enables DuckDB geometry types and functions, including:
 
@@ -909,6 +910,7 @@ Runtime tests cover:
 - trusted-extension path validation and missing-extension failure
 - real Spatial geometry predicates, R-tree creation, and MVT generation when
   the pinned binary is supplied
+- explicit native-axis startup verification for the generic SQL server
 - request and spill directory separation
 - inline row and byte caps
 - single-statement lexical validation

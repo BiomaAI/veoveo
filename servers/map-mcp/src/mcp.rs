@@ -217,7 +217,7 @@ impl MapMcp {
 
     #[tool(
         title = "Query immutable source features",
-        description = "Query complete normalized point, line, polygon, and relation features from one immutable Map release by source identity, exact or existing tags, normalized text, and bounded spatial predicates. Ordering and cursors are deterministic.",
+        description = "Query complete normalized point, line, polygon, and relation features from one immutable Map release by source identity, exact or existing tags, normalized text, and bounded spatial predicates. Geographic distance uses WGS84 longitude/latitude meters. Results use deterministic feature order or materialized distance-then-feature order, and only current cursor-domain values are accepted.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<QuerySourceFeaturesOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]

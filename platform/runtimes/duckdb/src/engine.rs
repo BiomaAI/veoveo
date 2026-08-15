@@ -21,6 +21,27 @@ pub struct EngineSettings {
     /// Signed extensions selected and loaded by the embedding service before
     /// external access and configuration changes are disabled.
     pub trusted_extensions: Vec<TrustedExtension>,
+    /// Axis interpretation selected for Spatial operations whose coordinates
+    /// have geographic meaning.
+    pub spatial_axis_policy: SpatialAxisPolicy,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum SpatialAxisPolicy {
+    /// Retain DuckDB Spatial's native axis interpretation.
+    #[default]
+    Native,
+    /// Interpret X/Y as GeoJSON longitude/latitude.
+    GeoJsonLongitudeLatitude,
+}
+
+impl SpatialAxisPolicy {
+    const fn geometry_always_xy(self) -> bool {
+        match self {
+            Self::Native => false,
+            Self::GeoJsonLongitudeLatitude => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +82,7 @@ impl EngineSettings {
             threads: 2,
             spill_dir: spill_dir.into(),
             trusted_extensions: Vec::new(),
+            spatial_axis_policy: SpatialAxisPolicy::Native,
         }
     }
 
@@ -75,6 +97,14 @@ impl EngineSettings {
                 .all(|byte| byte.is_ascii_digit() || byte.is_ascii_alphabetic() || byte == b'.')
         {
             bail!("invalid DuckDB memory limit");
+        }
+        if self.spatial_axis_policy == SpatialAxisPolicy::GeoJsonLongitudeLatitude
+            && !self
+                .trusted_extensions
+                .iter()
+                .any(|extension| extension.name() == "spatial")
+        {
+            bail!("GeoJSON longitude/latitude axis policy requires the trusted spatial extension");
         }
         Ok(())
     }
@@ -217,6 +247,20 @@ fn configure(
     for extension in &settings.trusted_extensions {
         load_trusted_extension(conn, extension)?;
     }
+    if settings
+        .trusted_extensions
+        .iter()
+        .any(|extension| extension.name() == "spatial")
+    {
+        conn.execute_batch(&format!(
+            "SET GLOBAL geometry_always_xy = {};\n\
+             SET SESSION geometry_always_xy = {};",
+            settings.spatial_axis_policy.geometry_always_xy(),
+            settings.spatial_axis_policy.geometry_always_xy()
+        ))
+        .context("applying DuckDB Spatial axis policy")?;
+        verify_spatial_axis_policy(conn, settings.spatial_axis_policy)?;
+    }
     if let FileAccess::RequestDirectory(directory) | FileAccess::ServiceRoot(directory) = files {
         let directory = quote_sql_literal(directory.to_string_lossy().as_ref());
         conn.execute_batch(&format!("SET allowed_directories = [{directory}];"))
@@ -227,6 +271,21 @@ fn configure(
          SET lock_configuration = true;",
     )
     .context("locking down DuckDB configuration")?;
+    Ok(())
+}
+
+pub fn verify_spatial_axis_policy(conn: &Connection, expected: SpatialAxisPolicy) -> Result<()> {
+    let actual: bool = conn
+        .query_row("SELECT current_setting('geometry_always_xy')", [], |row| {
+            row.get(0)
+        })
+        .context("reading DuckDB Spatial axis policy")?;
+    if actual != expected.geometry_always_xy() {
+        bail!(
+            "DuckDB Spatial axis policy mismatch: expected geometry_always_xy={}, observed {actual}",
+            expected.geometry_always_xy()
+        );
+    }
     Ok(())
 }
 
@@ -681,6 +740,7 @@ mod tests {
             threads: 2,
             spill_dir: dir.path().join("spill"),
             trusted_extensions: Vec::new(),
+            spatial_axis_policy: SpatialAxisPolicy::Native,
         };
         let request = dir.path().join("request");
         (dir.path().join("test.duckdb"), settings, request)
@@ -777,6 +837,20 @@ mod tests {
     }
 
     #[test]
+    fn geojson_axis_policy_requires_the_spatial_extension() {
+        let dir = TempDir::new().unwrap();
+        let (path, mut settings, _) = setup(&dir);
+        settings.spatial_axis_policy = SpatialAxisPolicy::GeoJsonLongitudeLatitude;
+
+        let error = open_connection(&path, false, &[], &FileAccess::Denied, &settings).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("requires the trusted spatial extension")
+        );
+    }
+
+    #[test]
     fn configured_spatial_extension_supports_geometry_rtree_and_mvt() {
         let Some(path) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
             return;
@@ -786,7 +860,14 @@ mod tests {
         settings
             .trusted_extensions
             .push(TrustedExtension::new("spatial", PathBuf::from(path)).unwrap());
+        settings.spatial_axis_policy = SpatialAxisPolicy::GeoJsonLongitudeLatitude;
         let conn = open_connection(&db_path, false, &[], &FileAccess::Denied, &settings).unwrap();
+        let always_xy: bool = conn
+            .query_row("SELECT current_setting('geometry_always_xy')", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert!(always_xy);
         let point: String = conn
             .query_row("SELECT ST_AsText(ST_Point(1, 2))", [], |row| row.get(0))
             .unwrap();
@@ -823,6 +904,14 @@ mod tests {
             )
             .unwrap();
         assert!(!tile.is_empty());
+        let distance_m: f64 = conn
+            .query_row(
+                "SELECT ST_Distance_Sphere(ST_Point2D(-89.2, 13.7), ST_Point2D(-88.2, 13.7))",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!((107_000.0..109_500.0).contains(&distance_m));
         assert!(conn.execute_batch("INSTALL httpfs").is_err());
     }
 

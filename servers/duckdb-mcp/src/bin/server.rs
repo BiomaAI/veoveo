@@ -1088,6 +1088,7 @@ async fn main() -> anyhow::Result<()> {
             "spatial",
             args.spatial_extension.clone(),
         )?],
+        spatial_axis_policy: engine::SpatialAxisPolicy::Native,
     };
     engine::verify_spatial(&engine_settings)?;
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
