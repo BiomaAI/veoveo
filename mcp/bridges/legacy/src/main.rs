@@ -96,7 +96,10 @@ async fn main() -> anyhow::Result<()> {
     );
     let router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
-        .route_service(&args.mcp_path, service);
+        .route_service(&args.mcp_path, service)
+        .layer(axum::middleware::from_fn(
+            veoveo_mcp_contract::enforce_serialized_mcp_response,
+        ));
     let listener = tokio::net::TcpListener::bind(args.listen)
         .await
         .with_context(|| format!("failed to bind {}", args.listen))?;

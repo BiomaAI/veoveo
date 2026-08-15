@@ -396,6 +396,9 @@ fn build_profile_mcp_service(
     Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
+        .layer(middleware::from_fn(
+            veoveo_mcp_contract::enforce_serialized_mcp_response,
+        ))
 }
 
 async fn readyz(State(state): State<AppState>) -> Json<Readiness> {
