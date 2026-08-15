@@ -1062,17 +1062,17 @@ fn source_feature_query_sql(
     if let Some(cursor) = cursor {
         validate_source_cursor_order(cursor, distance_ordered)?;
     }
-    if let Some(spatial) = request.spatial.as_ref() {
-        if let Some(predicate) = source_base_spatial_predicate(spatial)? {
-            source_predicates.push(predicate);
-        }
+    if let Some(spatial) = request.spatial.as_ref()
+        && let Some(predicate) = source_base_spatial_predicate(spatial)?
+    {
+        source_predicates.push(predicate);
     }
 
     let mut scored_predicates = Vec::new();
-    if let Some(spatial) = request.spatial.as_ref() {
-        if let Some(limit) = source_distance_limit(spatial) {
-            scored_predicates.push(format!("scored.distance_m <= {limit}"));
-        }
+    if let Some(spatial) = request.spatial.as_ref()
+        && let Some(limit) = source_distance_limit(spatial)
+    {
+        scored_predicates.push(format!("scored.distance_m <= {limit}"));
     }
     if let Some(cursor) = cursor {
         if let Some(distance) = cursor.distance_m {

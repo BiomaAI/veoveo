@@ -280,26 +280,26 @@ impl GatewayMcp {
         };
         let source_task_id = created.task.task_id.clone();
         let source_task = source_task_id.parse().ok();
-        let (canonical, _) =
-            self.state
-                .create_task_route(GatewayTaskRouteDraft {
-                    tenant_key: subject.authority.tenant.to_string(),
-                    owner_key: subject.actor.id.to_string(),
-                    owner_issuer: subject.actor.issuer.to_string(),
-                    owner_subject: subject.actor.subject.to_string(),
-                    owner_kind,
-                    work_context: subject.authority.work_context.to_string(),
-                    profile: self.profile_id.to_string(),
-                    server: server.to_string(),
-                    source_task_id,
-                    source_task,
-                    authority_digest,
-                    ttl_ms: created.task.ttl_ms,
-                })
-                .await
-                .map_err(|error| {
-                    mcp_internal(format!("failed to persist gateway task route: {error}"))
-                })?;
+        let (canonical, _) = self
+            .state
+            .create_task_route(GatewayTaskRouteDraft {
+                tenant_key: subject.authority.tenant.to_string(),
+                owner_key: subject.actor.id.to_string(),
+                owner_issuer: subject.actor.issuer.to_string(),
+                owner_subject: subject.actor.subject.to_string(),
+                owner_kind,
+                work_context: subject.authority.work_context.to_string(),
+                profile: self.profile_id.to_string(),
+                server: server.to_string(),
+                source_task_id,
+                source_task,
+                authority_digest,
+                ttl_ms: created.task.ttl_ms,
+            })
+            .await
+            .map_err(|error| {
+                mcp_internal(format!("failed to persist gateway task route: {error}"))
+            })?;
         created.task.task_id = canonical.to_string();
         created.meta = Some(related_task_meta(canonical.to_string()));
         Ok(created)
