@@ -1,10 +1,11 @@
 # Platform Reliability And Operability Implementation Plan
 
-Status: reviewed implementation plan. Core correctness work is approved as the release
-gate. Downstream ergonomics, optional tooling, and evidence-gated capacity work are
-independent tracks. The plan does not claim that any planned contract or command exists.
-Each phase requires a separate implementation change with its own tests and
-documentation closure.
+Status: implementation is in progress on `worktree-a` at `a89f236e`. The approved core
+and ergonomic source changes are delivered or prepared, except that the Phase 1 Rig
+adapter and its dependent Veoveo kernel change await explicit permission to publish the
+cross-repository Rig commit and pin it. Required environmental acceptance remains
+recorded below. Optional and evidence-gated tracks have not started because their gates
+have not opened.
 
 Baseline: Veoveo main `3029df8f` on 2026-08-14. The input was the reviewed client
 package `veoveo-platform-improvements-2026-08-14`, containing thirteen requests and
@@ -97,6 +98,41 @@ host coverage unless tests prove a different deficiency.
 No client request is accepted as one indivisible implementation. The plan adopts the
 useful outcome and rejects a mechanism when it would create parallel identity,
 installation authority, or build ownership.
+
+### Implementation record
+
+| Phase | State on 2026-08-15 | Delivered evidence | Remaining closure |
+|---|---|---|---|
+| 0 | complete | decisions, protocol versions, ownership, hard-cut surfaces, and the test-driven sequence are recorded in `f2130bef` and `49b9d7ad` | none |
+| 1 | green locally, publication blocked | the Rig adapter has typed subscriptions, resource reads, request-boundary preflight, make-before-break rotation, and graceful cancellation. The Veoveo kernel has exact declared-resource listeners, bounded reads, safe diagnostics, cumulative budgets, and a hardware-GPU agent pilot | obtain explicit permission to commit and push `/home/rozgo/BiomaAI/rig`, pin that immutable revision in Veoveo, commit the dependent kernel and documentation change, then rerun the remote-pin gates |
+| 2A | source complete | `25404ab0` inserts a pure rendered Secret-reference closure before the development mutation boundary. Contract and smoke suites pass | run the zero-write API audit in a disposable cluster before claiming environmental acceptance |
+| 2B | unopened | the required ownership evidence was not supplied | retain the existing deployment ownership model |
+| 3 | complete | `b6ca32ce` hard-cuts Map axis, typed distance scoring, and cursor behavior. DuckDB and Map suites pass, including restart coverage | none |
+| 4 | source complete | `9cd3ceab` adds the standalone App route through the shared Console host. Console BFF, web test, lint, typecheck, and production build gates pass | run the authenticated route in a headed browser after proving hardware-backed WebGPU or WebGL against a deployment containing this revision |
+| 5 | platform and domain work complete | `70617b25`, `7634d03c`, `5e202843`, and `280d634b` close atomic task consumption, serialized response caps, bounded canonical discovery, and retention metadata handoff | publish Phase 1 to land the dependent kernel read ledger and remote-pin pilot evidence |
+| 6 | unopened optional track | no provider configuration need was approved | no action |
+| 7 | unopened evidence-gated track | no qualified same-device contention evidence was accepted | no action |
+| 8 | complete | `674fbb27`, `14c4bb57`, and `3c9e56e6` expose exact Frames and Time provenance and keep the contract fixture authoritative | none |
+| 9 | unopened optional track | no repository-managed private build need was approved | no action |
+| 10 | in progress | applicable focused suites, broad durable-task suites, Console gates, formatting, and touched-crate clippy pass. `a89f236e` closes lint drift | finish the Phase 1 publication, run its remote-pin gates, perform the remaining qualified cluster and browser acceptance, then run the final repository-wide gate |
+
+### Recorded red-green evidence
+
+| Concern | Red observation | Permanent green proof |
+|---|---|---|
+| Rig request handoff | `task_descriptor_uses_the_preflight_selected_client` showed a task descriptor retaining the cancelled preflight client | the focused test passes. `cargo test -p rig-agent --features rmcp` passes 535 unit tests and 20 integration tests, and the matching clippy gate is clean |
+| durable retention handoff | the real `agent-pilot` reached terminal Optimization completion, then failed because the hosted task adapter had lost the repository retention pin lifted into RMCP request context | two task-runtime metadata tests pass, all eleven affected crate suites pass, and the same pilot completes on an RTX 4090 with the immutable cuOpt executor image |
+| Secret closure | the missing-reference fixture reached the development mutation boundary before a complete rendered closure existed | deployment contract and smoke tests reject the fixture before the mutating boundary |
+| Map distance contract | old-axis and old-cursor fixtures exposed ambiguous coordinate interpretation and reusable legacy cursor state | DuckDB runtime and Map suites prove `geometry_always_xy`, one typed materialized distance score, stable ordering after reopen, and rejection of the old cursor domain |
+| standalone App route | the authorized standalone route and bootstrap behavior were absent | Console BFF route and host tests pass, and the web application passes test, lint, typecheck, and production build gates |
+| serialized task resources | oversized serialized results and growing result discovery exceeded the intended bounded handoff | MCP conformance, task-runtime, and affected domain suites prove the response cap, exact lookup, stable pagination, and atomic consumption |
+| exact provenance | conversion results could require catalog search to discover the effective Frames revision or Time authority | Frames, Time, and MCP contract tests accept exact typed references directly |
+
+The red transcripts remain review evidence rather than expected-failure tests. The green
+tests are committed with their owning changes. Phase 1 follows the same rule: its tests
+are green in both repositories, but its implementation is not marked delivered until
+the immutable Rig revision is publishable and the Veoveo remote pin reproduces that
+result.
 
 ## Repository Invariants
 
