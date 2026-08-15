@@ -171,10 +171,7 @@ Address one durable pilot in ordinary language:
 
 <p align="center">
   <a href="showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.mp4">
-    <picture>
-      <source media="(prefers-reduced-motion: no-preference)" srcset="showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.gif">
-      <img src="showcase/uav-sim/assets/uav-e2e-001-flight-poster.png" width="640" alt="Recorded downward camera view from uav-1 crossing New York during its mission from the Statue of Liberty area to Times Square">
-    </picture>
+    <img src="showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.gif" width="640" alt="Recorded downward camera view from uav-1 crossing New York during its mission from the Statue of Liberty area to Times Square">
   </a>
 </p>
 

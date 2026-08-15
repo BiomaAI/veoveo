@@ -33,16 +33,13 @@ language:
 
 <p align="center">
   <a href="assets/uav-e2e-001-flight-timelapse.mp4">
-    <picture>
-      <source media="(prefers-reduced-motion: no-preference)" srcset="assets/uav-e2e-001-flight-timelapse.gif">
-      <img src="assets/uav-e2e-001-flight-poster.png" width="640" alt="Recorded downward camera view from uav-1 crossing New York during its mission from the Statue of Liberty area to Times Square">
-    </picture>
+    <img src="assets/uav-e2e-001-flight-timelapse.gif" width="640" alt="Recorded downward camera view from uav-1 crossing New York during its mission from the Statue of Liberty area to Times Square">
   </a>
 </p>
 
 *This 26.2-second replay uses the actual 640×480 leader camera sampled at 2 fps and
 accelerated 30×. Open the [H.264 MP4](assets/uav-e2e-001-flight-timelapse.mp4) for
-the full-quality GitHub playback.*
+the full-quality recording.*
 
 The pilot does not invent coordinates or acquire authority from the prompt. It reads its
 active vehicle-control grant, asks Map MCP to resolve the place and build the route, then
