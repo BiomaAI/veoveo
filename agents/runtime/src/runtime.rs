@@ -141,6 +141,31 @@ struct InputRequestContent {
     revision: i64,
 }
 
+const COMPLETE_EPISODE_QUERY: &str = r#"
+BEGIN TRANSACTION;
+LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now);
+IF $lease = NONE { THROW 'agent lease lost'; };
+LET $claimed_wakes = (SELECT VALUE id FROM wake WHERE id IN $wakes AND agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence);
+IF array::len($claimed_wakes) != array::len($wakes) { THROW 'wake claim lost'; };
+LET $deliveries = (SELECT task_id, retention_pin FROM agent_task WHERE agent = $agent AND result_wake IN $claimed_wakes AND consumed_by_episode = NONE AND retention_pin_active = true);
+FOR $delivery IN $deliveries {
+    LET $route = (SELECT * FROM ONLY type::record('gateway_task_route', $delivery.task_id));
+    IF $route = NONE { THROW 'gateway task route missing during retention release'; };
+    IF $route.source_task != NONE {
+        LET $released = (UPDATE ONLY $route.source_task SET retention_pins -= $delivery.retention_pin WHERE server = $route.server AND retention_pins CONTAINS $delivery.retention_pin RETURN AFTER);
+        IF $released = NONE { THROW 'canonical task retention release failed'; };
+    };
+};
+LET $finished = (UPDATE ONLY $episode SET state = $state, final_output = $output, summary = $summary, input_tokens = $input_tokens, output_tokens = $output_tokens, completion_calls = $completion_calls, tool_calls = $tool_calls, error = $error, finished_at = $now, revision += 1 WHERE state = 'running' RETURN AFTER);
+IF $finished = NONE { THROW 'episode completion conflict'; };
+UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = $episode, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $claimed_wakes RETURN NONE;
+UPDATE agent_task SET consumed_by_episode = $episode, retention_pin_active = false, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now, revision += 1 WHERE agent = $agent AND result_wake IN $claimed_wakes AND consumed_by_episode = NONE RETURN NONE;
+UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE;
+CREATE outbox_event CONTENT $episode_event RETURN NONE;
+CREATE outbox_event CONTENT $wake_event RETURN NONE;
+COMMIT TRANSACTION;
+"#;
+
 /// One replica's handle to a registered autonomous agent.
 #[derive(Clone)]
 pub struct AgentRuntime {
@@ -509,7 +534,7 @@ impl AgentRuntime {
         );
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $finished = (UPDATE ONLY $episode SET state = $state, final_output = $output, summary = $summary, input_tokens = $input_tokens, output_tokens = $output_tokens, completion_calls = $completion_calls, tool_calls = $tool_calls, error = $error, finished_at = $now, revision += 1 WHERE state = 'running' RETURN AFTER); IF $finished = NONE { THROW 'episode completion conflict'; }; UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = $episode, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $wakes AND agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN NONE; UPDATE agent_task SET consumed_by_episode = $episode, retention_pin_active = false, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now, revision += 1 WHERE agent = $agent AND result_wake IN $wakes AND consumed_by_episode = NONE RETURN NONE; UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE; CREATE outbox_event CONTENT $episode_event RETURN NONE; CREATE outbox_event CONTENT $wake_event RETURN NONE; COMMIT TRANSACTION;")
+            .query(COMPLETE_EPISODE_QUERY)
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -518,10 +543,22 @@ impl AgentRuntime {
             .bind(("state", completion.state))
             .bind(("output", completion.final_output))
             .bind(("summary", completion.summary))
-            .bind(("input_tokens", checked_i64(completion.input_tokens, "input_tokens")?))
-            .bind(("output_tokens", checked_i64(completion.output_tokens, "output_tokens")?))
-            .bind(("completion_calls", checked_i64(completion.completion_calls, "completion_calls")?))
-            .bind(("tool_calls", checked_i64(completion.tool_calls, "tool_calls")?))
+            .bind((
+                "input_tokens",
+                checked_i64(completion.input_tokens, "input_tokens")?,
+            ))
+            .bind((
+                "output_tokens",
+                checked_i64(completion.output_tokens, "output_tokens")?,
+            ))
+            .bind((
+                "completion_calls",
+                checked_i64(completion.completion_calls, "completion_calls")?,
+            ))
+            .bind((
+                "tool_calls",
+                checked_i64(completion.tool_calls, "tool_calls")?,
+            ))
             .bind(("error", completion.error))
             .bind(("wakes", wake_records))
             .bind(("episode_event", episode_event))

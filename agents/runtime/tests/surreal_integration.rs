@@ -1,21 +1,25 @@
 use std::collections::BTreeSet;
 use std::time::Duration;
 
+use chrono::Utc;
 use secrecy::SecretString;
 use serde_json::json;
 use uuid::Uuid;
 use veoveo_agent_runtime::{
     AgentControl, AgentControlTarget, AgentInstanceId, AgentRuntime, AgentSpec,
-    DEFAULT_CLAIM_LEASE, EpisodeCompletion, NewWake, OperatorMessageDraft, json_object,
+    DEFAULT_CLAIM_LEASE, EpisodeCompletion, InputRequestAnswer, NewAgentTask, NewInputRequest,
+    NewWake, OperatorMessageDraft, json_object,
 };
 use veoveo_mcp_contract::{
     AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
     WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_platform_store::{
-    AgentEpisodeState, AgentTaskRecord, ArtifactGrantSubjectKind, InvocationAuthorityRecord,
-    InvocationMode, OpenObject, PlatformStore, PrincipalKind, StoreConfig, StoreCredentials,
-    WakeKind, WorkContextMembershipLevel as StoreMembership,
+    AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord,
+    ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, OpenObject, PlatformStore,
+    PrincipalKind, StoreConfig, StoreCredentials, WakeKind,
+    WorkContextMembershipLevel as StoreMembership, deterministic_principal_id,
+    deterministic_tenant_id, deterministic_work_context_id,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition};
 
@@ -199,12 +203,52 @@ async fn two_replicas_fence_claims_and_recover_expired_work() {
     assert_eq!(reclaimed.len(), 1);
     assert_eq!(reclaimed[0].wake_id, wake_id);
     assert!(reclaimed[0].attempts >= 2);
+    let consuming_episode = fixture
+        .second
+        .start_episode("recovered wake")
+        .await
+        .unwrap();
+    fixture
+        .second
+        .complete_episode(
+            consuming_episode.episode_id,
+            EpisodeCompletion {
+                state: AgentEpisodeState::Completed,
+                final_output: "recovered once".to_owned(),
+                summary: None,
+                input_tokens: 0,
+                output_tokens: 0,
+                completion_calls: 0,
+                tool_calls: 0,
+                error: None,
+            },
+            &[wake_id],
+        )
+        .await
+        .unwrap();
+    assert!(
+        fixture
+            .second
+            .claim_wakes(10, DEFAULT_CLAIM_LEASE)
+            .await
+            .unwrap()
+            .is_empty(),
+        "recovered wake was consumed more than once"
+    );
     let outbox = fixture.root.read_outbox(0, 100).await.unwrap();
     assert!(
         outbox
             .events
             .iter()
             .any(|event| event.event_type == "wake.claim_recovered")
+    );
+    assert_eq!(
+        outbox
+            .events
+            .iter()
+            .filter(|event| event.event_type == "wake.batch_acked")
+            .count(),
+        1
     );
 }
 
@@ -378,17 +422,147 @@ async fn operator_messages_remain_distinct_and_claim_in_acceptance_order() {
 }
 
 #[tokio::test]
-async fn result_wake_consumption_atomically_releases_task_retention_pin() {
+async fn input_answer_and_wake_survive_restart_atomically() {
     let Some(fixture) = fixture().await else {
         return;
     };
     fixture
         .first
-        .acquire_lease(Duration::from_secs(30))
+        .acquire_lease(Duration::from_millis(500))
         .await
         .unwrap()
         .expect("lease");
-    let episode = fixture.first.start_episode("integration").await.unwrap();
+    let input_request_id = AgentInputRequestId::new();
+    let pending_wake = fixture
+        .first
+        .create_input_request(NewInputRequest {
+            input_request_id,
+            related_task: None,
+            message: "Choose a recovery action".to_owned(),
+            requested_schema: None,
+        })
+        .await
+        .unwrap();
+    let claimed = fixture
+        .first
+        .claim_wakes(10, Duration::from_millis(100))
+        .await
+        .unwrap();
+    assert_eq!(claimed.len(), 1);
+    assert_eq!(claimed[0].wake_id, pending_wake);
+    fixture
+        .first
+        .start_episode("await operator input")
+        .await
+        .unwrap();
+    let answered_wake = fixture
+        .first
+        .answer_input_request(
+            input_request_id,
+            InputRequestAnswer {
+                state: AgentInputRequestState::Answered,
+                answer: Some(json_object(json!({"action": "resume"}), "answer").unwrap()),
+                answered_by: "operator:integration".to_owned(),
+            },
+        )
+        .await
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    fixture
+        .second
+        .acquire_lease(Duration::from_secs(30))
+        .await
+        .unwrap()
+        .expect("replacement lease");
+    let record = fixture
+        .second
+        .input_request(input_request_id)
+        .await
+        .unwrap();
+    assert_eq!(record.state, AgentInputRequestState::Answered);
+    assert_eq!(
+        record
+            .answer
+            .as_ref()
+            .and_then(|answer| answer.as_map().get("action"))
+            .and_then(serde_json::Value::as_str),
+        Some("resume")
+    );
+
+    let recovered = fixture
+        .second
+        .claim_wakes(10, DEFAULT_CLAIM_LEASE)
+        .await
+        .unwrap();
+    assert_eq!(recovered.len(), 2);
+    assert_eq!(
+        recovered
+            .iter()
+            .filter(|wake| wake.wake_id == answered_wake)
+            .count(),
+        1
+    );
+    let consuming_episode = fixture
+        .second
+        .start_episode("consume answered input")
+        .await
+        .unwrap();
+    fixture
+        .second
+        .complete_episode(
+            consuming_episode.episode_id,
+            EpisodeCompletion {
+                state: AgentEpisodeState::Completed,
+                final_output: "input consumed".to_owned(),
+                summary: None,
+                input_tokens: 0,
+                output_tokens: 0,
+                completion_calls: 0,
+                tool_calls: 0,
+                error: None,
+            },
+            &recovered
+                .iter()
+                .map(|wake| wake.wake_id)
+                .collect::<Vec<_>>(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        fixture
+            .second
+            .claim_wakes(10, DEFAULT_CLAIM_LEASE)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        fixture
+            .root
+            .read_outbox(0, 100)
+            .await
+            .unwrap()
+            .events
+            .iter()
+            .filter(|event| event.event_type == "agent_input_request.answered")
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn task_settlement_survives_restart_and_is_consumed_once() {
+    let Some(fixture) = fixture().await else {
+        return;
+    };
+    fixture
+        .first
+        .acquire_lease(Duration::from_millis(500))
+        .await
+        .unwrap()
+        .expect("lease");
+    let origin_episode = fixture.first.start_episode("integration").await.unwrap();
     let owner = TaskOwner {
         principal_key: "agent:durability-agent".to_owned(),
         principal_kind: PrincipalKind::Service,
@@ -411,11 +585,70 @@ async fn result_wake_consumption_atomically_releases_task_retention_pin() {
             idempotency_key: None,
             ttl_ms: Some(1),
             poll_interval_ms: None,
-            retention_pins: BTreeSet::from([episode.retention_pin.clone()]),
+            retention_pins: BTreeSet::from([origin_episode.retention_pin.clone()]),
         })
         .await
         .unwrap()
         .snapshot;
+    let canonical_task_id =
+        veoveo_mcp_contract::CanonicalTaskId::new("gtr_integration_task_settlement".to_owned())
+            .expect("canonical task id");
+    fixture
+        .root
+        .client()
+        .query("CREATE ONLY $route SET tenant = $tenant, owner = $owner, work_context = $work_context, profile = $profile, server = $server, source_task_id = $source_task_id, source_task = $source_task, authority_digest = $authority_digest, created_at = $now, expires_at = $expires_at RETURN NONE;")
+        .bind((
+            "route",
+            surrealdb::types::RecordId::new(
+                "gateway_task_route",
+                canonical_task_id.as_str().to_owned(),
+            ),
+        ))
+        .bind((
+            "tenant",
+            deterministic_tenant_id("integration").unwrap().record_id(),
+        ))
+        .bind((
+            "owner",
+            deterministic_principal_id("integration", "agent:durability-agent")
+                .unwrap()
+                .record_id(),
+        ))
+        .bind((
+            "work_context",
+            deterministic_work_context_id("integration", "integration-mission")
+                .unwrap()
+                .record_id(),
+        ))
+        .bind((
+            "profile",
+            surrealdb::types::RecordId::new("profile", "integration"),
+        ))
+        .bind((
+            "server",
+            surrealdb::types::RecordId::new("mcp_server", "integration-server"),
+        ))
+        .bind(("source_task_id", task.task_id.to_string()))
+        .bind(("source_task", task.task_id.record_id()))
+        .bind(("authority_digest", "0".repeat(64)))
+        .bind(("now", Utc::now()))
+        .bind(("expires_at", Utc::now() + chrono::TimeDelta::days(1)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    fixture
+        .first
+        .record_task(NewAgentTask {
+            task_id: canonical_task_id.clone(),
+            tool_name: "durability".to_owned(),
+            descriptor: json_object(json!({"taskId": task.task_id}), "task descriptor").unwrap(),
+            descriptor_complete: true,
+            retention_pin: origin_episode.retention_pin.clone(),
+            started_by_episode: origin_episode.episode_id,
+        })
+        .await
+        .unwrap();
     fixture
         .tasks
         .claim(&task.task_id.to_string(), Duration::from_secs(30))
@@ -432,7 +665,6 @@ async fn result_wake_consumption_atomically_releases_task_retention_pin() {
         )
         .await
         .unwrap();
-    assert_eq!(fixture.first.recover_pinned_tasks().await.unwrap(), 1);
     let claimed_task = fixture
         .first
         .claim_tasks(10, DEFAULT_CLAIM_LEASE)
@@ -449,16 +681,28 @@ async fn result_wake_consumption_atomically_releases_task_retention_pin() {
         )
         .await
         .unwrap();
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    fixture
+        .second
+        .acquire_lease(Duration::from_secs(30))
+        .await
+        .unwrap()
+        .expect("replacement lease");
     let wake = fixture
-        .first
+        .second
         .claim_wakes(10, DEFAULT_CLAIM_LEASE)
         .await
         .unwrap();
     assert_eq!(wake[0].wake_id, wake_id);
+    let consuming_episode = fixture
+        .second
+        .start_episode("consume recovered task result")
+        .await
+        .unwrap();
     fixture
-        .first
+        .second
         .complete_episode(
-            episode.episode_id,
+            consuming_episode.episode_id,
             EpisodeCompletion {
                 state: AgentEpisodeState::Completed,
                 final_output: "consumed".to_owned(),
@@ -484,8 +728,8 @@ async fn result_wake_consumption_atomically_releases_task_retention_pin() {
     let mut response = fixture
         .root
         .client()
-        .query("SELECT * FROM agent_task WHERE task = $task;")
-        .bind(("task", task.task_id.record_id()))
+        .query("SELECT * FROM agent_task WHERE task_id = $task_id;")
+        .bind(("task_id", canonical_task_id.to_string()))
         .await
         .unwrap()
         .check()
@@ -495,7 +739,16 @@ async fn result_wake_consumption_atomically_releases_task_retention_pin() {
     assert!(!deliveries[0].retention_pin_active);
     assert_eq!(
         deliveries[0].consumed_by_episode,
-        Some(episode.episode_id.record_id())
+        Some(consuming_episode.episode_id.record_id())
+    );
+    assert!(
+        fixture
+            .second
+            .claim_wakes(10, DEFAULT_CLAIM_LEASE)
+            .await
+            .unwrap()
+            .is_empty(),
+        "terminal task wake was consumed more than once"
     );
 
     tokio::time::sleep(Duration::from_millis(250)).await;
