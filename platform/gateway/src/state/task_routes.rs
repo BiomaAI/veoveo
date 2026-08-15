@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_mcp_contract::CanonicalTaskId;
 use veoveo_platform_store::{
-    PrincipalKind, StoreError, deterministic_principal_id, deterministic_tenant_id,
+    PrincipalKind, StoreError, TaskId, deterministic_principal_id, deterministic_tenant_id,
     deterministic_work_context_id,
 };
 
@@ -22,6 +22,7 @@ pub(crate) struct GatewayTaskRouteDraft {
     pub profile: String,
     pub server: String,
     pub source_task_id: String,
+    pub source_task: Option<TaskId>,
     pub authority_digest: String,
     pub ttl_ms: Option<u64>,
 }
@@ -35,6 +36,7 @@ pub(crate) struct GatewayTaskRouteRecord {
     pub profile: RecordId,
     pub server: RecordId,
     pub source_task_id: String,
+    pub source_task: Option<RecordId>,
     pub authority_digest: String,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
@@ -48,6 +50,7 @@ struct GatewayTaskRouteContent {
     profile: RecordId,
     server: RecordId,
     source_task_id: String,
+    source_task: Option<RecordId>,
     authority_digest: String,
     created_at: DateTime<Utc>,
     expires_at: DateTime<Utc>,
@@ -102,6 +105,7 @@ impl GatewayState {
             profile: RecordId::new("profile", draft.profile),
             server: RecordId::new("mcp_server", draft.server),
             source_task_id: draft.source_task_id,
+            source_task: draft.source_task.map(|task| task.record_id()),
             authority_digest: draft.authority_digest,
             created_at: now,
             expires_at: now + ttl,

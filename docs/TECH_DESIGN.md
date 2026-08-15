@@ -492,8 +492,12 @@ traffic controls, resources, and tasks.
 The agent kernel runs bounded episodes and persists scheduling through
 `veoveo-agent-runtime`. Tool tasks detach at episode end; durable descriptors, watcher
 leases, retry schedules, retention pins, results, and wakes survive process restart.
-Outbox/changefeed events wake the next episode. DuckDB and RRD are analytical memory
-planes; chat history is not the source of truth.
+The gateway route retains the protocol's opaque upstream Task ID and, for a
+first-party shared-runtime Task, a strong record reference. The consuming episode
+verifies every claimed wake, releases that Task's retention pin, marks the delivery
+consumed, acknowledges the wakes, and writes the outbox receipt in one SurrealDB
+transaction. Outbox/changefeed events wake the next episode. DuckDB and RRD are
+analytical memory planes; chat history is not the source of truth.
 
 Agent manifests separate the Gateway's canonical public origin from its physical
 HTTP transport origin. OAuth audience and protected-resource identity use the

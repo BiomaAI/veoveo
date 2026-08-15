@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 41] = [
+const MIGRATIONS: [Migration; 42] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -273,6 +273,12 @@ const MIGRATIONS: [Migration; 41] = [
         name: "uav_vehicle_authority",
         filename: "0040_uav_vehicle_authority.surql",
         sql: include_str!("../migrations/0040_uav_vehicle_authority.surql"),
+    },
+    Migration {
+        version: 41,
+        name: "task_route_source_records",
+        filename: "0041_task_route_source_records.surql",
+        sql: include_str!("../migrations/0041_task_route_source_records.surql"),
     },
 ];
 
@@ -531,6 +537,17 @@ mod tests {
         assert!(
             schema_sql().contains("REMOVE INDEX IF EXISTS audit_event_search ON TABLE audit_event")
         );
+    }
+
+    #[test]
+    fn task_route_migration_preserves_opaque_protocol_ids() {
+        let migration = migrations()
+            .iter()
+            .find(|migration| migration.version == 41)
+            .expect("task route source migration");
+        assert!(migration.sql.contains("string::is_uuid(source_task_id)"));
+        assert!(migration.sql.contains("option<record<task>>"));
+        assert!(!migration.sql.contains("REMOVE FIELD IF EXISTS source_task_id"));
     }
 
     #[test]

@@ -670,6 +670,7 @@ The gateway mints a canonical task ID and durably records:
 gateway task ID
 source and server identity
 opaque upstream task ID
+optional shared-runtime Task record for first-party retention accounting
 principal and effective authority
 installation and profile identity
 created and retention metadata
@@ -699,6 +700,13 @@ authority as well as the retained task owner. Authority at task creation never g
 permanent access by itself. The task TTL is the protocol retention promise. Internal
 retention pins may keep storage longer but do not extend what an expired external
 handle promises.
+
+An agent delivery keeps its episode retention pin until a later episode consumes the
+terminal wake. For a route backed by the shared Task runtime, that consuming
+transaction verifies the wake claim and route, removes the pin from the exact source
+Task, marks the delivery consumed, acknowledges the wake, and emits the durable
+receipt. Routes to extension-owned opaque Tasks retain their protocol identity without
+inventing a local Task record.
 
 ### Direct-call compatibility adapter
 
