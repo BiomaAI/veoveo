@@ -14,6 +14,8 @@ pub(super) struct Args {
     pub public_base_url: String,
     #[arg(long, default_value = "/usr/share/zoneinfo")]
     pub bootstrap_tzdb_dir: PathBuf,
+    #[arg(long, default_value = "/usr/share/zoneinfo/tzdata.zi")]
+    pub bootstrap_tzdb_source_file: PathBuf,
     #[arg(long, default_value = "/usr/share/zoneinfo/leap-seconds.list")]
     pub bootstrap_leap_seconds_file: PathBuf,
     #[arg(

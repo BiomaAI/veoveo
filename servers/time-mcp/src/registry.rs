@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 use crate::{
     authority::{AuthorityContext, LeapSecondTable},
     catalog::{TimeCatalog, TimeScope},
-    contract::{AuthorityDatasetKind, AuthorityReleaseId},
+    contract::{AuthorityDatasetKind, AuthorityReleaseId, EffectiveTimeAuthority},
     engine::TemporalEngine,
 };
 
@@ -64,14 +64,16 @@ impl AuthorityRegistry {
         });
         let leaps = LeapSecondTable::from_path(leap_path).await?;
         let authority = AuthorityContext::from_paths(
-            tzdb_release.map_or_else(
-                || self.bootstrap.binding.tzdb_release_id.clone(),
-                |release| release.release_id.clone(),
-            ),
-            leap_release.map_or_else(
-                || self.bootstrap.binding.leap_seconds_release_id.clone(),
-                |release| release.release_id.clone(),
-            ),
+            EffectiveTimeAuthority {
+                tzdb: match tzdb_release {
+                    Some(release) => catalog.authority_reference(scope, release).await?,
+                    None => self.bootstrap.effective.tzdb.clone(),
+                },
+                leap_seconds: match leap_release {
+                    Some(release) => catalog.authority_reference(scope, release).await?,
+                    None => self.bootstrap.effective.leap_seconds.clone(),
+                },
+            },
             tzdb_path,
             leaps,
         )
@@ -123,21 +125,23 @@ impl AuthorityRegistry {
         };
         let leap_table = LeapSecondTable::from_path(leap_path).await?;
         AuthorityContext::from_paths(
-            if candidate.dataset_kind == AuthorityDatasetKind::Tzdb {
-                candidate.release_id.clone()
-            } else {
-                active_tzdb.map_or_else(
-                    || self.bootstrap.binding.tzdb_release_id.clone(),
-                    |release| release.release_id.clone(),
-                )
-            },
-            if candidate.dataset_kind == AuthorityDatasetKind::LeapSeconds {
-                candidate.release_id.clone()
-            } else {
-                active_leaps.map_or_else(
-                    || self.bootstrap.binding.leap_seconds_release_id.clone(),
-                    |release| release.release_id.clone(),
-                )
+            EffectiveTimeAuthority {
+                tzdb: if candidate.dataset_kind == AuthorityDatasetKind::Tzdb {
+                    catalog.authority_reference(scope, candidate).await?
+                } else {
+                    match active_tzdb {
+                        Some(release) => catalog.authority_reference(scope, release).await?,
+                        None => self.bootstrap.effective.tzdb.clone(),
+                    }
+                },
+                leap_seconds: if candidate.dataset_kind == AuthorityDatasetKind::LeapSeconds {
+                    catalog.authority_reference(scope, candidate).await?
+                } else {
+                    match active_leaps {
+                        Some(release) => catalog.authority_reference(scope, release).await?,
+                        None => self.bootstrap.effective.leap_seconds.clone(),
+                    }
+                },
             },
             tzdb_path,
             leap_table,

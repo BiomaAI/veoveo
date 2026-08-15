@@ -39,7 +39,7 @@ retain the `time://` scheme.
 
 | Standard or protocol | Implemented profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Version `2026-07-28`, JSON-RPC 2.0 over Streamable HTTP, under Veoveo hosted MCP contract revision 3. The server exposes tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Temporal expressions, authority bindings, calendars, epochs, windows, clock evidence, tasks, and results. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; schedule expansion and timeline validation use durable, resumable task operations. |
 | [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.html) | UTC and numeric-offset timestamp input and canonical UTC output, including explicit leap-second handling. |
@@ -123,6 +123,14 @@ An `AuthorityBinding` selects the active pair. Activating one family preserves t
 current release of the other family. The engine reloads the pair as one context,
 which keeps civil and physical projections coherent.
 
+Every effective family also carries a compiler-ready `TimeAuthorityReference`.
+The reference names its immutable `time://authorities/releases/{release_id}` URI,
+release id, dataset kind, version label, and canonical SHA-256 digest. Acquired
+releases name the registered source and producing acquisition. Image-provided
+authorities use the explicit `bootstrap` source kind and a digest of the packaged
+source file. Consumers can therefore admit a result from its returned references
+without searching the authority catalog.
+
 ### Acquisition Flow
 
 The administrative acquisition job runs inside `time-mcp`:
@@ -185,7 +193,9 @@ offset.
 Resolution returns the canonical instant together with UTC RFC 3339, an explicit
 `utc_is_leap_second` flag, military DTG, Unix seconds, GPS week/seconds when the
 instant follows the GPS epoch, and Julian TAI day. A positive leap second keeps its
-`:60` representation instead of collapsing onto an adjacent UTC second.
+`:60` representation instead of collapsing onto an adjacent UTC second. Resolution
+and conversion return the two effective authority references. They do not attach a
+current clock observation because supplied-instant conversion is deterministic.
 
 `convert_time` validates the instant's authority binding before projecting it. It
 can return selected IANA zoned values and UTC, TAI, TT, TDB, GPST, and GST scale
@@ -250,7 +260,8 @@ socket reports an unmeasured system clock with an unbounded error estimate.
 
 The health endpoint proves that the authority and configured clock adapter can be
 read. Mission acceptance remains a policy decision returned by `assess_clock` and
-`time://clock/quality`.
+`time://clock/quality`. The clock-derived `time://clock/current` resource includes
+the effective policy and measured quality, including holdover age.
 
 ## MCP Surface
 
@@ -286,9 +297,9 @@ records retain for seven days unless a retention pin extends their lifetime.
 
 | URI | Content |
 |---|---|
-| `time://clock/current` | current resolved instant with clock evidence |
+| `time://clock/current` | current resolved instant with effective policy and measured clock quality |
 | `time://clock/quality` | measured clock-quality record |
-| `time://authorities/current` | active authority binding and releases |
+| `time://authorities/current` | effective compiler-ready authority references, including bootstrap authorities |
 | `time://calendars` | visible calendar versions |
 | `time://epochs` | visible mission epochs |
 | `time://events` | owner-scoped temporal events |
@@ -297,6 +308,7 @@ Resource templates expose:
 
 ```text
 time://zones/{zone_id}
+time://authorities/releases/{release_id}
 time://calendars/{calendar_id}/versions/{version}
 time://epochs/{epoch_id}
 time://events/{event_id}
