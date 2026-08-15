@@ -6,6 +6,7 @@ import type { AppDescriptor } from "./types.ts";
 const app = {
   server: "view",
   resourceUri: "ui://view/preview.html",
+  standalonePath: "/apps/view/preview.html",
   name: "view-preview",
   tools: [],
   resourceDependencies: [],

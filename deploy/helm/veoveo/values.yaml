@@ -320,6 +320,10 @@ consoleBff:
   # Network endpoint used only by the Console BFF MCP client. Leave empty to
   # preserve the existing behavior of using oauthResource as the transport.
   mcpTransportUrl: ""
+  # Per authenticated browser session. Tabs sharing one resource consume one
+  # upstream listener and retain independent downstream subscriptions.
+  maxAppResourceListeners: 64
+  maxAppResourceSubscriptions: 256
   # Optional installation-owned public CA roots. These roots augment the
   # standard platform trust store for every Console BFF outbound HTTPS client.
   outboundCa:

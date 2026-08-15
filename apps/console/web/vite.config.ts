@@ -14,6 +14,12 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      input: {
+        console: "index.html",
+        appHost: "app-host.html"
+      }
+    }
   }
 });

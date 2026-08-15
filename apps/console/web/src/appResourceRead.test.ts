@@ -8,6 +8,7 @@ import type { AppDescriptor } from "./types.ts";
 const app: AppDescriptor = {
   server: "fleet",
   resourceUri: "ui://fleet/overview.html",
+  standalonePath: "/apps/fleet/overview.html",
   name: "overview",
   tools: [],
   agentMessageTargets: [],

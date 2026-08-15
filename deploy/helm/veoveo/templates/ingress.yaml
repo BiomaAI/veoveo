@@ -37,6 +37,13 @@ spec:
                 name: console-bff
                 port:
                   number: 8786
+          - path: /apps
+            pathType: Prefix
+            backend:
+              service:
+                name: console-bff
+                port:
+                  number: 8786
           - path: /auth
             pathType: Prefix
             backend:

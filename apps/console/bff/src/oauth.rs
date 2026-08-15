@@ -19,7 +19,7 @@ use veoveo_mcp_contract::ScopeName;
 use crate::{
     AppState,
     session::{
-        AUTHORIZATION_AAD, ConsoleReturnPath, ConsoleSession, PendingAuthorization,
+        AUTHORIZATION_AAD, BrowserReturnPath, ConsoleSession, PendingAuthorization,
         clear_authorization_cookie, clear_session_cookie, random_token, read_authorization,
         set_authorization_cookie, set_session_cookie,
     },
@@ -37,7 +37,7 @@ pub(crate) async fn login(
     State(state): State<AppState>,
     Query(query): Query<LoginQuery>,
 ) -> Response {
-    let return_path = ConsoleReturnPath::from_untrusted(query.return_to.as_deref());
+    let return_path = BrowserReturnPath::from_untrusted(query.return_to.as_deref());
     if let Some(failure) = authorization_configuration_failure(&state).await {
         return callback_error(&state, failure.status(), failure, Some(&return_path));
     }
@@ -55,7 +55,7 @@ pub(crate) async fn login(
     }
 }
 
-fn begin_login(state: &AppState, return_path: ConsoleReturnPath) -> anyhow::Result<Response> {
+fn begin_login(state: &AppState, return_path: BrowserReturnPath) -> anyhow::Result<Response> {
     let oauth_state = random_value()?;
     let code_verifier = random_value()?;
     let code_challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(code_verifier.as_bytes()));
@@ -460,7 +460,7 @@ fn valid_callback_return_path<'a>(
     pending: Option<&'a PendingAuthorization>,
     returned_state: Option<&str>,
     now: i64,
-) -> Option<&'a ConsoleReturnPath> {
+) -> Option<&'a BrowserReturnPath> {
     let pending = pending?;
     let returned_state = returned_state?;
     (pending.expires_at >= now && pending.state == returned_state).then_some(&pending.return_path)
@@ -470,7 +470,7 @@ fn callback_error(
     state: &AppState,
     status: StatusCode,
     failure: CallbackFailure,
-    return_path: Option<&ConsoleReturnPath>,
+    return_path: Option<&BrowserReturnPath>,
 ) -> Response {
     callback_error_response(state.config.secure_cookie(), status, failure, return_path)
 }
@@ -479,7 +479,7 @@ fn callback_error_response(
     secure_cookie: bool,
     status: StatusCode,
     failure: CallbackFailure,
-    return_path: Option<&ConsoleReturnPath>,
+    return_path: Option<&BrowserReturnPath>,
 ) -> Response {
     let reference = Uuid::now_v7().to_string();
     tracing::warn!(
@@ -489,7 +489,7 @@ fn callback_error_response(
         "console authentication callback failed"
     );
     let return_path = return_path
-        .map(ConsoleReturnPath::as_str)
+        .map(BrowserReturnPath::as_str)
         .unwrap_or("/console/");
     let retry_query = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("return_to", return_path)
@@ -735,11 +735,11 @@ mod tests {
             state: "expected-state".to_owned(),
             code_verifier: "verifier".to_owned(),
             expires_at: 200,
-            return_path: ConsoleReturnPath::from_untrusted(Some("/console/#/apps/map/live.html")),
+            return_path: BrowserReturnPath::from_untrusted(Some("/console/#/apps/map/live.html")),
         };
         assert_eq!(
             valid_callback_return_path(Some(&pending), Some("expected-state"), 100)
-                .map(ConsoleReturnPath::as_str),
+                .map(BrowserReturnPath::as_str),
             Some("/console/#/apps/map/live.html")
         );
         assert!(valid_callback_return_path(Some(&pending), Some("wrong-state"), 100).is_none());
@@ -749,7 +749,7 @@ mod tests {
 
     #[tokio::test]
     async fn callback_error_is_recoverable_private_and_no_store() {
-        let return_path = ConsoleReturnPath::from_untrusted(Some("/console/#/apps/map/live.html"));
+        let return_path = BrowserReturnPath::from_untrusted(Some("/console/#/apps/map/live.html"));
         let response = callback_error_response(
             true,
             StatusCode::BAD_GATEWAY,

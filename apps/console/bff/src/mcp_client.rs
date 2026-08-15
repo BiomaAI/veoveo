@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -112,6 +112,15 @@ impl McpAppCatalog {
     pub(crate) fn degradation(&self) -> &GatewayDiscoveryDegradation {
         &self.degradation
     }
+
+    #[cfg(test)]
+    pub(crate) fn for_test(resources: Vec<Resource>, tools: Vec<Tool>) -> Self {
+        Self {
+            resources,
+            tools,
+            degradation: GatewayDiscoveryDegradation::default(),
+        }
+    }
 }
 
 struct CachedMcpAppCatalog {
@@ -126,8 +135,26 @@ pub(crate) struct AuthScopedMcpClient {
     resource_updates: broadcast::Sender<String>,
     app_resource_subscriptions: Mutex<AppResourceSubscriptions>,
     app_resource_subscription_locks: Mutex<BTreeMap<String, Arc<Mutex<()>>>>,
+    app_resource_capacity: AppResourceCapacity,
+    shutting_down: AtomicBool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct AppResourceCapacity {
+    pub(crate) max_upstream_listeners: usize,
+    pub(crate) max_downstream_subscriptions: usize,
+}
+
+impl Default for AppResourceCapacity {
+    fn default() -> Self {
+        Self {
+            max_upstream_listeners: 64,
+            max_downstream_subscriptions: 256,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct AppResourceSubscription {
     pub(crate) receiver: broadcast::Receiver<String>,
     pub(crate) newly_registered: bool,
@@ -136,8 +163,57 @@ pub(crate) struct AppResourceSubscription {
 #[derive(Default)]
 struct AppResourceSubscriptions {
     by_id: BTreeMap<Uuid, String>,
+    pending_by_id: BTreeMap<Uuid, String>,
     counts_by_uri: BTreeMap<String, usize>,
+    pending_uris: std::collections::BTreeSet<String>,
     listeners_by_uri: BTreeMap<String, AppResourceListener>,
+}
+
+#[derive(Debug)]
+pub(crate) enum AppResourceSubscriptionError {
+    Capacity {
+        resource: &'static str,
+        limit: usize,
+    },
+    IdentityConflict,
+    ClientClosing,
+    Upstream(anyhow::Error),
+}
+
+impl AppResourceSubscriptionError {
+    #[cfg(test)]
+    pub(crate) const fn capacity(&self) -> Option<(&'static str, usize)> {
+        match self {
+            Self::Capacity { resource, limit } => Some((resource, *limit)),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for AppResourceSubscriptionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Capacity { resource, limit } => {
+                write!(
+                    formatter,
+                    "App resource {resource} capacity {limit} is exhausted"
+                )
+            }
+            Self::IdentityConflict => formatter
+                .write_str("App resource subscription identity is already bound to another URI"),
+            Self::ClientClosing => formatter.write_str("auth-scoped MCP client is closing"),
+            Self::Upstream(error) => write!(formatter, "{error:#}"),
+        }
+    }
+}
+
+impl std::error::Error for AppResourceSubscriptionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Upstream(error) => error.source(),
+            _ => None,
+        }
+    }
 }
 
 struct AppResourceListener {
@@ -189,90 +265,160 @@ impl AuthScopedMcpClient {
         &self,
         subscription_id: Uuid,
         uri: String,
-    ) -> anyhow::Result<AppResourceSubscription> {
+    ) -> Result<AppResourceSubscription, AppResourceSubscriptionError> {
+        if self.shutting_down.load(Ordering::Acquire) {
+            return Err(AppResourceSubscriptionError::ClientClosing);
+        }
         let receiver = self.resource_updates.subscribe();
         let uri_lock = self.app_resource_subscription_lock(&uri).await;
         let _uri_guard = uri_lock.lock().await;
         let mut subscriptions = self.app_resource_subscriptions.lock().await;
         if let Some(existing) = subscriptions.by_id.get(&subscription_id) {
-            anyhow::ensure!(
-                existing == &uri,
-                "app resource subscription identity is already bound to another URI"
-            );
+            if existing != &uri {
+                return Err(AppResourceSubscriptionError::IdentityConflict);
+            }
             return Ok(AppResourceSubscription {
                 receiver,
                 newly_registered: false,
             });
         }
+        if subscriptions.pending_by_id.contains_key(&subscription_id) {
+            return Err(AppResourceSubscriptionError::IdentityConflict);
+        }
+        if subscriptions.by_id.len() + subscriptions.pending_by_id.len()
+            >= self.app_resource_capacity.max_downstream_subscriptions
+        {
+            return Err(AppResourceSubscriptionError::Capacity {
+                resource: "downstream_subscriptions",
+                limit: self.app_resource_capacity.max_downstream_subscriptions,
+            });
+        }
         let first_for_uri = !subscriptions.counts_by_uri.contains_key(&uri);
-        if first_for_uri {
-            drop(subscriptions);
-            let filter = SubscriptionFilter::builder()
-                .resource_subscription(uri.clone())
-                .build();
-            let mut listener = self
-                .service
-                .listen(filter)
-                .await
-                .context("opening Console App resource listener")?;
-            let (cancel_tx, mut cancel_rx) = oneshot::channel();
-            let (stopped_tx, stopped_rx) = oneshot::channel();
-            let resource_updates = self.resource_updates.clone();
-            let catalog_revision = self.catalog_revision.clone();
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        _ = &mut cancel_rx => {
-                            let _ = listener.cancel().await;
-                            break;
+        if !first_for_uri {
+            subscriptions.by_id.insert(subscription_id, uri.clone());
+            *subscriptions.counts_by_uri.entry(uri).or_default() += 1;
+            return Ok(AppResourceSubscription {
+                receiver,
+                newly_registered: true,
+            });
+        }
+        if subscriptions.listeners_by_uri.len() + subscriptions.pending_uris.len()
+            >= self.app_resource_capacity.max_upstream_listeners
+        {
+            return Err(AppResourceSubscriptionError::Capacity {
+                resource: "upstream_listeners",
+                limit: self.app_resource_capacity.max_upstream_listeners,
+            });
+        }
+        subscriptions
+            .pending_by_id
+            .insert(subscription_id, uri.clone());
+        subscriptions.pending_uris.insert(uri.clone());
+        drop(subscriptions);
+        let filter = SubscriptionFilter::builder()
+            .resource_subscription(uri.clone())
+            .build();
+        let listener = self
+            .service
+            .listen(filter)
+            .await
+            .context("opening Console App resource listener");
+        let mut listener = match listener {
+            Ok(listener) => listener,
+            Err(error) => {
+                let mut subscriptions = self.app_resource_subscriptions.lock().await;
+                subscriptions.pending_by_id.remove(&subscription_id);
+                subscriptions.pending_uris.remove(&uri);
+                return Err(AppResourceSubscriptionError::Upstream(error));
+            }
+        };
+        let (cancel_tx, mut cancel_rx) = oneshot::channel();
+        let (stopped_tx, stopped_rx) = oneshot::channel();
+        let resource_updates = self.resource_updates.clone();
+        let catalog_revision = self.catalog_revision.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = &mut cancel_rx => {
+                        let _ = listener.cancel().await;
+                        break;
+                    }
+                    notification = listener.next() => match notification {
+                        Ok(Some(ServerNotification::ResourceUpdatedNotification(update))) => {
+                            let _ = resource_updates.send(update.params.uri);
                         }
-                        notification = listener.next() => match notification {
-                            Ok(Some(ServerNotification::ResourceUpdatedNotification(update))) => {
-                                let _ = resource_updates.send(update.params.uri);
-                            }
-                            Ok(Some(ServerNotification::ResourceListChangedNotification(_))) => {
-                                catalog_revision.fetch_add(1, Ordering::AcqRel);
-                            }
-                            Ok(Some(_)) => {}
-                            Ok(None) | Err(_) => break,
+                        Ok(Some(ServerNotification::ResourceListChangedNotification(_))) => {
+                            catalog_revision.fetch_add(1, Ordering::AcqRel);
                         }
+                        Ok(Some(_)) => {}
+                        Ok(None) | Err(_) => break,
                     }
                 }
-                let _ = stopped_tx.send(());
-            });
-            subscriptions = self.app_resource_subscriptions.lock().await;
-            if let Some(existing) = subscriptions.by_id.get(&subscription_id) {
-                let same_uri = existing == &uri;
-                drop(subscriptions);
-                Self::stop_app_resource_listener(AppResourceListener {
-                    cancel: cancel_tx,
-                    stopped: stopped_rx,
-                })
-                .await?;
-                if !same_uri {
-                    anyhow::bail!(
-                        "app resource subscription identity is already bound to another URI"
-                    );
-                }
-                return Ok(AppResourceSubscription {
-                    receiver,
-                    newly_registered: false,
-                });
             }
-            subscriptions.listeners_by_uri.insert(
-                uri.clone(),
-                AppResourceListener {
-                    cancel: cancel_tx,
-                    stopped: stopped_rx,
-                },
-            );
+            let _ = stopped_tx.send(());
+        });
+        subscriptions = self.app_resource_subscriptions.lock().await;
+        subscriptions.pending_by_id.remove(&subscription_id);
+        subscriptions.pending_uris.remove(&uri);
+        if self.shutting_down.load(Ordering::Acquire) {
+            drop(subscriptions);
+            Self::stop_app_resource_listener(AppResourceListener {
+                cancel: cancel_tx,
+                stopped: stopped_rx,
+            })
+            .await
+            .map_err(AppResourceSubscriptionError::Upstream)?;
+            return Err(AppResourceSubscriptionError::ClientClosing);
         }
+        if let Some(existing) = subscriptions.by_id.get(&subscription_id) {
+            let same_uri = existing == &uri;
+            drop(subscriptions);
+            Self::stop_app_resource_listener(AppResourceListener {
+                cancel: cancel_tx,
+                stopped: stopped_rx,
+            })
+            .await
+            .map_err(AppResourceSubscriptionError::Upstream)?;
+            if !same_uri {
+                return Err(AppResourceSubscriptionError::IdentityConflict);
+            }
+            return Ok(AppResourceSubscription {
+                receiver,
+                newly_registered: false,
+            });
+        }
+        subscriptions.listeners_by_uri.insert(
+            uri.clone(),
+            AppResourceListener {
+                cancel: cancel_tx,
+                stopped: stopped_rx,
+            },
+        );
         subscriptions.by_id.insert(subscription_id, uri.clone());
         *subscriptions.counts_by_uri.entry(uri).or_default() += 1;
         Ok(AppResourceSubscription {
             receiver,
             newly_registered: true,
         })
+    }
+
+    async fn shutdown(&self) {
+        if self.shutting_down.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let listeners = {
+            let mut subscriptions = self.app_resource_subscriptions.lock().await;
+            subscriptions.by_id.clear();
+            subscriptions.pending_by_id.clear();
+            subscriptions.counts_by_uri.clear();
+            subscriptions.pending_uris.clear();
+            std::mem::take(&mut subscriptions.listeners_by_uri)
+                .into_values()
+                .collect::<Vec<_>>()
+        };
+        futures::future::join_all(listeners.into_iter().map(Self::stop_app_resource_listener))
+            .await;
+        self.service.cancellation_token().cancel();
     }
 
     /// Release one App subscription. Multiple tabs sharing the same Console
@@ -341,21 +487,37 @@ pub(crate) type SharedMcpClient = Arc<AuthScopedMcpClient>;
 
 struct CachedClient {
     client: SharedMcpClient,
+    access_fingerprint: String,
     expires_at: i64,
 }
 
-/// One gateway MCP client per access-token generation, keyed by a token
-/// fingerprint. The token itself is never retained as a map key. Protocol
-/// requests remain stateless; this pool only reuses transport and auth scope.
+/// One gateway MCP client per browser-session auth scope. Access-token
+/// replacement swaps the client under that stable scope and shuts down its
+/// listeners before opening the new transport. Tokens are never retained as
+/// map keys.
 pub(crate) struct AuthScopedMcpClientPool {
     http: reqwest::Client,
     clients: Mutex<BTreeMap<String, CachedClient>>,
+    app_resource_capacity: AppResourceCapacity,
 }
 
 const SESSION_EXPIRY_MARGIN_SECS: i64 = 5;
 
 impl AuthScopedMcpClientPool {
+    #[cfg(test)]
     pub(crate) fn new(outbound_trust: &OutboundTrust) -> anyhow::Result<Self> {
+        Self::new_with_capacity(outbound_trust, AppResourceCapacity::default())
+    }
+
+    pub(crate) fn new_with_capacity(
+        outbound_trust: &OutboundTrust,
+        app_resource_capacity: AppResourceCapacity,
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            app_resource_capacity.max_upstream_listeners > 0
+                && app_resource_capacity.max_downstream_subscriptions > 0,
+            "App resource capacities must be positive"
+        );
         // The MCP stream outlives ordinary request timeouts; only connection
         // establishment is bounded.
         let http = outbound_trust
@@ -367,6 +529,7 @@ impl AuthScopedMcpClientPool {
         Ok(Self {
             http,
             clients: Mutex::new(BTreeMap::new()),
+            app_resource_capacity,
         })
     }
 
@@ -375,17 +538,28 @@ impl AuthScopedMcpClientPool {
         config: &Config,
         access_token: &str,
         access_expires_at: i64,
+        auth_scope: &str,
     ) -> anyhow::Result<SharedMcpClient> {
-        let key = fingerprint(access_token);
+        let key = fingerprint(auth_scope);
+        let access_fingerprint = fingerprint(access_token);
         let now = Utc::now().timestamp();
         let mut clients = self.clients.lock().await;
-        for (_, stale) in clients.extract_if(.., |_, cached| {
-            cached.expires_at <= now + SESSION_EXPIRY_MARGIN_SECS
-        }) {
-            stale.client.cancellation_token().cancel();
+        let expired = clients
+            .extract_if(.., |_, cached| {
+                cached.expires_at <= now + SESSION_EXPIRY_MARGIN_SECS
+            })
+            .map(|(_, cached)| cached.client)
+            .collect::<Vec<_>>();
+        for stale in expired {
+            stale.shutdown().await;
         }
-        if let Some(cached) = clients.get(&key) {
+        if let Some(cached) = clients.get(&key)
+            && cached.access_fingerprint == access_fingerprint
+        {
             return Ok(cached.client.clone());
+        }
+        if let Some(stale) = clients.remove(&key) {
+            stale.client.shutdown().await;
         }
         let mut transport_headers = HashMap::new();
         transport_headers.insert(
@@ -423,11 +597,14 @@ impl AuthScopedMcpClientPool {
             resource_updates: handler.resource_updates,
             app_resource_subscriptions: Mutex::new(AppResourceSubscriptions::default()),
             app_resource_subscription_locks: Mutex::new(BTreeMap::new()),
+            app_resource_capacity: self.app_resource_capacity,
+            shutting_down: AtomicBool::new(false),
         });
         clients.insert(
             key,
             CachedClient {
                 client: client.clone(),
+                access_fingerprint,
                 expires_at: access_expires_at,
             },
         );
@@ -435,15 +612,15 @@ impl AuthScopedMcpClientPool {
     }
 
     /// Drop `stale` from the pool if it is still the client cached for this
-    /// token, so the next call creates a fresh transport.
-    pub(crate) async fn invalidate(&self, access_token: &str, stale: &SharedMcpClient) {
-        let key = fingerprint(access_token);
+    /// browser-session auth scope, so the next call creates a fresh transport.
+    pub(crate) async fn invalidate(&self, auth_scope: &str, stale: &SharedMcpClient) {
+        let key = fingerprint(auth_scope);
         let mut clients = self.clients.lock().await;
         if let Some(cached) = clients.get(&key)
             && Arc::ptr_eq(&cached.client, stale)
         {
             let cached = clients.remove(&key).expect("entry observed under lock");
-            cached.client.cancellation_token().cancel();
+            cached.client.shutdown().await;
         }
     }
 }
@@ -600,6 +777,27 @@ mod tests {
     async fn subscription_test_session(
         handler: DelayedSubscriptionMcp,
     ) -> (SharedMcpClient, JoinHandle<()>) {
+        subscription_test_session_with_capacity(handler, AppResourceCapacity::default()).await
+    }
+
+    async fn subscription_test_session_with_capacity(
+        handler: DelayedSubscriptionMcp,
+        capacity: AppResourceCapacity,
+    ) -> (SharedMcpClient, JoinHandle<()>) {
+        let (_, _, session, server) = subscription_test_pool(handler, capacity).await;
+        (session, server)
+    }
+
+    async fn subscription_test_pool(
+        handler: DelayedSubscriptionMcp,
+        capacity: AppResourceCapacity,
+    ) -> (
+        AuthScopedMcpClientPool,
+        Config,
+        SharedMcpClient,
+        JoinHandle<()>,
+    ) {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind subscription test MCP");
@@ -619,16 +817,18 @@ mod tests {
         });
         let gateway_url = Url::parse(&format!("http://{address}")).unwrap();
         let config = Config::for_test(gateway_url);
-        let pool = AuthScopedMcpClientPool::new(&OutboundTrust::default()).unwrap();
+        let pool = AuthScopedMcpClientPool::new_with_capacity(&OutboundTrust::default(), capacity)
+            .unwrap();
         let session = pool
             .client(
                 &config,
                 "subscription-test-access-token",
                 Utc::now().timestamp() + 60,
+                "subscription-test-auth-scope",
             )
             .await
             .expect("connect subscription test MCP client");
-        (session, server)
+        (pool, config, session, server)
     }
 
     async fn wait_for_subscribe_calls(probe: &SubscriptionProbe, expected: usize) {
@@ -639,6 +839,16 @@ mod tests {
         })
         .await
         .expect("expected upstream subscription calls");
+    }
+
+    async fn wait_for_unsubscribe_calls(probe: &SubscriptionProbe, expected: usize) {
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while probe.unsubscribe_calls.load(Ordering::SeqCst) < expected {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("expected upstream listener cancellation");
     }
 
     #[tokio::test]
@@ -704,6 +914,95 @@ mod tests {
         server.abort();
     }
 
+    #[tokio::test]
+    async fn app_resource_capacity_rejects_only_the_excess_subscription() {
+        let handler = DelayedSubscriptionMcp::default();
+        let probe = handler.probe.clone();
+        let capacity = AppResourceCapacity {
+            max_upstream_listeners: 1,
+            max_downstream_subscriptions: 2,
+        };
+        let (session, server) = subscription_test_session_with_capacity(handler, capacity).await;
+        let first_id = Uuid::now_v7();
+        let second_id = Uuid::now_v7();
+        let first_session = session.clone();
+        let first = tokio::spawn(async move {
+            first_session
+                .subscribe_app_resource(first_id, "fleet://plans".to_owned())
+                .await
+        });
+        wait_for_subscribe_calls(&probe, 1).await;
+        let second = session
+            .subscribe_app_resource(second_id, "fleet://plans".to_owned())
+            .await
+            .expect("same URI shares the admitted listener");
+        assert!(second.newly_registered);
+
+        let downstream_error = session
+            .subscribe_app_resource(Uuid::now_v7(), "fleet://plans".to_owned())
+            .await
+            .expect_err("downstream capacity must fail closed");
+        assert_eq!(
+            downstream_error.capacity(),
+            Some(("downstream_subscriptions", 2))
+        );
+        session.unsubscribe_app_resource(second_id).await.unwrap();
+
+        let upstream_error = session
+            .subscribe_app_resource(Uuid::now_v7(), "fleet://objectives".to_owned())
+            .await
+            .expect_err("upstream capacity must fail closed");
+        assert_eq!(upstream_error.capacity(), Some(("upstream_listeners", 1)));
+        assert_eq!(probe.subscribe_calls.load(Ordering::SeqCst), 1);
+
+        probe.release.add_permits(1);
+        first.await.unwrap().unwrap();
+        session.unsubscribe_app_resource(first_id).await.unwrap();
+        assert_eq!(probe.unsubscribe_calls.load(Ordering::SeqCst), 1);
+
+        session.cancellation_token().cancel();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn replacing_an_access_token_cancels_the_old_auth_scope_listeners() {
+        let handler = DelayedSubscriptionMcp::default();
+        let probe = handler.probe.clone();
+        let (pool, config, old_client, server) =
+            subscription_test_pool(handler, AppResourceCapacity::default()).await;
+        let subscription_id = Uuid::now_v7();
+        let subscriber = old_client.clone();
+        let subscription = tokio::spawn(async move {
+            subscriber
+                .subscribe_app_resource(subscription_id, "fleet://plans".to_owned())
+                .await
+        });
+        wait_for_subscribe_calls(&probe, 1).await;
+        probe.release.add_permits(1);
+        subscription.await.unwrap().unwrap();
+
+        let replacement = pool
+            .client(
+                &config,
+                "replacement-access-token",
+                Utc::now().timestamp() + 60,
+                "subscription-test-auth-scope",
+            )
+            .await
+            .expect("replace access-token generation");
+        assert!(!Arc::ptr_eq(&old_client, &replacement));
+        wait_for_unsubscribe_calls(&probe, 1).await;
+        assert!(matches!(
+            old_client
+                .subscribe_app_resource(Uuid::now_v7(), "fleet://plans".to_owned())
+                .await,
+            Err(AppResourceSubscriptionError::ClientClosing)
+        ));
+
+        replacement.cancellation_token().cancel();
+        server.abort();
+    }
+
     #[derive(Clone, Default)]
     struct PrivateCaMcp;
 
@@ -766,6 +1065,7 @@ mod tests {
                 &config,
                 "private-ca-access-token",
                 Utc::now().timestamp() + 60,
+                "private-ca-auth-scope",
             )
             .await
             .expect("MCP initialization through installation CA and internal transport");

@@ -4,7 +4,7 @@ use serde::Serialize;
 use super::browser::{
     ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
     capture_console_live_app, capture_console_recording, capture_console_stream_app,
-    preflight_console_live_app,
+    preflight_console_live_app, preflight_standalone_live_app,
 };
 use super::*;
 
@@ -118,6 +118,13 @@ pub(crate) async fn uav_showcase_verify(
     )
     .await
     .context("preflighting the authenticated Console UAV live-view App")?;
+    preflight_standalone_live_app(
+        chrome_cdp_url,
+        public_base_url,
+        Duration::from_secs(scenario.view.timeout_seconds),
+    )
+    .await
+    .context("preflighting the authenticated standalone UAV live-view App")?;
 
     let source_revision = run_checked(
         Path::new("git"),

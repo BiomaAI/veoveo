@@ -26,6 +26,10 @@ import { authenticationRequired, redirectToLogin } from "./auth";
 
 let csrfToken: string | undefined;
 
+export function initializeAppSession(token: string): void {
+  csrfToken = token;
+}
+
 export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSnapshot> {
   if (import.meta.env.VITE_DEMO_DATA === "true") {
     await new Promise((resolve) => window.setTimeout(resolve, 120));

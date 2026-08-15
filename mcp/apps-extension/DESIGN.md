@@ -70,6 +70,17 @@ A server shipping a view (see `servers/timeseries-mcp` and
 
 The hosting core (gateway + console BFF + console web) stays fully generic:
 
+- **Host surfaces** — the Console shell and `/apps/{server}/{page...}` mount
+  the same frame component, bridge, theme projection, resource adapters, and
+  internal-link policy. The BFF parses the standalone path into one canonical
+  `ui://{server}/{page...}` URI with a typed `ServerSlug`, then returns an App
+  descriptor only when that exact resource is present in the caller-visible
+  catalog. Browser code forwards its path and never derives App authority from
+  it. The public no-store entry document gains no session authority. Its first
+  JSON bootstrap uses the existing Console cookie and OAuth transition, and
+  `BrowserReturnPath` returns a completed login only to a same-origin
+  `/console/` or `/apps/` document. Standalone chrome displays the authorized
+  App title and a Console return link; it does not expose the principal subject.
 - **Gateway** — the server's catalog entry lists its tools in the manifest,
   exposes them per profile, applies `tools_call` policy rules, and registers
   `resource_projection: server_owned` so `ui://…` URIs project as
@@ -113,9 +124,14 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   the stream reuses each UUID, and multiple frames retain independent
   references to the one upstream subscription. Healthy operation is
   notification-driven; bounded backoff runs only after the stream fails.
-  Authorization expiry closes the stream. Domain state never travels in the
-  wake; the App reads current state through an explicitly settled ordinary
-  bridge request.
+  Authorization expiry closes the stream. Each browser-session auth scope has
+  configured ceilings for active upstream listeners and downstream browser
+  registrations. Admission beyond either ceiling returns the typed
+  `app_resource_capacity_exhausted` response without disturbing admitted
+  streams. Access-token replacement cancels the old scope's listeners within
+  the BFF bound before opening its replacement transport. Domain state never
+  travels in the wake; the App reads current state through an explicitly
+  settled ordinary bridge request.
 - **Navigation** — the host's menu merges its static platform views with one
   entry per discovered app (label from the resource title, icon from the
   resource icons). Discovery failures are isolated by server and surface.

@@ -1,4 +1,5 @@
 mod api;
+mod app_host;
 mod apps;
 mod cluster;
 mod config;
@@ -70,7 +71,13 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .context("building console live HTTP client")?;
     let cluster = cluster::KubernetesClient::from_env(&outbound_trust)?.map(Arc::new);
-    let mcp = Arc::new(mcp_client::AuthScopedMcpClientPool::new(&outbound_trust)?);
+    let mcp = Arc::new(mcp_client::AuthScopedMcpClientPool::new_with_capacity(
+        &outbound_trust,
+        mcp_client::AppResourceCapacity {
+            max_upstream_listeners: config.max_app_resource_listeners(),
+            max_downstream_subscriptions: config.max_app_resource_subscriptions(),
+        },
+    )?);
     let state = AppState {
         config: config.clone(),
         http,
@@ -183,7 +190,8 @@ async fn main() -> anyhow::Result<()> {
             recording_playback::BLUEPRINT_PATH,
             get(recording_playback::blueprint),
         );
-    let router = with_console_static_routes(router, config.asset_dir())?
+    let router = with_console_static_routes(router, config.asset_dir())?;
+    let router = app_host::with_app_host_route(router, config.asset_dir())?
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))
         .with_state(state)
         .layer(middleware::from_fn_with_state(
