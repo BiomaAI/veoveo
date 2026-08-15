@@ -80,6 +80,57 @@ pub fn retention_pins(
         .map(Iterator::collect)
 }
 
+/// Restores the repository-owned retention pin that RMCP exposes through the
+/// request context before a hosted Tasks adapter receives the request params.
+#[doc(hidden)]
+pub fn restore_task_retention_meta(
+    request: &mut CallToolRequestParams,
+    context_meta: &RequestMetaObject,
+) -> Result<(), McpError> {
+    let context_pin = context_meta.get(TASK_RETENTION_PIN_META_KEY);
+    let request_pin = request
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.get(TASK_RETENTION_PIN_META_KEY));
+    if let (Some(context_pin), Some(request_pin)) = (context_pin, request_pin)
+        && context_pin != request_pin
+    {
+        return Err(McpError::invalid_params(
+            "conflicting task retention metadata",
+            None,
+        ));
+    }
+    if let Some(context_pin) = context_pin {
+        request
+            .meta
+            .get_or_insert_with(RequestMetaObject::new)
+            .insert(TASK_RETENTION_PIN_META_KEY.to_owned(), context_pin.clone());
+    }
+    Ok(())
+}
+
+/// Dispatches one Tasks-capable tool call through the shared durable boundary.
+///
+/// Hosted servers use this helper so capability admission, request-context
+/// metadata restoration, caller authentication, and task creation cannot drift
+/// across their otherwise domain-specific `ServerHandler` implementations.
+pub async fn start_durable_tool_task<S: DurableTaskService>(
+    service: &S,
+    request: &mut CallToolRequestParams,
+    context: &RequestContext<RoleServer>,
+) -> Result<Option<CreateTaskResult>, McpError> {
+    restore_task_retention_meta(request, &context.meta)?;
+    if !context
+        .meta
+        .client_capabilities()
+        .is_some_and(|capabilities| capabilities.supports_tasks())
+    {
+        return Ok(None);
+    }
+    let caller = service.authenticate(context)?;
+    service.start_tool_task(&caller, request.clone()).await
+}
+
 /// Converts official heterogeneous input responses to the durable object form.
 pub fn durable_input_responses(
     request: UpdateTaskParams,
@@ -274,25 +325,13 @@ macro_rules! durable_task_handlers {
     ($task_service:ident, $tool_router:ident) => {
         async fn call_tool(
             &self,
-            request: rmcp::model::CallToolRequestParams,
+            mut request: rmcp::model::CallToolRequestParams,
             context: rmcp::service::RequestContext<rmcp::RoleServer>,
         ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
-            if context
-                .meta
-                .client_capabilities()
-                .is_some_and(|capabilities| capabilities.supports_tasks())
+            if let Some(created) =
+                $crate::start_durable_tool_task(&self.$task_service, &mut request, &context).await?
             {
-                let caller =
-                    $crate::DurableTaskService::authenticate(&self.$task_service, &context)?;
-                if let Some(created) = $crate::DurableTaskService::start_tool_task(
-                    &self.$task_service,
-                    &caller,
-                    request.clone(),
-                )
-                .await?
-                {
-                    return Ok(created.into());
-                }
+                return Ok(created.into());
             }
             let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
             self.$tool_router.call(call).await
@@ -326,4 +365,52 @@ macro_rules! durable_task_handlers {
                 .await
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn task_retention_metadata_is_restored_from_the_request_context() {
+        let pin = TaskRetentionPin::new("agent:test:episode:test").expect("retention pin");
+        let mut context_meta = RequestMetaObject::new();
+        context_meta.insert(
+            TASK_RETENTION_PIN_META_KEY.to_owned(),
+            serde_json::json!(pin),
+        );
+        let mut request = CallToolRequestParams::new("durable_tool");
+
+        restore_task_retention_meta(&mut request, &context_meta).expect("restore retention pin");
+
+        assert_eq!(
+            retention_pins(request.meta.as_ref()).expect("parse retention pin"),
+            BTreeSet::from([pin])
+        );
+    }
+
+    #[test]
+    fn conflicting_task_retention_metadata_is_rejected() {
+        let mut context_meta = RequestMetaObject::new();
+        context_meta.insert(
+            TASK_RETENTION_PIN_META_KEY.to_owned(),
+            serde_json::json!("agent:test:episode:context"),
+        );
+        let mut request = CallToolRequestParams::new("durable_tool");
+        request
+            .meta
+            .get_or_insert_with(RequestMetaObject::new)
+            .insert(
+                TASK_RETENTION_PIN_META_KEY.to_owned(),
+                serde_json::json!("agent:test:episode:params"),
+            );
+
+        let error = restore_task_retention_meta(&mut request, &context_meta)
+            .expect_err("conflicting pins must fail closed");
+        assert!(
+            error
+                .message
+                .contains("conflicting task retention metadata")
+        );
+    }
 }

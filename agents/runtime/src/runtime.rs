@@ -152,6 +152,10 @@ FOR $delivery IN $deliveries {
     LET $route = (SELECT * FROM ONLY type::record('gateway_task_route', $delivery.task_id));
     IF $route = NONE { THROW 'gateway task route missing during retention release'; };
     IF $route.source_task != NONE {
+        LET $source_task = (SELECT * FROM ONLY $route.source_task);
+        IF $source_task = NONE { THROW 'canonical task missing during retention release'; };
+        IF $source_task.server != $route.server { THROW 'canonical task server changed during retention release'; };
+        IF !($source_task.retention_pins CONTAINS $delivery.retention_pin) { THROW 'canonical task retention pin missing during release'; };
         LET $released = (UPDATE ONLY $route.source_task SET retention_pins -= $delivery.retention_pin WHERE server = $route.server AND retention_pins CONTAINS $delivery.retention_pin RETURN AFTER);
         IF $released = NONE { THROW 'canonical task retention release failed'; };
     };
@@ -532,7 +536,8 @@ impl AgentRuntime {
             "wake.batch_acked",
             object([("wake_ids".to_owned(), serde_json::json!(wakes))]),
         );
-        self.store
+        let mut response = self
+            .store
             .client()
             .query(COMPLETE_EPISODE_QUERY)
             .bind(("agent", self.agent_id.record_id()))
@@ -563,8 +568,19 @@ impl AgentRuntime {
             .bind(("wakes", wake_records))
             .bind(("episode_event", episode_event))
             .bind(("wake_event", wake_event))
-            .await?
-            .check()?;
+            .await?;
+        let mut errors = response.take_errors().into_iter().collect::<Vec<_>>();
+        errors.sort_by_key(|(statement, _)| *statement);
+        if !errors.is_empty() {
+            return Err(AgentRuntimeError::DatabaseOperation {
+                operation: "complete episode",
+                errors: errors
+                    .into_iter()
+                    .map(|(statement, error)| format!("statement {statement}: {error}"))
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            });
+        }
         Ok(())
     }
 

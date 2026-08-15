@@ -15,8 +15,8 @@ pub use runtime::{TaskRuntime, TaskUpdateStream};
 pub use service::{
     DurableTaskService, DurableTaskSubscription, DurableTaskUpdateStream,
     TASK_RETENTION_PIN_META_KEY, authorized_snapshot, cancel_durable_task, durable_input_responses,
-    get_durable_task, listen_durable_subscriptions, retention_pins, subscribe_durable_tasks,
-    update_durable_task,
+    get_durable_task, listen_durable_subscriptions, restore_task_retention_meta, retention_pins,
+    start_durable_tool_task, subscribe_durable_tasks, update_durable_task,
 };
 pub use types::{
     ClaimedTask, CreateTask, CreateTaskResult, RecoveryClass, RecoveryReport, TaskError,
