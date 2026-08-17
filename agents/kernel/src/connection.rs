@@ -14,7 +14,8 @@
 //! gateway, so continuity holds across rotations.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
+    sync::{Arc, Weak},
     time::{Duration, Instant},
 };
 
@@ -22,20 +23,27 @@ use anyhow::{Context, Result, bail};
 use base64::Engine as _;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use rig::tool::{
-    rmcp::{McpClientConfig, McpClientGuard, McpClientHandler, McpDeferredResolver},
+    rmcp::{
+        McpClientConfig, McpClientError, McpClientGuard, McpClientHandler, McpDeferredResolver,
+        McpRequestHandle, McpRequestPreflight, McpResourceNotificationHandler,
+    },
     server::ToolServerHandle,
 };
+use rig::wasm_compat::WasmBoxedFuture;
 use rmcp::{
-    model::Implementation,
+    model::{Implementation, ResourceUpdatedNotificationParam},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::watch;
+use tokio::sync::{Mutex, watch};
 use veoveo_agent_runtime::AgentRuntime;
 
-use crate::{manifest::AgentManifest, wake::WakeBus};
+use crate::{
+    manifest::AgentManifest,
+    wake::{self, WakeBus},
+};
 
 /// Kernel surfaces wired into every gateway session (and re-wired on each
 /// rotation): the wake bus behind the notification delegate and the parked
@@ -45,6 +53,45 @@ pub struct KernelHandlers {
     pub bus: WakeBus,
     pub runtime: AgentRuntime,
     pub input_grace: Duration,
+}
+
+#[derive(Clone)]
+struct ResourceWakeHandler {
+    declared: Arc<BTreeSet<String>>,
+    bus: WakeBus,
+}
+
+impl McpResourceNotificationHandler for ResourceWakeHandler {
+    fn on_resource_updated(
+        &self,
+        params: ResourceUpdatedNotificationParam,
+    ) -> WasmBoxedFuture<'_, ()> {
+        Box::pin(async move {
+            let Some(wake) = resource_update_wake(&self.declared, &params) else {
+                tracing::error!(
+                    uri = %params.uri,
+                    "gateway delivered an update outside the acknowledged resource filter"
+                );
+                return;
+            };
+            if let Err(error) = self.bus.send(wake).await {
+                tracing::error!(
+                    %error,
+                    uri = %params.uri,
+                    "failed to persist resource update wake"
+                );
+            }
+        })
+    }
+}
+
+fn resource_update_wake(
+    declared: &BTreeSet<String>,
+    params: &ResourceUpdatedNotificationParam,
+) -> Option<veoveo_agent_runtime::NewWake> {
+    declared
+        .contains(&params.uri)
+        .then(|| wake::resource_updated(&params.uri))
 }
 
 const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
@@ -83,9 +130,10 @@ struct Live {
 pub struct ConnectionEpoch {
     pub epoch: u64,
     pub resolver: Option<McpDeferredResolver>,
+    pub request: Option<McpRequestHandle>,
 }
 
-pub struct GatewayConnection {
+struct GatewayConnectionInner {
     manifest: AgentManifest,
     tool_server_handle: ToolServerHandle,
     handlers: KernelHandlers,
@@ -93,7 +141,43 @@ pub struct GatewayConnection {
     encoding_key: EncodingKey,
     live: Option<Live>,
     epoch: u64,
+}
+
+/// Serialized owner of the active gateway credential and MCP connection.
+///
+/// Every request preflight and explicit scheduler refresh shares the same
+/// mutex. At most one caller can mint and publish a replacement epoch.
+#[derive(Clone)]
+pub struct GatewayConnection {
+    inner: Arc<Mutex<GatewayConnectionInner>>,
+    handlers: KernelHandlers,
     epoch_tx: watch::Sender<ConnectionEpoch>,
+}
+
+#[derive(Clone)]
+struct RequestFreshness {
+    inner: Weak<Mutex<GatewayConnectionInner>>,
+    epoch_tx: watch::Sender<ConnectionEpoch>,
+}
+
+impl McpRequestPreflight for RequestFreshness {
+    fn prepare(&self) -> WasmBoxedFuture<'_, Result<McpRequestHandle, McpClientError>> {
+        Box::pin(async move {
+            let Some(inner) = self.inner.upgrade() else {
+                return Err(McpClientError::Unavailable);
+            };
+            let mut inner = inner.lock().await;
+            if let Err(error) = inner.ensure_fresh(self.clone(), &self.epoch_tx).await {
+                tracing::error!(%error, "gateway request preflight failed");
+                return Err(McpClientError::Unavailable);
+            }
+            self.epoch_tx
+                .borrow()
+                .request
+                .clone()
+                .ok_or(McpClientError::Unavailable)
+        })
+    }
 }
 
 impl GatewayConnection {
@@ -124,22 +208,26 @@ impl GatewayConnection {
             .build()
             .context("building gateway HTTP client")?;
 
-        let mut connection = Self {
+        let (epoch_tx, epoch_rx) = watch::channel(ConnectionEpoch {
+            epoch: 0,
+            resolver: None,
+            request: None,
+        });
+        let inner = Arc::new(Mutex::new(GatewayConnectionInner {
             manifest,
             tool_server_handle,
-            handlers,
+            handlers: handlers.clone(),
             http,
             encoding_key,
             live: None,
             epoch: 0,
-            epoch_tx: watch::channel(ConnectionEpoch {
-                epoch: 0,
-                resolver: None,
-            })
-            .0,
+        }));
+        let connection = Self {
+            inner,
+            handlers,
+            epoch_tx,
         };
         connection.rotate().await?;
-        let epoch_rx = connection.epoch_tx.subscribe();
         Ok((connection, epoch_rx))
     }
 
@@ -153,21 +241,61 @@ impl GatewayConnection {
     }
 
     /// Rotate before the token enters its configured stale fraction.
-    pub async fn ensure_fresh(&mut self) -> Result<()> {
-        let stale = match &self.live {
-            Some(live) => {
-                live.minted_at.elapsed()
-                    >= live
-                        .token_ttl
-                        .mul_f64(self.manifest.gateway.token_refresh_fraction)
-            }
-            None => true,
-        };
-        if stale { self.rotate().await } else { Ok(()) }
+    pub async fn ensure_fresh(&self) -> Result<()> {
+        let preflight = self.request_freshness();
+        self.inner
+            .lock()
+            .await
+            .ensure_fresh(preflight, &self.epoch_tx)
+            .await
     }
 
     /// Make-before-break reconnect with a freshly minted token.
-    pub async fn rotate(&mut self) -> Result<()> {
+    pub async fn rotate(&self) -> Result<()> {
+        let preflight = self.request_freshness();
+        self.inner
+            .lock()
+            .await
+            .rotate(preflight, &self.epoch_tx)
+            .await
+    }
+
+    fn request_freshness(&self) -> RequestFreshness {
+        RequestFreshness {
+            inner: Arc::downgrade(&self.inner),
+            epoch_tx: self.epoch_tx.clone(),
+        }
+    }
+}
+
+impl GatewayConnectionInner {
+    async fn ensure_fresh(
+        &mut self,
+        preflight: RequestFreshness,
+        epoch_tx: &watch::Sender<ConnectionEpoch>,
+    ) -> Result<()> {
+        let stale = match &self.live {
+            Some(live) => token_is_stale(
+                live.minted_at,
+                live.token_ttl,
+                self.manifest.gateway.token_refresh_fraction,
+                Instant::now(),
+            ),
+            None => true,
+        };
+        if stale {
+            self.rotate(preflight, epoch_tx).await
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Make-before-break reconnect with a freshly minted token.
+    async fn rotate(
+        &mut self,
+        preflight: RequestFreshness,
+        epoch_tx: &watch::Sender<ConnectionEpoch>,
+    ) -> Result<()> {
         let token = self.mint_token().await?;
         let mut transport_headers = HashMap::new();
         transport_headers.insert(
@@ -188,14 +316,34 @@ impl GatewayConnection {
             env!("CARGO_PKG_VERSION"),
         ))
         .with_deferred_backend_id("mcp:veoveo-gateway");
+        let declared_resources = Arc::new(
+            self.manifest
+                .resource_subscriptions
+                .iter()
+                .map(|subscription| subscription.uri.clone())
+                .collect::<BTreeSet<_>>(),
+        );
         let handler = McpClientHandler::new(config, self.tool_server_handle.clone())
-            .with_timeout(self.manifest.request_timeout());
+            .with_timeout(self.manifest.request_timeout())
+            .with_request_preflight(preflight);
+        let handler = if declared_resources.is_empty() {
+            handler
+        } else {
+            handler.with_resource_subscriptions(
+                declared_resources.iter().cloned(),
+                ResourceWakeHandler {
+                    declared: declared_resources.clone(),
+                    bus: self.handlers.bus.clone(),
+                },
+            )
+        };
         let guard = handler
             .connect(transport)
             .await
             .map_err(|err| anyhow::anyhow!("connecting to gateway MCP: {err}"))?;
-        let subscription_count = self.manifest.resource_subscriptions.len();
+        let subscription_count = declared_resources.len();
         let resolver = guard.deferred_resolver();
+        let request = guard.request_handle();
 
         let previous = self.live.replace(Live {
             guard,
@@ -204,9 +352,10 @@ impl GatewayConnection {
         });
         self.epoch += 1;
         let epoch = self.epoch;
-        self.epoch_tx.send_replace(ConnectionEpoch {
+        epoch_tx.send_replace(ConnectionEpoch {
             epoch,
             resolver: Some(resolver),
+            request: Some(request),
         });
         tracing::info!(epoch, subscription_count, "gateway connection rotated");
 
@@ -237,15 +386,18 @@ impl GatewayConnection {
         let assertion = jsonwebtoken::encode(&header, &claims, &self.encoding_key)
             .context("signing client assertion")?;
 
-        let mut serializer = url::form_urlencoded::Serializer::new(String::new());
-        serializer
-            .append_pair("grant_type", "client_credentials")
-            .append_pair("client_id", &gateway.client_id)
-            .append_pair("work_context", &gateway.work_context)
-            .append_pair("scope", &gateway.scopes.join(" "))
-            .append_pair("client_assertion_type", CLIENT_ASSERTION_TYPE_JWT_BEARER)
-            .append_pair("client_assertion", &assertion)
-            .append_pair("resource", &gateway.resource);
+        let body = {
+            let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+            serializer
+                .append_pair("grant_type", "client_credentials")
+                .append_pair("client_id", &gateway.client_id)
+                .append_pair("work_context", &gateway.work_context)
+                .append_pair("scope", &gateway.scopes.join(" "))
+                .append_pair("client_assertion_type", CLIENT_ASSERTION_TYPE_JWT_BEARER)
+                .append_pair("client_assertion", &assertion)
+                .append_pair("resource", &gateway.resource);
+            serializer.finish()
+        };
         let response = self
             .http
             .post(self.manifest.token_url())
@@ -253,7 +405,7 @@ impl GatewayConnection {
                 reqwest::header::CONTENT_TYPE,
                 "application/x-www-form-urlencoded",
             )
-            .body(serializer.finish())
+            .body(body)
             .send()
             .await
             .context("posting to the gateway token endpoint")?;
@@ -271,5 +423,72 @@ impl GatewayConnection {
             bail!("token endpoint returned an unusable token");
         }
         Ok(token)
+    }
+}
+
+fn token_is_stale(
+    minted_at: Instant,
+    token_ttl: Duration,
+    refresh_fraction: f64,
+    now: Instant,
+) -> bool {
+    now.saturating_duration_since(minted_at) >= token_ttl.mul_f64(refresh_fraction)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use rmcp::model::ResourceUpdatedNotificationParam;
+    use veoveo_platform_store::WakeKind;
+
+    use super::{resource_update_wake, token_is_stale};
+
+    #[test]
+    fn resource_updates_create_wakes_only_for_declared_uris() {
+        let declared =
+            BTreeSet::from(["memo://insights".to_owned(), "memo://knowledge".to_owned()]);
+
+        let wake = resource_update_wake(
+            &declared,
+            &ResourceUpdatedNotificationParam::new("memo://insights"),
+        )
+        .expect("declared resource wake");
+        assert_eq!(wake.kind, WakeKind::ResourceChanged);
+        assert_eq!(wake.dedupe_key.as_deref(), Some("resource:memo://insights"));
+        assert_eq!(
+            wake.payload
+                .as_map()
+                .get("uri")
+                .and_then(|uri| uri.as_str()),
+            Some("memo://insights")
+        );
+
+        assert!(
+            resource_update_wake(
+                &declared,
+                &ResourceUpdatedNotificationParam::new("memo://undeclared"),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn request_freshness_uses_the_configured_token_fraction() {
+        let now = std::time::Instant::now();
+        let ttl = std::time::Duration::from_secs(100);
+
+        assert!(!token_is_stale(
+            now - std::time::Duration::from_secs(79),
+            ttl,
+            0.8,
+            now,
+        ));
+        assert!(token_is_stale(
+            now - std::time::Duration::from_secs(80),
+            ttl,
+            0.8,
+            now,
+        ));
     }
 }

@@ -101,7 +101,9 @@ quote = "1.0.46"
 rayon = "1.12.0"
 rangemap = "1.7.1"
 reqwest = { version = "0.13.4", default-features = false }
-rig = { git = "https://github.com/rozgo/rig.git", rev = "abbdce9711cd765bb9423b820b136443df1abb85", features = ["rmcp"] }
+# This fork pin carries acknowledged MCP 2026-07-28 resource subscriptions,
+# governed resource reads, and request-boundary preflight not yet released upstream.
+rig = { git = "https://github.com/rozgo/rig.git", rev = "1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1", features = ["rmcp"] }
 prost = "=0.14.4"
 re_dataframe = "=0.35.0"
 re_chunk = "=0.35.0"
