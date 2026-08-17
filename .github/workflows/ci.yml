@@ -114,7 +114,7 @@ jobs:
           version: v0.35.0
           driver: docker
           install: true
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
       - run: cargo fmt -p veoveo-sumo-mcp --check
       - run: cargo clippy -p veoveo-sumo-mcp --all-targets -- -D warnings
       - run: cargo test -p veoveo-sumo-mcp
@@ -141,7 +141,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
           toolchain: 1.97.1
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
       - name: Exercise Compose and Caddy contracts through the Rust harness
         run: cargo run -p veoveo-smoke -- compose-config
       - name: Validate Helm schema and rendered resources
