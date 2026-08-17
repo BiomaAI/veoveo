@@ -8,6 +8,7 @@ use veoveo_agent_kernel::{
     llm,
     manifest::AgentManifest,
     memory::MemoryStore,
+    resource::{ResourceReadLimits, ResourceReadTool},
     rrd::RrdRecorder,
     tasks::arm_watcher,
     tools::{MemoryQueryTool, MemoryWriteTool, TimelineQueryTool},
@@ -118,14 +119,28 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
         .add_tool(TimelineQueryTool::new(rrd.clone()))
         .await;
 
-    let agent = llm::build_agent(&manifest, tool_server_handle.clone())?;
     let (mut connection, epoch_rx) =
-        GatewayConnection::connect(manifest.clone(), tool_server_handle, handlers)
+        GatewayConnection::connect(manifest.clone(), tool_server_handle.clone(), handlers)
             .await
             .context("connecting to the gateway")?;
+    let resource_read_limits = ResourceReadLimits::default();
+    tool_server_handle
+        .add_tool(ResourceReadTool::new(
+            epoch_rx.clone(),
+            resource_read_limits.clone(),
+        ))
+        .await;
+    let agent = llm::build_agent(&manifest, tool_server_handle)?;
     let schedule = manifest.schedule.clone();
     let budgets = manifest.budgets.clone();
-    let driver = EpisodeDriver::new(manifest, agent, runtime.clone(), memory.clone(), rrd);
+    let driver = EpisodeDriver::new(
+        manifest,
+        agent,
+        runtime.clone(),
+        memory.clone(),
+        rrd,
+        resource_read_limits,
+    );
 
     if let Some(prompt) = args.prompt {
         driver

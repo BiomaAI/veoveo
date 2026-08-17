@@ -735,7 +735,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | File | Responsibility |
 |---|---|
 | `control.rs` | database-authenticated, exact-context external operator messages and input-request decisions with UUIDv7 idempotency, durable wakes, actor attribution, and a domain-neutral conversation projection over wakes and episodes |
-| `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, and race-safe durable input-request terminal waits |
+| `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, race-safe durable input-request terminal waits, and atomic terminal-delivery consumption with first-party Task retention release |
 
 ### `agents/kernel`
 
@@ -750,7 +750,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `memory.rs` | durable memory API over analytical stores |
 | `rrd.rs`, `recorder.rs` | episode/world Rerun recording |
 | `budget.rs` | enforced episode/tool/cost budgets |
-| `connection.rs` | final-profile gateway client epoch, request-scoped listener restoration, and deferred-task resolver |
+| `connection.rs` | final-profile gateway client epoch, serialized request-boundary credential freshness, acknowledged request-scoped listener restoration, and deferred-task resolver |
+| `resource.rs` | governed current-profile resource reads, episode-local accounting, admitted text validation, and bounded correction diagnostics |
 
 ### `platform/gateway/src/bin/gateway/admin`
 
