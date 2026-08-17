@@ -3357,7 +3357,7 @@ const APP_FRAME_VIDEO_CADENCE: &str = r#"(async()=>{
   if(!video?.requestVideoFrameCallback)throw new Error("requestVideoFrameCallback is unavailable");
   const view=video.closest(".view"),cameraId=view?.id?.startsWith("view-")?view.id.slice(5):"",player=players.get(cameraId);
   if(!player)throw new Error("native stream player is unavailable");
-  const liveViewId=view?.dataset.liveViewId??"",minimumSourceSamples=256,warmupDeadline=Date.now()+30000;
+  const liveViewId=view?.dataset.liveViewId??"",minimumSourceSamples=256,warmupDeadline=Date.now()+60000;
   let warmLive=null;
   while(Date.now()<warmupDeadline){
     warmLive=await read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`);
