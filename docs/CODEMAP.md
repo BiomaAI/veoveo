@@ -131,7 +131,7 @@ Hub, administration, and GPU policy.
 | `testing/smoke/src/bin/smoke/deployment/gpu/admission.rs` | kubelet-plugin selector, DaemonSet readiness, node taint, and pod scheduling diagnostics |
 | `testing/smoke/src/bin/smoke/deployment/gpu/workloads.rs` | typed Deployment selector, current ReplicaSet ownership, Ready Pod/container, replica-count, and in-container GPU evidence targeting |
 | `testing/deployment-smoke/` | focused deployment-profile and exact-revision GitOps convergence CLI that avoids compiling unrelated protocol and visual scenarios |
-| `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation plus explicit native live-view container-restart recovery evidence |
+| `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and explicit native live-view container-restart recovery evidence |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
