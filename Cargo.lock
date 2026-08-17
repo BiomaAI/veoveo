@@ -10782,7 +10782,7 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 [[package]]
 name = "rig"
 version = "0.41.0"
-source = "git+https://github.com/rozgo/rig.git?rev=abbdce9711cd765bb9423b820b136443df1abb85#abbdce9711cd765bb9423b820b136443df1abb85"
+source = "git+https://github.com/rozgo/rig.git?rev=1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1#1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1"
 dependencies = [
  "rig-agent",
  "rig-core",
@@ -10796,7 +10796,7 @@ dependencies = [
 [[package]]
 name = "rig-agent"
 version = "0.41.0"
-source = "git+https://github.com/rozgo/rig.git?rev=abbdce9711cd765bb9423b820b136443df1abb85#abbdce9711cd765bb9423b820b136443df1abb85"
+source = "git+https://github.com/rozgo/rig.git?rev=1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1#1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1"
 dependencies = [
  "async-stream",
  "chrono",
@@ -10819,7 +10819,7 @@ dependencies = [
 [[package]]
 name = "rig-core"
 version = "0.41.0"
-source = "git+https://github.com/rozgo/rig.git?rev=abbdce9711cd765bb9423b820b136443df1abb85#abbdce9711cd765bb9423b820b136443df1abb85"
+source = "git+https://github.com/rozgo/rig.git?rev=1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1#1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1"
 dependencies = [
  "as-any",
  "async-stream",
@@ -10852,7 +10852,7 @@ dependencies = [
 [[package]]
 name = "rig-derive"
 version = "0.41.0"
-source = "git+https://github.com/rozgo/rig.git?rev=abbdce9711cd765bb9423b820b136443df1abb85#abbdce9711cd765bb9423b820b136443df1abb85"
+source = "git+https://github.com/rozgo/rig.git?rev=1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1#1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1"
 dependencies = [
  "convert_case 0.11.0",
  "proc-macro-crate",
@@ -10864,7 +10864,7 @@ dependencies = [
 [[package]]
 name = "rig-fastembed"
 version = "0.41.0"
-source = "git+https://github.com/rozgo/rig.git?rev=abbdce9711cd765bb9423b820b136443df1abb85#abbdce9711cd765bb9423b820b136443df1abb85"
+source = "git+https://github.com/rozgo/rig.git?rev=1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1#1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1"
 dependencies = [
  "fastembed",
  "rig-core",
@@ -10877,7 +10877,7 @@ dependencies = [
 [[package]]
 name = "rig-helixdb"
 version = "0.41.0"
-source = "git+https://github.com/rozgo/rig.git?rev=abbdce9711cd765bb9423b820b136443df1abb85#abbdce9711cd765bb9423b820b136443df1abb85"
+source = "git+https://github.com/rozgo/rig.git?rev=1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1#1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1"
 dependencies = [
  "reqwest 0.13.4",
  "rig-core",
@@ -10889,7 +10889,7 @@ dependencies = [
 [[package]]
 name = "rig-lancedb"
 version = "0.41.0"
-source = "git+https://github.com/rozgo/rig.git?rev=abbdce9711cd765bb9423b820b136443df1abb85#abbdce9711cd765bb9423b820b136443df1abb85"
+source = "git+https://github.com/rozgo/rig.git?rev=1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1#1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1"
 dependencies = [
  "arrow-array",
  "deranged",
@@ -10903,7 +10903,7 @@ dependencies = [
 [[package]]
 name = "rig-milvus"
 version = "0.41.0"
-source = "git+https://github.com/rozgo/rig.git?rev=abbdce9711cd765bb9423b820b136443df1abb85#abbdce9711cd765bb9423b820b136443df1abb85"
+source = "git+https://github.com/rozgo/rig.git?rev=1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1#1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1"
 dependencies = [
  "reqwest 0.13.4",
  "rig-core",
@@ -13646,6 +13646,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "url",
