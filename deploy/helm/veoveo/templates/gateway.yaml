@@ -114,6 +114,16 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 12
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.global.publicBaseUrl | trimPrefix "https://" | trimPrefix "http://" | quote }}
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 24
           livenessProbe:
             httpGet:
               path: /healthz
