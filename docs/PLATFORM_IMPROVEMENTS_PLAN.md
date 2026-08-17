@@ -104,7 +104,7 @@ installation authority, or build ownership.
 |---|---|---|---|
 | 0 | complete | decisions, protocol versions, ownership, hard-cut surfaces, and the test-driven sequence are recorded in `f2130bef` and `49b9d7ad` | none |
 | 1 | complete | Rig fork commit `1c59bf04` and Veoveo commits `da284e64` and `ceb1be9d` deliver typed subscriptions, resource reads, request-boundary preflight, make-before-break rotation, graceful cancellation, exact declared-resource wakes, safe diagnostics, cumulative budgets, and a passing hardware-GPU agent pilot | none |
-| 2A | source complete | `25404ab0` inserts a pure rendered Secret-reference closure before the development mutation boundary. Contract and smoke suites pass | run the zero-write API audit in a disposable cluster before claiming environmental acceptance |
+| 2A | complete | `25404ab0` inserts a pure rendered Secret-reference closure before the development mutation boundary. Contract and smoke suites pass. A revision-pinned disposable K3s audit records only Secret and Namespace GETs and zero writes when three owner-supplied Secrets are absent | none |
 | 2B | unopened | the required ownership evidence was not supplied | retain the existing deployment ownership model |
 | 3 | complete | `b6ca32ce` hard-cuts Map axis, typed distance scoring, and cursor behavior. DuckDB and Map suites pass, including restart coverage | none |
 | 4 | source complete | `9cd3ceab` adds the standalone App route through the shared Console host. Console BFF, web test, lint, typecheck, and production build gates pass | run the authenticated route in a headed browser after proving hardware-backed WebGPU or WebGL against a deployment containing this revision |
@@ -113,15 +113,23 @@ installation authority, or build ownership.
 | 7 | unopened evidence-gated track | no qualified same-device contention evidence was accepted | no action |
 | 8 | complete | `674fbb27`, `14c4bb57`, and `3c9e56e6` expose exact Frames and Time provenance and keep the contract fixture authoritative | none |
 | 9 | unopened optional track | no repository-managed private build need was approved | no action |
-| 10 | source closure complete | applicable focused suites, broad durable-task suites, Console gates, the remote-pinned Phase 1 suites, and the hardware agent pilot pass. The locked repository-wide formatting, all-target check, strict clippy, and library/binary test gates pass | perform the remaining qualified cluster and browser acceptance against a deployment containing this revision |
+| 10 | source closure complete | applicable focused suites, broad durable-task suites, Console gates, the remote-pinned Phase 1 suites, the hardware agent pilot, and the disposable-cluster zero-write audit pass. The locked repository-wide formatting, all-target check, strict clippy, and library/binary test gates pass | perform the remaining qualified browser acceptance against a deployment containing this revision |
 
-The environmental check on 2026-08-17 found one healthy operator-owned Bioma
-installation. Its Argo CD platform application resolves Veoveo main `3029df8f`, not
-this worktree. The attached headed Chrome session reaches that installation. No current
-deployment lock exists in this worktree for a separate disposable profile. The stale
-installation is not acceptance evidence for these changes, and it was not mutated.
-Cluster zero-write audit and standalone App browser acceptance therefore remain rollout
-gates for an installation that contains this revision.
+The Phase 2A environmental check used a temporary Git-owned profile and lock pinned to
+Veoveo `35ba4a1b` and the exact platform-chart archive. Its disposable K3s v1.35.5
+cluster enabled Kubernetes metadata auditing before `profile-up`. The rendered closure
+found 11 required keys across `veoveo-installation-secrets`, `veoveo-surreal-admin`, and
+`veoveo-surreal-runtime`, then returned `missing_secret`. The command's audit window
+contained only GET requests and `writeCount: 0`; the target Namespace remained absent.
+A later server-side dry-run canary appeared as a `create` request in the same audit log
+and remained unpersisted, which proves the policy could detect the prohibited verb. The
+disposable cluster was deleted after the check.
+
+One healthy operator-owned Bioma installation remains outside this acceptance run. Its
+Argo CD platform application resolves Veoveo main `3029df8f`, not this worktree. The
+attached headed Chrome session reaches that installation. It cannot prove the standalone
+App behavior in `35ba4a1b`, and it was not mutated. Standalone App browser acceptance
+therefore remains a rollout gate for an installation that contains this revision.
 
 ### Recorded red-green evidence
 
@@ -129,7 +137,7 @@ gates for an installation that contains this revision.
 |---|---|---|
 | Rig request handoff | `task_descriptor_uses_the_preflight_selected_client` showed a task descriptor retaining the cancelled preflight client | the focused test passes at fork commit `1c59bf04`. `cargo test -p rig-agent --features rmcp` passes 535 unit tests and 20 integration tests, and the matching clippy gate is clean |
 | durable retention handoff | the real `agent-pilot` reached terminal Optimization completion, then failed because the hosted task adapter had lost the repository retention pin lifted into RMCP request context | two task-runtime metadata tests pass, all eleven affected crate suites pass, and the same pilot completes on an RTX 4090 with the immutable cuOpt executor image |
-| Secret closure | the missing-reference fixture reached the development mutation boundary before a complete rendered closure existed | deployment contract and smoke tests reject the fixture before the mutating boundary |
+| Secret closure | the missing-reference fixture reached the development mutation boundary before a complete rendered closure existed | deployment contract and smoke tests reject the fixture before the mutating boundary; a revision-pinned disposable K3s run records zero API writes and leaves its target Namespace absent |
 | Map distance contract | old-axis and old-cursor fixtures exposed ambiguous coordinate interpretation and reusable legacy cursor state | DuckDB runtime and Map suites prove `geometry_always_xy`, one typed materialized distance score, stable ordering after reopen, and rejection of the old cursor domain |
 | standalone App route | the authorized standalone route and bootstrap behavior were absent | Console BFF route and host tests pass, and the web application passes test, lint, typecheck, and production build gates |
 | serialized task resources | oversized serialized results and growing result discovery exceeded the intended bounded handoff | MCP conformance, task-runtime, and affected domain suites prove the response cap, exact lookup, stable pagination, and atomic consumption |
