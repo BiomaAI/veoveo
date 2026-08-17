@@ -21,6 +21,7 @@ pub mod manifest;
 pub mod memory;
 pub mod recorder;
 pub mod replay;
+pub mod resource;
 pub mod rrd;
 pub mod summary;
 pub mod tasks;

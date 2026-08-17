@@ -102,6 +102,19 @@ domain identity and do not require a full collection scan. `resources/list`
 advertises stable roots and templates rather than enumerating every dynamic
 record. Completion queries are bounded at their authoritative store.
 
+An agent reads resources through a governed current-profile adapter rather than an
+unrestricted protocol peer. The adapter admits absolute domain resource URIs and
+bounded text or JSON content. It rejects browser, local-file, network, credential,
+fragment, HTML, event-stream, binary, and oversized inputs. Episode-local accounting
+limits read count, resource families, bytes, wall time, and pagination depth.
+
+A missing resource remains JSON-RPC `Invalid Params` (`-32602`) on the wire. The agent
+may receive a fixed correction record containing a sanitized requested URI, a stable
+code, static guidance, `automatic_retry: false`, and the remaining safe budget. The
+adapter never copies upstream error text or data into model context. Authorization,
+timeout, transport, and internal failures remain fixed generic failures, while a
+schema-valid domain rejection remains an ordinary tool result with `isError: true`.
+
 Compatibility helpers are allowed only when they are explicit product features
 for clients that cannot use the richer MCP surfaces well. They must be
 additive projections over the canonical protocol behavior and must reuse the

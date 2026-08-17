@@ -723,8 +723,10 @@ pub(crate) async fn agent_pilot_mission(
                 "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
                 "scopes": ["operator:use"],
                 "private_key_env": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
-                "private_key_kid": "test-key"
+                "private_key_kid": "test-key",
+                "token_refresh_fraction": 0.00001
             },
+            "resource_subscriptions": [{ "uri": "optimization://solutions" }],
             "episode": { "max_turns": 8, "task_deadline_s": 120 },
             "schedule": { "heartbeat_interval_s": 30, "wake_coalesce_window_ms": 100 },
             "memory": {
@@ -774,6 +776,11 @@ pub(crate) async fn agent_pilot_mission(
     wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 2, 240).await?;
     agent_child.stop();
 
+    let agent_output = fs::read_to_string(&agent_log)?;
+    if agent_output.matches("gateway connection rotated").count() < 2 {
+        bail!("pilot smoke did not rotate its short-lived gateway connection");
+    }
+
     {
         let ledger = duckdb::Connection::open(agent_data_dir.join("memory.duckdb"))?;
         let targets: i64 =
@@ -795,6 +802,7 @@ pub(crate) async fn agent_pilot_mission(
     {
         use veoveo_platform_store::{
             AgentTaskRecord, AgentTaskWatchState, PlatformStore, StoreConfig, StoreCredentials,
+            WakeKind, WakeRecord,
         };
 
         let store = PlatformStore::connect(
@@ -825,6 +833,26 @@ pub(crate) async fn agent_pilot_mission(
                 "optimization task was ({:?}, consumed: {:?})",
                 task.state,
                 task.consumed_by_episode
+            );
+        }
+
+        let mut response = store
+            .client()
+            .query("SELECT * FROM wake WHERE kind = 'resource_changed';")
+            .await?
+            .check()?;
+        let wakes: Vec<WakeRecord> = response.take(0)?;
+        if !wakes.iter().any(|wake| {
+            wake.kind == WakeKind::ResourceChanged
+                && wake
+                    .payload
+                    .as_map()
+                    .get("uri")
+                    .and_then(serde_json::Value::as_str)
+                    == Some("optimization://solutions")
+        }) {
+            bail!(
+                "optimization resource update did not survive credential rotation as a durable wake"
             );
         }
     }

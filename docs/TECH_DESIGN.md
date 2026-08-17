@@ -510,7 +510,12 @@ installation-specific copies. A manifest may also declare a bounded set of absol
 resource URIs that wake the agent on change. During token
 rotation, the kernel connects the replacement session and restores the complete
 subscription set before publishing its connection epoch; a failed subscription leaves
-the prior authenticated session active.
+the prior authenticated session active. Every MCP request performs the same serialized
+freshness check before dispatch, so concurrent callers cannot publish competing
+epochs. The current epoch also provides one governed resource-read tool. It admits
+bounded text and JSON under episode-local read, family, byte, wall-time, and pagination
+limits, and it projects only fixed correction fields for invalid input. Protocol,
+authorization, transport, and storage details do not enter model context.
 
 Authenticated human control stays available through the gateway and Console BFF; the
 agent pod is never an ingress service. An operator message is committed as a

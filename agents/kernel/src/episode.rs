@@ -22,6 +22,7 @@ use crate::{
     manifest::AgentManifest,
     memory::{EpisodeOutcome, MemoryStore},
     recorder::RecorderHook,
+    resource::{ResourceReadLedger, ResourceReadLimits},
     rrd::RrdRecorder,
     summary,
 };
@@ -32,6 +33,7 @@ pub struct EpisodeDriver {
     runtime: AgentRuntime,
     memory: MemoryStore,
     rrd: Arc<RrdRecorder>,
+    resource_read_limits: ResourceReadLimits,
 }
 
 #[derive(Debug)]
@@ -49,6 +51,7 @@ impl EpisodeDriver {
         runtime: AgentRuntime,
         memory: MemoryStore,
         rrd: Arc<RrdRecorder>,
+        resource_read_limits: ResourceReadLimits,
     ) -> Self {
         Self {
             manifest,
@@ -56,6 +59,7 @@ impl EpisodeDriver {
             runtime,
             memory,
             rrd,
+            resource_read_limits,
         }
     }
 
@@ -103,6 +107,7 @@ impl EpisodeDriver {
         );
         let mut tool_context = ToolContext::new();
         tool_context.insert(meta);
+        tool_context.insert(ResourceReadLedger::new(self.resource_read_limits.clone()));
         let resolvers = DeferredToolResolverRegistry::new();
         if let Some(resolver) = connection.epoch().resolver {
             resolvers
