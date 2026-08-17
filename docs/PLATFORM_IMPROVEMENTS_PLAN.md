@@ -100,10 +100,10 @@ installation authority, or build ownership.
 
 ### Implementation record
 
-| Phase | State on 2026-08-15 | Delivered evidence | Remaining closure |
+| Phase | State on 2026-08-17 | Delivered evidence | Remaining closure |
 |---|---|---|---|
 | 0 | complete | decisions, protocol versions, ownership, hard-cut surfaces, and the test-driven sequence are recorded in `f2130bef` and `49b9d7ad` | none |
-| 1 | complete | Rig fork commit `1c59bf04` delivers typed subscriptions, resource reads, request-boundary preflight, make-before-break rotation, and graceful cancellation. The remote-pinned Veoveo kernel has exact declared-resource listeners, bounded reads, safe diagnostics, cumulative budgets, and a passing hardware-GPU agent pilot | none |
+| 1 | complete | Rig fork commit `1c59bf04` and Veoveo commits `da284e64` and `ceb1be9d` deliver typed subscriptions, resource reads, request-boundary preflight, make-before-break rotation, graceful cancellation, exact declared-resource wakes, safe diagnostics, cumulative budgets, and a passing hardware-GPU agent pilot | none |
 | 2A | source complete | `25404ab0` inserts a pure rendered Secret-reference closure before the development mutation boundary. Contract and smoke suites pass | run the zero-write API audit in a disposable cluster before claiming environmental acceptance |
 | 2B | unopened | the required ownership evidence was not supplied | retain the existing deployment ownership model |
 | 3 | complete | `b6ca32ce` hard-cuts Map axis, typed distance scoring, and cursor behavior. DuckDB and Map suites pass, including restart coverage | none |
@@ -113,7 +113,15 @@ installation authority, or build ownership.
 | 7 | unopened evidence-gated track | no qualified same-device contention evidence was accepted | no action |
 | 8 | complete | `674fbb27`, `14c4bb57`, and `3c9e56e6` expose exact Frames and Time provenance and keep the contract fixture authoritative | none |
 | 9 | unopened optional track | no repository-managed private build need was approved | no action |
-| 10 | in progress | applicable focused suites, broad durable-task suites, Console gates, formatting, touched-crate clippy, the remote-pinned Phase 1 suites, and the hardware agent pilot pass. `a89f236e` closes earlier lint drift | perform the remaining qualified cluster and browser acceptance, then run the final repository-wide gate |
+| 10 | source closure complete | applicable focused suites, broad durable-task suites, Console gates, the remote-pinned Phase 1 suites, and the hardware agent pilot pass. The locked repository-wide formatting, all-target check, strict clippy, and library/binary test gates pass | perform the remaining qualified cluster and browser acceptance against a deployment containing this revision |
+
+The environmental check on 2026-08-17 found one healthy operator-owned Bioma
+installation. Its Argo CD platform application resolves Veoveo main `3029df8f`, not
+this worktree. The attached headed Chrome session reaches that installation. No current
+deployment lock exists in this worktree for a separate disposable profile. The stale
+installation is not acceptance evidence for these changes, and it was not mutated.
+Cluster zero-write audit and standalone App browser acceptance therefore remain rollout
+gates for an installation that contains this revision.
 
 ### Recorded red-green evidence
 
@@ -126,6 +134,7 @@ installation authority, or build ownership.
 | standalone App route | the authorized standalone route and bootstrap behavior were absent | Console BFF route and host tests pass, and the web application passes test, lint, typecheck, and production build gates |
 | serialized task resources | oversized serialized results and growing result discovery exceeded the intended bounded handoff | MCP conformance, task-runtime, and affected domain suites prove the response cap, exact lookup, stable pagination, and atomic consumption |
 | exact provenance | conversion results could require catalog search to discover the effective Frames revision or Time authority | Frames, Time, and MCP contract tests accept exact typed references directly |
+| copied deployment catalog | the repository-wide test found stale Timeseries and Optimization contract revisions in the Bioma composition | `696935da` aligns the copied typed metadata, the focused Bioma acceptance passes, and the complete locked workspace library/binary gate passes |
 
 The red transcripts remain review evidence rather than expected-failure tests. The green
 tests are committed with their owning changes. Phase 1 is delivered from the immutable

@@ -122,6 +122,9 @@ Post-migration agent repair passed these additional gates on 2026-08-17:
 | `cargo test -p veoveo-agent-kernel` from the remote Rig pin | 27 passed |
 | agent runtime, MCP contract, and task runtime suites | 165 unit and integration tests passed |
 | hardware agent pilot | passed on an NVIDIA RTX 4090 with the immutable cuOpt executor image. Credential rotation preserved the exact `optimization://solutions` wake and the terminal task was consumed once |
+| `cargo check --workspace --all-targets --locked` | passed |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | passed |
+| `cargo test --workspace --lib --bins --locked` | passed after the test exposed and `696935da` corrected stale copied Bioma contract metadata |
 
 The original migration did not run a live deployment, browser automation, GPU visual
 check, or demo verification because the operator reserved those checks for rollout.
@@ -269,12 +272,12 @@ task orchestration across the agent and MCP adapter. Upstream Rig 0.41 split the
 portable contracts into `rig-core` and the classic runtime into `rig-agent`; the
 root `rig` crate is the supported facade.
 
-The selected replacement was the immutable Rig commit
-`abbdce9711cd765bb9423b820b136443df1abb85`. The downstream cutover used this
-exact source revision:
+The selected replacement is the immutable Rig fork commit
+`1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1`. The downstream cutover and agent
+resource repair use this exact source revision:
 
 ```toml
-rig = { git = "https://github.com/rozgo/rig", rev = "abbdce9711cd765bb9423b820b136443df1abb85" }
+rig = { git = "https://github.com/rozgo/rig.git", rev = "1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1", features = ["rmcp"] }
 ```
 
 Any direct `rmcp` consumer must resolve the same SDK source selected by Rig:
@@ -1077,7 +1080,7 @@ The planned upstream work is complete and shareable at two immutable revisions:
 
 | Repository | Selected source | Purpose |
 |---|---|---|
-| `rozgo/rig` | [`abbdce9711cd765bb9423b820b136443df1abb85`](https://github.com/rozgo/rig/commit/abbdce9711cd765bb9423b820b136443df1abb85) | final-profile MCP client, connection ownership, deferred execution, Tasks, and MRTR |
+| `rozgo/rig` | [`1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1`](https://github.com/rozgo/rig/commit/1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1) | final-profile MCP client, connection ownership, deferred execution, Tasks, MRTR, acknowledged resource subscriptions, governed resource reads, and request-boundary preflight |
 | `rozgo/rust-sdk` | [`b7a5ad0f3894b7b66ad8a789cd49a79787e5d65f`](https://github.com/rozgo/rust-sdk/commit/b7a5ad0f3894b7b66ad8a789cd49a79787e5d65f) on [`fix/task-status-subscriptions`](https://github.com/rozgo/rust-sdk/tree/fix/task-status-subscriptions) | exact task-ID subscription filters and task-status notification delivery on `rmcp` `3.1.2` |
 
 Rig was rebuilt from current upstream rather than rebasing or cherry-picking the old
