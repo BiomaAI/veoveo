@@ -94,14 +94,14 @@ pub enum SecretClosureError {
         reason: &'static str,
     },
     InvalidReference {
-        object: KubernetesObjectKey,
+        object: Box<KubernetesObjectKey>,
         field_path: String,
     },
     UnverifiableObject {
-        object: KubernetesObjectKey,
+        object: Box<KubernetesObjectKey>,
     },
     RenderedSecretForbidden {
-        object: KubernetesObjectKey,
+        object: Box<KubernetesObjectKey>,
     },
     InvalidDigest {
         field: &'static str,
@@ -179,7 +179,9 @@ pub fn collect_secret_requirements(
     for value in objects {
         let object = object_key(value, default_namespace)?;
         if object.group.is_empty() && object.version == "v1" && object.kind == "Secret" {
-            return Err(SecretClosureError::RenderedSecretForbidden { object });
+            return Err(SecretClosureError::RenderedSecretForbidden {
+                object: Box::new(object),
+            });
         }
         if let Some(pod_spec_path) = pod_spec_path(&object) {
             if let Some(pod_spec) = value.pointer(pod_spec_path) {
@@ -192,7 +194,9 @@ pub fn collect_secret_requirements(
         } else if let Some(specs) = custom.specs_for(&object) {
             collect_custom(value, &object, specs, &mut requirements)?;
         } else if is_custom_resource(&object) && contains_secret_bearing_key(value) {
-            return Err(SecretClosureError::UnverifiableObject { object });
+            return Err(SecretClosureError::UnverifiableObject {
+                object: Box::new(object),
+            });
         }
     }
     requirements.sort();
@@ -338,7 +342,7 @@ fn collect_pod_spec(
                 for (item_index, item) in items.iter().enumerate() {
                     let key = item.get("key").and_then(Value::as_str).ok_or_else(|| {
                         SecretClosureError::InvalidReference {
-                            object: object.clone(),
+                            object: Box::new(object.clone()),
                             field_path: format!("{base}/items/{item_index}/key"),
                         }
                     })?;
@@ -380,7 +384,7 @@ fn collect_pod_spec(
                 for (item_index, item) in items.iter().enumerate() {
                     let key = item.get("key").and_then(Value::as_str).ok_or_else(|| {
                         SecretClosureError::InvalidReference {
-                            object: object.clone(),
+                            object: Box::new(object.clone()),
                             field_path: format!("{base}/items/{item_index}/key"),
                         }
                     })?;
@@ -569,12 +573,12 @@ fn push_named_reference(
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| SecretClosureError::InvalidReference {
-            object: object.clone(),
+            object: Box::new(object.clone()),
             field_path: field_path.clone(),
         })?;
     if key.as_ref().is_some_and(String::is_empty) {
         return Err(SecretClosureError::InvalidReference {
-            object: object.clone(),
+            object: Box::new(object.clone()),
             field_path,
         });
     }
@@ -585,7 +589,7 @@ fn push_named_reference(
         .map(str::to_owned)
         .or_else(|| object.namespace.clone())
         .ok_or_else(|| SecretClosureError::InvalidReference {
-            object: object.clone(),
+            object: Box::new(object.clone()),
             field_path: field_path.clone(),
         })?;
     let optional = optional_field
