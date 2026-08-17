@@ -1,10 +1,13 @@
 # Platform Reliability And Operability Implementation Plan
 
-Status: the approved core and ergonomic source changes are implemented on `worktree-a`.
-Phase 1 resolves from the immutable Rig fork commit
+Status: the approved core and ergonomic work is implemented and deployed to the Bioma
+installation. Phase 1 resolves from the immutable Rig fork commit
 `1c59bf04ed474cc7bdf8aefb2882bb8fefe557f1` and has passed its hardware agent pilot.
-Required cluster and headed-browser acceptance remains recorded below. Optional and
-evidence-gated tracks have not started because their gates have not opened.
+The application release at `688d34e4ea517f2da3188a1cddc81b00162db0f7` converged through
+activation `185b4bcb452df08cd3b5dd0fb70f1739c0931969`. The gateway startup repair
+converged through activation `b65e70de30be73be22cd46a8cce416d83dfcb373` and both replicas
+remain ready without restarts. Optional and evidence-gated tracks have not started
+because their gates have not opened.
 
 Baseline: Veoveo main `3029df8f` on 2026-08-14. The input was the reviewed client
 package `veoveo-platform-improvements-2026-08-14`, containing thirteen requests and
@@ -107,13 +110,13 @@ installation authority, or build ownership.
 | 2A | complete | `25404ab0` inserts a pure rendered Secret-reference closure before the development mutation boundary. Contract and smoke suites pass. A revision-pinned disposable K3s audit records only Secret and Namespace GETs and zero writes when three owner-supplied Secrets are absent | none |
 | 2B | unopened | the required ownership evidence was not supplied | retain the existing deployment ownership model |
 | 3 | complete | `b6ca32ce` hard-cuts Map axis, typed distance scoring, and cursor behavior. DuckDB and Map suites pass, including restart coverage | none |
-| 4 | source complete | `9cd3ceab` adds the standalone App route through the shared Console host. `99ae7da7` makes the focused headed-browser verifier preflight both Console and standalone hosts. Console BFF, web, and browser-smoke gates pass | run the authenticated route in a headed browser after proving hardware-backed WebGPU or WebGL against a deployment containing this revision |
+| 4 | complete | `9cd3ceab` adds the standalone App route through the shared Console host. `99ae7da7` requires both host preflights, and `47f0ef7e` gives that contract its own focused command. Console BFF, web, browser-smoke, and authenticated headed-browser gates pass on the deployed revision with hardware graphics | none |
 | 5 | complete | `70617b25`, `7634d03c`, `5e202843`, and `280d634b` close atomic task consumption, serialized response caps, bounded canonical discovery, and retention metadata handoff. Phase 1 adds the kernel read ledger and remote-pin pilot evidence | none |
 | 6 | unopened optional track | no provider configuration need was approved | no action |
 | 7 | unopened evidence-gated track | no qualified same-device contention evidence was accepted | no action |
 | 8 | complete | `674fbb27`, `14c4bb57`, and `3c9e56e6` expose exact Frames and Time provenance and keep the contract fixture authoritative | none |
 | 9 | unopened optional track | no repository-managed private build need was approved | no action |
-| 10 | source closure complete | applicable focused suites, broad durable-task suites, Console gates, the remote-pinned Phase 1 suites, the hardware agent pilot, and the disposable-cluster zero-write audit pass. The locked repository-wide formatting, all-target check, strict clippy, and library/binary test gates pass | perform the remaining qualified browser acceptance against a deployment containing this revision |
+| 10 | complete for approved scope | applicable focused suites, broad durable-task suites, Console gates, the remote-pinned Phase 1 suites, the hardware agent pilot, the disposable-cluster zero-write audit, exact GitOps convergence, and the focused hardware browser host gate pass. The locked repository-wide formatting, all-target check, strict clippy, and library/binary test gates pass | optional and evidence-gated tracks remain unopened by design |
 
 The Phase 2A environmental check used a temporary Git-owned profile and lock pinned to
 Veoveo `35ba4a1b` and the exact platform-chart archive. Its disposable K3s v1.35.5
@@ -125,11 +128,29 @@ A later server-side dry-run canary appeared as a `create` request in the same au
 and remained unpersisted, which proves the policy could detect the prohibited verb. The
 disposable cluster was deleted after the check.
 
-One healthy operator-owned Bioma installation remains outside this acceptance run. Its
-Argo CD platform application resolves Veoveo main `3029df8f`, not this worktree. The
-attached headed Chrome session reaches that installation. It cannot prove the standalone
-App behavior in `35ba4a1b`, and it was not mutated. Standalone App browser acceptance
-therefore remains a rollout gate for an installation that contains this revision.
+The Bioma installation now resolves the release-input commit
+`fb96bb790c665468e2f1eeac3566cb8b7baa012b` through parent activation
+`b65e70de30be73be22cd46a8cce416d83dfcb373`. The typed convergence harness recorded
+successful fetch, render, apply, rollout, and readiness for the platform deployment set
+in `output/development/gitops-convergence-gateway-repair-b65e70de.json`. The earlier
+application rollout is recorded in
+`output/development/gitops-convergence-platform-improvements-185b4bcb.json`.
+
+The rollout exposed a gateway replica taking about 39 seconds to finish its SurrealDB
+startup work while liveness committed to termination after roughly 30 seconds. The
+rendered-chart regression failed before the gateway had a startup probe. Commit
+`25866592` adds a 120-second startup window without weakening steady-state liveness,
+updates the exact Bioma control-plane digest, and repairs stale Helm smoke expectations.
+Both replicas reached readiness with zero restarts after the repair.
+
+`cargo xtask smoke uav-app-hosts-browser-verify --public-base-url
+https://veoveo.bioma.ai --chrome-cdp-url http://127.0.0.1:9222` passes against headed
+Chrome 151 on the RTX 4090. It authenticates both the Console and standalone routes,
+loads the shared App frame, and rejects software-only browser graphics. The broader UAV
+two-viewer throughput verifier remains strict and currently reports a baseline simulator
+regression of 9.9–11.2 delivered FPS and 93–99 ms source-to-render p95 against its 12 FPS
+and 85 ms gates. That failure occurs after both App-host preflights and does not weaken
+or reopen the standalone-host milestone.
 
 ### Recorded red-green evidence
 
@@ -139,7 +160,8 @@ therefore remains a rollout gate for an installation that contains this revision
 | durable retention handoff | the real `agent-pilot` reached terminal Optimization completion, then failed because the hosted task adapter had lost the repository retention pin lifted into RMCP request context | two task-runtime metadata tests pass, all eleven affected crate suites pass, and the same pilot completes on an RTX 4090 with the immutable cuOpt executor image |
 | Secret closure | the missing-reference fixture reached the development mutation boundary before a complete rendered closure existed | deployment contract and smoke tests reject the fixture before the mutating boundary; a revision-pinned disposable K3s run records zero API writes and leaves its target Namespace absent |
 | Map distance contract | old-axis and old-cursor fixtures exposed ambiguous coordinate interpretation and reusable legacy cursor state | DuckDB runtime and Map suites prove `geometry_always_xy`, one typed materialized distance score, stable ordering after reopen, and rejection of the old cursor domain |
-| standalone App route | the authorized standalone route and bootstrap behavior were absent; the focused real-browser verifier initially opened only the Console host | Console BFF route and host tests pass, the web application passes test, lint, typecheck, and production build gates, and the focused verifier's closed host plan now requires both Console and standalone preflights |
+| standalone App route | the authorized standalone route and bootstrap behavior were absent; the focused real-browser verifier initially opened only the Console host | Console BFF route and host tests pass, the web application passes test, lint, typecheck, and production build gates, and the deployed focused host command passes both Console and standalone preflights in headed hardware Chrome |
+| gateway rollout startup | one new replica needed about 39 seconds for store startup, while liveness committed to killing it after roughly 30 seconds | the rendered chart requires a 120-second startup probe, the Helm smoke passes, exact GitOps convergence succeeds, and both deployed replicas remain ready with zero restarts |
 | serialized task resources | oversized serialized results and growing result discovery exceeded the intended bounded handoff | MCP conformance, task-runtime, and affected domain suites prove the response cap, exact lookup, stable pagination, and atomic consumption |
 | exact provenance | conversion results could require catalog search to discover the effective Frames revision or Time authority | Frames, Time, and MCP contract tests accept exact typed references directly |
 | copied deployment catalog | the repository-wide test found stale Timeseries and Optimization contract revisions in the Bioma composition | `696935da` aligns the copied typed metadata, the focused Bioma acceptance passes, and the complete locked workspace library/binary gate passes |
