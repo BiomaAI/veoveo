@@ -85,6 +85,15 @@ struct Args {
 // browser binary; the shared prefix is part of the CLI rather than Rust type noise.
 #[allow(clippy::enum_variant_names)]
 enum SmokeCommand {
+    /// Verify the Console and standalone UAV App hosts without opening live products.
+    UavAppHostsBrowserVerify {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value_t = 180)]
+        timeout_seconds: u64,
+    },
     /// Repeat headed Console acceptance without restarting or commanding the simulation.
     UavShowcaseBrowserVerify {
         #[arg(long, default_value = "target/debug/conformance")]
@@ -287,6 +296,18 @@ impl OperatorClient<'_> {
 async fn main() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Args::parse().command {
+        SmokeCommand::UavAppHostsBrowserVerify {
+            public_base_url,
+            chrome_cdp_url,
+            timeout_seconds,
+        } => {
+            verify_uav_app_hosts(
+                &public_base_url,
+                &chrome_cdp_url,
+                Duration::from_secs(timeout_seconds),
+            )
+            .await
+        }
         SmokeCommand::UavShowcaseBrowserVerify {
             conformance_bin,
             scenario,
@@ -356,6 +377,23 @@ async fn main() -> Result<()> {
             .await
         }
     }
+}
+
+async fn verify_uav_app_hosts(
+    public_base_url: &str,
+    chrome_cdp_url: &str,
+    timeout: Duration,
+) -> Result<()> {
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "focused UAV App host acceptance requires public HTTPS"
+    );
+    preflight_focused_uav_app_hosts(chrome_cdp_url, public_base_url, timeout).await?;
+    println!(
+        "Focused UAV App host acceptance passed for the authenticated Console and standalone routes"
+    );
+    Ok(())
 }
 
 async fn verify_recording_archive(
