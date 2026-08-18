@@ -1,4 +1,4 @@
-name: Local test report
+name: Build
 
 on:
   pull_request:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   report:
-    name: Informational local result
+    name: Build status
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
