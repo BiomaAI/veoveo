@@ -241,10 +241,21 @@ fn source_digest(root: &Path) -> Result<String> {
     paths.retain(|path| path != REPORT_PATH && root.join(path).symlink_metadata().is_ok());
     paths.sort();
 
+    let regular_files = paths
+        .iter()
+        .filter_map(|relative| {
+            let path = root.join(relative);
+            let metadata = fs::symlink_metadata(&path).ok()?;
+            metadata.is_file().then_some(relative.as_str())
+        })
+        .collect::<Vec<_>>();
+    let object_ids = canonical_object_ids(root, &regular_files)?;
+    let mut object_ids = regular_files.into_iter().zip(object_ids);
+
     let mut digest = Sha256::new();
     digest.update(b"veoveo-local-test-source-v1\0");
-    for relative in paths {
-        let path = root.join(&relative);
+    for relative in &paths {
+        let path = root.join(relative);
         let metadata = fs::symlink_metadata(&path)
             .with_context(|| format!("reading metadata for {}", path.display()))?;
         digest.update(relative.as_bytes());
@@ -256,15 +267,61 @@ fn source_digest(root: &Path) -> Result<String> {
             digest.update(target.as_os_str().to_string_lossy().as_bytes());
         } else if metadata.is_file() {
             digest.update(b"file\0");
-            let contents = fs::read(&path)
-                .with_context(|| format!("reading source file {}", path.display()))?;
-            digest.update(contents);
+            let (object_path, object_id) = object_ids
+                .next()
+                .context("Git did not return an object identity for every source file")?;
+            if object_path != relative.as_str() {
+                bail!("Git object identities were returned out of source order")
+            }
+            digest.update(object_id.as_bytes());
         } else {
             bail!("unsupported repository entry {}", path.display())
         }
         digest.update([0]);
     }
     Ok(format!("sha256:{}", hex::encode(digest.finalize())))
+}
+
+fn canonical_object_ids(root: &Path, paths: &[&str]) -> Result<Vec<String>> {
+    if paths
+        .iter()
+        .any(|path| path.as_bytes().contains(&b'\n') || path.as_bytes().contains(&b'\r'))
+    {
+        bail!("source paths containing newlines cannot be fingerprinted")
+    }
+
+    let mut child = Command::new("git")
+        .args(["hash-object", "--stdin-paths"])
+        .current_dir(root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .context("starting Git source canonicalization")?;
+    {
+        let mut stdin = child.stdin.take().context("opening Git hash input")?;
+        for path in paths {
+            writeln!(stdin, "{path}").context("writing Git hash input")?;
+        }
+    }
+    let output = child
+        .wait_with_output()
+        .context("waiting for Git source canonicalization")?;
+    if !output.status.success() {
+        bail!("Git source canonicalization exited with {}", output.status)
+    }
+    let object_ids = String::from_utf8(output.stdout)
+        .context("Git object identity output is not UTF-8")?
+        .lines()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    if object_ids.len() != paths.len() {
+        bail!(
+            "Git returned {} object identities for {} source files",
+            object_ids.len(),
+            paths.len()
+        )
+    }
+    Ok(object_ids)
 }
 
 fn report_status(report: Option<&LocalTestReport>, current_digest: &str) -> ReportStatus {
@@ -459,5 +516,39 @@ mod tests {
         fs::remove_file(root.join("deleted.txt")).unwrap();
 
         assert!(source_digest(root).is_ok());
+    }
+
+    #[test]
+    fn source_digest_uses_clean_filtered_content() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path();
+        assert!(
+            Command::new("git")
+                .arg("init")
+                .arg(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            Command::new("git")
+                .args([
+                    "config",
+                    "filter.canonical.clean",
+                    "sed s/materialized/canonical/"
+                ])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::write(root.join(".gitattributes"), "*.asset filter=canonical\n").unwrap();
+        fs::write(root.join("camera.asset"), "materialized\n").unwrap();
+        let materialized = source_digest(root).unwrap();
+
+        fs::write(root.join("camera.asset"), "canonical\n").unwrap();
+        let canonical = source_digest(root).unwrap();
+
+        assert_eq!(materialized, canonical);
     }
 }
