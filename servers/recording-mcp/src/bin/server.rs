@@ -19,7 +19,7 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
+        GetPromptRequestParams, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
         ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
         ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,

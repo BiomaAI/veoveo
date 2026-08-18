@@ -24,6 +24,7 @@ component:
 | [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
 | [`DEVELOPMENT_ITERATION.md`](DEVELOPMENT_ITERATION.md) | affected-target staging, digest-locked development rollout, focused acceptance, runtime pressure diagnostics, and iteration budgets |
+| [`CONTINUOUS_INTEGRATION.md`](CONTINUOUS_INTEGRATION.md) | temporary host-local test reporting, informational GitHub presentation, and the future full GPU CI architecture |
 | [`connectors/README.md`](connectors/README.md) | third-party MCP connector catalog, recipe contract, and governed upstream path |
 
 Exploratory documents preserve open design work. They are not normative and do not
@@ -146,7 +147,7 @@ Hub, administration, and GPU policy.
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
-| `tools/xtask/` | compiled repository command, enforcement, typed smoke prerequisite builds and dispatch, exact image planning, profile-registry builder configuration, and release orchestration |
+| `tools/xtask/` | compiled repository command, enforcement, local test reporting, typed smoke prerequisite builds and dispatch, exact image planning, profile-registry builder configuration, and release orchestration |
 
 ## Placement Rules
 
@@ -808,7 +809,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
 | `testing/smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |
-| `.github/workflows/ci.yml` | formatting, clippy, tests, UI, Keycloak, deployment CI |
+| `testing/local-test-report.json` | committed informational result of checks executed on the qualified development host |
+| `.github/workflows/local-test-report.yml` | lightweight presentation of the committed local test report; it performs no substantive build, deployment, GPU, or browser acceptance |
 
 There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell recipes.
 
