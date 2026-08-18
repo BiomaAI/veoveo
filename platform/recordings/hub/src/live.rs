@@ -81,7 +81,7 @@ pub fn optimize_live_rrd_messages(
 /// Remove producer-authored and compaction-authored keyframe columns from the
 /// browser live projection.
 ///
-/// Rerun 0.35 discovers H.264 sync samples from the encoded access units. Its
+/// Rerun 0.36 discovers H.264 sync samples from the encoded access units. Its
 /// viewer cache also assumes every `VideoStream:sample` value is dense within
 /// the physical chunk. A sparse keyframe marker can otherwise become the
 /// compaction key that co-locates samples from different batches and violates

@@ -801,11 +801,11 @@ pub(crate) async fn helm_config() -> Result<()> {
             && uav_dependencies
                 .pointer("/components/rerun/version")
                 .and_then(Value::as_str)
-                == Some("0.35.0")
+                == Some("0.36.0")
             && uav_dependencies
                 .pointer("/components/python_runtime/rerun_sdk")
                 .and_then(Value::as_str)
-                == Some("0.35.0"),
+                == Some("0.36.0"),
         "UAV dependency lock omitted a canonical release or Google tiles identity"
     );
     let simulation_lock_bytes =
@@ -900,7 +900,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "cesium-0.29.0-preinstalled-vendor.patch",
         "lxml-6.0.2-cp312-cp312",
         "git -C pegasus apply --unidiff-zero --check",
-        "ARG RERUN_SDK_VERSION=0.35.0",
+        "ARG RERUN_SDK_VERSION=0.36.0",
         "rerun-sdk==${RERUN_SDK_VERSION}",
         "FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS uav-overlay",
         "FROM uav-sim-dependencies AS runtime",
@@ -915,10 +915,10 @@ pub(crate) async fn helm_config() -> Result<()> {
     }
     contains(
         &fs::read_to_string("platform/recordings/hub/Dockerfile")?,
-        "rerun-sdk==0.35.0",
+        "rerun-sdk==0.36.0",
     )?;
     let stdio_bridge_dockerfile = fs::read_to_string("mcp/bridges/stdio/Dockerfile")?;
-    contains(&stdio_bridge_dockerfile, "ARG RERUN_VERSION=0.35.0")?;
+    contains(&stdio_bridge_dockerfile, "ARG RERUN_VERSION=0.36.0")?;
     contains(
         &stdio_bridge_dockerfile,
         r#"rerun --version | grep -F "rerun-cli ${RERUN_VERSION} ""#,

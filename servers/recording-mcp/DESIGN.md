@@ -10,8 +10,8 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP for discovery, bounded queries, resources, templates, subscriptions, notifications, and artifact publication. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Recording query, manifest, subscription, and structured-result contracts. |
-| [Rerun 0.35.0](https://rerun.io/docs/) RRD and Rerun Data Protocol | Immutable frozen and sealed shards are layers of one recording-scoped dataset segment. The public service implements the viewer's read subset of the `rerun.cloud.v1alpha1.RerunCloudService` protocol over HTTP/2 or gRPC-Web. It does not claim the catalog, mutation, table, task, or maintenance profiles. |
-| Rerun 0.35.0 WebViewer `LogChannel` | Live playback uses the public `WebViewer.open_channel` and `LogChannel.send_rrd` API. Each send contains one complete independently decodable RRD byte array, as required by the pinned JavaScript SDK. |
+| [Rerun 0.36.0](https://rerun.io/docs/) RRD and Rerun Data Protocol | Immutable frozen and sealed shards are layers of one recording-scoped dataset segment. The public service implements the viewer's read subset of the `rerun.cloud.v1alpha1.RerunCloudService` protocol over HTTP/2 or gRPC-Web. It does not claim the catalog, mutation, table, task, or maintenance profiles. |
+| Rerun 0.36.0 WebViewer `LogChannel` | Live playback uses the public `WebViewer.open_channel` and `LogChannel.send_rrd` API. Each send contains one complete independently decodable RRD byte array, as required by the pinned JavaScript SDK. |
 | [Fetch Standard](https://fetch.spec.whatwg.org/) and Veoveo framed RRD stream v2 | Console performs one authenticated same-origin GET. The response media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`; each frame is an unsigned four-byte big-endian length followed by one complete RRD. The required `x-veoveo-rerun-live-start` header selects `bootstrap` for an empty Rerun channel or `resume-head` for a channel that already holds the bounded bootstrap. This is an internal browser adapter, not a public recording protocol. |
 | Veoveo recording ingest | Version `2026-08-06`; authenticated protobuf batches and distinct Blueprint publications carry native Rerun stores from a producer-local forwarder through the gateway to Recording Hub, with policy-scoped single-recording replacement. |
 | Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v8`; one finite producer Blueprint, one stable Redap archive URI, one optional recording-scoped `rerun_rrd_channel_v2` source, a catalog revision, and recording-scoped access material. |
@@ -68,7 +68,7 @@ the next writing shard after rollover. It never replays a shard already sent to
 that receiver.
 
 The live projection removes every `VideoStream:is_keyframe` column after
-compaction. Rerun 0.35 discovers H.264 sync samples from the access-unit bytes,
+compaction. Rerun 0.36 discovers H.264 sync samples from the access-unit bytes,
 while its viewer cache indexes `VideoStream:sample` as a dense physical column.
 Omitting the sparse marker prevents messages from separate live batches from
 being compacted into a chunk whose sample component has fewer values than rows.
@@ -108,7 +108,7 @@ cargo xtask smoke uav-recording-archive-browser-verify \
   --chrome-cdp-url http://127.0.0.1:9222
 ```
 
-Rerun 0.35 persists standalone-viewer state unconditionally. Before starting an
+Rerun 0.36 persists standalone-viewer state unconditionally. Before starting an
 embedded viewer, Console clears the pinned Rerun state keys. A previously opened
 Redap server therefore cannot restore catalog queries or watch traffic into Live
 mode. The governed producer Blueprint is opened again as the presentation

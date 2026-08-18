@@ -50,7 +50,7 @@ Apps.
 - Native builds need a C/C++ toolchain, CMake, pkg-config, SQLite development
   files, and PROJ build dependencies (root README, Develop And Verify). The
   DuckDB C library links through the pinned 1.5.5 `duckdb-rs` fork, which
-  removes the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.35.
+  removes the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.36.
 - Docker is required for SurrealDB backed tests and deployment work.
 - The image build verifies the Spatial extension digest and copies native map
   utilities from pinned sources (`servers/map-mcp/Dockerfile`).
