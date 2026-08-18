@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { resetRerunEmbeddedViewerState } from "./rerunEmbeddedState.ts";
 
-test("removes only Rerun 0.35 embedded viewer state", () => {
+test("removes only Rerun 0.36 embedded viewer state", () => {
   const removed: string[] = [];
   resetRerunEmbeddedViewerState({
     removeItem(key: string) {

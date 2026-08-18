@@ -36,7 +36,7 @@ engine rather than by narrowing SQL.
 - `cargo test -p veoveo-duckdb-mcp`
 - The crate links the DuckDB C library through the pinned `duckdb-rs` fork;
   expect a long native first build. The fork tracks DuckDB 1.5.5 and removes
-  the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.35.
+  the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.36.
 - Docker is required for SurrealDB backed integration and smoke tests (root
   README, Develop And Verify).
 - `cargo xtask smoke agent-gateway` downloads the same pinned Spatial archive

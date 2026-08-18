@@ -419,7 +419,7 @@ export function RecordingsView({
                 )
               ) : (
                 <ViewerBoundary recordingId={selected.id}>
-                  <Suspense fallback={<div className="recording-viewer-state"><div className="loading-mark" /><span>Loading Rerun 0.35.0…</span></div>}>
+                  <Suspense fallback={<div className="recording-viewer-state"><div className="loading-mark" /><span>Loading Rerun 0.36.0…</span></div>}>
                     <GovernedRerunViewer
                       key={playback?.viewerKey ?? selected.id}
                       recordingId={selected.id}

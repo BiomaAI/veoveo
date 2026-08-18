@@ -375,7 +375,7 @@ mod tests {
                 "dataset_id": "00000000000000000000000000000001",
                 "segment_id": "inspection-flight",
                 "revision": "sha256:abc",
-                "rrd_version": "0.35.0",
+                "rrd_version": "0.36.0",
                 "optimization_profile": "object-store",
                 "byte_len": 42,
                 "layer_count": 1

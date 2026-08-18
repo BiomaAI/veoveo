@@ -1,4 +1,4 @@
-// Rerun 0.35's WebViewer hard-codes persisted standalone-viewer state. An
+// Rerun 0.36's WebViewer hard-codes persisted standalone-viewer state. An
 // embedded governed viewer must not inherit a previously selected Redap server:
 // restoring one starts catalog/watch traffic before any recording is opened.
 // Producer Blueprints remain the layout authority after this reset.

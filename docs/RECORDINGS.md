@@ -4,13 +4,13 @@
 
 | Standard or protocol | Recording profile |
 |---|---|
-| Rerun 0.35.0 gRPC and RRD | Producer-local ingestion and immutable `object-store`-optimized shards with footer manifests. |
+| Rerun 0.36.0 gRPC and RRD | Producer-local ingestion and immutable `object-store`-optimized shards with footer manifests. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
-| Rerun 0.35.0 WebViewer `LogChannel` | Console opens one incremental channel with `WebViewer.open_channel` and sends complete RRD arrays with `LogChannel.send_rrd`. |
+| Rerun 0.36.0 WebViewer `LogChannel` | Console opens one incremental channel with `WebViewer.open_channel` and sends complete RRD arrays with `LogChannel.send_rrd`. |
 | Fetch Standard and Veoveo framed RRD stream v2 | One authenticated same-origin GET carries unsigned four-byte big-endian lengths followed by complete RRD payloads. The exact media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`. The required start header distinguishes an empty-channel bootstrap from a current-head resume on an existing Rerun channel. |
 | Veoveo recording ingest `2026-08-06` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, decoder-reentrant rollover, and policy-scoped single-recording replacement. |
 | Veoveo recording playback `v8` | `veoveo.io/recording-playback/v8` binds one producer Blueprint, one lazy archive dataset, one optional recording-scoped `rerun_rrd_channel_v2` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
-| H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units and exact producer timeline indices. Archive materialization derives canonical sparse keyframe markers from encoded bytes; the Rerun 0.35 live-view adapter omits marker columns and preserves dense sample chunks. |
+| H.264/AVC Annex B | Decoder-reentrant `VideoStream` access units and exact producer timeline indices. Archive materialization derives canonical sparse keyframe markers from encoded bytes; the Rerun 0.36 live-view adapter omits marker columns and preserves dense sample chunks. |
 | JSON Web Token and SHA-256 | Host-limited Redap read access and immutable shard, layer-revision, and artifact identities. |
 
 Recording ingest begins at a producer-local forwarder. Native Rerun gRPC stays
@@ -32,7 +32,7 @@ cannot begin a shard. The forwarder closes its pending batch before every video 
 Hub identifies decoder-reentrant samples from their encoded bytes, preserving eligible
 rollover boundaries when telemetry and camera messages share one stream.
 
-Freeze runs one materialization pass with Rerun 0.35.0's `object-store`
+Freeze runs one materialization pass with Rerun 0.36.0's `object-store`
 optimization profile. It compacts the one-row ingest chunks into chunks capped
 at 2 MiB or 65,536 sorted rows, separates thick image/video columns from thin
 telemetry, rebatches video chunks on GoP boundaries, repairs keyframe metadata,
@@ -126,7 +126,7 @@ the durable Veoveo catalog and immutable RRD files rebuild it after restart or
 eviction. There are no archive-byte proxy routes and no whole-recording RRD
 concatenation endpoint.
 
-The current writing shard is delivered through Rerun 0.35's public incremental
+The current writing shard is delivered through Rerun 0.36's public incremental
 channel API. Recording MCP collects each reactive durable batch into one
 complete RRD and writes its length and bytes to the authenticated stream.
 Console recovers those exact boundaries and calls `LogChannel.send_rrd`. It
@@ -139,7 +139,7 @@ its own fetch and cannot select or close this tab's stream. Console never drives
 the cursor from `time_update` events. Rerun's own live play state follows the
 newest arriving data.
 
-The embedded viewer clears Rerun 0.35's persisted standalone state before it
+The embedded viewer clears Rerun 0.36's persisted standalone state before it
 starts. This prevents a prior Redap selection from restoring catalog discovery,
 archive downloads, or watch traffic into Live mode. Console then opens the
 governed producer Blueprint and the selected recording source explicitly.
@@ -171,7 +171,7 @@ history bound controls reconnect bootstrap rather than forcing a viewer restart.
 Rerun gRPC does not carry an SDK-flush marker. The producer forwarder groups its
 chunks by monotonic source-generation span and H.264 access-unit boundaries,
 then wakes the durable uploader immediately. It does not add a batch-flush
-clock. A producer that streams directly to this viewer path uses Rerun 0.35's
+clock. A producer that streams directly to this viewer path uses Rerun 0.36's
 documented `ChunkBatcherConfig.LOW_LATENCY` profile rather than the 200 ms
 general-purpose default. Every discovery, OAuth, and ingest request has a bounded deadline, and
 shutdown cancels an in-flight request before draining the durable queue.
@@ -179,7 +179,7 @@ Filesystem events publish newly acknowledged Hub parts to live receivers.
 Backoff remains limited to failed durable uploads and does not pace healthy
 live delivery.
 
-Console exposes explicit Live and History modes because Rerun 0.35 cannot keep
+Console exposes explicit Live and History modes because Rerun 0.36 cannot keep
 two receivers with the same recording Store ID open safely. Live selects only
 the current bounded channel stream. History selects only the lazy immutable
 archive dataset. A producer Blueprint remains a distinct presentation store and
@@ -232,7 +232,7 @@ in [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md).
 Producers log one sample-only update for each encoded access unit. Hub derives
 decoder-reentrant boundaries from the Annex B bytes. Archive materialization
 adds canonical sparse `is_keyframe=true` markers for GoP rebatching and indexed
-playback. The bounded Rerun 0.35 live adapter removes marker columns after
+playback. The bounded Rerun 0.36 live adapter removes marker columns after
 compaction because that viewer derives sync samples from H.264 bytes and indexes
 the sample component as dense within each physical chunk.
 Stream replay and Reason accept frozen or sealed RRD segments and task-start

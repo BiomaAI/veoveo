@@ -302,7 +302,7 @@ impl PlaybackManager {
             dataset_id: catalog.dataset_id.to_string(),
             segment_id: catalog.segment_id.clone(),
             revision: catalog.revision.clone(),
-            rrd_version: "0.35.0".to_owned(),
+            rrd_version: "0.36.0".to_owned(),
             optimization_profile: "object-store".to_owned(),
             byte_len: catalog.byte_len,
             layer_count: catalog.layers.len(),

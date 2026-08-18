@@ -16,7 +16,7 @@
   "dependencies": {
     "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/server": "2.0.0",
-    "@rerun-io/web-viewer": "0.35.0",
+    "@rerun-io/web-viewer": "0.36.0",
     "@tanstack/react-query": "5.101.2",
     "lucide-react": "1.24.0",
     "react": "19.2.7",

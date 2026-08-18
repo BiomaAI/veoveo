@@ -1,6 +1,6 @@
 //! Recording-scoped, framed RRD stream for Rerun WebViewer channels.
 //!
-//! Rerun 0.35's public `WebViewer.open_channel` API accepts complete RRD byte
+//! Rerun 0.36's public `WebViewer.open_channel` API accepts complete RRD byte
 //! arrays. This adapter preserves those decode boundaries over streaming HTTP:
 //! every body frame is a four-byte big-endian length followed by one complete
 //! RRD payload. Frames follow durable ingest and segment notifications; there
