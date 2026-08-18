@@ -886,7 +886,7 @@ impl LayerRuntime {
                 let (center, radius) = tree.nodes[tile].volume.bounding_sphere();
                 let local_center = selection_camera.local_from_ecef.transform_point3(center);
                 let sphere = Sphere {
-                    center: Vec3A::from(local_center.as_vec3()),
+                    center: Vec3A::from_array(local_center.as_vec3().to_array()),
                     radius: (radius * 1.25) as f32,
                 };
                 !selection_camera.frustum.intersects_sphere(&sphere, false)

@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use re_sdk::{
-    RecordingStream, RecordingStreamBuilder,
+    ApplicationId, RecordingStream, RecordingStreamBuilder,
     sink::{FileSink, FileSinkOptions, GrpcSink, LogSink},
 };
 use re_sdk_types::archetypes::{Scalars, TextDocument, TextLog};
@@ -55,7 +55,9 @@ impl RrdRecorder {
 
         let segment_path =
             rrd_dir.join(format!("mem-{}.rrd", chrono::Utc::now().timestamp_millis()));
-        let stream = RecordingStreamBuilder::new(application_id.as_str())
+        let rerun_application_id = ApplicationId::try_new(application_id.clone())
+            .context("agent application id is invalid")?;
+        let stream = RecordingStreamBuilder::new(rerun_application_id)
             .recording_id(recording_id.clone())
             .set_sinks(build_sinks(&segment_path, viewer_tee.as_deref())?)
             .context("opening RRD recording stream")?;

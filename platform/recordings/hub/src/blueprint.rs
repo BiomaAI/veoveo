@@ -160,6 +160,7 @@ pub fn ensure_blueprint_path(root: &Path, relative: &Path) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use re_log_encoding::{Encoder, EncodingOptions};
+    use re_log_types::ApplicationId;
     use re_sdk::{
         RecordingStreamBuilder,
         blueprint::{Blueprint, MapView},
@@ -172,10 +173,11 @@ mod tests {
     }
 
     fn blueprint_value_rrd(application_id: &str, blueprint: Blueprint) -> Vec<u8> {
-        let (recording, storage) = RecordingStreamBuilder::new(application_id)
-            .recording_id("recording-a")
-            .memory()
-            .unwrap();
+        let (recording, storage) =
+            RecordingStreamBuilder::new(ApplicationId::try_new(application_id).unwrap())
+                .recording_id("recording-a")
+                .memory()
+                .unwrap();
         blueprint.send(&recording, Default::default()).unwrap();
         let mut encoder = Encoder::new_eager(
             re_build_info::CrateVersion::LOCAL,

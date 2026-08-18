@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use re_sdk::RecordingStreamBuilder;
+use re_sdk::{ApplicationId, RecordingStreamBuilder};
 use re_sdk_types::archetypes::{GeoPoints, Scalars};
 use veoveo_recording_hub::sim::{
     Generator, LatLon, Sample, SensorId, SensorKind, SensorReport, SensorSpec, SensorStack,
@@ -156,10 +156,13 @@ async fn run_sensor(
     realtime: bool,
 ) -> Result<SensorReport> {
     let entity_path = spec.kind.entity_path(&spec.id);
-    let stream = RecordingStreamBuilder::new(spec.application_id.clone())
-        .recording_id(spec.recording.clone())
-        .connect_grpc_opts(proxy.clone())
-        .with_context(|| format!("connecting sensor {} to {proxy}", spec.id.as_str()))?;
+    let stream = RecordingStreamBuilder::new(
+        ApplicationId::try_new(spec.application_id.clone())
+            .context("invalid Rerun application id")?,
+    )
+    .recording_id(spec.recording.clone())
+    .connect_grpc_opts(proxy.clone())
+    .with_context(|| format!("connecting sensor {} to {proxy}", spec.id.as_str()))?;
 
     let rate = spec.kind.rate_hz() * burst;
     let tick_dur = std::time::Duration::from_secs_f64(1.0 / rate.max(1e-9));
