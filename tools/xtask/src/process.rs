@@ -103,7 +103,7 @@ pub(crate) fn cargo_status_with_env(
     Ok(())
 }
 
-fn remove_parent_cargo_package_environment(command: &mut Command) {
+pub(crate) fn remove_parent_cargo_package_environment(command: &mut Command) {
     for (key, _) in env::vars_os() {
         if is_cargo_package_environment(&key) {
             command.env_remove(key);

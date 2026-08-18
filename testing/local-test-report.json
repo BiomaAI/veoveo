@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "sourceDigest": "sha256:94af25c6e84b48353bb6e7d212434e7ef6ae6c077eb3c177c1fe13f58bd0c92a",
+  "updatedAt": "2026-08-18T18:18:07Z",
+  "checks": [
+    {
+      "name": "console-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-18T18:18:07Z",
+      "durationSeconds": 3.995622041,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-lint",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-18T18:17:58Z",
+      "durationSeconds": 3.4285396,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-tests",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "test"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-18T18:17:50Z",
+      "durationSeconds": 0.331374703,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "python-sdk",
+      "command": [
+        "cargo",
+        "xtask",
+        "enforce",
+        "python"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-18T18:17:44Z",
+      "durationSeconds": 9.461556885,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "rust-workspace",
+      "command": [
+        "cargo",
+        "xtask",
+        "enforce",
+        "rust"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-18T18:17:30Z",
+      "durationSeconds": 36.351389931,
+      "detail": "completed successfully"
+    }
+  ]
+}

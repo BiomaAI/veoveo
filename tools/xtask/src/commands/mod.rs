@@ -11,3 +11,4 @@ pub(crate) mod release;
 pub(crate) mod simulation;
 pub(crate) mod smoke;
 pub(crate) mod source;
+pub(crate) mod test_report;

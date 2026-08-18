@@ -8,7 +8,7 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use crate::{
-    commands::{builder, doctor, enforce, image, release, smoke},
+    commands::{builder, doctor, enforce, image, release, smoke, test_report},
     context::RepositoryContext,
 };
 
@@ -40,6 +40,36 @@ enum Command {
     },
     /// Build and dispatch the typed Rust smoke harness.
     Smoke(SmokeArgs),
+    /// Record and display locally executed build and test results.
+    TestReport {
+        #[command(subcommand)]
+        command: TestReportCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum TestReportCommand {
+    /// Run one existing command and record its result in the committed report.
+    Run(TestReportRunArgs),
+    /// Display the committed report and fail when it is stale or reports a failure.
+    Show(TestReportShowArgs),
+}
+
+#[derive(Debug, Args)]
+struct TestReportRunArgs {
+    /// Stable name shown for this check in the report.
+    #[arg(long)]
+    name: String,
+    /// Command and arguments to execute without a shell.
+    #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+    command: Vec<OsString>,
+}
+
+#[derive(Debug, Args)]
+struct TestReportShowArgs {
+    /// Also append the Markdown report to GITHUB_STEP_SUMMARY when available.
+    #[arg(long)]
+    github_summary: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -376,5 +406,11 @@ fn main() -> Result<()> {
             ReleaseCommand::Compatibility(args) => release::compatibility(&repository, &args),
         },
         Command::Smoke(args) => smoke::run(&repository, &args.arguments),
+        Command::TestReport { command } => match command {
+            TestReportCommand::Run(args) => {
+                test_report::run(&repository, &args.name, &args.command)
+            }
+            TestReportCommand::Show(args) => test_report::show(&repository, args.github_summary),
+        },
     }
 }
