@@ -9,6 +9,10 @@
   </picture>
 </p>
 
+<p align="center">
+  <a href="https://github.com/BiomaAI/veoveo/actions/workflows/local-test-report.yml"><img src="https://github.com/BiomaAI/veoveo/actions/workflows/local-test-report.yml/badge.svg?branch=main" alt="Build"></a>
+</p>
+
 Veoveo is an operations platform for physical AI. Teams run agents that
 observe the physical world, rehearse in simulated worlds, act on real
 systems, and turn everything that happened into operational intelligence.
