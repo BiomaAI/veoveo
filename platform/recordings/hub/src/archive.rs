@@ -184,9 +184,9 @@ mod tests {
             result.output_bytes,
             std::fs::metadata(&output).unwrap().len()
         );
-        let mut footer_file = futures::io::AllowStdIo::new(File::open(&output).unwrap());
+        let footer_file = File::open(&output).unwrap();
         assert!(
-            futures::executor::block_on(re_log_encoding::read_rrd_footer(&mut footer_file))
+            futures::executor::block_on(re_log_encoding::read_rrd_footer(&footer_file))
                 .unwrap()
                 .is_some(),
             "archive has a readable footer manifest"

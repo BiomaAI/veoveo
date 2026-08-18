@@ -114,7 +114,14 @@ fn run_worker(
     mut receiver: mpsc::Receiver<RecordingFrame>,
     state: &Mutex<RecordingState>,
 ) {
-    let recording = match RecordingStreamBuilder::new(config.application_id.clone())
+    let application_id = match re_log_types::ApplicationId::try_new(config.application_id.clone()) {
+        Ok(application_id) => application_id,
+        Err(error) => {
+            fail(state, format!("invalid Rerun application id: {error}"));
+            return;
+        }
+    };
+    let recording = match RecordingStreamBuilder::new(application_id)
         .recording_id(recording_key.to_owned())
         .connect_grpc_opts(config.proxy_url.clone())
     {

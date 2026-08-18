@@ -5,7 +5,7 @@ use std::{io::Cursor, path::Path};
 use anyhow::{Context, Result, ensure};
 use re_build_info::CrateVersion;
 use re_log_encoding::{Decoder, EncodingOptions, rrd::Encoder};
-use re_log_types::{LogMsg, StoreId, StoreKind};
+use re_log_types::{ApplicationId, LogMsg, StoreId, StoreKind};
 use sha2::{Digest, Sha256};
 
 /// Decode and re-encode one validated Blueprint while projecting its store
@@ -26,6 +26,8 @@ pub fn recording_scoped_blueprint(
     );
     let decoder = Decoder::<LogMsg>::decode_eager(Cursor::new(bytes))
         .with_context(|| format!("decoding playback Blueprint {}", path.display()))?;
+    let application_id = ApplicationId::try_new(application_id)
+        .context("playback Blueprint application id is invalid")?;
     let playback_store = StoreId::new(StoreKind::Blueprint, application_id, expected_blueprint_id);
     let mut output = Encoder::new_eager(
         CrateVersion::LOCAL,

@@ -165,10 +165,11 @@ pub(crate) async fn recording_ingest(
         recording_id: "external-smoke-superseded".to_owned(),
     };
     let superseded = client.open(&superseded_request).await?;
-    let (superseded_recording, superseded_storage) =
-        RecordingStreamBuilder::new(superseded_request.application_id.as_str())
-            .recording_id(superseded_request.recording_id.clone())
-            .memory()?;
+    let (superseded_recording, superseded_storage) = RecordingStreamBuilder::new(
+        re_log_types::ApplicationId::try_new(superseded_request.application_id.clone())?,
+    )
+    .recording_id(superseded_request.recording_id.clone())
+    .memory()?;
     superseded_recording.log("sensor/value", &Scalars::single(21.0))?;
     let superseded_messages = superseded_storage.take();
     let superseded_store_id = superseded_messages
@@ -234,9 +235,11 @@ pub(crate) async fn recording_ingest(
         "opening a replacement did not finalize the superseded recording: {superseded_catalog:?}"
     );
 
-    let (recording, storage) = RecordingStreamBuilder::new(request.application_id.as_str())
-        .recording_id(request.recording_id.clone())
-        .memory()?;
+    let (recording, storage) = RecordingStreamBuilder::new(re_log_types::ApplicationId::try_new(
+        request.application_id.clone(),
+    )?)
+    .recording_id(request.recording_id.clone())
+    .memory()?;
     recording.log("sensor/value", &Scalars::single(42.0))?;
     let messages = storage.take();
     let store_id = messages

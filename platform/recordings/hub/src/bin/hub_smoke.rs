@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result, ensure};
 use clap::{Parser, Subcommand};
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
-use re_sdk::RecordingStreamBuilder;
+use re_sdk::{ApplicationId, RecordingStreamBuilder};
 use re_sdk_types::archetypes::Scalars;
 use veoveo_recording_hub::{
     DatasetName, DatasetRoute, SegmentReadScope, Spooler, SpoolerConfig, collect_segments,
@@ -259,9 +259,11 @@ async fn push(
     messages: usize,
     paced: bool,
 ) -> Result<()> {
-    let stream = RecordingStreamBuilder::new(application_id)
-        .recording_id(recording_id)
-        .connect_grpc_opts(proxy.to_owned())?;
+    let stream = RecordingStreamBuilder::new(
+        ApplicationId::try_new(application_id).context("invalid Rerun application id")?,
+    )
+    .recording_id(recording_id)
+    .connect_grpc_opts(proxy.to_owned())?;
     for index in 0..messages {
         stream.set_time_sequence("tick", index as i64);
         stream.log("/world/smoke", &Scalars::new([index as f64]))?;

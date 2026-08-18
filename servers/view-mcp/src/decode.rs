@@ -66,29 +66,25 @@ pub fn decode_glb(bytes: &[u8]) -> Result<CpuTileContent, DecodeError> {
         return Err(DecodeError::LegacyContentUnsupported(kind));
     }
     let prepared = prepare_glb(bytes)?;
-    let gltf::Gltf { document, blob } = gltf::Gltf::from_slice_without_validation(&prepared.bytes)?;
+    let mut draco_import = draco_gltf::import_slice(&prepared.bytes, None)?;
+    draco_import.decompress_in_place()?;
+    let decompressed = draco_import.to_bytes(draco_gltf::OutputFormat::GlbV2)?;
+    let gltf::Gltf { document, blob } = gltf::Gltf::from_slice_without_validation(&decompressed)?;
     let buffer_data = gltf::import_buffers(&document, None, blob)?;
     let image_data = gltf::import_images(&document, None, &buffer_data)?;
-    let mut import = draco_gltf::Import {
-        document,
-        buffers: buffer_data.into_iter().map(|data| data.0).collect(),
-        images: image_data,
-    };
-    import.decompress_in_place()?;
 
-    let image_cache = import
-        .images
+    let image_cache = image_data
         .iter()
         .enumerate()
         .map(|(index, image)| Ok((index, Arc::new(convert_image(image)?))))
         .collect::<Result<HashMap<_, _>, DecodeError>>()?;
 
     let mut primitives = Vec::new();
-    let scenes: Vec<_> = import.document.scenes().collect();
+    let scenes: Vec<_> = document.scenes().collect();
     for scene in scenes {
         for node in scene.nodes() {
             decode_node(
-                &import,
+                &buffer_data,
                 &image_cache,
                 node,
                 DMat4::IDENTITY,
@@ -131,7 +127,7 @@ fn legacy_content_kind(bytes: &[u8]) -> Option<&'static str> {
 }
 
 fn decode_node(
-    import: &draco_gltf::Import,
+    buffers: &[gltf::buffer::Data],
     images: &HashMap<usize, Arc<CpuImage>>,
     node: gltf::Node<'_>,
     parent_transform: DMat4,
@@ -163,8 +159,8 @@ fn decode_node(
             if primitive.mode() != Mode::Triangles {
                 continue;
             }
-            let reader =
-                primitive.reader(|buffer| import.buffers.get(buffer.index()).map(Vec::as_slice));
+            let reader = primitive
+                .reader(|buffer| buffers.get(buffer.index()).map(|data| data.0.as_slice()));
             let positions: Vec<[f32; 3]> = reader
                 .read_positions()
                 .ok_or(DecodeError::MissingPositions)?
@@ -202,7 +198,7 @@ fn decode_node(
     }
 
     for child in node.children() {
-        decode_node(import, images, child, transform, output)?;
+        decode_node(buffers, images, child, transform, output)?;
     }
     Ok(())
 }

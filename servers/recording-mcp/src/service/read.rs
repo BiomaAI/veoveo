@@ -486,7 +486,7 @@ mod tests {
     use anyhow::Context as _;
     use re_build_info::CrateVersion;
     use re_log_encoding::{EncodingOptions, rrd::Encoder};
-    use re_log_types::LogMsg;
+    use re_log_types::{ApplicationId, LogMsg};
     use re_sdk::RecordingStreamBuilder;
     use re_sdk_types::archetypes::Scalars;
     use veoveo_recording_hub::query_segments_in_range;
@@ -494,10 +494,11 @@ mod tests {
     use super::*;
 
     fn encoded_rrd(application_id: &str, recording_key: &str, value: f64) -> Vec<u8> {
-        let (recording, storage) = RecordingStreamBuilder::new(application_id)
-            .recording_id(recording_key)
-            .memory()
-            .unwrap();
+        let (recording, storage) =
+            RecordingStreamBuilder::new(ApplicationId::try_new(application_id).unwrap())
+                .recording_id(recording_key)
+                .memory()
+                .unwrap();
         recording.set_duration_secs("sensor_time", value);
         recording
             .log("/sensor/value", &Scalars::single(value))
