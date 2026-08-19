@@ -11,8 +11,8 @@ use rmcp::{
 };
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayDiscoverySurface, LocalToolName, TaskExposure, paginate,
-    related_task_meta, sanitized_request_meta,
+    DiscoveryFailureMode, GatewayAction, GatewayDiscoverySurface, LocalToolName, TaskExposure,
+    paginate, related_task_meta, sanitized_request_meta,
 };
 use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
 
@@ -41,6 +41,10 @@ impl GatewayMcp {
         let snapshot = self.catalog.snapshot();
         let catalog = snapshot.catalog().clone();
         let catalog_generation = snapshot.generation();
+        let discovery_failure_mode = catalog
+            .profile(&self.profile_id)
+            .map(|profile| profile.discovery_failure_mode)
+            .unwrap_or(DiscoveryFailureMode::FailClosed);
         let authorization_fingerprint =
             invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
         let results = stream::iter(self.profile_servers().into_iter().map(|server_slug| {
@@ -114,9 +118,10 @@ impl GatewayMcp {
         .await;
         let (mut tools, degradation, errors) =
             isolate_discovery_failures(GatewayDiscoverySurface::Tools, results);
-        for (server, error) in errors {
+        for (server, error) in &errors {
             tracing::warn!(%server, %error, "isolated upstream tool discovery failure");
         }
+        enforce_complete_tool_discovery(discovery_failure_mode, &errors)?;
         tools.sort_by(|left, right| left.name.cmp(&right.name));
         let page = paginate(tools, request.as_ref(), GATEWAY_PAGE_SIZE)
             .map_err(|err| mcp_invalid_params(err.to_string()))?;
@@ -306,6 +311,24 @@ impl GatewayMcp {
     }
 }
 
+fn enforce_complete_tool_discovery<E>(
+    mode: DiscoveryFailureMode,
+    errors: &[(veoveo_mcp_contract::ServerSlug, E)],
+) -> Result<(), McpError> {
+    if mode != DiscoveryFailureMode::FailClosed || errors.is_empty() {
+        return Ok(());
+    }
+    let mut servers = errors
+        .iter()
+        .map(|(server, _)| server.to_string())
+        .collect::<Vec<_>>();
+    servers.sort();
+    Err(mcp_internal(format!(
+        "profile requires complete tool discovery; unavailable servers: {}",
+        servers.join(", ")
+    )))
+}
+
 fn restore_request_meta(
     request: &mut CallToolRequestParams,
     context_meta: &rmcp::model::RequestMetaObject,
@@ -404,6 +427,22 @@ pub(super) fn rewrite_detailed_task_id(task: &mut DetailedTask, canonical_task_i
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fail_closed_profile_rejects_an_incomplete_tool_catalog() {
+        let errors = [
+            (veoveo_mcp_contract::ServerSlug::new("uav-sim").unwrap(), ()),
+            (veoveo_mcp_contract::ServerSlug::new("map").unwrap(), ()),
+        ];
+
+        assert!(enforce_complete_tool_discovery(DiscoveryFailureMode::Isolate, &errors).is_ok());
+        let error =
+            enforce_complete_tool_discovery(DiscoveryFailureMode::FailClosed, &errors).unwrap_err();
+        assert_eq!(
+            error.message,
+            "profile requires complete tool discovery; unavailable servers: map, uav-sim"
+        );
+    }
 
     #[test]
     fn request_context_metadata_is_restored_before_upstream_projection() {

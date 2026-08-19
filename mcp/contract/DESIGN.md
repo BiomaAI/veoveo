@@ -164,14 +164,17 @@ Capability declarations name the exact signal a server can produce.
 `tools.listChanged`, `prompts.listChanged`, and `resources.listChanged` are
 independent claims. The gateway merges and forwards only the declared claims.
 
-Federated list discovery isolates an unavailable hosted server. The gateway
-returns authorized results from healthy servers and attaches a typed
+Federated list discovery isolates an unavailable hosted server by default. The
+gateway returns authorized results from healthy servers and attaches a typed
 `veoveo.io/gateway-discovery-degradation` result metadata document naming only
-the server, surface, and bounded failure code. Successful per-server results
-are cached for the exact catalog generation and invocation authority. A failed
-server is never cached. Its next explicit list request retries discovery, while
-the matching MCP `listChanged` notification invalidates successful cache state
-without polling. Direct resource reads and tool calls remain fail closed.
+the server, surface, and bounded failure code. A profile whose work requires a
+complete tool catalog sets `discovery_failure_mode` to `fail_closed`; its tool
+list fails until every exposed server is reachable, which prevents an autonomous
+client from retaining a silently incomplete toolset. Successful per-server
+results are cached for the exact catalog generation and invocation authority. A
+failed server is never cached. Its next explicit list request retries discovery,
+while the matching MCP `listChanged` notification invalidates successful cache
+state without polling. Direct resource reads and tool calls remain fail closed.
 
 ## Schemas And Types
 
