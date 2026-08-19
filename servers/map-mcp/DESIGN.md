@@ -530,6 +530,13 @@ stable UUIDv5 Map ids from source identity, element kind, source element
 identity, and geometry path. A line-delimited product also includes its stable
 product and record position when the source supplies no element identity.
 
+`inspect_position` resolves one WGS84 observation against the active governed
+projection in one bounded query per entity class. It returns distance-ordered
+named locations and facilities, containing boundaries, the active release
+identities used by the projection, and explicit gaps when the governed data
+does not label the surrounding area. Callers do not need to enumerate releases
+or search raw source features to answer where an observed position is.
+
 `query_source_features` always names one immutable release. It supports source
 and element identity, exact tag equality, tag existence, normalized text,
 representation, bounding box, intersection, containment, distance, and nearest
@@ -777,6 +784,7 @@ as every other raster derivation.
 | `list_active_dataset_releases` | direct | `map:dataset:read` | bounded active immutable release identities, digests, and pointer revisions |
 | `query_source_features` | direct | `map:dataset:read` | deterministic page from one immutable complete source release |
 | `inspect_location` | direct | `map:dataset:read` | location, nearby facilities, containing boundaries, lineage, gaps |
+| `inspect_position` | direct | `map:dataset:read` | position, distance-ordered nearby places, containing boundaries, active releases, gaps |
 | `transform_crs` | direct | `map:dataset:read` | bounded 2D CRS transformation |
 | `geodesic_inverse` | direct | `map:dataset:read` | WGS84 distance and azimuths |
 | `geodesic_direct` | direct | `map:dataset:read` | WGS84 destination |

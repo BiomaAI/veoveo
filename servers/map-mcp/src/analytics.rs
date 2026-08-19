@@ -12,11 +12,11 @@ use veoveo_duckdb_runtime::{
 use veoveo_mcp_contract::WorkContextId;
 
 use crate::contract::{
-    Facility, MapBoundaryId, MapFamily, MapLocation, Meters, QuerySourceFeaturesOutput,
-    QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProduct,
-    RasterProductId, SearchLocationsOutput, SearchLocationsRequest, SourceFeature, SourceFeatureId,
-    SourceFeatureMatch, SourceSpatialQuery, SpatialDerivation, SpatialDerivationId,
-    Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
+    Facility, MapBoundaryId, MapFamily, MapLocation, Meters, NearbyFacility, NearbyLocation,
+    QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId,
+    RasterProduct, RasterProductId, SearchLocationsOutput, SearchLocationsRequest, SourceFeature,
+    SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery, SpatialDerivation,
+    SpatialDerivationId, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
 mod projection;
@@ -30,8 +30,16 @@ const NEARBY_FACILITIES_SQL: &str = "WITH scored AS MATERIALIZED (\
        FROM map_visible_facility \
        WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?)\
      ) \
-     SELECT canonical_json FROM scored WHERE distance_m <= ? \
+     SELECT canonical_json, distance_m FROM scored WHERE distance_m <= ? \
      ORDER BY distance_m ASC, facility_key ASC, source_release_key ASC LIMIT ?";
+const NEARBY_LOCATIONS_SQL: &str = "WITH scored AS MATERIALIZED (\
+       SELECT canonical_json, location_key, source_release_key, \
+       ST_Distance_Sphere(ST_Point2D(longitude_deg, latitude_deg), ST_Point2D(?, ?)) AS distance_m \
+       FROM map_visible_location \
+       WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?)\
+     ) \
+     SELECT canonical_json, distance_m FROM scored WHERE distance_m <= ? \
+     ORDER BY distance_m ASC, location_key ASC, source_release_key ASC LIMIT ?";
 
 #[derive(Clone, Debug)]
 pub struct MapAnalyticsConfig {
@@ -238,6 +246,49 @@ impl MapAnalytics {
         if !(1..=100).contains(&limit) {
             bail!("nearby facility limit must be within 1..=100");
         }
+        Ok(self
+            .nearby_facility_matches(tenant_key, position, radius, limit)?
+            .into_iter()
+            .map(|item| item.facility)
+            .collect())
+    }
+
+    pub fn nearby_location_matches(
+        &self,
+        tenant_key: &str,
+        position: &Wgs84Position,
+        radius: Meters,
+        limit: u32,
+    ) -> Result<Vec<NearbyLocation>> {
+        validate_nearby_query(position, radius, limit, "location")?;
+        let connection = self.read_connection()?;
+        let mut statement = connection.prepare(NEARBY_LOCATIONS_SQL)?;
+        let mut rows = statement.query(params![
+            position.longitude_deg,
+            position.latitude_deg,
+            tenant_key,
+            tenant_key,
+            radius.get(),
+            limit,
+        ])?;
+        let mut locations = Vec::new();
+        while let Some(row) = rows.next()? {
+            locations.push(NearbyLocation {
+                location: serde_json::from_str(&row.get::<_, String>(0)?)?,
+                distance: Meters::new(row.get(1)?)?,
+            });
+        }
+        Ok(locations)
+    }
+
+    pub fn nearby_facility_matches(
+        &self,
+        tenant_key: &str,
+        position: &Wgs84Position,
+        radius: Meters,
+        limit: u32,
+    ) -> Result<Vec<NearbyFacility>> {
+        validate_nearby_query(position, radius, limit, "facility")?;
         let connection = self.read_connection()?;
         let mut statement = connection.prepare(NEARBY_FACILITIES_SQL)?;
         let mut rows = statement.query(params![
@@ -250,9 +301,22 @@ impl MapAnalytics {
         ])?;
         let mut facilities = Vec::new();
         while let Some(row) = rows.next()? {
-            facilities.push(serde_json::from_str(&row.get::<_, String>(0)?)?);
+            facilities.push(NearbyFacility {
+                facility: serde_json::from_str(&row.get::<_, String>(0)?)?,
+                distance: Meters::new(row.get(1)?)?,
+            });
         }
         Ok(facilities)
+    }
+
+    pub fn active_release_ids(
+        &self,
+        tenant_key: &str,
+    ) -> Result<Vec<crate::contract::DatasetReleaseId>> {
+        active_release_keys(&self.read_connection()?, tenant_key)?
+            .into_iter()
+            .map(|release| release.parse().map_err(Into::into))
+            .collect()
     }
 
     pub fn list_facilities(&self, tenant_key: &str, limit: u32) -> Result<Vec<Facility>> {
@@ -1219,6 +1283,22 @@ fn active_release_keys(connection: &Connection, tenant_key: &str) -> Result<Vec<
     Ok(releases)
 }
 
+fn validate_nearby_query(
+    position: &Wgs84Position,
+    radius: Meters,
+    limit: u32,
+    entity: &str,
+) -> Result<()> {
+    position.validate()?;
+    if radius.get() <= 0.0 || radius.get() > 1_000_000.0 {
+        bail!("nearby {entity} radius must be within (0, 1000000] meters");
+    }
+    if !(1..=100).contains(&limit) {
+        bail!("nearby {entity} limit must be within 1..=100");
+    }
+    Ok(())
+}
+
 fn longitude_predicate(coverage: &Wgs84BoundingBox, column: &str) -> String {
     if coverage.west <= coverage.east {
         format!("{column} BETWEEN ? AND ?")
@@ -1559,6 +1639,48 @@ mod tests {
         assert_eq!(locations[0].location_id, locations[1].location_id);
         assert!(
             locations[0].lineage.release_id.as_str() < locations[1].lineage.release_id.as_str()
+        );
+    }
+
+    #[test]
+    fn nearby_locations_are_resolved_and_distance_ordered_in_one_query() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let analytics = configured_analytics(&root, &extension);
+        let release = DatasetReleaseId::new();
+        let mut near = test_location(&release, "Brooklyn Bridge Center");
+        near.location_id = LocationId::from_stable_key(b"near-location");
+        near.position = Wgs84Position::new(-73.9969, 40.7061, None).unwrap();
+        let mut far = test_location(&release, "Times Square");
+        far.location_id = LocationId::from_stable_key(b"far-location");
+        far.position = Wgs84Position::new(-73.9855, 40.7580, None).unwrap();
+        analytics
+            .replace_release_products("tenant", &release, |writer| {
+                writer.put_location("tenant", &far)?;
+                writer.put_location("tenant", &near)
+            })
+            .unwrap();
+        analytics
+            .activate_release("tenant", &MapDatasetId::new(), &release)
+            .unwrap();
+
+        let matches = analytics
+            .nearby_location_matches(
+                "tenant",
+                &Wgs84Position::new(-73.97267, 40.70571, None).unwrap(),
+                Meters::new(10_000.0).unwrap(),
+                10,
+            )
+            .unwrap();
+
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].location.name, "Brooklyn Bridge Center");
+        assert!(matches[0].distance.get() < matches[1].distance.get());
+        assert_eq!(
+            analytics.active_release_ids("tenant").unwrap(),
+            vec![release]
         );
     }
 
