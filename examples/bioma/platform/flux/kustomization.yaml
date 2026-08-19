@@ -3,11 +3,11 @@ kind: Kustomization
 namespace: flux-system
 resources:
   - namespace.yaml
-  - https://github.com/fluxcd/flux2//manifests/bases/source-controller?ref=v2.9.3
-  - https://github.com/fluxcd/flux2//manifests/bases/kustomize-controller?ref=v2.9.3
-  - https://github.com/fluxcd/flux2//manifests/bases/helm-controller?ref=v2.9.3
-  - https://github.com/fluxcd/flux2//manifests/rbac?ref=v2.9.3
-  - https://github.com/fluxcd/flux2//manifests/policies?ref=v2.9.3
+  - https://github.com/fluxcd/flux2//manifests/bases/source-controller?ref=v2.9.4
+  - https://github.com/fluxcd/flux2//manifests/bases/kustomize-controller?ref=v2.9.4
+  - https://github.com/fluxcd/flux2//manifests/bases/helm-controller?ref=v2.9.4
+  - https://github.com/fluxcd/flux2//manifests/rbac?ref=v2.9.4
+  - https://github.com/fluxcd/flux2//manifests/policies?ref=v2.9.4
 patches:
   - target:
       group: apps
