@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceDigest": "sha256:4a8a2e937b02c77cf06af09225851e346555b5ba2549ec0b289bbad304e7f6de",
-  "updatedAt": "2026-08-19T04:39:44Z",
+  "sourceDigest": "sha256:658ec623b3024d6e5f44e537407231e143957836e3f1d93613c1fa213d491ca5",
+  "updatedAt": "2026-08-19T07:11:38Z",
   "checks": [
     {
       "name": "documentation",
@@ -13,8 +13,27 @@
         "HEAD"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-19T04:39:44Z",
-      "durationSeconds": 0.003463969,
+      "finishedAt": "2026-08-19T07:06:37Z",
+      "durationSeconds": 0.003980615,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "uav-agent-mission",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-agent-runtime",
+        "-p",
+        "veoveo-agent-kernel",
+        "-p",
+        "veoveo-map-mcp",
+        "-p",
+        "veoveo-mcp-gateway"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-19T07:11:38Z",
+      "durationSeconds": 284.153435513,
       "detail": "completed successfully"
     }
   ]
