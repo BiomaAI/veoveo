@@ -76,6 +76,7 @@ from veoveo_uav_sim.tile_lifecycle import (
     NativeTileEvent,
     NativeTileEventBridge,
     TileLifecycleController,
+    reset_provider_session,
 )
 from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_MOMENT_CONSTANT,
@@ -1800,9 +1801,9 @@ class StreamedWorldHealthTests(unittest.TestCase):
             load_type="tile_content",
             http_status=400,
         )
-        self.assertTrue(controller.accept(event).reload_tileset)
+        self.assertTrue(controller.accept(event).reset_provider_session)
         duplicate = controller.accept(event)
-        self.assertFalse(duplicate.reload_tileset)
+        self.assertFalse(duplicate.reset_provider_session)
         self.assertFalse(duplicate.report_failure)
         state = controller.snapshot()
         self.assertEqual(state.lifecycle, "refreshing")
@@ -1838,9 +1839,9 @@ class StreamedWorldHealthTests(unittest.TestCase):
             )
         )
         self.assertTrue(unavailable.report_failure)
-        self.assertFalse(unavailable.reload_tileset)
+        self.assertFalse(unavailable.reset_provider_session)
         self.assertTrue(rejected.report_failure)
-        self.assertTrue(rejected.reload_tileset)
+        self.assertTrue(rejected.reset_provider_session)
 
     def test_matching_replacement_generation_recovers_deterministically(self) -> None:
         controller = TileLifecycleController(
@@ -1895,7 +1896,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
         stable = controller.observe_render(
             resident_tiles=24, visible_tiles=6, loading_tiles=2
         )
-        self.assertFalse(duplicate.reload_tileset)
+        self.assertFalse(duplicate.reset_provider_session)
         self.assertEqual(stable.lifecycle, "ready")
         self.assertEqual(stable.event_sequence, 1)
 
@@ -1917,9 +1918,9 @@ class StreamedWorldHealthTests(unittest.TestCase):
             load_type="tile_content",
             http_status=400,
         )
-        self.assertTrue(controller.accept(first).reload_tileset)
-        self.assertFalse(controller.accept(second).reload_tileset)
-        self.assertFalse(controller.accept(second).reload_tileset)
+        self.assertTrue(controller.accept(first).reset_provider_session)
+        self.assertFalse(controller.accept(second).reset_provider_session)
+        self.assertFalse(controller.accept(second).reset_provider_session)
         state = controller.snapshot()
         self.assertEqual(state.lifecycle, "degraded")
         self.assertEqual(state.refresh_count, 1)
@@ -1938,7 +1939,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
             )
         )
         state = controller.snapshot()
-        self.assertFalse(action.reload_tileset)
+        self.assertFalse(action.reset_provider_session)
         self.assertEqual(state.lifecycle, "degraded")
         self.assertEqual(
             state.last_failure.code if state.last_failure else None,
@@ -1950,7 +1951,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertIn("TileLifecycleController(", source)
         self.assertIn('sensor_status.lifecycle == "degraded"', source)
         self.assertIn("statistics.tiles_rendered", source)
-        self.assertIn("cesium_interface.reload_tileset(tileset_path)", source)
+        self.assertIn("reset_provider_session(", source)
         self.assertNotIn("tile_absent_since", source)
         self.assertNotIn("assess_tile_health", source)
         self.assertNotIn('raise RuntimeError("Google Photorealistic', source)
@@ -1974,6 +1975,23 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertNotIn('snapshot["cameras"]', simulation_ready)
         self.assertNotIn('snapshot["recordings"]', simulation_ready)
         self.assertIn("visual_ready", server_source)
+
+    def test_provider_session_reset_clears_cache_before_reload(self) -> None:
+        operations: list[tuple[str, str | None]] = []
+        cesium_interface = SimpleNamespace(
+            clear_accessor_cache=lambda: operations.append(("clear_cache", None)),
+            reload_tileset=lambda path: operations.append(("reload", path)),
+        )
+
+        reset_provider_session(cesium_interface, "/World/Tileset")
+
+        self.assertEqual(
+            operations,
+            [
+                ("clear_cache", None),
+                ("reload", "/World/Tileset"),
+            ],
+        )
 
     def test_native_camera_fanout_has_no_software_encoder_or_drain(self) -> None:
         recording_source = (

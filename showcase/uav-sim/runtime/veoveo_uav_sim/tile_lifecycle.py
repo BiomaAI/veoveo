@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import queue
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 LOGGER = logging.getLogger("veoveo.uav_sim.tiles")
 
@@ -66,8 +66,25 @@ class TileLifecycleSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class TileLifecycleAction:
-    reload_tileset: bool = False
+    reset_provider_session: bool = False
     report_failure: bool = False
+
+
+class CesiumTilesetInterface(Protocol):
+    """Native operations required for a fresh provider generation."""
+
+    def clear_accessor_cache(self) -> None: ...
+
+    def reload_tileset(self, tileset_path: str) -> None: ...
+
+
+def reset_provider_session(
+    cesium_interface: CesiumTilesetInterface,
+    tileset_path: str,
+) -> None:
+    """Discard cached provider URLs before constructing the next tileset."""
+    cesium_interface.clear_accessor_cache()
+    cesium_interface.reload_tileset(tileset_path)
 
 
 def classify_failure(load_type: TileLoadType, http_status: int) -> TileFailureCode:
@@ -171,7 +188,10 @@ class TileLifecycleController:
             self._refresh_count += 1
             self._refresh_target_generation = event.generation + 1
             self._lifecycle = "refreshing"
-            return TileLifecycleAction(reload_tileset=True, report_failure=True)
+            return TileLifecycleAction(
+                reset_provider_session=True,
+                report_failure=True,
+            )
 
         self._lifecycle = "degraded"
         return TileLifecycleAction(report_failure=True)

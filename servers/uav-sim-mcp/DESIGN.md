@@ -205,12 +205,14 @@ tile content request fails. Events contain only the tileset path, load generatio
 type, and HTTP status. Provider URLs, keys, sessions, tokens, headers, and response bodies
 never enter the event or projected runtime state.
 
-A rejected tile-content session produces one generation-safe tileset refresh. Duplicate
-failures from the rejected generation collapse into the same action. The replacement
-generation must report native load completion and current visible coverage before it is
-ready. A rejected replacement becomes `degraded` without a reload loop. Credential,
-quota, transport, asset, and provider failures are typed directly and never masquerade
-as a provider-session refresh.
+A rejected tile-content session produces one generation-safe provider reset. The runtime
+clears Cesium's caching accessor before it reconstructs the native tileset, which forces
+the replacement to obtain a new root tileset and provider session. Duplicate failures
+from the rejected generation collapse into the same action. The replacement generation
+must report native load completion and current visible coverage before it is ready. A
+rejected replacement becomes `degraded` without a reload loop. Credential, quota,
+transport, asset, and provider failures are typed directly and never masquerade as a
+provider-session reset.
 
 Render statistics describe current coverage; they do not infer network failure. Zero
 visible tiles can be valid while a camera crosses an unavailable footprint or while
