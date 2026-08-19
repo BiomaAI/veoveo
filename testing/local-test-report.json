@@ -1,86 +1,20 @@
 {
   "schemaVersion": 1,
-  "sourceDigest": "sha256:8850582b0b9f1472c4e60a7157df604d83a72de9c6d66d15114add47905e1895",
-  "updatedAt": "2026-08-19T02:25:44Z",
+  "sourceDigest": "sha256:4a8a2e937b02c77cf06af09225851e346555b5ba2549ec0b289bbad304e7f6de",
+  "updatedAt": "2026-08-19T04:39:44Z",
   "checks": [
     {
-      "name": "bioma-platform",
+      "name": "documentation",
       "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "bioma-verify"
+        "git",
+        "show",
+        "--check",
+        "--oneline",
+        "HEAD"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-19T02:25:44Z",
-      "durationSeconds": 23.954931949,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-19T02:25:18Z",
-      "durationSeconds": 6.024964576,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-19T02:25:10Z",
-      "durationSeconds": 4.192598658,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-tests",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-19T02:25:03Z",
-      "durationSeconds": 0.92258192,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "python-sdk",
-      "command": [
-        "cargo",
-        "xtask",
-        "enforce",
-        "python"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-19T02:25:00Z",
-      "durationSeconds": 12.99330521,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rust-workspace",
-      "command": [
-        "cargo",
-        "xtask",
-        "enforce",
-        "rust"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-19T02:24:42Z",
-      "durationSeconds": 608.93772563,
+      "finishedAt": "2026-08-19T04:39:44Z",
+      "durationSeconds": 0.003463969,
       "detail": "completed successfully"
     }
   ]
