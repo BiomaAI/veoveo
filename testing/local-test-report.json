@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceDigest": "sha256:658ec623b3024d6e5f44e537407231e143957836e3f1d93613c1fa213d491ca5",
-  "updatedAt": "2026-08-19T07:11:38Z",
+  "sourceDigest": "sha256:2b0b6f30b1e9b00fd35fda0d217f0a60d2d9dfe8fe1b011b979489fd663aff05",
+  "updatedAt": "2026-08-19T18:36:28Z",
   "checks": [
     {
       "name": "documentation",
@@ -13,27 +13,60 @@
         "HEAD"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-19T07:06:37Z",
-      "durationSeconds": 0.003980615,
+      "finishedAt": "2026-08-19T18:36:16Z",
+      "durationSeconds": 0.003353577,
       "detail": "completed successfully"
     },
     {
-      "name": "uav-agent-mission",
+      "name": "uav-helm",
       "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-agent-runtime",
-        "-p",
-        "veoveo-agent-kernel",
-        "-p",
-        "veoveo-map-mcp",
-        "-p",
-        "veoveo-mcp-gateway"
+        "helm",
+        "lint",
+        "showcase/uav-sim/deploy/helm"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-19T07:11:38Z",
-      "durationSeconds": 284.153435513,
+      "finishedAt": "2026-08-19T18:36:28Z",
+      "durationSeconds": 0.070953726,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "uav-tile-session-reset",
+      "command": [
+        "env",
+        "PYTHONPATH=showcase/uav-sim/runtime",
+        "uv",
+        "run",
+        "--python",
+        "3.12",
+        "--with",
+        "numpy",
+        "--with",
+        "aiohttp==3.14.1",
+        "--with",
+        "pymavlink==2.4.49",
+        "--with",
+        "pyarrow==25.0.0",
+        "--with",
+        "rerun-sdk==0.36.0",
+        "--with",
+        "psutil==7.2.2",
+        "--with",
+        "pyyaml==6.0.3",
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "showcase/uav-sim/runtime/tests",
+        "-p",
+        "test_runtime_contracts.py",
+        "-k",
+        "StreamedWorldHealthTests",
+        "-v"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-19T18:36:07Z",
+      "durationSeconds": 0.942033834,
       "detail": "completed successfully"
     }
   ]
