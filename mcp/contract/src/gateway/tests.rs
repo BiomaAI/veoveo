@@ -290,6 +290,7 @@ fn default_profile() -> GatewayProfile {
             AuthMode::OAuthClientCredentials,
             AuthMode::OidcAuthorizationCodePkce,
         ]),
+        discovery_failure_mode: DiscoveryFailureMode::Isolate,
         required_scopes: vec![ScopeName::new("operator:use").unwrap()],
         servers: vec![ProfileServerExposure {
             server: ServerSlug::new("media").unwrap(),

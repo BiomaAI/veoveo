@@ -1172,6 +1172,7 @@
       "protected_resource": "https://veoveo.bioma.ai/mcp/agent",
       "policy_version": "2026-07-02",
       "auth_modes": ["oauth_client_credentials"],
+      "discovery_failure_mode": "fail_closed",
       "required_scopes": [
         "operator:use",
         "uav-sim:control",
