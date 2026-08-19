@@ -7,6 +7,10 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway
 spec:
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
   selector:
     {{- include "veoveo.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: gateway
