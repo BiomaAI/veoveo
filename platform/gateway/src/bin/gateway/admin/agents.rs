@@ -12,7 +12,7 @@ use veoveo_agent_runtime::{
 };
 use veoveo_mcp_contract::{
     AgentInputRequestDecision, AgentInputRequestView, AgentOperatorMessageRequest,
-    AgentWakeReceipt, GatewayAction, GatewayProfile, PolicyTarget, PrincipalKind,
+    AgentWakeReceipt, GatewayAction, GatewayProfile, PolicyTarget,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{AgentInputRequestId, AgentInputRequestState};
@@ -308,23 +308,6 @@ async fn authorize_agent_operation(
         target,
         metadata,
     };
-    if context.subject.principal.kind != PrincipalKind::User
-        || context.subject.actor.kind != PrincipalKind::User
-    {
-        if let Err(error) = record_agent_result(
-            state,
-            &context,
-            operation,
-            started_at,
-            AdminOperationStatus::Rejected,
-            Some(AdminOperationFailure::AgentCaller),
-        )
-        .await
-        {
-            return Err(internal_error_response(error));
-        }
-        return Err(StatusCode::FORBIDDEN.into_response());
-    }
     Ok(context)
 }
 

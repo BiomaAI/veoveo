@@ -2169,6 +2169,25 @@
           "metadata": {}
         },
         {
+          "id": "allow_admin_service_agent_control",
+          "effect": "allow",
+          "actions": [
+            "agents_read",
+            "agents_message",
+            "agents_input_request_answer"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
           "id": "allow_operator_agent_control",
           "effect": "allow",
           "actions": [

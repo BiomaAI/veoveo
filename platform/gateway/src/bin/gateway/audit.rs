@@ -143,7 +143,6 @@ impl AdminOperationStatus {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum AdminOperationFailure {
-    AgentCaller,
     AgentConversation,
     AgentInputRequest,
     AgentMessage,
@@ -171,7 +170,6 @@ pub(super) enum AdminOperationFailure {
 impl AdminOperationFailure {
     fn as_str(self) -> &'static str {
         match self {
-            Self::AgentCaller => "agent_caller",
             Self::AgentConversation => "agent_conversation",
             Self::AgentInputRequest => "agent_input_request",
             Self::AgentMessage => "agent_message",
