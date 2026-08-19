@@ -32,17 +32,18 @@ use crate::{
         CreateMobilityProfileRequest, CreateSourceRequest, DatasetReleaseId, DeriveRasterRequest,
         DeriveSpatialGeometryRequest, DisableSourceRequest, FacilityId, GeodesicDirectOutput,
         GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
-        InspectLocationOutput, InspectLocationRequest, ListActiveDatasetReleasesOutput,
-        ListActiveDatasetReleasesRequest, LocationId, MapDatasetId, MapRouteHandoff, MapSourceId,
-        MobilityProfile, MobilityProfileId, PrepareRouteHandoffRequest, PublishRestrictionRequest,
-        QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation,
-        RasterDerivationId, RasterProductId, ReachableArea, ReachableAreaRequest, RegisteredSource,
-        ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId,
-        RestrictionMutationOutput, RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest,
-        RoutePlan, RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
-        SourceFeatureId, SpatialDerivation, SpatialDerivationId, TransformCrsOutput,
-        TransformCrsRequest, TravelModelId, TravelModelRecord, ValidateGeofenceOutput,
-        ValidateGeofenceRequest, ValidateRouteRequest, WithdrawRestrictionRequest,
+        InspectLocationOutput, InspectLocationRequest, InspectPositionOutput,
+        InspectPositionRequest, ListActiveDatasetReleasesOutput, ListActiveDatasetReleasesRequest,
+        LocationId, MapDatasetId, MapRouteHandoff, MapSourceId, MobilityProfile, MobilityProfileId,
+        PrepareRouteHandoffRequest, PublishRestrictionRequest, QuerySourceFeaturesOutput,
+        QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProductId,
+        ReachableArea, ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest,
+        ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId, RestrictionMutationOutput,
+        RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan, RouteRequest,
+        RouteValidation, SearchLocationsOutput, SearchLocationsRequest, SourceFeatureId,
+        SpatialDerivation, SpatialDerivationId, TransformCrsOutput, TransformCrsRequest,
+        TravelModelId, TravelModelRecord, ValidateGeofenceOutput, ValidateGeofenceRequest,
+        ValidateRouteRequest, WithdrawRestrictionRequest,
     },
     geodesy,
     prompts::MapPrompt,
@@ -340,6 +341,34 @@ impl MapMcp {
             .map_err(invalid_params)?;
         structured_result(
             format!("inspected {}", output.location.location_id),
+            &output,
+        )
+    }
+
+    #[tool(
+        title = "Inspect map position",
+        description = "Resolve one WGS84 position against active governed map releases in a single call. Returns distance-ordered nearby named locations and facilities, containing boundaries, active release identities, and explicit coverage gaps. Nearby search defaults to a 10 km radius and five results per entity class.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<InspectPositionOutput>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn inspect_position(
+        &self,
+        Parameters(request): Parameters<InspectPositionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "map:dataset:read")?;
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        let output = self
+            .state
+            .geography
+            .inspect_position(&scope, request)
+            .map_err(invalid_params)?;
+        structured_result(
+            format!(
+                "inspected position; found {} nearby location(s) and {} nearby facility/facilities",
+                output.nearby_locations.len(),
+                output.nearby_facilities.len()
+            ),
             &output,
         )
     }

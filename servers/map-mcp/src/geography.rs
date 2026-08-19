@@ -6,8 +6,8 @@ use crate::{
     catalog::{MapCatalog, MapScope},
     contract::{
         CorridorInspectionOutput, CorridorInspectionRequest, InspectLocationOutput,
-        InspectLocationRequest, PublishRestrictionRequest, Restriction, Wgs84Position,
-        WithdrawRestrictionRequest,
+        InspectLocationRequest, InspectPositionOutput, InspectPositionRequest,
+        PublishRestrictionRequest, Restriction, Wgs84Position, WithdrawRestrictionRequest,
     },
 };
 
@@ -48,6 +48,60 @@ impl GeographyService {
             location,
             nearby_facilities,
             data_gaps: Vec::new(),
+        })
+    }
+
+    pub fn inspect_position(
+        &self,
+        scope: &MapScope,
+        request: InspectPositionRequest,
+    ) -> Result<InspectPositionOutput> {
+        let tenant_key = scope.tenant_key();
+        let active_release_ids = self.analytics.active_release_ids(&tenant_key)?;
+        let nearby_locations = self.analytics.nearby_location_matches(
+            &tenant_key,
+            &request.position,
+            request.nearby_radius,
+            request.location_limit,
+        )?;
+        let nearby_facilities = self.analytics.nearby_facility_matches(
+            &tenant_key,
+            &request.position,
+            request.nearby_radius,
+            request.facility_limit,
+        )?;
+        let containing_boundary_ids = self
+            .analytics
+            .containing_boundary_ids(&tenant_key, &request.position)?
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>();
+        let mut data_gaps = Vec::new();
+        if active_release_ids.is_empty() {
+            data_gaps.push("no active governed map release".to_owned());
+        }
+        if nearby_locations.is_empty() {
+            data_gaps.push(format!(
+                "no named location within {} meters",
+                request.nearby_radius.get()
+            ));
+        }
+        if nearby_facilities.is_empty() {
+            data_gaps.push(format!(
+                "no facility within {} meters",
+                request.nearby_radius.get()
+            ));
+        }
+        if containing_boundary_ids.is_empty() {
+            data_gaps.push("no containing boundary in active governed map releases".to_owned());
+        }
+        Ok(InspectPositionOutput {
+            position: request.position,
+            active_release_ids,
+            nearby_locations,
+            nearby_facilities,
+            containing_boundary_ids,
+            data_gaps,
         })
     }
 

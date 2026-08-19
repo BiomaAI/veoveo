@@ -121,6 +121,52 @@ pub struct InspectLocationOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct InspectPositionRequest {
+    pub position: Wgs84Position,
+    #[serde(default = "default_position_inspection_radius")]
+    pub nearby_radius: Meters,
+    #[serde(default = "default_position_inspection_limit")]
+    pub location_limit: u32,
+    #[serde(default = "default_position_inspection_limit")]
+    pub facility_limit: u32,
+}
+
+fn default_position_inspection_radius() -> Meters {
+    Meters::new(10_000.0).expect("the fixed position-inspection radius is valid")
+}
+
+const fn default_position_inspection_limit() -> u32 {
+    5
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct NearbyLocation {
+    pub location: MapLocation,
+    pub distance: Meters,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct NearbyFacility {
+    pub facility: Facility,
+    pub distance: Meters,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct InspectPositionOutput {
+    pub position: Wgs84Position,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_release_ids: Vec<super::DatasetReleaseId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nearby_locations: Vec<NearbyLocation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nearby_facilities: Vec<NearbyFacility>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub containing_boundary_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub data_gaps: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct CorridorInspectionRequest {
     pub corridor: Wgs84LineString,
     pub width: Meters,
@@ -193,4 +239,24 @@ pub struct WithdrawRestrictionRequest {
 pub struct RestrictionMutationOutput {
     pub restriction: Restriction,
     pub invalidated_route_count: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn position_inspection_has_bounded_useful_defaults() {
+        let request: InspectPositionRequest = serde_json::from_value(serde_json::json!({
+            "position": {
+                "longitude_deg": -73.97267,
+                "latitude_deg": 40.70571
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(request.nearby_radius.get(), 10_000.0);
+        assert_eq!(request.location_limit, 5);
+        assert_eq!(request.facility_limit, 5);
+    }
 }
