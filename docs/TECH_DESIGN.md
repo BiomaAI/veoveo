@@ -517,12 +517,13 @@ bounded text and JSON under episode-local read, family, byte, wall-time, and pag
 limits, and it projects only fixed correction fields for invalid input. Protocol,
 authorization, transport, and storage details do not enter model context.
 
-Authenticated human control stays available through the gateway and Console BFF; the
-agent pod is never an ingress service. An operator message is committed as a
-UUIDv7-idempotent durable wake inside the caller's exact tenant, Work Context, and
-tenant-unique public agent key, so it may arrive while an episode or detached task is
-running. The agent record's profile governs its own MCP tool session; the human caller's
-administrative profile never replaces it during target resolution.
+Authenticated user and service control stays available through the gateway, while the
+Console BFF carries the signed-in browser path; the agent pod is never an ingress
+service. Every caller must pass the selected profile's action policy. An operator
+message is committed as a UUIDv7-idempotent durable wake inside the caller's exact
+tenant, Work Context, and tenant-unique public agent key, so it may arrive while an
+episode or detached task is running. The agent record's profile governs its own MCP tool
+session; the caller's administrative profile never replaces it during target resolution.
 Console snapshots and change events identify that target by its tenant-scoped symbolic
 `agent_key`, which is the same identifier accepted by every control route; internal
 SurrealDB record keys never become public control identities. The snapshot also carries

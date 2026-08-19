@@ -760,7 +760,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `agents.rs` | human-only policy and audit boundary for agent messages, actor-attributed conversation reads, pending input-request reads, and decisions; resolves the caller's tenant and Work Context before using the runtime control plane |
+| `agents.rs` | policy and audit boundary for user or service agent messages, actor-attributed conversation reads, pending input-request reads, and decisions; resolves the caller's tenant and Work Context before using the runtime control plane |
 
 ## Console
 
