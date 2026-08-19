@@ -59,11 +59,12 @@ published and its server contract is registered in the gateway control plane.
 ## Release publication
 
 Production workloads use the repository and digest map in `images.lock.yaml`. The
-platform and UAV OCI sources select immutable chart versions independently in
-`gitops/sources/`. Those files and the lock, rather than a copied revision in this
-manual, define the current deployment closure. Each selected image digest is the
-workload's immutable identity. A release-input commit advances the coordinated runtime
-closure before a qualified publication promotes those exact inputs.
+platform and UAV OCI sources select immutable chart manifest digests independently in
+`gitops/sources/`. Chart metadata retains the human-readable release version. Those
+files and the lock, rather than a copied revision in this manual, define the current
+deployment closure. Each selected image digest is the workload's immutable identity. A
+release-input commit advances the coordinated runtime closure before a qualified
+publication promotes those exact inputs.
 
 Publish a new local release directly to the shared registry:
 
@@ -88,9 +89,9 @@ cargo xtask release helm-charts \
 
 BuildKit pushes only missing layers and does not load release images into the host
 Docker store. Record the manifest digest for every published image in
-images.lock.yaml, then update the selected chart tags in `gitops/sources/` in one
-release-input commit. The root Flux artifact carries those chart selections and all
-generated values from one Git revision.
+images.lock.yaml, then update the selected chart manifest digests in `gitops/sources/`
+in one release-input commit. The root Flux artifact carries those chart selections and
+all generated values from one Git revision.
 
 After pushing that parent commit, observe the exact rollout through the focused typed
 harness. Pass every Deployment whose digest changed; do not list an unchanged simulator
