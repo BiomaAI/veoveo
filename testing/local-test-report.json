@@ -1,8 +1,21 @@
 {
   "schemaVersion": 1,
-  "sourceDigest": "sha256:76fc240ad0c954239c6a7153c45490ed4d6e9209ce45f0bcf1237f91fa4528e4",
-  "updatedAt": "2026-08-18T21:25:56Z",
+  "sourceDigest": "sha256:8850582b0b9f1472c4e60a7157df604d83a72de9c6d66d15114add47905e1895",
+  "updatedAt": "2026-08-19T02:25:44Z",
   "checks": [
+    {
+      "name": "bioma-platform",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "bioma-verify"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-19T02:25:44Z",
+      "durationSeconds": 23.954931949,
+      "detail": "completed successfully"
+    },
     {
       "name": "console-build",
       "command": [
@@ -13,8 +26,8 @@
         "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-18T21:25:56Z",
-      "durationSeconds": 4.532538322,
+      "finishedAt": "2026-08-19T02:25:18Z",
+      "durationSeconds": 6.024964576,
       "detail": "completed successfully"
     },
     {
@@ -27,8 +40,8 @@
         "lint"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-18T21:25:50Z",
-      "durationSeconds": 3.344949413,
+      "finishedAt": "2026-08-19T02:25:10Z",
+      "durationSeconds": 4.192598658,
       "detail": "completed successfully"
     },
     {
@@ -40,8 +53,8 @@
         "test"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-18T21:25:46Z",
-      "durationSeconds": 0.434920383,
+      "finishedAt": "2026-08-19T02:25:03Z",
+      "durationSeconds": 0.92258192,
       "detail": "completed successfully"
     },
     {
@@ -53,8 +66,8 @@
         "python"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-18T21:25:44Z",
-      "durationSeconds": 10.558959258,
+      "finishedAt": "2026-08-19T02:25:00Z",
+      "durationSeconds": 12.99330521,
       "detail": "completed successfully"
     },
     {
@@ -66,8 +79,8 @@
         "rust"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-18T21:25:27Z",
-      "durationSeconds": 220.925104754,
+      "finishedAt": "2026-08-19T02:24:42Z",
+      "durationSeconds": 608.93772563,
       "detail": "completed successfully"
     }
   ]
