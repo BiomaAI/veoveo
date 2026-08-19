@@ -16,7 +16,7 @@ changing the chart, image, configuration, or Secret contracts.
 |---|---|
 | OCI Distribution Specification | authenticated private image, chart, SBOM, provenance, schema, and evidence distribution |
 | Helm and Kubernetes | separately reconciled platform and extension application charts |
-| Flux 2.9.3 / GitOps Toolkit | maintained reference using `source.toolkit.fluxcd.io/v1`, `kustomize.toolkit.fluxcd.io/v1`, and `helm.toolkit.fluxcd.io/v2`; other controllers consume the same Helm and configuration contract |
+| Flux 2.9.4 / GitOps Toolkit | maintained reference using `source.toolkit.fluxcd.io/v1`, `kustomize.toolkit.fluxcd.io/v1`, and `helm.toolkit.fluxcd.io/v2`; other controllers consume the same Helm and configuration contract |
 | `veoveo.io/extension-release/v1` | independently published extension image, chart, fragment, conformance, and source identity |
 | `veoveo.io/deployment/v6` | optional repository-development publication profile with exact platform selection, installation-owned Helm values, and managed GPU allocator closure |
 | `veoveo.io/deployment-lock/v6` | immutable installation, source, and managed allocator evidence from the repository-development publication flow |

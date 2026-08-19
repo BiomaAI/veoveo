@@ -28,7 +28,7 @@ The repository separates the local platform fixture from application desired sta
 ~~~text
 examples/bioma/
   platform/                     local cluster prerequisites
-    flux/                       pinned Flux 2.9.3 installation
+    flux/                       pinned Flux 2.9.4 installation
     registry/                   cluster-local loopback OCI registry address
   gitops/
     bootstrap.yaml              Git source and root Kustomization, applied once
