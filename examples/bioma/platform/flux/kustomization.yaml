@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: flux-system
+resources:
+  - namespace.yaml
+  - https://github.com/fluxcd/flux2//manifests/bases/source-controller?ref=v2.9.3
+  - https://github.com/fluxcd/flux2//manifests/bases/kustomize-controller?ref=v2.9.3
+  - https://github.com/fluxcd/flux2//manifests/bases/helm-controller?ref=v2.9.3
+  - https://github.com/fluxcd/flux2//manifests/rbac?ref=v2.9.3
+  - https://github.com/fluxcd/flux2//manifests/policies?ref=v2.9.3
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: source-controller
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/args/0
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: kustomize-controller
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/args/0
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: helm-controller
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/args/0
+transformers:
+  - labels.yaml

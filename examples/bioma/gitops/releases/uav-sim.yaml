@@ -1,0 +1,35 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: uav-sim
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 30m
+  releaseName: uav-sim
+  targetNamespace: veoveo
+  storageNamespace: veoveo
+  dependsOn:
+    - name: veoveo
+  chartRef:
+    kind: OCIRepository
+    name: uav-sim-chart
+  valuesFrom:
+    - kind: ConfigMap
+      name: bioma-uav-sim-values
+      valuesKey: uav-sim-values.yaml
+    - kind: ConfigMap
+      name: bioma-uav-sim-values
+      valuesKey: images.lock.yaml
+  install:
+    createNamespace: false
+    serverSideApply: true
+    remediation:
+      retries: 5
+  upgrade:
+    serverSideApply: true
+    remediation:
+      retries: 5
+      strategy: rollback
+  driftDetection:
+    mode: enabled

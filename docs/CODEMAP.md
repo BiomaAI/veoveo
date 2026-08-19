@@ -138,6 +138,8 @@ Hub, administration, and GPU policy.
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Pegasus, and PX4 |
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
+| `examples/bioma/platform/flux/` | exact Flux controller fixture for the local Bioma cluster; it is installed before installation desired state and remains outside Veoveo runtime ownership |
+| `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and extension Helm releases, and installation-owned edge resources |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |

@@ -2,18 +2,18 @@
 
 Bioma is the executable reference for an enterprise-owned Veoveo installation.
 The public endpoint at https://veoveo.bioma.ai reaches a GPU-enabled k3d cluster
-through an installation-owned Cloudflare Tunnel. Argo CD reconciles the platform
-and an independently packaged UAV MCP extension from Git and OCI artifacts.
+through an installation-owned Cloudflare Tunnel. Flux reconciles the platform and an
+independently packaged UAV MCP extension from Git and OCI artifacts.
 
 | Property | Value |
 |---|---|
 | k3d cluster | veoveo-bioma |
 | Kubernetes context | k3d-veoveo-bioma |
 | Application namespace | veoveo |
-| Argo namespace | argocd |
+| Flux namespace | flux-system |
 | Loopback ingress | http://localhost:8781 |
 | Public origin | https://veoveo.bioma.ai |
-| Root Application | bioma |
+| Root Kustomization | bioma |
 
 This example follows the neutral contract in
 [Enterprise deployment](../../docs/ENTERPRISE_DEPLOYMENT.md). Bioma-specific
@@ -28,14 +28,12 @@ The repository separates the local platform fixture from application desired sta
 ~~~text
 examples/bioma/
   platform/                     local cluster prerequisites
-    argocd/                     pinned Argo CD 3.4.5 installation
-    registry/                   TLS adapter for the loopback OCI registry
+    flux/                       pinned Flux 2.9.3 installation
+    registry/                   cluster-local loopback OCI registry address
   gitops/
-    bootstrap.yaml              root Application, applied once
-    project.yaml                installation reconciliation boundary
-    applications/
-      veoveo.yaml               platform OCI chart
-      uav-sim.yaml              independent extension OCI chart
+    bootstrap.yaml              Git source and root Kustomization, applied once
+    sources/                    exact platform and extension OCI charts
+    releases/                   platform and extension Helm releases
     cloudflared.yaml            installation edge connector
   kustomization.yaml            root desired-state composition
   values.yaml                   public identity and platform values
@@ -48,21 +46,21 @@ examples/bioma/
   service-client-jwks.json      public machine-client key
 ~~~
 
-The local platform fixture installs Argo CD and the registry adapter because this
+The local platform fixture installs Flux and the registry address because this
 cluster has no enterprise platform team. A fielded installation uses its existing
-GitOps controller and secure OCI registry, then begins at the root Application.
+GitOps controller and secure OCI registry, then begins at the root Kustomization.
 Veoveo application desired state never owns the controller that reconciles it.
 
 The platform and UAV extension charts are separate OCI packages. Removing or
-upgrading the UAV Application does not replace the core platform release. A customer
-MCP server follows the same child-Application pattern after its image and chart are
+upgrading the UAV HelmRelease does not replace the core platform release. A customer
+MCP server follows the same independent-release pattern after its image and chart are
 published and its server contract is registered in the gateway control plane.
 
 ## Release publication
 
 Production workloads use the repository and digest map in `images.lock.yaml`. The
-platform and UAV Applications select immutable chart versions independently in
-`gitops/applications/`. Those files and the lock, rather than a copied revision in this
+platform and UAV OCI sources select immutable chart versions independently in
+`gitops/sources/`. Those files and the lock, rather than a copied revision in this
 manual, define the current deployment closure. Each selected image digest is the
 workload's immutable identity. A release-input commit advances the coordinated runtime
 closure before a qualified publication promotes those exact inputs.
@@ -90,43 +88,32 @@ cargo xtask release helm-charts \
 
 BuildKit pushes only missing layers and does not load release images into the host
 Docker store. Record the manifest digest for every published image in
-images.lock.yaml, then update both chart targetRevision fields in one release-input
-commit. Record that commit's full SHA. A follow-up rollout commit must set the
-`configuration` source targetRevision in both child Applications to the recorded SHA.
-The parent Application then changes the chart and its values source in one child
-Application update.
+images.lock.yaml, then update the selected chart tags in `gitops/sources/` in one
+release-input commit. The root Flux artifact carries those chart selections and all
+generated values from one Git revision.
 
 After pushing that parent commit, observe the exact rollout through the focused typed
 harness. Pass every Deployment whose digest changed; do not list an unchanged simulator
 for a control-plane-only update.
 
 ~~~bash
-PARENT_REVISION="$(git rev-parse HEAD)"
-CONFIGURATION_REVISION="$(yq -r '.spec.sources[] | select(.ref == "configuration") | .targetRevision' examples/bioma/gitops/applications/veoveo.yaml)"
+REVISION="$(git rev-parse HEAD)"
 
 cargo xtask smoke gitops-converge \
   --context k3d-veoveo-bioma \
-  --control-namespace argocd \
-  --parent bioma \
-  --child bioma-veoveo \
-  --child bioma-uav-sim \
-  --source-ref configuration \
-  --parent-revision "$PARENT_REVISION" \
-  --configuration-revision "$CONFIGURATION_REVISION" \
+  --source flux-system/bioma \
+  --root flux-system/bioma \
+  --release flux-system/veoveo \
+  --release flux-system/uav-sim \
+  --revision "$REVISION" \
   --deployment veoveo/<changed-deployment> \
   --evidence-output output/development/gitops-convergence.json
 ~~~
 
-The command requests controller refresh and watches the exact parent and child
-revisions. Its evidence separates repository fetch, child rendering, apply, rollout,
-and readiness. Re-running with the same output path is rejected because convergence
-evidence is create-only.
-
-Never point a child Application's `configuration` source at a mutable branch. A mutable
-values source can expose new image digests to the old chart before the parent updates
-the chart revision. That ordering breaks the release boundary and can revive an old
-replica policy during the transition. The full procedure and production registry
-requirements are in the enterprise deployment guide.
+The command requests reconciliation and watches the exact Git artifact, root apply,
+Helm release inventories, rollout, and readiness. Re-running with the same output path
+is rejected because convergence evidence is create-only. The full procedure and
+production registry requirements are in the enterprise deployment guide.
 
 ## Create the local platform
 
@@ -189,16 +176,17 @@ Install the local platform fixture separately:
 kubectl --context k3d-veoveo-bioma apply \
   --server-side --force-conflicts \
   -k examples/bioma/platform
-kubectl --context k3d-veoveo-bioma -n argocd wait   --for=condition=Available deployment --all --timeout=5m
+kubectl --context k3d-veoveo-bioma -n flux-system wait \
+  --for=condition=Available deployment --all --timeout=5m
 ~~~
 
-The registry adapter gives stable Argo CD 3.4.5 an HTTPS endpoint for the
-loopback HTTP registry. A normal enterprise registry does not need this adapter.
+The local OCI source explicitly admits the cluster-local HTTP registry. A fielded
+installation uses its authenticated TLS registry and removes that local exception.
 
 ## Provision Secrets
 
 The enterprise owns Secret creation. For this local reference, load the main
-worktree .env and create the required Secret objects before the root Application.
+worktree .env and create the required Secret objects before the root Kustomization.
 The following command reads values through the environment and sends the Secret
 documents directly to Kubernetes over stdin:
 
@@ -292,76 +280,48 @@ Secrets. The committed JWKS files contain public keys only. The reference instal
 installation-owned machine-client JWKS with the gateway control plane, which keeps
 local client assertions independent of an external JWKS endpoint.
 
-## Connect Argo CD to Git and OCI
+## Connect Flux to Git
 
-Argo repository credentials are platform Secrets. The Bioma repository is private, so
-the local fixture uses a GitHub token. Replace this with a GitHub App, deploy key, or
-enterprise repository credential in a fielded installation.
+The Bioma repository is private. Give this installation one read-only GitHub deploy
+key; Flux never needs permission to write the repository.
 
 ~~~bash
-export GITHUB_TOKEN=$(gh auth token)
-
-jq -n '{
-  apiVersion: "v1", kind: "Secret",
-  metadata: {
-    name: "bioma-git-repository",
-    namespace: "argocd",
-    labels: {"argocd.argoproj.io/secret-type": "repository"}
-  },
-  type: "Opaque",
-  stringData: {
-    type: "git",
-    url: "https://github.com/BiomaAI/veoveo.git",
-    username: "git",
-    password: env.GITHUB_TOKEN
-  }
-}' | kubectl --context k3d-veoveo-bioma apply -f -
-
-jq -n '{
-  apiVersion: "v1", kind: "Secret",
-  metadata: {
-    name: "bioma-chart-repository",
-    namespace: "argocd",
-    labels: {"argocd.argoproj.io/secret-type": "repository"}
-  },
-  type: "Opaque",
-  stringData: {
-    type: "helm",
-    name: "bioma-charts",
-    url: "charts-registry.argocd.svc.cluster.local/charts",
-    enableOCI: "true",
-    insecure: "true"
-  }
-}' | kubectl --context k3d-veoveo-bioma apply -f -
+ssh-keygen -t ed25519 -N '' -C bioma-flux \
+  -f /secure/path/bioma-flux
+gh repo deploy-key add /secure/path/bioma-flux.pub \
+  --repo BiomaAI/veoveo --title bioma-flux
+flux --context k3d-veoveo-bioma --namespace flux-system \
+  create secret git bioma-git-auth \
+  --url ssh://git@github.com/BiomaAI/veoveo.git \
+  --private-key-file /secure/path/bioma-flux
 ~~~
 
-The insecure flag accepts the local Traefik-generated certificate; chart transport is
-still HTTPS. A production OCI repository uses its trusted certificate and omits that
-setting.
+The private key remains in the cluster Secret and the installation's secret store. Do
+not commit it. Production OCI credentials use a separate registry Secret when required.
 
 ## Bootstrap desired state
 
-Apply only the root Application:
+Apply only the Git source and root Kustomization:
 
 ~~~bash
 kubectl --context k3d-veoveo-bioma apply   -f examples/bioma/gitops/bootstrap.yaml
 ~~~
 
-Argo creates the namespace configuration, gateway and immutable UAV-world ConfigMaps,
-AppProject, Cloudflare connector, platform child Application, and UAV extension child
-Application. Inspect
-reconciliation with standard Kubernetes or Argo CD commands:
+Flux creates the namespace configuration, gateway and immutable UAV-world ConfigMaps,
+Cloudflare connector, OCI sources, and the two Helm releases. Inspect reconciliation
+through the standard Flux resources:
 
 ~~~bash
-kubectl --context k3d-veoveo-bioma -n argocd get applications
+flux --context k3d-veoveo-bioma get sources git
+flux --context k3d-veoveo-bioma get sources oci
+flux --context k3d-veoveo-bioma get kustomizations
+flux --context k3d-veoveo-bioma get helmreleases
 kubectl --context k3d-veoveo-bioma -n veoveo get deployments,statefulsets,pods
-argocd app get bioma
-argocd app get bioma-veoveo
-argocd app get bioma-uav-sim
 ~~~
 
-All three Applications must be Synced and Healthy. Helm remains the renderer, but Argo
-owns the live application resources; do not operate concurrent Helm releases for them.
+The Git source and root Kustomization must be Ready at the same revision. Both
+HelmReleases must be Ready with non-empty inventories. Do not operate concurrent Helm
+releases for the same resources.
 
 ## Public edge
 
@@ -417,7 +377,7 @@ TLS Secret referenced by lan-values.yaml:
 kubectl --context k3d-veoveo-bioma -n veoveo create secret tls   bioma-lan-ingress-tls   --cert=/secure/path/veoveo.bioma.ai.crt   --key=/secure/path/veoveo.bioma.ai.key   --dry-run=client -o yaml | kubectl --context k3d-veoveo-bioma apply -f -
 ~~~
 
-Add lan-values.yaml to the platform Application valueFiles list. The public issuer,
+Add lan-values.yaml to the platform HelmRelease values ConfigMap. The public issuer,
 protected-resource identifier, certificate hostname, and ingest URL remain unchanged.
 Only the route differs.
 
@@ -473,12 +433,9 @@ to the simulator before Isaac constructs its stage.
 
 ## Cleanup
 
-Delete the root Application and wait for its foreground finalizer to remove managed
-application resources before deleting the cluster:
+Delete the disposable cluster when the reference installation is no longer needed:
 
 ~~~bash
-kubectl --context k3d-veoveo-bioma -n argocd delete application bioma
-kubectl --context k3d-veoveo-bioma -n argocd wait   --for=delete application/bioma --timeout=10m
 k3d cluster delete veoveo-bioma
 ~~~
 

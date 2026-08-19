@@ -34,8 +34,8 @@ has one owner; an additional deployment document must not repeat chart selection
 values, Secret bindings, and apply order.
 
 The installation owner also supplies the Kubernetes cluster and reconciliation
-controller. Argo CD is the reference GitOps implementation, not a Veoveo runtime
-dependency. The Veoveo root Application begins after the controller and repository
+controller. Flux is the reference GitOps implementation, not a Veoveo runtime
+dependency. The Veoveo root Kustomization begins after the controller and repository
 credentials exist, and it cannot install, upgrade, or delete that controller. Direct
 Helm and other GitOps controllers consume the same package and configuration contracts.
 

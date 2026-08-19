@@ -1,29 +1,30 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Application
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
 metadata:
   name: bioma
-  namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  namespace: flux-system
 spec:
-  project: default
-  source:
-    repoURL: https://github.com/BiomaAI/veoveo.git
-    targetRevision: main
-    path: examples/bioma
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: argocd
-  syncPolicy:
-    automated:
-      enabled: true
-      prune: true
-      selfHeal: true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-    syncOptions:
-      - ServerSideApply=true
+  interval: 1m
+  timeout: 1m
+  url: ssh://git@github.com/BiomaAI/veoveo.git
+  ref:
+    branch: main
+  secretRef:
+    name: bioma-git-auth
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: bioma
+  namespace: flux-system
+spec:
+  interval: 1m
+  retryInterval: 15s
+  timeout: 30m
+  path: ./examples/bioma
+  prune: true
+  wait: true
+  deletionPolicy: Orphan
+  sourceRef:
+    kind: GitRepository
+    name: bioma

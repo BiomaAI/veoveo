@@ -1,0 +1,36 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: veoveo
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 20m
+  releaseName: veoveo
+  targetNamespace: veoveo
+  storageNamespace: veoveo
+  chartRef:
+    kind: OCIRepository
+    name: veoveo-chart
+  valuesFrom:
+    - kind: ConfigMap
+      name: bioma-veoveo-values
+      valuesKey: values.yaml
+    - kind: ConfigMap
+      name: bioma-veoveo-values
+      valuesKey: k3d-values.yaml
+    - kind: ConfigMap
+      name: bioma-veoveo-values
+      valuesKey: images.lock.yaml
+  install:
+    createNamespace: false
+    serverSideApply: true
+    remediation:
+      retries: 5
+  upgrade:
+    serverSideApply: true
+    remediation:
+      retries: 5
+      strategy: rollback
+  driftDetection:
+    mode: enabled
