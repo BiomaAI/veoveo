@@ -8,8 +8,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: {{ $pilot.agentId }}
   labels:
-    {{- include "uav-sim.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: uav-pilot-agent
+    {{- include "uav-sim.componentLabels" (dict "root" $ "name" "uav-sim" "component" "uav-pilot-agent") | nindent 4 }}
     veoveo.ai/agent-id: {{ $pilot.agentId | quote }}
 spec:
   accessModes:
