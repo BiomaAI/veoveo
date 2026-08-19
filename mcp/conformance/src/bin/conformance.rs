@@ -93,7 +93,7 @@ mod tokens;
 
 use auth_discovery::{AuthDiscoveryCheck, cmd_auth_discovery};
 use cli::{Args, Cmd};
-use client::{bearer_token_from_args, connect};
+use client::{TaskCapability, bearer_token_from_args, connect};
 use control_plane::{
     cmd_gateway_agent_smoke_control_plane, cmd_gateway_pilot_smoke_control_plane,
     cmd_gateway_smoke_control_plane, cmd_gateway_two_server_smoke_control_plane,
@@ -413,7 +413,15 @@ async fn main() -> Result<()> {
         _ => {}
     }
 
-    let client = connect(&args).await?;
+    // A direct call must not negotiate Tasks: task-optional servers select the
+    // durable response shape from the negotiated client capability. Every
+    // other command keeps the full conformance surface available, including
+    // `call --task`, `task-call`, and `run`.
+    let task_capability = match &args.cmd {
+        Cmd::Call { task: false, .. } => TaskCapability::Disabled,
+        _ => TaskCapability::Enabled,
+    };
+    let client = connect(&args, task_capability).await?;
     let uris = ServerResourceUris::new(args.scheme);
 
     let result = match args.cmd {

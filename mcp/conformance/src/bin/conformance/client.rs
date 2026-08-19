@@ -1,13 +1,31 @@
 use super::*;
 
 /// Client handler that surfaces every server-initiated notification.
-#[derive(Clone, Default)]
-pub(super) struct CliHandler;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum TaskCapability {
+    Disabled,
+    Enabled,
+}
+
+#[derive(Clone)]
+pub(super) struct CliHandler {
+    task_capability: TaskCapability,
+}
+
+impl CliHandler {
+    fn capabilities(&self) -> ClientCapabilities {
+        let builder = ClientCapabilities::builder();
+        match self.task_capability {
+            TaskCapability::Disabled => builder.build(),
+            TaskCapability::Enabled => builder.enable_tasks().build(),
+        }
+    }
+}
 
 impl ClientHandler for CliHandler {
     fn get_info(&self) -> ClientInfo {
         ClientInfo::new(
-            ClientCapabilities::builder().enable_tasks().build(),
+            self.capabilities(),
             Implementation::new("veoveo-conformance", env!("CARGO_PKG_VERSION")),
         )
     }
@@ -55,13 +73,13 @@ impl ClientHandler for CliHandler {
 
 pub(super) type Client = rmcp::service::RunningService<rmcp::RoleClient, CliHandler>;
 
-pub(super) async fn connect(args: &Args) -> Result<Client> {
+pub(super) async fn connect(args: &Args, task_capability: TaskCapability) -> Result<Client> {
     let mut config = StreamableHttpClientTransportConfig::with_uri(args.url.clone());
     if let Some(token) = bearer_token_from_args(args)? {
         config = config.auth_header(token);
     }
     let transport = StreamableHttpClientTransport::from_config(config);
-    Ok(CliHandler
+    Ok(CliHandler { task_capability }
         .serve_with_lifecycle(
             transport,
             ClientLifecycleMode::Discover {
@@ -131,4 +149,25 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
         Utc::now() + TimeDelta::minutes(30),
     )?;
     Ok(token.bearer_token)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direct_client_does_not_advertise_tasks() {
+        let handler = CliHandler {
+            task_capability: TaskCapability::Disabled,
+        };
+        assert!(!handler.capabilities().supports_tasks());
+    }
+
+    #[test]
+    fn task_client_advertises_tasks() {
+        let handler = CliHandler {
+            task_capability: TaskCapability::Enabled,
+        };
+        assert!(handler.capabilities().supports_tasks());
+    }
 }
