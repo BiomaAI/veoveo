@@ -9,6 +9,18 @@
   ) }}
 {{- end }}
 
+{{- define "uav-sim.componentLabels" -}}
+{{- $root := .root -}}
+{{ include "veoveo-extension.labels" (dict
+    "name" .name
+    "releaseName" $root.Release.Name
+    "managedBy" $root.Release.Service
+    "chart" (printf "%s-%s" $root.Chart.Name $root.Chart.Version | replace "+" "_")
+    "installation" $root.Values.platform.installationId
+    "component" .component
+  ) }}
+{{- end }}
+
 {{- define "uav-sim.selectorLabels" -}}
 {{- include "uav-sim.runtimeSelectorLabels" . -}}
 {{- end }}

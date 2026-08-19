@@ -4,8 +4,7 @@ kind: ConfigMap
 metadata:
   name: uav-pilot-agent
   labels:
-    {{- include "uav-sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: uav-pilot-agent
+    {{- include "uav-sim.componentLabels" (dict "root" . "name" "uav-sim" "component" "uav-pilot-agent") | nindent 4 }}
 data:
   manifest.json: |
 {{ .Files.Get "files/agents/pilot/manifest.json" | indent 4 }}
