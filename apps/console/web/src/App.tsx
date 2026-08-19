@@ -265,7 +265,7 @@ export function App() {
             </label>
             <div
               className="user-menu"
-              title={`Signed in as ${accountName} · ${snapshot.session.principalId}`}
+              title={`Signed in as ${accountName}`}
             >
               <span>
                 {accountName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2) || <UserRound size={14} />}
@@ -309,7 +309,7 @@ export function App() {
         </main>
       </div>
 
-      {currentArtifact && <ArtifactDrawer key={currentArtifact.id} artifact={currentArtifact} principalId={snapshot.session.actorId} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
+      {currentArtifact && <ArtifactDrawer key={currentArtifact.id} artifact={currentArtifact} principalId={snapshot.session.actorId} identityDirectory={snapshot} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
         setSelectedArtifact(undefined);
         navigate("recordings", recordingId);
       }} />}

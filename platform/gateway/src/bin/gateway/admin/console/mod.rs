@@ -22,12 +22,13 @@ use veoveo_platform_store::{ChangefeedCursor, SegmentState, deterministic_tenant
 pub(crate) use health::{ServerHealthMonitor, spawn_server_health_prober};
 use projection::{
     AgentSummary, ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary,
-    ArtifactSummary, AuditSummary, PolicySummary, RecordingSummary, ServerSummary, TaskSummary,
+    ArtifactSummary, AuditSummary, PolicySummary, PrincipalSummary, RecordingSummary,
+    ServerSummary, TaskSummary,
 };
 use projection::{
     Projection, agent_summary, artifact_grant_summary, artifact_summary, audit_summary,
-    load_projection, record_key, recording_summary, server_summary, share_link_summary,
-    task_summary,
+    load_projection, principal_summary, record_key, recording_summary, server_summary,
+    share_link_summary, task_summary,
 };
 pub(crate) use stream::{ConsoleStreamRuntime, spawn_console_wake_hub, stream_console};
 
@@ -142,6 +143,7 @@ pub(crate) async fn read_console_snapshot(
 struct ConsoleSnapshot {
     installation: InstallationSummary,
     session: SessionSummary,
+    principals: Vec<PrincipalSummary>,
     stream: StreamInfo,
     services: Vec<ServiceSummary>,
     tasks: Vec<TaskSummary>,
@@ -224,25 +226,6 @@ fn build_snapshot(
 ) -> anyhow::Result<ConsoleSnapshot> {
     let now = Utc::now();
     let artifact_access = ArtifactAccessContext::from_subject(subject, tenant_key)?;
-    let principal_names: BTreeMap<_, _> = projection
-        .principals
-        .iter()
-        .map(|principal| Ok((record_key(&principal.id)?, principal.display_name.clone())))
-        .collect::<anyhow::Result<_>>()?;
-    let tenant_name = control
-        .tenants
-        .iter()
-        .find(|tenant| tenant.id.as_str() == tenant_key)
-        .and_then(|tenant| tenant.title.clone())
-        .unwrap_or_else(|| tenant_key.to_owned());
-    let work_context_title = control
-        .work_contexts
-        .iter()
-        .find(|context| context.id == subject.authority.work_context)
-        .map_or_else(
-            || subject.authority.work_context.to_string(),
-            |context| context.title.clone(),
-        );
     let projected_display_name = projection
         .principals
         .iter()
@@ -257,6 +240,45 @@ fn build_snapshot(
         subject.principal.id.as_str(),
         subject.principal.subject.as_str(),
     );
+    let principal_names: BTreeMap<_, _> = projection
+        .principals
+        .iter()
+        .map(|principal| {
+            let projected = if principal.issuer == subject.principal.issuer.as_str()
+                && principal.subject == subject.principal.subject.as_str()
+            {
+                display_name.clone()
+            } else {
+                principal.display_name.clone()
+            };
+            Ok((record_key(&principal.id)?, projected))
+        })
+        .collect::<anyhow::Result<_>>()?;
+    let principals = projection
+        .principals
+        .iter()
+        .map(|principal| {
+            let mut summary = principal_summary(principal);
+            if summary.id == subject.principal.id.as_str() {
+                summary.display_name.clone_from(&display_name);
+            }
+            summary
+        })
+        .collect();
+    let tenant_name = control
+        .tenants
+        .iter()
+        .find(|tenant| tenant.id.as_str() == tenant_key)
+        .and_then(|tenant| tenant.title.clone())
+        .unwrap_or_else(|| tenant_key.to_owned());
+    let work_context_title = control
+        .work_contexts
+        .iter()
+        .find(|context| context.id == subject.authority.work_context)
+        .map_or_else(
+            || subject.authority.work_context.to_string(),
+            |context| context.title.clone(),
+        );
     let blob_lengths: BTreeMap<_, _> = projection
         .blobs
         .iter()
@@ -412,6 +434,7 @@ fn build_snapshot(
                 name: tenant_name,
             }],
         },
+        principals,
         stream: StreamInfo {
             cursor: stream_cursor.versionstamp().to_string(),
         },

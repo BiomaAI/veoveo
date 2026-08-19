@@ -22,10 +22,10 @@ const GovernedRerunArtifactViewer = lazy(
 
 export function ArtifactPreview({
   artifact,
-  principalId,
+  principalDisplayName,
 }: {
   artifact: ArtifactSummary;
-  principalId: string;
+  principalDisplayName: string;
 }) {
   const mediaType = artifact.mediaType.toLowerCase();
   if (!hasInlinePreview(mediaType)) {
@@ -46,7 +46,7 @@ export function ArtifactPreview({
     <AuthorizedArtifactPreview
       artifact={artifact}
       mediaType={mediaType}
-      principalId={principalId}
+      principalDisplayName={principalDisplayName}
     />
   );
 }
@@ -54,11 +54,11 @@ export function ArtifactPreview({
 function AuthorizedArtifactPreview({
   artifact,
   mediaType,
-  principalId,
+  principalDisplayName,
 }: {
   artifact: ArtifactSummary;
   mediaType: string;
-  principalId: string;
+  principalDisplayName: string;
 }) {
   const url = artifactPreviewUrl(artifact.id);
   const [access, setAccess] = useState<"checking" | "allowed" | "denied" | "unavailable">(
@@ -138,7 +138,7 @@ function AuthorizedArtifactPreview({
           <strong>Preview access required</strong>
           <span>
             This private artifact is owned by <code>{artifact.owner}</code>. The active Console
-            principal <code>{principalId}</code> does not have a read grant.
+            principal <code>{principalDisplayName}</code> does not have a read grant.
           </span>
           {pendingRequest ? (
             <span>

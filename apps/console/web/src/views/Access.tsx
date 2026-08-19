@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Check, ShieldCheck, X } from "lucide-react";
+import { IdentityText } from "../components/IdentityText";
 import { SectionHeader, StatusPill } from "../components/primitives";
 import { formatDate } from "../format";
 import {
@@ -62,7 +63,7 @@ export function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {
         <dl>
           <div><dt>Membership</dt><dd><StatusPill value={snapshot.session.membership} /></dd></div>
           <div><dt>Invocation</dt><dd>{snapshot.session.invocationMode}</dd></div>
-          <div><dt>Actor</dt><dd className="mono">{snapshot.session.actorId}</dd></div>
+          <div><dt>Actor</dt><dd><IdentityText identity={snapshot.session.actorId} directory={snapshot} /></dd></div>
         </dl>
       </section>
 
@@ -74,6 +75,7 @@ export function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {
         loading={mine.isLoading}
         error={mine.error}
         artifactName={artifactName}
+        directory={snapshot}
         actions={(request) =>
           request.state === "pending" ? (
             <button
@@ -94,6 +96,7 @@ export function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {
           loading={reviewable.isLoading}
           error={reviewable.error}
           artifactName={artifactName}
+          directory={snapshot}
           actions={(request) =>
             request.state === "pending" ? (
               <div className="review-actions">
@@ -180,6 +183,7 @@ function AccessRequestPanel({
   loading,
   error,
   artifactName,
+  directory,
   actions,
 }: {
   title: string;
@@ -187,6 +191,7 @@ function AccessRequestPanel({
   loading: boolean;
   error: Error | null;
   artifactName: (request: ArtifactAccessRequest) => string;
+  directory: InstallationSnapshot;
   actions: (request: ArtifactAccessRequest) => ReactNode;
 }) {
   return (
@@ -208,11 +213,16 @@ function AccessRequestPanel({
               </div>
               <p>{request.justification}</p>
               <dl>
-                <div><dt>Requester</dt><dd>{request.requester}</dd></div>
+                <div><dt>Requester</dt><dd><IdentityText identity={request.requester} directory={directory} /></dd></div>
                 <div><dt>Level</dt><dd>{request.requestedLevel}</dd></div>
                 <div><dt>Context</dt><dd>{request.workContext}</dd></div>
                 <div><dt>Updated</dt><dd>{formatDate(request.updatedAt)}</dd></div>
               </dl>
+              {request.decidedBy && (
+                <p className="subdued">
+                  Decided by <IdentityText identity={request.decidedBy} directory={directory} />
+                </p>
+              )}
               {request.decisionNote && <p className="decision-note">{request.decisionNote}</p>}
               {actions(request)}
             </article>

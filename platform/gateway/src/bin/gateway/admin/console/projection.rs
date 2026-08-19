@@ -34,6 +34,20 @@ pub(crate) struct Projection {
     pub(crate) audit: Vec<AuditEventRecord>,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PrincipalSummary {
+    pub(crate) id: String,
+    pub(crate) display_name: String,
+}
+
+pub(crate) fn principal_summary(principal: &PrincipalRecord) -> PrincipalSummary {
+    PrincipalSummary {
+        id: format!("{}#{}", principal.issuer, principal.subject),
+        display_name: principal.display_name.clone(),
+    }
+}
+
 pub(crate) async fn load_projection(
     state: &AdminState,
     tenant: &RecordId,

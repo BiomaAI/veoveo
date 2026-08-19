@@ -14,10 +14,11 @@ use axum::{
 use chrono::Utc;
 use jsonwebtoken::jwk::JwkSet;
 use veoveo_mcp_contract::ResourceAuthorizationServer;
-use veoveo_mcp_contract::{AuthOutcome, AuthReasonCode, GatewayProfileId};
+use veoveo_mcp_contract::{AuthOutcome, AuthReasonCode, GatewayProfileId, PrincipalKind};
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, GatewayCatalog, JwtAuthConfig, JwtVerifier,
 };
+use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
 
 use crate::{
     audit::{auth_audit_error_response, record_auth_audit, unauthorized},
@@ -303,6 +304,22 @@ pub(super) async fn authenticate_mcp(
             }
         }
     }
+    if let Err(err) = sync_principal_directory(&state, &subject).await {
+        tracing::error!(%err, principal = %subject.principal.id, "failed to synchronize authenticated principal display metadata");
+        if let Err(audit_error) = record_auth_audit(
+            &state,
+            profile,
+            AuthOutcome::Deny,
+            AuthReasonCode::AuthStateUnavailable,
+            Some(&subject),
+            started_at,
+        )
+        .await
+        {
+            return auth_audit_error_response(audit_error);
+        }
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
     if let Err(err) = record_auth_audit(
         &state,
         profile,
@@ -320,6 +337,45 @@ pub(super) async fn authenticate_mcp(
         .extensions_mut()
         .insert::<AuthenticatedSubject>(subject);
     next.run(request).await
+}
+
+async fn sync_principal_directory(
+    state: &ProfileAuthState,
+    subject: &AuthenticatedSubject,
+) -> Result<(), veoveo_platform_store::StoreError> {
+    let store = state.gateway_state.platform_store();
+    let tenant = subject.authority.tenant.as_str();
+    let principal = &subject.principal;
+    let kind = match principal.kind {
+        PrincipalKind::User => StorePrincipalKind::User,
+        PrincipalKind::Service => StorePrincipalKind::Service,
+    };
+    match &subject.principal_display_name {
+        Some(display_name) => {
+            store
+                .ensure_named_identity(
+                    tenant,
+                    principal.id.as_str(),
+                    principal.issuer.as_str(),
+                    principal.subject.as_str(),
+                    kind,
+                    display_name.as_str(),
+                )
+                .await?;
+        }
+        None => {
+            store
+                .ensure_identity(
+                    tenant,
+                    principal.id.as_str(),
+                    principal.issuer.as_str(),
+                    principal.subject.as_str(),
+                    kind,
+                )
+                .await?;
+        }
+    }
+    Ok(())
 }
 
 pub(super) async fn load_resource_authorization_jwks(

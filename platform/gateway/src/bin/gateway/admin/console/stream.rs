@@ -32,7 +32,8 @@ use veoveo_platform_store::{
 use super::projection::{
     ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary, agent_public_key,
     agent_summary, artifact_grant_summary, artifact_summary, audit_summary, load_projection,
-    record_key, recording_summary, server_summary, share_link_summary, task_summary,
+    principal_summary, record_key, recording_summary, server_summary, share_link_summary,
+    task_summary,
 };
 use crate::{
     admin::admin_profile_id,
@@ -646,9 +647,10 @@ impl ConsoleStreamState {
                 match table {
                     PlatformTable::Principal => {
                         let principal: PrincipalRecord = row.into_t()?;
+                        let summary = principal_summary(&principal);
                         self.principal_names
                             .insert(record_key(&principal.id)?, principal.display_name);
-                        Ok(None)
+                        Ok(out("principal", upsert_payload(&summary)?))
                     }
                     PlatformTable::Task => {
                         let task: TaskRecord = row.into_t()?;
@@ -759,8 +761,12 @@ impl ConsoleStreamState {
                 let key = record_key(&record)?;
                 match table {
                     PlatformTable::Principal => {
+                        let principal: PrincipalRecord = original.into_t()?;
                         self.principal_names.remove(&key);
-                        Ok(None)
+                        Ok(out(
+                            "principal",
+                            delete_payload(&principal_summary(&principal).id),
+                        ))
                     }
                     PlatformTable::Task => Ok(out("task", delete_payload(&key))),
                     PlatformTable::ArtifactBlob => {

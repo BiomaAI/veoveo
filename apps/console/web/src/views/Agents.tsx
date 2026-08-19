@@ -7,6 +7,7 @@ import {
   sendAgentMessage,
 } from "../api";
 import { agentDisplayState, uuidV7 } from "../agentControl";
+import { IdentityText } from "../components/IdentityText";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import { formatDate } from "../format";
 import type {
@@ -36,7 +37,13 @@ function useAgentDisplayState(agent: AgentSummary) {
   return agentDisplayState(agent);
 }
 
-function AgentCard({ agent }: { agent: AgentSummary }) {
+function AgentCard({
+  agent,
+  directory,
+}: {
+  agent: AgentSummary;
+  directory: InstallationSnapshot;
+}) {
   const [message, setMessage] = useState("");
   const [messageRequestId, setMessageRequestId] = useState<string>();
   const [sending, setSending] = useState(false);
@@ -207,7 +214,11 @@ function AgentCard({ agent }: { agent: AgentSummary }) {
             {conversation.map((entry) => (
               <article className={`agent-conversation-entry ${entry.role}`} key={entry.entryId}>
                 <div>
-                  <strong>{entry.role === "agent" ? agent.name : entry.actorId}</strong>
+                  <strong>
+                    {entry.role === "agent" ? agent.name : (
+                      <IdentityText identity={entry.actorId} directory={directory} />
+                    )}
+                  </strong>
                   <StatusPill value={entry.state} />
                 </div>
                 {entry.content && <p>{entry.content}</p>}
@@ -293,7 +304,9 @@ export function AgentsView({ snapshot }: { snapshot: InstallationSnapshot }) {
         <EmptyState>No agents are registered in this Work Context.</EmptyState>
       ) : (
         <div className="item-grid agent-grid">
-          {snapshot.agents.map((agent) => <AgentCard agent={agent} key={agent.id} />)}
+          {snapshot.agents.map((agent) => (
+            <AgentCard agent={agent} directory={snapshot} key={agent.id} />
+          ))}
         </div>
       )}
     </section>
