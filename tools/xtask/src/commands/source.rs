@@ -144,9 +144,19 @@ impl PublicationLayout {
             object_format.trim()
         );
         let source_id = hex::encode(Sha256::digest(identity.as_bytes()));
-        let directory = main_worktree
-            .join("target/veoveo-xtask/publication")
-            .join(&source_id);
+        let target = main_worktree.join("target");
+        let target = match fs::symlink_metadata(&target) {
+            Ok(_) => fs::canonicalize(&target).with_context(|| {
+                format!("resolving Cargo target directory {}", target.display())
+            })?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => target,
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!("inspecting Cargo target directory {}", target.display())
+                });
+            }
+        };
+        let directory = target.join("veoveo-xtask/publication").join(&source_id);
         Ok(Self {
             source_id,
             source: directory.join("source"),
@@ -334,6 +344,51 @@ mod tests {
             marker
         );
         assert_eq!(source.revision(), second.trim());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reuses_publication_worktree_through_symlinked_target() {
+        let temporary = TempDir::new().expect("temporary repository");
+        let repository = temporary.path().join("repository");
+        let external_target = temporary.path().join("external-target");
+        fs::create_dir(&repository).expect("create repository");
+        fs::create_dir(&external_target).expect("create external target");
+        std::os::unix::fs::symlink(&external_target, repository.join("target"))
+            .expect("link external target");
+        git(&repository, ["init"]);
+        git(&repository, ["config", "user.email", "test@example.com"]);
+        git(&repository, ["config", "user.name", "Veoveo Test"]);
+        git(&repository, ["config", "commit.gpgsign", "false"]);
+        git(
+            &repository,
+            [
+                "remote",
+                "add",
+                "origin",
+                "git@github.com:BiomaAI/symlink-fixture.git",
+            ],
+        );
+        fs::write(repository.join("tracked.txt"), "first\n").expect("write tracked file");
+        git(&repository, ["add", "."]);
+        git(&repository, ["commit", "-m", "first"]);
+        let first = git_output(&repository, ["rev-parse", "HEAD"]);
+
+        fs::write(repository.join("tracked.txt"), "second\n").expect("update tracked file");
+        git(&repository, ["commit", "-am", "second"]);
+        let second = git_output(&repository, ["rev-parse", "HEAD"]);
+        let context = RepositoryContext::discover(&repository).expect("discover repository");
+
+        let source = PublicationSource::prepare(&context, first.trim()).expect("first source");
+        assert!(source.path().starts_with(&external_target));
+        drop(source);
+
+        let source = PublicationSource::prepare(&context, second.trim()).expect("reuse source");
+        assert_eq!(source.revision(), second.trim());
+        assert_eq!(
+            fs::read_to_string(source.path().join("tracked.txt")).expect("read tracked file"),
+            "second\n"
+        );
     }
 
     fn git<const N: usize>(repository: &Path, args: [&str; N]) {
