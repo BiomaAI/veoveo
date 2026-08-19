@@ -151,10 +151,11 @@ resulting extension package. No runtime download or locally rebuilt installation
 accepted.
 
 Native message-bus events drive streamed-world recovery. A tile-content HTTP 400 marks
-the current provider generation rejected and requests one fresh generation. Hundreds of
-child failures from that generation remain one refresh. The replacement either reaches
-native load completion plus visible coverage or settles in a typed degraded state. Other
-HTTP and transport failures never trigger speculative reloads.
+the current provider generation rejected, clears Cesium's cached provider responses, and
+requests one fresh generation from a new root tileset. Hundreds of child failures from
+that generation remain one reset. The replacement either reaches native load completion
+plus visible coverage or settles in a typed degraded state. Other HTTP and transport
+failures never trigger speculative reloads.
 
 The runtime projects `provider_generation`, `event_sequence`, `refresh_count`, and a
 typed `last_failure` without a URL or credential. Visibility counters remain render

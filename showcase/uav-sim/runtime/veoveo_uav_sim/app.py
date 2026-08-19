@@ -165,7 +165,11 @@ def run(config: RuntimeConfig) -> None:
     )
     from .state import RuntimeState, VehicleTelemetry
     from .stream_output import StreamPublicationWorker
-    from .tile_lifecycle import NativeTileEventBridge, TileLifecycleController
+    from .tile_lifecycle import (
+        NativeTileEventBridge,
+        TileLifecycleController,
+        reset_provider_session,
+    )
     from .vehicle_model import PX4_IRIS_SENSOR_CADENCE, Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
 
@@ -851,11 +855,15 @@ def run(config: RuntimeConfig) -> None:
                             tile_event.http_status,
                             tile_event.generation,
                         )
-                    if tile_action.reload_tileset:
+                    if tile_action.reset_provider_session:
                         try:
-                            cesium_interface.reload_tileset(tileset_path)
+                            reset_provider_session(
+                                cesium_interface,
+                                tileset_path,
+                            )
                             LOGGER.info(
-                                "streamed-world provider generation refresh requested"
+                                "streamed-world provider cache cleared and fresh "
+                                "generation requested"
                             )
                         except Exception:
                             tile_controller.mark_refresh_command_failed()
