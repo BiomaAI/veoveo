@@ -22,6 +22,17 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` and its pinned Cesium Native revision stream photorealistic terrain and buildings. A repository-owned internal event extension reports redacted load lifecycle state. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit Frames-governed world, physics, entity, sensor, and operator-camera mappings. |
 
+## Supporting Research
+
+Gao, Pagnucco, Bednarz, and Song survey Isaac Sim's architecture, GPU-accelerated
+physics and rendering, synthetic-data pipeline, application patterns, and practical
+limitations in [*NVIDIA Isaac Sim: Enabling Scalable, GPU-Accelerated Simulation for
+Robotics*](https://arxiv.org/html/2606.03551v1), arXiv:2606.03551v1 (2026). The survey
+provides background for this showcase's choice of an authoritative GPU simulator. It
+does not validate Veoveo's specific Pegasus, PX4, MCP, streaming, or acceptance
+implementation; those claims remain tied to the repository's pinned runtime and
+executable evidence.
+
 ## What Can This Do?
 
 Address one vehicle's pilot as a durable agent and give it a destination in ordinary
