@@ -1113,9 +1113,9 @@ pub(crate) async fn helm_config() -> Result<()> {
     }
     let bioma_platform = fs::read_to_string("examples/bioma/platform/flux/kustomization.yaml")?;
     for expected in [
-        "manifests/bases/source-controller?ref=v2.9.3",
-        "manifests/bases/kustomize-controller?ref=v2.9.3",
-        "manifests/bases/helm-controller?ref=v2.9.3",
+        "manifests/bases/source-controller?ref=v2.9.4",
+        "manifests/bases/kustomize-controller?ref=v2.9.4",
+        "manifests/bases/helm-controller?ref=v2.9.4",
     ] {
         contains(&bioma_platform, expected)?;
     }
@@ -1146,6 +1146,7 @@ pub(crate) async fn helm_config() -> Result<()> {
             "storageNamespace: veoveo",
             "chartRef:",
             "serverSideApply: true",
+            "serverSideApply: enabled",
             "driftDetection:",
             "mode: enabled",
             "valuesKey: images.lock.yaml",
