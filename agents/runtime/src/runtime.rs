@@ -980,6 +980,10 @@ impl AgentRuntime {
                         }
                     })?,
                     tool_name: record.tool_name,
+                    started_by_episode: AgentEpisodeId::from_uuid(uuid_from_record(
+                        &record.started_by_episode,
+                        "agent_task.started_by_episode",
+                    )?),
                     result: record.result.ok_or(AgentRuntimeError::InvalidField {
                         field: "agent_task.result",
                         reason: "terminal unconsumed task has no result".to_owned(),

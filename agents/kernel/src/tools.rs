@@ -185,8 +185,9 @@ impl Tool for TimelineQueryTool {
     type Output = TimelineQueryOutput;
 
     fn description(&self) -> String {
-        "Query your episodic decision log (everything you have observed and done, time-indexed). \
-         Entities: /agent/turns, /agent/tools/**, /agent/tasks/**, /agent/episodes, /domain/**."
+        "Query the most recent rows of your episodic decision log (everything you have observed \
+         and done, time-indexed). Results are returned in chronological order. Entities: \
+         /agent/turns, /agent/tools/**, /agent/tasks/**, /agent/episodes, /domain/**."
             .to_string()
     }
 
@@ -204,11 +205,12 @@ impl Tool for TimelineQueryTool {
     async fn call(
         &self,
         _context: &mut ToolContext,
-        args: Self::Args,
+        mut args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
         // The live segment is mid-append; flush so the snapshot sees
         // everything logged before this query.
         self.rrd.flush();
+        args.max_rows = args.max_rows.min(MAX_QUERY_ROWS);
         let rrd_dir = self.rrd.rrd_dir().to_path_buf();
         let rows = tokio::task::spawn_blocking(move || query_segments(&rrd_dir, &args))
             .await

@@ -138,12 +138,45 @@ impl EpisodeDriver {
         let tool_calls = tool_calls.load(std::sync::atomic::Ordering::Relaxed);
         match response {
             Ok(response) => {
+                let detached_tasks =
+                    detached_tasks.load(std::sync::atomic::Ordering::Relaxed) as usize;
+                if response.output.trim().is_empty() && detached_tasks == 0 {
+                    let error =
+                        "model completed an episode without a final response or detached task";
+                    self.runtime
+                        .complete_episode(
+                            episode.episode_id,
+                            EpisodeCompletion {
+                                state: AgentEpisodeState::Failed,
+                                final_output: String::new(),
+                                summary: None,
+                                input_tokens: response.usage.input_tokens,
+                                output_tokens: response.usage.output_tokens,
+                                completion_calls: response.completion_calls.len() as u64,
+                                tool_calls,
+                                error: Some(error.to_owned()),
+                            },
+                            &[],
+                        )
+                        .await?;
+                    self.memory.finish_episode_projection(
+                        episode.episode_id.as_uuid(),
+                        EpisodeOutcome::Error,
+                        "",
+                        response.usage.input_tokens,
+                        response.usage.output_tokens,
+                        response.completion_calls.len() as u64,
+                        tool_calls,
+                        Some(error),
+                    )?;
+                    self.finish_rrd(format!("episode {} failed: {error}", episode.sequence));
+                    anyhow::bail!(error);
+                }
                 let report = EpisodeReport {
                     episode_id: episode.episode_id,
                     seq: episode.sequence,
                     output: response.output,
-                    detached_tasks: detached_tasks.load(std::sync::atomic::Ordering::Relaxed)
-                        as usize,
+                    detached_tasks,
                 };
                 let summary = summary::deterministic(&report, wake_note, tool_calls);
                 self.runtime
