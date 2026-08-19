@@ -9,7 +9,7 @@ spec:
   url: oci://charts-registry.flux-system.svc.cluster.local:5000/charts/veoveo
   insecure: true
   ref:
-    digest: sha256:cff442ea8cd39c1e7f9df479d3befdc82734d8ccf41d6969f4588417dfe64197
+    digest: sha256:1281078ae0f43cbef4cf2336b236f8e8b4687f99b08df66f6af41452482f0b6a
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
