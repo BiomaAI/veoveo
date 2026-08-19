@@ -28,7 +28,7 @@ spec:
     remediation:
       retries: 5
   upgrade:
-    serverSideApply: true
+    serverSideApply: enabled
     remediation:
       retries: 5
       strategy: rollback
