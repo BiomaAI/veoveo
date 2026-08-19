@@ -76,9 +76,61 @@ impl PlatformStore {
         subject: &str,
         kind: PrincipalKind,
     ) -> Result<PlatformIdentity, StoreError> {
+        self.ensure_identity_with_display_name(
+            tenant_key,
+            principal_key,
+            issuer,
+            subject,
+            kind,
+            None,
+        )
+        .await
+    }
+
+    /// Ensure a stable principal while projecting trusted human-facing identity metadata.
+    ///
+    /// `principal_key` remains the authorization and ownership key. `display_name` is
+    /// presentation-only metadata and never participates in identity matching.
+    pub async fn ensure_named_identity(
+        &self,
+        tenant_key: &str,
+        principal_key: &str,
+        issuer: &str,
+        subject: &str,
+        kind: PrincipalKind,
+        display_name: &str,
+    ) -> Result<PlatformIdentity, StoreError> {
+        validate_identity_field("display_name", display_name, 512)?;
+        self.ensure_identity_with_display_name(
+            tenant_key,
+            principal_key,
+            issuer,
+            subject,
+            kind,
+            Some(display_name),
+        )
+        .await
+    }
+
+    async fn ensure_identity_with_display_name(
+        &self,
+        tenant_key: &str,
+        principal_key: &str,
+        issuer: &str,
+        subject: &str,
+        kind: PrincipalKind,
+        display_name: Option<&str>,
+    ) -> Result<PlatformIdentity, StoreError> {
         for attempt in 0..MAX_TRANSACTION_ATTEMPTS {
             match self
-                .ensure_identity_once(tenant_key, principal_key, issuer, subject, kind)
+                .ensure_identity_once(
+                    tenant_key,
+                    principal_key,
+                    issuer,
+                    subject,
+                    kind,
+                    display_name,
+                )
                 .await
             {
                 Ok(identity) => return Ok(identity),
@@ -101,6 +153,7 @@ impl PlatformStore {
         issuer: &str,
         subject: &str,
         kind: PrincipalKind,
+        display_name: Option<&str>,
     ) -> Result<PlatformIdentity, StoreError> {
         let enterprise_id = deterministic_enterprise_id();
         validate_identity_field("issuer", issuer, 2_048)?;
@@ -124,6 +177,25 @@ impl PlatformStore {
         }
         if let Some(record) = &existing_principal {
             validate_existing_principal(record, tenant_id, principal_key, issuer, subject, kind)?;
+        }
+        let projected_display_name = desired_principal_display_name(
+            existing_principal.as_ref(),
+            principal_key,
+            subject,
+            display_name,
+        );
+        if existing_enterprise.is_some()
+            && existing_tenant.is_some()
+            && existing_principal
+                .as_ref()
+                .is_some_and(|record| record.display_name == projected_display_name)
+        {
+            return Ok(PlatformIdentity {
+                tenant_id,
+                principal_id,
+                tenant_key: tenant_key.to_owned(),
+                principal_key: principal_key.to_owned(),
+            });
         }
         let enterprise = existing_enterprise.map_or_else(
             || EnterpriseRecord {
@@ -162,7 +234,7 @@ impl PlatformStore {
                 kind,
                 issuer: issuer.to_owned(),
                 subject: subject.to_owned(),
-                display_name: principal_key.to_owned(),
+                display_name: projected_display_name.clone(),
                 email: None,
                 claims_hash: String::new(),
                 enabled: true,
@@ -170,7 +242,7 @@ impl PlatformStore {
                 updated_at: now,
             },
             |mut record| {
-                record.display_name = principal_key.to_owned();
+                record.display_name.clone_from(&projected_display_name);
                 record.updated_at = now;
                 record
             },
@@ -263,6 +335,38 @@ fn validate_identity_field(
     Ok(())
 }
 
+fn compact_identity_label(subject: &str) -> String {
+    let candidate = subject
+        .split(['#', '/'])
+        .rfind(|segment| !segment.trim().is_empty())
+        .unwrap_or(subject)
+        .trim();
+    if candidate.is_empty() {
+        return "Principal".to_owned();
+    }
+    candidate.chars().take(128).collect()
+}
+
+fn desired_principal_display_name(
+    existing: Option<&PrincipalRecord>,
+    principal_key: &str,
+    subject: &str,
+    authenticated: Option<&str>,
+) -> String {
+    if let Some(authenticated) = authenticated {
+        return authenticated.to_owned();
+    }
+    existing
+        .map(|record| {
+            if record.display_name == principal_key {
+                compact_identity_label(subject)
+            } else {
+                record.display_name.clone()
+            }
+        })
+        .unwrap_or_else(|| compact_identity_label(subject))
+}
+
 fn validate_existing_tenant(
     record: &TenantRecord,
     enterprise_id: EnterpriseId,
@@ -286,7 +390,6 @@ fn validate_existing_principal(
     kind: PrincipalKind,
 ) -> Result<(), StoreError> {
     if record.tenant != tenant_id.record_id()
-        || record.display_name != principal_key
         || record.issuer != issuer
         || record.subject != subject
         || record.kind != kind
@@ -357,5 +460,70 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn principal_display_metadata_never_participates_in_identity_matching() {
+        let tenant_id = deterministic_tenant_id("acme").unwrap();
+        let mut record = PrincipalRecord {
+            id: deterministic_principal_id("acme", "https://issuer.example#alice")
+                .unwrap()
+                .record_id(),
+            tenant: tenant_id.record_id(),
+            kind: PrincipalKind::User,
+            issuer: "https://issuer.example".into(),
+            subject: "alice".into(),
+            display_name: "Alice Example".into(),
+            email: None,
+            claims_hash: String::new(),
+            enabled: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        assert!(
+            validate_existing_principal(
+                &record,
+                tenant_id,
+                "https://issuer.example#alice",
+                "https://issuer.example",
+                "alice",
+                PrincipalKind::User,
+            )
+            .is_ok()
+        );
+        record.display_name = "Renamed User".into();
+        assert!(
+            validate_existing_principal(
+                &record,
+                tenant_id,
+                "https://issuer.example#alice",
+                "https://issuer.example",
+                "alice",
+                PrincipalKind::User,
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            compact_identity_label("https://issuer.example/users/alice"),
+            "alice"
+        );
+        assert_eq!(
+            desired_principal_display_name(
+                Some(&record),
+                "https://issuer.example#alice",
+                "alice",
+                None,
+            ),
+            "Renamed User"
+        );
+        assert_eq!(
+            desired_principal_display_name(
+                Some(&record),
+                "https://issuer.example#alice",
+                "alice",
+                Some("Alice Example"),
+            ),
+            "Alice Example"
+        );
     }
 }

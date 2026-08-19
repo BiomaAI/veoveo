@@ -31,6 +31,7 @@ export interface InstallationSnapshot {
     invocationMode: InvocationMode;
     availableTenants: Array<{ id: string; name: string }>;
   };
+  principals: PrincipalSummary[];
   stream: {
     cursor: string;
   };
@@ -42,6 +43,11 @@ export interface InstallationSnapshot {
   servers: McpServerSummary[];
   policies: PolicySummary[];
   audit: AuditSummary[];
+}
+
+export interface PrincipalSummary {
+  id: string;
+  displayName: string;
 }
 
 export type WorkContextMembership = "viewer" | "contributor" | "custodian" | "owner";

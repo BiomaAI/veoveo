@@ -88,6 +88,7 @@ export const demoSnapshot: InstallationSnapshot = {
       { id: "mobility", name: "Mobility Research" }
     ]
   },
+  principals: [{ id: "entra#8c19f2", displayName: "Mara Chen" }],
   services: [
     { id: "surreal", name: "SurrealDB", kind: "database", state: "healthy", detail: "Control store · RocksDB", latencyMs: 4, checkedAt: ago(0) },
     { id: "gateway", name: "MCP Gateway", kind: "gateway", state: "healthy", detail: "8 profiles active", latencyMs: 12, checkedAt: ago(0) },

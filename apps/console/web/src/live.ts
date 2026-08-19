@@ -7,13 +7,14 @@ import type {
   AuditSummary,
   InstallationSnapshot,
   McpServerSummary,
+  PrincipalSummary,
   RecordingSummary,
   TaskSummary,
 } from "./types";
 
 export type LiveStatus = "live" | "reconnecting" | "off";
 
-const ENTITY_EVENTS = ["task", "artifact", "agent", "recording", "audit", "server"] as const;
+const ENTITY_EVENTS = ["principal", "task", "artifact", "agent", "recording", "audit", "server"] as const;
 type EntityEvent = (typeof ENTITY_EVENTS)[number];
 
 type RowEvent =
@@ -55,6 +56,14 @@ export function applyRowEvent(client: QueryClient, entity: EntityEvent, event: R
   client.setQueryData<InstallationSnapshot>(queryKeys.snapshot, (snapshot) => {
     if (!snapshot) return snapshot;
     switch (entity) {
+      case "principal":
+        return {
+          ...snapshot,
+          principals:
+            event.op === "upsert"
+              ? upsertKeyed(snapshot.principals, event.row as unknown as PrincipalSummary, ROW_CAP)
+              : removeRow(snapshot.principals, event.id),
+        };
       case "task":
         return {
           ...snapshot,
