@@ -290,7 +290,14 @@ async fn run_batch_episode(
 async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<String> {
     let mut parts = Vec::new();
     let results = runtime.unconsumed_task_results().await?;
-    for wake in &batch.wakes {
+    let mut wakes = batch.wakes.iter().collect::<Vec<_>>();
+    wakes.sort_by_key(|wake| match wake.kind {
+        WakeKind::TaskResult => 0,
+        WakeKind::OperatorMessage | WakeKind::InputRequest => 1,
+        WakeKind::ResourceChanged => 2,
+        WakeKind::Timer => 3,
+    });
+    for wake in wakes {
         match wake.kind {
             WakeKind::TaskResult => {
                 let Some(task_id) = wake
@@ -307,17 +314,7 @@ async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<S
                 else {
                     continue;
                 };
-                parts.push(format!(
-                    "Background task update: `{}` task {} {} with result:\n\n{}",
-                    result.tool_name,
-                    result.task_id,
-                    if result.is_error {
-                        "failed"
-                    } else {
-                        "completed"
-                    },
-                    serde_json::to_string(&result.result)?,
-                ));
+                parts.push(render_task_result(result)?);
             }
             WakeKind::ResourceChanged => {
                 if let Some(uri) = wake
@@ -400,4 +397,27 @@ async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<S
         }
     }
     Ok(parts.join("\n\n"))
+}
+
+fn render_task_result(result: &veoveo_agent_runtime::AgentTaskResult) -> Result<String> {
+    let status = if result.is_error {
+        "failed"
+    } else {
+        "completed"
+    };
+    let continuation = if result.is_error {
+        "Handle this terminal failure directly and report or continue according to your workflow."
+    } else {
+        "Continue the workflow that dispatched this task using this terminal result directly."
+    };
+    Ok(format!(
+        "Authoritative background-task continuation: `{}` task {} {status}. It was dispatched by \
+         episode {}. {continuation} Do not call timeline_query or memory_query to rediscover this \
+         task or result, and do not repeat `{}`.\n\nTerminal result:\n\n{}",
+        result.tool_name,
+        result.task_id,
+        result.started_by_episode,
+        result.tool_name,
+        serde_json::to_string(&result.result)?,
+    ))
 }

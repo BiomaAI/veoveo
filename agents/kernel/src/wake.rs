@@ -83,7 +83,8 @@ impl WakeKindExt for WakeKind {
 }
 
 pub fn is_priority(wake: &ClaimedWake) -> bool {
-    wake.kind == WakeKind::OperatorMessage
+    wake.kind == WakeKind::TaskResult
+        || wake.kind == WakeKind::OperatorMessage
         || (wake.kind == WakeKind::InputRequest
             && wake
                 .payload
@@ -270,5 +271,17 @@ mod tests {
         assert!(WakeKind::ResourceChanged.coalescible());
         assert!(!WakeKind::TaskResult.coalescible());
         assert!(!WakeKind::OperatorMessage.coalescible());
+    }
+
+    #[test]
+    fn terminal_task_results_bypass_scheduler_debounce_and_hourly_deferral() {
+        let wake = ClaimedWake {
+            wake_id: WakeId::new(),
+            kind: WakeKind::TaskResult,
+            dedupe_key: None,
+            payload: OpenObject::default(),
+            attempts: 1,
+        };
+        assert!(is_priority(&wake));
     }
 }

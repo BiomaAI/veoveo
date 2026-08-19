@@ -6,6 +6,8 @@
 //! profile governs its own tool session and is not a human-control selector.
 //! This module never acquires the scheduler lease.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
@@ -16,9 +18,9 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{
     AgentEpisodeRecord, AgentEpisodeState, AgentInputRequestId, AgentInputRequestRecord,
-    AgentInputRequestState, AgentRecord, AgentState, OpenObject, OutboxDraft, PlatformStore,
-    StoreAuthLevel, WakeId, WakeKind, WakeRecord, WakeState, deterministic_tenant_id,
-    deterministic_work_context_id,
+    AgentInputRequestState, AgentRecord, AgentState, AgentTaskRecord, OpenObject, OutboxDraft,
+    PlatformStore, StoreAuthLevel, WakeId, WakeKind, WakeRecord, WakeState,
+    deterministic_tenant_id, deterministic_work_context_id,
 };
 
 use crate::{AgentRuntimeError, InputRequestAnswer, Result, object, uuid_from_record};
@@ -201,7 +203,17 @@ impl AgentControl {
             .check()?;
         let episodes: Vec<AgentEpisodeRecord> = episode_response.take(0)?;
 
-        let mut requests_by_episode = std::collections::BTreeMap::<Uuid, Vec<Uuid>>::new();
+        let mut task_response = self
+            .store
+            .client()
+            .query("SELECT * FROM agent_task WHERE agent = $agent AND tenant = $tenant ORDER BY created_at DESC LIMIT 512;")
+            .bind(("agent", agent.id.clone()))
+            .bind(("tenant", agent.tenant.clone()))
+            .await?
+            .check()?;
+        let tasks: Vec<AgentTaskRecord> = task_response.take(0)?;
+
+        let mut requests_by_episode = BTreeMap::<Uuid, BTreeSet<Uuid>>::new();
         let mut entries = Vec::with_capacity(wakes.len() + episodes.len());
         for wake in wakes {
             let wake_id = uuid_from_record(&wake.id, "wake.id")?;
@@ -212,7 +224,7 @@ impl AgentControl {
                 requests_by_episode
                     .entry(uuid_from_record(episode, "wake.acked_by_episode")?)
                     .or_default()
-                    .push(request_id);
+                    .insert(request_id);
             }
             entries.push(AgentConversationEntry {
                 entry_id: format!("wake:{wake_id}"),
@@ -231,6 +243,18 @@ impl AgentControl {
                 in_reply_to_request_ids: Vec::new(),
             });
         }
+        let task_edges = tasks
+            .into_iter()
+            .filter_map(|task| {
+                let consumed = task.consumed_by_episode?;
+                Some((
+                    uuid_from_record(&task.started_by_episode, "agent_task.started_by_episode"),
+                    uuid_from_record(&consumed, "agent_task.consumed_by_episode"),
+                ))
+            })
+            .map(|(started, consumed)| Ok((started?, consumed?)))
+            .collect::<Result<Vec<_>>>()?;
+        propagate_request_lineage(&mut requests_by_episode, &task_edges);
         for episode in episodes {
             let episode_id = uuid_from_record(&episode.id, "agent_episode.id")?;
             let content = episode
@@ -253,7 +277,9 @@ impl AgentControl {
                 episode_id: Some(episode_id),
                 in_reply_to_request_ids: requests_by_episode
                     .remove(&episode_id)
-                    .unwrap_or_default(),
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
             });
         }
         entries.sort_by(|left, right| {
@@ -491,6 +517,27 @@ impl AgentControl {
     }
 }
 
+fn propagate_request_lineage(
+    requests_by_episode: &mut BTreeMap<Uuid, BTreeSet<Uuid>>,
+    task_edges: &[(Uuid, Uuid)],
+) {
+    loop {
+        let mut changed = false;
+        for (started_by_episode, consumed_by_episode) in task_edges {
+            let Some(request_ids) = requests_by_episode.get(started_by_episode).cloned() else {
+                continue;
+            };
+            let destination = requests_by_episode.entry(*consumed_by_episode).or_default();
+            let previous_len = destination.len();
+            destination.extend(request_ids);
+            changed |= destination.len() != previous_len;
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
 fn payload_string(payload: &OpenObject, field: &'static str) -> Result<String> {
     payload
         .as_map()
@@ -656,5 +703,25 @@ mod tests {
         assert!(validate_message("").is_err());
         assert!(validate_message("bad\u{0}input").is_err());
         assert!(validate_message(&"x".repeat(MAX_OPERATOR_MESSAGE_BYTES + 1)).is_err());
+    }
+
+    #[test]
+    fn conversation_request_lineage_crosses_detached_task_chains() {
+        let request_a = Uuid::now_v7();
+        let request_b = Uuid::now_v7();
+        let root = Uuid::now_v7();
+        let route_result = Uuid::now_v7();
+        let mission_result = Uuid::now_v7();
+        let mut lineage = BTreeMap::from([(root, BTreeSet::from([request_a, request_b]))]);
+
+        propagate_request_lineage(
+            &mut lineage,
+            &[(route_result, mission_result), (root, route_result)],
+        );
+
+        assert_eq!(
+            lineage.get(&mission_result),
+            Some(&BTreeSet::from([request_a, request_b]))
+        );
     }
 }

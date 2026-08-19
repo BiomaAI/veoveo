@@ -136,6 +136,7 @@ pub struct ClaimedAgentTask {
 pub struct AgentTaskResult {
     pub task_id: CanonicalTaskId,
     pub tool_name: String,
+    pub started_by_episode: AgentEpisodeId,
     pub result: OpenObject,
     pub is_error: bool,
 }

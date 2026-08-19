@@ -63,8 +63,10 @@ pub fn assemble(
         "## Operating rules\n\nAct using your native function-call tools; never emit pseudo tool-call \
          text or hand-written tool envelopes. Long-running gateway tools are dispatched \
          as background tasks — you will be woken with their results; never wait or poll for \
-         them. Record durable conclusions with memory_write. End your turn when nothing \
-         actionable remains."
+         them. A task-result wake already contains its authoritative terminal result: consume \
+         that result directly, continue the dispatching workflow, and never query memory or the \
+         timeline to rediscover it. Record durable conclusions with memory_write. End your turn \
+         when nothing actionable remains."
             .to_string(),
     );
     Ok(parts.join("\n\n"))
