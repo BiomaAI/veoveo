@@ -419,7 +419,7 @@ repository.
 |---|---|---|
 | Local k3d | A real local Kubernetes cluster with registry-first image delivery and mandatory NVIDIA validation. | [`deploy/local/k3d`](deploy/local/k3d/README.md) |
 | Direct Helm | A connected cluster managed by an existing platform team. | [`deploy/helm/veoveo`](deploy/helm/veoveo/README.md) |
-| Enterprise GitOps | Immutable OCI charts and image digests reconciled by the installation owner's Argo CD, Flux, or equivalent controller. | [`docs/ENTERPRISE_DEPLOYMENT.md`](docs/ENTERPRISE_DEPLOYMENT.md) |
+| Enterprise GitOps | Immutable OCI charts and image digests reconciled by the installation owner's Flux or equivalent controller. | [`docs/ENTERPRISE_DEPLOYMENT.md`](docs/ENTERPRISE_DEPLOYMENT.md) |
 | Offline | A verified bundle containing runtime images, charts, schemas, checksums, image identities, and SPDX SBOMs. | [`deploy/offline`](deploy/offline/README.md) |
 
 The [Autonomy Harness shared-responsibility contract](docs/AUTONOMY_HARNESS.md)

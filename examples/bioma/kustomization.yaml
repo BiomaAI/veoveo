@@ -2,9 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - gitops/namespace.yaml
-  - gitops/project.yaml
-  - gitops/applications/veoveo.yaml
-  - gitops/applications/uav-sim.yaml
+  - gitops/sources
+  - gitops/releases
   - gitops/cloudflared.yaml
 configMapGenerator:
   - name: bioma-gateway-control-plane
@@ -18,8 +17,21 @@ configMapGenerator:
     namespace: veoveo
     files:
       - world.json=uav-sim-world.json
+  - name: bioma-veoveo-values
+    namespace: flux-system
+    files:
+      - values.yaml=values.yaml
+      - k3d-values.yaml=k3d-values.yaml
+      - images.lock.yaml=images.lock.yaml
+  - name: bioma-uav-sim-values
+    namespace: flux-system
+    files:
+      - uav-sim-values.yaml=uav-sim-values.yaml
+      - images.lock.yaml=images.lock.yaml
 generatorOptions:
   disableNameSuffixHash: true
+  annotations:
+    reconcile.fluxcd.io/watch: Enabled
   labels:
     app.kubernetes.io/part-of: veoveo
-    app.kubernetes.io/managed-by: argocd
+    app.kubernetes.io/managed-by: flux

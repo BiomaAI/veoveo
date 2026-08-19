@@ -7,20 +7,21 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail, ensure};
-use serde::Serialize;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/gitops-convergence-evidence/v1";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/gitops-convergence-evidence/v2";
+const GIT_REPOSITORY_RESOURCE: &str = "gitrepositories.source.toolkit.fluxcd.io";
+const KUSTOMIZATION_RESOURCE: &str = "kustomizations.kustomize.toolkit.fluxcd.io";
+const HELM_RELEASE_RESOURCE: &str = "helmreleases.helm.toolkit.fluxcd.io";
 
 #[derive(Debug)]
 pub(crate) struct GitopsConvergeArgs {
     pub(crate) context: String,
-    pub(crate) control_namespace: String,
-    pub(crate) parent: String,
-    pub(crate) children: Vec<String>,
-    pub(crate) source_ref: String,
-    pub(crate) parent_revision: String,
-    pub(crate) configuration_revision: String,
+    pub(crate) source: String,
+    pub(crate) root: String,
+    pub(crate) releases: Vec<String>,
+    pub(crate) revision: String,
     pub(crate) deployments: Vec<String>,
     pub(crate) timeout: Duration,
     pub(crate) evidence_output: PathBuf,
@@ -28,16 +29,14 @@ pub(crate) struct GitopsConvergeArgs {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ConvergenceEvidence<'a> {
+struct ConvergenceEvidence {
     schema_version: &'static str,
     observed_at_unix_millis: u128,
-    context: &'a str,
-    control_namespace: &'a str,
-    parent_application: &'a str,
-    child_applications: &'a [String],
-    source_ref: &'a str,
-    expected_parent_revision: &'a str,
-    expected_configuration_revision: &'a str,
+    context: String,
+    source: ObjectRef,
+    root: ObjectRef,
+    releases: Vec<ReleaseObservation>,
+    expected_revision: String,
     deployments: Vec<DeploymentRef>,
     timeout_millis: u128,
     elapsed_millis: u128,
@@ -47,9 +46,26 @@ struct ConvergenceEvidence<'a> {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct ObjectRef {
+    namespace: String,
+    name: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DeploymentRef {
     namespace: String,
     name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseObservation {
+    namespace: String,
+    name: String,
+    ready: bool,
+    attempted_revision: Option<String>,
+    inventory_entries: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -75,6 +91,90 @@ enum PhaseStatus {
     Failed,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FluxMetadata {
+    #[serde(default)]
+    generation: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitRepository {
+    metadata: FluxMetadata,
+    #[serde(default)]
+    status: GitRepositoryStatus,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitRepositoryStatus {
+    observed_generation: Option<i64>,
+    artifact: Option<SourceArtifact>,
+    #[serde(default)]
+    conditions: Vec<FluxCondition>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceArtifact {
+    revision: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FluxKustomization {
+    metadata: FluxMetadata,
+    #[serde(default)]
+    status: KustomizationStatus,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KustomizationStatus {
+    observed_generation: Option<i64>,
+    last_applied_revision: Option<String>,
+    #[serde(default)]
+    conditions: Vec<FluxCondition>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HelmRelease {
+    metadata: FluxMetadata,
+    #[serde(default)]
+    status: HelmReleaseStatus,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HelmReleaseStatus {
+    observed_generation: Option<i64>,
+    last_attempted_revision: Option<String>,
+    inventory: Option<HelmInventory>,
+    #[serde(default)]
+    conditions: Vec<FluxCondition>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmInventory {
+    #[serde(default)]
+    entries: Vec<HelmInventoryEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmInventoryEntry {
+    #[allow(dead_code)]
+    id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct FluxCondition {
+    #[serde(rename = "type")]
+    condition_type: String,
+    status: String,
+}
+
 struct Deadline {
     started: Instant,
     timeout: Duration,
@@ -97,14 +197,10 @@ impl Deadline {
 }
 
 pub(crate) fn converge(arguments: GitopsConvergeArgs) -> Result<()> {
-    validate_revision("--parent-revision", &arguments.parent_revision)?;
-    validate_revision(
-        "--configuration-revision",
-        &arguments.configuration_revision,
-    )?;
+    validate_revision("--revision", &arguments.revision)?;
     ensure!(
-        !arguments.children.is_empty(),
-        "at least one --child application is required"
+        !arguments.releases.is_empty(),
+        "at least one --release is required"
     );
     ensure!(
         !arguments.deployments.is_empty(),
@@ -114,6 +210,14 @@ pub(crate) fn converge(arguments: GitopsConvergeArgs) -> Result<()> {
         !arguments.timeout.is_zero(),
         "--timeout-seconds must be greater than zero"
     );
+
+    let source = ObjectRef::parse(&arguments.source, "Git source")?;
+    let root = ObjectRef::parse(&arguments.root, "root Kustomization")?;
+    let releases = arguments
+        .releases
+        .iter()
+        .map(|value| ObjectRef::parse(value, "Helm release"))
+        .collect::<Result<Vec<_>>>()?;
     let deployments = arguments
         .deployments
         .iter()
@@ -122,20 +226,27 @@ pub(crate) fn converge(arguments: GitopsConvergeArgs) -> Result<()> {
     let deadline = Deadline::new(arguments.timeout);
     let mut phases = Vec::new();
 
-    let result = converge_inner(&arguments, &deployments, &deadline, &mut phases);
+    let result = converge_inner(
+        &arguments,
+        &source,
+        &root,
+        &releases,
+        &deployments,
+        &deadline,
+        &mut phases,
+    );
+    let release_observations = releases
+        .iter()
+        .filter_map(|release| observe_release(&arguments, release).ok())
+        .collect();
     let evidence = ConvergenceEvidence {
         schema_version: EVIDENCE_SCHEMA,
-        observed_at_unix_millis: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .context("system clock precedes the Unix epoch")?
-            .as_millis(),
-        context: &arguments.context,
-        control_namespace: &arguments.control_namespace,
-        parent_application: &arguments.parent,
-        child_applications: &arguments.children,
-        source_ref: &arguments.source_ref,
-        expected_parent_revision: &arguments.parent_revision,
-        expected_configuration_revision: &arguments.configuration_revision,
+        observed_at_unix_millis: unix_millis()?,
+        context: arguments.context.clone(),
+        source,
+        root,
+        releases: release_observations,
+        expected_revision: arguments.revision.clone(),
         deployments,
         timeout_millis: arguments.timeout.as_millis(),
         elapsed_millis: deadline.started.elapsed().as_millis(),
@@ -154,38 +265,48 @@ pub(crate) fn converge(arguments: GitopsConvergeArgs) -> Result<()> {
     result
 }
 
+#[allow(clippy::too_many_arguments)]
 fn converge_inner(
     arguments: &GitopsConvergeArgs,
+    source: &ObjectRef,
+    root: &ObjectRef,
+    releases: &[ObjectRef],
     deployments: &[DeploymentRef],
     deadline: &Deadline,
     phases: &mut Vec<PhaseEvidence>,
 ) -> Result<()> {
-    run_phase(phases, "parent_fetch", || {
-        refresh_application(arguments, &arguments.parent)?;
-        wait_for_application(arguments, &arguments.parent, deadline, |application| {
-            status_contains_revision(application, &arguments.parent_revision)
-        })
+    run_phase(phases, "source_fetch", || {
+        request_reconciliation(arguments, GIT_REPOSITORY_RESOURCE, source)?;
+        wait_for_resource::<GitRepository>(
+            arguments,
+            GIT_REPOSITORY_RESOURCE,
+            source,
+            deadline,
+            |repository| repository_ready_at(repository, &arguments.revision),
+        )
     })?;
 
-    run_phase(phases, "child_render", || {
-        for child in &arguments.children {
-            wait_for_application(arguments, child, deadline, |application| {
-                desired_source_matches(
-                    application,
-                    &arguments.source_ref,
-                    &arguments.configuration_revision,
-                )
-            })?;
-            refresh_application(arguments, child)?;
-        }
-        Ok(())
+    run_phase(phases, "desired_state_apply", || {
+        request_reconciliation(arguments, KUSTOMIZATION_RESOURCE, root)?;
+        wait_for_resource::<FluxKustomization>(
+            arguments,
+            KUSTOMIZATION_RESOURCE,
+            root,
+            deadline,
+            |kustomization| kustomization_ready_at(kustomization, &arguments.revision),
+        )
     })?;
 
-    run_phase(phases, "apply", || {
-        for child in &arguments.children {
-            wait_for_application(arguments, child, deadline, |application| {
-                application_applied(application, &arguments.configuration_revision)
-            })?;
+    run_phase(phases, "helm_release", || {
+        for release in releases {
+            request_reconciliation(arguments, HELM_RELEASE_RESOURCE, release)?;
+            wait_for_resource::<HelmRelease>(
+                arguments,
+                HELM_RELEASE_RESOURCE,
+                release,
+                deadline,
+                helm_release_ready,
+            )?;
         }
         Ok(())
     })?;
@@ -230,10 +351,21 @@ fn converge_inner(
                 "wait for Deployment readiness",
             )?;
         }
-        for child in &arguments.children {
-            wait_for_application(arguments, child, deadline, |application| {
-                application_ready(application, &arguments.configuration_revision)
-            })?;
+        let observed = get_resource::<FluxKustomization>(arguments, KUSTOMIZATION_RESOURCE, root)?;
+        ensure!(
+            kustomization_ready_at(&observed, &arguments.revision),
+            "root Kustomization {}/{} lost exact-revision readiness",
+            root.namespace,
+            root.name
+        );
+        for release in releases {
+            let observed = get_resource::<HelmRelease>(arguments, HELM_RELEASE_RESOURCE, release)?;
+            ensure!(
+                helm_release_ready(&observed),
+                "HelmRelease {}/{} lost readiness or its inventory",
+                release.namespace,
+                release.name
+            );
         }
         Ok(())
     })
@@ -273,79 +405,95 @@ fn run_phase(
     }
 }
 
-fn refresh_application(arguments: &GitopsConvergeArgs, application: &str) -> Result<()> {
+fn request_reconciliation(
+    arguments: &GitopsConvergeArgs,
+    resource: &str,
+    object: &ObjectRef,
+) -> Result<()> {
     run_kubectl(
         arguments,
         &[
             "--namespace".into(),
-            arguments.control_namespace.clone(),
+            object.namespace.clone(),
             "annotate".into(),
-            "applications.argoproj.io".into(),
-            application.into(),
-            "argocd.argoproj.io/refresh=hard".into(),
+            resource.into(),
+            object.name.clone(),
+            format!("reconcile.fluxcd.io/requestedAt={}", unix_millis()?),
             "--overwrite".into(),
         ],
-        &format!("request hard refresh for Application {application}"),
+        &format!(
+            "request reconciliation for {resource} {}/{}",
+            object.namespace, object.name
+        ),
     )
 }
 
-fn wait_for_application(
+fn wait_for_resource<T>(
     arguments: &GitopsConvergeArgs,
-    application: &str,
+    resource: &str,
+    object: &ObjectRef,
     deadline: &Deadline,
-    predicate: impl Fn(&Value) -> bool,
-) -> Result<()> {
-    let initial = get_application(arguments, application)?;
+    predicate: impl Fn(&T) -> bool,
+) -> Result<()>
+where
+    T: DeserializeOwned,
+{
+    let initial = get_resource(arguments, resource, object)?;
     if predicate(&initial) {
         return Ok(());
     }
-    let remaining = deadline.remaining(&format!("Application {application} observation"))?;
+    let remaining = deadline.remaining(&format!(
+        "{resource} {}/{} observation",
+        object.namespace, object.name
+    ))?;
     let mut command = kubectl(arguments);
-    command.args(application_watch_arguments(
-        &arguments.control_namespace,
-        application,
-        remaining,
-    ));
+    command.args(resource_watch_arguments(resource, object, remaining));
     command.stdout(Stdio::piped()).stderr(Stdio::inherit());
     let mut child = command
         .spawn()
-        .with_context(|| format!("watching Application {application}"))?;
+        .with_context(|| format!("watching {resource} {}/{}", object.namespace, object.name))?;
     let stdout = child
         .stdout
         .take()
-        .context("kubectl Application watch stdout is unavailable")?;
+        .context("kubectl watch stdout is unavailable")?;
     let stream = serde_json::Deserializer::from_reader(BufReader::new(stdout)).into_iter::<Value>();
     for event in stream {
-        let event = event.with_context(|| format!("decoding Application {application} watch"))?;
+        let event = event.with_context(|| format!("decoding {resource} watch event"))?;
         if event.get("type").and_then(Value::as_str) == Some("ERROR") {
-            bail!("Application {application} watch returned an ERROR event: {event}");
+            bail!(
+                "{resource} {}/{} watch returned an ERROR event: {event}",
+                object.namespace,
+                object.name
+            );
         }
-        let observed = event.get("object").unwrap_or(&event);
-        if predicate(observed) {
+        let observed = event.get("object").unwrap_or(&event).clone();
+        let observed: T = serde_json::from_value(observed).with_context(|| {
+            format!(
+                "decoding watched {resource} {}/{}",
+                object.namespace, object.name
+            )
+        })?;
+        if predicate(&observed) {
             child.kill().ok();
             child.wait().ok();
             return Ok(());
         }
     }
-    let status = child
-        .wait()
-        .with_context(|| format!("waiting for Application {application} watch"))?;
+    let status = child.wait().context("waiting for kubectl resource watch")?;
     bail!(
-        "Application {application} did not reach its required state before its watch ended with {status}"
+        "{resource} {}/{} did not reach its required state before its watch ended with {status}",
+        object.namespace,
+        object.name
     )
 }
 
-fn application_watch_arguments(
-    namespace: &str,
-    application: &str,
-    timeout: Duration,
-) -> Vec<String> {
+fn resource_watch_arguments(resource: &str, object: &ObjectRef, timeout: Duration) -> Vec<String> {
     vec![
         "--namespace".into(),
-        namespace.into(),
+        object.namespace.clone(),
         "get".into(),
-        "applications.argoproj.io".into(),
-        application.into(),
+        resource.into(),
+        object.name.clone(),
         "--watch".into(),
         "--output-watch-events".into(),
         "--output=json".into(),
@@ -353,26 +501,31 @@ fn application_watch_arguments(
     ]
 }
 
-fn get_application(arguments: &GitopsConvergeArgs, application: &str) -> Result<Value> {
+fn get_resource<T>(arguments: &GitopsConvergeArgs, resource: &str, object: &ObjectRef) -> Result<T>
+where
+    T: DeserializeOwned,
+{
     let output = kubectl(arguments)
         .args([
             "--namespace",
-            &arguments.control_namespace,
+            &object.namespace,
             "get",
-            "applications.argoproj.io",
-            application,
+            resource,
+            &object.name,
             "--output=json",
         ])
         .output()
-        .with_context(|| format!("reading Application {application}"))?;
+        .with_context(|| format!("reading {resource} {}/{}", object.namespace, object.name))?;
     ensure!(
         output.status.success(),
-        "read Application {application} failed with {}: {}",
+        "read {resource} {}/{} failed with {}: {}",
+        object.namespace,
+        object.name,
         output.status,
         String::from_utf8_lossy(&output.stderr).trim()
     );
     serde_json::from_slice(&output.stdout)
-        .with_context(|| format!("decoding Application {application}"))
+        .with_context(|| format!("decoding {resource} {}/{}", object.namespace, object.name))
 }
 
 fn run_kubectl(
@@ -394,67 +547,57 @@ fn kubectl(arguments: &GitopsConvergeArgs) -> Command {
     command
 }
 
-fn desired_source_matches(application: &Value, source_ref: &str, revision: &str) -> bool {
-    application
-        .pointer("/spec/sources")
-        .and_then(Value::as_array)
-        .is_some_and(|sources| {
-            sources.iter().any(|source| {
-                source.get("ref").and_then(Value::as_str) == Some(source_ref)
-                    && source.get("targetRevision").and_then(Value::as_str) == Some(revision)
-            })
-        })
+fn repository_ready_at(repository: &GitRepository, revision: &str) -> bool {
+    generation_observed(
+        repository.metadata.generation,
+        repository.status.observed_generation,
+    ) && ready(&repository.status.conditions)
+        && repository
+            .status
+            .artifact
+            .as_ref()
+            .is_some_and(|artifact| revision_matches(&artifact.revision, revision))
 }
 
-fn status_contains_revision(application: &Value, revision: &str) -> bool {
-    application
-        .pointer("/status/sync/revision")
-        .and_then(Value::as_str)
-        == Some(revision)
-        || application
-            .pointer("/status/sync/revisions")
-            .and_then(Value::as_array)
-            .is_some_and(|revisions| {
-                revisions
-                    .iter()
-                    .any(|value| value.as_str() == Some(revision))
-            })
+fn kustomization_ready_at(kustomization: &FluxKustomization, revision: &str) -> bool {
+    generation_observed(
+        kustomization.metadata.generation,
+        kustomization.status.observed_generation,
+    ) && ready(&kustomization.status.conditions)
+        && kustomization
+            .status
+            .last_applied_revision
+            .as_deref()
+            .is_some_and(|observed| revision_matches(observed, revision))
 }
 
-fn sync_result_contains_revision(application: &Value, revision: &str) -> bool {
-    application
-        .pointer("/status/operationState/syncResult/revision")
-        .and_then(Value::as_str)
-        == Some(revision)
-        || application
-            .pointer("/status/operationState/syncResult/revisions")
-            .and_then(Value::as_array)
-            .is_some_and(|revisions| {
-                revisions
-                    .iter()
-                    .any(|value| value.as_str() == Some(revision))
-            })
+fn helm_release_ready(release: &HelmRelease) -> bool {
+    generation_observed(
+        release.metadata.generation,
+        release.status.observed_generation,
+    ) && ready(&release.status.conditions)
+        && release
+            .status
+            .inventory
+            .as_ref()
+            .is_some_and(|inventory| !inventory.entries.is_empty())
 }
 
-fn application_applied(application: &Value, revision: &str) -> bool {
-    status_contains_revision(application, revision)
-        && sync_result_contains_revision(application, revision)
-        && application
-            .pointer("/status/sync/status")
-            .and_then(Value::as_str)
-            == Some("Synced")
-        && application
-            .pointer("/status/operationState/phase")
-            .and_then(Value::as_str)
-            == Some("Succeeded")
+fn generation_observed(generation: i64, observed_generation: Option<i64>) -> bool {
+    generation > 0 && observed_generation == Some(generation)
 }
 
-fn application_ready(application: &Value, revision: &str) -> bool {
-    application_applied(application, revision)
-        && application
-            .pointer("/status/health/status")
-            .and_then(Value::as_str)
-            == Some("Healthy")
+fn ready(conditions: &[FluxCondition]) -> bool {
+    conditions.iter().any(|condition| {
+        condition.condition_type == "Ready" && condition.status.eq_ignore_ascii_case("true")
+    })
+}
+
+fn revision_matches(observed: &str, expected: &str) -> bool {
+    observed == expected
+        || observed
+            .strip_suffix(expected)
+            .is_some_and(|prefix| prefix.ends_with(':') || prefix.ends_with('/'))
 }
 
 fn validate_revision(argument: &str, revision: &str) -> Result<()> {
@@ -465,23 +608,31 @@ fn validate_revision(argument: &str, revision: &str) -> Result<()> {
     Ok(())
 }
 
-impl DeploymentRef {
-    fn parse(value: &str) -> Result<Self> {
-        let (namespace, name) = value
-            .split_once('/')
-            .with_context(|| format!("Deployment `{value}` must use namespace/name"))?;
-        ensure!(
-            !namespace.is_empty() && !name.is_empty() && !name.contains('/'),
-            "Deployment `{value}` must use exactly one non-empty namespace/name pair"
-        );
-        Ok(Self {
-            namespace: namespace.into(),
-            name: name.into(),
-        })
-    }
+fn observe_release(
+    arguments: &GitopsConvergeArgs,
+    object: &ObjectRef,
+) -> Result<ReleaseObservation> {
+    let release = get_resource::<HelmRelease>(arguments, HELM_RELEASE_RESOURCE, object)?;
+    Ok(ReleaseObservation {
+        namespace: object.namespace.clone(),
+        name: object.name.clone(),
+        ready: helm_release_ready(&release),
+        attempted_revision: release.status.last_attempted_revision,
+        inventory_entries: release
+            .status
+            .inventory
+            .map_or(0, |inventory| inventory.entries.len()),
+    })
 }
 
-fn write_evidence(path: &Path, evidence: &ConvergenceEvidence<'_>) -> Result<()> {
+fn unix_millis() -> Result<u128> {
+    Ok(SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("system clock precedes the Unix epoch")?
+        .as_millis())
+}
+
+fn write_evidence(path: &Path, evidence: &ConvergenceEvidence) -> Result<()> {
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -499,6 +650,32 @@ fn write_evidence(path: &Path, evidence: &ConvergenceEvidence<'_>) -> Result<()>
     Ok(())
 }
 
+impl ObjectRef {
+    fn parse(value: &str, label: &str) -> Result<Self> {
+        let (namespace, name) = value
+            .split_once('/')
+            .with_context(|| format!("{label} `{value}` must use namespace/name"))?;
+        ensure!(
+            !namespace.is_empty() && !name.is_empty() && !name.contains('/'),
+            "{label} `{value}` must use exactly one non-empty namespace/name pair"
+        );
+        Ok(Self {
+            namespace: namespace.into(),
+            name: name.into(),
+        })
+    }
+}
+
+impl DeploymentRef {
+    fn parse(value: &str) -> Result<Self> {
+        let object = ObjectRef::parse(value, "Deployment")?;
+        Ok(Self {
+            namespace: object.namespace,
+            name: object.name,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -508,48 +685,58 @@ mod tests {
     const REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
 
     #[test]
-    fn matches_named_desired_source_and_exact_applied_revision() {
-        let application = json!({
-            "spec": {"sources": [
-                {"chart": "platform", "targetRevision": "1.2.3"},
-                {"ref": "configuration", "targetRevision": REVISION}
-            ]},
+    fn matches_exact_flux_revision_and_complete_helm_inventory() {
+        let repository: GitRepository = serde_json::from_value(json!({
+            "metadata": {"generation": 3},
             "status": {
-                "sync": {"status": "Synced", "revisions": ["1.2.3", REVISION]},
-                "health": {"status": "Healthy"},
-                "operationState": {
-                    "phase": "Succeeded",
-                    "syncResult": {"revisions": ["1.2.3", REVISION]}
-                }
+                "observedGeneration": 3,
+                "artifact": {"revision": format!("main@sha1:{REVISION}")},
+                "conditions": [{"type": "Ready", "status": "True"}]
             }
-        });
-        assert!(desired_source_matches(
-            &application,
-            "configuration",
-            REVISION
-        ));
-        assert!(application_applied(&application, REVISION));
-        assert!(application_ready(&application, REVISION));
+        }))
+        .unwrap();
+        let release: HelmRelease = serde_json::from_value(json!({
+            "metadata": {"generation": 2},
+            "status": {
+                "observedGeneration": 2,
+                "lastAttemptedRevision": "0.1.0+sha256:abc",
+                "inventory": {"entries": [{"id": "veoveo_gateway_apps_Deployment"}]},
+                "conditions": [{"type": "Ready", "status": "True"}]
+            }
+        }))
+        .unwrap();
+
+        assert!(repository_ready_at(&repository, REVISION));
+        assert!(helm_release_ready(&release));
     }
 
     #[test]
-    fn rejects_stale_operation_and_unhealthy_application() {
-        let application = json!({
+    fn rejects_stale_generation_wrong_revision_and_empty_inventory() {
+        let kustomization: FluxKustomization = serde_json::from_value(json!({
+            "metadata": {"generation": 4},
             "status": {
-                "sync": {"status": "Synced", "revision": REVISION},
-                "health": {"status": "Degraded"},
-                "operationState": {
-                    "phase": "Succeeded",
-                    "syncResult": {"revision": "ffffffffffffffffffffffffffffffffffffffff"}
-                }
+                "observedGeneration": 3,
+                "lastAppliedRevision": "main@sha1:ffffffffffffffffffffffffffffffffffffffff",
+                "conditions": [{"type": "Ready", "status": "True"}]
             }
-        });
-        assert!(!application_applied(&application, REVISION));
-        assert!(!application_ready(&application, REVISION));
+        }))
+        .unwrap();
+        let release: HelmRelease = serde_json::from_value(json!({
+            "metadata": {"generation": 1},
+            "status": {
+                "observedGeneration": 1,
+                "inventory": {"entries": []},
+                "conditions": [{"type": "Ready", "status": "True"}]
+            }
+        }))
+        .unwrap();
+
+        assert!(!kustomization_ready_at(&kustomization, REVISION));
+        assert!(!helm_release_ready(&release));
     }
 
     #[test]
-    fn parses_deployment_reference_and_requires_full_revision() {
+    fn parses_namespaced_references_and_requires_full_revision() {
         let deployment = DeploymentRef::parse("platform/console-bff").unwrap();
         assert_eq!(deployment.namespace, "platform");
         assert_eq!(deployment.name, "console-bff");
@@ -559,8 +746,10 @@ mod tests {
     }
 
     #[test]
-    fn application_watch_lists_before_watching_with_portable_arguments() {
-        let arguments = application_watch_arguments("argocd", "bioma", Duration::from_secs(30));
+    fn resource_watch_lists_before_watching_with_portable_arguments() {
+        let object = ObjectRef::parse("flux-system/bioma", "root").unwrap();
+        let arguments =
+            resource_watch_arguments(KUSTOMIZATION_RESOURCE, &object, Duration::from_secs(30));
 
         assert!(arguments.iter().any(|argument| argument == "--watch"));
         assert!(arguments.iter().all(|argument| argument != "--watch-only"));

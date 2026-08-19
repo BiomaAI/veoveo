@@ -1101,67 +1101,57 @@ pub(crate) async fn helm_config() -> Result<()> {
     ))?;
     let bioma_root = fs::read_to_string("examples/bioma/gitops/bootstrap.yaml")?;
     for expected in [
-        "kind: Application",
-        "repoURL: https://github.com/BiomaAI/veoveo.git",
-        "path: examples/bioma",
-        "ServerSideApply=true",
+        "kind: GitRepository",
+        "url: ssh://git@github.com/BiomaAI/veoveo.git",
+        "kind: Kustomization",
+        "path: ./examples/bioma",
+        "deletionPolicy: Orphan",
+        "prune: true",
+        "wait: true",
     ] {
         contains(&bioma_root, expected)?;
     }
-    let bioma_platform = fs::read_to_string("examples/bioma/platform/argocd/kustomization.yaml")?;
-    contains(
-        &bioma_platform,
-        "argoproj/argo-cd/v3.4.5/manifests/install.yaml",
-    )?;
-    let mut chart_revision = None;
-    let mut configuration_revision = None;
-    for application in [
-        "examples/bioma/gitops/applications/veoveo.yaml",
-        "examples/bioma/gitops/applications/uav-sim.yaml",
+    let bioma_platform = fs::read_to_string("examples/bioma/platform/flux/kustomization.yaml")?;
+    for expected in [
+        "manifests/bases/source-controller?ref=v2.9.3",
+        "manifests/bases/kustomize-controller?ref=v2.9.3",
+        "manifests/bases/helm-controller?ref=v2.9.3",
     ] {
-        let application = fs::read_to_string(application)?;
-        contains(
-            &application,
-            "charts-registry.argocd.svc.cluster.local/charts",
-        )?;
-        contains(
-            &application,
-            "$configuration/examples/bioma/images.lock.yaml",
-        )?;
-        let revision = application
-            .lines()
-            .find_map(|line| {
-                line.trim()
-                    .strip_prefix("targetRevision: ")
-                    .filter(|value| value.starts_with("0.1.0-"))
-            })
-            .context("Bioma application omitted its immutable chart revision")?
-            .to_owned();
-        if let Some(expected) = &chart_revision {
-            ensure!(
-                &revision == expected,
-                "Bioma applications must use one chart revision: {expected} != {revision}"
-            );
-        } else {
-            chart_revision = Some(revision);
+        contains(&bioma_platform, expected)?;
+    }
+    not_contains(&bioma_platform, "notification-controller?ref=")?;
+    for source in [
+        "examples/bioma/gitops/sources/veoveo.yaml",
+        "examples/bioma/gitops/sources/uav-sim.yaml",
+    ] {
+        let source = fs::read_to_string(source)?;
+        for expected in [
+            "kind: OCIRepository",
+            "charts-registry.flux-system.svc.cluster.local:5000/charts/",
+            "insecure: true",
+            "application/vnd.cncf.helm.chart.content.v1.tar+gzip",
+            "operation: copy",
+        ] {
+            contains(&source, expected)?;
         }
-        let configuration_revision_value = application
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("targetRevision: "))
-            .find(|value| value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
-            .context("Bioma application omitted its immutable configuration revision")?
-            .to_owned();
-        if let Some(expected) = &configuration_revision {
-            ensure!(
-                &configuration_revision_value == expected,
-                "Bioma applications must use one configuration revision: \
-                 {expected} != {configuration_revision_value}"
-            );
-        } else {
-            configuration_revision = Some(configuration_revision_value);
+    }
+    for release in [
+        "examples/bioma/gitops/releases/veoveo.yaml",
+        "examples/bioma/gitops/releases/uav-sim.yaml",
+    ] {
+        let release = fs::read_to_string(release)?;
+        for expected in [
+            "kind: HelmRelease",
+            "targetNamespace: veoveo",
+            "storageNamespace: veoveo",
+            "chartRef:",
+            "serverSideApply: true",
+            "driftDetection:",
+            "mode: enabled",
+            "valuesKey: images.lock.yaml",
+        ] {
+            contains(&release, expected)?;
         }
-        not_contains(&application, "targetRevision: main")?;
-        not_contains(&application, "ServerSideApply=true")?;
     }
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
         "showcase/uav-sim/scenarios/new-york-aerial.json",

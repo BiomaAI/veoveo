@@ -65,18 +65,14 @@ enum Command {
     GitopsConverge {
         #[arg(long)]
         context: String,
-        #[arg(long, default_value = "argocd")]
-        control_namespace: String,
         #[arg(long)]
-        parent: String,
+        source: String,
+        #[arg(long)]
+        root: String,
         #[arg(long, required = true)]
-        child: Vec<String>,
-        #[arg(long, default_value = "configuration")]
-        source_ref: String,
+        release: Vec<String>,
         #[arg(long)]
-        parent_revision: String,
-        #[arg(long)]
-        configuration_revision: String,
+        revision: String,
         #[arg(long, required = true, value_name = "NAMESPACE/NAME")]
         deployment: Vec<String>,
         #[arg(long, default_value_t = 300)]
@@ -98,23 +94,19 @@ fn run() -> Result<()> {
         Command::ProfileDown { profile } => deployment::profile_down(&profile),
         Command::GitopsConverge {
             context,
-            control_namespace,
-            parent,
-            child,
-            source_ref,
-            parent_revision,
-            configuration_revision,
+            source,
+            root,
+            release,
+            revision,
             deployment,
             timeout_seconds,
             evidence_output,
         } => gitops::converge(gitops::GitopsConvergeArgs {
             context,
-            control_namespace,
-            parent,
-            children: child,
-            source_ref,
-            parent_revision,
-            configuration_revision,
+            source,
+            root,
+            releases: release,
+            revision,
             deployments: deployment,
             timeout: std::time::Duration::from_secs(timeout_seconds),
             evidence_output,
