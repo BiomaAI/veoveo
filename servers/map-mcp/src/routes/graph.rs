@@ -70,43 +70,35 @@ impl GraphPlanner {
         if edges.is_empty() {
             bail!("no network edges remain after applying avoided areas");
         }
-        let (graph, nodes) = build_graph(edges, request.objective.kind)?;
+        let (graph, _nodes) = build_graph(edges, request.objective.kind)?;
         let node_positions = node_positions(&graph)?;
-        let snapped = positions
-            .iter()
-            .map(|position| snap_node(position, &node_positions))
-            .collect::<Result<Vec<_>>>()?;
-        let mut selected = Vec::new();
-        for pair in snapped.windows(2) {
-            let start = pair[0];
-            let goal = pair[1];
-            let (_, path) = astar(
-                &graph,
-                start,
-                |node| node == goal,
-                |edge| edge.weight().cost,
-                |_| 0.0,
-            )
-            .context("no feasible path exists in the governed network")?;
-            for nodes in path.windows(2) {
-                let edge = graph
-                    .edges_connecting(nodes[0], nodes[1])
-                    .min_by(|left, right| left.weight().cost.total_cmp(&right.weight().cost))
-                    .context("planned graph path omitted an edge")?;
-                selected.push(edge.weight().edge.clone());
-            }
-        }
-        let geometry = join_geometry(&selected)?;
-        let source_release_ids = selected
+        let planned = plan_path(&graph, &node_positions, positions)?;
+        let source_release_ids = planned
+            .edges
             .iter()
             .map(|edge| edge.source_release_id.clone())
             .collect::<BTreeSet<_>>();
-        let distance = selected.iter().map(|edge| edge.distance_m).sum();
-        let duration = selected.iter().map(|edge| edge.nominal_duration_s).sum();
+        let source_release_ids = if source_release_ids.is_empty() {
+            releases_for_nodes(&graph, &planned.snapped_nodes)
+        } else {
+            source_release_ids
+        };
+        let distance = planned
+            .edges
+            .iter()
+            .map(|edge| edge.distance_m)
+            .sum::<f64>()
+            + planned.connector_distance_m;
+        let duration = planned
+            .edges
+            .iter()
+            .map(|edge| edge.nominal_duration_s)
+            .sum::<f64>()
+            + planned.connector_distance_m / profile.routing_speed().get();
         let leg = RouteLeg {
             sequence: 0,
             map_family,
-            geometry,
+            geometry: planned.geometry,
             cost: RouteCost {
                 distance: Meters::new(distance)?,
                 duration: Seconds::new(duration)?,
@@ -121,7 +113,6 @@ impl GraphPlanner {
         };
         let arrival_time = chrono::TimeDelta::try_seconds(duration.round() as i64)
             .map(|duration| request.departure_time + duration);
-        let _ = nodes;
         Ok(PlannerOutput {
             status: RouteStatus::PlanningAdvisory,
             legs: vec![leg],
@@ -130,6 +121,81 @@ impl GraphPlanner {
             crossed_boundary_ids: BTreeSet::new(),
         })
     }
+}
+
+#[derive(Debug)]
+struct PlannedPath {
+    edges: Vec<NetworkEdge>,
+    geometry: Wgs84LineString,
+    connector_distance_m: f64,
+    snapped_nodes: BTreeSet<NodeIndex>,
+}
+
+fn plan_path(
+    graph: &RouteGraph,
+    node_positions: &HashMap<NodeIndex, Wgs84Position>,
+    positions: &[Wgs84Position],
+) -> Result<PlannedPath> {
+    let snapped = positions
+        .iter()
+        .map(|position| snap_node(position, node_positions))
+        .collect::<Result<Vec<_>>>()?;
+    let mut edges = Vec::new();
+    let mut coordinates = Vec::new();
+    let mut connector_distance_m = 0.0;
+    for (exact, nodes) in positions.windows(2).zip(snapped.windows(2)) {
+        let start = nodes[0];
+        let goal = nodes[1];
+        let snapped_start = node_positions
+            .get(&start)
+            .context("snapped start node has no position")?;
+        let snapped_goal = node_positions
+            .get(&goal)
+            .context("snapped goal node has no position")?;
+        push_coordinate(&mut coordinates, &exact[0]);
+        push_coordinate(&mut coordinates, snapped_start);
+        connector_distance_m += distance(&exact[0], snapped_start);
+
+        let (_, path) = astar(
+            graph,
+            start,
+            |node| node == goal,
+            |edge| edge.weight().cost,
+            |_| 0.0,
+        )
+        .context("no feasible path exists in the governed network")?;
+        for nodes in path.windows(2) {
+            let edge = graph
+                .edges_connecting(nodes[0], nodes[1])
+                .min_by(|left, right| left.weight().cost.total_cmp(&right.weight().cost))
+                .context("planned graph path omitted an edge")?;
+            append_geometry(&mut coordinates, &edge.weight().edge.geometry)?;
+            edges.push(edge.weight().edge.clone());
+        }
+
+        push_coordinate(&mut coordinates, snapped_goal);
+        push_coordinate(&mut coordinates, &exact[1]);
+        connector_distance_m += distance(snapped_goal, &exact[1]);
+    }
+    let geometry = Wgs84LineString { coordinates };
+    geometry.validate()?;
+    Ok(PlannedPath {
+        edges,
+        geometry,
+        connector_distance_m,
+        snapped_nodes: snapped.into_iter().collect(),
+    })
+}
+
+fn releases_for_nodes(
+    graph: &RouteGraph,
+    nodes: &BTreeSet<NodeIndex>,
+) -> BTreeSet<crate::contract::DatasetReleaseId> {
+    graph
+        .edge_references()
+        .filter(|edge| nodes.contains(&edge.source()) || nodes.contains(&edge.target()))
+        .map(|edge| edge.weight().edge.source_release_id.clone())
+        .collect()
 }
 
 fn graph_family(profile: &MobilityProfile) -> Result<MapFamily> {
@@ -250,16 +316,18 @@ fn distance(left: &Wgs84Position, right: &Wgs84Position) -> f64 {
     meters
 }
 
-fn join_geometry(edges: &[NetworkEdge]) -> Result<Wgs84LineString> {
-    let mut coordinates = Vec::new();
-    for edge in edges {
-        edge.geometry.validate()?;
-        let start = usize::from(!coordinates.is_empty());
-        coordinates.extend(edge.geometry.coordinates.iter().skip(start).cloned());
-    }
-    let geometry = Wgs84LineString { coordinates };
+fn append_geometry(coordinates: &mut Vec<Wgs84Position>, geometry: &Wgs84LineString) -> Result<()> {
     geometry.validate()?;
-    Ok(geometry)
+    for coordinate in &geometry.coordinates {
+        push_coordinate(coordinates, coordinate);
+    }
+    Ok(())
+}
+
+fn push_coordinate(coordinates: &mut Vec<Wgs84Position>, position: &Wgs84Position) {
+    if coordinates.last() != Some(position) {
+        coordinates.push(position.clone());
+    }
 }
 
 #[cfg(test)]
@@ -292,5 +360,50 @@ mod tests {
         let (graph, _) =
             build_graph(vec![edge("a", "b", 100.0)], RouteObjectiveKind::Shortest).unwrap();
         assert_eq!(graph.edge_weights().next().unwrap().cost, 100.0);
+    }
+
+    #[test]
+    fn same_snapped_node_retains_distinct_exact_endpoints() {
+        let (graph, nodes) =
+            build_graph(vec![edge("a", "b", 100.0)], RouteObjectiveKind::Shortest).unwrap();
+        let node_positions = node_positions(&graph).unwrap();
+        let exact_start = position(0.0001, 0.0);
+        let exact_goal = position(0.0002, 0.0);
+
+        let planned = plan_path(
+            &graph,
+            &node_positions,
+            &[exact_start.clone(), exact_goal.clone()],
+        )
+        .unwrap();
+
+        assert!(planned.edges.is_empty());
+        assert_eq!(planned.geometry.coordinates.first(), Some(&exact_start));
+        assert_eq!(planned.geometry.coordinates.last(), Some(&exact_goal));
+        assert!(planned.connector_distance_m > 0.0);
+        assert_eq!(releases_for_nodes(&graph, &planned.snapped_nodes).len(), 1);
+        assert_eq!(nodes.len(), 2);
+    }
+
+    #[test]
+    fn path_retains_exact_endpoints_around_governed_edges() {
+        let (graph, _) =
+            build_graph(vec![edge("a", "b", 100.0)], RouteObjectiveKind::Shortest).unwrap();
+        let node_positions = node_positions(&graph).unwrap();
+        let exact_start = position(-0.001, 0.0);
+        let exact_goal = position(0.011, 0.0);
+
+        let planned = plan_path(
+            &graph,
+            &node_positions,
+            &[exact_start.clone(), exact_goal.clone()],
+        )
+        .unwrap();
+
+        assert_eq!(planned.edges.len(), 1);
+        assert_eq!(planned.geometry.coordinates.first(), Some(&exact_start));
+        assert_eq!(planned.geometry.coordinates.last(), Some(&exact_goal));
+        assert_eq!(planned.geometry.coordinates.len(), 4);
+        assert!(planned.connector_distance_m > 200.0);
     }
 }

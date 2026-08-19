@@ -512,6 +512,22 @@ impl MobilityProfile {
         }
     }
 
+    /// The declared operating speed used to cost synthetic connections between
+    /// an exact route endpoint and the governed network.
+    pub fn routing_speed(&self) -> MetersPerSecond {
+        match self {
+            Self::Human(profile) => profile.preferred_speed,
+            Self::RoadVehicle(profile) => profile.performance.nominal_speed,
+            Self::OffRoadVehicle(profile) => profile.performance.nominal_speed,
+            Self::RailVehicle(profile) => profile.performance.nominal_speed,
+            Self::SurfaceVessel(profile) => profile.performance.nominal_speed,
+            Self::SubsurfaceVessel(profile) => profile.performance.nominal_speed,
+            Self::FixedWing(profile) => profile.performance.cruise_speed,
+            Self::Rotorcraft(profile) => profile.performance.cruise_speed,
+            Self::Uas(profile) => profile.performance.cruise_speed,
+        }
+    }
+
     pub fn maximum_planning_range(&self) -> Option<Meters> {
         let physical = match self {
             Self::Human(_) => None,
@@ -540,6 +556,9 @@ impl MobilityProfile {
     pub fn validate(&self) -> Result<(), MobilityProfileError> {
         self.metadata().validate()?;
         self.planning().validate(self.maximum_speed())?;
+        if self.routing_speed().get() == 0.0 {
+            return Err(MobilityProfileError::InvalidPerformance);
+        }
         match self {
             Self::Human(profile) => {
                 if profile.preferred_speed > profile.maximum_speed {
