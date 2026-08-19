@@ -286,6 +286,56 @@ finished the affected ingest stream. The archived data now spans the full missio
 supports the published 30× timelapse. Its MP4 SHA-256 is
 `be7d575ef907961094d0d177c28f46e285145bb049a6ee8d353a5b8d21a54547`.
 
+### Reference Execution: 2026-08-19
+
+This run sent `uav-1-pilot` from its current authoritative telemetry to the central
+part of Central Park. It exercised the corrected durable task-result path and the
+independent service-client conversation API.
+
+| Evidence | Observed value |
+|---|---|
+| Result | Passed |
+| Mission runtime source | `ab3da8501f61deb7f28ca77bcf599635beaee727` |
+| Headless gateway source | `27c6d169b292ca3ee5bd52c0e24bf1071ac2823e` |
+| Final GitOps revision | `46a48cb76be9476ee67b9150c7b839f5cefc8c14` |
+| Operator actor | `https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/v2.0#624e4793-e783-43c6-af47-4be53d7b9b92` |
+| Agent authority | `https://veoveo.bioma.ai/oauth#uav-1-pilot`; tenant `bioma`; Work Context `operations`; profile `agent`; session `uav-showcase`; vehicle `uav-1` |
+| Operator request and wake | `01a018b7-287e-79b2-b1ea-dfceb378100c` |
+| Operator episode | `01a018b7-2b56-7112-912c-f4c1770ef4f0` |
+| Route-result episode | `01a018b7-aac2-7381-88d8-b9dfd88a21cd` |
+| Terminal episode | `01a018be-33e3-7fd0-a45a-8adb8a9c10c2` |
+| Resolved place | `central-park-center`, 40.7829° N, 73.9654° W, 180.0 m ellipsoid |
+| Map route | `map://route/route-01a018b7-a417-7350-b156-53d5b3da3b0f`; validated by `validation-01a018b7-a417-7350-b156-53e744925ff2` |
+| Route provenance | Operational snapshot `snapshot-01a018b7-a413-7202-afaa-4cb62b8bf12a`; base release `release-019ffdd1-66ed-7481-af34-2845a3639dc1`; mobility profile `map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1` |
+| Route cost | 2,584.453 m; 129.223 s at the Map profile speed |
+| Route task | MCP task `gtr_keBGm8hggwNyC4l040CgofHJ_55YqPTbdlC1cJIeuIE`; watcher `agent_task:01a018b7-a408-7ce1-8c79-c1446b33df90` |
+| Frames revision | `frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-019fc946-4665-7563-a115-1177c01240a0` |
+| UAV mission and plan | `mission-01a018b8-3e8e-71c0-83b2-15821d5e11d2`; `plan-01a018b8-b354-7640-bc0a-6d5e7a98c139` |
+| Execution task | MCP task `gtr_qJx9Ie-n7M-Pma2kgf50Ug7f3GAMF243qVH_7cuOLQA`; watcher `agent_task:01a018b8-faf8-7bd1-83ee-0da501fc0637` |
+| Execution interval | 06:32:51.228908-06:38:33.144695 UTC |
+| Waypoints | 2 of 2 completed at 12 m/s; terminal PX4 acceptance requires at most 1.0 m horizontal and 0.75 m vertical error |
+| Final vehicle evidence | PX4 connected; battery 51%; zero collisions; the ordinary autonomous flight resumed after lease release |
+| Command lease | `uav_vehicle_command_lease:f5046153b17e32530808a8cdad756293f93834d4f35b976c70d5b7496a503058`; released at `2026-08-19T06:38:33.151162234Z` |
+| Recording | `recording://recordings/01a018ad-4427-7281-a782-434af4275c33` |
+| Recording Hub ingest stream | `recording_ingest_stream:01a018ad-442d-72c2-876f-83f61ab1ac7e` |
+| Mission recording span | Batch 1,523 created at 06:32:51.216 and materialized at 06:32:51.224 UTC; batch 2,202 created at 06:38:33.669 and materialized at 06:38:33.676 UTC |
+| Recording Hub checkpoint | Open live stream; durable sequence 4,418 and materialized sequence 4,418 at inspection |
+| Browser evidence | Headed Chrome 151 on X11 with NVIDIA GeForce RTX 4090 WebGL; the signed-in Console showed the accepted wake and terminal completed entry; local capture `output/development/uav-e2e-001-console-terminal.png` |
+| Headless evidence | `admin-service` acquired its own `private_key_jwt` client-credentials token; `GET /admin/admin/agents/uav-1-pilot/conversation` returned HTTP 200 and the same four-entry request lineage |
+| Headless policy | `allow_admin_service_agent_control`; allowed `agents_read` at 06:52:20.975 UTC and recorded a succeeded result at 06:52:21.007 UTC |
+
+The operator submitted one message. Map search used `allow_map_read_tools`, route and
+handoff used `allow_map_route_tools`, and UAV admission and execution used
+`allow_uav_pilot_vehicle_control`. The route task and mission task each resolved once.
+Their watcher records have one consuming episode and no retry attempt. No second plan,
+execution call, or vehicle lease was created.
+
+The mission initially exposed a generic headless-control mismatch: `admin-service` had
+valid OAuth authority and action policy, but the HTTP agent boundary rejected every
+service principal after policy evaluation. The hard-cut fix removed that hidden caller
+type veto and added an explicit Bioma policy for service agent control. The final check
+used the normal machine OAuth flow and did not reuse a browser token.
+
 ## Automation Boundary
 
 `UAV-E2E-001` is currently an operator-driven deployed acceptance runbook. If it becomes
