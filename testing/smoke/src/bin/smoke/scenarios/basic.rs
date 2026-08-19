@@ -242,6 +242,14 @@ pub(crate) async fn helm_config() -> Result<()> {
             document.contains("kind: Deployment") && document.contains("name: mcp-gateway\n")
         })
         .context("finding rendered mcp-gateway deployment")?;
+    let gateway_service = platform
+        .split("\n---\n")
+        .find(|document| {
+            document.contains("kind: Service") && document.contains("name: mcp-gateway\n")
+        })
+        .context("finding rendered mcp-gateway service")?;
+    contains(gateway_service, "sessionAffinity: ClientIP")?;
+    contains(gateway_service, "timeoutSeconds: 10800")?;
     contains(gateway_deployment, "startupProbe:")?;
     contains(gateway_deployment, "failureThreshold: 24")?;
     for expected in [
