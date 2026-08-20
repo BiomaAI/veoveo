@@ -175,6 +175,7 @@ pub(super) async fn run_gateway_retention_gc(
     tracing::info!(
         deleted_auth_audit_events = audit_summary.auth_events_deleted,
         deleted_policy_audit_events = audit_summary.policy_events_deleted,
+        deleted_tool_call_audit_events = audit_summary.tool_call_events_deleted,
         deleted_authorization_records = authorization_records_deleted,
         deleted_jwt_revocations = jwt_revocations_deleted,
         deleted_client_assertion_replay_ids = replay_summary.client_assertion_jtis_deleted,

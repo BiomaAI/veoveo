@@ -352,9 +352,18 @@ impl GatewayMcp {
         action: GatewayAction,
         server: ServerSlug,
         tool: LocalToolName,
-    ) -> Result<AuthenticatedSubject, McpError> {
-        self.authorize(context, action, PolicyTarget::Tool { server, tool })
-            .await
+    ) -> Result<(AuthenticatedSubject, TraceId), McpError> {
+        let subject = self.authenticated(context)?;
+        let trace_id = trace_id_for_context(context)?;
+        let subject = self
+            .authorize_subject_with_trace(
+                &subject,
+                action,
+                PolicyTarget::Tool { server, tool },
+                trace_id.clone(),
+            )
+            .await?;
+        Ok((subject, trace_id))
     }
 
     pub(super) async fn allows_tool(

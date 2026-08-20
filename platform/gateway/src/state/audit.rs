@@ -5,8 +5,9 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, McpMethodName,
-    PolicyEffect, PolicyReasonCode,
+    AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GatewayProfileId,
+    LocalToolName, McpMethodName, PolicyEffect, PolicyReasonCode, PrincipalAuditAttributes,
+    PrincipalId, ServerSlug, TenantId, TokenIssuer, TraceId,
 };
 use veoveo_platform_store::{
     AuditEventId, AuditEventRecord, AuditOutcome, GatewayAuditKind, OpenObject,
@@ -21,6 +22,37 @@ const GATEWAY_AUDIT_NAMESPACE: Uuid = Uuid::from_u128(0xf9c572b4_0662_5bfb_9e61_
 pub struct GatewayAuditCounts {
     pub auth_events: u64,
     pub policy_events: u64,
+    pub tool_call_events: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayToolCallResultKind {
+    Complete,
+    ErrorResult,
+    InputRequired,
+    TaskCreated,
+    OtherResponse,
+    ProtocolError,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GatewayToolCallAuditEvent {
+    pub event_id: TraceId,
+    pub timestamp: DateTime<Utc>,
+    pub trace_id: TraceId,
+    pub profile: GatewayProfileId,
+    pub server: ServerSlug,
+    pub tool: LocalToolName,
+    pub result_kind: GatewayToolCallResultKind,
+    pub principal: PrincipalId,
+    pub principal_attributes: PrincipalAuditAttributes,
+    pub tenant: Option<TenantId>,
+    pub token_issuer: TokenIssuer,
+    pub latency_ms: u64,
+    pub mcp_error_code: Option<i32>,
+    #[serde(default)]
+    pub metadata: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -69,20 +101,24 @@ pub struct GatewayPolicyAuditMetadataSummary {
 pub struct GatewayAuditRetentionSummary {
     pub auth_events_deleted: u64,
     pub policy_events_deleted: u64,
+    pub tool_call_events_deleted: u64,
 }
 
 impl GatewayState {
     pub async fn audit_counts(&self) -> Result<GatewayAuditCounts> {
-        let (auth_events, policy_events) = tokio::try_join!(
+        let (auth_events, policy_events, tool_call_events) = tokio::try_join!(
             self.platform
                 .gateway_audit_event_count(GatewayAuditKind::Auth),
             self.platform
                 .gateway_audit_event_count(GatewayAuditKind::Policy),
+            self.platform
+                .gateway_audit_event_count(GatewayAuditKind::ToolCall),
         )
         .context("failed to count canonical gateway audit events")?;
         Ok(GatewayAuditCounts {
             auth_events,
             policy_events,
+            tool_call_events,
         })
     }
 
@@ -205,16 +241,20 @@ impl GatewayState {
         &self,
         cutoff: DateTime<Utc>,
     ) -> Result<GatewayAuditRetentionSummary> {
-        let (auth_events_deleted, policy_events_deleted) = tokio::try_join!(
-            self.platform
-                .delete_gateway_audit_events_before(GatewayAuditKind::Auth, cutoff),
-            self.platform
-                .delete_gateway_audit_events_before(GatewayAuditKind::Policy, cutoff),
-        )
-        .context("failed to apply gateway audit retention")?;
+        let (auth_events_deleted, policy_events_deleted, tool_call_events_deleted) =
+            tokio::try_join!(
+                self.platform
+                    .delete_gateway_audit_events_before(GatewayAuditKind::Auth, cutoff),
+                self.platform
+                    .delete_gateway_audit_events_before(GatewayAuditKind::Policy, cutoff),
+                self.platform
+                    .delete_gateway_audit_events_before(GatewayAuditKind::ToolCall, cutoff),
+            )
+            .context("failed to apply gateway audit retention")?;
         Ok(GatewayAuditRetentionSummary {
             auth_events_deleted,
             policy_events_deleted,
+            tool_call_events_deleted,
         })
     }
 
@@ -232,6 +272,17 @@ impl GatewayState {
             .record_gateway_audit_event(GatewayAuditKind::Auth, record)
             .await
             .context("failed to record canonical gateway authentication audit event")
+    }
+
+    pub async fn record_tool_call_audit_event(
+        &self,
+        event: &GatewayToolCallAuditEvent,
+    ) -> Result<()> {
+        let record = canonical_tool_call_record(event)?;
+        self.platform
+            .record_gateway_audit_event(GatewayAuditKind::ToolCall, record)
+            .await
+            .context("failed to record canonical gateway tool-call audit event")
     }
 
     async fn policy_audit_events(&self) -> Result<Vec<AuditEvent>> {
@@ -286,6 +337,30 @@ pub(super) fn canonical_auth_record(event: &AuthAuditEvent) -> Result<AuditEvent
             AuthOutcome::Allow => AuditOutcome::Allowed,
             AuthOutcome::Deny => AuditOutcome::Denied,
         },
+        event,
+    )
+}
+
+fn canonical_tool_call_record(event: &GatewayToolCallAuditEvent) -> Result<AuditEventRecord> {
+    let outcome = match event.result_kind {
+        GatewayToolCallResultKind::Complete
+        | GatewayToolCallResultKind::InputRequired
+        | GatewayToolCallResultKind::TaskCreated
+        | GatewayToolCallResultKind::OtherResponse => AuditOutcome::Succeeded,
+        GatewayToolCallResultKind::ErrorResult | GatewayToolCallResultKind::ProtocolError => {
+            AuditOutcome::Failed
+        }
+    };
+    canonical_audit_record(
+        GatewayAuditKind::ToolCall,
+        event.event_id.as_str(),
+        event.timestamp,
+        event.trace_id.as_str(),
+        &format!("{}:{}", event.server, event.tool),
+        Some(event.principal.as_str()),
+        event.tenant.as_ref().map(|value| value.as_str()),
+        "tools_call",
+        outcome,
         event,
     )
 }
@@ -363,4 +438,67 @@ fn enum_wire_value(value: impl Serialize) -> Result<String> {
         .as_str()
         .map(ToOwned::to_owned)
         .context("gateway enum did not serialize as a string")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use veoveo_mcp_contract::PrincipalKind;
+
+    use super::*;
+
+    fn tool_call_event(result_kind: GatewayToolCallResultKind) -> GatewayToolCallAuditEvent {
+        GatewayToolCallAuditEvent {
+            event_id: TraceId::new("019ff733-07c2-7ad0-a54d-530ca1b5475e").unwrap(),
+            timestamp: Utc::now(),
+            trace_id: TraceId::new("019ff733-0d99-7cb2-96e2-4b9381970048").unwrap(),
+            profile: GatewayProfileId::new("operator").unwrap(),
+            server: ServerSlug::new("view").unwrap(),
+            tool: LocalToolName::new("create_scene_composition").unwrap(),
+            result_kind,
+            principal: PrincipalId::new("user-1").unwrap(),
+            principal_attributes: PrincipalAuditAttributes {
+                kind: PrincipalKind::User,
+                groups: BTreeSet::new(),
+                roles: BTreeSet::new(),
+                scopes: BTreeSet::new(),
+                data_labels: BTreeSet::new(),
+                assurances: BTreeSet::new(),
+                authenticated_at: None,
+            },
+            tenant: Some(TenantId::new("tenant-1").unwrap()),
+            token_issuer: TokenIssuer::new("https://issuer.example").unwrap(),
+            latency_ms: 42,
+            mcp_error_code: None,
+            metadata: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn tool_call_records_separate_completion_from_policy_admission() {
+        let succeeded =
+            canonical_tool_call_record(&tool_call_event(GatewayToolCallResultKind::Complete))
+                .unwrap();
+        assert_eq!(succeeded.resource_type, "gateway_tool_call");
+        assert_eq!(
+            succeeded.resource_id.as_deref(),
+            Some("view:create_scene_composition")
+        );
+        assert_eq!(succeeded.action, "tools_call");
+        assert_eq!(succeeded.outcome, AuditOutcome::Succeeded);
+
+        let mut failed = tool_call_event(GatewayToolCallResultKind::ProtocolError);
+        failed.mcp_error_code = Some(-32602);
+        let failed = canonical_tool_call_record(&failed).unwrap();
+        assert_eq!(failed.outcome, AuditOutcome::Failed);
+        assert_eq!(
+            failed
+                .details
+                .as_map()
+                .get("event")
+                .and_then(|event| event.get("mcp_error_code")),
+            Some(&serde_json::json!(-32602))
+        );
+    }
 }

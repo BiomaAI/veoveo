@@ -313,6 +313,7 @@ td strong { color: var(--text-strong); font-size: var(--text-sm); line-height: 1
 .audit-item time { color: var(--muted); font-size: var(--text-2xs); }
 .decision { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; }
 .decision-allowed { color: var(--green); background: var(--green-soft); }
+.decision-succeeded { color: var(--green); background: var(--green-soft); }
 .decision-denied, .decision-failed { color: var(--red); background: var(--red-soft); }
 
 .toolbar { display: flex; align-items: center; gap: 7px; }
