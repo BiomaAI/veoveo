@@ -527,6 +527,7 @@ pub struct SceneOverlay {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct CreateSceneCompositionRequest {
     pub schema_version: u64,
+    /// Exact server-configured layer identifier. This is not the display label or source kind.
     pub base_layer: LayerId,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub map_releases: BTreeSet<MapReleaseUri>,

@@ -93,6 +93,14 @@ The composition contract refers to a configured layer id. It never accepts an
 API key. Redirects, credentials, local roots, request caps, and cache behavior
 belong to the server-side layer catalog.
 
+`tools/list` refines the generated `create_scene_composition.base_layer`
+schema with the exact identifiers from the active catalog. A single configured
+layer is also the schema default. Labels and source kinds remain descriptive
+catalog fields and are never accepted as identifiers. An unknown identifier
+fails with the complete credential-free identifier set and directs the caller
+to `view://layers`, which lets a model correct one malformed call without
+guessing names.
+
 The first implementation supports explicit 3D Tiles trees, external tilesets,
 GLB content, standard glTF materials and textures, and native Draco geometry.
 It rejects implicit tiling and legacy `b3dm`, `i3dm`, and `pnts` content with a
@@ -244,6 +252,12 @@ It never gets parallel convenience tools. The document is composed at serve
 time from `assets/preview-app.template.html` plus the vendored three.js/draco
 bundle in `assets/vendor/` (rebuilt via `tools/vendor-three/`); guard tests
 pin self-containment and the console host's 2 MiB document cap.
+
+When the host opens the App for a `create_scene_composition` result, the App
+hydrates that immutable composition, reports it as ready, and reuses it for the
+next `create_view` call while its selected layer remains unchanged. A
+`create_view` result hydrates the complete camera view and loads its scene.
+Tool failures remain visible inline and never masquerade as an empty scene.
 
 The app's in-browser 3D scene reads the parameterized view-scene resource
 (owner-scoped, `view:read`). Its typed viewport and screen-space error policy

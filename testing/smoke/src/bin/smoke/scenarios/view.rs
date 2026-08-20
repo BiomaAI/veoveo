@@ -77,8 +77,41 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
                 "`{name}.{property}` did not expose an inline object schema: {property_schema}"
             );
         }
+        if name == "create_scene_composition" {
+            let base_layer = tool_json
+                .pointer("/inputSchema/properties/base_layer")
+                .context("create_scene_composition omitted base_layer schema")?;
+            ensure!(
+                base_layer["enum"] == json!([LOCAL_LAYER]) && base_layer["default"] == LOCAL_LAYER,
+                "create_scene_composition did not advertise the runtime layer identifier: {base_layer}"
+            );
+            ensure!(
+                base_layer["description"]
+                    .as_str()
+                    .is_some_and(|description| description.contains("view://layers")),
+                "base_layer schema omitted catalog recovery guidance: {base_layer}"
+            );
+        }
     }
     assert_preview_app_resource(&session_a).await?;
+
+    let invalid_layer = session_a
+        .call_tool(
+            CallToolRequestParams::new("create_scene_composition".to_owned()).with_arguments(
+                serde_json::from_value(json!({
+                    "schema_version": 1,
+                    "base_layer": "invented-layer-name",
+                    "style_id": "view-smoke:invalid-layer"
+                }))?,
+            ),
+        )
+        .await
+        .expect_err("an unknown layer identifier must fail");
+    let invalid_layer = invalid_layer.to_string();
+    ensure!(
+        invalid_layer.contains(LOCAL_LAYER) && invalid_layer.contains("view://layers"),
+        "unknown-layer error omitted exact recovery guidance: {invalid_layer}"
+    );
 
     let first_composition = create_composition(&session_a, LOCAL_LAYER, true).await?;
     let second_composition = create_composition(&session_b, LOCAL_LAYER, false).await?;
@@ -519,7 +552,13 @@ async fn assert_preview_app_resource(session: &SmokeMcpClient) -> Result<()> {
         text.len() < 2 * 1024 * 1024,
         "preview app exceeds the console host's 2 MiB cap"
     );
-    for needle in ["DracoDecoderModule", "ui/initialize", "tools/call"] {
+    for needle in [
+        "DracoDecoderModule",
+        "ui/initialize",
+        "tools/call",
+        "app.composition = record",
+        "composition ready",
+    ] {
         ensure!(text.contains(needle), "preview app is missing `{needle}`");
     }
     Ok(())

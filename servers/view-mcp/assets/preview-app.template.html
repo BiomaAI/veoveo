@@ -1472,12 +1472,30 @@ function applyInitialToolInput(params) {
 }
 
 async function applyInitialToolResult(result) {
+  if (result && (result.isError || result.is_error)) {
+    showError("action-error", toolFailureText(result, "initial tool"));
+    return;
+  }
   const record = result && (result.structuredContent || result.structured_content);
-  if (!record || typeof record !== "object" || typeof record.view_id !== "string" ||
-      typeof record.view_uri !== "string" || !record.camera || !record.resolved_camera) return;
-  applyViewRecord(record);
-  setStatus(`created view ${record.view_id}`, false);
-  await refreshScene();
+  if (!record || typeof record !== "object") return;
+  if (typeof record.composition_id === "string" &&
+      typeof record.composition_uri === "string" &&
+      typeof record.base_layer === "string") {
+    app.composition = record;
+    const layer = el("layer-select");
+    if ([...layer.options].some((option) => option.value === record.base_layer)) {
+      layer.value = record.base_layer;
+    }
+    updateViewChip();
+    setStatus(`composition ${record.composition_id.slice(0, 8)}… ready — create a view`, false);
+    return;
+  }
+  if (typeof record.view_id === "string" && typeof record.view_uri === "string" &&
+      record.camera && record.resolved_camera) {
+    applyViewRecord(record);
+    setStatus(`created view ${record.view_id}`, false);
+    await refreshScene();
+  }
 }
 
 function flushInitialToolData() {
@@ -1547,8 +1565,15 @@ function updateFrustum() {
 function updateViewChip() {
   const chip = el("view-chip");
   if (!app.view) {
-    chip.textContent = "no view";
-    chip.className = "chip";
+    if (app.composition) {
+      chip.textContent = "composition ready";
+      chip.className = "chip ok";
+      chip.title = app.composition.composition_uri;
+    } else {
+      chip.textContent = "no view";
+      chip.className = "chip";
+      chip.removeAttribute("title");
+    }
   } else {
     chip.textContent = `${app.view.view_id.slice(0, 8)}… r${app.view.revision}`;
     chip.className = "chip ok";
@@ -1584,14 +1609,17 @@ async function createView() {
   const camera = form.value();
   setStatus("creating view…", true);
   try {
-    const composition = await callTool("create_scene_composition", {
-      schema_version: 1,
-      base_layer: el("layer-select").value,
-      map_releases: [],
-      style_id: "view-preview:1",
-      governed_inputs: [],
-      overlays: [],
-    });
+    const selectedLayer = el("layer-select").value;
+    const composition = app.composition && app.composition.base_layer === selectedLayer
+      ? app.composition
+      : await callTool("create_scene_composition", {
+          schema_version: 1,
+          base_layer: selectedLayer,
+          map_releases: [],
+          style_id: "view-preview:1",
+          governed_inputs: [],
+          overlays: [],
+        });
     app.composition = composition;
     const record = await callTool("create_view", {
       composition_id: composition.composition_id,
