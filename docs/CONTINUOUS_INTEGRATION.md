@@ -10,8 +10,8 @@ is assembled.
 | Boundary | Supported profile |
 |---|---|
 | GitHub Actions workflow syntax | informational presentation on `push` and `pull_request`; no required check or delivery gate |
-| SHA-256 | source-content identity for the committed local report |
-| `veoveo.io/local-test-report/v1` | repository-owned JSON profile for locally executed command results |
+| SHA-256 | build-input content identity for the committed local report |
+| `veoveo.io/local-test-report/v2` | repository-owned JSON profile for locally executed command results |
 | OCI Image Spec | immutable image identities recorded by existing build and deployment acceptance commands |
 | Kubernetes API | target-cluster deployment and recovery acceptance executed only from the development host |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | mandatory hardware execution for simulation, rendering, perception, and video acceptance |
@@ -49,9 +49,16 @@ cargo xtask test-report run --name uav-browser -- \
 ```
 
 Check names are stable lowercase identifiers. Reusing a name replaces its previous
-result. A source change makes the earlier report stale; the next recorded command
-starts a report for the new source. The report contains command names, completion
-times, durations, and concise results. Full terminal logs remain local.
+result. A build-input change makes the earlier report stale; the next recorded command
+starts a report for the new build. The report contains command names, completion times,
+durations, and concise results. Full terminal logs remain local.
+
+The build identity excludes `docs/**`, root Markdown files, and
+`tools/screenshots/**`. Those paths describe the repository or produce documentation
+media; they do not change the Veoveo product build. Component-local contract documents
+remain build inputs because hosted servers can compile them into their well-known MCP
+resources. Product code, package and image definitions, lockfiles, deployment material,
+workflows, and other repository tooling also remain build inputs.
 
 Display the current state before committing it:
 
@@ -67,8 +74,9 @@ Neither result blocks a commit, push, deployment, or direct work on `main`; the
 repository has no required-check rule.
 
 The report is an engineering status note. It is not release provenance, an audit
-attestation, or a security boundary. Its purpose is to keep known local failures
-visible while Veoveo relies on one qualified development host.
+attestation, or a security boundary. Its purpose is to keep known local build failures
+visible while Veoveo relies on one qualified development host. Documentation validation
+remains a separate local responsibility and does not turn the Build status red.
 
 ## Future Full GPU CI
 

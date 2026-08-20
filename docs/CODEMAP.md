@@ -823,7 +823,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
 | `testing/smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |
-| `testing/local-test-report.json` | committed informational result of checks executed on the qualified development host |
+| `testing/local-test-report.json` | committed informational result of checks executed on the qualified development host, bound to product build inputs rather than documentation-only content |
 | `.github/workflows/local-test-report.yml` | lightweight presentation of the committed local test report; it performs no substantive build, deployment, GPU, or browser acceptance |
 
 There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell recipes.

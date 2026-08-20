@@ -172,11 +172,13 @@ commands remain native. Repository-specific policy and multi-step coordination b
 in `cargo xtask`.
 
 The xtask surface is `doctor`, `enforce rust|python`, `image`, `release`, `smoke`,
-and `test-report`. Before committing, run the checks the change touches through the
-evidence recorder — `cargo xtask test-report run --name <check> -- <command>`, then
+and `test-report`. Before committing a build-input change, run the checks it touches
+through the evidence recorder —
+`cargo xtask test-report run --name <check> -- <command>`, then
 `cargo xtask test-report show` — and commit the updated
 `testing/local-test-report.json` with the change, since the GitHub workflow only
-displays that committed evidence. Do not commit red or stale report entries.
+displays that committed evidence. Documentation-only changes do not invalidate build
+evidence. Do not commit red or stale report entries.
 
 All smoke tests for this repository must be implemented in Rust. `cargo xtask smoke`
 may build the harness and its scenario-specific local binaries, then dispatch the

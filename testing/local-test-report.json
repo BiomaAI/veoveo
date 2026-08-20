@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
-  "sourceDigest": "sha256:0277678b3c3be67186e8aebb114a19957262d850ede2f6da8b2b25faebd43085",
-  "updatedAt": "2026-08-20T05:13:35Z",
+  "schemaVersion": 2,
+  "buildDigest": "sha256:c9ecde3042492453fb0196e5316f6c5341c287311f7af6da05abd0174f95952f",
+  "updatedAt": "2026-08-20T19:36:40Z",
   "checks": [
     {
       "name": "agent-scheduler",
@@ -12,8 +12,8 @@
         "agent-kernel-scheduler"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T05:12:54Z",
-      "durationSeconds": 36.036946081,
+      "finishedAt": "2026-08-20T19:36:26Z",
+      "durationSeconds": 29.219660283,
       "detail": "completed successfully"
     },
     {
@@ -31,8 +31,8 @@
         "examples/bioma/gateway.json"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T05:13:10Z",
-      "durationSeconds": 3.444021064,
+      "finishedAt": "2026-08-20T19:36:35Z",
+      "durationSeconds": 7.513120975,
       "detail": "completed successfully"
     },
     {
@@ -43,8 +43,8 @@
         "examples/bioma"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T05:13:35Z",
-      "durationSeconds": 0.067288648,
+      "finishedAt": "2026-08-20T19:36:40Z",
+      "durationSeconds": 0.06420539,
       "detail": "completed successfully"
     },
     {
@@ -61,8 +61,8 @@
         "examples/bioma/images.lock.yaml"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T05:13:16Z",
-      "durationSeconds": 0.131811241,
+      "finishedAt": "2026-08-20T19:36:37Z",
+      "durationSeconds": 0.146452231,
       "detail": "completed successfully"
     },
     {
@@ -77,8 +77,8 @@
         "examples/bioma/images.lock.yaml"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T05:13:26Z",
-      "durationSeconds": 0.085410943,
+      "finishedAt": "2026-08-20T19:36:39Z",
+      "durationSeconds": 0.085382304,
       "detail": "completed successfully"
     },
     {
@@ -90,8 +90,8 @@
         "rust"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T05:12:04Z",
-      "durationSeconds": 95.674513431,
+      "finishedAt": "2026-08-20T19:34:28Z",
+      "durationSeconds": 111.443924021,
       "detail": "completed successfully"
     }
   ]
