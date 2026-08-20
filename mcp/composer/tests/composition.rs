@@ -22,6 +22,8 @@ fn fragment() -> GatewayServerFragment {
     server.mcp_path = MountPath::new("/anonymous/mcp").expect("MCP path");
     server.upstream.url =
         UpstreamUrl::new("http://anonymous-mcp:8811/anonymous/mcp").expect("upstream URL");
+    server.upstream.health_url =
+        UpstreamUrl::new("http://anonymous-mcp:8811/healthz").expect("health URL");
     server.upstream.security = UpstreamTransportSecurity::ClusterInternalHttp;
     server.compatibility_helpers.clear();
     server.owned_routes.clear();
