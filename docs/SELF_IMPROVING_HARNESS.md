@@ -18,6 +18,12 @@ interaction evidence without changing model weights or weakening gateway authori
 also asks whether action-to-observation evidence can teach the harness how the profile
 behaves, not merely which action previously received a successful final score.
 
+Model-weight changes belong to the separate
+[`HARNESS_MEDIATED_MODEL_POST_TRAINING.md`](HARNESS_MEDIATED_MODEL_POST_TRAINING.md)
+exploration. The two directions may share governed trajectory and evaluation evidence,
+but this document keeps the model frozen and changes only external strategy or dynamics
+records.
+
 The working term is **self-improving harness**. Names such as *adaptive profile*,
 *profile strategy*, *profile dynamics*, and the component paths discussed below are
 provisional.
@@ -44,7 +50,9 @@ learning signal. The primary sources considered here are:
 
 These papers concern model-weight training and learned simulators. Veoveo may be able to
 apply their supervision and evaluation lessons at the harness level before considering
-weight training.
+weight training. The companion post-training exploration uses
+[Agent Lightning v1.0](https://arxiv.org/html/2608.17528v1) as its primary reference for
+the later model-weight path.
 
 ## Current Veoveo Boundary
 
@@ -274,7 +282,8 @@ discussion only. This document does not reserve them.
 ## Suggested Experiments
 
 The smallest useful experiments would avoid model-weight training and production
-self-modification:
+self-modification. The companion post-training exploration defines the evidence gates
+that would have to open before a model-weight experiment:
 
 1. Define a typed evaluation trajectory for isolated agent episodes.
 2. Build a scenario suite spanning one profile and several authority classes.
