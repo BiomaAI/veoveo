@@ -1,8 +1,21 @@
 {
   "schemaVersion": 1,
-  "sourceDigest": "sha256:78237645bdb3694911885301f5b8b354bb7453f8d00e0185556ff162bdf94e5a",
-  "updatedAt": "2026-08-20T01:05:09Z",
+  "sourceDigest": "sha256:d6f90b45239a7a706f98964931facad4e722f1838223d98b9db1ee80f78987f3",
+  "updatedAt": "2026-08-20T04:40:17Z",
   "checks": [
+    {
+      "name": "agent-scheduler",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "agent-kernel-scheduler"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T04:40:01Z",
+      "durationSeconds": 30.908486575,
+      "detail": "completed successfully"
+    },
     {
       "name": "bioma-control-plane",
       "command": [
@@ -18,103 +31,21 @@
         "examples/bioma/gateway.json"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T01:04:40Z",
-      "durationSeconds": 38.329286942,
+      "finishedAt": "2026-08-20T04:40:17Z",
+      "durationSeconds": 7.886863463,
       "detail": "completed successfully"
     },
     {
-      "name": "documentation",
-      "command": [
-        "git",
-        "show",
-        "--check",
-        "--oneline",
-        "HEAD"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-20T01:05:09Z",
-      "durationSeconds": 0.004779689,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "mcp-contract",
+      "name": "rust-workspace",
       "command": [
         "cargo",
-        "test",
-        "-p",
-        "veoveo-mcp-contract",
-        "--lib"
+        "xtask",
+        "enforce",
+        "rust"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T01:03:50Z",
-      "durationSeconds": 2.729340577,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "mcp-gateway",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-20T01:03:56Z",
-      "durationSeconds": 4.051449488,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "mcp-gateway-bin",
-      "command": [
-        "cargo",
-        "check",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--bin",
-        "gateway"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-20T01:04:00Z",
-      "durationSeconds": 1.504357988,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "platform-helm",
-      "command": [
-        "helm",
-        "lint",
-        "deploy/helm/veoveo"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-20T01:05:05Z",
-      "durationSeconds": 0.144975527,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rust-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-20T01:03:45Z",
-      "durationSeconds": 2.096948597,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-helm",
-      "command": [
-        "helm",
-        "lint",
-        "showcase/uav-sim/deploy/helm"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-20T01:05:07Z",
-      "durationSeconds": 0.071794366,
+      "finishedAt": "2026-08-20T04:39:19Z",
+      "durationSeconds": 725.844190052,
       "detail": "completed successfully"
     }
   ]
