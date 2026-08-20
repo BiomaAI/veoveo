@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import queue
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
@@ -66,25 +67,28 @@ class TileLifecycleSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class TileLifecycleAction:
-    reset_provider_session: bool = False
+    begin_replacement: bool = False
+    retire_tileset_path: str | None = None
     report_failure: bool = False
 
 
-class CesiumTilesetInterface(Protocol):
-    """Native operations required for a fresh provider generation."""
+class CesiumCacheInterface(Protocol):
+    """Native cache operation required before a fresh provider session."""
 
     def clear_accessor_cache(self) -> None: ...
 
-    def reload_tileset(self, tileset_path: str) -> None: ...
 
-
-def reset_provider_session(
-    cesium_interface: CesiumTilesetInterface,
-    tileset_path: str,
-) -> None:
-    """Discard cached provider URLs before constructing the next tileset."""
+def begin_provider_session_replacement(
+    cesium_interface: CesiumCacheInterface,
+    author_tileset: Callable[[str], str],
+    replacement_name: str,
+) -> str:
+    """Author a shadow tileset without destroying the resident generation."""
     cesium_interface.clear_accessor_cache()
-    cesium_interface.reload_tileset(tileset_path)
+    replacement_path = author_tileset(replacement_name)
+    if not replacement_path:
+        raise RuntimeError("replacement tileset path must not be empty")
+    return replacement_path
 
 
 def classify_failure(load_type: TileLoadType, http_status: int) -> TileFailureCode:
@@ -124,6 +128,7 @@ class TileLifecycleController:
         if ready_frames < 1:
             raise ValueError("ready frame threshold must be positive")
         self._tileset_path = tileset_path
+        self._replacement_tileset_path: str | None = None
         self._ready_frames = ready_frames
         self._lifecycle: TileLifecycle = "connecting"
         self._provider_generation = 0
@@ -135,35 +140,67 @@ class TileLifecycleController:
         self._loading_tiles = 0
         self._last_failure: TileFailure | None = None
         self._diagnostic: str | None = None
-        self._refresh_target_generation: int | None = None
         self._loaded_generation = 0
-        self._handled_failures: set[tuple[int, TileLoadType, int]] = set()
+        self._handled_failures: set[tuple[str, int, TileLoadType, int]] = set()
+
+    @property
+    def active_tileset_path(self) -> str:
+        return self._tileset_path
+
+    @property
+    def replacement_tileset_path(self) -> str | None:
+        return self._replacement_tileset_path
+
+    def replacement_started(self, tileset_path: str) -> None:
+        if self._lifecycle != "refreshing":
+            raise RuntimeError("provider replacement was not requested")
+        if self._replacement_tileset_path is not None:
+            raise RuntimeError("provider replacement is already active")
+        if not tileset_path or tileset_path == self._tileset_path:
+            raise ValueError("replacement tileset must have a distinct path")
+        self._replacement_tileset_path = tileset_path
 
     def accept(self, event: NativeTileEvent) -> TileLifecycleAction:
-        if event.tileset_path != self._tileset_path:
+        if event.tileset_path not in {
+            self._tileset_path,
+            self._replacement_tileset_path,
+        }:
             return TileLifecycleAction()
         if event.generation < 1:
             LOGGER.warning("ignored Cesium event with invalid generation")
             return TileLifecycleAction()
-        if event.generation < self._provider_generation:
-            return TileLifecycleAction()
-        if event.kind == "loaded" and event.generation <= self._loaded_generation:
+        if (
+            event.kind == "loaded"
+            and event.tileset_path == self._tileset_path
+            and event.generation <= self._loaded_generation
+        ):
             return TileLifecycleAction()
 
         self._event_sequence += 1
-        self._provider_generation = max(self._provider_generation, event.generation)
         if event.kind == "loaded":
+            if event.tileset_path == self._replacement_tileset_path:
+                retired_path = self._tileset_path
+                self._tileset_path = event.tileset_path
+                self._replacement_tileset_path = None
+                self._provider_generation = max(1, self._provider_generation + 1)
+                self._loaded_generation = event.generation
+                self._coverage_frames = 0
+                self._lifecycle = "streaming"
+                self._diagnostic = None
+                return TileLifecycleAction(retire_tileset_path=retired_path)
+
+            self._provider_generation = max(
+                self._provider_generation, event.generation
+            )
             self._loaded_generation = max(self._loaded_generation, event.generation)
-            if (
-                self._refresh_target_generation is None
-                or event.generation >= self._refresh_target_generation
-            ):
+            if self._replacement_tileset_path is None:
                 self._coverage_frames = 0
                 self._lifecycle = "streaming"
                 self._diagnostic = None
             return TileLifecycleAction()
 
         failure_signature = (
+            event.tileset_path,
             event.generation,
             event.load_type,
             max(0, event.http_status),
@@ -181,17 +218,32 @@ class TileLifecycleController:
         self._diagnostic = failure_diagnostic(code)
         self._coverage_frames = 0
 
-        if (
-            code == "provider_session_rejected"
-            and self._refresh_target_generation is None
-        ):
-            self._refresh_count += 1
-            self._refresh_target_generation = event.generation + 1
-            self._lifecycle = "refreshing"
+        if event.tileset_path == self._replacement_tileset_path:
+            failed_path = self._replacement_tileset_path
+            self._replacement_tileset_path = None
+            self._lifecycle = "degraded"
+            self._diagnostic = (
+                "replacement streamed-world provider session failed"
+            )
             return TileLifecycleAction(
-                reset_provider_session=True,
+                retire_tileset_path=failed_path,
                 report_failure=True,
             )
+
+        if (
+            code == "provider_session_rejected"
+            and self._replacement_tileset_path is None
+        ):
+            self._refresh_count += 1
+            self._lifecycle = "refreshing"
+            return TileLifecycleAction(
+                begin_replacement=True,
+                report_failure=True,
+            )
+
+        if self._replacement_tileset_path is not None:
+            self._lifecycle = "refreshing"
+            return TileLifecycleAction(report_failure=True)
 
         self._lifecycle = "degraded"
         return TileLifecycleAction(report_failure=True)
@@ -207,16 +259,15 @@ class TileLifecycleController:
         self._visible_tiles = max(0, visible_tiles)
         self._loading_tiles = max(0, loading_tiles)
 
-        generation_ready = (
-            self._refresh_target_generation is None
-            or self._loaded_generation >= self._refresh_target_generation
-        )
-        if self._visible_tiles > 0 and generation_ready:
+        if (
+            self._lifecycle != "degraded"
+            and self._visible_tiles > 0
+            and self._replacement_tileset_path is None
+        ):
             self._coverage_frames += 1
             if self._coverage_frames >= self._ready_frames:
                 self._lifecycle = "ready"
                 self._diagnostic = None
-                self._refresh_target_generation = None
         elif self._lifecycle not in {"refreshing", "degraded"}:
             self._coverage_frames = 0
             self._lifecycle = (
@@ -227,8 +278,9 @@ class TileLifecycleController:
         return self.snapshot()
 
     def mark_refresh_command_failed(self) -> None:
+        self._replacement_tileset_path = None
         self._lifecycle = "degraded"
-        self._diagnostic = "streamed-world refresh command failed"
+        self._diagnostic = "streamed-world replacement creation failed"
 
     def snapshot(self) -> TileLifecycleSnapshot:
         return TileLifecycleSnapshot(

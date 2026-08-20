@@ -168,7 +168,7 @@ def run(config: RuntimeConfig) -> None:
     from .tile_lifecycle import (
         NativeTileEventBridge,
         TileLifecycleController,
-        reset_provider_session,
+        begin_provider_session_replacement,
     )
     from .vehicle_model import PX4_IRIS_SENSOR_CADENCE, Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
@@ -183,6 +183,7 @@ def run(config: RuntimeConfig) -> None:
     server: AdapterServer | None = None
     connection_executor: concurrent.futures.ThreadPoolExecutor | None = None
     tileset_path: str | None = None
+    tileset_paths: set[str] = set()
     world: World | None = None
     physics_step = 0
     simulation_time_s = 0.0
@@ -310,34 +311,64 @@ def run(config: RuntimeConfig) -> None:
             georeference.GetGeoreferenceOriginHeightAttr().Set(
                 world_config.georeference_origin.ellipsoid_height_m
             )
-            tileset_path = add_tileset_ion(
-                "Google_Photorealistic_3D_Tiles",
-                config.cesium_ion_asset_id,
-                config.cesium_ion_access_token,
-            )
-            tileset = CesiumTileset.Get(stage, tileset_path)
-            if not tileset.GetPrim().IsValid():
-                raise RuntimeError("Cesium did not create the governed tileset prim")
-            tileset.GetMaximumScreenSpaceErrorAttr().Set(
-                config.tile_streaming.maximum_screen_space_error
-            )
-            tileset.GetMaximumSimultaneousTileLoadsAttr().Set(
-                config.tile_streaming.maximum_simultaneous_loads
-            )
-            tileset.GetMaximumCachedBytesAttr().Set(
-                config.tile_streaming.maximum_cached_bytes
-            )
-            tileset.GetPreloadAncestorsAttr().Set(
-                config.tile_streaming.preload_ancestors
-            )
-            tileset.GetPreloadSiblingsAttr().Set(
-                config.tile_streaming.preload_siblings
-            )
-            tileset.GetForbidHolesAttr().Set(
-                config.tile_streaming.forbid_holes
-            )
         finally:
             stage.SetEditTarget(previous_target)
+
+        def author_google_tileset(name: str) -> str:
+            previous_author_target = stage.GetEditTarget()
+            stage.SetEditTarget(Usd.EditTarget(stage.GetSessionLayer()))
+            try:
+                authored_path = add_tileset_ion(
+                    name,
+                    config.cesium_ion_asset_id,
+                    config.cesium_ion_access_token,
+                )
+                tileset = CesiumTileset.Get(stage, authored_path)
+                if not tileset.GetPrim().IsValid():
+                    raise RuntimeError(
+                        "Cesium did not create the governed tileset prim"
+                    )
+                tileset.GetMaximumScreenSpaceErrorAttr().Set(
+                    config.tile_streaming.maximum_screen_space_error
+                )
+                tileset.GetMaximumSimultaneousTileLoadsAttr().Set(
+                    config.tile_streaming.maximum_simultaneous_loads
+                )
+                tileset.GetMaximumCachedBytesAttr().Set(
+                    config.tile_streaming.maximum_cached_bytes
+                )
+                tileset.GetPreloadAncestorsAttr().Set(
+                    config.tile_streaming.preload_ancestors
+                )
+                tileset.GetPreloadSiblingsAttr().Set(
+                    config.tile_streaming.preload_siblings
+                )
+                tileset.GetForbidHolesAttr().Set(
+                    config.tile_streaming.forbid_holes
+                )
+                tileset_paths.add(authored_path)
+                return authored_path
+            finally:
+                stage.SetEditTarget(previous_author_target)
+
+        def retire_google_tileset(retired_path: str) -> None:
+            previous_retire_target = stage.GetEditTarget()
+            stage.SetEditTarget(Usd.EditTarget(stage.GetSessionLayer()))
+            try:
+                retired_tileset = CesiumTileset.Get(stage, retired_path)
+                if retired_tileset.GetPrim().IsValid():
+                    retired_tileset.GetIonAccessTokenAttr().Clear()
+                    if not stage.RemovePrim(retired_path):
+                        raise RuntimeError(
+                            f"failed to retire Cesium tileset {retired_path}"
+                        )
+                tileset_paths.discard(retired_path)
+            finally:
+                stage.SetEditTarget(previous_retire_target)
+
+        tileset_path = author_google_tileset(
+            "Google_Photorealistic_3D_Tiles"
+        )
 
         mount_w, mount_x, mount_y, mount_z = config.camera.mount.orientation_wxyz
         sensor_mount_pose = Pose(
@@ -855,20 +886,42 @@ def run(config: RuntimeConfig) -> None:
                             tile_event.http_status,
                             tile_event.generation,
                         )
-                    if tile_action.reset_provider_session:
+                    if tile_action.begin_replacement:
                         try:
-                            reset_provider_session(
+                            replacement_path = begin_provider_session_replacement(
                                 cesium_interface,
-                                tileset_path,
+                                author_google_tileset,
+                                (
+                                    "Google_Photorealistic_3D_Tiles_refresh_"
+                                    f"{tile_controller.snapshot().refresh_count}"
+                                ),
                             )
+                            tile_controller.replacement_started(replacement_path)
                             LOGGER.info(
-                                "streamed-world provider cache cleared and fresh "
-                                "generation requested"
+                                "streamed-world replacement generation created: %s; "
+                                "resident generation remains mounted",
+                                replacement_path,
                             )
                         except Exception:
                             tile_controller.mark_refresh_command_failed()
                             LOGGER.exception(
-                                "streamed-world generation refresh failed; simulation continues"
+                                "streamed-world replacement creation failed; "
+                                "resident generation remains mounted"
+                            )
+                    if tile_action.retire_tileset_path is not None:
+                        try:
+                            retire_google_tileset(
+                                tile_action.retire_tileset_path
+                            )
+                            tileset_path = tile_controller.active_tileset_path
+                            LOGGER.info(
+                                "streamed-world replacement promoted; retired %s",
+                                tile_action.retire_tileset_path,
+                            )
+                        except Exception:
+                            tile_controller.mark_refresh_command_failed()
+                            LOGGER.exception(
+                                "streamed-world obsolete generation retirement failed"
                             )
                 statistics = cesium_interface.get_render_statistics()
                 resident = int(statistics.tiles_loaded)
@@ -949,16 +1002,19 @@ def run(config: RuntimeConfig) -> None:
     finally:
         if state is not None:
             state.set_lifecycle("stopping")
-        if tileset_path is not None:
+        if tileset_paths:
 
             def clear_ion_token() -> None:
                 stage = omni.usd.get_context().get_stage()
                 previous_target = stage.GetEditTarget()
                 stage.SetEditTarget(Usd.EditTarget(stage.GetSessionLayer()))
                 try:
-                    tileset = CesiumTileset.Get(stage, tileset_path)
-                    if tileset.GetPrim().IsValid():
-                        tileset.GetIonAccessTokenAttr().Clear()
+                    for governed_tileset_path in tuple(tileset_paths):
+                        tileset = CesiumTileset.Get(
+                            stage, governed_tileset_path
+                        )
+                        if tileset.GetPrim().IsValid():
+                            tileset.GetIonAccessTokenAttr().Clear()
                 finally:
                     stage.SetEditTarget(previous_target)
 

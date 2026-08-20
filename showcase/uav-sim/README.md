@@ -151,17 +151,19 @@ resulting extension package. No runtime download or locally rebuilt installation
 accepted.
 
 Native message-bus events drive streamed-world recovery. A tile-content HTTP 400 marks
-the current provider generation rejected, clears Cesium's cached provider responses, and
-requests one fresh generation from a new root tileset. Hundreds of child failures from
-that generation remain one reset. The replacement either reaches native load completion
-plus visible coverage or settles in a typed degraded state. Other HTTP and transport
-failures never trigger speculative reloads.
+the current provider generation rejected. The runtime keeps its resident geometry and
+materials mounted while a separately named tileset obtains a fresh root session.
+Hundreds of child failures from the rejected generation remain one replacement action.
+Native load completion promotes the replacement before the expired tileset is retired;
+stable visible coverage then restores readiness. A failed replacement is removed and
+settles in a typed degraded state. Other HTTP and transport failures never trigger
+speculative replacement.
 
 The runtime projects `provider_generation`, `event_sequence`, `refresh_count`, and a
 typed `last_failure` without a URL or credential. Visibility counters remain render
 observations. They never start a timeout, poll a provider, or stop simulation. Existing
-operator streams may continue showing resident content while a replacement generation
-loads.
+operator streams retain the resident generation while its replacement loads, and visual
+readiness stays false until the promoted generation proves visible coverage.
 
 Fleet dynamics use CUDA-backed PhysX tensor views. Elapsed monotonic time determines the
 number of authoritative fixed physics steps due on each scheduler pass. The clock retains

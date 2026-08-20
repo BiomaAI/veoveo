@@ -76,7 +76,7 @@ from veoveo_uav_sim.tile_lifecycle import (
     NativeTileEvent,
     NativeTileEventBridge,
     TileLifecycleController,
-    reset_provider_session,
+    begin_provider_session_replacement,
 )
 from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_MOMENT_CONSTANT,
@@ -445,7 +445,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
 
     def test_headless_cesium_has_one_authoritative_viewport_writer(self) -> None:
         runtime_root = Path(__file__).parents[1]
-        dockerfile = (runtime_root / "Dockerfile").read_text()
+        dockerfile = (runtime_root / "Dockerfile.dependencies").read_text()
         patch = (
             runtime_root
             / "patches"
@@ -549,7 +549,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
 
     def test_multi_instance_px4_has_distinct_gcs_ports(self) -> None:
         runtime_root = Path(__file__).parents[1]
-        dockerfile = (runtime_root / "Dockerfile").read_text()
+        dockerfile = (runtime_root / "Dockerfile.dependencies").read_text()
         px4_patch = (
             runtime_root / "patches" / "px4-1.17.0-multi-instance-gcs.patch"
         ).read_text()
@@ -1790,9 +1790,16 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertEqual(state.refresh_count, 0)
         self.assertIsNone(state.last_failure)
 
-    def test_session_rejection_requests_one_generation_refresh(self) -> None:
+    def test_session_rejection_requests_one_shadow_generation(self) -> None:
         controller = TileLifecycleController(
             tileset_path="/World/Tileset", ready_frames=2
+        )
+        controller.accept(
+            NativeTileEvent(
+                kind="loaded",
+                tileset_path="/World/Tileset",
+                generation=1,
+            )
         )
         event = NativeTileEvent(
             kind="load_failed",
@@ -1801,9 +1808,9 @@ class StreamedWorldHealthTests(unittest.TestCase):
             load_type="tile_content",
             http_status=400,
         )
-        self.assertTrue(controller.accept(event).reset_provider_session)
+        self.assertTrue(controller.accept(event).begin_replacement)
         duplicate = controller.accept(event)
-        self.assertFalse(duplicate.reset_provider_session)
+        self.assertFalse(duplicate.begin_replacement)
         self.assertFalse(duplicate.report_failure)
         state = controller.snapshot()
         self.assertEqual(state.lifecycle, "refreshing")
@@ -1839,13 +1846,20 @@ class StreamedWorldHealthTests(unittest.TestCase):
             )
         )
         self.assertTrue(unavailable.report_failure)
-        self.assertFalse(unavailable.reset_provider_session)
+        self.assertFalse(unavailable.begin_replacement)
         self.assertTrue(rejected.report_failure)
-        self.assertTrue(rejected.reset_provider_session)
+        self.assertTrue(rejected.begin_replacement)
 
-    def test_matching_replacement_generation_recovers_deterministically(self) -> None:
+    def test_loaded_shadow_generation_is_promoted_before_old_is_retired(self) -> None:
         controller = TileLifecycleController(
             tileset_path="/World/Tileset", ready_frames=2
+        )
+        controller.accept(
+            NativeTileEvent(
+                kind="loaded",
+                tileset_path="/World/Tileset",
+                generation=1,
+            )
         )
         controller.accept(
             NativeTileEvent(
@@ -1856,12 +1870,21 @@ class StreamedWorldHealthTests(unittest.TestCase):
                 http_status=400,
             )
         )
-        controller.accept(
+        controller.replacement_started("/World/Tileset_refresh_1")
+        resident = controller.observe_render(
+            resident_tiles=20, visible_tiles=4, loading_tiles=2
+        )
+        promoted = controller.accept(
             NativeTileEvent(
                 kind="loaded",
-                tileset_path="/World/Tileset",
-                generation=2,
+                tileset_path="/World/Tileset_refresh_1",
+                generation=1,
             )
+        )
+        self.assertEqual(resident.lifecycle, "refreshing")
+        self.assertEqual(promoted.retire_tileset_path, "/World/Tileset")
+        self.assertEqual(
+            controller.active_tileset_path, "/World/Tileset_refresh_1"
         )
         first = controller.observe_render(
             resident_tiles=20, visible_tiles=4, loading_tiles=2
@@ -1896,7 +1919,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
         stable = controller.observe_render(
             resident_tiles=24, visible_tiles=6, loading_tiles=2
         )
-        self.assertFalse(duplicate.reset_provider_session)
+        self.assertFalse(duplicate.begin_replacement)
         self.assertEqual(stable.lifecycle, "ready")
         self.assertEqual(stable.event_sequence, 1)
 
@@ -1911,19 +1934,28 @@ class StreamedWorldHealthTests(unittest.TestCase):
             load_type="tile_content",
             http_status=400,
         )
-        second = NativeTileEvent(
+        replacement = NativeTileEvent(
             kind="load_failed",
-            tileset_path="/World/Tileset",
-            generation=2,
+            tileset_path="/World/Tileset_refresh_1",
+            generation=1,
             load_type="tile_content",
             http_status=400,
         )
-        self.assertTrue(controller.accept(first).reset_provider_session)
-        self.assertFalse(controller.accept(second).reset_provider_session)
-        self.assertFalse(controller.accept(second).reset_provider_session)
+        self.assertTrue(controller.accept(first).begin_replacement)
+        controller.replacement_started("/World/Tileset_refresh_1")
+        rejected = controller.accept(replacement)
+        self.assertFalse(rejected.begin_replacement)
+        self.assertEqual(
+            rejected.retire_tileset_path, "/World/Tileset_refresh_1"
+        )
+        self.assertFalse(controller.accept(replacement).begin_replacement)
         state = controller.snapshot()
         self.assertEqual(state.lifecycle, "degraded")
         self.assertEqual(state.refresh_count, 1)
+        still_degraded = controller.observe_render(
+            resident_tiles=20, visible_tiles=4, loading_tiles=0
+        )
+        self.assertEqual(still_degraded.lifecycle, "degraded")
 
     def test_credential_failure_is_typed_and_never_refreshed(self) -> None:
         controller = TileLifecycleController(
@@ -1939,7 +1971,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
             )
         )
         state = controller.snapshot()
-        self.assertFalse(action.reset_provider_session)
+        self.assertFalse(action.begin_replacement)
         self.assertEqual(state.lifecycle, "degraded")
         self.assertEqual(
             state.last_failure.code if state.last_failure else None,
@@ -1951,7 +1983,8 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertIn("TileLifecycleController(", source)
         self.assertIn('sensor_status.lifecycle == "degraded"', source)
         self.assertIn("statistics.tiles_rendered", source)
-        self.assertIn("reset_provider_session(", source)
+        self.assertIn("begin_provider_session_replacement(", source)
+        self.assertIn("resident generation remains mounted", source)
         self.assertNotIn("tile_absent_since", source)
         self.assertNotIn("assess_tile_health", source)
         self.assertNotIn('raise RuntimeError("Google Photorealistic', source)
@@ -1975,21 +2008,33 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertNotIn('snapshot["cameras"]', simulation_ready)
         self.assertNotIn('snapshot["recordings"]', simulation_ready)
         self.assertIn("visual_ready", server_source)
+        self.assertIn("ready = simulation_ready and visual_ready", server_source)
+        self.assertIn("status=200 if ready else 503", server_source)
+        self.assertNotIn(
+            'tiles["lifecycle"] == "refreshing"', server_source
+        )
 
-    def test_provider_session_reset_clears_cache_before_reload(self) -> None:
+    def test_provider_replacement_clears_http_cache_then_authors_shadow(self) -> None:
         operations: list[tuple[str, str | None]] = []
         cesium_interface = SimpleNamespace(
             clear_accessor_cache=lambda: operations.append(("clear_cache", None)),
-            reload_tileset=lambda path: operations.append(("reload", path)),
+        )
+        author_tileset = lambda name: (
+            operations.append(("author", name)) or "/World/Tileset_refresh_1"
         )
 
-        reset_provider_session(cesium_interface, "/World/Tileset")
+        path = begin_provider_session_replacement(
+            cesium_interface,
+            author_tileset,
+            "Tileset_refresh_1",
+        )
 
+        self.assertEqual(path, "/World/Tileset_refresh_1")
         self.assertEqual(
             operations,
             [
                 ("clear_cache", None),
-                ("reload", "/World/Tileset"),
+                ("author", "Tileset_refresh_1"),
             ],
         )
 

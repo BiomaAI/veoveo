@@ -241,14 +241,15 @@ class AdapterApplication:
             and bool(snapshot["cameras"])
             and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
         )
+        ready = simulation_ready and visual_ready
         return web.json_response(
             {
-                "ready": snapshot["lifecycle"] != "failed",
+                "ready": ready,
                 "simulation_ready": simulation_ready,
                 "visual_ready": visual_ready,
                 "status": snapshot["lifecycle"],
             },
-            status=503 if snapshot["lifecycle"] == "failed" else 200,
+            status=200 if ready else 503,
         )
 
     async def _get_state(self, _request: web.Request) -> web.Response:
@@ -386,9 +387,7 @@ class AdapterApplication:
 
     def _stream_content_ready(self) -> bool:
         tiles = self._state.snapshot()["tiles"]
-        return tiles["lifecycle"] == "ready" or (
-            tiles["lifecycle"] == "refreshing" and tiles["visible_tiles"] > 0
-        )
+        return tiles["lifecycle"] == "ready"
 
     def _execute_command(self, command: DirectCommand) -> dict[str, object]:
         self._state.require_session(command.session_id)
