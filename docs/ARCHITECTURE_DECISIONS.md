@@ -281,8 +281,8 @@ platform projections.
 
 Agent control is policy authority, not principal-kind authority. Reading agent
 state, sending an agent a message, and answering a pending input request are
-gateway actions that every caller — signed-in user or service principal — must
-pass through the selected profile's action policy. This replaces the earlier
+gateway actions that every caller, signed-in user and service principal alike,
+must pass through the selected profile's action policy. This replaces the earlier
 human-only restriction: an installation that wants human-only control expresses
 it as policy, and one that admits automated responders grants that authority to
 named principals explicitly. Messages never carry implicit authority, remain

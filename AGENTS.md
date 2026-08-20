@@ -173,9 +173,9 @@ in `cargo xtask`.
 
 The xtask surface is `doctor`, `enforce rust|python`, `image`, `release`, `smoke`,
 and `test-report`. Before committing a build-input change, run the checks it touches
-through the evidence recorder —
-`cargo xtask test-report run --name <check> -- <command>`, then
-`cargo xtask test-report show` — and commit the updated
+through the evidence recorder
+(`cargo xtask test-report run --name <check> -- <command>`, then
+`cargo xtask test-report show`) and commit the updated
 `testing/local-test-report.json` with the change, since the GitHub workflow only
 displays that committed evidence. Documentation-only changes do not invalidate build
 evidence. Do not commit red or stale report entries.

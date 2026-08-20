@@ -112,7 +112,7 @@ Agent control is its own authority surface, distinct from the membership
 table above. Reading agent state, sending an agent a message, and answering a
 pending input request are gateway actions (`agents_read`, `agents_message`,
 `agents_input_request_answer`) authorized by the selected profile's action
-policy rules — action, profile, principals, and required scopes — while
+policy rules (action, profile, principals, and required scopes), while
 Work Context membership scopes only which agents the caller can address.
 Both authenticated users and service principals are admissible responders;
 an installation that wants human-only control expresses it as policy rather
@@ -173,9 +173,9 @@ The starter platform vocabulary is deliberately small:
 - `administrator` identifies installation administration.
 - `operator:use` and `admin:manage` are functional OAuth scopes.
 
-Hosted servers add their own functional scopes beside these — the deployed
+Hosted servers add their own functional scopes beside these. The deployed
 chart carries domain scopes such as `map:route`, `time:schedule`,
-`view:capture`, `recording:ingest`, and the `uav-sim:*` family — so a real
+`view:capture`, `recording:ingest`, and the `uav-sim:*` family, so a real
 installation's scope inventory is the platform pair plus every admitted
 server's declared vocabulary.
 
