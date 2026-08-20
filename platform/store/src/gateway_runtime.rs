@@ -15,11 +15,13 @@ use crate::{
 
 const GATEWAY_POLICY_AUDIT: &str = "gateway_policy";
 const GATEWAY_AUTH_AUDIT: &str = "gateway_auth";
+const GATEWAY_TOOL_CALL_AUDIT: &str = "gateway_tool_call";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GatewayAuditKind {
     Policy,
     Auth,
+    ToolCall,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,6 +57,7 @@ impl GatewayAuditKind {
         match self {
             Self::Policy => GATEWAY_POLICY_AUDIT,
             Self::Auth => GATEWAY_AUTH_AUDIT,
+            Self::ToolCall => GATEWAY_TOOL_CALL_AUDIT,
         }
     }
 }

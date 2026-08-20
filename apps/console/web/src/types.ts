@@ -370,7 +370,7 @@ export interface AuditSummary {
   actor: string;
   action: string;
   resource: string;
-  outcome: "allowed" | "denied" | "failed";
+  outcome: "allowed" | "denied" | "failed" | "succeeded";
   sourceIp?: string;
   traceId?: string;
 }

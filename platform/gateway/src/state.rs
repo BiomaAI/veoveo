@@ -11,7 +11,7 @@ pub use audit::{
     GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMetadataSummary,
     GatewayAuthAuditMethodSummary, GatewayAuthAuditReasonSummary,
     GatewayPolicyAuditMetadataSummary, GatewayPolicyAuditMethodSummary,
-    GatewayPolicyAuditReasonSummary,
+    GatewayPolicyAuditReasonSummary, GatewayToolCallAuditEvent, GatewayToolCallResultKind,
 };
 pub use auth_state::GatewayReplayRetentionSummary;
 pub use refresh_tokens::{

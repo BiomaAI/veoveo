@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 44] = [
+const MIGRATIONS: [Migration; 45] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -291,6 +291,12 @@ const MIGRATIONS: [Migration; 44] = [
         name: "time_acquisition_release_index",
         filename: "0043_time_acquisition_release_index.surql",
         sql: include_str!("../migrations/0043_time_acquisition_release_index.surql"),
+    },
+    Migration {
+        version: 44,
+        name: "audit_operation_outcomes",
+        filename: "0044_audit_operation_outcomes.surql",
+        sql: include_str!("../migrations/0044_audit_operation_outcomes.surql"),
     },
 ];
 
@@ -590,6 +596,16 @@ mod tests {
             .expect("time acquisition release migration");
         assert!(migration.sql.contains("time_acquisition_staged_release"));
         assert!(migration.sql.contains("tenant, staged_release_key"));
+    }
+
+    #[test]
+    fn operation_audit_migration_distinguishes_success_from_policy_allow() {
+        let migration = migrations()
+            .iter()
+            .find(|migration| migration.version == 44)
+            .expect("operation audit migration");
+        assert!(migration.sql.contains("\"succeeded\""));
+        assert!(migration.sql.contains("DEFINE FIELD OVERWRITE outcome"));
     }
 
     #[test]

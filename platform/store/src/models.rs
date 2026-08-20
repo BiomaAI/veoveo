@@ -433,6 +433,7 @@ string_enum! {
         Allowed => "allowed",
         Denied => "denied",
         Failed => "failed",
+        Succeeded => "succeeded",
     }
 }
 

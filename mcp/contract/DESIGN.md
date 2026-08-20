@@ -131,6 +131,14 @@ same typed models, policy checks, audit paths, task state, artifact
 identities, and resource URIs. Hidden fallbacks, alternate completion paths,
 unaudited content URLs, and second sources of truth are prohibited.
 
+The gateway records authorization and execution as separate audit facts. A
+policy event reports whether `tools/call` was admitted. After an admitted call
+returns, a tool-call event reports `succeeded` or `failed`, the bounded result
+kind, duration, and the JSON-RPC error code when the failure crossed that
+boundary. It never records tool arguments, provider payloads, credentials, or
+an upstream error message. Both records carry the same trace identity, which
+keeps policy admission distinct from domain or protocol completion.
+
 Every tool declares its exact MCP task support as `required`, `optional`, or
 `forbidden`. A full-MCP client receives that declaration unchanged. A
 `tools_compat` registration may explicitly enable the direct task-call
