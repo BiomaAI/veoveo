@@ -98,6 +98,7 @@ fn media_manifest() -> ServerManifest {
         upstream: UpstreamEndpoint {
             transport: UpstreamTransport::StreamableHttp,
             url: UpstreamUrl::new("http://media-mcp:8787/media/mcp").unwrap(),
+            health_url: UpstreamUrl::new("http://media-mcp:8787/media/healthz").unwrap(),
             security: UpstreamTransportSecurity::ClusterInternalHttp,
             trusted_certificate_authorities: Vec::new(),
             client_certificate: None,

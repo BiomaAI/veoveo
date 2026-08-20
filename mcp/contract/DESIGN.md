@@ -30,6 +30,12 @@ complies with in its crate documents and in its contract resource.
 | `veoveo.io/live-view/v2` | provider-neutral authoritative camera descriptions, bounded viewer-product slots, actor-and-browser viewer leases, hardware encode identity, endpoint metadata, capacity, and redacted connection tokens |
 | `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 
+Each hosted server manifest declares separate typed upstream URLs for MCP and
+health traffic. The health URL is an unauthenticated HTTP `GET` endpoint whose
+successful response means the process can serve traffic. The gateway never
+uses an MCP request, an authentication failure, or a method rejection as a
+health signal.
+
 ## Live View Extension
 
 The live-view extension describes cameras rendered by the authoritative domain

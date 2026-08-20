@@ -8,6 +8,7 @@
     "upstream": {
       "transport": "streamable_http",
       "url": "http://anonymous-simulation-mcp:8812/anonymous-simulation/mcp",
+      "health_url": "http://anonymous-simulation-mcp:8812/anonymous-simulation/healthz",
       "security": "cluster_internal_http"
     },
     "capabilities": {

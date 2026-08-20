@@ -247,6 +247,7 @@ mod tests {
             serde_json::from_str(SMOKE_CONTROL_PLANE).expect("smoke control plane json");
         let upstream = &mut control_plane["servers"][0]["upstream"];
         upstream["url"] = json!("https://media.internal/media/mcp");
+        upstream["health_url"] = json!("https://media.internal/media/healthz");
         upstream["security"] = json!("mutual_tls");
         upstream["trusted_certificate_authorities"] = json!([
             {

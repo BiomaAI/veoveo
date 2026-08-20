@@ -149,6 +149,12 @@ fn write_chart_control_plane(base: &Path, output: &Path, upstream_url: &str) -> 
         "upstream": {
             "transport": "streamable_http",
             "url": upstream_url,
+            "health_url": format!(
+                "{}/healthz",
+                upstream_url
+                    .strip_suffix("/mcp")
+                    .expect("chart MCP upstream URL must end in /mcp")
+            ),
             "security": "loopback_http"
         },
         "capabilities": {
