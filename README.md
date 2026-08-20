@@ -13,13 +13,18 @@
   <a href="https://github.com/BiomaAI/veoveo/actions/workflows/local-test-report.yml"><img src="https://github.com/BiomaAI/veoveo/actions/workflows/local-test-report.yml/badge.svg?branch=main" alt="Build"></a>
 </p>
 
+<h3 align="center">Autonomous agents that run operations in the physical world.<br>
+On infrastructure you own.</h3>
+
 Veoveo is an operations platform for physical AI. Teams run agents that
 observe the physical world, rehearse in simulated worlds, act on real
 systems, and turn everything that happened into operational intelligence.
 The organization deploying Veoveo owns the whole installation: cluster,
 identity, storage, models, policies, domain name, and release process.
+What an engagement leaves behind is not a subscription. It is the factory.
 
 [Product tour](#product-tour) · [Agentic apps](#an-agentic-app-platform) ·
+[Compared to Palantir](#compared-to-palantir) ·
 [Executable showcases](#executable-showcases) ·
 [Connectors](#enterprise-connectors) ·
 [Deployment](#deploy-your-installation) ·
@@ -93,6 +98,32 @@ Console.
     <img src="docs/images/harness-poster.png" alt="The operational loop: live encoded media enters Stream directly, recording remains an independent governed evidence path, Reason grounds answers in Stream results and authorized recording snapshots, and agents act through the gateway's identity, policy, and audit boundary">
   </picture>
 </a>
+
+## Compared To Palantir
+
+**Palantir rents you an operational intelligence product. Veoveo is how
+you come to own one.** One installation covers the governed core of AIP,
+the operational ground of Gotham, and the delivery job of Apollo, with a
+working slice of Foundry beside them:
+
+| Palantir product | What it does | Where Veoveo stands |
+|---|---|---|
+| AIP | Governed AI agents acting on enterprise systems through a controlled action layer | The closest analog. Veoveo's gateway does the same job of identity, policy, durable tasks, and audit over the open Model Context Protocol, so any compatible host and any model can drive it. |
+| Gotham / Maven | Defense operational intelligence: sensor fusion, mission command, decision support | Shared domain, opposite approach. Veoveo comes at operations from the runtime side: rehearse the mission in simulation, act on real vehicles, and record everything that happened. |
+| Foundry | Enterprise data integration, ontology, and operational applications | A deliberate slice. Work Contexts, artifacts, and analytical stores form a governed data plane, and MCP Apps are operational interfaces shipped by the server that owns them. The ontology depth stays with Foundry. |
+| Apollo | Vendor-operated software delivery into customer environments | Inverted. Veoveo's GitOps factory does the same job, and the installation owner operates it. Nobody delivers into you. |
+
+What none of them carry is physical AI as a first-class citizen. Real
+simulator runtimes with real autopilot firmware, live video pipelines,
+vehicle actuation, and a world-state timeline that makes every mission
+replayable as evidence. Palantir integrates data about operations. Veoveo
+runs, rehearses, and records the operations themselves.
+
+Veoveo is the substrate for building an operational intelligence
+capability an organization owns outright: its sensors, its doctrine, its
+applications, inside its own boundary. A Foundry deployment can even sit beside it:
+Palantir appears in the [connector catalog](docs/connectors/README.md)
+like any other enterprise platform.
 
 ## An Agentic App Platform
 
