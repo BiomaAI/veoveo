@@ -36,6 +36,14 @@ const selected = catalog.screenshots.filter((shot) => requestedIds.has(shot.id))
 const missingIds = [...requestedIds].filter((id) => !selected.some((shot) => shot.id === id));
 if (missingIds.length > 0) throw new Error(`unknown screenshot id(s): ${missingIds.join(", ")}`);
 
+const isaacRequested = selected.filter((shot) => shot.captureMode === "isaac" && !captureAll);
+if (isaacRequested.length > 0) {
+  throw new Error(
+    `isaac captures come from the live Isaac Sim viewport via the UAV showcase, not this tool: `
+      + isaacRequested.map((shot) => shot.id).join(", "),
+  );
+}
+
 const cdpUrl = process.env.CHROME_CDP_URL ?? "http://127.0.0.1:9222";
 const browser = await chromium.connectOverCDP(cdpUrl);
 
@@ -77,7 +85,7 @@ function validateCatalog(value) {
     }
     if (ids.has(shot.id)) throw new Error(`duplicate screenshot id ${shot.id}`);
     ids.add(shot.id);
-    if (!new Set(["console", "rerun", "manual"]).has(shot.captureMode)) {
+    if (!new Set(["console", "rerun", "manual", "isaac"]).has(shot.captureMode)) {
       throw new Error(`unsupported captureMode ${shot.captureMode} for ${shot.id}`);
     }
     if (shot.captureMode === "manual" && typeof shot.pageUrlPattern !== "string") {
@@ -235,6 +243,10 @@ async function runConsoleRecipe(page, recipe) {
     case "app-timeseries":
       await openApp(page, "Timeseries forecast view");
       await populateTimeseriesApp(page);
+      break;
+    case "agents":
+      await navigate(page, "Agents");
+      await page.getByText(/Agents stay addressable while idle/).first().waitFor();
       break;
     case "access":
       await navigate(page, "Access");

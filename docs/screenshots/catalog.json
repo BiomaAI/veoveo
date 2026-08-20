@@ -188,6 +188,17 @@
       }
     },
     {
+      "id": "console-agents",
+      "title": "Durable agent conversations",
+      "category": "console",
+      "purpose": "Show registered agents staying addressable across episodes, with actor-attributed conversation, durable message submission, and pending input-request decisions.",
+      "output": "gallery/console-agents.png",
+      "captureMode": "console",
+      "recipe": "agents",
+      "requires": ["authenticated-console", "registered-agents"],
+      "redaction": "identity"
+    },
+    {
       "id": "console-access",
       "title": "Work Context access",
       "category": "governance",
