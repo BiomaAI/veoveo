@@ -106,6 +106,18 @@ mod tests {
     }
 
     #[test]
+    fn preview_app_hydrates_and_reuses_initial_compositions() {
+        let html = preview_app_html();
+        for needle in [
+            "app.composition = record",
+            "composition ready",
+            "app.composition.base_layer === selectedLayer",
+        ] {
+            assert!(html.contains(needle), "app must contain {needle}");
+        }
+    }
+
+    #[test]
     fn preview_app_keeps_orientation_without_a_reference_grid() {
         let html = preview_app_html();
         assert!(!html.contains("THREE.GridHelper"));

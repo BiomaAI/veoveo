@@ -11,7 +11,7 @@ use rmcp::{
         GetTaskResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
         PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
         ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
-        UpdateTaskParams,
+        Tool, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -25,7 +25,8 @@ use crate::{
         CreateViewRequest, FrameRecord, SceneComposition, SetCameraRequest, ViewRecord,
     },
     server::{AppState, auth::ForwardedBearer, tasks::ViewTaskExtension},
-    state::ResourceOwner,
+    source::LayerSummary,
+    state::{ResourceOwner, ServiceError},
     uris,
 };
 
@@ -72,7 +73,7 @@ impl ViewMcp {
     ///
     #[tool(
         title = "Create scene composition",
-        description = "Create an immutable owner-scoped scene composition from one configured 3D Tiles base layer, exact governed inputs, an optional Frames revision binding, and bounded ordered overlays.",
+        description = "Create an immutable owner-scoped scene composition from one configured 3D Tiles base layer, exact governed inputs, an optional Frames revision binding, and bounded ordered overlays. Use an exact base_layer identifier advertised by this tool's runtime input schema; labels and source kinds are not identifiers. The credential-free catalog is also available at view://layers.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SceneComposition>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = true)
     )]
@@ -88,7 +89,7 @@ impl ViewMcp {
             .views
             .create_scene_composition(&identity, &caller, request)
             .await
-            .map_err(invalid_params)?;
+            .map_err(|error| invalid_scene_composition_params(error, self.state.views.layers()))?;
         self.state
             .subscriptions
             .notify_resource_updated(uris::COMPOSITIONS)
@@ -306,6 +307,7 @@ impl ServerHandler for ViewMcp {
         // The #[tool] macro has no meta attribute; app links attach here.
         tools = tools
             .into_iter()
+            .map(|tool| advertise_configured_layers(tool, self.state.views.layers()))
             .map(|tool| {
                 if PREVIEW_APP_TOOLS.contains(&tool.name.as_ref()) {
                     veoveo_mcp_apps_extension::link_tool_to_app(
@@ -831,17 +833,113 @@ fn invalid_params(error: impl std::fmt::Display) -> McpError {
     McpError::invalid_params(error.to_string(), None)
 }
 
+fn invalid_scene_composition_params(error: ServiceError, layers: &[LayerSummary]) -> McpError {
+    let ServiceError::LayerNotFound(requested) = error else {
+        return invalid_params(error);
+    };
+    let valid = layers
+        .iter()
+        .map(|layer| format!("`{}`", layer.layer_id))
+        .collect::<Vec<_>>()
+        .join(", ");
+    invalid_params(format!(
+        "scene layer `{requested}` is not configured; valid base_layer identifiers: [{valid}]; read view://layers for labels and source kinds"
+    ))
+}
+
+fn advertise_configured_layers(mut tool: Tool, layers: &[LayerSummary]) -> Tool {
+    if tool.name.as_ref() != "create_scene_composition" {
+        return tool;
+    }
+    let identifiers = layers
+        .iter()
+        .map(|layer| serde_json::Value::String(layer.layer_id.to_string()))
+        .collect::<Vec<_>>();
+    let schema = Arc::make_mut(&mut tool.input_schema);
+    let Some(base_layer) = schema
+        .get_mut("properties")
+        .and_then(serde_json::Value::as_object_mut)
+        .and_then(|properties| properties.get_mut("base_layer"))
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        tracing::error!("generated create_scene_composition schema omitted base_layer");
+        return tool;
+    };
+    base_layer.insert(
+        "description".to_owned(),
+        serde_json::Value::String(
+            "Exact configured layer_id. Use one of the runtime-advertised enum values; do not use the display label or source_kind. Read view://layers for the credential-free catalog."
+                .to_owned(),
+        ),
+    );
+    base_layer.insert(
+        "enum".to_owned(),
+        serde_json::Value::Array(identifiers.clone()),
+    );
+    if let [identifier] = identifiers.as_slice() {
+        base_layer.insert("default".to_owned(), identifier.clone());
+    }
+    tool
+}
+
 fn internal(error: impl std::fmt::Display) -> McpError {
     McpError::internal_error(error.to_string(), None)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{contract::LayerId, source::LayerSummary, state::ServiceError};
+
     use super::*;
 
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
         assert!(!ViewMcp::tool_router().list_all().is_empty());
+    }
+
+    #[test]
+    fn scene_composition_schema_advertises_runtime_layer_identifiers() {
+        let tool = ViewMcp::tool_router()
+            .list_all()
+            .into_iter()
+            .find(|tool| tool.name.as_ref() == "create_scene_composition")
+            .expect("composition tool");
+        let layer = LayerSummary {
+            layer_id: LayerId::new("google-photorealistic").unwrap(),
+            label: "Google Photorealistic 3D Tiles".to_owned(),
+            source_kind: "google_photorealistic".to_owned(),
+        };
+        let tool = advertise_configured_layers(tool, &[layer]);
+        let schema = serde_json::Value::Object(tool.input_schema.as_ref().clone());
+        let base_layer = schema
+            .pointer("/properties/base_layer")
+            .expect("base_layer schema");
+        assert_eq!(
+            base_layer["enum"],
+            serde_json::json!(["google-photorealistic"])
+        );
+        assert_eq!(base_layer["default"], "google-photorealistic");
+        assert!(
+            base_layer["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("view://layers"))
+        );
+    }
+
+    #[test]
+    fn unknown_layer_error_returns_exact_recovery_values() {
+        let layers = [LayerSummary {
+            layer_id: LayerId::new("google-photorealistic").unwrap(),
+            label: "Google Photorealistic 3D Tiles".to_owned(),
+            source_kind: "google_photorealistic".to_owned(),
+        }];
+        let error = invalid_scene_composition_params(
+            ServiceError::LayerNotFound(LayerId::new("google").unwrap()),
+            &layers,
+        );
+        assert_eq!(error.code, rmcp::model::ErrorCode::INVALID_PARAMS);
+        assert!(error.message.contains("`google-photorealistic`"));
+        assert!(error.message.contains("view://layers"));
     }
 
     #[test]
