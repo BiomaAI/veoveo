@@ -55,6 +55,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://media-mcp:8787/media/mcp",
+        "health_url": "http://media-mcp:8787/media/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -107,6 +108,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://uav-sim-mcp:8802/uav-sim/mcp",
+        "health_url": "http://uav-sim-mcp:8802/uav-sim/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -168,6 +170,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://stream-mcp:8797/stream/mcp",
+        "health_url": "http://stream-mcp:8797/stream/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -204,6 +207,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://reason-mcp:8803/reason/mcp",
+        "health_url": "http://reason-mcp:8803/reason/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -236,6 +240,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://timeseries-mcp:8789/timeseries/mcp",
+        "health_url": "http://timeseries-mcp:8789/timeseries/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -268,6 +273,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://duckdb-mcp:8791/duckdb/mcp",
+        "health_url": "http://duckdb-mcp:8791/duckdb/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -299,6 +305,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://optimization-mcp:8792/optimization/mcp",
+        "health_url": "http://optimization-mcp:8792/optimization/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -344,6 +351,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://frames-mcp:8793/frames/mcp",
+        "health_url": "http://frames-mcp:8793/frames/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -382,6 +390,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://map-mcp:8799/map/mcp",
+        "health_url": "http://map-mcp:8799/map/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -463,6 +472,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://view-mcp:8801/view/mcp",
+        "health_url": "http://view-mcp:8801/view/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -499,6 +509,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://time-mcp:8800/time/mcp",
+        "health_url": "http://time-mcp:8800/time/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -541,6 +552,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://datasheet-mcp:8798/datasheet/mcp",
+        "health_url": "http://datasheet-mcp:8798/datasheet/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -575,6 +587,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://artifact-mcp:8794/artifact/mcp",
+        "health_url": "http://artifact-mcp:8794/artifact/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -612,6 +625,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-mcp:8796/mcp",
+        "health_url": "http://recording-mcp:8796/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -654,6 +668,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://chart-mcp:8795/charts/mcp",
+        "health_url": "http://chart-mcp:8795/charts/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -693,6 +708,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://rerun-bridge:8790/mcp",
+        "health_url": "http://rerun-bridge:8790/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -1680,6 +1696,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-hub:9878",
+        "health_url": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"
       },
       "maximum_batch_bytes": 8388608,

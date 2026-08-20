@@ -68,7 +68,8 @@ pub(super) fn cmd_gateway_two_server_smoke_control_plane(
             "mcp_path": "/simulation/mcp",
             "upstream": {
                 "transport": "streamable_http",
-                "url": simulation_upstream_url,
+                "url": &simulation_upstream_url,
+                "health_url": upstream_health_url(&simulation_upstream_url),
                 "security": "loopback_http"
             },
             "capabilities": fake_hosted_capabilities(),
@@ -137,6 +138,7 @@ fn replace_media_server_with_duckdb(
         "upstream": {
             "transport": "streamable_http",
             "url": duckdb_upstream_url,
+            "health_url": upstream_health_url(duckdb_upstream_url),
             "security": "loopback_http"
         },
         "capabilities": {
@@ -352,6 +354,7 @@ fn pilot_server_manifest(
         "upstream": {
             "transport": "streamable_http",
             "url": upstream_url,
+            "health_url": upstream_health_url(upstream_url),
             "security": "loopback_http"
         },
         "capabilities": capabilities,
@@ -492,6 +495,7 @@ fn configure_fake_server(
     server["upstream"] = json!({
         "transport": "streamable_http",
         "url": upstream_url,
+        "health_url": upstream_health_url(upstream_url),
         "security": "loopback_http"
     });
     server["capabilities"] = fake_hosted_capabilities();
@@ -500,6 +504,13 @@ fn configure_fake_server(
     server["prompts"] = json!([prompt]);
     server["owned_routes"] = json!([]);
     Ok(())
+}
+
+fn upstream_health_url(mcp_url: &str) -> String {
+    let base = mcp_url
+        .strip_suffix("/mcp")
+        .expect("smoke MCP upstream URL must end in /mcp");
+    format!("{base}/healthz")
 }
 
 fn append_server_manifest(control_plane: &mut Value, server: Value) -> Result<()> {

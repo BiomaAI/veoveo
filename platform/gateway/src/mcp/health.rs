@@ -51,7 +51,7 @@ async fn probe_server(
     let state = match upstream_http.client(catalog, server).await {
         Ok(client) => match tokio::time::timeout(
             SERVER_HEALTH_TIMEOUT,
-            client.head(server.upstream.url.as_str()).send(),
+            client.get(server.upstream.health_url.as_str()).send(),
         )
         .await
         {
@@ -74,11 +74,7 @@ async fn probe_server(
 }
 
 fn classify_status(status: reqwest::StatusCode) -> GatewayServerHealthState {
-    if status.is_success()
-        || (status.is_client_error()
-            && status != reqwest::StatusCode::NOT_FOUND
-            && status != reqwest::StatusCode::GONE)
-    {
+    if status.is_success() {
         GatewayServerHealthState::Healthy
     } else {
         GatewayServerHealthState::Degraded
@@ -90,18 +86,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn classifies_reachable_mcp_responses_without_hiding_bad_routes() {
+    fn requires_a_successful_health_response() {
         assert_eq!(
             classify_status(reqwest::StatusCode::NO_CONTENT),
             GatewayServerHealthState::Healthy
         );
         assert_eq!(
             classify_status(reqwest::StatusCode::UNAUTHORIZED),
-            GatewayServerHealthState::Healthy
+            GatewayServerHealthState::Degraded
         );
         assert_eq!(
             classify_status(reqwest::StatusCode::METHOD_NOT_ALLOWED),
-            GatewayServerHealthState::Healthy
+            GatewayServerHealthState::Degraded
         );
         assert_eq!(
             classify_status(reqwest::StatusCode::NOT_FOUND),

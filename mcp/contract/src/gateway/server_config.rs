@@ -647,6 +647,7 @@ impl From<ResourceUriTemplate> for String {
 pub struct UpstreamEndpoint {
     pub transport: UpstreamTransport,
     pub url: UpstreamUrl,
+    pub health_url: UpstreamUrl,
     pub security: UpstreamTransportSecurity,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trusted_certificate_authorities: Vec<CertificateAuthoritySource>,

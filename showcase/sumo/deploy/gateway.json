@@ -38,6 +38,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://sumo-mcp:8795/sumo/mcp",
+        "health_url": "http://sumo-mcp:8795/sumo/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -161,6 +162,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-hub:9878",
+        "health_url": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"
       },
       "maximum_batch_bytes": 8388608,

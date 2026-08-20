@@ -849,6 +849,7 @@ mod recording_ingest_tests {
             upstream: UpstreamEndpoint {
                 transport: UpstreamTransport::StreamableHttp,
                 url: UpstreamUrl::new("http://recording-hub:9878").unwrap(),
+                health_url: UpstreamUrl::new("http://recording-hub:9878/healthz").unwrap(),
                 security: UpstreamTransportSecurity::ClusterInternalHttp,
                 trusted_certificate_authorities: Vec::new(),
                 client_certificate: None,

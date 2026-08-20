@@ -38,6 +38,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://127.0.0.1:18801/media/mcp",
+        "health_url": "http://127.0.0.1:18801/media/healthz",
         "security": "loopback_http"
       },
       "capabilities": {
@@ -183,6 +184,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-hub:9878",
+        "health_url": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"
       },
       "maximum_batch_bytes": 8388608,

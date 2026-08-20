@@ -102,6 +102,7 @@ fn media_manifest() -> ServerManifest {
         upstream: UpstreamEndpoint {
             transport: UpstreamTransport::StreamableHttp,
             url: UpstreamUrl::new("http://media-mcp:8787/media/mcp").unwrap(),
+            health_url: UpstreamUrl::new("http://media-mcp:8787/media/healthz").unwrap(),
             security: UpstreamTransportSecurity::ClusterInternalHttp,
             trusted_certificate_authorities: Vec::new(),
             client_certificate: None,
@@ -488,6 +489,8 @@ fn resource_uri_templates_reject_unsupported_expressions() {
 fn control_plane_validates_upstream_transport_security() {
     let mut loopback_manifest = media_manifest();
     loopback_manifest.upstream.url = UpstreamUrl::new("http://127.0.0.1:18801/media/mcp").unwrap();
+    loopback_manifest.upstream.health_url =
+        UpstreamUrl::new("http://127.0.0.1:18801/media/healthz").unwrap();
     loopback_manifest.upstream.security = UpstreamTransportSecurity::LoopbackHttp;
     let config = GatewayControlPlane {
         branding: None,
@@ -511,6 +514,8 @@ fn control_plane_validates_upstream_transport_security() {
     let mut mesh_manifest = media_manifest();
     mesh_manifest.upstream.url =
         UpstreamUrl::new("http://media-mcp.default.svc.cluster.local/media/mcp").unwrap();
+    mesh_manifest.upstream.health_url =
+        UpstreamUrl::new("http://media-mcp.default.svc.cluster.local/media/healthz").unwrap();
     mesh_manifest.upstream.security = UpstreamTransportSecurity::ServiceMeshMtls;
     let config = GatewayControlPlane {
         branding: None,
@@ -568,6 +573,8 @@ fn control_plane_validates_upstream_transport_security() {
 fn mutual_tls_upstream_requires_typed_client_material() {
     let mut manifest = media_manifest();
     manifest.upstream.url = UpstreamUrl::new("https://media.example.com/media/mcp").unwrap();
+    manifest.upstream.health_url =
+        UpstreamUrl::new("https://media.example.com/media/healthz").unwrap();
     manifest.upstream.security = UpstreamTransportSecurity::MutualTls;
 
     let err = control_plane_with_server_and_secrets(manifest.clone(), default_secrets())

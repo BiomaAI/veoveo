@@ -440,6 +440,8 @@ mod tests {
             upstream: UpstreamEndpoint {
                 transport: UpstreamTransport::StreamableHttp,
                 url: UpstreamUrl::new(format!("http://{slug}-mcp:8787/{slug}/mcp")).unwrap(),
+                health_url: UpstreamUrl::new(format!("http://{slug}-mcp:8787/{slug}/healthz"))
+                    .unwrap(),
                 security: UpstreamTransportSecurity::ClusterInternalHttp,
                 trusted_certificate_authorities: Vec::new(),
                 client_certificate: None,

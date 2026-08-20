@@ -349,15 +349,16 @@ pub(super) fn validate_server_capabilities(
 pub(super) fn validate_server_upstream(
     server: &ServerManifest,
 ) -> Result<(), GatewayControlPlaneError> {
-    if upstream_security_allows_url(server.upstream.security, &server.upstream.url) {
-        Ok(())
-    } else {
-        Err(GatewayControlPlaneError::ServerUpstreamSecurityMismatch {
-            server: server.slug.clone(),
-            security: server.upstream.security,
-            url: server.upstream.url.clone(),
-        })
+    for url in [&server.upstream.url, &server.upstream.health_url] {
+        if !upstream_security_allows_url(server.upstream.security, url) {
+            return Err(GatewayControlPlaneError::ServerUpstreamSecurityMismatch {
+                server: server.slug.clone(),
+                security: server.upstream.security,
+                url: url.clone(),
+            });
+        }
     }
+    Ok(())
 }
 
 pub(super) fn validate_server_upstream_tls_material(
