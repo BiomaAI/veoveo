@@ -177,14 +177,35 @@ async function installDirectConsoleRoute(page, consoleUrl, directUrl) {
 }
 
 async function loadConsoleBaseline(page, consoleUrl) {
-  const response = await page.goto(consoleUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  if (!response?.ok()) throw new Error(`Console navigation returned ${response?.status() ?? "no response"}`);
+  // The live stream route budgets connects, so an already-live session is
+  // reused instead of reloading before every shot; overlays are dismissed.
+  const alreadyLive = await (async () => {
+    try {
+      if (!page.url().startsWith(new URL(consoleUrl).origin)) return false;
+      if (!new URL(page.url()).pathname.startsWith("/console/")) return false;
+      return await page.locator(".sidebar-foot strong", { hasText: "Live" }).count() > 0;
+    } catch {
+      return false;
+    }
+  })();
+  if (alreadyLive) {
+    const scrim = page.locator(".drawer-scrim");
+    if (await scrim.count() > 0) {
+      await scrim.click();
+      await page.locator(".drawer-scrim").waitFor({ state: "detached", timeout: 10_000 });
+    }
+    await page.keyboard.press("Escape");
+  } else {
+    const response = await page.goto(consoleUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    if (!response?.ok()) throw new Error(`Console navigation returned ${response?.status() ?? "no response"}`);
+  }
   await page.waitForTimeout(500);
   const current = new URL(page.url());
   if (current.pathname.startsWith("/auth/")) {
     throw new Error("Chrome is not authenticated for this Console; complete login in the attached profile");
   }
   await page.getByText(/platform services healthy/i).waitFor({ timeout: 30_000 });
+  await page.locator(".sidebar-foot strong", { hasText: "Live" }).waitFor({ state: "attached", timeout: 90_000 });
   await page.addStyleTag({
     content: `
       *, *::before, *::after {
@@ -467,9 +488,9 @@ async function frameWithText(page, text) {
 
 async function capturePage(page, shot) {
   if (shot.captureMode === "console") {
-    await page.getByRole("complementary").getByText("Live", { exact: true }).waitFor({ timeout: 30_000 });
+    await page.getByRole("complementary").getByText("Live", { exact: true }).first()
+      .waitFor({ state: "attached", timeout: 30_000 });
   }
-  await redactRenderedIdentity(page);
   await page.evaluate(async () => {
     await document.fonts.ready;
     window.scrollTo(0, 0);
@@ -477,6 +498,8 @@ async function capturePage(page, shot) {
   await page.waitForTimeout(300);
   const output = path.resolve(screenshotRoot, shot.output);
   await mkdir(path.dirname(output), { recursive: true });
+  // Redact last so a reactive re-render cannot restore identity before capture.
+  await redactRenderedIdentity(page);
   await page.screenshot({ path: output, type: "png" });
   console.log(`captured ${shot.id} -> ${path.relative(repositoryRoot, output)}`);
 }
@@ -499,19 +522,30 @@ async function capturePreparedBrowserShot(context, shot, defaults) {
 }
 
 async function redactRenderedIdentity(page) {
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const principalUri = /https?:\/\/[^\s<]+#[A-Za-z0-9._~:/?#[\]@!$&'()*+,;=%-]+/g;
     const email = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
     const bearerQuery = /([?&](?:token|code|state)=)[^&\s]+/gi;
+    const accountName = await fetch("/console/api/snapshot", { credentials: "include" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((snapshot) => snapshot?.session?.displayName?.trim() ?? "")
+      .catch(() => "")
+      || document.querySelector(".user-menu strong")?.textContent?.trim()
+      || "";
+    const accountInitials = accountName
+      ? accountName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)
+      : "";
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
     for (const node of nodes) {
       const current = node.nodeValue ?? "";
-      const redacted = current
+      let redacted = current
         .replace(principalUri, "identity://redacted")
         .replace(email, "identity@example.invalid")
         .replace(bearerQuery, "$1redacted");
+      if (accountName) redacted = redacted.replaceAll(accountName, "Operator");
+      if (accountInitials && current === accountInitials) redacted = "OP";
       if (redacted !== current) node.nodeValue = redacted;
     }
   });
@@ -641,14 +675,13 @@ async function assertHardwareCaptureBrowser(page, shotId) {
   ].join(" ").toLowerCase();
   const webglFingerprint = `${renderer.webglVendor} ${renderer.webglRenderer}`.trim().toLowerCase();
   const hardwareWebGpu = Boolean(renderer.vendor)
-    && fingerprint.includes("nvidia")
     && !/(swiftshader|llvmpipe|software)/.test(fingerprint);
   const hardwareWebGl = renderer.webglAvailable
-    && webglFingerprint.includes("nvidia")
+    && webglFingerprint.length > 0
     && !/(swiftshader|llvmpipe|software)/.test(webglFingerprint);
   if (!hardwareWebGpu && !hardwareWebGl) {
     throw new Error(
-      `${shotId} requires hardware-backed NVIDIA WebGPU or WebGL; `
+      `${shotId} requires hardware-backed WebGPU or WebGL; `
         + `received WebGPU ${fingerprint || "none"} and WebGL ${webglFingerprint || "none"}`,
     );
   }
