@@ -108,19 +108,19 @@ date) supports a stronger starting claim than most products at this stage.
 **Pillar 1 — largely built.** Work Contexts carry classification and data
 labels; artifact creation stamps authority from the gateway-signed token and
 unions context labels with declared sensitivity, so producers cannot
-self-declassify (`platform/artifacts/service/src/service.rs:301-344`).
+self-declassify (`platform/artifacts/service/src/service.rs:306-344`).
 Access composes tenancy, discretionary grants, and a mandatory clearance
 check that no grant can override (`mcp/contract/src/access.rs:274-293`).
 Missing: UI banners and marking display, marking propagation into exports
 and recordings, and a clearance re-check on public share redemption
-(`service.rs:596-632` gates only on release state).
+(`service.rs:612-650` gates only on release state).
 
 **Pillar 2 — strong core, thin vocabulary.** PKCE is mandatory S256,
 symmetric JWT algorithms are structurally rejected, refresh tokens rotate in
 replay-detected families, the Console BFF keeps bearer tokens out of the
 browser, and policy is fail-closed ABAC with tenant partition checked first.
 The assurance vocabulary has exactly one value, `UsPerson`
-(`mcp/contract/src/gateway/policy.rs:195-196`) — the ITAR hook exists and is
+(`mcp/contract/src/gateway/policy.rs:205-207`) — the ITAR hook exists and is
 enforced end to end, but assurance acquisition is delegated entirely to
 undocumented IdP claim mapping, and there is no authenticator-strength
 (AAL) vocabulary, no session lock/timeout controls, and no system use
@@ -159,7 +159,9 @@ reset. No data residency control exists beyond an S3 region string.
 NetworkPolicies, an offline mode that drops all egress rules, an enumerable
 provider list, and verified absence of phone-home. The leaks: the agent
 kernel's LLM endpoint is Cloudflare Workers AI in the production manifest
-(`agents/kernel/src/llm.rs`), so agent context leaves the boundary unless a
+(`configs/agents/pilot/manifest.json:8`; the kernel itself is
+provider-neutral and reads `model.base_url` from the reviewed manifest,
+`agents/kernel/src/llm.rs:27`), so agent context leaves the boundary unless a
 local endpoint is configured; the media provider receives full generation
 inputs; NetworkPolicy exceptions omit link-local (169.254.0.0/16) and CGNAT
 (100.64.0.0/10) ranges; and Rerun's usage analytics default on in release
@@ -167,10 +169,13 @@ builds. Separately, Google Photorealistic 3D Tiles prohibits caching,
 offline use, and ML analysis outright — that content source cannot follow
 the product into restricted deployments at all.
 
-**Pillar 7 — SBOMs yes, signatures no.** The offline bundle ships SPDX
-SBOMs per image, SHA-256 checksums, and digest-pinned external images. There
-is no cosign/Sigstore signing, no SLSA provenance, no verification at
-admission, and Veoveo's own images are tag-pinned rather than digest-pinned
+**Pillar 7 — SBOMs and provenance yes, signatures no.** The offline bundle
+ships SPDX SBOMs per image, SHA-256 checksums, and digest-pinned external
+images, and OCI publication refuses any image missing either its SPDX SBOM
+or its SLSA v1 provenance attestation
+(`tools/xtask/src/commands/image_manifest.rs:206-208`). There is no
+cosign/Sigstore signing, no verification at admission, and Veoveo's own
+images are tag-pinned rather than digest-pinned
 in the bundle lockfile. The k3s reference is not the STIG-certified
 Kubernetes (RKE2 is), and MinIO — the obvious object-store choice a year ago
 — is now unmaintained community-side, which validates the rustfs caution but
@@ -194,7 +199,7 @@ Priority 2 is the program that makes it durable.
 | G4 | Audit not immutable and silently expires; no WORM export path | 4 | 0 |
 | G5 | No AAL vocabulary (MFA/PIV/acr), session controls, or system use notification | 2 | 0 |
 | G6 | Agent LLM egress defaults external in the production manifest | 6 | 0 |
-| G7 | No image signing, provenance, or own-image digest pinning | 7 | 1 |
+| G7 | No image signing, admission verification, or own-image digest pinning | 7 | 1 |
 | G8 | Share-link redemption skips label clearance; export/marking propagation absent | 1 | 1 |
 | G9 | No governed storage profile: default store is beta rustfs with no Object Lock capability | 7 | 1 |
 | G10 | Restricted-deployment geo content: Google tiles licensing bars caching/offline/ML use | 6 | 1 |
@@ -297,8 +302,8 @@ P1 items harden the claim; P2 items build the assessor-facing program.
 
 ### Supply chain and configuration (SR-3, SR-4, SR-11, CM-6)
 
-- [ ] G7/P1 — cosign signing of images and OCI charts; SLSA provenance as
-      in-toto attestations; published verification instructions
+- [ ] G7/P1 — cosign signing of images and OCI charts over the existing
+      SLSA provenance attestations; published verification instructions
 - [ ] G7/P1 — Digest-pin Veoveo's own images in the offline bundle lockfile
 - [ ] G16/P2 — RKE2-based hardened reference profile beside the k3d
       developer profile
