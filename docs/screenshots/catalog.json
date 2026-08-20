@@ -77,7 +77,6 @@
       "rendering": {
         "surface": "embedded Rerun Web Viewer",
         "backend": "WebGPU",
-        "adapter": "Apple M3 Max",
         "theme": "dark",
         "softwareFallbackAllowed": false
       }
@@ -278,7 +277,6 @@
       "rendering": {
         "surface": "full-screen governed Rerun Web Viewer",
         "backend": "WebGPU",
-        "adapter": "NVIDIA Lovelace",
         "theme": "dark",
         "softwareFallbackAllowed": false
       }
@@ -296,7 +294,6 @@
       "rendering": {
         "surface": "Rerun Web Viewer",
         "backend": "WebGPU",
-        "adapter": "NVIDIA Lovelace",
         "theme": "dark",
         "softwareFallbackAllowed": false
       }
