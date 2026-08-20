@@ -237,8 +237,11 @@ speaks the same protocol that agents use.
 
 An MCP server can deliver a self-contained interface with its protocol result.
 The host provides the sandbox and theme; Veoveo retains authorization, task,
-artifact, and audit semantics behind each action. The View app below was invoked
-from natural language and rendered by an external MCP host.
+artifact, and audit semantics behind each action. The Console also ships a
+standalone authenticated app host, so an installation can hand a single app
+to its users as a full-page surface without the rest of the Console around
+it. The View app below was invoked from natural language and rendered by an
+external MCP host.
 
 <p align="center">
   <a href="docs/screenshots/gallery/mcp-app-view-claude.png">
@@ -303,7 +306,10 @@ recipes let a coding agent install a vendor's MCP server beside the Veoveo
 connector and put both to work in one session, from lakehouse queries to
 satellite tasking to incident response. The
 [connector catalog](docs/connectors/README.md) records the verified install
-surface, auth model, and status for every platform.
+surface, auth model, and status for every platform. Systems that still speak
+the MCP `2025-11-25` revision join through an isolated
+[legacy bridge](mcp/bridges/legacy/DESIGN.md) that keeps the installation's
+own protocol surface uncompromised.
 
 <table align="center" aria-label="Enterprise connector logos">
   <tbody>
@@ -362,7 +368,7 @@ their respective owners.*
 <a href="docs/images/system-map.png">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/system-map-dark.png">
-    <img src="docs/images/system-map.png" alt="Live H.264 enters Stream directly while optional recording flows through a producer-local forwarder; Stream results and recording snapshots feed Reason, and agents reach 17 hosted servers through the governed gateway">
+    <img src="docs/images/system-map.png" alt="Live H.264 enters Stream directly while optional recording flows through a producer-local forwarder; Stream results and recording snapshots feed Reason, and agents reach 16 hosted servers through the governed gateway">
   </picture>
 </a>
 
@@ -565,7 +571,8 @@ cargo xtask smoke helm-config
 cargo xtask smoke sumo-push
 cargo test -p veoveo-uav-sim-mcp --all-targets
 PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
-  uv run --with numpy==2.5.1 --with pymavlink==2.4.49 --python python3 \
+  uv run --with numpy==2.5.1 --with aiohttp==3.14.1 \
+  --with pymavlink==2.4.49 --with fastcrc==0.3.6 --python 3.13 \
   python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 ```
 
@@ -596,11 +603,15 @@ planned dedicated GPU CI architecture are described in
 | [`mcp/`](mcp/) | Shared MCP contracts, task and app extensions, and bridges. |
 | [`platform/`](platform/) | Gateway, persistence, task, artifact, recording, and query runtimes. |
 | [`servers/`](servers/) | Hosted MCP servers and their domain designs. |
+| [`extensions/`](extensions/) | Release, compatibility, and conformance contracts for externally owned extensions. |
+| [`sdk/`](sdk/) | Python SDK shared by showcase runtimes and external clients. |
+| [`templates/`](templates/) | Python MCP server template behind the datasheet server. |
 | [`showcase/uav-sim/`](showcase/uav-sim/) | Isaac, Cesium, Pegasus, and PX4 UAV workload. |
 | [`showcase/sumo/`](showcase/sumo/) | SUMO, LuST, TraCI, and the traffic world MCP server. |
 | [`deploy/`](deploy/) | Helm, local k3d, and offline installation material. |
 | [`examples/bioma/`](examples/bioma/) | Enterprise GitOps reference installation. |
 | [`testing/`](testing/) | Protocol conformance and multi-process smoke harnesses. |
+| [`tools/xtask/`](tools/xtask/) | Typed repository commands: doctor, enforce, image, release, smoke, test-report. |
 | [`tools/screenshots/`](tools/screenshots/) | Repeatable authenticated Console, MCP App, and Rerun captures. |
 | [`docs/`](docs/) | Architecture, governance, deployment, recording, and harness documentation. |
 

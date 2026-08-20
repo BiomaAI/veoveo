@@ -61,10 +61,13 @@ deployed extension whose gateway entry joins an installation's catalog.
 Checks are generic over a discovered catalog and never enumerate servers by
 hand:
 
-- In the repository, a server is any cargo workspace member under `servers/`
-  whose crate name ends in `-mcp`.
+- In the repository, a server is any directory under `servers/` whose name
+  ends in `-mcp`, regardless of implementation language.
 - Against an installation, the server set is the gateway control-plane
   catalog.
+- Transport-invariant checks additionally name the known MCP endpoints that
+  live outside `servers/`: the gateway itself, the bridges, and showcase
+  extensions such as `showcase/sumo/sumo-mcp`.
 
 Adding a server means the checks find it. No conformance manifest, Console
 page, or documentation index requires editing when a server is added.

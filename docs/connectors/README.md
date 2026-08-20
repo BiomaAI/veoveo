@@ -6,8 +6,9 @@ surface. Each recipe is a guide a coding agent can execute: it installs the
 vendor's MCP server beside the Veoveo connector, authenticates against the
 platform, and proves the connection with a real call before any work depends
 on it. The catalog below records the verified install surface for every
-entry so an agent can begin from this table alone while per-platform recipe
-files land in this directory.
+entry so an agent can begin from this table alone. Per-platform recipe files
+land in this directory as each platform is exercised; the catalog is the
+complete surface until they do.
 
 Every entry was verified against vendor documentation on 2026-07-23. The MCP
 ecosystem moves quickly, so re-verify an entry before relying on it and
@@ -26,7 +27,10 @@ in the gateway control plane as a `streamable_http` upstream, which places
 it inside the installation's identity, policy, audit, and task boundary.
 Servers that ship as stdio processes reach the gateway through
 [`mcp/bridges/stdio`](../../mcp/bridges/stdio/), which re-exposes a child
-process over streamable HTTP on an internal network. Register the server and
+process over streamable HTTP on an internal network. Systems still speaking
+the MCP `2025-11-25` revision join through the isolated
+[`mcp/bridges/legacy`](../../mcp/bridges/legacy/) connector, which keeps the
+installation's own protocol surface at the current revision. Register the server and
 a profile entry in the control plane document, then validate with
 `cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane
 <file>`. Choose this path for platforms whose calls should appear in the
@@ -196,8 +200,9 @@ connect.
 
 ## Recipe Format
 
-Each platform receives one file in this directory following
-[`TEMPLATE.md`](TEMPLATE.md). A recipe leads with the client-side install
+A platform's recipe is one file in this directory following
+[`TEMPLATE.md`](TEMPLATE.md), written when that platform is first exercised
+against a real installation. A recipe leads with the client-side install
 for Claude Code, proves itself with a runnable verification step, pairs the
 vendor's tools with Veoveo tools in worked prompts, and adds the governed
 upstream registration when the platform warrants it. Recipes begin with read

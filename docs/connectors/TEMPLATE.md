@@ -1,7 +1,7 @@
 # {Platform} Connector Recipe
 
 <!--
-Frontmatter for the catalog tooling. Keep every field.
+Machine-readable frontmatter; keep every field so catalog tooling can adopt it.
 name: {kebab-case-platform}
 offering: official | official-beta | official-preview | community
 transport: remote | stdio | both
