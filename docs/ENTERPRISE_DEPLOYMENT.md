@@ -42,8 +42,9 @@ changing the chart, image, configuration, or Secret contracts.
 The [Autonomy Harness](AUTONOMY_HARNESS.md) defines the continuous containment boundary,
 complete shared-responsibility matrix, and end-to-end operating proof for agents that
 remain autonomous throughout the installation lifecycle. Helm readiness establishes
-workload health; the harness evidence proves that each effect stays inside its declared
-authority while agents keep running.
+workload health, and the gateway independently probes each hosted server's declared
+health endpoint so a degraded server surfaces in the Console; the harness evidence
+proves that each effect stays inside its declared authority while agents keep running.
 
 The build pipeline publishes artifacts. It does not connect to customer clusters.
 The configuration repository selects published artifacts. It does not compile
@@ -220,6 +221,12 @@ An extension release normally selects two artifacts:
 - the immutable OCI chart version;
 - the installation Git repository containing values, bindings, and digest pins.
 
+Every fragment's upstream declares two typed URLs: the MCP endpoint and a required
+`health_url`. The gateway probes the health endpoint with an unauthenticated GET and
+treats only a success status as healthy; it never reads an MCP request, an
+authentication failure, or a method rejection as a health signal. A fragment without
+`health_url` fails control-plane validation before it can deploy.
+
 Private MCP servers follow the same pattern. They use their repository's native build
 system and do not join the Veoveo workspace. Their chart consumes the versioned
 `veoveo-extension` library from the configured private OCI registry or verified offline
@@ -260,5 +267,6 @@ manifests and digests. Database migration compatibility belongs to release notes
 must be evaluated before promotion.
 
 A production gate checks controller health, application sync, pod readiness, persistent
-storage, ingress, OAuth discovery, MCP capability discovery, and required GPU capacity.
+storage, ingress, OAuth discovery, MCP capability discovery, hosted-server health
+endpoints, and required GPU capacity.
 Domain acceptance then exercises the installed workload through its public contract.

@@ -38,6 +38,18 @@ The gateway discovers these surfaces from upstream servers and projects them int
 profile. It prefixes tool names only at the aggregation boundary, for example local
 `run` becomes `media__run`. Resource URIs keep their owning scheme.
 
+Discovery failure has a profile-selected mode. The default isolates the failing
+server: it drops out of the aggregated projection and typed degradation metadata
+reports the gap. A profile may instead declare `fail_closed` discovery, where any
+unavailable hosted server fails the whole tool list, so an autonomous client can
+never retain a silently incomplete toolset.
+
+Each catalog entry declares two typed upstream URLs: the MCP endpoint and a
+required health endpoint. The gateway probes `health_url` with an unauthenticated
+GET and treats only a success status as healthy; it never reads an MCP request, an
+authentication failure, or a method rejection as a health signal. Health state
+feeds the Console without entering discovery for failure-isolating profiles.
+
 ### Tool input schemas
 
 The canonical schema profile is normative in
@@ -190,7 +202,8 @@ to the frame.
 
 ## Durable Platform Store
 
-SurrealDB `3.2.3` is the only platform coordination store. The canonical release uses
+SurrealDB `3.2.3` is the only platform coordination store; the Rust client pins the
+compatible `3.2.4` release. The canonical release uses
 one RocksDB-backed node. Installation bootstrap connects at root scope, applies ordered
 migrations, creates or rotates the database runtime user, and publishes the initial
 gateway control revision. Long-running services connect at database scope and never run
@@ -452,9 +465,11 @@ that bootstrap succeeds. Every unauthorized response enters one shared, non-retr
 login transition, which prevents parallel API failures from starting competing OAuth
 flows.
 
-The snapshot always includes the signed-in display label. The Console topbar renders it
-directly and keeps the canonical principal id in the account tooltip for operational
-diagnostics.
+The snapshot carries a trusted display name for every principal it projects, with
+authenticated identity metadata taking precedence over the store projection. The
+Console renders those labels across the topbar, access, agents, and artifact views,
+keeps the canonical principal id in tooltips for operational diagnostics, and
+compacts an unresolved principal's identifier rather than inventing a name.
 
 Recording playback remains inside this boundary. The BFF exposes authorized same-origin
 manifest and bounded-live routes, while the gateway evaluates the canonical

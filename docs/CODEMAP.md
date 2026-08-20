@@ -141,6 +141,8 @@ Hub, administration, and GPU policy.
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `examples/bioma/platform/flux/` | exact Flux controller fixture for the local Bioma cluster; it is installed before installation desired state and remains outside Veoveo runtime ownership |
 | `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and extension Helm releases, and installation-owned edge resources |
+| `examples/bioma/gateway.json` | the reference installation's complete control plane: 16-server MCP catalog, OAuth clients, policy rules, and routes |
+| `examples/bioma/acceptance/` | owner-local compiled composition checks over the Bioma desired state |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
@@ -314,11 +316,11 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 | `mcp_support.rs` | MCP URI projection, including declared cross-server resource identities |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
 | `mcp/discovery.rs` | exact-authority catalog discovery cache, bounded concurrency, per-server failure isolation, and list-change invalidation |
-| `mcp/tools.rs` | failure-isolated aggregated tool projection and explicit helper gating |
+| `mcp/tools.rs` | aggregated tool projection with explicit helper gating; failure-isolated by default and list-failing for `fail_closed` discovery profiles |
 | `mcp/resources.rs` | failure-isolated resource/list projection plus fail-closed read/subscribe routing |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion projection |
-| `mcp/final_tasks.rs` | canonical upstream final task client/projection |
-| `mcp/tasks.rs` | explicit weak-client task projection |
+| `mcp/tasks.rs` | canonical upstream task client and explicit weak-client task projection |
+| `mcp/health.rs` | explicit `health_url` GET probing where only a success status is healthy |
 | `mcp/upstream*.rs` | authenticated Streamable HTTP, session-local protocol state, and catalog-revision-scoped sharing of transport-equivalent HTTP/TLS clients |
 | `state/audit.rs` | durable policy/audit evidence |
 | `state/auth_state.rs` | durable OAuth authorization and replay state |
@@ -336,7 +338,7 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 | `admin/control_plane.rs` | control revision read/update |
 | `admin/tasks.rs` | policy-checked cancellation through the owning server's official Tasks endpoint |
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |
-| `admin/console/mod.rs` | console snapshot handler, signed-in user label projection, branding, stream cursor bootstrap |
+| `admin/console/mod.rs` | console snapshot handler, trusted display-name projection for every principal with authenticated-identity precedence, branding, stream cursor bootstrap |
 | `admin/console/projection.rs` | tenant projection load and per-entity summary builders |
 | `admin/console/stream.rs` | live console SSE: LIVE wake hub, changefeed replay, tenant filtering, limits |
 | `admin/console/health.rs` | background MCP server health prober and cache |
@@ -442,7 +444,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/rtsp_h264.py` | pod-local RTSP client, interleaved RTP parser, RFC 6184 depacketizer, and native encoded access-unit delivery |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/h264.py` | strict native Annex B GOP parsing and decoder-reentrant SPS/PPS/IDR qualification |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready and final-ready lifecycle edges over the authenticated private HTTP stream |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | generation-safe reduction of redacted native Cesium load events, one-shot provider-session refresh, and current coverage state without polling |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | generation-safe reduction of redacted native Cesium load events, expired provider-session reset that clears the caching accessor before rebuild, and current coverage state without polling |
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-external-viewports.patch` | pinned headless viewport-authority switch that prevents interactive window discovery from clearing simulator-managed Cesium views |
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-lifecycle-events.patch` | pinned Omniverse extension events, load generations, and query-secret log redaction |
 | `showcase/uav-sim/runtime/patches/cesium-native-ca0311f-tile-load-events.patch` | pinned Cesium Native child-content failure delivery through the existing tileset callback |
@@ -499,7 +501,10 @@ GeoJSON, GeoJSON Sequence, and raster metadata into DuckDB Spatial.
 `data/src/map_data/adapters/` owns bounded normalization, while
 `data/src/map_data/raster_ops.py` performs the controlled GDAL derivations.
 `src/raster.rs` supervises that helper and `src/server/tasks.rs` owns its
-durable artifact publication.
+durable artifact publication. `src/geography.rs` owns direct governed
+position, location, and corridor inspection plus restriction publication,
+surfaced through tools such as `inspect_position`, while `src/analytics.rs`
+owns the sandboxed DuckDB Spatial engine behind those reads.
 
 Reusable spatial planning is split from routing. `src/contract/spatial.rs`
 owns the bounded operation and persisted-result schemas. `src/spatial/derive.rs`
@@ -593,7 +598,7 @@ Authoritative simulation live-view ownership:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | preallocated viewer-camera clones and isolated RTX, NVENC, native WebRTC, activation, and release lifecycle per assigned slot |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py` | CUDA, RTX, NVENC, product, frame, and capacity evidence |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready edge before world admission and final-ready edge after authoritative visual admission |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | reactive, deduplicated provider generation state derived from native Cesium lifecycle events and render coverage observations |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | reactive, deduplicated provider generation state derived from native Cesium lifecycle events and render coverage observations, including expired provider-session reset |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
 | `platform/store/src/live_views.rs` | durable audit persistence for camera, product, lease, denial, expiry, and revocation facts |
 | `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |
@@ -750,8 +755,13 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `background_tasks.rs` | immediate model-visible handoff from accepted durable tool calls to credential-rotating kernel watchers |
 | `tools.rs` | MCP tool dispatch and durable task descriptor capture |
 | `tasks.rs` | detached watcher lease/resume/result-to-wake flow |
-| `wake.rs` | outbox/changefeed wake delivery |
+| `wake.rs` | outbox/changefeed wake delivery, including heartbeat-only batches acknowledged without an episode |
 | `memory.rs` | durable memory API over analytical stores |
+| `timeline.rs` | snapshot dataframe read-back over the agent's RRD segments with bounded most-recent-rows output because rows become model input |
+| `context.rs` | per-episode context assembly as a view over the memory planes |
+| `llm.rs` | episode LLM construction from the manifest's provider-neutral model config |
+| `input.rs` | durable application input for protocol-neutral deferred tools |
+| `replay.rs`, `summary.rs` | domain-truth rebuild from the decision log and deterministic episode summaries |
 | `rrd.rs`, `recorder.rs` | episode/world Rerun recording |
 | `budget.rs` | enforced episode/tool/cost budgets |
 | `connection.rs` | final-profile gateway client epoch, serialized request-boundary credential freshness, acknowledged request-scoped listener restoration, and deferred-task resolver |
@@ -792,6 +802,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF previews with explicit governed-access failures |
 | `components/GovernedRerunViewer.tsx` | recording-scoped exclusive Redap archive or bounded-live delivery with a separate producer Blueprint presentation store |
+| `identity.ts`, `components/IdentityText.tsx` | trusted display-name resolution for arbitrary principal ids with UUID-compacting fallback, rendered across access, agents, and artifact views |
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
