@@ -910,8 +910,10 @@ flowchart LR
                   episode limits, budgets, schedule, context SQL sections, and writable tables.</li>
               <li>A preamble and domain migrations complete the profile — cross-episode
                   instructions live here or in memory.</li>
-              <li>Operators reach a running agent through durable wakes: inject a prompt, read
-                  status in the console, answer pending tool input requests.</li>
+              <li>Authenticated users and policy-admitted service principals reach a running
+                  agent through durable wakes: inject a prompt, read status in the console,
+                  answer pending tool input requests. Every control call passes the selected
+                  profile's action policy.</li>
               <li>The Pilot rides the operator profile: geodesy inline, planning as tasks,
                   waypoints recorded when plans land.</li>
             </ul>

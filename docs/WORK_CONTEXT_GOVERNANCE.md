@@ -106,6 +106,19 @@ mode, delegation ID when present, output policy, and policy revision. This
 keeps provenance stable across task detachment, webhook completion, recording
 forwarding, and agent wake cycles.
 
+### Agent control
+
+Agent control is its own authority surface, distinct from the membership
+table above. Reading agent state, sending an agent a message, and answering a
+pending input request are gateway actions (`agents_read`, `agents_message`,
+`agents_input_request_answer`) authorized by the selected profile's action
+policy rules — action, profile, principals, and required scopes — while
+Work Context membership scopes only which agents the caller can address.
+Both authenticated users and service principals are admissible responders;
+an installation that wants human-only control expresses it as policy rather
+than relying on a principal-kind restriction. Messages never carry implicit
+authority and remain actor-attributed, idempotent, and audited.
+
 ## Output ownership and access
 
 The Work Context output policy determines the owner and initial discretionary
@@ -154,11 +167,17 @@ does not alter those controls.
 
 ## Enterprise identity mapping
 
-The starter vocabulary is deliberately small:
+The starter platform vocabulary is deliberately small:
 
 - `operator` identifies ordinary interactive or service use.
 - `administrator` identifies installation administration.
 - `operator:use` and `admin:manage` are functional OAuth scopes.
+
+Hosted servers add their own functional scopes beside these — the deployed
+chart carries domain scopes such as `map:route`, `time:schedule`,
+`view:capture`, `recording:ingest`, and the `uav-sim:*` family — so a real
+installation's scope inventory is the platform pair plus every admitted
+server's declared vocabulary.
 
 An installation maps its own directory groups and application roles to these
 values in identity-provider and Work Context configuration. Microsoft Entra,
