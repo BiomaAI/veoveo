@@ -11638,7 +11638,7 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 [[package]]
 name = "rig"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=1cf595d9b9cc92b643aa87b145a8505cc9d66809#1cf595d9b9cc92b643aa87b145a8505cc9d66809"
+source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
 dependencies = [
  "rig-agent",
  "rig-core",
@@ -11652,7 +11652,7 @@ dependencies = [
 [[package]]
 name = "rig-agent"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=1cf595d9b9cc92b643aa87b145a8505cc9d66809#1cf595d9b9cc92b643aa87b145a8505cc9d66809"
+source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
 dependencies = [
  "async-stream",
  "chrono",
@@ -11675,7 +11675,7 @@ dependencies = [
 [[package]]
 name = "rig-core"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=1cf595d9b9cc92b643aa87b145a8505cc9d66809#1cf595d9b9cc92b643aa87b145a8505cc9d66809"
+source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
 dependencies = [
  "as-any",
  "async-stream",
@@ -11709,7 +11709,7 @@ dependencies = [
 [[package]]
 name = "rig-derive"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=1cf595d9b9cc92b643aa87b145a8505cc9d66809#1cf595d9b9cc92b643aa87b145a8505cc9d66809"
+source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
 dependencies = [
  "convert_case 0.11.0",
  "proc-macro-crate",
@@ -11721,7 +11721,7 @@ dependencies = [
 [[package]]
 name = "rig-fastembed"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=1cf595d9b9cc92b643aa87b145a8505cc9d66809#1cf595d9b9cc92b643aa87b145a8505cc9d66809"
+source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
 dependencies = [
  "fastembed",
  "rig-core",
@@ -11734,7 +11734,7 @@ dependencies = [
 [[package]]
 name = "rig-helixdb"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=1cf595d9b9cc92b643aa87b145a8505cc9d66809#1cf595d9b9cc92b643aa87b145a8505cc9d66809"
+source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
 dependencies = [
  "reqwest 0.13.4",
  "rig-core",
@@ -11746,7 +11746,7 @@ dependencies = [
 [[package]]
 name = "rig-lancedb"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=1cf595d9b9cc92b643aa87b145a8505cc9d66809#1cf595d9b9cc92b643aa87b145a8505cc9d66809"
+source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
 dependencies = [
  "arrow-array",
  "futures",
@@ -11759,7 +11759,7 @@ dependencies = [
 [[package]]
 name = "rig-milvus"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=1cf595d9b9cc92b643aa87b145a8505cc9d66809#1cf595d9b9cc92b643aa87b145a8505cc9d66809"
+source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
 dependencies = [
  "reqwest 0.13.4",
  "rig-core",
@@ -11844,7 +11844,7 @@ dependencies = [
 [[package]]
 name = "rmcp"
 version = "3.1.3"
-source = "git+https://github.com/rozgo/rust-sdk?rev=17f851388f5d2c422c1bd625374c4dee53c67da1#17f851388f5d2c422c1bd625374c4dee53c67da1"
+source = "git+https://github.com/rozgo/rust-sdk?rev=d37833f3d72882461d96a03aa2b662e448310b35#d37833f3d72882461d96a03aa2b662e448310b35"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -11877,7 +11877,7 @@ dependencies = [
 [[package]]
 name = "rmcp-macros"
 version = "3.1.3"
-source = "git+https://github.com/rozgo/rust-sdk?rev=17f851388f5d2c422c1bd625374c4dee53c67da1#17f851388f5d2c422c1bd625374c4dee53c67da1"
+source = "git+https://github.com/rozgo/rust-sdk?rev=d37833f3d72882461d96a03aa2b662e448310b35#d37833f3d72882461d96a03aa2b662e448310b35"
 dependencies = [
  "darling 0.24.0",
  "proc-macro2",
@@ -15409,6 +15409,7 @@ dependencies = [
  "tokio-tungstenite 0.30.0",
  "url",
  "uuid",
+ "veoveo-agent-runtime",
  "veoveo-deploy-contract",
  "veoveo-extension-contract",
  "veoveo-image-build-control",

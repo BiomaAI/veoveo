@@ -105,7 +105,7 @@ rangemap = "1.8.0"
 reqwest = { version = "0.13.4", default-features = false }
 # This fork pin carries acknowledged MCP 2026-07-28 resource subscriptions,
 # governed resource reads, and request-boundary preflight not yet released upstream.
-rig = { git = "https://github.com/rozgo/rig.git", rev = "1cf595d9b9cc92b643aa87b145a8505cc9d66809", features = ["rmcp"] }
+rig = { git = "https://github.com/rozgo/rig.git", rev = "b4b2ddf3ad0803464a70a732a8c2fdb0c026728c", features = ["rmcp"] }
 prost = "=0.14.4"
 re_dataframe = "=0.36.0"
 re_chunk = "=0.36.0"
@@ -127,7 +127,7 @@ re_server = "=0.36.0"
 re_tuid = "=0.36.0"
 re_uri = "=0.36.0"
 re_build_info = "=0.36.0"
-rmcp = { version = "=3.1.3", git = "https://github.com/rozgo/rust-sdk", rev = "17f851388f5d2c422c1bd625374c4dee53c67da1" }
+rmcp = { version = "=3.1.3", git = "https://github.com/rozgo/rust-sdk", rev = "d37833f3d72882461d96a03aa2b662e448310b35" }
 rstar = "0.13.0"
 rustls = { version = "0.23.43", default-features = false, features = ["ring", "std", "tls12"] }
 schemars = "1.2.2"

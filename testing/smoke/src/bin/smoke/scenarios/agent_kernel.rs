@@ -1,4 +1,6 @@
 use super::*;
+use veoveo_agent_runtime::{AgentControl, AgentControlTarget, OperatorMessageDraft};
+use veoveo_mcp_contract::{AgentConversationEntryState, AgentConversationRole};
 
 /// The agent-kernel keystone: durable detach and resume across processes.
 ///
@@ -113,7 +115,7 @@ pub(crate) async fn agent_kernel_detach_resume(
     fs::write(
         &manifest_path,
         serde_json::to_vec_pretty(&serde_json::json!({
-            "agent": { "tenant": "smoke", "id": "smoke-agent", "display_name": "Smoke Agent" },
+            "agent": { "tenant": "tenant-a", "id": "smoke-agent", "display_name": "Smoke Agent" },
             "model": {
                 "base_url": format!("http://127.0.0.1:{llm_port}/v1"),
                 "api_key_env": "SMOKE_LLM_API_KEY",
@@ -288,13 +290,14 @@ pub(crate) async fn agent_kernel_detach_resume(
     Ok(())
 }
 
-/// The agent-kernel scheduler: heartbeats, operator wakes, budgets, and
+/// The agent-kernel scheduler: idle heartbeats, operator wakes, budgets, and
 /// fail-closed manifests.
 ///
 /// A long-running agent boots against the full gateway stack with a fast
-/// heartbeat, is woken by an operator `agent ask` over the loopback HTTP
-/// endpoint, and has a sibling data-dir run its episode into a per-episode
-/// budget breach. An invalid manifest must refuse to boot.
+/// heartbeat which is durably acknowledged without an LLM call, is woken by
+/// an operator message through the shared control plane, and has a sibling
+/// data-dir run its episode into a per-episode budget breach. An invalid
+/// manifest must refuse to boot.
 pub(crate) async fn agent_kernel_scheduler(
     conformance: &Path,
     media: &Path,
@@ -362,6 +365,7 @@ pub(crate) async fn agent_kernel_scheduler(
     let auth_private_key = auth_private_key.trim().to_string();
     let platform_store = &plane.platform;
     bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
+    let gateway_log = tmpdir.join("gateway.log");
     let mut gateway_child = ChildGuard::spawn(
         gateway,
         gateway_serve_args(gateway_port, platform_store),
@@ -375,14 +379,14 @@ pub(crate) async fn agent_kernel_scheduler(
                 auth_private_key.clone().into(),
             ),
         ],
-        &tmpdir.join("gateway.log"),
+        &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
     assert_ready_profiles(&gateway_base, 2).await?;
 
     let write_manifest = |name: &str, extra: serde_json::Value| -> Result<std::path::PathBuf> {
         let mut manifest = serde_json::json!({
-            "agent": { "tenant": "smoke", "id": "smoke-scheduler", "display_name": "Scheduler Smoke Agent" },
+            "agent": { "tenant": "tenant-a", "id": "smoke-scheduler", "display_name": "Scheduler Smoke Agent" },
             "model": {
                 "base_url": format!("http://127.0.0.1:{llm_port}/v1"),
                 "api_key_env": "SMOKE_LLM_API_KEY",
@@ -398,7 +402,8 @@ pub(crate) async fn agent_kernel_scheduler(
                 "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
                 "scopes": ["operator:use"],
                 "private_key_env": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
-                "private_key_kid": "test-key"
+                "private_key_kid": "test-key",
+                "token_refresh_fraction": 0.00001
             },
             "episode": { "max_turns": 6, "task_deadline_s": 60 },
             "schedule": { "heartbeat_interval_s": 2, "wake_coalesce_window_ms": 100 },
@@ -446,15 +451,15 @@ pub(crate) async fn agent_kernel_scheduler(
         bail!("agent accepted an invalid manifest");
     }
 
-    // Budget breach: one tool call is over the per-episode cap.
+    // Budget breach: the first model completion is over the per-episode cap.
     let budget_manifest = write_manifest(
         "budget-manifest.json",
         serde_json::json!({
-            "budgets": { "per_episode": { "max_tool_calls": 0 } }
+            "budgets": { "per_episode": { "max_completion_calls": 0 } }
         }),
     )?;
     let budget_data_dir = tmpdir.join("budget-data");
-    let budget_run = run_checked(
+    run_checked(
         agent,
         [
             "run".into(),
@@ -468,7 +473,6 @@ pub(crate) async fn agent_kernel_scheduler(
         ],
         agent_envs(),
     )?;
-    contains(&budget_run, "episode budget terminated")?;
     {
         let ledger = duckdb::Connection::open(budget_data_dir.join("memory.duckdb"))?;
         let outcome: String = ledger.query_row(
@@ -481,7 +485,7 @@ pub(crate) async fn agent_kernel_scheduler(
         }
     }
 
-    // The scheduler proper: heartbeats fire, operator asks preempt.
+    // The scheduler proper: idle heartbeats do not call the LLM; operator asks do.
     let scheduler_manifest = write_manifest("scheduler-manifest.json", serde_json::json!({}))?;
     let scheduler_data_dir = tmpdir.join("scheduler-data");
     let agent_log = tmpdir.join("agent-scheduler.log");
@@ -497,36 +501,81 @@ pub(crate) async fn agent_kernel_scheduler(
         agent_envs(),
         &agent_log,
     )?;
-    wait_for_log_substring(&agent_log, "operator endpoint listening", 120).await?;
-    wait_for_log_substring(&agent_log, "\"wake_note\":\"heartbeat\"", 120).await?;
+    wait_for_log_substring(
+        &agent_log,
+        "idle heartbeat acknowledged without LLM episode",
+        120,
+    )
+    .await?;
 
-    let ask = run_checked(
-        agent,
-        [
-            "ask".into(),
-            "--data-dir".into(),
-            scheduler_data_dir.as_os_str().to_os_string(),
-            "Count your episodes".into(),
-        ],
-        [],
-    )?;
-    contains(&ask, "wake_id")?;
-    wait_for_log_substring(&agent_log, "\"wake_note\":\"operator\"", 120).await?;
+    let control_store = veoveo_platform_store::PlatformStore::connect(
+        veoveo_platform_store::StoreConfig::builder(
+            &platform_store.endpoint,
+            &platform_store.namespace,
+            &platform_store.database,
+            veoveo_platform_store::StoreCredentials::database(
+                SURREAL_RUNTIME_USER,
+                SURREAL_RUNTIME_PASSWORD,
+            ),
+        )
+        .build()?,
+    )
+    .await?;
+    let control = AgentControl::new(control_store)?;
+    let target = AgentControlTarget {
+        tenant_key: "tenant-a".to_owned(),
+        work_context_key: "operations".to_owned(),
+        agent_key: "smoke-scheduler".to_owned(),
+    };
+    let request_id = uuid::Uuid::now_v7();
+    let receipt = control
+        .send_operator_message(
+            &target,
+            OperatorMessageDraft {
+                request_id,
+                message: "Count your episodes".to_owned(),
+                actor_id: "https://idp.example.test#scheduler-smoke".to_owned(),
+            },
+        )
+        .await?;
+    if receipt.wake_id.as_uuid() != request_id {
+        bail!("operator control returned the wrong durable wake id");
+    }
+    wait_for_log_substring(&agent_log, "\"wake_note\":\"operator_message\"", 120).await?;
+    wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 1, 120).await?;
 
-    let status = run_checked(
-        agent,
-        [
-            "status".into(),
-            "--data-dir".into(),
-            scheduler_data_dir.as_os_str().to_os_string(),
-        ],
-        [],
-    )?;
-    contains(&status, "recent_episodes")?;
+    let second_request_id = uuid::Uuid::now_v7();
+    let second_receipt = control
+        .send_operator_message(
+            &target,
+            OperatorMessageDraft {
+                request_id: second_request_id,
+                message: "Count your episodes again".to_owned(),
+                actor_id: "https://idp.example.test#scheduler-smoke".to_owned(),
+            },
+        )
+        .await?;
+    if second_receipt.wake_id.as_uuid() != second_request_id {
+        bail!("second operator control returned the wrong durable wake id");
+    }
 
-    // Give the operator episode time to book, then stop and inspect.
-    wait_for_log_substring(&agent_log, "EPISODES COUNTED", 120).await?;
+    // Two operator episodes force two make-before-break replacements after the initial session.
+    wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 2, 120).await?;
+    wait_for_log_occurrences(&agent_log, "gateway connection rotated", 3, 120).await?;
     agent_child.stop();
+    let agent_output = fs::read_to_string(&agent_log)?;
+    for forbidden in [
+        "replacing an existing tool registration",
+        "Failed to send query results to channel",
+    ] {
+        if agent_output.contains(forbidden) {
+            bail!("scheduler rotation soak emitted `{forbidden}`");
+        }
+    }
+    let gateway_output = fs::read_to_string(&gateway_log)?;
+    if gateway_output.contains("failed to send pending response during drain") {
+        bail!("gateway rotation soak reported an intentional closed drain as an error");
+    }
     {
         let ledger = duckdb::Connection::open(scheduler_data_dir.join("memory.duckdb"))?;
         let heartbeat_episodes: i64 = ledger.query_row(
@@ -534,8 +583,8 @@ pub(crate) async fn agent_kernel_scheduler(
             [],
             |row| row.get(0),
         )?;
-        if heartbeat_episodes < 1 {
-            bail!("no heartbeat episodes ran");
+        if heartbeat_episodes != 0 {
+            bail!("idle heartbeat unexpectedly ran {heartbeat_episodes} LLM episodes");
         }
         let operator_output: String = ledger.query_row(
             "SELECT final_output FROM agent_memory.episode_log WHERE wake_note LIKE '%operator%'
@@ -546,14 +595,25 @@ pub(crate) async fn agent_kernel_scheduler(
         if !operator_output.contains("EPISODES COUNTED") {
             bail!("operator episode output was `{operator_output}`");
         }
-        let handled_wakes: i64 = ledger.query_row(
-            "SELECT COUNT(*) FROM kernel.wakes WHERE state = 'handled'",
-            [],
-            |row| row.get(0),
-        )?;
-        if handled_wakes < 2 {
-            bail!("expected handled wakes, found {handled_wakes}");
-        }
+    }
+    let conversation = control.conversation(&target).await?;
+    let request_ids = [request_id, second_request_id];
+    let operator_completed = request_ids.iter().all(|request_id| {
+        conversation.entries.iter().any(|entry| {
+            entry.role == AgentConversationRole::Operator
+                && entry.request_id == Some(*request_id)
+                && entry.state == AgentConversationEntryState::Completed
+        })
+    });
+    let agent_replied = request_ids.iter().all(|request_id| {
+        conversation.entries.iter().any(|entry| {
+            entry.role == AgentConversationRole::Agent
+                && entry.in_reply_to_request_ids.contains(request_id)
+                && entry.content.contains("EPISODES COUNTED")
+        })
+    });
+    if !operator_completed || !agent_replied {
+        bail!("durable operator conversation did not reach a completed reply");
     }
 
     gateway_child.stop();
@@ -683,6 +743,7 @@ pub(crate) async fn agent_pilot_mission(
     let auth_private_key = auth_private_key.trim().to_string();
     let platform_store = &plane.platform;
     bootstrap_gateway_platform_store(gateway, &generated_control_plane, platform_store).await?;
+    let gateway_log = tmpdir.join("gateway.log");
     let mut gateway_child = ChildGuard::spawn(
         gateway,
         gateway_serve_args(gateway_port, platform_store),
@@ -696,7 +757,7 @@ pub(crate) async fn agent_pilot_mission(
                 auth_private_key.clone().into(),
             ),
         ],
-        &tmpdir.join("gateway.log"),
+        &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
     assert_ready_profiles(&gateway_base, 2).await?;
@@ -774,11 +835,24 @@ pub(crate) async fn agent_pilot_mission(
         &agent_log,
     )?;
     wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 2, 240).await?;
+    wait_for_log_occurrences(&agent_log, "gateway connection rotated", 3, 120).await?;
     agent_child.stop();
 
     let agent_output = fs::read_to_string(&agent_log)?;
-    if agent_output.matches("gateway connection rotated").count() < 2 {
+    if agent_output.matches("gateway connection rotated").count() < 3 {
         bail!("pilot smoke did not rotate its short-lived gateway connection");
+    }
+    for forbidden in [
+        "replacing an existing tool registration",
+        "Failed to send query results to channel",
+    ] {
+        if agent_output.contains(forbidden) {
+            bail!("pilot credential-rotation soak emitted `{forbidden}`");
+        }
+    }
+    let gateway_output = fs::read_to_string(&gateway_log)?;
+    if gateway_output.contains("failed to send pending response during drain") {
+        bail!("gateway credential-rotation soak reported a closed drain channel as an error");
     }
 
     {
@@ -1055,7 +1129,7 @@ pub(crate) async fn agent_sleep_wake(
     fs::write(
         &manifest_path,
         serde_json::to_vec_pretty(&serde_json::json!({
-            "agent": { "tenant": "smoke", "id": "sleep-wake", "display_name": "Sleep/Wake Agent" },
+            "agent": { "tenant": "tenant-a", "id": "sleep-wake", "display_name": "Sleep/Wake Agent" },
             "model": {
                 "base_url": model_base_url,
                 "api_key_env": api_key_env,

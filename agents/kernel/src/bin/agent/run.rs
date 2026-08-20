@@ -15,7 +15,8 @@ use veoveo_agent_kernel::{
     wake::{WakeBatch, WakeBus, WakeKindExt, WakeReceiver, heartbeat, is_priority},
 };
 use veoveo_agent_runtime::{
-    AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_AGENT_LEASE, DEFAULT_CLAIM_LEASE, json_object,
+    AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_AGENT_LEASE, DEFAULT_CLAIM_LEASE,
+    WakeAckReason, json_object,
 };
 use veoveo_platform_store::{
     AgentInputRequestId, AgentTaskId, PlatformStore, StoreConfig, StoreCredentials, WakeKind,
@@ -185,50 +186,81 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     }
 
     loop {
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
-                for (_, watcher) in watchers.drain() {
-                    watcher.abort();
-                }
-                runtime.release_lease().await?;
-                return Ok(());
-            }
-            changed = lease_lost_rx.changed() => {
-                if changed.is_err() || *lease_lost_rx.borrow() {
-                    for (_, watcher) in watchers.drain() {
-                        watcher.abort();
+        let batch = {
+            let next_batch = receiver.next_batch();
+            tokio::pin!(next_batch);
+            loop {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {
+                        for (_, watcher) in watchers.drain() {
+                            watcher.abort();
+                        }
+                        runtime.release_lease().await?;
+                        return Ok(());
                     }
-                    bail!("agent scheduler lease was lost");
-                }
-            }
-            _ = task_scan.tick() => {
-                arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers, input_grace).await?;
-            }
-            batch = receiver.next_batch() => {
-                let batch = batch?;
-                if let Some(max) = budgets.hourly_max_episodes
-                    && !batch.wakes.iter().any(is_priority)
-                {
-                    let started = runtime
-                        .episodes_started_since(chrono::Utc::now() - chrono::TimeDelta::hours(1))
+                    changed = lease_lost_rx.changed() => {
+                        if changed.is_err() || *lease_lost_rx.borrow() {
+                            for (_, watcher) in watchers.drain() {
+                                watcher.abort();
+                            }
+                            bail!("agent scheduler lease was lost");
+                        }
+                    }
+                    _ = task_scan.tick() => {
+                        arm_available_tasks(
+                            &runtime,
+                            &bus,
+                            &epoch_rx,
+                            &mut watchers,
+                            input_grace,
+                        )
                         .await?;
-                    if started as u64 >= max {
-                        receiver
-                            .defer_batch(&batch, Duration::from_secs(30), "hourly episode budget reached")
-                            .await?;
-                        continue;
                     }
+                    batch = &mut next_batch => break batch?,
                 }
-                match run_batch_episode(&driver, &mut connection, &runtime, &batch).await {
-                    Ok(()) => receiver.note_episode_finished(),
-                    Err(error) => {
-                        tracing::error!(%error, "wake episode failed; durable wakes requeued");
-                        receiver.retry_batch(&batch, &error.to_string()).await?;
-                    }
+            }
+        };
+        if batch.is_heartbeat_only() {
+            match runtime
+                .acknowledge_wakes_without_episode(&batch.ids(), WakeAckReason::NoActionableChange)
+                .await
+            {
+                Ok(()) => tracing::info!(
+                    wake_count = batch.wakes.len(),
+                    "idle heartbeat acknowledged without LLM episode"
+                ),
+                Err(error) => {
+                    tracing::error!(%error, "idle heartbeat acknowledgement failed; durable wakes requeued");
+                    receiver.retry_batch(&batch, &error.to_string()).await?;
                 }
-                arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers, input_grace).await?;
+            }
+            continue;
+        }
+        if let Some(max) = budgets.hourly_max_episodes
+            && !batch.wakes.iter().any(is_priority)
+        {
+            let started = runtime
+                .episodes_started_since(chrono::Utc::now() - chrono::TimeDelta::hours(1))
+                .await?;
+            if started as u64 >= max {
+                receiver
+                    .defer_batch(
+                        &batch,
+                        Duration::from_secs(30),
+                        "hourly episode budget reached",
+                    )
+                    .await?;
+                continue;
             }
         }
+        match run_batch_episode(&driver, &mut connection, &runtime, &batch).await {
+            Ok(()) => receiver.note_episode_finished(),
+            Err(error) => {
+                tracing::error!(%error, "wake episode failed; durable wakes requeued");
+                receiver.retry_batch(&batch, &error.to_string()).await?;
+            }
+        }
+        arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers, input_grace).await?;
     }
 }
 
