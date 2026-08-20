@@ -16,13 +16,13 @@ use sha2::{Digest, Sha256};
 use crate::{context::RepositoryContext, process};
 
 const REPORT_PATH: &str = "testing/local-test-report.json";
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LocalTestReport {
     schema_version: u32,
-    source_digest: String,
+    build_digest: String,
     updated_at: String,
     checks: Vec<LocalTestCheck>,
 }
@@ -62,29 +62,29 @@ pub(crate) fn run(
     let (program, command_arguments) = arguments
         .split_first()
         .context("a test-report command is required after --")?;
-    let source_before = source_digest(repository.root())?;
-    let mut report = load_for_source(repository.root(), &source_before)?;
+    let build_before = build_digest(repository.root())?;
+    let mut report = load_for_build(repository.root(), &build_before)?;
 
     let started = Instant::now();
     let outcome = execute(repository.root(), program, command_arguments);
     let duration_seconds = started.elapsed().as_secs_f64();
-    let source_after = source_digest(repository.root())?;
+    let build_after = build_digest(repository.root())?;
 
     let (status, detail) = match &outcome {
-        Ok(exit) if exit.success() && source_before == source_after => {
+        Ok(exit) if exit.success() && build_before == build_after => {
             (CheckStatus::Passed, "completed successfully".to_owned())
         }
-        Ok(exit) if source_before != source_after => (
+        Ok(exit) if build_before != build_after => (
             CheckStatus::Failed,
-            "the command changed tracked or untracked source; rerun checks for the new source"
+            "the command changed tracked or untracked build inputs; rerun checks for the new build"
                 .to_owned(),
         ),
         Ok(exit) => (CheckStatus::Failed, format!("exited with {exit}")),
         Err(error) => (CheckStatus::Failed, format!("could not run: {error:#}")),
     };
 
-    if source_before != source_after {
-        report = LocalTestReport::empty(source_after);
+    if build_before != build_after {
+        report = LocalTestReport::empty(build_after);
     }
     report.upsert(LocalTestCheck {
         name: name.to_owned(),
@@ -107,7 +107,7 @@ pub(crate) fn run(
 }
 
 pub(crate) fn show(repository: &RepositoryContext, github_summary: bool) -> Result<()> {
-    let current_digest = source_digest(repository.root())?;
+    let current_digest = build_digest(repository.root())?;
     let report = read_report(repository.root())?;
     let status = report_status(report.as_ref(), &current_digest);
     let markdown = render_markdown(report.as_ref(), &current_digest, status);
@@ -121,15 +121,17 @@ pub(crate) fn show(repository: &RepositoryContext, github_summary: bool) -> Resu
         ReportStatus::Passed => Ok(()),
         ReportStatus::Failed => bail!("the committed local test report contains failures"),
         ReportStatus::Missing => bail!("the committed local test report is missing"),
-        ReportStatus::Stale => bail!("the committed local test report does not match this source"),
+        ReportStatus::Stale => {
+            bail!("the committed local test report does not match these build inputs")
+        }
     }
 }
 
 impl LocalTestReport {
-    fn empty(source_digest: String) -> Self {
+    fn empty(build_digest: String) -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
-            source_digest,
+            build_digest,
             updated_at: now(),
             checks: Vec::new(),
         }
@@ -179,12 +181,12 @@ fn execute(
     command.status().context("starting local check")
 }
 
-fn load_for_source(root: &Path, source_digest: &str) -> Result<LocalTestReport> {
+fn load_for_build(root: &Path, build_digest: &str) -> Result<LocalTestReport> {
     let Some(report) = read_report(root)? else {
-        return Ok(LocalTestReport::empty(source_digest.to_owned()));
+        return Ok(LocalTestReport::empty(build_digest.to_owned()));
     };
-    if report.schema_version != SCHEMA_VERSION || report.source_digest != source_digest {
-        return Ok(LocalTestReport::empty(source_digest.to_owned()));
+    if report.schema_version != SCHEMA_VERSION || report.build_digest != build_digest {
+        return Ok(LocalTestReport::empty(build_digest.to_owned()));
     }
     Ok(report)
 }
@@ -220,7 +222,7 @@ fn write_report(root: &Path, report: &LocalTestReport) -> Result<()> {
     Ok(())
 }
 
-fn source_digest(root: &Path) -> Result<String> {
+fn build_digest(root: &Path) -> Result<String> {
     let output = process::output(
         "git",
         [
@@ -238,7 +240,9 @@ fn source_digest(root: &Path) -> Result<String> {
         .filter(|bytes| !bytes.is_empty())
         .map(|bytes| String::from_utf8(bytes.to_vec()).context("repository path is not UTF-8"))
         .collect::<Result<Vec<_>>>()?;
-    paths.retain(|path| path != REPORT_PATH && root.join(path).symlink_metadata().is_ok());
+    paths.retain(|path| {
+        path != REPORT_PATH && is_build_input(path) && root.join(path).symlink_metadata().is_ok()
+    });
     paths.sort();
 
     let regular_files = paths
@@ -253,7 +257,7 @@ fn source_digest(root: &Path) -> Result<String> {
     let mut object_ids = regular_files.into_iter().zip(object_ids);
 
     let mut digest = Sha256::new();
-    digest.update(b"veoveo-local-test-source-v1\0");
+    digest.update(b"veoveo-local-test-build-v2\0");
     for relative in &paths {
         let path = root.join(relative);
         let metadata = fs::symlink_metadata(&path)
@@ -280,6 +284,16 @@ fn source_digest(root: &Path) -> Result<String> {
         digest.update([0]);
     }
     Ok(format!("sha256:{}", hex::encode(digest.finalize())))
+}
+
+fn is_build_input(relative: &str) -> bool {
+    let root_markdown =
+        !relative.contains('/') && (relative.ends_with(".md") || relative.ends_with(".mdx"));
+    !root_markdown
+        && relative != "docs"
+        && !relative.starts_with("docs/")
+        && relative != "tools/screenshots"
+        && !relative.starts_with("tools/screenshots/")
 }
 
 fn canonical_object_ids(root: &Path, paths: &[&str]) -> Result<Vec<String>> {
@@ -328,7 +342,7 @@ fn report_status(report: Option<&LocalTestReport>, current_digest: &str) -> Repo
     let Some(report) = report else {
         return ReportStatus::Missing;
     };
-    if report.schema_version != SCHEMA_VERSION || report.source_digest != current_digest {
+    if report.schema_version != SCHEMA_VERSION || report.build_digest != current_digest {
         return ReportStatus::Stale;
     }
     if report.checks.is_empty() {
@@ -361,9 +375,9 @@ fn render_markdown(
     );
     if let Some(report) = report {
         output.push_str(&format!(
-            "- Report updated: `{}`\n- Report source: `{}`\n- Current source: `{current_digest}`\n\n",
+            "- Report updated: `{}`\n- Report build: `{}`\n- Current build: `{current_digest}`\n\n",
             escape_inline(&report.updated_at),
-            escape_inline(&report.source_digest)
+            escape_inline(&report.build_digest)
         ));
         if !report.checks.is_empty() {
             output.push_str("| Check | Result | Duration | Command | Detail |\n");
@@ -390,7 +404,7 @@ fn render_markdown(
             output.push('\n');
         }
     } else {
-        output.push_str(&format!("Current source: `{current_digest}`\n\n"));
+        output.push_str(&format!("Current build: `{current_digest}`\n\n"));
     }
     output
 }
@@ -437,14 +451,14 @@ mod tests {
     use std::{fs, process::Command};
 
     use super::{
-        CheckStatus, LocalTestCheck, LocalTestReport, ReportStatus, render_markdown, report_status,
-        source_digest, validate_name,
+        CheckStatus, LocalTestCheck, LocalTestReport, ReportStatus, build_digest, render_markdown,
+        report_status, validate_name,
     };
 
     fn report(status: CheckStatus) -> LocalTestReport {
         LocalTestReport {
-            schema_version: 1,
-            source_digest: "sha256:source".to_owned(),
+            schema_version: 2,
+            build_digest: "sha256:build".to_owned(),
             updated_at: "2026-08-18T00:00:00Z".to_owned(),
             checks: vec![LocalTestCheck {
                 name: "rust-workspace".to_owned(),
@@ -465,15 +479,15 @@ mod tests {
     }
 
     #[test]
-    fn status_distinguishes_failure_and_stale_source() {
+    fn status_distinguishes_failure_and_stale_build() {
         let passed = report(CheckStatus::Passed);
         let failed = report(CheckStatus::Failed);
         assert_eq!(
-            report_status(Some(&passed), "sha256:source"),
+            report_status(Some(&passed), "sha256:build"),
             ReportStatus::Passed
         );
         assert_eq!(
-            report_status(Some(&failed), "sha256:source"),
+            report_status(Some(&failed), "sha256:build"),
             ReportStatus::Failed
         );
         assert_eq!(
@@ -485,14 +499,14 @@ mod tests {
     #[test]
     fn markdown_states_that_the_result_is_informational() {
         let report = report(CheckStatus::Failed);
-        let markdown = render_markdown(Some(&report), "sha256:source", ReportStatus::Failed);
+        let markdown = render_markdown(Some(&report), "sha256:build", ReportStatus::Failed);
         assert!(markdown.contains("informational"));
         assert!(markdown.contains("rust-workspace"));
         assert!(markdown.contains("failed"));
     }
 
     #[test]
-    fn source_digest_accepts_a_tracked_file_deleted_from_the_worktree() {
+    fn build_digest_accepts_a_tracked_file_deleted_from_the_worktree() {
         let temporary = tempfile::tempdir().unwrap();
         let root = temporary.path();
         assert!(
@@ -515,11 +529,11 @@ mod tests {
         );
         fs::remove_file(root.join("deleted.txt")).unwrap();
 
-        assert!(source_digest(root).is_ok());
+        assert!(build_digest(root).is_ok());
     }
 
     #[test]
-    fn source_digest_uses_clean_filtered_content() {
+    fn build_digest_uses_clean_filtered_content() {
         let temporary = tempfile::tempdir().unwrap();
         let root = temporary.path();
         assert!(
@@ -544,11 +558,67 @@ mod tests {
         );
         fs::write(root.join(".gitattributes"), "*.asset filter=canonical\n").unwrap();
         fs::write(root.join("camera.asset"), "materialized\n").unwrap();
-        let materialized = source_digest(root).unwrap();
+        let materialized = build_digest(root).unwrap();
 
         fs::write(root.join("camera.asset"), "canonical\n").unwrap();
-        let canonical = source_digest(root).unwrap();
+        let canonical = build_digest(root).unwrap();
 
         assert_eq!(materialized, canonical);
+    }
+
+    #[test]
+    fn documentation_only_changes_preserve_the_build_digest() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path();
+        assert!(
+            Command::new("git")
+                .arg("init")
+                .arg(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::create_dir_all(root.join("docs/screenshots")).unwrap();
+        fs::create_dir_all(root.join("tools/screenshots")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("README.md"), "first\n").unwrap();
+        fs::write(root.join("docs/guide.md"), "first\n").unwrap();
+        fs::write(root.join("docs/screenshots/console.png"), "first\n").unwrap();
+        fs::write(root.join("tools/screenshots/capture.mjs"), "first\n").unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn stable() {}\n").unwrap();
+        let before = build_digest(root).unwrap();
+
+        fs::write(root.join("README.md"), "second\n").unwrap();
+        fs::write(root.join("docs/guide.md"), "second\n").unwrap();
+        fs::write(root.join("docs/screenshots/console.png"), "second\n").unwrap();
+        fs::write(root.join("tools/screenshots/capture.mjs"), "second\n").unwrap();
+
+        assert_eq!(before, build_digest(root).unwrap());
+    }
+
+    #[test]
+    fn product_and_embedded_contract_changes_invalidate_the_build_digest() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path();
+        assert!(
+            Command::new("git")
+                .arg("init")
+                .arg(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::create_dir_all(root.join("mcp/contract")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("mcp/contract/DESIGN.md"), "first\n").unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn first() {}\n").unwrap();
+        let before = build_digest(root).unwrap();
+
+        fs::write(root.join("mcp/contract/DESIGN.md"), "second\n").unwrap();
+        let contract_changed = build_digest(root).unwrap();
+        assert_ne!(before, contract_changed);
+
+        fs::write(root.join("src/lib.rs"), "pub fn second() {}\n").unwrap();
+        assert_ne!(contract_changed, build_digest(root).unwrap());
     }
 }
