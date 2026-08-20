@@ -27,7 +27,8 @@ use veoveo_task_runtime::TaskRetentionPin;
 use crate::types::{
     AgentInstanceId, AgentLease, AgentRuntimeError, AgentSpec, AgentTaskResult, ClaimedAgentTask,
     ClaimedWake, EpisodeCompletion, EpisodeHandle, InputRequestAnswer, NewAgentTask,
-    NewInputRequest, NewWake, PendingInputRequest, Result, checked_i64, object, uuid_from_record,
+    NewInputRequest, NewWake, PendingInputRequest, Result, WakeAckReason, checked_i64, object,
+    uuid_from_record,
 };
 use veoveo_mcp_contract::CanonicalTaskId;
 
@@ -167,6 +168,18 @@ UPDATE agent_task SET consumed_by_episode = $episode, retention_pin_active = fal
 UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE;
 CREATE outbox_event CONTENT $episode_event RETURN NONE;
 CREATE outbox_event CONTENT $wake_event RETURN NONE;
+COMMIT TRANSACTION;
+"#;
+
+const ACK_WAKES_WITHOUT_EPISODE_QUERY: &str = r#"
+BEGIN TRANSACTION;
+LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now);
+IF $lease = NONE { THROW 'agent lease lost'; };
+LET $claimed_wakes = (SELECT VALUE id FROM wake WHERE id IN $wakes AND agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence);
+IF array::len($claimed_wakes) != array::len($wakes) { THROW 'wake claim lost'; };
+UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = NONE, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $claimed_wakes RETURN NONE;
+UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE;
+CREATE outbox_event CONTENT $event RETURN NONE;
 COMMIT TRANSACTION;
 "#;
 
@@ -581,6 +594,49 @@ impl AgentRuntime {
                     .join("; "),
             });
         }
+        Ok(())
+    }
+
+    /// Acknowledge a claimed wake batch without creating an LLM episode.
+    ///
+    /// This is the durable terminal path for scheduler signals that carry no
+    /// actionable work. It retains lease fencing and emits an outbox event,
+    /// while deliberately leaving `acked_by_episode` empty.
+    pub async fn acknowledge_wakes_without_episode(
+        &self,
+        wakes: &[WakeId],
+        reason: WakeAckReason,
+    ) -> Result<()> {
+        if wakes.is_empty() {
+            return Err(AgentRuntimeError::InvalidField {
+                field: "wake batch",
+                reason: "must contain at least one claimed wake".to_owned(),
+            });
+        }
+        let fence = self.fence()?;
+        let now = Utc::now();
+        let wake_records = wakes.iter().map(|id| id.record_id()).collect::<Vec<_>>();
+        let event = outbox(
+            &self.identity,
+            "wake",
+            self.agent_id.to_string(),
+            "wake.batch_acked_without_episode",
+            object([
+                ("wake_ids".to_owned(), serde_json::json!(wakes)),
+                ("reason".to_owned(), serde_json::json!(reason.as_str())),
+            ]),
+        );
+        self.store
+            .client()
+            .query(ACK_WAKES_WITHOUT_EPISODE_QUERY)
+            .bind(("agent", self.agent_id.record_id()))
+            .bind(("owner", self.instance_id.to_string()))
+            .bind(("fence", fence))
+            .bind(("now", now))
+            .bind(("wakes", wake_records))
+            .bind(("event", event))
+            .await?
+            .check()?;
         Ok(())
     }
 

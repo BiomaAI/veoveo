@@ -499,6 +499,12 @@ consumed, acknowledges the wakes, and writes the outbox receipt in one SurrealDB
 transaction. Outbox/changefeed events wake the next episode. DuckDB and RRD are
 analytical memory planes; chat history is not the source of truth.
 
+The periodic scheduler heartbeat proves that the durable wake path is alive. A
+heartbeat-only batch is acknowledged under the agent lease without starting an LLM
+episode. Operator messages, task results, resource changes, answered input requests,
+and explicit timers remain actionable wakes; if one coalesces with a heartbeat, the
+batch runs an ordinary bounded episode.
+
 Agent manifests separate the Gateway's canonical public origin from its physical
 HTTP transport origin. OAuth audience and protected-resource identity use the
 canonical origin, while an in-cluster agent may connect through a private service

@@ -42,6 +42,7 @@ tokio-tungstenite.workspace = true
 tempfile = "3"
 url.workspace = true
 uuid.workspace = true
+veoveo-agent-runtime = { path = "../../agents/runtime" }
 veoveo-deploy-contract.workspace = true
 veoveo-extension-contract.workspace = true
 veoveo-image-build-control.workspace = true

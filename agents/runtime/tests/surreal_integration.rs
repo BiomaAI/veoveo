@@ -8,7 +8,7 @@ use uuid::Uuid;
 use veoveo_agent_runtime::{
     AgentControl, AgentControlTarget, AgentInstanceId, AgentRuntime, AgentSpec,
     DEFAULT_CLAIM_LEASE, EpisodeCompletion, InputRequestAnswer, NewAgentTask, NewInputRequest,
-    NewWake, OperatorMessageDraft, json_object,
+    NewWake, OperatorMessageDraft, WakeAckReason, json_object,
 };
 use veoveo_mcp_contract::{
     AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
@@ -17,7 +17,7 @@ use veoveo_mcp_contract::{
 use veoveo_platform_store::{
     AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord,
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, OpenObject, PlatformStore,
-    PrincipalKind, StoreConfig, StoreCredentials, WakeKind,
+    PrincipalKind, StoreConfig, StoreCredentials, WakeKind, WakeRecord, WakeState,
     WorkContextMembershipLevel as StoreMembership, deterministic_principal_id,
     deterministic_tenant_id, deterministic_work_context_id,
 };
@@ -249,6 +249,57 @@ async fn two_replicas_fence_claims_and_recover_expired_work() {
             .filter(|event| event.event_type == "wake.batch_acked")
             .count(),
         1
+    );
+}
+
+#[tokio::test]
+async fn idle_wake_acknowledgement_is_terminal_without_an_episode() {
+    let Some(fixture) = fixture().await else {
+        return;
+    };
+    fixture
+        .first
+        .acquire_lease(Duration::from_secs(30))
+        .await
+        .unwrap()
+        .expect("agent lease");
+    let wake = NewWake::now(
+        WakeKind::Timer,
+        Some("heartbeat".to_owned()),
+        OpenObject::default(),
+    );
+    let wake_id = wake.wake_id;
+    fixture.first.enqueue_wake(wake).await.unwrap();
+    let claimed = fixture
+        .first
+        .claim_wakes(10, DEFAULT_CLAIM_LEASE)
+        .await
+        .unwrap();
+    assert_eq!(claimed.len(), 1);
+
+    fixture
+        .first
+        .acknowledge_wakes_without_episode(&[wake_id], WakeAckReason::NoActionableChange)
+        .await
+        .unwrap();
+
+    let mut response = fixture
+        .root
+        .client()
+        .query("SELECT * FROM ONLY $wake; SELECT count() AS count FROM agent_episode GROUP ALL;")
+        .bind(("wake", wake_id.record_id()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let wake: Option<WakeRecord> = response.take(0).unwrap();
+    let wake = wake.expect("acknowledged wake");
+    assert_eq!(wake.state, WakeState::Acked);
+    assert!(wake.acked_by_episode.is_none());
+    let episode_counts: Vec<serde_json::Value> = response.take(1).unwrap();
+    assert!(
+        episode_counts.is_empty(),
+        "idle acknowledgement created an episode"
     );
 }
 
