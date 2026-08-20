@@ -1,8 +1,27 @@
 {
   "schemaVersion": 1,
-  "sourceDigest": "sha256:2b0b6f30b1e9b00fd35fda0d217f0a60d2d9dfe8fe1b011b979489fd663aff05",
-  "updatedAt": "2026-08-19T18:36:28Z",
+  "sourceDigest": "sha256:78237645bdb3694911885301f5b8b354bb7453f8d00e0185556ff162bdf94e5a",
+  "updatedAt": "2026-08-20T01:05:09Z",
   "checks": [
+    {
+      "name": "bioma-control-plane",
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway",
+        "--",
+        "validate",
+        "--control-plane",
+        "examples/bioma/gateway.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T01:04:40Z",
+      "durationSeconds": 38.329286942,
+      "detail": "completed successfully"
+    },
     {
       "name": "documentation",
       "command": [
@@ -13,8 +32,77 @@
         "HEAD"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-19T18:36:16Z",
-      "durationSeconds": 0.003353577,
+      "finishedAt": "2026-08-20T01:05:09Z",
+      "durationSeconds": 0.004779689,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "mcp-contract",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-contract",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T01:03:50Z",
+      "durationSeconds": 2.729340577,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "mcp-gateway",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T01:03:56Z",
+      "durationSeconds": 4.051449488,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "mcp-gateway-bin",
+      "command": [
+        "cargo",
+        "check",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T01:04:00Z",
+      "durationSeconds": 1.504357988,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "platform-helm",
+      "command": [
+        "helm",
+        "lint",
+        "deploy/helm/veoveo"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T01:05:05Z",
+      "durationSeconds": 0.144975527,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "rust-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T01:03:45Z",
+      "durationSeconds": 2.096948597,
       "detail": "completed successfully"
     },
     {
@@ -25,48 +113,8 @@
         "showcase/uav-sim/deploy/helm"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-19T18:36:28Z",
-      "durationSeconds": 0.070953726,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-tile-session-reset",
-      "command": [
-        "env",
-        "PYTHONPATH=showcase/uav-sim/runtime",
-        "uv",
-        "run",
-        "--python",
-        "3.12",
-        "--with",
-        "numpy",
-        "--with",
-        "aiohttp==3.14.1",
-        "--with",
-        "pymavlink==2.4.49",
-        "--with",
-        "pyarrow==25.0.0",
-        "--with",
-        "rerun-sdk==0.36.0",
-        "--with",
-        "psutil==7.2.2",
-        "--with",
-        "pyyaml==6.0.3",
-        "python",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "showcase/uav-sim/runtime/tests",
-        "-p",
-        "test_runtime_contracts.py",
-        "-k",
-        "StreamedWorldHealthTests",
-        "-v"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-19T18:36:07Z",
-      "durationSeconds": 0.942033834,
+      "finishedAt": "2026-08-20T01:05:07Z",
+      "durationSeconds": 0.071794366,
       "detail": "completed successfully"
     }
   ]
