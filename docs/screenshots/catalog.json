@@ -77,7 +77,7 @@
       "rendering": {
         "surface": "embedded Rerun Web Viewer",
         "backend": "WebGPU",
-        "adapter": "NVIDIA Lovelace",
+        "adapter": "Apple M3 Max",
         "theme": "dark",
         "softwareFallbackAllowed": false
       }
