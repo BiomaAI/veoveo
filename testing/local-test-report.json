@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceDigest": "sha256:d6f90b45239a7a706f98964931facad4e722f1838223d98b9db1ee80f78987f3",
-  "updatedAt": "2026-08-20T04:40:17Z",
+  "sourceDigest": "sha256:0277678b3c3be67186e8aebb114a19957262d850ede2f6da8b2b25faebd43085",
+  "updatedAt": "2026-08-20T05:13:35Z",
   "checks": [
     {
       "name": "agent-scheduler",
@@ -12,8 +12,8 @@
         "agent-kernel-scheduler"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T04:40:01Z",
-      "durationSeconds": 30.908486575,
+      "finishedAt": "2026-08-20T05:12:54Z",
+      "durationSeconds": 36.036946081,
       "detail": "completed successfully"
     },
     {
@@ -31,8 +31,54 @@
         "examples/bioma/gateway.json"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T04:40:17Z",
-      "durationSeconds": 7.886863463,
+      "finishedAt": "2026-08-20T05:13:10Z",
+      "durationSeconds": 3.444021064,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "bioma-kustomize",
+      "command": [
+        "kubectl",
+        "kustomize",
+        "examples/bioma"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T05:13:35Z",
+      "durationSeconds": 0.067288648,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "bioma-platform-chart",
+      "command": [
+        "helm",
+        "lint",
+        "deploy/helm/veoveo",
+        "-f",
+        "examples/bioma/values.yaml",
+        "-f",
+        "examples/bioma/k3d-values.yaml",
+        "-f",
+        "examples/bioma/images.lock.yaml"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T05:13:16Z",
+      "durationSeconds": 0.131811241,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "bioma-uav-chart",
+      "command": [
+        "helm",
+        "lint",
+        "showcase/uav-sim/deploy/helm",
+        "-f",
+        "examples/bioma/uav-sim-values.yaml",
+        "-f",
+        "examples/bioma/images.lock.yaml"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-20T05:13:26Z",
+      "durationSeconds": 0.085410943,
       "detail": "completed successfully"
     },
     {
@@ -44,8 +90,8 @@
         "rust"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-20T04:39:19Z",
-      "durationSeconds": 725.844190052,
+      "finishedAt": "2026-08-20T05:12:04Z",
+      "durationSeconds": 95.674513431,
       "detail": "completed successfully"
     }
   ]
