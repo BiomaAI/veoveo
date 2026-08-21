@@ -73,6 +73,7 @@ class TileLifecycleAction:
     begin_replacement: bool = False
     retire_tileset_path: str | None = None
     report_failure: bool = False
+    retained_textured_coverage: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,9 +114,47 @@ def classify_failure(load_type: TileLoadType, http_status: int) -> TileFailureCo
         return "quota_exceeded"
     if 500 <= http_status <= 599:
         return "provider_unavailable"
-    if http_status == 0:
+    if http_status in {0, 408}:
         return "transport_failed"
     return "request_failed"
+
+
+def has_textured_coverage(
+    *,
+    visible_tiles: int,
+    geometries_rendered: int,
+    materials_loaded: int,
+) -> bool:
+    return (
+        visible_tiles > 0
+        and geometries_rendered > 0
+        and materials_loaded > 0
+    )
+
+
+def tile_content_ready(
+    *,
+    lifecycle: TileLifecycle,
+    visible_tiles: int,
+    geometries_rendered: int,
+    materials_loaded: int,
+) -> bool:
+    return lifecycle in {"ready", "refreshing"} and has_textured_coverage(
+        visible_tiles=visible_tiles,
+        geometries_rendered=geometries_rendered,
+        materials_loaded=materials_loaded,
+    )
+
+
+def _is_recoverable_content_failure(
+    *,
+    code: TileFailureCode,
+    load_type: TileLoadType,
+) -> bool:
+    return load_type == "tile_content" and code in {
+        "provider_unavailable",
+        "transport_failed",
+    }
 
 
 def failure_diagnostic(code: TileFailureCode) -> str:
@@ -167,6 +206,7 @@ class TileLifecycleController:
         self._last_failure: TileFailure | None = None
         self._diagnostic: str | None = None
         self._loaded_generation = 0
+        self._recoverable_degradation = False
         self._handled_failures: set[tuple[str, int, TileLoadType, int]] = set()
 
     @property
@@ -226,6 +266,7 @@ class TileLifecycleController:
             self._provider_generation = max(self._provider_generation, event.generation)
             self._loaded_generation = max(self._loaded_generation, event.generation)
             if self._replacement_tileset_path is None:
+                self._recoverable_degradation = False
                 self._coverage_frames = 0
                 self._lifecycle = "streaming"
                 self._diagnostic = None
@@ -248,11 +289,11 @@ class TileLifecycleController:
             generation=event.generation,
         )
         self._diagnostic = failure_diagnostic(code)
-        self._coverage_frames = 0
 
         if event.tileset_path == self._replacement_tileset_path:
             failed_path = self._replacement_tileset_path
             self._clear_replacement()
+            self._recoverable_degradation = False
             self._lifecycle = "degraded"
             self._diagnostic = "replacement streamed-world provider session failed"
             return TileLifecycleAction(
@@ -264,6 +305,8 @@ class TileLifecycleController:
             code == "provider_session_rejected"
             and self._replacement_tileset_path is None
         ):
+            self._recoverable_degradation = False
+            self._coverage_frames = 0
             self._refresh_count += 1
             self._lifecycle = "refreshing"
             return TileLifecycleAction(
@@ -275,6 +318,21 @@ class TileLifecycleController:
             self._lifecycle = "refreshing"
             return TileLifecycleAction(report_failure=True)
 
+        if _is_recoverable_content_failure(code=code, load_type=event.load_type):
+            self._recoverable_degradation = True
+            self._coverage_frames = 0
+            if self._has_textured_coverage():
+                self._lifecycle = "ready"
+                self._diagnostic = None
+                return TileLifecycleAction(
+                    report_failure=True,
+                    retained_textured_coverage=True,
+                )
+            self._lifecycle = "degraded"
+            return TileLifecycleAction(report_failure=True)
+
+        self._recoverable_degradation = False
+        self._coverage_frames = 0
         self._lifecycle = "degraded"
         return TileLifecycleAction(report_failure=True)
 
@@ -307,6 +365,7 @@ class TileLifecycleController:
                     self._clear_replacement()
                     self._provider_generation = max(1, self._provider_generation + 1)
                     self._loaded_generation = loaded_generation or 1
+                    self._recoverable_degradation = False
                     self._lifecycle = "ready"
                     self._diagnostic = None
                     return TileRenderObservation(
@@ -319,6 +378,7 @@ class TileLifecycleController:
             if self._replacement_frames >= self._replacement_timeout_frames:
                 failed_path = self._replacement_tileset_path
                 self._clear_replacement()
+                self._recoverable_degradation = False
                 self._lifecycle = "degraded"
                 self._diagnostic = (
                     "replacement native generation did not prove textured coverage"
@@ -336,12 +396,22 @@ class TileLifecycleController:
                 snapshot=self.snapshot(), action=TileLifecycleAction()
             )
 
-        if (
-            self._lifecycle != "degraded"
-            and self._visible_tiles > 0
-            and self._geometries_rendered > 0
-            and self._materials_loaded > 0
-        ):
+        textured_coverage = self._has_textured_coverage()
+        if self._recoverable_degradation:
+            if textured_coverage:
+                self._coverage_frames += 1
+                if self._coverage_frames >= self._ready_frames:
+                    self._recoverable_degradation = False
+                    self._lifecycle = "ready"
+                    self._diagnostic = None
+            else:
+                self._coverage_frames = 0
+                self._lifecycle = "degraded"
+            return TileRenderObservation(
+                snapshot=self.snapshot(), action=TileLifecycleAction()
+            )
+
+        if self._lifecycle != "degraded" and textured_coverage:
             self._coverage_frames += 1
             if self._coverage_frames >= self._ready_frames:
                 self._lifecycle = "ready"
@@ -359,8 +429,16 @@ class TileLifecycleController:
 
     def mark_refresh_command_failed(self) -> None:
         self._clear_replacement()
+        self._recoverable_degradation = False
         self._lifecycle = "degraded"
         self._diagnostic = "streamed-world replacement creation failed"
+
+    def _has_textured_coverage(self) -> bool:
+        return has_textured_coverage(
+            visible_tiles=self._visible_tiles,
+            geometries_rendered=self._geometries_rendered,
+            materials_loaded=self._materials_loaded,
+        )
 
     def _clear_replacement(self) -> None:
         self._replacement_tileset_path = None
