@@ -267,6 +267,7 @@ Four items from the guidance sharpen existing open work:
   outside the runtime boundary today. A kernel-isolated runtime such as
   [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) places the factory
   loop under filesystem, network, process, and inference policy of its own.
+  The exploration is recorded in [`FACTORY_ISOLATION.md`](FACTORY_ISOLATION.md).
 
 ## Boundary Clarifications
 

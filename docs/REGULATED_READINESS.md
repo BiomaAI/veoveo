@@ -209,6 +209,7 @@ Priority 2 is the program that makes it durable.
 | G14 | No CRM, OSCAL, hardening guide, SCAP, CVD/SLA, VEX, or pen test | 8 | 2 |
 | G15 | CUI marking display and DoD consent banner not implemented | 1 | 2 |
 | G16 | k3s reference profile has no STIG/FIPS lineage; RKE2 profile absent | 7 | 2 |
+| G17 | Factory coding agents run outside any runtime boundary | 7 | 2 |
 
 ## Remediation Backlog
 
@@ -309,6 +310,8 @@ P1 items harden the claim; P2 items build the assessor-facing program.
       developer profile
 - [ ] G16/P2 — FIPS/STIG-hardened base images for product containers
 - [ ] G14/P2 — Hardening guide with a SCAP-checkable profile
+- [ ] G17/P2 — Kernel-isolated factory runtime under version-controlled
+      policy ([`FACTORY_ISOLATION.md`](FACTORY_ISOLATION.md))
 
 ### Assessment evidence (CA-2, PL-2, RA-5)
 
