@@ -444,7 +444,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/rtsp_h264.py` | pod-local RTSP client, interleaved RTP parser, RFC 6184 depacketizer, and native encoded access-unit delivery |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/h264.py` | strict native Annex B GOP parsing and decoder-reentrant SPS/PPS/IDR qualification |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready and final-ready lifecycle edges over the authenticated private HTTP stream |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | generation-safe reduction of redacted native Cesium load events, expired provider-session reset that clears the caching accessor before rebuild, and current coverage state without polling |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | generation-safe reduction of redacted native Cesium load events, cache-preserving provider-session replacement proved by prepared geometry, prepared materials, and rendered coverage, and current coverage state without polling |
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-external-viewports.patch` | pinned headless viewport-authority switch that prevents interactive window discovery from clearing simulator-managed Cesium views |
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-lifecycle-events.patch` | pinned Omniverse extension events, load generations, and query-secret log redaction |
 | `showcase/uav-sim/runtime/patches/cesium-native-ca0311f-tile-load-events.patch` | pinned Cesium Native child-content failure delivery through the existing tileset callback |

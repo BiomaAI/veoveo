@@ -1108,6 +1108,9 @@ mod tests {
                 resident_tiles: 20,
                 visible_tiles: 12,
                 loading_tiles: 0,
+                geometries_loaded: 20,
+                geometries_rendered: 12,
+                materials_loaded: 20,
                 provider_generation: 1,
                 event_sequence: 0,
                 refresh_count: 0,
@@ -1264,6 +1267,29 @@ mod tests {
         assert_eq!(camera.encoder, CameraEncoder::NvidiaNvenc);
         assert_eq!(camera.frame_rate_hz, 2);
         assert_eq!(camera.render_pose.unwrap().position_error_m, 0.02);
+    }
+
+    #[test]
+    fn private_adapter_tile_wire_requires_texture_proof_statistics() {
+        let tiles: TileState = serde_json::from_value(serde_json::json!({
+            "lifecycle": "ready",
+            "source": "google_photorealistic_3d_tiles",
+            "ion_asset_id": 2_275_207,
+            "resident_tiles": 526,
+            "visible_tiles": 18,
+            "loading_tiles": 0,
+            "geometries_loaded": 470,
+            "geometries_rendered": 29,
+            "materials_loaded": 470,
+            "provider_generation": 1,
+            "event_sequence": 1,
+            "refresh_count": 0
+        }))
+        .unwrap();
+
+        assert_eq!(tiles.geometries_loaded, 470);
+        assert_eq!(tiles.geometries_rendered, 29);
+        assert_eq!(tiles.materials_loaded, 470);
     }
 
     #[test]
