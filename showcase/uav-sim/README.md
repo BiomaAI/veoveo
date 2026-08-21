@@ -159,7 +159,10 @@ generation remain one replacement action. Native load completion begins validati
 does not retire the resident tileset. Loaded material and geometry growth plus stable
 rendered coverage prove the replacement before promotion. A failed or unregistered
 replacement is removed after two minutes and settles in a typed degraded state. Other
-HTTP and transport failures never trigger speculative replacement.
+HTTP and transport failures never trigger speculative replacement. An isolated child
+transport or provider error remains recorded without withdrawing resident textured
+coverage. Loss of rendered geometry or loaded materials still removes visual readiness;
+Cesium can restore it by producing stable textured coverage again.
 
 The runtime projects `provider_generation`, `event_sequence`, `refresh_count`, loaded and
 rendered geometry counts, loaded material count, and a typed `last_failure` without a URL

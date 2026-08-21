@@ -77,6 +77,7 @@ from veoveo_uav_sim.tile_lifecycle import (
     TileLifecycleController,
     TileRenderStatistics,
     begin_provider_session_replacement,
+    tile_content_ready,
 )
 from veoveo_uav_sim.vehicle_model import (
     PX4_IRIS_MOMENT_CONSTANT,
@@ -1860,6 +1861,117 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertEqual(state.lifecycle, "streaming")
         self.assertEqual(state.materials_loaded, 0)
 
+    def test_transient_content_transport_failure_retains_textured_service(
+        self,
+    ) -> None:
+        controller = self.controller(ready_frames=2)
+        controller.accept(
+            NativeTileEvent(kind="loaded", tileset_path="/World/Tileset", generation=1)
+        )
+        for _ in range(2):
+            controller.observe_render(
+                self.statistics(resident_tiles=3_565, visible_tiles=91, loading_tiles=0)
+            )
+
+        action = controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=0,
+            )
+        )
+        state = controller.snapshot()
+
+        self.assertTrue(action.report_failure)
+        self.assertTrue(action.retained_textured_coverage)
+        self.assertFalse(action.begin_replacement)
+        self.assertEqual(state.lifecycle, "ready")
+        self.assertIsNone(state.diagnostic)
+        self.assertEqual(
+            state.last_failure.code if state.last_failure else None,
+            "transport_failed",
+        )
+        self.assertTrue(
+            tile_content_ready(
+                lifecycle=state.lifecycle,
+                visible_tiles=state.visible_tiles,
+                geometries_rendered=state.geometries_rendered,
+                materials_loaded=state.materials_loaded,
+            )
+        )
+
+    def test_transient_content_failure_recovers_only_after_textures_return(
+        self,
+    ) -> None:
+        controller = self.controller(ready_frames=2)
+        controller.accept(
+            NativeTileEvent(kind="loaded", tileset_path="/World/Tileset", generation=1)
+        )
+        action = controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=503,
+            )
+        )
+        self.assertFalse(action.retained_textured_coverage)
+        self.assertEqual(controller.snapshot().lifecycle, "degraded")
+
+        first = controller.observe_render(
+            self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
+        ).snapshot
+        recovered = controller.observe_render(
+            self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
+        ).snapshot
+
+        self.assertEqual(first.lifecycle, "degraded")
+        self.assertEqual(recovered.lifecycle, "ready")
+        self.assertIsNone(recovered.diagnostic)
+
+    def test_transient_content_failure_fails_closed_when_coverage_is_lost(
+        self,
+    ) -> None:
+        controller = self.controller(ready_frames=2)
+        controller.accept(
+            NativeTileEvent(kind="loaded", tileset_path="/World/Tileset", generation=1)
+        )
+        for _ in range(2):
+            controller.observe_render(
+                self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
+            )
+        controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=0,
+            )
+        )
+
+        lost = controller.observe_render(
+            self.statistics(
+                resident_tiles=20,
+                visible_tiles=0,
+                loading_tiles=0,
+                geometries_rendered=0,
+            )
+        ).snapshot
+
+        self.assertEqual(lost.lifecycle, "degraded")
+        self.assertFalse(
+            tile_content_ready(
+                lifecycle=lost.lifecycle,
+                visible_tiles=lost.visible_tiles,
+                geometries_rendered=lost.geometries_rendered,
+                materials_loaded=lost.materials_loaded,
+            )
+        )
+
     def test_distinct_failure_can_supersede_an_earlier_failure_in_one_generation(
         self,
     ) -> None:
@@ -2039,6 +2151,12 @@ class StreamedWorldHealthTests(unittest.TestCase):
 
     def test_credential_failure_is_typed_and_never_refreshed(self) -> None:
         controller = self.controller(ready_frames=1)
+        controller.accept(
+            NativeTileEvent(kind="loaded", tileset_path="/World/Tileset", generation=1)
+        )
+        controller.observe_render(
+            self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
+        )
         action = controller.accept(
             NativeTileEvent(
                 kind="load_failed",
@@ -2050,6 +2168,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
         )
         state = controller.snapshot()
         self.assertFalse(action.begin_replacement)
+        self.assertFalse(action.retained_textured_coverage)
         self.assertEqual(state.lifecycle, "degraded")
         self.assertEqual(
             state.last_failure.code if state.last_failure else None,
@@ -2091,8 +2210,8 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertIn("visual_ready", server_source)
         self.assertIn("ready = simulation_ready and visual_ready", server_source)
         self.assertIn("status=200 if ready else 503", server_source)
-        self.assertIn('tiles["lifecycle"] == "refreshing"', server_source)
-        self.assertIn('tiles["materials_loaded"] > 0', server_source)
+        self.assertIn("tile_content_ready(", server_source)
+        self.assertIn('materials_loaded=tiles["materials_loaded"]', server_source)
 
     def test_provider_replacement_preserves_cache_and_authors_shadow(self) -> None:
         operations: list[tuple[str, str | None]] = []

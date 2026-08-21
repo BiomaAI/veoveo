@@ -1,48 +1,36 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:e7a853bc225ef4d9aab478232f6052db192d0fb2a839c3dd0b0f784816019136",
-  "updatedAt": "2026-08-21T03:40:26Z",
+  "buildDigest": "sha256:2dc1c5fcb1faabbc10f3466fed187e421f29619936ff81937f9c9d96857c3230",
+  "updatedAt": "2026-08-21T20:47:23Z",
   "checks": [
     {
-      "name": "bioma-kustomize",
+      "name": "uav-runtime",
       "command": [
-        "kubectl",
-        "kustomize",
-        "examples/bioma"
+        "env",
+        "PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src",
+        "uv",
+        "run",
+        "--with",
+        "numpy==2.5.1",
+        "--with",
+        "pymavlink==2.4.49",
+        "--with",
+        "aiohttp==3.14.1",
+        "--with",
+        "fastcrc==0.3.6",
+        "--python",
+        "3.13",
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "showcase/uav-sim/runtime/tests",
+        "-v"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T03:40:26Z",
-      "durationSeconds": 0.061545485,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "bioma-uav-chart",
-      "command": [
-        "helm",
-        "lint",
-        "showcase/uav-sim/deploy/helm",
-        "-f",
-        "examples/bioma/uav-sim-values.yaml",
-        "-f",
-        "examples/bioma/images.lock.yaml"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-21T03:40:25Z",
-      "durationSeconds": 0.09445609,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-mcp",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-uav-sim-mcp",
-        "--all-targets"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-21T03:40:24Z",
-      "durationSeconds": 0.644556981,
+      "finishedAt": "2026-08-21T20:47:23Z",
+      "durationSeconds": 0.714591303,
       "detail": "completed successfully"
     }
   ]

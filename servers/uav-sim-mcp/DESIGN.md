@@ -215,9 +215,13 @@ geometry, prepared materials, and rendered geometry must all increase beyond the
 baseline and remain visible for the configured readiness window. Only then does the
 runtime retire the expired tileset. A rejected or unproven replacement is removed after
 the bounded 120-second registration-and-coverage window, and the lifecycle becomes
-`degraded` without a replacement loop. Credential, quota,
-transport, asset, and provider failures are typed directly and never masquerade as a
-provider-session replacement.
+`degraded` without a replacement loop. Credential, quota, asset, and root-provider
+failures are typed directly and never masquerade as a provider-session replacement.
+An isolated transport or provider failure for child tile content remains observable in
+`last_failure`, but it does not withdraw an already proven textured resident generation.
+If rendered geometry or loaded materials disappear after that failure, visual readiness
+fails closed immediately. Stable textured coverage can then restore readiness without a
+cache reset or a speculative replacement.
 
 Render statistics describe current coverage; they do not infer network failure. Zero
 visible tiles can be valid while a camera crosses an unavailable footprint or while
