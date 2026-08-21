@@ -155,9 +155,9 @@ def run(config: RuntimeConfig) -> None:
         notify_adapter_ready,
         notify_runtime_ready,
     )
+    from .adapter_server import AdapterServer
     from .server import (
         AdapterApplication,
-        AdapterServer,
         PreconfigurationApplication,
         TimelineControls,
     )

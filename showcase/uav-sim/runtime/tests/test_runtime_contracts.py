@@ -2063,6 +2063,8 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertIn("statistics.tiles_rendered", source)
         self.assertIn("begin_provider_session_replacement(", source)
         self.assertIn("resident generation remains mounted", source)
+        self.assertIn("from .adapter_server import AdapterServer", source)
+        self.assertNotIn("        AdapterServer,\n", source)
         self.assertNotIn("clear_accessor_cache", source)
         self.assertNotIn("tile_absent_since", source)
         self.assertNotIn("assess_tile_health", source)
