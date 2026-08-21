@@ -1,63 +1,84 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:42709936e690ee268d68e68839713fdf0942b0b0282a8454bb2df206b1095eb2",
-  "updatedAt": "2026-08-21T20:52:54Z",
+  "buildDigest": "sha256:4a4422d846220701d2f03ce34d3d3e303535efa19ba7a9952216d52231c73d68",
+  "updatedAt": "2026-08-21T23:30:15Z",
   "checks": [
     {
-      "name": "bioma-kustomize",
+      "name": "chart-mcp-tests",
       "command": [
-        "kubectl",
-        "kustomize",
-        "examples/bioma"
+        "node",
+        "--test",
+        "servers/chart-mcp/internal-auth.test.mjs",
+        "servers/chart-mcp/theme.test.mjs"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T20:52:54Z",
-      "durationSeconds": 0.064792627,
+      "finishedAt": "2026-08-21T23:30:06Z",
+      "durationSeconds": 0.086434321,
       "detail": "completed successfully"
     },
     {
-      "name": "bioma-uav-chart",
+      "name": "console-web-build",
       "command": [
-        "helm",
-        "lint",
-        "showcase/uav-sim/deploy/helm",
-        "-f",
-        "examples/bioma/uav-sim-values.yaml",
-        "-f",
-        "examples/bioma/images.lock.yaml"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-21T20:52:53Z",
-      "durationSeconds": 0.213822056,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-runtime",
-      "command": [
-        "env",
-        "PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src",
-        "uv",
+        "npm",
+        "--prefix",
+        "apps/console/web",
         "run",
-        "--with",
-        "numpy==2.5.1",
-        "--with",
-        "pymavlink==2.4.49",
-        "--with",
-        "aiohttp==3.14.1",
-        "--with",
-        "fastcrc==0.3.6",
-        "--python",
-        "3.13",
-        "python",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "showcase/uav-sim/runtime/tests"
+        "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T20:52:45Z",
-      "durationSeconds": 0.685336019,
+      "finishedAt": "2026-08-21T23:30:02Z",
+      "durationSeconds": 5.135814802,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-web-lint",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-21T23:29:45Z",
+      "durationSeconds": 4.095223959,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-web-test",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "test"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-21T23:29:34Z",
+      "durationSeconds": 0.395614087,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "ledger-mcp-apps",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-console-bff",
+        "-p",
+        "veoveo-map-mcp",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-timeseries-mcp",
+        "-p",
+        "veoveo-uav-sim-mcp",
+        "-p",
+        "veoveo-view-mcp",
+        "--all-targets"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-21T23:30:15Z",
+      "durationSeconds": 3.222335148,
       "detail": "completed successfully"
     }
   ]
