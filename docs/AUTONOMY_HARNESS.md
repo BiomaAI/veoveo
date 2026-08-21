@@ -23,6 +23,7 @@ their installation-owned containment boundary.
 | [`veoveo.io/gateway-binding/v1`](../mcp/composer/DESIGN.md) | Installation-owned capability exposure, authorization policy, tenant binding, artifact audiences, and data-label requirements. |
 | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md) | Durable invocation authority, output ownership, membership, classification, data labels, and retained provenance. |
 | OCI, Helm, Kubernetes, and [`veoveo.io/deployment-lock/v6`](ENTERPRISE_DEPLOYMENT.md) | Digest-addressed software, installation-owned desired state, and immutable evidence for the selected runtime closure. |
+| [NVIDIA agent-stack security guidance](https://developer.nvidia.com/blog/where-security-fits-in-an-ai-agent-stack) | Independent corroboration of the boundary placement this harness enforces, and the lens for the open work recorded under Industry Alignment. |
 
 ## Security Objective
 
@@ -229,6 +230,43 @@ Fresh containment proof is produced after any change to:
 Routine credential rotation does not require a complete functional recertification when
 the key purpose and trust contract are unchanged, but rotation tests and evidence must
 pass before the old credential is retired.
+
+## Industry Alignment
+
+NVIDIA's [agent-stack security guidance](https://developer.nvidia.com/blog/where-security-fits-in-an-ai-agent-stack)
+reaches the boundary this harness already enforces: "The harness guides what an
+agent tries. The infrastructure controls what an agent can do. Both are
+necessary; only one is authoritative." The guidance's first design rule,
+"above proposes; below decides," is the construction of properties 1 and 2 in
+the security objective. Model-selected calls are untrusted requests, and
+schema, policy, budget, and audit enforcement applies after selection, below
+every harness.
+
+The guidance directs operators to "treat every component above the boundary as
+untrusted." Veoveo ships no privileged harness for that reason. Any compatible
+MCP host can drive an installation because no harness carries authority of its
+own. The guidance also requires that "every action that changes the external
+state must pass through the policy and enforcement layers below the boundary."
+The gateway is that layer, and this harness extends the rule past files,
+processes, and API calls to physical actuation behind command leases and an
+independent safety controller.
+
+Four items from the guidance sharpen existing open work:
+
+- Immutable audit export. Audit records should survive the installation's own
+  administrators. The WORM export path remains open in the
+  [regulated-work gap analysis](REGULATED_READINESS.md).
+- An owned inference plane. The model endpoint is the one externally operated
+  layer in the reference agent manifest. Local serving on installation GPUs
+  closes it.
+- Risk-tier profile presets. The guidance names isolated, connected,
+  production, and adversarial profiles over one stack. The control plane has
+  the ingredients and should ship the presets, together with an automatic
+  quarantine action that freezes a principal and revokes its leases.
+- Factory isolation. Coding agents that extend and operate installations run
+  outside the runtime boundary today. A kernel-isolated runtime such as
+  [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) places the factory
+  loop under filesystem, network, process, and inference policy of its own.
 
 ## Boundary Clarifications
 
