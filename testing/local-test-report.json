@@ -1,8 +1,36 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:6893bfd40234486762f116b29dc69d109a808086b6f721edf7e5f6e413f2e888",
-  "updatedAt": "2026-08-21T03:28:45Z",
+  "buildDigest": "sha256:e7a853bc225ef4d9aab478232f6052db192d0fb2a839c3dd0b0f784816019136",
+  "updatedAt": "2026-08-21T03:40:26Z",
   "checks": [
+    {
+      "name": "bioma-kustomize",
+      "command": [
+        "kubectl",
+        "kustomize",
+        "examples/bioma"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-21T03:40:26Z",
+      "durationSeconds": 0.061545485,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "bioma-uav-chart",
+      "command": [
+        "helm",
+        "lint",
+        "showcase/uav-sim/deploy/helm",
+        "-f",
+        "examples/bioma/uav-sim-values.yaml",
+        "-f",
+        "examples/bioma/images.lock.yaml"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-21T03:40:25Z",
+      "durationSeconds": 0.09445609,
+      "detail": "completed successfully"
+    },
     {
       "name": "uav-mcp",
       "command": [
@@ -13,8 +41,8 @@
         "--all-targets"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T03:28:45Z",
-      "durationSeconds": 7.031432508,
+      "finishedAt": "2026-08-21T03:40:24Z",
+      "durationSeconds": 0.644556981,
       "detail": "completed successfully"
     }
   ]
