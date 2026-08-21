@@ -168,6 +168,7 @@ def run(config: RuntimeConfig) -> None:
         TileLifecycleController,
         TileRenderStatistics,
         begin_provider_session_replacement,
+        tile_content_ready,
     )
     from .vehicle_model import PX4_IRIS_SENSOR_CADENCE, Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
@@ -783,12 +784,13 @@ def run(config: RuntimeConfig) -> None:
                     tile_state = state.snapshot()["tiles"]
                     state.update_stream_products(
                         operator_products.state(
-                            content_ready=(
-                                tile_state["lifecycle"] == "ready"
-                                or (
-                                    tile_state["lifecycle"] == "refreshing"
-                                    and tile_state["visible_tiles"] > 0
-                                )
+                            content_ready=tile_content_ready(
+                                lifecycle=tile_state["lifecycle"],
+                                visible_tiles=tile_state["visible_tiles"],
+                                geometries_rendered=tile_state[
+                                    "geometries_rendered"
+                                ],
+                                materials_loaded=tile_state["materials_loaded"],
                             )
                         )
                     )
@@ -858,14 +860,21 @@ def run(config: RuntimeConfig) -> None:
                 for tile_event in tile_event_bridge.drain():
                     tile_action = tile_controller.accept(tile_event)
                     if tile_action.report_failure:
-                        LOGGER.error(
+                        log = (
+                            LOGGER.warning
+                            if tile_action.retained_textured_coverage
+                            else LOGGER.error
+                        )
+                        log(
                             (
                                 "streamed-world load failed: type=%s "
-                                "status=%d generation=%d; simulation continues"
+                                "status=%d generation=%d; simulation and resident "
+                                "textured coverage continue=%s"
                             ),
                             tile_event.load_type,
                             tile_event.http_status,
                             tile_event.generation,
+                            tile_action.retained_textured_coverage,
                         )
                     if tile_action.begin_replacement:
                         try:
