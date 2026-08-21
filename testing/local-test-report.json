@@ -1,36 +1,8 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4ef47080777937cf8f106734955b49254e33cc972bfc84d9c9be6986351dbeeb",
-  "updatedAt": "2026-08-21T02:24:11Z",
+  "buildDigest": "sha256:6893bfd40234486762f116b29dc69d109a808086b6f721edf7e5f6e413f2e888",
+  "updatedAt": "2026-08-21T03:28:45Z",
   "checks": [
-    {
-      "name": "bioma-kustomize",
-      "command": [
-        "kubectl",
-        "kustomize",
-        "examples/bioma"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-21T02:24:10Z",
-      "durationSeconds": 0.055038396,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "bioma-uav-chart",
-      "command": [
-        "helm",
-        "lint",
-        "showcase/uav-sim/deploy/helm",
-        "-f",
-        "examples/bioma/uav-sim-values.yaml",
-        "-f",
-        "examples/bioma/images.lock.yaml"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-21T02:24:10Z",
-      "durationSeconds": 0.089950995,
-      "detail": "completed successfully"
-    },
     {
       "name": "uav-mcp",
       "command": [
@@ -41,37 +13,8 @@
         "--all-targets"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T02:24:11Z",
-      "durationSeconds": 1.186664831,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-runtime",
-      "command": [
-        "env",
-        "PYTHONPATH=showcase/uav-sim/runtime",
-        "uv",
-        "run",
-        "--python",
-        "3.13",
-        "--with",
-        "numpy==2.5.1",
-        "--with",
-        "aiohttp==3.14.1",
-        "--with",
-        "pymavlink==2.4.49",
-        "--with",
-        "fastcrc==0.3.6",
-        "python",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "showcase/uav-sim/runtime/tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-21T02:24:09Z",
-      "durationSeconds": 0.644644605,
+      "finishedAt": "2026-08-21T03:28:45Z",
+      "durationSeconds": 7.031432508,
       "detail": "completed successfully"
     }
   ]
