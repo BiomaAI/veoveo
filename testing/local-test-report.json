@@ -1,8 +1,36 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2dc1c5fcb1faabbc10f3466fed187e421f29619936ff81937f9c9d96857c3230",
-  "updatedAt": "2026-08-21T20:47:23Z",
+  "buildDigest": "sha256:42709936e690ee268d68e68839713fdf0942b0b0282a8454bb2df206b1095eb2",
+  "updatedAt": "2026-08-21T20:52:54Z",
   "checks": [
+    {
+      "name": "bioma-kustomize",
+      "command": [
+        "kubectl",
+        "kustomize",
+        "examples/bioma"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-21T20:52:54Z",
+      "durationSeconds": 0.064792627,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "bioma-uav-chart",
+      "command": [
+        "helm",
+        "lint",
+        "showcase/uav-sim/deploy/helm",
+        "-f",
+        "examples/bioma/uav-sim-values.yaml",
+        "-f",
+        "examples/bioma/images.lock.yaml"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-21T20:52:53Z",
+      "durationSeconds": 0.213822056,
+      "detail": "completed successfully"
+    },
     {
       "name": "uav-runtime",
       "command": [
@@ -25,12 +53,11 @@
         "unittest",
         "discover",
         "-s",
-        "showcase/uav-sim/runtime/tests",
-        "-v"
+        "showcase/uav-sim/runtime/tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T20:47:23Z",
-      "durationSeconds": 0.714591303,
+      "finishedAt": "2026-08-21T20:52:45Z",
+      "durationSeconds": 0.685336019,
       "detail": "completed successfully"
     }
   ]
