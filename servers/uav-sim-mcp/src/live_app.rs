@@ -29,6 +29,7 @@ mod tests {
             "subscriptions/listen",
             "resourceSubscriptions",
             "ui/resource-teardown",
+            "applyHostContext(initialized?.hostContext)",
             "navigator.mediaCapabilities.decodingInfo",
             "section.dataset.viewerInstanceId",
             "section.dataset.streamProductId",

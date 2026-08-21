@@ -2550,6 +2550,17 @@ mod admin_app_tests {
     const EDITOR_APP: &str = include_str!("../assets/editor-app.html");
 
     #[test]
+    fn apps_apply_the_initial_host_theme() {
+        for app in [ADMIN_APP, EDITOR_APP] {
+            assert!(
+                app.contains("hostContext(initialized&&initialized.hostContext)")
+                    || app.contains("applyHostContext(initialized && initialized.hostContext)"),
+                "App must apply the host context returned by ui/initialize"
+            );
+        }
+    }
+
+    #[test]
     fn acquisition_idempotency_uses_the_browser_uuid_generator() {
         assert!(ADMIN_APP.contains("return crypto.randomUUID();"));
         assert!(!ADMIN_APP.contains("return idempotencyKey();"));

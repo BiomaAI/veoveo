@@ -37,7 +37,7 @@ export function compactIdentityLabel(identity: string): string {
 
 function identitySegment(identity: string): string {
   return identity
-    .split(/[\/#]/)
+    .split(/[/#]/)
     .filter((segment) => segment.trim())
     .at(-1)
     ?.trim() ?? identity.trim();

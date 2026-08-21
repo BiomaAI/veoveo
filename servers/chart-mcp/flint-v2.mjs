@@ -41,15 +41,21 @@ function asset(name) {
 // data-theme contract. Injected before </head> so it wins the cascade.
 const LEDGER_THEME_STYLE = `<style>
 :root{--paper:#fffdf8;--ink:#201e1a;--muted:#6f6a5f;--hairline:#ddd8cc;--accent:#201e1a;--warn:#8a6430;--error:#96423b;--font:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-:root[data-theme="dark"]{color-scheme:dark;--paper:#161618;--ink:#eae6dc;--muted:#918c82;--hairline:#2b2a2d;--accent:#e8e3d8;--warn:#bd8443;--error:#b5584f}
+:root[data-theme="dark"]{color-scheme:dark;--paper:#161618;--ink:#eae6dc;--muted:#918c82;--hairline:#2b2a2d;--accent:#e8e3d8;--warn:#bd8443;--error:#c96f67}
 body{background:var(--paper);color:var(--ink)}
 </style>
 <script>
 // Follow the host's theme over the MCP Apps bridge (passive observer only).
 addEventListener("message", (event) => {
   try {
-    const params = event.data && event.data.params;
-    const context = params && (params.hostContext || params);
+    const message = event.data;
+    if (event.source !== parent || !message || message.jsonrpc !== "2.0") return;
+    const changed = message.method === "ui/notifications/host-context-changed";
+    const initialized = message.result && typeof message.result.protocolVersion === "string";
+    const params = changed && message.params;
+    const context = changed
+      ? params && (params.hostContext || params)
+      : initialized && message.result.hostContext;
     const theme = context && context.theme;
     if (theme === "dark" || theme === "light") {
       document.documentElement.dataset.theme = theme;
