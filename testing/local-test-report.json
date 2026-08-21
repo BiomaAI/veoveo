@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:06a816cc1fd6889600b1cbe77e46258647c34ea7c3010172f6f89afb415296e1",
-  "updatedAt": "2026-08-21T02:02:30Z",
+  "buildDigest": "sha256:4ef47080777937cf8f106734955b49254e33cc972bfc84d9c9be6986351dbeeb",
+  "updatedAt": "2026-08-21T02:24:11Z",
   "checks": [
     {
       "name": "bioma-kustomize",
@@ -11,8 +11,8 @@
         "examples/bioma"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T01:59:33Z",
-      "durationSeconds": 0.063668775,
+      "finishedAt": "2026-08-21T02:24:10Z",
+      "durationSeconds": 0.055038396,
       "detail": "completed successfully"
     },
     {
@@ -27,8 +27,8 @@
         "examples/bioma/images.lock.yaml"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T01:59:32Z",
-      "durationSeconds": 0.185466538,
+      "finishedAt": "2026-08-21T02:24:10Z",
+      "durationSeconds": 0.089950995,
       "detail": "completed successfully"
     },
     {
@@ -41,8 +41,8 @@
         "--all-targets"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T02:02:30Z",
-      "durationSeconds": 170.332195637,
+      "finishedAt": "2026-08-21T02:24:11Z",
+      "durationSeconds": 1.186664831,
       "detail": "completed successfully"
     },
     {
@@ -70,8 +70,8 @@
         "showcase/uav-sim/runtime/tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-21T01:59:32Z",
-      "durationSeconds": 1.081803779,
+      "finishedAt": "2026-08-21T02:24:09Z",
+      "durationSeconds": 0.644644605,
       "detail": "completed successfully"
     }
   ]
