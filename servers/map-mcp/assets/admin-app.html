@@ -5,79 +5,93 @@
 <title>Map data administration</title>
 <style>
   :root {
-    --surface: #fcfcfb;
-    --panel: #ffffff;
-    --ink: #1d2126;
-    --ink-secondary: #5b6570;
-    --ink-muted: #8a929b;
-    --grid: #e8eaec;
-    --panel-border: #dfe2e4;
-    --accent: #2a78d6;
-    --accent-ink: #ffffff;
-    --danger: #c93f3e;
-    --ok: #1baf7a;
-    --warn: #b97e00;
-    --chip: #f0f1f2;
+    --surface: #f6f4ef;
+    --panel: #fffdf8;
+    --ink: #201e1a;
+    --ink-secondary: #55524a;
+    --ink-muted: #6f6a5f;
+    --grid: #e7e2d6;
+    --panel-border: #ddd8cc;
+    --hover-border: #c7c0af;
+    --accent: #201e1a;
+    --accent-ink: #f6f4ef;
+    --danger: #96423b;
+    --ok: #3f7354;
+    --warn: #8a6430;
+    --chip: #f6f3ec;
+    --error-bg: #f7ebe9;
+    --error-border: #dcbab4;
+    --error-ink: #8a3a33;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
   }
   :root[data-theme="dark"] {
-    --surface: #1a1a19;
-    --panel: #212220;
-    --ink: #e8e8e6;
-    --ink-secondary: #a8adb3;
-    --ink-muted: #7c8288;
-    --grid: #32343a;
-    --panel-border: #3a3d42;
-    --accent: #3987e5;
-    --accent-ink: #ffffff;
-    --danger: #e66767;
-    --ok: #199e70;
-    --warn: #c98500;
-    --chip: #2b2d2b;
+    --surface: #101012;
+    --panel: #161618;
+    --ink: #eae6dc;
+    --ink-secondary: #b0aca2;
+    --ink-muted: #918c82;
+    --grid: #232125;
+    --panel-border: #2b2a2d;
+    --hover-border: #5a564e;
+    --accent: #e8e3d8;
+    --accent-ink: #131315;
+    --danger: #b5584f;
+    --ok: #74a184;
+    --warn: #bd8443;
+    --chip: #1b1b1e;
+    --error-bg: #211416;
+    --error-border: #573530;
+    --error-ink: #cf8b85;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--surface); color: var(--ink);
     font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   body { padding: 12px 14px 16px; }
-  h1 { margin: 0; font-size: 15px; font-weight: 650; }
-  h2 { margin: 0; font-size: 13px; font-weight: 650; }
+  h1 { margin: 0; font-size: 16px; font-family: var(--serif); font-weight: 400; }
+  h2 { margin: 0; font-size: 14px; font-family: var(--serif); font-weight: 400; }
   .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .subtitle { color: var(--ink-secondary); font-size: 12px; }
-  section { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 7px;
+  section { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 0;
     padding: 10px 12px 12px; margin-bottom: 10px; }
   .section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .section-head .count { color: var(--ink-muted); font-size: 12px; }
   .section-head .spacer { flex: 1; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th { text-align: left; color: var(--ink-muted); font-weight: 600; padding: 3px 8px 5px 0;
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th { text-align: left; color: var(--ink-muted); font-family: var(--mono); font-weight: 500;
+    font-size: 10px; text-transform: uppercase; letter-spacing: .08em; padding: 3px 8px 5px 0;
     border-bottom: 1px solid var(--grid); white-space: nowrap; }
   td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
   tr:last-child td { border-bottom: 0; }
-  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; }
+  .mono { font-family: var(--mono); font-size: 11px; font-variant-numeric: tabular-nums; }
   .muted { color: var(--ink-muted); }
-  .pill { display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 11px; background: var(--chip); }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; background: var(--chip); }
   .pill.ok { color: var(--ok); }
   .pill.warn { color: var(--warn); }
   .pill.bad { color: var(--danger); }
-  button { padding: 4px 10px; border: 1px solid var(--panel-border); border-radius: 5px;
+  button { padding: 4px 10px; border: 1px solid var(--panel-border); border-radius: 0;
     background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
+  button:hover { border-color: var(--hover-border); }
   button:disabled { opacity: 0.45; cursor: default; }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  button.confirm { background: var(--danger); border-color: var(--danger); color: #fff; }
+  button.confirm { background: var(--danger); border-color: var(--danger); color: #f6f4ef; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .row-actions { display: flex; gap: 5px; flex-wrap: wrap; }
   form.acquire { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-  label { display: flex; flex-direction: column; gap: 3px; color: var(--ink-secondary); font-size: 11px; }
-  input, select, textarea { padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 5px;
-    background: var(--surface); color: var(--ink); font: inherit; }
-  input[type="number"] { width: 88px; }
-  textarea { width: 100%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 11px; resize: vertical; }
+  label { display: flex; flex-direction: column; gap: 3px; color: var(--ink-muted);
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+  input, select, textarea { padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 0;
+    background: var(--surface); color: var(--ink); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    letter-spacing: normal; text-transform: none; }
+  input:hover, select:hover, textarea:hover { border-color: var(--hover-border); }
+  input[type="number"] { width: 88px; font-variant-numeric: tabular-nums; }
+  textarea { width: 100%; font-family: var(--mono); font-size: 11px; resize: vertical; }
   details { margin-top: 8px; }
   details summary { cursor: pointer; color: var(--ink-secondary); font-size: 12px; font-weight: 600; }
   details form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   details form button { align-self: flex-start; }
-  .error { display: none; margin-top: 8px; padding: 6px 9px; border-radius: 5px; font-size: 12px;
-    border: 1px solid var(--danger); color: var(--danger); white-space: pre-wrap; }
+  .error { display: none; margin-top: 8px; padding: 6px 9px; border-radius: 0; font-size: 12px;
+    background: var(--error-bg); border: 1px solid var(--error-border); color: var(--error-ink); white-space: pre-wrap; }
   .empty { color: var(--ink-muted); padding: 8px 0; font-size: 12px; }
   #boot { color: var(--ink-muted); padding: 24px 0; text-align: center; }
 </style>

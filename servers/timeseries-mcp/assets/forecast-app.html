@@ -5,53 +5,75 @@
 <title>Timeseries forecast</title>
 <style>
   :root {
-    --surface: #fcfcfb;
-    --ink: #1d2126;
-    --ink-secondary: #5b6570;
-    --ink-muted: #8a929b;
-    --grid: #e8eaec;
-    --panel-border: #dfe2e4;
-    --tooltip-surface: #ffffff;
+    --surface: #f6f4ef;
+    --panel: #fffdf8;
+    --ink: #201e1a;
+    --ink-secondary: #55524a;
+    --ink-muted: #6f6a5f;
+    --grid: #e7e2d6;
+    --panel-border: #ddd8cc;
+    --panel-border-hover: #c7c0af;
+    --tooltip-surface: #fffdf8;
+    --tooltip-shadow: 0 8px 20px #2a251a14;
+    --ok: #3f7354;
+    --danger: #96423b;
+    --warn: #8a6430;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
   }
   :root[data-theme="dark"] {
-    --surface: #1a1a19;
-    --ink: #e8e8e6;
-    --ink-secondary: #a8adb3;
-    --ink-muted: #7c8288;
-    --grid: #32343a;
-    --panel-border: #3a3d42;
-    --tooltip-surface: #24262a;
+    --surface: #101012;
+    --panel: #161618;
+    --ink: #eae6dc;
+    --ink-secondary: #b0aca2;
+    --ink-muted: #918c82;
+    --grid: #232125;
+    --panel-border: #2b2a2d;
+    --panel-border-hover: #5a564e;
+    --tooltip-surface: #202023;
+    --tooltip-shadow: 0 8px 20px #0006;
+    --ok: #74a184;
+    --danger: #b5584f;
+    --warn: #bd8443;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--surface); color: var(--ink);
     font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   body { padding: 14px 16px 16px; }
   .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  h1 { margin: 0; font-size: 15px; font-weight: 650; }
+  h1 { margin: 0; font-family: var(--serif); font-size: 16px; font-weight: 400; }
   .subtitle { color: var(--ink-secondary); font-size: 12px; }
   form { display: flex; align-items: center; gap: 8px; }
-  label { color: var(--ink-secondary); font-size: 12px; }
+  label { color: var(--ink-muted); font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .08em; }
   input[type="number"] { width: 72px; padding: 4px 6px; border: 1px solid var(--panel-border);
-    border-radius: 5px; background: var(--surface); color: var(--ink); font: inherit; }
-  button { padding: 5px 11px; border: 1px solid var(--panel-border); border-radius: 5px;
-    background: var(--tooltip-surface); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+    border-radius: 0; background: var(--surface); color: var(--ink); font: inherit;
+    font-variant-numeric: tabular-nums; }
+  input[type="number"]:hover { border-color: var(--panel-border-hover); }
+  button { padding: 5px 11px; border: 1px solid var(--panel-border); border-radius: 0;
+    background: var(--panel); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--panel-border-hover); }
   button:disabled { opacity: 0.5; cursor: default; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 2px; }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-secondary); font-size: 12px; }
-  .legend i { width: 10px; height: 10px; border-radius: 3px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-secondary);
+    font-family: var(--mono); font-size: 11px; }
+  .legend i { width: 10px; height: 10px; border-radius: 0; }
   .legend .style-key { color: var(--ink-muted); }
   #chartwrap { position: relative; }
   svg { display: block; width: 100%; height: auto; }
+  svg text { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   #tooltip { position: absolute; display: none; pointer-events: none; z-index: 2;
-    background: var(--tooltip-surface); border: 1px solid var(--panel-border); border-radius: 6px;
-    padding: 7px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); min-width: 130px; }
-  #tooltip .tt-x { color: var(--ink-muted); font-size: 11px; margin-bottom: 3px; }
+    background: var(--tooltip-surface); border: 1px solid var(--panel-border); border-radius: 0;
+    padding: 7px 9px; font-size: 12px; box-shadow: var(--tooltip-shadow); min-width: 130px; }
+  #tooltip .tt-x { color: var(--ink-muted); font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
   #tooltip .tt-row { display: flex; align-items: center; gap: 6px; }
-  #tooltip .tt-row i { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
-  #tooltip .tt-row b { margin-left: auto; font-variant-numeric: tabular-nums; }
+  #tooltip .tt-row i { width: 8px; height: 8px; border-radius: 0; flex: 0 0 auto; }
+  #tooltip .tt-row b { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
   #status { color: var(--ink-muted); padding: 28px 0; text-align: center; }
-  #error { display: none; margin-top: 10px; padding: 7px 10px; border-radius: 5px; font-size: 12px;
-    border: 1px solid #e34948; color: #e34948; }
+  #error { display: none; margin-top: 10px; padding: 7px 10px; border-radius: 0; font-size: 12px;
+    border: 1px solid var(--danger); color: var(--danger); }
   .fold-note { color: var(--ink-muted); font-size: 11px; }
 </style>
 </head>
@@ -128,8 +150,8 @@ const bridge = (() => {
  * order by sorted series id, never cycled — series 9+ fold into a note.
  */
 const palette = {
-  light: ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#e87ba4", "#eb6834"],
-  dark: ["#3987e5", "#199e70", "#c98500", "#008300", "#9085e9", "#e66767", "#d55181", "#d95926"],
+  light: ["#8a6d2f", "#5c6670", "#3f7354", "#96423b", "#8a6430", "#6f6547", "#7d5533", "#5f6a40"],
+  dark: ["#c2a15c", "#7e8a95", "#74a184", "#b5584f", "#bd8443", "#97896f", "#a07852", "#84895e"],
 };
 const MAX_SERIES = 8;
 let theme = "light";

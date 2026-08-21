@@ -529,13 +529,15 @@ fn authentication_error_page(
   <title>{title} | Console</title>
   <style>
     :root {{ color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }}
-    body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; background: #070b12; color: #edf3ff; }}
-    main {{ width: min(34rem, calc(100vw - 3rem)); padding: 2.5rem; border: 1px solid #243044; border-radius: 1rem; background: #101722; box-shadow: 0 1.5rem 4rem #0008; }}
-    p {{ color: #b7c3d8; line-height: 1.6; }}
+    body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; background: #101012; color: #eae6dc; }}
+    main {{ width: min(34rem, calc(100vw - 3rem)); padding: 2.5rem; border: 1px solid #2b2a2d; background: #161618; box-shadow: 0 1.5rem 4rem #000b; }}
+    h1 {{ font: 400 1.6rem "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif; }}
+    p {{ color: #cfcabf; line-height: 1.6; }}
     nav {{ display: flex; flex-wrap: wrap; gap: .75rem; margin: 2rem 0; }}
-    a {{ padding: .75rem 1rem; border-radius: .5rem; color: #edf3ff; border: 1px solid #4d6485; text-decoration: none; }}
-    a:first-child {{ background: #3478f6; border-color: #3478f6; }}
-    small {{ color: #8290a7; }}
+    a {{ padding: .75rem 1rem; color: #eae6dc; border: 1px solid #3e3c38; text-decoration: none; }}
+    a:hover {{ border-color: #5a564e; }}
+    a:first-child {{ background: #e8e3d8; border-color: #e8e3d8; color: #131315; }}
+    small {{ color: #918c82; }}
     code {{ user-select: all; }}
   </style>
 </head>
