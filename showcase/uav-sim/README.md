@@ -145,25 +145,28 @@ during refinement instead of the renderer clear color.
 
 The image builds the exact Cesium Omniverse `0.29.0` source commit and exact upstream
 Cesium Native submodule revision in the digest-pinned upstream builder. Two reviewed
-patches add child-content failure delivery, load generations, and query-secret log
-redaction. Existing material, viewport-authority, and vendor-install patches apply to the
-resulting extension package. No runtime download or locally rebuilt installation is
-accepted.
+patches add child-content failure delivery, load generations, query-secret log redaction,
+and a fresh ion endpoint bootstrap for every native tileset generation. Existing
+material, viewport-authority, and vendor-install patches apply to the resulting extension
+package. No runtime download or locally rebuilt installation is accepted.
 
 Native message-bus events drive streamed-world recovery. A tile-content HTTP 400 marks
 the current provider generation rejected. The runtime keeps its resident geometry and
-materials mounted while a separately named tileset obtains a fresh root session.
-Hundreds of child failures from the rejected generation remain one replacement action.
-Native load completion promotes the replacement before the expired tileset is retired;
-stable visible coverage then restores readiness. A failed replacement is removed and
-settles in a typed degraded state. Other HTTP and transport failures never trigger
-speculative replacement.
+materials mounted while a separately named tileset obtains a fresh root session. The
+endpoint bootstrap bypasses Cesium's in-memory and SQLite endpoint responses, while the
+persistent tile-content cache stays intact. Hundreds of child failures from the rejected
+generation remain one replacement action. Native load completion begins validation; it
+does not retire the resident tileset. Loaded material and geometry growth plus stable
+rendered coverage prove the replacement before promotion. A failed or unregistered
+replacement is removed after two minutes and settles in a typed degraded state. Other
+HTTP and transport failures never trigger speculative replacement.
 
-The runtime projects `provider_generation`, `event_sequence`, `refresh_count`, and a
-typed `last_failure` without a URL or credential. Visibility counters remain render
-observations. They never start a timeout, poll a provider, or stop simulation. Existing
-operator streams retain the resident generation while its replacement loads, and visual
-readiness stays false until the promoted generation proves visible coverage.
+The runtime projects `provider_generation`, `event_sequence`, `refresh_count`, loaded and
+rendered geometry counts, loaded material count, and a typed `last_failure` without a URL
+or credential. Visibility counters remain render observations. They never infer network
+failure, poll a provider, or stop simulation. Existing operator streams retain the
+resident generation while its replacement loads. Kubernetes visual readiness remains
+current during that overlap only while textured resident coverage is still present.
 
 Fleet dynamics use CUDA-backed PhysX tensor views. Elapsed monotonic time determines the
 number of authoritative fixed physics steps due on each scheduler pass. The clock retains

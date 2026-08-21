@@ -206,12 +206,16 @@ type, and HTTP status. Provider URLs, keys, sessions, tokens, headers, and respo
 never enter the event or projected runtime state.
 
 A rejected tile-content session produces one generation-safe replacement. The runtime
-keeps the resident native tileset mounted, clears stale HTTP responses, and authors a
-separate tileset that must obtain a new root session. Duplicate failures from the
-rejected generation collapse into the same action. Native load completion promotes the
-replacement before the runtime retires the expired tileset; current visible coverage
-must then remain stable before readiness returns. A rejected replacement is removed and
-the lifecycle becomes `degraded` without a replacement loop. Credential, quota,
+keeps the resident native tileset mounted and preserves Cesium's persistent response
+cache. Each native tileset generation bypasses the two endpoint caches for its small ion
+bootstrap request, which guarantees a new provider session without deleting cached tile
+content. Duplicate failures from the rejected generation collapse into the same action.
+Native load completion alone does not promote the replacement. Loaded tiles, prepared
+geometry, prepared materials, and rendered geometry must all increase beyond the resident
+baseline and remain visible for the configured readiness window. Only then does the
+runtime retire the expired tileset. A rejected or unproven replacement is removed after
+the bounded 120-second registration-and-coverage window, and the lifecycle becomes
+`degraded` without a replacement loop. Credential, quota,
 transport, asset, and provider failures are typed directly and never masquerade as a
 provider-session replacement.
 

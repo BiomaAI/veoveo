@@ -64,3 +64,172 @@ index 693d090..5c01eba 100644
          SPDLOG_LOGGER_ERROR(
              pLogger,
              "An unexpected error occurs when loading tile: {}",
+diff --git a/Cesium3DTilesSelection/src/CesiumIonTilesetLoader.cpp b/Cesium3DTilesSelection/src/CesiumIonTilesetLoader.cpp
+index 2b9204e3..e2dd74ca 100644
+--- a/Cesium3DTilesSelection/src/CesiumIonTilesetLoader.cpp
++++ b/Cesium3DTilesSelection/src/CesiumIonTilesetLoader.cpp
+@@ -10,5 +10,2 @@
+ #include <CesiumUtility/Uri.h>
+-
+-#include <unordered_map>
+-
+ namespace Cesium3DTilesSelection {
+@@ -26,5 +23,2 @@ struct AssetEndpoint {
+ };
+-
+-std::unordered_map<std::string, AssetEndpoint> endpointCache;
+-
+ std::string createEndpointResource(
+@@ -313,3 +307,2 @@ mainThreadHandleEndpointResponse(
+     endpoint.accessToken = accessToken;
+-    endpointCache[requestUrl] = endpoint;
+     return mainThreadLoadLayerJsonFromAssetEndpoint(
+@@ -328,3 +321,2 @@ mainThreadHandleEndpointResponse(
+     endpoint.accessToken = accessToken;
+-    endpointCache[requestUrl] = endpoint;
+     return mainThreadLoadTilesetJsonFromAssetEndpoint(
+@@ -424,3 +416,3 @@ void CesiumIonTilesetLoader::refreshTokenInMainThread(
+       this->_ionAssetEndpointUrl);
+-  pAssetAccessor->get(asyncSystem, url)
++  pAssetAccessor->request(asyncSystem, "GET", url)
+       .thenInMainThread(
+@@ -443,9 +435,2 @@ void CesiumIonTilesetLoader::refreshTokenInMainThread(
+                     "Bearer " + *accessToken);
+-
+-                // update cache with new access token
+-                auto cacheIt = endpointCache.find(pIonRequest->url());
+-                if (cacheIt != endpointCache.end()) {
+-                  cacheIt->second.accessToken = accessToken.value();
+-                }
+-
+                 this->_refreshTokenState = TokenRefreshState::Done;
+@@ -471,99 +456,25 @@ CesiumIonTilesetLoader::createLoader(
+       createEndpointResource(ionAssetID, ionAccessToken, ionAssetEndpointUrl);
+-  auto cacheIt = endpointCache.find(ionUrl);
+-  if (cacheIt != endpointCache.end()) {
+-    const auto& endpoint = cacheIt->second;
+-    if (endpoint.type == "TERRAIN") {
+-      return mainThreadLoadLayerJsonFromAssetEndpoint(
+-                 externals,
+-                 contentOptions,
+-                 endpoint,
+-                 ionAssetID,
+-                 ionAccessToken,
+-                 ionAssetEndpointUrl,
+-                 headerChangeListener,
+-                 showCreditsOnScreen,
+-                 ellipsoid)
+-          .thenInMainThread(
+-              [externals,
+-               ellipsoid,
+-               contentOptions,
+-               ionAssetID,
+-               ionAccessToken,
+-               ionAssetEndpointUrl,
+-               headerChangeListener,
+-               showCreditsOnScreen](
+-                  TilesetContentLoaderResult<CesiumIonTilesetLoader>&& result) {
+-                return refreshTokenIfNeeded(
+-                    externals,
+-                    contentOptions,
+-                    ionAssetID,
+-                    ionAccessToken,
+-                    ionAssetEndpointUrl,
+-                    headerChangeListener,
+-                    showCreditsOnScreen,
+-                    std::move(result),
+-                    ellipsoid);
+-              });
+-    } else if (endpoint.type == "3DTILES") {
+-      return mainThreadLoadTilesetJsonFromAssetEndpoint(
+-                 externals,
+-                 endpoint,
+-                 ionAssetID,
+-                 ionAccessToken,
+-                 ionAssetEndpointUrl,
+-                 headerChangeListener,
+-                 showCreditsOnScreen,
+-                 ellipsoid)
+-          .thenInMainThread(
+-              [externals,
+-               contentOptions,
+-               ionAssetID,
+-               ionAccessToken,
+-               ionAssetEndpointUrl,
+-               headerChangeListener,
+-               showCreditsOnScreen,
+-               ellipsoid](
+-                  TilesetContentLoaderResult<CesiumIonTilesetLoader>&& result) {
+-                return refreshTokenIfNeeded(
+-                    externals,
+-                    contentOptions,
+-                    ionAssetID,
+-                    ionAccessToken,
+-                    ionAssetEndpointUrl,
+-                    headerChangeListener,
+-                    showCreditsOnScreen,
+-                    std::move(result),
+-                    ellipsoid);
+-              });
+-    }
+-
+-    TilesetContentLoaderResult<CesiumIonTilesetLoader> result;
+-    result.errors.emplaceError(fmt::format(
+-        "Received unsupported asset response type: {}",
+-        endpoint.type));
+-    return externals.asyncSystem.createResolvedFuture(std::move(result));
+-  } else {
+-    return externals.pAssetAccessor->get(externals.asyncSystem, ionUrl)
+-        .thenInMainThread(
+-            [externals,
+-             ellipsoid,
+-             ionAssetID,
+-             ionAccessToken = ionAccessToken,
+-             ionAssetEndpointUrl = ionAssetEndpointUrl,
+-             headerChangeListener = headerChangeListener,
+-             showCreditsOnScreen,
+-             contentOptions](std::shared_ptr<CesiumAsync::IAssetRequest>&&
+-                                 pRequest) mutable {
+-              return mainThreadHandleEndpointResponse(
+-                  externals,
+-                  std::move(pRequest),
+-                  ionAssetID,
+-                  std::move(ionAccessToken),
+-                  std::move(ionAssetEndpointUrl),
+-                  contentOptions,
+-                  std::move(headerChangeListener),
+-                  showCreditsOnScreen,
+-                  ellipsoid);
+-            });
+-  }
++  return externals.pAssetAccessor
++      ->request(externals.asyncSystem, "GET", ionUrl)
++      .thenInMainThread(
++          [externals,
++           ellipsoid,
++           ionAssetID,
++           ionAccessToken = ionAccessToken,
++           ionAssetEndpointUrl = ionAssetEndpointUrl,
++           headerChangeListener = headerChangeListener,
++           showCreditsOnScreen,
++           contentOptions](
++              std::shared_ptr<CesiumAsync::IAssetRequest>&& pRequest) mutable {
++            return mainThreadHandleEndpointResponse(
++                externals,
++                std::move(pRequest),
++                ionAssetID,
++                std::move(ionAccessToken),
++                std::move(ionAssetEndpointUrl),
++                contentOptions,
++                std::move(headerChangeListener),
++                showCreditsOnScreen,
++                ellipsoid);
++          });
+ }
+@@ -582,6 +493,2 @@ CesiumIonTilesetLoader::refreshTokenIfNeeded(
+     if (result.statusCode == 401) {
+-      endpointCache.erase(createEndpointResource(
+-          ionAssetID,
+-          ionAccessToken,
+-          ionAssetEndpointUrl));
+       return CesiumIonTilesetLoader::createLoader(
