@@ -92,6 +92,15 @@ disconnects, and lands as recordings and artifacts with full provenance.
 Operators steer and audit the same state agents act on, from the same
 Console.
 
+The harness is deliberately unprivileged. NVIDIA's
+[agent-stack security guidance](https://developer.nvidia.com/blog/where-security-fits-in-an-ai-agent-stack)
+draws the boundary in the same place: "The harness guides what an agent
+tries. The infrastructure controls what an agent can do." In Veoveo,
+authority lives below every harness, so any compatible MCP host can drive
+an installation without carrying authority of its own, and the boundary
+extends past files and API calls to physical actuation behind command
+leases.
+
 <a href="docs/images/harness-poster.png">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/harness-poster-dark.png">
