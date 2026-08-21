@@ -36,6 +36,34 @@ function asset(name) {
   return readFileSync(join(PACKAGE_ROOT, "assets", name), "utf8");
 }
 
+// Veoveo Ledger theme override for the vendored Flint chart app: remap its
+// token layer (--paper/--ink/...) and add a dark variant keyed on the host's
+// data-theme contract. Injected before </head> so it wins the cascade.
+const LEDGER_THEME_STYLE = `<style>
+:root{--paper:#fffdf8;--ink:#201e1a;--muted:#6f6a5f;--hairline:#ddd8cc;--accent:#201e1a;--warn:#8a6430;--error:#96423b;--font:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+:root[data-theme="dark"]{color-scheme:dark;--paper:#161618;--ink:#eae6dc;--muted:#918c82;--hairline:#2b2a2d;--accent:#e8e3d8;--warn:#bd8443;--error:#b5584f}
+body{background:var(--paper);color:var(--ink)}
+</style>
+<script>
+// Follow the host's theme over the MCP Apps bridge (passive observer only).
+addEventListener("message", (event) => {
+  try {
+    const params = event.data && event.data.params;
+    const context = params && (params.hostContext || params);
+    const theme = context && context.theme;
+    if (theme === "dark" || theme === "light") {
+      document.documentElement.dataset.theme = theme;
+    }
+  } catch {}
+});
+</script>`;
+
+function themedApp(html) {
+  return html.includes("</head>")
+    ? html.replace("</head>", `${LEDGER_THEME_STYLE}</head>`)
+    : LEDGER_THEME_STYLE + html;
+}
+
 function errorResult(error) {
   const message = error instanceof Error ? error.message : String(error);
   return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
@@ -301,7 +329,7 @@ export function createServer({ disableFileReference = false } = {}) {
     CHART_VIEW_URI,
     "Interactive chart view",
     APP_MIME_TYPE,
-    asset("flint-app.html"),
+    themedApp(asset("flint-app.html")),
     { ui: { permissions: { clipboardWrite: {} } } },
   );
   registerResource(

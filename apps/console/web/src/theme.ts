@@ -1,8 +1,8 @@
 import { createContext, useContext } from "react";
 
 export const consoleThemes = [
-  { id: "gray-dark", label: "Gray Dark", appTheme: "dark" },
-  { id: "light", label: "Light", appTheme: "light" },
+  { id: "gray-dark", label: "Ledger Dark", appTheme: "dark" },
+  { id: "light", label: "Ledger Light", appTheme: "light" },
 ] as const;
 
 export type ConsoleTheme = (typeof consoleThemes)[number]["id"];
