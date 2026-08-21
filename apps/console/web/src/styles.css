@@ -45,8 +45,8 @@
   --green-soft: rgba(116, 161, 132, 0.14);
   --amber: #bd8443;
   --amber-soft: rgba(189, 132, 67, 0.15);
-  --red: #b5584f;
-  --red-soft: rgba(181, 88, 79, 0.14);
+  --red: #c96f67;
+  --red-soft: rgba(201, 111, 103, 0.14);
   --blue: #7e8a95;
   --blue-soft: rgba(126, 138, 149, 0.16);
   --brass: #c2a15c;
@@ -125,7 +125,14 @@ button, input, select { font: inherit; letter-spacing: 0; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: 0.5; }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
-button:focus-visible, input:focus-visible, select:focus-visible, [tabindex="0"]:focus-visible {
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex="0"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.theme-select:has(select:focus-visible),
+.tenant-select:has(select:focus-visible),
+.search-control:has(input:focus-visible),
+.filter-control:has(select:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

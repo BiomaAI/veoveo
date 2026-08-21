@@ -49,7 +49,13 @@ mod tests {
     #[test]
     fn preview_app_speaks_the_bridge_protocol() {
         let html = preview_app_html();
-        for needle in ["ui/initialize", "tools/call", "resources/read", "tasks/get"] {
+        for needle in [
+            "ui/initialize",
+            "tools/call",
+            "resources/read",
+            "tasks/get",
+            "applyHostContext(initialized && initialized.hostContext)",
+        ] {
             assert!(html.contains(needle), "app must contain {needle}");
         }
     }

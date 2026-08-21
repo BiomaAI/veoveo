@@ -29,6 +29,7 @@ mod tests {
             "recording route off",
             "Live stream session",
             "ui/resource-teardown",
+            "applyHostContext(initialized?.hostContext)",
             "ResizeObserver",
         ] {
             assert!(LIVE_APP_HTML.contains(required), "missing {required}");

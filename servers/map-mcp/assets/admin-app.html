@@ -16,6 +16,7 @@
     --accent: #201e1a;
     --accent-ink: #f6f4ef;
     --danger: #96423b;
+    --danger-ink: #f6f4ef;
     --ok: #3f7354;
     --warn: #8a6430;
     --chip: #f6f3ec;
@@ -36,7 +37,8 @@
     --hover-border: #5a564e;
     --accent: #e8e3d8;
     --accent-ink: #131315;
-    --danger: #b5584f;
+    --danger: #c96f67;
+    --danger-ink: #131315;
     --ok: #74a184;
     --warn: #bd8443;
     --chip: #1b1b1e;
@@ -59,7 +61,7 @@
   .section-head .spacer { flex: 1; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
   th { text-align: left; color: var(--ink-muted); font-family: var(--mono); font-weight: 500;
-    font-size: 10px; text-transform: uppercase; letter-spacing: .08em; padding: 3px 8px 5px 0;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em; padding: 3px 8px 5px 0;
     border-bottom: 1px solid var(--grid); white-space: nowrap; }
   td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
   tr:last-child td { border-bottom: 0; }
@@ -74,12 +76,12 @@
   button:hover { border-color: var(--hover-border); }
   button:disabled { opacity: 0.45; cursor: default; }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  button.confirm { background: var(--danger); border-color: var(--danger); color: #f6f4ef; }
+  button.confirm { background: var(--danger); border-color: var(--danger); color: var(--danger-ink); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .row-actions { display: flex; gap: 5px; flex-wrap: wrap; }
   form.acquire { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
   label { display: flex; flex-direction: column; gap: 3px; color: var(--ink-muted);
-    font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
   input, select, textarea { padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 0;
     background: var(--surface); color: var(--ink); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
     letter-spacing: normal; text-transform: none; }
