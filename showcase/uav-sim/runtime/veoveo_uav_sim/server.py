@@ -8,7 +8,6 @@ from typing import Callable
 
 from aiohttp import web
 
-from .adapter_server import AdapterServer
 from .adapter_auth import authorization_middleware
 from .config import RuntimeConfig
 from .contracts import (
@@ -118,6 +117,9 @@ class PreconfigurationApplication:
                     "resident_tiles": 0,
                     "visible_tiles": 0,
                     "loading_tiles": 0,
+                    "geometries_loaded": 0,
+                    "geometries_rendered": 0,
+                    "materials_loaded": 0,
                     "provider_generation": 0,
                     "event_sequence": 0,
                     "refresh_count": 0,
@@ -163,9 +165,7 @@ class PreconfigurationApplication:
             _world_configuration_response(self._config.session_id, configured)
         )
 
-    async def _release_all_viewer_slots(
-        self, _request: web.Request
-    ) -> web.Response:
+    async def _release_all_viewer_slots(self, _request: web.Request) -> web.Response:
         return web.json_response({"accepted": True})
 
 
@@ -236,8 +236,17 @@ class AdapterApplication:
             and bool(snapshot["vehicles"])
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
         )
+        tiles = snapshot["tiles"]
+        textured_coverage = (
+            tiles["visible_tiles"] > 0
+            and tiles["geometries_rendered"] > 0
+            and tiles["materials_loaded"] > 0
+        )
         visual_ready = (
-            snapshot["tiles"]["lifecycle"] == "ready"
+            (
+                tiles["lifecycle"] == "ready"
+                or (tiles["lifecycle"] == "refreshing" and textured_coverage)
+            )
             and bool(snapshot["cameras"])
             and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
         )
@@ -290,9 +299,7 @@ class AdapterApplication:
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
 
-    async def _release_all_viewer_slots(
-        self, _request: web.Request
-    ) -> web.Response:
+    async def _release_all_viewer_slots(self, _request: web.Request) -> web.Response:
         try:
             await asyncio.to_thread(
                 self._submit_main_thread,
@@ -312,7 +319,9 @@ class AdapterApplication:
             capacity_slot = int(request.match_info["capacity_slot"])
             body = await request.json()
             if not isinstance(body, dict) or set(body) != {"cameraId", "liveViewId"}:
-                raise ValueError("viewer-product assignment requires cameraId and liveViewId")
+                raise ValueError(
+                    "viewer-product assignment requires cameraId and liveViewId"
+                )
             camera_id = body["cameraId"]
             live_view_id = body["liveViewId"]
             if not isinstance(camera_id, str) or not isinstance(live_view_id, str):

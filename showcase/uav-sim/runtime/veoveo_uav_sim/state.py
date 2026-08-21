@@ -73,6 +73,9 @@ class RuntimeState:
                 "resident_tiles": 0,
                 "visible_tiles": 0,
                 "loading_tiles": 0,
+                "geometries_loaded": 0,
+                "geometries_rendered": 0,
+                "materials_loaded": 0,
                 "provider_generation": 0,
                 "event_sequence": 0,
                 "refresh_count": 0,
@@ -111,9 +114,7 @@ class RuntimeState:
                     "encodedFrames": 0,
                     "sourceToRenderSamples": 0,
                 }
-                for capacity_slot in range(
-                    config.operator_live_view.viewer_slot_count
-                )
+                for capacity_slot in range(config.operator_live_view.viewer_slot_count)
             ],
             "vehicles": [],
             "recordings": [
@@ -159,6 +160,9 @@ class RuntimeState:
                 resident_tiles=snapshot.resident_tiles,
                 visible_tiles=snapshot.visible_tiles,
                 loading_tiles=snapshot.loading_tiles,
+                geometries_loaded=snapshot.geometries_loaded,
+                geometries_rendered=snapshot.geometries_rendered,
+                materials_loaded=snapshot.materials_loaded,
                 provider_generation=snapshot.provider_generation,
                 event_sequence=snapshot.event_sequence,
                 refresh_count=snapshot.refresh_count,
@@ -303,7 +307,9 @@ class RuntimeState:
 
     def update_vehicles(self, vehicles: list[VehicleTelemetry]) -> None:
         with self._condition:
-            self._state["vehicles"] = [self._vehicle_state(vehicle) for vehicle in vehicles]
+            self._state["vehicles"] = [
+                self._vehicle_state(vehicle) for vehicle in vehicles
+            ]
             self._touch()
 
     def set_recording_active(self, active: bool) -> None:
@@ -331,7 +337,9 @@ class RuntimeState:
                 recording.pop("diagnostic", None)
             self._touch()
 
-    def wait_for_simulation_delta(self, duration_seconds: float, timeout_seconds: float) -> float:
+    def wait_for_simulation_delta(
+        self, duration_seconds: float, timeout_seconds: float
+    ) -> float:
         with self._condition:
             start = float(self._state["simulation_time_s"])
             target = start + duration_seconds
@@ -340,12 +348,16 @@ class RuntimeState:
                 or self._state["lifecycle"] in {"failed", "stopped"},
                 timeout_seconds,
             ):
-                raise TimeoutError("simulation did not advance for the requested duration")
+                raise TimeoutError(
+                    "simulation did not advance for the requested duration"
+                )
             if self._state["lifecycle"] in {"failed", "stopped"}:
                 raise RuntimeError(f"simulation entered {self._state['lifecycle']}")
             return float(self._state["simulation_time_s"])
 
-    def mutate_vehicle(self, vehicle_id: str, callback: Callable[[dict[str, Any]], None]) -> None:
+    def mutate_vehicle(
+        self, vehicle_id: str, callback: Callable[[dict[str, Any]], None]
+    ) -> None:
         with self._condition:
             for vehicle in self._state["vehicles"]:
                 if vehicle["vehicle_id"] == vehicle_id:

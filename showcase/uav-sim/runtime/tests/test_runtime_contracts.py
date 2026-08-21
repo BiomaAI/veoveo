@@ -5,7 +5,6 @@ import math
 import os
 import struct
 import sys
-import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -76,6 +75,7 @@ from veoveo_uav_sim.tile_lifecycle import (
     NativeTileEvent,
     NativeTileEventBridge,
     TileLifecycleController,
+    TileRenderStatistics,
     begin_provider_session_replacement,
 )
 from veoveo_uav_sim.vehicle_model import (
@@ -175,9 +175,7 @@ class RuntimeConfigTests(unittest.TestCase):
             physical_camera_path("uav/1")
 
     def test_px4_frame_transforms_do_not_require_scipy_objects(self) -> None:
-        np.testing.assert_allclose(
-            enu_to_ned_vector([1.0, 2.0, 3.0]), [2.0, 1.0, -3.0]
-        )
+        np.testing.assert_allclose(enu_to_ned_vector([1.0, 2.0, 3.0]), [2.0, 1.0, -3.0])
         np.testing.assert_allclose(
             flu_to_frd_vector([1.0, 2.0, 3.0]), [1.0, -2.0, -3.0]
         )
@@ -192,9 +190,7 @@ class RuntimeConfigTests(unittest.TestCase):
             atol=1.0e-12,
         )
         np.testing.assert_allclose(
-            quaternion_multiply_xyzw(
-                quarter_turn_z, [0.0, 0.0, 0.0, 1.0]
-            ),
+            quaternion_multiply_xyzw(quarter_turn_z, [0.0, 0.0, 0.0, 1.0]),
             quarter_turn_z,
         )
         converted = attitude_enu_flu_to_ned_frd([0.0, 0.0, 0.0, 1.0])
@@ -242,7 +238,10 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertTrue(config.tile_streaming.preload_siblings)
         self.assertTrue(config.tile_streaming.forbid_holes)
         self.assertEqual(config.adapter_host, "0.0.0.0")
-        self.assertEqual(config.adapter_bearer_token, VALID_ENVIRONMENT["UAV_SIM_ADAPTER_BEARER_TOKEN"])
+        self.assertEqual(
+            config.adapter_bearer_token,
+            VALID_ENVIRONMENT["UAV_SIM_ADAPTER_BEARER_TOKEN"],
+        )
 
         invalid_holes = {
             **VALID_ENVIRONMENT,
@@ -259,12 +258,8 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_runtime_events_are_typed_and_publish_without_a_consumer(self) -> None:
         publisher = RuntimeEventPublisher()
-        notify_adapter_ready(
-            publisher, session_id="uav-showcase", generation=7
-        )
-        notify_runtime_ready(
-            publisher, session_id="uav-showcase", generation=7
-        )
+        notify_adapter_ready(publisher, session_id="uav-showcase", generation=7)
+        notify_runtime_ready(publisher, session_id="uav-showcase", generation=7)
         self.assertEqual(
             json.loads(RuntimeEvent("ready", "uav-showcase", 7).encode()),
             {
@@ -387,9 +382,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("simulation_time_s, physics_step", app_source)
 
         operator_camera_source = (
-            Path(__file__).parents[1]
-            / "veoveo_uav_sim"
-            / "operator_camera.py"
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "operator_camera.py"
         ).read_text()
         self.assertIn("CreateHorizontalApertureAttr", operator_camera_source)
 
@@ -397,13 +390,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             Path(__file__).parents[1] / "veoveo_uav_sim" / "hydra_camera.py"
         ).read_text()
         operator_product_source = (
-            Path(__file__).parents[1]
-            / "veoveo_uav_sim"
-            / "operator_products.py"
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "operator_products.py"
         ).read_text()
-        product_sources = "".join(
-            (hydra_camera_source, operator_product_source)
-        )
+        product_sources = "".join((hydra_camera_source, operator_product_source))
         self.assertEqual(product_sources.count("get_frame_info"), 1)
         self.assertIn("is_async_low_latency=False", hydra_camera_source)
         self.assertIn("is_async_low_latency=False", operator_product_source)
@@ -419,7 +408,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             target_fps=2,
         )
         self.assertEqual(len(arguments), 5)
-        self.assertTrue(all("physical_uav_1_down.LdrColor" in value for value in arguments))
+        self.assertTrue(
+            all("physical_uav_1_down.LdrColor" in value for value in arguments)
+        )
         self.assertTrue(any(value.endswith("/streamType=rtsp") for value in arguments))
         self.assertTrue(any(value.endswith("/signalPort=8555") for value in arguments))
         self.assertTrue(any(value.endswith("/streamPort=8554") for value in arguments))
@@ -447,9 +438,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         runtime_root = Path(__file__).parents[1]
         dockerfile = (runtime_root / "Dockerfile.dependencies").read_text()
         patch = (
-            runtime_root
-            / "patches"
-            / "cesium-0.29.0-external-viewports.patch"
+            runtime_root / "patches" / "cesium-0.29.0-external-viewports.patch"
         ).read_text()
         self.assertIn("cesium-0.29.0-external-viewports.patch", dockerfile)
         self.assertIn("externallyManagedViewports", patch)
@@ -457,14 +446,10 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("if not settings.get_as_bool", patch)
 
         lifecycle_patch = (
-            runtime_root
-            / "patches"
-            / "cesium-0.29.0-lifecycle-events.patch"
+            runtime_root / "patches" / "cesium-0.29.0-lifecycle-events.patch"
         ).read_text()
         native_patch = (
-            runtime_root
-            / "patches"
-            / "cesium-native-ca0311f-tile-load-events.patch"
+            runtime_root / "patches" / "cesium-native-ca0311f-tile-load-events.patch"
         ).read_text()
         self.assertIn("cesium-0.29.0-lifecycle-events.patch", dockerfile)
         self.assertIn("cesium-native-ca0311f-tile-load-events.patch", dockerfile)
@@ -478,6 +463,14 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             lifecycle_patch,
         )
         self.assertIn("TileContent", native_patch)
+        self.assertIn(
+            '+  pAssetAccessor->request(asyncSystem, "GET", url)',
+            native_patch,
+        )
+        self.assertIn(
+            '+      ->request(externals.asyncSystem, "GET", ionUrl)',
+            native_patch,
+        )
         self.assertNotIn("releases/download", dockerfile)
 
     def test_recording_policy_is_typed_and_bounded(self) -> None:
@@ -540,12 +533,8 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         preconfiguration = server_source.split(
             "class PreconfigurationApplication:", maxsplit=1
         )[1].split("class AdapterApplication:", maxsplit=1)[0]
-        self.assertIn(
-            '"/v1/live-products/release-all"', preconfiguration
-        )
-        self.assertIn(
-            'return web.json_response({"accepted": True})', preconfiguration
-        )
+        self.assertIn('"/v1/live-products/release-all"', preconfiguration)
+        self.assertIn('return web.json_response({"accepted": True})', preconfiguration)
 
     def test_multi_instance_px4_has_distinct_gcs_ports(self) -> None:
         runtime_root = Path(__file__).parents[1]
@@ -661,9 +650,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('"codec"', video_packet_source)
         self.assertIn("rr.VideoStream.from_fields(sample=sample)", video_packet_source)
         self.assertNotIn("is_keyframe", video_packet_source)
-        publish_source = camera_stream_source.split(
-            "    def publish(", maxsplit=1
-        )[1].split("    def _set_time(", maxsplit=1)[0]
+        publish_source = camera_stream_source.split("    def publish(", maxsplit=1)[
+            1
+        ].split("    def _set_time(", maxsplit=1)[0]
         self.assertNotIn("rr.Pinhole(", publish_source)
         self.assertIn("access_unit.sample", publish_source)
 
@@ -694,9 +683,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             source_vehicle_id="uav-1",
             queue_capacity=4,
         )
-        access_unit = parse_native_h264_access_unit(
-            b"\x00\x00\x00\x01\x65\x88\x84"
-        )
+        access_unit = parse_native_h264_access_unit(b"\x00\x00\x00\x01\x65\x88\x84")
         with patch(
             "veoveo_uav_sim.stream_output.RtpH264Publisher",
             FakePublisher,
@@ -943,7 +930,9 @@ class StreamOutputTests(unittest.TestCase):
         self.assertEqual(packet.payload_type, 96)
         self.assertEqual(packet.payload, b"\x65\x99")
 
-    def test_rtsp_rtp_depacketizer_qualifies_first_idr_and_retains_p_frames(self) -> None:
+    def test_rtsp_rtp_depacketizer_qualifies_first_idr_and_retains_p_frames(
+        self,
+    ) -> None:
         depacketizer = H264RtpDepacketizer(
             96,
             sequence_parameter_set=b"\x67\x01",
@@ -967,9 +956,7 @@ class StreamOutputTests(unittest.TestCase):
         self.assertIsNone(
             depacketizer.push(RtpPacket(1, 100, False, 96, b"\x7c\x85\x03"))
         )
-        access_unit = depacketizer.push(
-            RtpPacket(2, 100, True, 96, b"\x7c\x45\x04")
-        )
+        access_unit = depacketizer.push(RtpPacket(2, 100, True, 96, b"\x7c\x45\x04"))
         self.assertIsNotNone(access_unit)
         assert access_unit is not None
         self.assertEqual(annex_b_nals(access_unit.sample)[-1], b"\x65\x03\x04")
@@ -1755,6 +1742,41 @@ class WorldConfigurationTests(unittest.TestCase):
 
 
 class StreamedWorldHealthTests(unittest.TestCase):
+    @staticmethod
+    def controller(
+        *, ready_frames: int = 2, replacement_timeout_frames: int = 120
+    ) -> TileLifecycleController:
+        return TileLifecycleController(
+            tileset_path="/World/Tileset",
+            ready_frames=ready_frames,
+            replacement_timeout_frames=replacement_timeout_frames,
+        )
+
+    @staticmethod
+    def statistics(
+        *,
+        resident_tiles: int,
+        visible_tiles: int,
+        loading_tiles: int,
+        geometries_loaded: int | None = None,
+        geometries_rendered: int | None = None,
+        materials_loaded: int | None = None,
+    ) -> TileRenderStatistics:
+        return TileRenderStatistics(
+            resident_tiles=resident_tiles,
+            visible_tiles=visible_tiles,
+            loading_tiles=loading_tiles,
+            geometries_loaded=(
+                resident_tiles if geometries_loaded is None else geometries_loaded
+            ),
+            geometries_rendered=(
+                visible_tiles if geometries_rendered is None else geometries_rendered
+            ),
+            materials_loaded=(
+                resident_tiles if materials_loaded is None else materials_loaded
+            ),
+        )
+
     def test_native_event_payload_is_reduced_to_the_typed_safe_surface(self) -> None:
         event = SimpleNamespace(
             payload={
@@ -1777,23 +1799,21 @@ class StreamedWorldHealthTests(unittest.TestCase):
         )
 
     def test_visibility_absence_never_infers_provider_failure(self) -> None:
-        controller = TileLifecycleController(
-            tileset_path="/World/Tileset", ready_frames=2
-        )
+        controller = self.controller()
         for _ in range(10_000):
             state = controller.observe_render(
-                resident_tiles=30_000,
-                visible_tiles=0,
-                loading_tiles=0,
-            )
+                self.statistics(
+                    resident_tiles=30_000,
+                    visible_tiles=0,
+                    loading_tiles=0,
+                )
+            ).snapshot
         self.assertEqual(state.lifecycle, "streaming")
         self.assertEqual(state.refresh_count, 0)
         self.assertIsNone(state.last_failure)
 
     def test_session_rejection_requests_one_shadow_generation(self) -> None:
-        controller = TileLifecycleController(
-            tileset_path="/World/Tileset", ready_frames=2
-        )
+        controller = self.controller()
         controller.accept(
             NativeTileEvent(
                 kind="loaded",
@@ -1821,12 +1841,29 @@ class StreamedWorldHealthTests(unittest.TestCase):
             "provider_session_rejected",
         )
 
+    def test_geometry_without_loaded_materials_never_reports_ready(self) -> None:
+        controller = self.controller(ready_frames=1)
+        controller.accept(
+            NativeTileEvent(kind="loaded", tileset_path="/World/Tileset", generation=1)
+        )
+        state = controller.observe_render(
+            self.statistics(
+                resident_tiles=20,
+                visible_tiles=4,
+                loading_tiles=0,
+                geometries_loaded=20,
+                geometries_rendered=4,
+                materials_loaded=0,
+            )
+        ).snapshot
+
+        self.assertEqual(state.lifecycle, "streaming")
+        self.assertEqual(state.materials_loaded, 0)
+
     def test_distinct_failure_can_supersede_an_earlier_failure_in_one_generation(
         self,
     ) -> None:
-        controller = TileLifecycleController(
-            tileset_path="/World/Tileset", ready_frames=2
-        )
+        controller = self.controller()
         unavailable = controller.accept(
             NativeTileEvent(
                 kind="load_failed",
@@ -1851,15 +1888,19 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertTrue(rejected.begin_replacement)
 
     def test_loaded_shadow_generation_is_promoted_before_old_is_retired(self) -> None:
-        controller = TileLifecycleController(
-            tileset_path="/World/Tileset", ready_frames=2
-        )
+        controller = self.controller()
         controller.accept(
             NativeTileEvent(
                 kind="loaded",
                 tileset_path="/World/Tileset",
                 generation=1,
             )
+        )
+        controller.observe_render(
+            self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
+        )
+        controller.observe_render(
+            self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
         )
         controller.accept(
             NativeTileEvent(
@@ -1871,9 +1912,6 @@ class StreamedWorldHealthTests(unittest.TestCase):
             )
         )
         controller.replacement_started("/World/Tileset_refresh_1")
-        resident = controller.observe_render(
-            resident_tiles=20, visible_tiles=4, loading_tiles=2
-        )
         promoted = controller.accept(
             NativeTileEvent(
                 kind="loaded",
@@ -1881,25 +1919,71 @@ class StreamedWorldHealthTests(unittest.TestCase):
                 generation=1,
             )
         )
-        self.assertEqual(resident.lifecycle, "refreshing")
-        self.assertEqual(promoted.retire_tileset_path, "/World/Tileset")
-        self.assertEqual(
-            controller.active_tileset_path, "/World/Tileset_refresh_1"
-        )
+        self.assertIsNone(promoted.retire_tileset_path)
+        self.assertEqual(controller.active_tileset_path, "/World/Tileset")
         first = controller.observe_render(
-            resident_tiles=20, visible_tiles=4, loading_tiles=2
+            self.statistics(
+                resident_tiles=40,
+                visible_tiles=8,
+                loading_tiles=2,
+                geometries_loaded=40,
+                geometries_rendered=8,
+                materials_loaded=40,
+            )
         )
         recovered = controller.observe_render(
-            resident_tiles=24, visible_tiles=6, loading_tiles=0
+            self.statistics(
+                resident_tiles=44,
+                visible_tiles=10,
+                loading_tiles=0,
+                geometries_loaded=44,
+                geometries_rendered=10,
+                materials_loaded=44,
+            )
         )
-        self.assertEqual(first.lifecycle, "streaming")
-        self.assertEqual(recovered.lifecycle, "ready")
-        self.assertIsNone(recovered.diagnostic)
+        self.assertEqual(first.snapshot.lifecycle, "refreshing")
+        self.assertEqual(recovered.snapshot.lifecycle, "ready")
+        self.assertEqual(recovered.action.retire_tileset_path, "/World/Tileset")
+        self.assertEqual(controller.active_tileset_path, "/World/Tileset_refresh_1")
+        self.assertIsNone(recovered.snapshot.diagnostic)
+
+    def test_unregistered_replacement_times_out_without_retiring_resident(
+        self,
+    ) -> None:
+        controller = self.controller(ready_frames=2, replacement_timeout_frames=3)
+        controller.accept(
+            NativeTileEvent(kind="loaded", tileset_path="/World/Tileset", generation=1)
+        )
+        controller.observe_render(
+            self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
+        )
+        controller.accept(
+            NativeTileEvent(
+                kind="load_failed",
+                tileset_path="/World/Tileset",
+                generation=1,
+                load_type="tile_content",
+                http_status=400,
+            )
+        )
+        controller.replacement_started("/World/Tileset_refresh_1")
+
+        observation = None
+        for _ in range(3):
+            observation = controller.observe_render(
+                self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
+            )
+
+        assert observation is not None
+        self.assertEqual(observation.snapshot.lifecycle, "degraded")
+        self.assertEqual(
+            observation.action.retire_tileset_path,
+            "/World/Tileset_refresh_1",
+        )
+        self.assertEqual(controller.active_tileset_path, "/World/Tileset")
 
     def test_duplicate_loaded_event_does_not_destabilize_ready_generation(self) -> None:
-        controller = TileLifecycleController(
-            tileset_path="/World/Tileset", ready_frames=2
-        )
+        controller = self.controller()
         loaded = NativeTileEvent(
             kind="loaded",
             tileset_path="/World/Tileset",
@@ -1907,26 +1991,24 @@ class StreamedWorldHealthTests(unittest.TestCase):
         )
         controller.accept(loaded)
         controller.observe_render(
-            resident_tiles=20, visible_tiles=4, loading_tiles=1
+            self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=1)
         )
         ready = controller.observe_render(
-            resident_tiles=24, visible_tiles=6, loading_tiles=0
-        )
+            self.statistics(resident_tiles=24, visible_tiles=6, loading_tiles=0)
+        ).snapshot
         self.assertEqual(ready.lifecycle, "ready")
         self.assertEqual(ready.event_sequence, 1)
 
         duplicate = controller.accept(loaded)
         stable = controller.observe_render(
-            resident_tiles=24, visible_tiles=6, loading_tiles=2
-        )
+            self.statistics(resident_tiles=24, visible_tiles=6, loading_tiles=2)
+        ).snapshot
         self.assertFalse(duplicate.begin_replacement)
         self.assertEqual(stable.lifecycle, "ready")
         self.assertEqual(stable.event_sequence, 1)
 
     def test_rejected_replacement_generation_degrades_without_a_loop(self) -> None:
-        controller = TileLifecycleController(
-            tileset_path="/World/Tileset", ready_frames=1
-        )
+        controller = self.controller(ready_frames=1)
         first = NativeTileEvent(
             kind="load_failed",
             tileset_path="/World/Tileset",
@@ -1945,22 +2027,18 @@ class StreamedWorldHealthTests(unittest.TestCase):
         controller.replacement_started("/World/Tileset_refresh_1")
         rejected = controller.accept(replacement)
         self.assertFalse(rejected.begin_replacement)
-        self.assertEqual(
-            rejected.retire_tileset_path, "/World/Tileset_refresh_1"
-        )
+        self.assertEqual(rejected.retire_tileset_path, "/World/Tileset_refresh_1")
         self.assertFalse(controller.accept(replacement).begin_replacement)
         state = controller.snapshot()
         self.assertEqual(state.lifecycle, "degraded")
         self.assertEqual(state.refresh_count, 1)
         still_degraded = controller.observe_render(
-            resident_tiles=20, visible_tiles=4, loading_tiles=0
-        )
+            self.statistics(resident_tiles=20, visible_tiles=4, loading_tiles=0)
+        ).snapshot
         self.assertEqual(still_degraded.lifecycle, "degraded")
 
     def test_credential_failure_is_typed_and_never_refreshed(self) -> None:
-        controller = TileLifecycleController(
-            tileset_path="/World/Tileset", ready_frames=1
-        )
+        controller = self.controller(ready_frames=1)
         action = controller.accept(
             NativeTileEvent(
                 kind="load_failed",
@@ -1985,6 +2063,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertIn("statistics.tiles_rendered", source)
         self.assertIn("begin_provider_session_replacement(", source)
         self.assertIn("resident generation remains mounted", source)
+        self.assertNotIn("clear_accessor_cache", source)
         self.assertNotIn("tile_absent_since", source)
         self.assertNotIn("assess_tile_health", source)
         self.assertNotIn('raise RuntimeError("Google Photorealistic', source)
@@ -1996,7 +2075,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
             Path(__file__).parents[1] / "veoveo_uav_sim" / "hydra_camera.py"
         ).read_text()
         self.assertIn("simulation continues", sensor_source)
-        self.assertNotIn("raise RuntimeError(\"native Isaac", sensor_source)
+        self.assertNotIn('raise RuntimeError("native Isaac', sensor_source)
 
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
@@ -2010,21 +2089,17 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertIn("visual_ready", server_source)
         self.assertIn("ready = simulation_ready and visual_ready", server_source)
         self.assertIn("status=200 if ready else 503", server_source)
-        self.assertNotIn(
-            'tiles["lifecycle"] == "refreshing"', server_source
-        )
+        self.assertIn('tiles["lifecycle"] == "refreshing"', server_source)
+        self.assertIn('tiles["materials_loaded"] > 0', server_source)
 
-    def test_provider_replacement_clears_http_cache_then_authors_shadow(self) -> None:
+    def test_provider_replacement_preserves_cache_and_authors_shadow(self) -> None:
         operations: list[tuple[str, str | None]] = []
-        cesium_interface = SimpleNamespace(
-            clear_accessor_cache=lambda: operations.append(("clear_cache", None)),
-        )
-        author_tileset = lambda name: (
-            operations.append(("author", name)) or "/World/Tileset_refresh_1"
-        )
+
+        def author_tileset(name: str) -> str:
+            operations.append(("author", name))
+            return "/World/Tileset_refresh_1"
 
         path = begin_provider_session_replacement(
-            cesium_interface,
             author_tileset,
             "Tileset_refresh_1",
         )
@@ -2033,7 +2108,6 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertEqual(
             operations,
             [
-                ("clear_cache", None),
                 ("author", "Tileset_refresh_1"),
             ],
         )

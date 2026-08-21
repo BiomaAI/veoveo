@@ -38,9 +38,7 @@ def run(config: RuntimeConfig) -> None:
     # Isaac requires SimulationApp to exist before importing Kit or simulator modules.
     from isaacsim import SimulationApp
 
-    physical_product_name = physical_camera_product_name(
-        config.camera.vehicle_id
-    )
+    physical_product_name = physical_camera_product_name(config.camera.vehicle_id)
     viewport_width = config.camera.width
     viewport_height = config.camera.height
     simulation_app = SimulationApp(
@@ -168,6 +166,7 @@ def run(config: RuntimeConfig) -> None:
     from .tile_lifecycle import (
         NativeTileEventBridge,
         TileLifecycleController,
+        TileRenderStatistics,
         begin_provider_session_replacement,
     )
     from .vehicle_model import PX4_IRIS_SENSOR_CADENCE, Px4IrisThrustCurve
@@ -227,9 +226,7 @@ def run(config: RuntimeConfig) -> None:
         state = RuntimeState(config, world_config)
         recording = RecordingPublisher(config, world_config)
         if config.stream_publication is not None:
-            stream_publication = StreamPublicationWorker(
-                config.stream_publication
-            )
+            stream_publication = StreamPublicationWorker(config.stream_publication)
         world = World(
             physics_dt=1.0 / config.physics_hz,
             rendering_dt=1.0 / config.rendering_hz,
@@ -343,9 +340,7 @@ def run(config: RuntimeConfig) -> None:
                 tileset.GetPreloadSiblingsAttr().Set(
                     config.tile_streaming.preload_siblings
                 )
-                tileset.GetForbidHolesAttr().Set(
-                    config.tile_streaming.forbid_holes
-                )
+                tileset.GetForbidHolesAttr().Set(config.tile_streaming.forbid_holes)
                 tileset_paths.add(authored_path)
                 return authored_path
             finally:
@@ -366,9 +361,7 @@ def run(config: RuntimeConfig) -> None:
             finally:
                 stage.SetEditTarget(previous_retire_target)
 
-        tileset_path = author_google_tileset(
-            "Google_Photorealistic_3D_Tiles"
-        )
+        tileset_path = author_google_tileset("Google_Photorealistic_3D_Tiles")
 
         mount_w, mount_x, mount_y, mount_z = config.camera.mount.orientation_wxyz
         sensor_mount_pose = Pose(
@@ -384,16 +377,10 @@ def run(config: RuntimeConfig) -> None:
             multirotor_config.thrust_curve = Px4IrisThrustCurve()
             PX4_IRIS_SENSOR_CADENCE.validate_for_physics(config.physics_hz)
             multirotor_config.sensors = [
-                Barometer(
-                    {"update_rate": float(PX4_IRIS_SENSOR_CADENCE.barometer_hz)}
-                ),
+                Barometer({"update_rate": float(PX4_IRIS_SENSOR_CADENCE.barometer_hz)}),
                 IMU({"update_rate": float(PX4_IRIS_SENSOR_CADENCE.imu_hz)}),
                 Magnetometer(
-                    {
-                        "update_rate": float(
-                            PX4_IRIS_SENSOR_CADENCE.magnetometer_hz
-                        )
-                    }
+                    {"update_rate": float(PX4_IRIS_SENSOR_CADENCE.magnetometer_hz)}
                 ),
                 GPS({"update_rate": float(PX4_IRIS_SENSOR_CADENCE.gps_hz)}),
             ]
@@ -496,9 +483,7 @@ def run(config: RuntimeConfig) -> None:
             config.physics_hz,
             maximum_steps_per_pass=config.physics_hz,
         )
-        render_cadence = FixedStepCadenceGate(
-            config.physics_hz, config.rendering_hz
-        )
+        render_cadence = FixedStepCadenceGate(config.physics_hz, config.rendering_hz)
 
         def telemetry_snapshot() -> list[VehicleTelemetry]:
             telemetry: list[VehicleTelemetry] = []
@@ -529,9 +514,7 @@ def run(config: RuntimeConfig) -> None:
                 vehicle_id: EntityTransform(
                     vehicle_id,
                     Pose(
-                        Vector3(
-                            *(float(value) for value in vehicle.state.position)
-                        ),
+                        Vector3(*(float(value) for value in vehicle.state.position)),
                         QuaternionXyzw(
                             *(float(value) for value in vehicle.state.attitude)
                         ).normalized(),
@@ -573,22 +556,21 @@ def run(config: RuntimeConfig) -> None:
             telemetry = telemetry_snapshot()
             state.update_vehicles(telemetry)
             recording.offer_frame(
-                    telemetry,
-                    [
-                        ImuTelemetry(
-                            vehicle_id=vehicle_id,
-                            linear_acceleration_mps2=tuple(
-                                float(value)
-                                for value in vehicle.state.linear_acceleration
-                            ),
-                            angular_velocity_rps=tuple(
-                                float(value) for value in vehicle.state.angular_velocity
-                            ),
-                        )
-                        for vehicle_id, vehicle in vehicles.items()
-                    ],
-                    simulation_time_s,
-                    physics_step,
+                telemetry,
+                [
+                    ImuTelemetry(
+                        vehicle_id=vehicle_id,
+                        linear_acceleration_mps2=tuple(
+                            float(value) for value in vehicle.state.linear_acceleration
+                        ),
+                        angular_velocity_rps=tuple(
+                            float(value) for value in vehicle.state.angular_velocity
+                        ),
+                    )
+                    for vehicle_id, vehicle in vehicles.items()
+                ],
+                simulation_time_s,
+                physics_step,
             )
 
         physics_lifecycle = FleetPhysicsLifecycle(
@@ -716,6 +698,7 @@ def run(config: RuntimeConfig) -> None:
         tile_controller = TileLifecycleController(
             tileset_path=tileset_path,
             ready_frames=config.tile_ready_frames,
+            replacement_timeout_frames=config.rendering_hz * 120,
         )
         # The Cesium extension starts before this headless application authors
         # its runtime-only tileset. Rebind the completed stage through Cesium's
@@ -788,9 +771,7 @@ def run(config: RuntimeConfig) -> None:
                     # cannot make the simulation clock run slow.
                     update_operator_cameras()
                     for sensor in camera_sensors.values():
-                        sensor.observe_simulation_time(
-                            simulation_time_s, physics_step
-                        )
+                        sensor.observe_simulation_time(simulation_time_s, physics_step)
                     update_cesium_viewport()
                     native_update_started = time.monotonic()
                     world.render()
@@ -889,7 +870,6 @@ def run(config: RuntimeConfig) -> None:
                     if tile_action.begin_replacement:
                         try:
                             replacement_path = begin_provider_session_replacement(
-                                cesium_interface,
                                 author_google_tileset,
                                 (
                                     "Google_Photorealistic_3D_Tiles_refresh_"
@@ -898,7 +878,8 @@ def run(config: RuntimeConfig) -> None:
                             )
                             tile_controller.replacement_started(replacement_path)
                             LOGGER.info(
-                                "streamed-world replacement generation created: %s; "
+                                "streamed-world replacement authored: %s; awaiting "
+                                "native registration and textured coverage while the "
                                 "resident generation remains mounted",
                                 replacement_path,
                             )
@@ -910,12 +891,10 @@ def run(config: RuntimeConfig) -> None:
                             )
                     if tile_action.retire_tileset_path is not None:
                         try:
-                            retire_google_tileset(
-                                tile_action.retire_tileset_path
-                            )
+                            retire_google_tileset(tile_action.retire_tileset_path)
                             tileset_path = tile_controller.active_tileset_path
                             LOGGER.info(
-                                "streamed-world replacement promoted; retired %s",
+                                "streamed-world failed replacement retired: %s",
                                 tile_action.retire_tileset_path,
                             )
                         except Exception:
@@ -929,11 +908,34 @@ def run(config: RuntimeConfig) -> None:
                 loading = int(statistics.tiles_loading_worker) + int(
                     statistics.tiles_loading_main
                 )
-                tile_health = tile_controller.observe_render(
-                    resident_tiles=resident,
-                    visible_tiles=visible,
-                    loading_tiles=loading,
+                tile_observation = tile_controller.observe_render(
+                    TileRenderStatistics(
+                        resident_tiles=resident,
+                        visible_tiles=visible,
+                        loading_tiles=loading,
+                        geometries_loaded=int(statistics.geometries_loaded),
+                        geometries_rendered=int(statistics.geometries_rendered),
+                        materials_loaded=int(statistics.materials_loaded),
+                    )
                 )
+                if tile_observation.action.report_failure:
+                    LOGGER.error(
+                        "streamed-world replacement failed to prove textured coverage"
+                    )
+                if tile_observation.action.retire_tileset_path is not None:
+                    try:
+                        retire_google_tileset(
+                            tile_observation.action.retire_tileset_path
+                        )
+                        tileset_path = tile_controller.active_tileset_path
+                        LOGGER.info(
+                            "streamed-world textured replacement promoted; retired %s",
+                            tile_observation.action.retire_tileset_path,
+                        )
+                    except Exception:
+                        tile_controller.mark_refresh_command_failed()
+                        LOGGER.exception("streamed-world generation retirement failed")
+                tile_health = tile_observation.snapshot
                 state.set_tiles(tile_health)
                 recording.log_tiles(
                     resident,
@@ -1010,9 +1012,7 @@ def run(config: RuntimeConfig) -> None:
                 stage.SetEditTarget(Usd.EditTarget(stage.GetSessionLayer()))
                 try:
                     for governed_tileset_path in tuple(tileset_paths):
-                        tileset = CesiumTileset.Get(
-                            stage, governed_tileset_path
-                        )
+                        tileset = CesiumTileset.Get(stage, governed_tileset_path)
                         if tileset.GetPrim().IsValid():
                             tileset.GetIonAccessTokenAttr().Clear()
                 finally:
