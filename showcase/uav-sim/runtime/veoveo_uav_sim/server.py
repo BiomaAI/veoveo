@@ -24,6 +24,7 @@ from .px4 import Px4Commander
 from .recording import RecordingPublisher
 from .runtime_events import RuntimeEventPublisher
 from .state import RuntimeState, initial_runtime_timing
+from .tile_lifecycle import tile_content_ready
 from .world_config import (
     WorldConfiguration,
     WorldConfigurationError,
@@ -237,15 +238,12 @@ class AdapterApplication:
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
         )
         tiles = snapshot["tiles"]
-        textured_coverage = (
-            tiles["visible_tiles"] > 0
-            and tiles["geometries_rendered"] > 0
-            and tiles["materials_loaded"] > 0
-        )
         visual_ready = (
-            (
-                tiles["lifecycle"] == "ready"
-                or (tiles["lifecycle"] == "refreshing" and textured_coverage)
+            tile_content_ready(
+                lifecycle=tiles["lifecycle"],
+                visible_tiles=tiles["visible_tiles"],
+                geometries_rendered=tiles["geometries_rendered"],
+                materials_loaded=tiles["materials_loaded"],
             )
             and bool(snapshot["cameras"])
             and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
@@ -396,7 +394,12 @@ class AdapterApplication:
 
     def _stream_content_ready(self) -> bool:
         tiles = self._state.snapshot()["tiles"]
-        return tiles["lifecycle"] == "ready"
+        return tile_content_ready(
+            lifecycle=tiles["lifecycle"],
+            visible_tiles=tiles["visible_tiles"],
+            geometries_rendered=tiles["geometries_rendered"],
+            materials_loaded=tiles["materials_loaded"],
+        )
 
     def _execute_command(self, command: DirectCommand) -> dict[str, object]:
         self._state.require_session(command.session_id)
