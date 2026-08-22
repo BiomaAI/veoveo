@@ -17,6 +17,7 @@ const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "view:write",
     "view:capture",
     "map:dataset:read",
+    "map:route",
     "time:read",
 ];
 const BIOMA_DEPLOYMENTS: &[&str] = &[
