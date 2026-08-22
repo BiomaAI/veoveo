@@ -76,6 +76,11 @@ class NewtonFleetRuntime:
         self._device = wp.get_device(positions.device)
         if not self._device.is_cuda:
             raise RuntimeError("Newton UAV fleet requires a CUDA tensor device")
+        self._rigid_tensor_view = getattr(
+            self._rigid, "_physics_rigid_body_view", None
+        )
+        if self._rigid_tensor_view is None:
+            raise RuntimeError("Newton rigid-body tensor view is unavailable")
 
         count = len(paths)
         self._control_host = wp.zeros((count, 4), dtype=wp.float32, device="cpu")
@@ -181,10 +186,8 @@ class NewtonFleetRuntime:
             linear_velocities=linear_zeros,
             angular_velocities=angular_zeros,
         )
-        self._positions = positions
-        self._orientations = rotations
-        self._linear_velocity = linear_zeros
-        self._angular_velocity = angular_zeros
+        self._transforms = self._rigid_tensor_view.get_transforms()
+        self._velocities = self._rigid_tensor_view.get_velocities()
         self._controls.zero_()
         self._motor_velocity.zero_()
         self._forces.zero_()
@@ -210,8 +213,8 @@ class NewtonFleetRuntime:
             inputs=[
                 self._controls,
                 self._motor_velocity,
-                self._orientations,
-                self._linear_velocity,
+                self._transforms,
+                self._velocities,
                 self._forces,
                 self._torques,
                 self._dt,
@@ -230,8 +233,8 @@ class NewtonFleetRuntime:
         self._flush_forces_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
-        self._positions, self._orientations = self._rigid.get_world_poses()
-        self._linear_velocity, self._angular_velocity = self._rigid.get_velocities()
+        self._transforms = self._rigid_tensor_view.get_transforms()
+        self._velocities = self._rigid_tensor_view.get_velocities()
         self._refresh_states_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
@@ -239,10 +242,8 @@ class NewtonFleetRuntime:
             self._kernels.sample_hil_sensors,
             dim=len(self._paths),
             inputs=[
-                self._positions,
-                self._orientations,
-                self._linear_velocity,
-                self._angular_velocity,
+                self._transforms,
+                self._velocities,
                 self._previous_linear_velocity,
                 self._packet_device,
                 self._dt,
