@@ -617,12 +617,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         "nodePort: 30998",
         "nodePort: 30999",
         "name: uav-sim-signaling",
-        "name: ROS_DISTRO",
-        "value: jazzy",
-        "name: RMW_IMPLEMENTATION",
-        "value: rmw_fastrtps_cpp",
-        "name: LD_LIBRARY_PATH",
-        "value: /isaac-sim/exts/isaacsim.ros2.core/jazzy/lib",
         "http://127.0.0.1:8810/healthz",
         "http://127.0.0.1:8810/readyz",
         "nvidia.com/gpu: 1",
@@ -641,6 +635,9 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: stream-signal",
         "name: stream-media",
         "UAV_SIM_RUNTIME_EVENT_SOCKET",
+        "name: ROS_DISTRO",
+        "name: RMW_IMPLEMENTATION",
+        "isaacsim.ros2.core",
     ] {
         if uav_sim.contains(forbidden) {
             bail!("UAV simulation render must not contain `{forbidden}`");

@@ -205,12 +205,6 @@
 
 - name: NVIDIA_DRIVER_CAPABILITIES
   value: compute,graphics,utility,video
-- name: ROS_DISTRO
-  value: jazzy
-- name: RMW_IMPLEMENTATION
-  value: rmw_fastrtps_cpp
-- name: LD_LIBRARY_PATH
-  value: /isaac-sim/exts/isaacsim.ros2.core/jazzy/lib
 {{- if .root.Values.session.privacyConsent }}
 - name: PRIVACY_CONSENT
   value: "Y"
