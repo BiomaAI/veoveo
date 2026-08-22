@@ -184,9 +184,11 @@ The only per-step device readback is one compact 30-float packet per vehicle for
 Controls cross back as one four-float packet per vehicle. Isaac's classic `World`, classic
 prim views, the PhysX UAV path, NumPy dynamics, and per-vehicle physics loops are absent.
 
-`SimulationManager` advances Newton at the exact fixed cadence. Elapsed monotonic time
-determines the number of authoritative steps due on each scheduler pass, and the clock
-retains bounded debt instead of dropping elapsed time. When rendering misses visual
+The Isaac timeline remains playing because Newton gates integration on that state, while
+app-driven physics stepping is disabled. `SimulationManager` alone advances Newton at the
+exact fixed cadence. Elapsed monotonic time determines the number of authoritative steps
+due on each scheduler pass. The clock retains bounded debt instead of dropping elapsed
+time. When rendering misses visual
 deadlines, the runtime advances every due physics step and renders only the newest state.
 Rerun serialization, browser traffic, native encode, and recording retries remain outside
 that authority boundary and cannot slow the simulation timeline.
