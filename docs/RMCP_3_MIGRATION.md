@@ -443,12 +443,12 @@ parity.
 The initial plan landed on 2026-07-30. Veoveo `3dba3913` adds several owners that the
 protocol cut must now address explicitly:
 
-- `veoveo.io/live-view/v2` makes the domain simulator authoritative for camera rigs,
-  stable encoded products, and actor-and-browser viewer leases. The revision-3 MCP
+- `veoveo.io/live-view/v3` makes the domain simulator authoritative for camera rigs,
+  one stable encoded product per camera, and actor-and-browser stream authorization. The revision-3 MCP
   contract preserves these strong types and canonical resource URIs. It does not move
-  GPU media, pose traffic, or viewer leases into protocol-session state.
+  GPU media, pose traffic, or viewer authorization into protocol-session state.
 - Simulation View now has durable desired state, transactional outbox events, reactive
-  reconciliation, explicit renewal and retry deadlines, and ephemeral viewer leases.
+  reconciliation, explicit renewal and retry deadlines, and ephemeral viewer authorizations.
   These event sources can feed `subscriptions/listen`. Files such as
   `servers/simulation-view-mcp/src/state/session.rs` own domain sessions and survive
   the deletion of MCP sessions.
@@ -1062,8 +1062,8 @@ The Console uses `tasks/get`, `tasks/update`, `tasks/cancel`, and
 | domain outbox, replay, and LIVE acceleration | retain |
 | MCP Apps typed host policy and UI resources | retain |
 | direct-call task adapter | retain with final protocol behavior |
-| Simulation View and UAV domain sessions, desired state, deadlines, and ephemeral viewer leases | retain; these are explicit application state rather than MCP protocol sessions |
-| `veoveo.io/live-view/v2` authoritative camera and stream-product types | retain as a typed negotiated domain extension |
+| Simulation View and UAV domain sessions, desired state, deadlines, and ephemeral viewer authorizations | retain; these are explicit application state rather than MCP protocol sessions |
+| `veoveo.io/live-view/v3` authoritative camera and shared stream-product types | retain as a typed negotiated domain extension |
 | Recording Redap, native live RRD channel, gateway playback route, and Console viewer adapter | retain beside MCP; these data planes are not HTTP+SSE or `subscriptions/listen` |
 | focused `testing/deployment-smoke` and `testing/browser-smoke` harnesses | retain and add final-profile deployment and headed hardware-GPU cases |
 
@@ -1237,7 +1237,7 @@ Remaining repository prerequisites:
   schemas.
 - Update gateway fragments and compatibility manifests with the final protocol and
   contract revision.
-- Preserve `veoveo.io/live-view/v2`, Recording playback v8, and other current domain
+- Preserve `veoveo.io/live-view/v3`, Recording playback v8, and other current domain
   extensions as typed extension contracts rather than folding their data planes into
   MCP transport state.
 - Add an enforcement rule that rejects the superseded protocol vocabulary.
@@ -1329,7 +1329,7 @@ published while revision 2 behavior remains deployed.
   filters.
 - Send the typed acknowledgment first, tag every later notification with the
   subscription ID, and send the final empty result before a graceful server closure.
-- Keep native Recording RRD streams, Redap, WebRTC, and private runtime streams outside
+- Keep native Recording RRD streams, Redap, shared H.264 WebSockets, and private runtime streams outside
   `subscriptions/listen`.
 - Delete stored peer registries and legacy resource subscription handlers.
 - Remove the universal singleton deployment rule.
@@ -1404,7 +1404,7 @@ published while revision 2 behavior remains deployed.
   and the focused headed hardware-GPU browser smoke.
 - Search the source, schemas, rendered charts, generated documentation, and web
   bundles for obsolete protocol surfaces.
-- Distinguish legitimate domain sessions, viewer leases, native RRD channels, Redap,
+- Distinguish legitimate domain sessions, viewer authorizations, native RRD channels, Redap,
   and WebRTC from deleted MCP session and replay vocabulary in that search.
 - Remove the old Rig branch after the published replacement and Veoveo cutover are
   independently recoverable.
@@ -1446,8 +1446,8 @@ published while revision 2 behavior remains deployed.
 | Authorization | pre-registered clients pass issuer, resource, refresh, exact step-up, issuer-bound cache, and confidential `private_key_jwt` behavior; Dynamic Client Registration is absent |
 | Logging metadata | request log level never persists across requests; no request receives `notifications/message` because the Veoveo profile does not advertise Logging |
 | Deprecated features | Roots, Sampling, MCP Logging, URL-mode elicitation, HTTP+SSE, non-`none` `includeContext`, Dynamic Client Registration, legacy sessions, and legacy subscriptions are not advertised or accepted by final-profile endpoints; the optional adapter never projects a legacy analogue as a final capability |
-| Current product protocols | authoritative live-view v2, Recording playback v8, native RRD channels, Redap, WebRTC, pose ingress, and private runtime streams retain their documented boundaries and are not routed through MCP subscriptions or mistaken for legacy MCP transport |
-| Domain state | Simulation View and UAV domain sessions, reconciliation state, durable deadlines, and viewer leases survive the removal of protocol sessions; no domain handle acquires authority from process locality |
+| Current product protocols | authoritative live-view v3, Recording playback v8, native RRD channels, Redap, shared H.264 WebSockets, pose ingress, and private runtime streams retain their documented boundaries and are not routed through MCP subscriptions or mistaken for legacy MCP transport |
+| Domain state | Simulation View and UAV domain sessions, reconciliation state, durable deadlines, and viewer authorizations survive the removal of protocol sessions; no domain handle acquires authority from process locality |
 | Rig | exact commit `abbdce97` exposes the final-profile surface through the root facade; blocking and streaming agent runs have identical task semantics; serialized pending runs resume through the resolver registry and lightweight request handles |
 | Python and TypeScript | Python SDK 2, modular TypeScript client/server 2, templates, Console, and MCP Apps use only final methods and response shapes; the Python Tasks binding is a typed extension because 2.0.0 does not ship Tasks |
 | Extensions | anonymous external conformance and integration fixtures consume the published revision-3 artifacts without Veoveo source |

@@ -170,7 +170,7 @@ should not infer producer health from browser latency.
 | Hub authenticated ingest | accepted batches, messages, and bytes; duplicate batches; materialization backlog batches and bytes; last successful append |
 | Hub materialization | opened/frozen segments, quarantine, Blueprint publication and rejection |
 | Live Recording playback | current live segment bytes, bounded history seconds, video preroll seconds, canceled and failed browser requests |
-| Authoritative live view | logical-camera revision, encoded-product identity, hardware encoder, frame age, connected viewer leases, capacity denials |
+| Authoritative live view | logical-camera revision, shared encoded-product identity, hardware encoder, frame age, connected viewers, stream-delivery failures |
 | Browser | hardware adapter, video advance, decode identity, Rerun network mode, request cancellation, screenshot digest |
 
 The forwarder uploader is event-driven. Durable enqueue wakes it immediately, and a
@@ -179,12 +179,10 @@ retain bounded exponential backoff because no local event can make the remote en
 healthy.
 
 Authoritative live view is event-driven. A logical-camera mutation activates or replaces
-one simulator-hosted camera definition. A viewer operation atomically assigns one
-preallocated native viewer slot to that logical camera and browser instance. The slot
-owns its camera clone, RTX render product, NVENC session, WebRTC endpoint, and exact
-release lifecycle. Product state changes and WebRTC signaling wake their consumers
-directly. No controller polls or replays a healthy simulator, camera, product, or
-browser lease.
+one simulator-hosted camera definition and continuous RTX/NVENC product. A viewer
+operation authorizes one browser instance to consume that camera's exact H.264 access
+units. Product state and WebSocket delivery wake their consumers directly. No controller
+polls or replays a healthy simulator, camera, product, or browser authorization.
 
 Recording live playback watches filesystem changes and transmits only static context,
 one live-profile-compacted recent-history bootstrap, and newly durable data. It does not

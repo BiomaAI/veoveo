@@ -1321,19 +1321,19 @@ flowchart LR
             <span class="scheme">uav-sim://</span>
             <h4><span class="dot" style="background:var(--hue-opt)"></span>UAV Simulation</h4>
             <p>Govern simulation sessions, missions, vehicles, terrain, dataset capture,
-               authoritative operator cameras, and isolated viewer products while keeping
+               authoritative operator cameras, and shared camera products while keeping
                simulator-native control ports private.</p>
           </div>
           <div class="tools"><table>
             <tr><td class="tn">configure_world</td><td>Bind the governed world, scene, vehicles, frames, and runtime inputs for one session.</td></tr>
-            <tr><td class="tn">execute_mission</td><td>Run one bounded multi-vehicle mission as durable simulator work.</td></tr>
+            <tr><td class="tn">execute_vehicle_mission_plan</td><td>Run one admitted single-vehicle mission as durable simulator work.</td></tr>
             <tr><td class="tn">capture_dataset</td><td>Capture synchronized camera, pose, telemetry, and mission evidence.</td></tr>
-            <tr><td class="tn">list_live_cameras</td><td>Discover installation-configured simulator-hosted logical cameras and bounded viewer capacity.</td></tr>
-            <tr><td class="tn">open_live_view</td><td>Assign one isolated native RTX, NVENC, and WebRTC product to an actor-and-browser-specific lease.</td></tr>
+            <tr><td class="tn">list_live_cameras</td><td>Discover installation-configured simulator-hosted logical cameras and shared product health.</td></tr>
+            <tr><td class="tn">open_live_view</td><td>Authorize an actor-and-browser instance to consume one camera-owned H.264 product.</td></tr>
           </table></div>
           <div class="server-foot">
             <span class="cap">durable tasks</span><span class="cap">recordings</span><span class="cap">MCP App</span>
-            <span class="cap plain">PX4 and MAVLink</span><span class="cap plain">WebRTC</span><span class="cap plain">GPU simulation and NVENC</span>
+            <span class="cap plain">PX4 and MAVLink</span><span class="cap plain">WebCodecs H.264</span><span class="cap plain">GPU simulation and NVENC</span>
           </div>
         </div>
 
