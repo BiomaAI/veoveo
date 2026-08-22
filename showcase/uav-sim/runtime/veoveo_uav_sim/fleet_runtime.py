@@ -82,19 +82,33 @@ class WarpFleetRuntime:
         )
         if self._rigid_tensor_view is None:
             raise RuntimeError("Newton rigid-body tensor view is unavailable")
+        backend = getattr(self._rigid_tensor_view, "_backend", None)
+        newton_stage = getattr(self._rigid_tensor_view, "_newton_stage", None)
+        state = getattr(newton_stage, "state_0", None)
+        if backend is None or state is None:
+            raise RuntimeError("Newton native rigid-body state is unavailable")
+        self._body_indices = getattr(backend, "body_indices", None)
+        self._body_q = getattr(state, "body_q", None)
+        self._body_qd = getattr(state, "body_qd", None)
+        if (
+            self._body_indices is None
+            or self._body_q is None
+            or self._body_qd is None
+        ):
+            raise RuntimeError("Newton native body tensors are incomplete")
+        if any(
+            str(array.device) != str(self._device)
+            for array in (self._body_indices, self._body_q, self._body_qd)
+        ):
+            raise RuntimeError("Newton native body tensors must share one CUDA device")
 
         count = len(paths)
-        self._indices = wp.array(
-            list(range(count)), dtype=wp.int32, device=self._device
-        )
         self._control_host = wp.zeros((count, 4), dtype=wp.float32, device="cpu")
         self._control_host_values = self._control_host.numpy()
         self._controls = wp.zeros((count, 4), dtype=wp.float32, device=self._device)
         self._motor_velocity = wp.zeros(
             (count, 4), dtype=wp.float32, device=self._device
         )
-        self._forces = wp.zeros((count, 3), dtype=wp.float32, device=self._device)
-        self._torques = wp.zeros((count, 3), dtype=wp.float32, device=self._device)
         self._previous_linear_velocity = wp.zeros(
             (count, 3), dtype=wp.float32, device=self._device
         )
@@ -190,12 +204,8 @@ class WarpFleetRuntime:
             linear_velocities=linear_zeros,
             angular_velocities=angular_zeros,
         )
-        self._transforms = self._rigid_tensor_view.get_transforms()
-        self._velocities = self._rigid_tensor_view.get_velocities()
         self._controls.zero_()
         self._motor_velocity.zero_()
-        self._forces.zero_()
-        self._torques.zero_()
         self._previous_linear_velocity.zero_()
 
     def step(self, physics_step: int) -> None:
@@ -212,50 +222,14 @@ class WarpFleetRuntime:
 
         phase = time.perf_counter()
         self._wp.launch(
-            self._kernels.update_motor_wrench,
+            self._kernels.advance_fleet_and_sample_hil,
             dim=len(self._paths),
             inputs=[
                 self._controls,
                 self._motor_velocity,
-                self._transforms,
-                self._velocities,
-                self._forces,
-                self._torques,
-                self._dt,
-            ],
-            device=self._device,
-        )
-        self._dynamics_update_wall_seconds += time.perf_counter() - phase
-
-        phase = time.perf_counter()
-        self._wp.launch(
-            self._kernels.integrate_fleet_state,
-            dim=len(self._paths),
-            inputs=[
-                self._transforms,
-                self._velocities,
-                self._forces,
-                self._torques,
-                self._dt,
-            ],
-            device=self._device,
-        )
-        self._rigid_tensor_view.set_transforms(self._transforms, self._indices)
-        self._rigid_tensor_view.set_velocities(self._velocities, self._indices)
-        self._flush_forces_wall_seconds += time.perf_counter() - phase
-
-        phase = time.perf_counter()
-        self._transforms = self._rigid_tensor_view.get_transforms()
-        self._velocities = self._rigid_tensor_view.get_velocities()
-        self._refresh_states_wall_seconds += time.perf_counter() - phase
-
-        phase = time.perf_counter()
-        self._wp.launch(
-            self._kernels.sample_hil_sensors,
-            dim=len(self._paths),
-            inputs=[
-                self._transforms,
-                self._velocities,
+                self._body_indices,
+                self._body_q,
+                self._body_qd,
                 self._previous_linear_velocity,
                 self._packet_device,
                 self._dt,
@@ -267,6 +241,9 @@ class WarpFleetRuntime:
             ],
             device=self._device,
         )
+        self._dynamics_update_wall_seconds += time.perf_counter() - phase
+
+        phase = time.perf_counter()
         self._wp.copy(self._packet_host, self._packet_device)
         self._wp.synchronize_stream(self._device)
         first_hil_step = (physics_step - 1) * self._hil_steps_per_physics + 1

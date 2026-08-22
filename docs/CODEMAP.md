@@ -436,7 +436,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/map/` | Map-owned named-place and operational air-network source fixture for the showcase |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, authoritative logical cameras, shared camera-owned RTX/NVENC products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/fleet_runtime.py` | 30 Hz CUDA fleet authority, direct Newton Experimental tensor-state writes, and ordered 60 Hz PX4 HIL publication without MuJoCo-Warp stepping |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py` | batched motor, force, torque, rigid-body integration, launch-surface contact, and HIL sensor kernels |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py` | one fused CUDA kernel for batched motors, force, torque, native Newton body integration, launch-surface contact, and HIL sensor sampling |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | authoritative target sampling and desired poses for every supported camera rig |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | frame-rate-independent position and shortest-arc orientation filters with typed reset rules |
