@@ -169,8 +169,8 @@ session:
 ```
 
 Prove that the pod reports an active NVIDIA Vulkan device before flight. Call
-`uav-sim__arm_vehicle` for `uav-1`, then call
-`uav-sim__takeoff_vehicle` with `relative_altitude_m` set to `197`.
+Call `uav-sim__takeoff_vehicle` for `uav-1` with `relative_altitude_m` set to
+`197`. Takeoff owns the PX4 arm-and-launch sequence atomically.
 The capture waits for the altitude threshold, resident tiles, visible camera
 content, and 60 consecutive rendered frames. Copy the completed PNG from the
 pod:

@@ -437,10 +437,8 @@ class AdapterApplication:
                 detail = "vehicle armed"
             elif command.command == "takeoff":
                 assert command.relative_altitude_m is not None
-                if commander.status().flight_state != "armed":
-                    raise RuntimeError("vehicle must be armed before takeoff")
                 commander.takeoff(command.relative_altitude_m)
-                detail = "vehicle takeoff accepted"
+                detail = "vehicle arm and takeoff accepted"
             elif command.command == "land":
                 commander.land()
                 detail = "vehicle landing accepted"
