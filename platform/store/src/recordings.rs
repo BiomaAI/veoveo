@@ -509,10 +509,9 @@ impl PlatformStore {
         let segments = self
             .recording_segments(identity.tenant_id, recording_id, MAX_SEGMENT_LIMIT)
             .await?;
-        if segments.is_empty()
-            || segments
-                .iter()
-                .any(|segment| segment.state != SegmentState::Frozen)
+        if segments
+            .iter()
+            .any(|segment| segment.state != SegmentState::Frozen)
         {
             return Err(StoreError::RecordingStateConflict {
                 recording_id: recording_id.to_string(),
