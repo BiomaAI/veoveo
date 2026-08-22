@@ -59,10 +59,10 @@ def inspect_identity() -> dict[str, object]:
     import torch
     import warp
 
-    if warp.__version__ != "1.15.0":
-        raise RuntimeError(f"expected Warp 1.15.0, loaded {warp.__version__}")
-    if newton.__version__ != "1.4.0":
-        raise RuntimeError(f"expected Newton 1.4.0, loaded {newton.__version__}")
+    if warp.__version__ != "1.16.0":
+        raise RuntimeError(f"expected Warp 1.16.0, loaded {warp.__version__}")
+    if newton.__version__ != "1.5.0":
+        raise RuntimeError(f"expected Newton 1.5.0, loaded {newton.__version__}")
     if torch.__version__ != "2.12.0+cu130":
         raise RuntimeError(f"expected Torch 2.12.0+cu130, loaded {torch.__version__}")
     if torch.version.cuda != "13.0":

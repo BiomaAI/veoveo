@@ -7,14 +7,14 @@ FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE} AS payload
 ARG ISAAC_LAB_REVISION=ffff603eafc6b74264a5261cc0183d6a65390d78
 ARG ISAAC_LAB_ARCHIVE_URL=https://github.com/isaac-sim/IsaacLab/archive/ffff603eafc6b74264a5261cc0183d6a65390d78.tar.gz
 ARG ISAAC_LAB_ARCHIVE_SHA256=fe65b28ad08a943e35005e6c75885929cd6cbd7075c721d8da4d05d97fa392be
-ARG WARP_WHEEL_URL=https://files.pythonhosted.org/packages/a8/ba/36023c3161c45f1c509c20c501b17980705fdd3b6c20b7ee9267f50f44a2/warp_lang-1.15.0-py3-none-manylinux_2_28_x86_64.whl
-ARG WARP_WHEEL_SHA256=95c169f28bd7d6c78ac4ad62e2df1e61a096033748f757157fa4551aed80d010
-ARG NEWTON_WHEEL_URL=https://files.pythonhosted.org/packages/bf/67/28a76c50304d62dc9a9ec9a142e14f1a3156c77c0df778fc3918d0e47d8f/newton-1.4.0-py3-none-any.whl
-ARG NEWTON_WHEEL_SHA256=0e11343cc51b86647d9afcd191a21ca4d0d5e410d84072a60ef84af908c72577
-ARG MUJOCO_WHEEL_URL=https://files.pythonhosted.org/packages/c3/11/c69199e4123935f98068ab6ab6b35955b4de0f6a91d3f9883805a5789394/mujoco-3.10.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
-ARG MUJOCO_WHEEL_SHA256=966d12f88e77e2b188e7530667b519d6963b9b906cff83bab534e5e4279325a0
-ARG MUJOCO_WARP_WHEEL_URL=https://files.pythonhosted.org/packages/9c/a1/a8e616daafb219fccc2d23367894d305e442e2e18bc5e0dd855d9986d979/mujoco_warp-3.10.0.3-py3-none-any.whl
-ARG MUJOCO_WARP_WHEEL_SHA256=9435e5d6a7061af32aecc8da38124bfccceea27fc85176b33b66b7c4b76b4c1a
+ARG WARP_WHEEL_URL=https://files.pythonhosted.org/packages/1d/3d/47feef2eee4739437e19d6949ea231ca4181c9eacbaa39144761e6130d94/warp_lang-1.16.0-py3-none-manylinux_2_28_x86_64.whl
+ARG WARP_WHEEL_SHA256=96449fc1e3b354185e2f09434fb794b5953ab2e8673b104d7e7f48d5d418bb35
+ARG NEWTON_WHEEL_URL=https://files.pythonhosted.org/packages/ef/a8/706cd18af6c42a47f750a129c2605e7ed9af5800a37665ad78b870d34383/newton-1.5.0-py3-none-any.whl
+ARG NEWTON_WHEEL_SHA256=a9eef789e2e0f857e40df3382f101b5faadff5dd8a61cb86dd5ec5382dd27865
+ARG MUJOCO_WHEEL_URL=https://files.pythonhosted.org/packages/41/d6/7b79f5d8fbd019658a3b5feb6ffd09c1e727eaf93f518685d3cc105a28f5/mujoco-3.11.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+ARG MUJOCO_WHEEL_SHA256=f40214fefc8c2fe0002a3c8abadf30de7a3330634f3c45cc29b407b40a0173fc
+ARG MUJOCO_WARP_WHEEL_URL=https://files.pythonhosted.org/packages/e6/03/9bf86946c755a9a020c1bea587841472b0206351f73f67e41050fcb2a20c/mujoco_warp-3.11.0-py3-none-any.whl
+ARG MUJOCO_WARP_WHEEL_SHA256=97e77e877c1c2ea064ae68eaace2333dec94f2d8984091ba7b383bc8c34958f6
 ARG NVIDIA_LIVESTREAM_AOV_VERSION=10.2.0
 ARG NVIDIA_LIVESTREAM_AOV_BUILD=110.1.2.lx64.r.cp312
 ARG NVIDIA_LIVESTREAM_AOV_URL=https://d4i3qtqj3r0z5.cloudfront.net/omni.kit.livestream.aov-10.2.0%2B110.1.2.lx64.r.cp312.zip
@@ -79,39 +79,39 @@ RUN ml_prebundle=/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle \
 # those payloads atomically so Kit-first and pre-Kit imports resolve the same
 # selected packages and native bindings.
 RUN curl --fail --location --show-error \
-      --output /tmp/warp_lang-1.15.0-py3-none-manylinux_2_28_x86_64.whl \
+      --output /tmp/warp_lang-1.16.0-py3-none-manylinux_2_28_x86_64.whl \
       "${WARP_WHEEL_URL}" \
-    && echo "${WARP_WHEEL_SHA256}  /tmp/warp_lang-1.15.0-py3-none-manylinux_2_28_x86_64.whl" \
+    && echo "${WARP_WHEEL_SHA256}  /tmp/warp_lang-1.16.0-py3-none-manylinux_2_28_x86_64.whl" \
       | sha256sum --check --strict \
     && curl --fail --location --show-error \
-      --output /tmp/newton-1.4.0-py3-none-any.whl \
+      --output /tmp/newton-1.5.0-py3-none-any.whl \
       "${NEWTON_WHEEL_URL}" \
-    && echo "${NEWTON_WHEEL_SHA256}  /tmp/newton-1.4.0-py3-none-any.whl" \
+    && echo "${NEWTON_WHEEL_SHA256}  /tmp/newton-1.5.0-py3-none-any.whl" \
       | sha256sum --check --strict \
     && curl --fail --location --show-error \
-      --output /tmp/mujoco-3.10.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl \
+      --output /tmp/mujoco-3.11.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl \
       "${MUJOCO_WHEEL_URL}" \
-    && echo "${MUJOCO_WHEEL_SHA256}  /tmp/mujoco-3.10.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" \
+    && echo "${MUJOCO_WHEEL_SHA256}  /tmp/mujoco-3.11.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" \
       | sha256sum --check --strict \
     && curl --fail --location --show-error \
-      --output /tmp/mujoco_warp-3.10.0.3-py3-none-any.whl \
+      --output /tmp/mujoco_warp-3.11.0-py3-none-any.whl \
       "${MUJOCO_WARP_WHEEL_URL}" \
-    && echo "${MUJOCO_WARP_WHEEL_SHA256}  /tmp/mujoco_warp-3.10.0.3-py3-none-any.whl" \
+    && echo "${MUJOCO_WARP_WHEEL_SHA256}  /tmp/mujoco_warp-3.11.0-py3-none-any.whl" \
       | sha256sum --check --strict \
     && /isaac-sim/kit/python/bin/python3 -m pip install \
       --disable-pip-version-check \
       --no-cache-dir \
       --no-deps \
       --target /tmp/veoveo-warp \
-      /tmp/warp_lang-1.15.0-py3-none-manylinux_2_28_x86_64.whl \
+      /tmp/warp_lang-1.16.0-py3-none-manylinux_2_28_x86_64.whl \
     && /isaac-sim/kit/python/bin/python3 -m pip install \
       --disable-pip-version-check \
       --no-cache-dir \
       --no-deps \
       --target /tmp/veoveo-newton \
-      /tmp/newton-1.4.0-py3-none-any.whl \
-      /tmp/mujoco-3.10.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl \
-      /tmp/mujoco_warp-3.10.0.3-py3-none-any.whl \
+      /tmp/newton-1.5.0-py3-none-any.whl \
+      /tmp/mujoco-3.11.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl \
+      /tmp/mujoco_warp-3.11.0-py3-none-any.whl \
     && warp_extension=/isaac-sim/extscache/omni.warp.core-1.13.0+lx64 \
     && newton_prebundle=/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle \
     && rm -rf \
@@ -127,21 +127,21 @@ RUN curl --fail --location --show-error \
     && cp -a /tmp/veoveo-warp/warp_lang-*.dist-info "${warp_extension}/" \
     && cp -a /tmp/veoveo-newton/. "${newton_prebundle}/" \
     && sed -i \
-      's/^version = "1\.13\.0"$/version = "1.15.0"/' \
+      's/^version = "1\.13\.0"$/version = "1.16.0"/' \
       "${warp_extension}/config/extension.toml" \
-    && grep -Fx 'version = "1.15.0"' \
+    && grep -Fx 'version = "1.16.0"' \
       "${warp_extension}/config/extension.toml" \
     && rm -rf \
       /tmp/veoveo-warp \
       /tmp/veoveo-newton \
-      /tmp/warp_lang-1.15.0-py3-none-manylinux_2_28_x86_64.whl \
-      /tmp/newton-1.4.0-py3-none-any.whl \
-      /tmp/mujoco-3.10.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl \
-      /tmp/mujoco_warp-3.10.0.3-py3-none-any.whl
+      /tmp/warp_lang-1.16.0-py3-none-manylinux_2_28_x86_64.whl \
+      /tmp/newton-1.5.0-py3-none-any.whl \
+      /tmp/mujoco-3.11.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl \
+      /tmp/mujoco_warp-3.11.0-py3-none-any.whl
 
 # The latest Isaac Lab release supporting Isaac Sim 6.0.1 is a pre-release.
-# Its immutable source is retained because the supported core, PhysX, Newton,
-# OV, frame-view, and renderer modules are consumed directly by overlays.
+# Its immutable source is retained because the supported core, Newton, OV,
+# frame-view, and renderer modules are consumed directly by overlays.
 RUN curl --fail --location --show-error \
       --output /tmp/isaaclab.tar.gz \
       "${ISAAC_LAB_ARCHIVE_URL}" \
@@ -152,6 +152,17 @@ RUN curl --fail --location --show-error \
       --file /tmp/isaaclab.tar.gz \
       --directory /opt/veoveo/isaaclab \
       --strip-components=1 \
+    && find \
+      /opt/veoveo/isaaclab/source/isaaclab/isaaclab \
+      /opt/veoveo/isaaclab/source/isaaclab_newton/isaaclab_newton \
+      -type f -name '*.py' -exec sed -i \
+      's/from newton\.solvers import SolverNotifyFlags/from newton import ModelFlags as SolverNotifyFlags/g' {} + \
+    && sed -i \
+      's/from newton\.solvers import SolverBase, SolverKamino, SolverNotifyFlags/from newton import ModelFlags as SolverNotifyFlags\nfrom newton.solvers import SolverBase, SolverKamino/' \
+      /opt/veoveo/isaaclab/source/isaaclab_newton/isaaclab_newton/physics/newton_manager.py \
+    && ! grep -Rqs 'from newton.solvers import SolverNotifyFlags' \
+      /opt/veoveo/isaaclab/source/isaaclab/isaaclab \
+      /opt/veoveo/isaaclab/source/isaaclab_newton/isaaclab_newton \
     && test "$(cat /opt/veoveo/isaaclab/VERSION)" = "3.0.0" \
     && printf '%s\n' "${ISAAC_LAB_REVISION}" \
       > /opt/veoveo/isaaclab/.veoveo-source-revision \
@@ -203,10 +214,10 @@ RUN groupadd --gid 10001 veoveo \
 COPY --chmod=0555 probes/ /opt/veoveo/simulation-runtime/probes/
 COPY simulation-runtime.lock.json /opt/veoveo/simulation-base/simulation-runtime.lock.json
 COPY veoveo_simulation_base/ /opt/veoveo/simulation-base/veoveo_simulation_base/
-RUN echo "73b6d5e8f8d8d263d63c42ba3c708738fcf886d6b398ee9df2c0013733d419c0  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
+RUN echo "7fa0a425e6e5e2a6aa5fb766d60af10b4eb96985005eb0493d4af65909b3d53b  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
       | sha256sum --check --strict \
     && printf '%s\n' \
-      "73b6d5e8f8d8d263d63c42ba3c708738fcf886d6b398ee9df2c0013733d419c0" \
+      "7fa0a425e6e5e2a6aa5fb766d60af10b4eb96985005eb0493d4af65909b3d53b" \
       > /opt/veoveo/simulation-base/simulation-runtime.lock.sha256
 
 ENV ACCEPT_EULA=Y \
@@ -214,7 +225,7 @@ ENV ACCEPT_EULA=Y \
     ISAACLAB_PATH=/opt/veoveo/isaaclab \
     MPLCONFIGDIR=/var/lib/veoveo/.cache/matplotlib \
     PYTHONPATH=/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle:/isaac-sim/extscache/omni.warp.core-1.13.0+lx64:/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:/opt/veoveo/simulation-base:/opt/veoveo/python:/opt/veoveo/isaaclab/source/isaaclab:/opt/veoveo/isaaclab/source/isaaclab_newton:/opt/veoveo/isaaclab/source/isaaclab_physx:/opt/veoveo/isaaclab/source/isaaclab_ov:/opt/veoveo/isaaclab/source/isaaclab_ovphysx \
-    VEOVEO_SIMULATION_RUNTIME_PROFILE=isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.15.0-newton-1.4.0 \
+    VEOVEO_SIMULATION_RUNTIME_PROFILE=isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.16.0-newton-1.5.0 \
     XDG_CACHE_HOME=/var/lib/veoveo/.cache \
     XDG_DATA_HOME=/var/lib/veoveo/.local/share
 
@@ -226,7 +237,7 @@ CMD ["/bin/bash"]
 FROM payload AS runtime
 
 ARG SOURCE_REVISION=local
-ARG COMPATIBILITY_RELEASE=2026.07.0
+ARG COMPATIBILITY_RELEASE=2026.08.0
 LABEL org.opencontainers.image.title="Veoveo canonical GPU simulation runtime" \
       org.opencontainers.image.description="Immutable Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, RTX, and live-stream compatibility lineage" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
@@ -235,5 +246,5 @@ LABEL org.opencontainers.image.title="Veoveo canonical GPU simulation runtime" \
       veoveo.io/isaac-sim-version="6.0.1" \
       veoveo.io/isaac-lab-revision="${ISAAC_LAB_REVISION}" \
       veoveo.io/torch-version="2.12.0+cu130" \
-      veoveo.io/warp-version="1.15.0" \
-      veoveo.io/newton-version="1.4.0"
+      veoveo.io/warp-version="1.16.0" \
+      veoveo.io/newton-version="1.5.0"

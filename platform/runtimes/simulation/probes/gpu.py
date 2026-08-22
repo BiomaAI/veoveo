@@ -156,12 +156,28 @@ def _verify_cuda_kernels() -> dict[str, object]:
 
     builder = newton.ModelBuilder(up_axis=newton.Axis.Z)
     body = builder.add_body(
-        xform=wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat_identity()),
+        xform=wp.transform(wp.vec3(0.0, 0.0, 3.0), wp.quat_identity()),
         label="simulation-runtime-probe",
     )
     builder.add_shape_sphere(body=body, radius=1.0, color=(1.0, 0.1, 0.1))
     model = builder.finalize(device="cuda:0")
     state = model.state()
+    next_state = model.state()
+    control = model.control()
+    solver = newton.solvers.SolverMuJoCo(model, disable_contacts=True)
+    initial_height = float(state.body_q.numpy()[body, 2])
+    for _ in range(8):
+        state.clear_forces()
+        solver.step(state, next_state, control, None, 1.0 / 120.0)
+        state, next_state = next_state, state
+    wp.synchronize_device("cuda:0")
+    final_height = float(state.body_q.numpy()[body, 2])
+    if not final_height < initial_height - 1.0e-4:
+        raise RuntimeError(
+            "Newton SolverMuJoCo did not advance the CUDA-resident rigid body: "
+            f"initial z={initial_height}, final z={final_height}"
+        )
+
     sensor = SensorTiledCamera(model, load_textures=False)
     camera_count = 4
     width = 32
@@ -206,6 +222,12 @@ def _verify_cuda_kernels() -> dict[str, object]:
         "torch_cuda": torch.version.cuda,
         "torch_kernel_sum": float(torch_output.item()),
         "warp_kernel_sum": actual_sum,
+        "newton_solver_mujoco": {
+            "device": str(model.device),
+            "initial_height": initial_height,
+            "final_height": final_height,
+            "steps": 8,
+        },
         "newton_tiled_camera": {
             "shape": list(image_tensor.shape),
             "device": str(image_tensor.device),

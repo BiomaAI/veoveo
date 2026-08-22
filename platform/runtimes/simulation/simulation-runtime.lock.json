@@ -15,19 +15,19 @@
     },
     {
       "component": "warp",
-      "version": "1.15.0"
+      "version": "1.16.0"
     },
     {
       "component": "newton",
-      "version": "1.4.0"
+      "version": "1.5.0"
     },
     {
       "component": "mujoco",
-      "version": "3.10.0"
+      "version": "3.11.0"
     },
     {
       "component": "mujoco_warp",
-      "version": "3.10.0.3"
+      "version": "3.11.0"
     },
     {
       "component": "python",
@@ -81,27 +81,27 @@
     },
     {
       "package": "warp-lang",
-      "version": "1.15.0",
-      "filename": "warp_lang-1.15.0-py3-none-manylinux_2_28_x86_64.whl",
-      "digest": "sha256:95c169f28bd7d6c78ac4ad62e2df1e61a096033748f757157fa4551aed80d010"
+      "version": "1.16.0",
+      "filename": "warp_lang-1.16.0-py3-none-manylinux_2_28_x86_64.whl",
+      "digest": "sha256:96449fc1e3b354185e2f09434fb794b5953ab2e8673b104d7e7f48d5d418bb35"
     },
     {
       "package": "newton",
-      "version": "1.4.0",
-      "filename": "newton-1.4.0-py3-none-any.whl",
-      "digest": "sha256:0e11343cc51b86647d9afcd191a21ca4d0d5e410d84072a60ef84af908c72577"
+      "version": "1.5.0",
+      "filename": "newton-1.5.0-py3-none-any.whl",
+      "digest": "sha256:a9eef789e2e0f857e40df3382f101b5faadff5dd8a61cb86dd5ec5382dd27865"
     },
     {
       "package": "mujoco",
-      "version": "3.10.0",
-      "filename": "mujoco-3.10.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
-      "digest": "sha256:966d12f88e77e2b188e7530667b519d6963b9b906cff83bab534e5e4279325a0"
+      "version": "3.11.0",
+      "filename": "mujoco-3.11.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "digest": "sha256:f40214fefc8c2fe0002a3c8abadf30de7a3330634f3c45cc29b407b40a0173fc"
     },
     {
       "package": "mujoco-warp",
-      "version": "3.10.0.3",
-      "filename": "mujoco_warp-3.10.0.3-py3-none-any.whl",
-      "digest": "sha256:9435e5d6a7061af32aecc8da38124bfccceea27fc85176b33b66b7c4b76b4c1a"
+      "version": "3.11.0",
+      "filename": "mujoco_warp-3.11.0-py3-none-any.whl",
+      "digest": "sha256:97e77e877c1c2ea064ae68eaace2333dec94f2d8984091ba7b383bc8c34958f6"
     }
   ],
   "authoritativePackageRoots": [

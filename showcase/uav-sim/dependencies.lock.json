@@ -4,8 +4,8 @@
   "architecture": "linux/amd64",
   "components": {
     "simulation_runtime": {
-      "compatibility_release": "2026.07.0",
-      "profile": "isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.15.0-newton-1.4.0",
+      "compatibility_release": "2026.08.0",
+      "profile": "isaac-6.0.1-lab-3.0.0-beta2.patch1-warp-1.16.0-newton-1.5.0",
       "build_target": "simulation-runtime",
       "lock": "platform/runtimes/simulation/simulation-runtime.lock.json"
     },
