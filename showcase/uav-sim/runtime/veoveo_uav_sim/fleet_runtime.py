@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from .px4_hil import Px4HilFleet
 from .vehicle_spec import (
     HilSensorFrame,
+    PX4_HIL_HZ,
     PX4_IRIS_SENSOR_CADENCE,
     VehicleSnapshot,
 )
@@ -53,7 +54,9 @@ class NewtonFleetRuntime:
             raise ValueError("Newton fleet paths and initial positions must align")
         if len(paths) != hil.vehicle_count:
             raise ValueError("Newton fleet and PX4 HIL fleet sizes must align")
-        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(physics_hz)
+        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(PX4_HIL_HZ)
+        if PX4_HIL_HZ % physics_hz != 0:
+            raise ValueError("PX4 HIL cadence must be an integer multiple of physics")
 
         self._wp = wp
         self._kernels = plant_warp
@@ -62,6 +65,7 @@ class NewtonFleetRuntime:
         self._initial_positions = initial_positions
         self._physics_hz = physics_hz
         self._dt = 1.0 / physics_hz
+        self._hil_steps_per_physics = PX4_HIL_HZ // physics_hz
         self._hil = hil
         self._after_step = after_step
         self._rigid = RigidPrim(list(paths), resolve_paths=True)
@@ -257,12 +261,14 @@ class NewtonFleetRuntime:
         )
         self._wp.copy(self._packet_host, self._packet_device)
         self._wp.synchronize_stream(self._device)
-        frames, snapshots = self._decode_packets(physics_step)
+        first_hil_step = (physics_step - 1) * self._hil_steps_per_physics + 1
+        for offset in range(self._hil_steps_per_physics):
+            frames, snapshots = self._decode_packets(first_hil_step + offset)
+            self._hil.publish_sensor_frames(frames)
         self._snapshots = snapshots
         self._sensor_update_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
-        self._hil.publish_sensor_frames(frames)
         self._backend_state_wall_seconds += time.perf_counter() - phase
         self._vehicle_update_wall_seconds += time.perf_counter() - started
 
@@ -277,13 +283,11 @@ class NewtonFleetRuntime:
         )
 
     def _decode_packets(
-        self, physics_step: int
+        self, hil_step: int
     ) -> tuple[tuple[HilSensorFrame, ...], tuple[VehicleSnapshot, ...]]:
-        time_usec = int(round(physics_step * 1_000_000.0 / self._physics_hz))
-        fields_updated = PX4_IRIS_SENSOR_CADENCE.fields_updated(
-            self._physics_hz, physics_step
-        )
-        gps_updated = PX4_IRIS_SENSOR_CADENCE.gps_due(self._physics_hz, physics_step)
+        time_usec = int(round(hil_step * 1_000_000.0 / PX4_HIL_HZ))
+        fields_updated = PX4_IRIS_SENSOR_CADENCE.fields_updated(PX4_HIL_HZ, hil_step)
+        gps_updated = PX4_IRIS_SENSOR_CADENCE.gps_due(PX4_HIL_HZ, hil_step)
         frames: list[HilSensorFrame] = []
         snapshots: list[VehicleSnapshot] = []
         for row in self._packet_host_values:
