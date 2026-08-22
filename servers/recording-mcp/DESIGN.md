@@ -16,7 +16,7 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 | Veoveo recording ingest | Version `2026-08-06`; authenticated protobuf batches and distinct Blueprint publications carry native Rerun stores from a producer-local forwarder through the gateway to Recording Hub, with policy-scoped single-recording replacement. |
 | Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v8`; one finite producer Blueprint, one stable Redap archive URI, one optional recording-scoped `rerun_rrd_channel_v2` source, a catalog revision, and recording-scoped access material. |
 | [JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519) | Rerun-compatible HS256 read tokens carry the standard Redap audience and an exact installation hostname. A server-side session binds each token subject to one recording and one authorized Veoveo actor. |
-| H.264 Annex B in Rerun `VideoStream` | Producers store decoder-reentrant access units and original timeline indices. Archive materialization derives canonical sparse keyframe markers from the encoded bytes. The internal live-view adapter omits keyframe columns because the pinned viewer derives sync samples from H.264 and requires dense sample chunks. |
+| H.264 Annex B in Rerun `VideoStream` | Producers store decoder-reentrant access units and original timeline indices. Archive materialization and live analysis derive canonical keyframe identity from the encoded bytes. The internal live-view adapter omits keyframe columns because the pinned viewer derives sync samples from H.264 and requires dense sample chunks. |
 | SHA-256 | Frozen shard and artifact manifests bind immutable bytes to a digest. |
 
 The MCP surface owns recording discovery, bounded queries, subscriptions, and

@@ -23,7 +23,7 @@ use re_sdk_types::archetypes::VideoStream;
 use re_sdk_types::components::{IsKeyframe, VideoCodec, VideoSample};
 use re_sdk_types::external::arrow::array::{Array as _, ListArray};
 use re_sdk_types::external::re_types_core::Loggable;
-use veoveo_rrd::video::annex_b_nals;
+use veoveo_rrd::video::{annex_b_nals, h264_access_unit_is_decoder_reentrant};
 
 const NANOSECONDS_PER_SECOND: u128 = 1_000_000_000;
 const H264_MP4_TIMESCALE: u32 = 90_000;
@@ -188,10 +188,10 @@ pub fn extract_video_clip_from_messages(
         &result_schema,
         &component_column(&request.entity_path, &VideoStream::descriptor_codec()),
     )?;
-    let keyframe_column = column_index(
-        &result_schema,
-        &component_column(&request.entity_path, &VideoStream::descriptor_is_keyframe()),
-    )?;
+    let keyframe_column = result_schema.fields().iter().position(|field| {
+        field.name()
+            == &component_column(&request.entity_path, &VideoStream::descriptor_is_keyframe())
+    });
 
     let mut samples = Vec::new();
     for batch in handle.batch_iter() {
@@ -212,12 +212,21 @@ pub fn extract_video_clip_from_messages(
                 codec == VideoCodec::H264,
                 "only H.264 VideoStream samples are supported"
             );
-            let is_keyframe = component_at::<IsKeyframe>(batch.column(keyframe_column), row)?
-                .is_some_and(|value| *value.0);
+            let bytes = sample.0.0.as_ref().to_vec();
+            let is_keyframe = h264_access_unit_is_decoder_reentrant(&bytes)?;
+            if let Some(keyframe_column) = keyframe_column {
+                let stored_keyframe =
+                    component_at::<IsKeyframe>(batch.column(keyframe_column), row)?
+                        .is_some_and(|value| *value.0);
+                ensure!(
+                    !stored_keyframe || is_keyframe,
+                    "stored H.264 keyframe marker does not identify a decoder-reentrant access unit"
+                );
+            }
             samples.push(EncodedVideoSample {
                 index: time_values[row],
                 is_keyframe,
-                bytes: sample.0.0.as_ref().to_vec(),
+                bytes,
             });
         }
     }
