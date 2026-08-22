@@ -1098,9 +1098,9 @@ class NativeCadenceTests(unittest.TestCase):
         self.assertIn("isaacsim.core.experimental.prims", fleet_source)
         self.assertIn("RigidPrim(list(paths), resolve_paths=True)", fleet_source)
         self.assertIn("self._wp.launch(", fleet_source)
-        self.assertIn("@wp.kernel\ndef update_motor_wrench", plant_source)
-        self.assertIn("@wp.kernel\ndef integrate_fleet_state", plant_source)
-        self.assertIn("@wp.kernel\ndef sample_hil_sensors", plant_source)
+        self.assertIn(
+            "@wp.kernel\ndef advance_fleet_and_sample_hil", plant_source
+        )
         self.assertIn("isaacsim.core.experimental.objects", scene_source)
         self.assertIn("float physics:mass = 1.5", asset_source)
         self.assertNotIn("import numpy", fleet_source)
@@ -1113,11 +1113,14 @@ class NativeCadenceTests(unittest.TestCase):
         self.assertNotIn("self._rigid.get_velocities()", step_source)
         self.assertNotIn("SimulationManager.step", step_source)
         self.assertNotIn("apply_forces_and_torques_at_pos", step_source)
-        self.assertIn("self._kernels.integrate_fleet_state", step_source)
-        self.assertIn("self._rigid_tensor_view.set_transforms", step_source)
-        self.assertIn("self._rigid_tensor_view.set_velocities", step_source)
-        self.assertIn("self._rigid_tensor_view.get_transforms()", step_source)
-        self.assertIn("self._rigid_tensor_view.get_velocities()", step_source)
+        self.assertIn("self._body_q = getattr(state, \"body_q\"", fleet_source)
+        self.assertIn("self._body_qd = getattr(state, \"body_qd\"", fleet_source)
+        self.assertIn("self._body_indices", fleet_source)
+        self.assertIn("self._kernels.advance_fleet_and_sample_hil", step_source)
+        self.assertNotIn("self._rigid_tensor_view.set_transforms", step_source)
+        self.assertNotIn("self._rigid_tensor_view.set_velocities", step_source)
+        self.assertNotIn("self._rigid_tensor_view.get_transforms()", step_source)
+        self.assertNotIn("self._rigid_tensor_view.get_velocities()", step_source)
 
     def test_runtime_coalesces_render_work_after_due_fixed_physics(self) -> None:
         app_source = (

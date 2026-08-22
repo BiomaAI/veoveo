@@ -44,21 +44,35 @@ ROTOR_3_DIRECTION = wp.constant(PX4_IRIS_ROTOR_DIRECTIONS[3])
 
 
 @wp.kernel
-def update_motor_wrench(
+def advance_fleet_and_sample_hil(
     controls: wp.array2d(dtype=wp.float32),
     motor_velocity: wp.array2d(dtype=wp.float32),
-    transforms_xyzw: wp.array2d(dtype=wp.float32),
-    velocities_enu: wp.array2d(dtype=wp.float32),
-    forces_flu: wp.array2d(dtype=wp.float32),
-    torques_flu: wp.array2d(dtype=wp.float32),
+    body_indices: wp.array(dtype=wp.int32),
+    body_q: wp.array(dtype=wp.transform),
+    body_qd: wp.array(dtype=wp.spatial_vector),
+    previous_linear_velocity_enu: wp.array2d(dtype=wp.float32),
+    packet: wp.array2d(dtype=wp.float32),
     dt: wp.float32,
+    origin_latitude_degrees: wp.float32,
+    origin_longitude_degrees: wp.float32,
+    origin_altitude_m: wp.float32,
+    meters_per_degree_latitude: wp.float32,
+    meters_per_degree_longitude: wp.float32,
 ):
+    """Advance one native Newton body and emit its complete PX4 HIL sample."""
     vehicle = wp.tid()
+    body = body_indices[vehicle]
+    transform = body_q[body]
+    spatial_velocity = body_qd[body]
+    position = wp.transform_get_translation(transform)
+    orientation = wp.transform_get_rotation(transform)
+    linear_velocity = wp.spatial_top(spatial_velocity)
+    angular_velocity = wp.spatial_bottom(spatial_velocity)
+
     force_0 = wp.float32(0.0)
     force_1 = wp.float32(0.0)
     force_2 = wp.float32(0.0)
     force_3 = wp.float32(0.0)
-
     for rotor in range(4):
         target = wp.clamp(controls[vehicle, rotor], 0.0, 1100.0)
         current = motor_velocity[vehicle, rotor]
@@ -78,83 +92,33 @@ def update_motor_wrench(
         else:
             force_3 = thrust
 
-    orientation = wp.quat(
-        transforms_xyzw[vehicle, 3],
-        transforms_xyzw[vehicle, 4],
-        transforms_xyzw[vehicle, 5],
-        transforms_xyzw[vehicle, 6],
+    velocity_flu = wp.quat_rotate_inv(orientation, linear_velocity)
+    force_flu = wp.vec3(
+        -DRAG_X * velocity_flu[0],
+        -DRAG_Y * velocity_flu[1],
+        force_0 + force_1 + force_2 + force_3,
     )
-    velocity_flu = wp.quat_rotate_inv(
-        orientation,
-        wp.vec3(
-            velocities_enu[vehicle, 0],
-            velocities_enu[vehicle, 1],
-            velocities_enu[vehicle, 2],
-        ),
-    )
-    forces_flu[vehicle, 0] = -DRAG_X * velocity_flu[0]
-    forces_flu[vehicle, 1] = -DRAG_Y * velocity_flu[1]
-    forces_flu[vehicle, 2] = force_0 + force_1 + force_2 + force_3
-
-    torques_flu[vehicle, 0] = (
+    torque_flu = wp.vec3(
         ROTOR_0_Y * force_0
         + ROTOR_1_Y * force_1
         + ROTOR_2_Y * force_2
-        + ROTOR_3_Y * force_3
-    )
-    torques_flu[vehicle, 1] = -(
-        ROTOR_0_X * force_0
-        + ROTOR_1_X * force_1
-        + ROTOR_2_X * force_2
-        + ROTOR_3_X * force_3
-    )
-    torques_flu[vehicle, 2] = YAW_MOMENT_COEFFICIENT * (
-        ROTOR_0_DIRECTION * motor_velocity[vehicle, 0] * motor_velocity[vehicle, 0]
-        + ROTOR_1_DIRECTION * motor_velocity[vehicle, 1] * motor_velocity[vehicle, 1]
-        + ROTOR_2_DIRECTION * motor_velocity[vehicle, 2] * motor_velocity[vehicle, 2]
-        + ROTOR_3_DIRECTION * motor_velocity[vehicle, 3] * motor_velocity[vehicle, 3]
-    )
-
-
-@wp.kernel
-def integrate_fleet_state(
-    transforms_xyzw: wp.array2d(dtype=wp.float32),
-    velocities_enu: wp.array2d(dtype=wp.float32),
-    forces_flu: wp.array2d(dtype=wp.float32),
-    torques_flu: wp.array2d(dtype=wp.float32),
-    dt: wp.float32,
-):
-    """Integrate the complete free-flight plant and launch-surface constraint."""
-    vehicle = wp.tid()
-    position = wp.vec3(
-        transforms_xyzw[vehicle, 0],
-        transforms_xyzw[vehicle, 1],
-        transforms_xyzw[vehicle, 2],
-    )
-    orientation = wp.quat(
-        transforms_xyzw[vehicle, 3],
-        transforms_xyzw[vehicle, 4],
-        transforms_xyzw[vehicle, 5],
-        transforms_xyzw[vehicle, 6],
-    )
-    linear_velocity = wp.vec3(
-        velocities_enu[vehicle, 0],
-        velocities_enu[vehicle, 1],
-        velocities_enu[vehicle, 2],
-    )
-    angular_velocity = wp.vec3(
-        velocities_enu[vehicle, 3],
-        velocities_enu[vehicle, 4],
-        velocities_enu[vehicle, 5],
-    )
-    force_world = wp.quat_rotate(
-        orientation,
-        wp.vec3(
-            forces_flu[vehicle, 0],
-            forces_flu[vehicle, 1],
-            forces_flu[vehicle, 2],
+        + ROTOR_3_Y * force_3,
+        -(
+            ROTOR_0_X * force_0
+            + ROTOR_1_X * force_1
+            + ROTOR_2_X * force_2
+            + ROTOR_3_X * force_3
+        ),
+        YAW_MOMENT_COEFFICIENT
+        * (
+            ROTOR_0_DIRECTION * motor_velocity[vehicle, 0] * motor_velocity[vehicle, 0]
+            + ROTOR_1_DIRECTION * motor_velocity[vehicle, 1] * motor_velocity[vehicle, 1]
+            + ROTOR_2_DIRECTION * motor_velocity[vehicle, 2] * motor_velocity[vehicle, 2]
+            + ROTOR_3_DIRECTION * motor_velocity[vehicle, 3] * motor_velocity[vehicle, 3]
         ),
     )
+
+    force_world = wp.quat_rotate(orientation, force_flu)
     linear_velocity = linear_velocity + (
         force_world / MASS_KG + wp.vec3(0.0, 0.0, -GRAVITY_MPS2)
     ) * dt
@@ -166,31 +130,21 @@ def integrate_fleet_state(
         INERTIA_Y * angular_body[1],
         INERTIA_Z * angular_body[2],
     )
-    torque_body = wp.vec3(
-        torques_flu[vehicle, 0],
-        torques_flu[vehicle, 1],
-        torques_flu[vehicle, 2],
-    ) - wp.cross(angular_body, inertia_angular)
+    torque_body = torque_flu - wp.cross(angular_body, inertia_angular)
     angular_delta = wp.vec3(
         torque_body[0] / INERTIA_X,
         torque_body[1] / INERTIA_Y,
         torque_body[2] / INERTIA_Z,
     ) * dt
-    angular_velocity = wp.quat_rotate(
-        orientation,
-        angular_body + angular_delta,
-    )
+    angular_velocity = wp.quat_rotate(orientation, angular_body + angular_delta)
     orientation = wp.normalize(
-        orientation
-        + wp.quat(angular_velocity, 0.0) * orientation * 0.5 * dt
+        orientation + wp.quat(angular_velocity, 0.0) * orientation * 0.5 * dt
     )
 
     if position[2] < LAUNCH_SURFACE_CENTER_UP_M:
         position = wp.vec3(position[0], position[1], LAUNCH_SURFACE_CENTER_UP_M)
         if linear_velocity[2] < 0.0:
-            linear_velocity = wp.vec3(
-                linear_velocity[0], linear_velocity[1], 0.0
-            )
+            linear_velocity = wp.vec3(linear_velocity[0], linear_velocity[1], 0.0)
         friction = wp.max(0.0, 1.0 - GROUND_FRICTION_PER_SECOND * dt)
         linear_velocity = wp.vec3(
             linear_velocity[0] * friction,
@@ -199,89 +153,47 @@ def integrate_fleet_state(
         )
         angular_velocity = angular_velocity * friction
 
-    transforms_xyzw[vehicle, 0] = position[0]
-    transforms_xyzw[vehicle, 1] = position[1]
-    transforms_xyzw[vehicle, 2] = position[2]
-    transforms_xyzw[vehicle, 3] = orientation[0]
-    transforms_xyzw[vehicle, 4] = orientation[1]
-    transforms_xyzw[vehicle, 5] = orientation[2]
-    transforms_xyzw[vehicle, 6] = orientation[3]
-    velocities_enu[vehicle, 0] = linear_velocity[0]
-    velocities_enu[vehicle, 1] = linear_velocity[1]
-    velocities_enu[vehicle, 2] = linear_velocity[2]
-    velocities_enu[vehicle, 3] = angular_velocity[0]
-    velocities_enu[vehicle, 4] = angular_velocity[1]
-    velocities_enu[vehicle, 5] = angular_velocity[2]
+    body_q[body] = wp.transform(position, orientation)
+    body_qd[body] = wp.spatial_vector(linear_velocity, angular_velocity)
 
-
-@wp.kernel
-def sample_hil_sensors(
-    transforms_xyzw: wp.array2d(dtype=wp.float32),
-    velocities_enu: wp.array2d(dtype=wp.float32),
-    previous_linear_velocity_enu: wp.array2d(dtype=wp.float32),
-    packet: wp.array2d(dtype=wp.float32),
-    dt: wp.float32,
-    origin_latitude_degrees: wp.float32,
-    origin_longitude_degrees: wp.float32,
-    origin_altitude_m: wp.float32,
-    meters_per_degree_latitude: wp.float32,
-    meters_per_degree_longitude: wp.float32,
-):
-    vehicle = wp.tid()
-    east = transforms_xyzw[vehicle, 0]
-    north = transforms_xyzw[vehicle, 1]
-    up = transforms_xyzw[vehicle, 2]
-    velocity = wp.vec3(
-        velocities_enu[vehicle, 0],
-        velocities_enu[vehicle, 1],
-        velocities_enu[vehicle, 2],
-    )
     previous_velocity = wp.vec3(
         previous_linear_velocity_enu[vehicle, 0],
         previous_linear_velocity_enu[vehicle, 1],
         previous_linear_velocity_enu[vehicle, 2],
     )
-    orientation = wp.quat(
-        transforms_xyzw[vehicle, 3],
-        transforms_xyzw[vehicle, 4],
-        transforms_xyzw[vehicle, 5],
-        transforms_xyzw[vehicle, 6],
-    )
-
-    specific_force_enu = (velocity - previous_velocity) / dt - wp.vec3(
-        0.0, 0.0, -9.80665
+    specific_force_enu = (linear_velocity - previous_velocity) / dt - wp.vec3(
+        0.0, 0.0, -GRAVITY_MPS2
     )
     acceleration_flu = wp.quat_rotate_inv(orientation, specific_force_enu)
-    angular_flu = wp.quat_rotate_inv(
-        orientation,
-        wp.vec3(
-            velocities_enu[vehicle, 3],
-            velocities_enu[vehicle, 4],
-            velocities_enu[vehicle, 5],
-        ),
-    )
+    angular_flu = wp.quat_rotate_inv(orientation, angular_velocity)
     magnetic_flu = wp.quat_rotate_inv(orientation, wp.vec3(0.0, 0.215, -0.427))
 
+    east = position[0]
+    north = position[1]
+    up = position[2]
     altitude = origin_altitude_m + up
     temperature_kelvin = wp.max(180.0, 288.15 - 0.0065 * altitude)
     pressure_hpa = 1013.25 / wp.pow(288.15 / temperature_kelvin, 5.2561)
     latitude = origin_latitude_degrees + north / meters_per_degree_latitude
     longitude = origin_longitude_degrees + east / meters_per_degree_longitude
-    ground_speed = wp.sqrt(velocity[0] * velocity[0] + velocity[1] * velocity[1])
-    course = wp.atan2(velocity[0], velocity[1]) * 57.29577951308232
+    ground_speed = wp.sqrt(
+        linear_velocity[0] * linear_velocity[0]
+        + linear_velocity[1] * linear_velocity[1]
+    )
+    course = wp.atan2(linear_velocity[0], linear_velocity[1]) * 57.29577951308232
     if course < 0.0:
         course = course + 360.0
 
     packet[vehicle, 0] = east
     packet[vehicle, 1] = north
     packet[vehicle, 2] = up
-    packet[vehicle, 3] = transforms_xyzw[vehicle, 3]
-    packet[vehicle, 4] = transforms_xyzw[vehicle, 4]
-    packet[vehicle, 5] = transforms_xyzw[vehicle, 5]
-    packet[vehicle, 6] = transforms_xyzw[vehicle, 6]
-    packet[vehicle, 7] = velocity[0]
-    packet[vehicle, 8] = velocity[1]
-    packet[vehicle, 9] = velocity[2]
+    packet[vehicle, 3] = orientation[0]
+    packet[vehicle, 4] = orientation[1]
+    packet[vehicle, 5] = orientation[2]
+    packet[vehicle, 6] = orientation[3]
+    packet[vehicle, 7] = linear_velocity[0]
+    packet[vehicle, 8] = linear_velocity[1]
+    packet[vehicle, 9] = linear_velocity[2]
     packet[vehicle, 10] = angular_flu[0]
     packet[vehicle, 11] = -angular_flu[1]
     packet[vehicle, 12] = -angular_flu[2]
@@ -297,12 +209,12 @@ def sample_hil_sensors(
     packet[vehicle, 22] = latitude
     packet[vehicle, 23] = longitude
     packet[vehicle, 24] = altitude
-    packet[vehicle, 25] = velocity[1]
-    packet[vehicle, 26] = velocity[0]
-    packet[vehicle, 27] = -velocity[2]
+    packet[vehicle, 25] = linear_velocity[1]
+    packet[vehicle, 26] = linear_velocity[0]
+    packet[vehicle, 27] = -linear_velocity[2]
     packet[vehicle, 28] = ground_speed
     packet[vehicle, 29] = course
 
-    previous_linear_velocity_enu[vehicle, 0] = velocity[0]
-    previous_linear_velocity_enu[vehicle, 1] = velocity[1]
-    previous_linear_velocity_enu[vehicle, 2] = velocity[2]
+    previous_linear_velocity_enu[vehicle, 0] = linear_velocity[0]
+    previous_linear_velocity_enu[vehicle, 1] = linear_velocity[1]
+    previous_linear_velocity_enu[vehicle, 2] = linear_velocity[2]

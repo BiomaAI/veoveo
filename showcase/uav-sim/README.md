@@ -179,9 +179,9 @@ model, and process lifecycle. Every PX4 instance runs against an isolated writab
 and one dedicated concurrent HIL transport.
 
 One Experimental `RigidPrim` resolves the whole fleet. A single Warp launch updates all
-motor states and body wrenches on CUDA, then a second launch samples every HIL sensor.
-The plant consumes the pinned Isaac 6.0.1 Newton view's cached transform and velocity
-tensors directly, preserving the backend's native `xyzw` layout without cloned gathers.
+motor states, integrates Newton's native `body_q` and `body_qd` arrays, applies the launch
+surface constraint, and samples every HIL sensor. The plant preserves the backend's native
+`xyzw` layout without adapter gathers or setter flushes.
 The only per-step device readback is one compact 30-float packet per vehicle for MAVLink.
 Controls cross back as one four-float packet per vehicle. Isaac's classic `World`, classic
 prim views, the PhysX UAV path, NumPy dynamics, and per-vehicle physics loops are absent.
@@ -194,7 +194,7 @@ The Isaac timeline remains playing because Newton gates its CUDA tensor and Fabr
 while app-driven and MuJoCo-Warp physics stepping are disabled. One batched repository
 Warp kernel advances force, torque, pose, velocity, gravity, and the launch-surface
 constraint at the exact 30 Hz dynamics cadence. It writes the resulting transforms and
-velocities directly into the Newton Experimental rigid view. Google tiles remain visual
+velocities into Newton's authoritative CUDA body arrays. Google tiles remain visual
 geometry and the airborne reference routes are separated. Each dynamics sample publishes
 two ordered HIL samples. PX4 receives IMU fields at 60 Hz,
 barometer and magnetometer fields at 30 Hz, and GPS fields at 10 Hz. Elapsed monotonic time
