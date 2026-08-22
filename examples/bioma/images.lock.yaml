@@ -26,5 +26,5 @@ global:
     veoveo/time-mcp: sha256:81988dc72b99a832d94ff68af1ff1a87cade07b8df1b202165c2199c5d96f969
     veoveo/timeseries-mcp: sha256:a2547da4a67ae57d89281219c5b05f0111c62b1648e59db9da836f2780d490ee
     veoveo/uav-sim-mcp: sha256:2df5bd65661b46da9aa5cd37c1a1b92a6b8a004ff60b07ff7066ecdb5977054d
-    veoveo/uav-sim-runtime: sha256:93f2dd1a31920c67962f5b1e76f426621fbf5362ee78ffdd723f32cfbc8dcbdc
+    veoveo/uav-sim-runtime: sha256:83d691195ec0ce719879f4325e8a7feedd437461e3ef896898a2a33be7e5b7e7
     veoveo/view-mcp: sha256:987ae3cb256719ab129410f4bc98378ecd69ff5683b4f16b7a03f163db1d403f
