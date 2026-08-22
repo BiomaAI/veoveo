@@ -3,6 +3,7 @@
 mod profile;
 mod report;
 mod runner;
+mod tool_schema;
 
 pub use profile::{
     HOSTED_MCP_CONTRACT_REVISION, HOSTED_SERVER_PROFILE_SCHEMA, HostedServerConformanceProfile,
@@ -13,6 +14,7 @@ pub use report::{
     ConformanceReportSchema, ObservedImplementation,
 };
 pub use runner::run_hosted_server_conformance;
+pub use tool_schema::{SchemaStats, validate_tool_input_schema};
 
 #[must_use]
 pub fn hosted_server_conformance_profile_schema() -> schemars::Schema {

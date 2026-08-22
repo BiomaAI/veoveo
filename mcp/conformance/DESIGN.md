@@ -6,7 +6,7 @@
 |---|---|
 | Model Context Protocol | negotiated Streamable HTTP protocol plus the hosted-server requirements selected by a typed profile |
 | JSON-RPC 2.0 | MCP request and response envelopes |
-| JSON Schema 2020-12 | self-contained tool input schemas and generated profile/report schemas |
+| JSON Schema 2020-12 | bounded tool input schemas with same-document references and composition, plus generated profile/report schemas |
 | OAuth 2.0 protected-resource metadata | unauthenticated Bearer rejection checks selected by the profile |
 | `veoveo.io/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.io/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
@@ -22,6 +22,11 @@ typed report. The CLI reads and writes the same JSON contracts.
 The crate depends on shared MCP protocol and Veoveo contract infrastructure. It does
 not depend on a domain server, showcase, example, extension implementation, or client
 repository. Domain lifecycle smoke remains with the component that owns the domain.
+
+Tool input schemas retain the ordinary SDK representation. Conformance permits
+same-document references and composition, rejects external references without fetching
+them, and applies per-document limits of 1 MiB, depth 64, 50,000 nodes, 4,096 references,
+and 4,096 composition branches before meta-schema validation.
 
 ## Profile
 
