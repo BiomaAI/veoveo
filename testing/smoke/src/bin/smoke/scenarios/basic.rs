@@ -868,8 +868,10 @@ pub(crate) async fn helm_config() -> Result<()> {
     for expected in [
         "nvcr.io/nvidia/isaac-sim:6.0.1@sha256:",
         "ISAAC_LAB_REVISION=ffff603eafc6b74264a5261cc0183d6a65390d78",
-        "WARP_WHEEL_SHA256=95c169f28bd7d6c78ac4ad62e2df1e61a096033748f757157fa4551aed80d010",
-        "NEWTON_WHEEL_SHA256=0e11343cc51b86647d9afcd191a21ca4d0d5e410d84072a60ef84af908c72577",
+        "WARP_WHEEL_SHA256=96449fc1e3b354185e2f09434fb794b5953ab2e8673b104d7e7f48d5d418bb35",
+        "NEWTON_WHEEL_SHA256=a9eef789e2e0f857e40df3382f101b5faadff5dd8a61cb86dd5ec5382dd27865",
+        "MUJOCO_WHEEL_SHA256=f40214fefc8c2fe0002a3c8abadf30de7a3330634f3c45cc29b407b40a0173fc",
+        "MUJOCO_WARP_WHEEL_SHA256=97e77e877c1c2ea064ae68eaace2333dec94f2d8984091ba7b383bc8c34958f6",
         "--require-hashes",
         "sha256sum --check --strict",
         "/isaac-sim/extscache/omni.warp.core-1.13.0+lx64",
