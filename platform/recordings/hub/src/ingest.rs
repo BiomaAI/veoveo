@@ -667,13 +667,27 @@ impl RecordingIngestService {
             .finish_recording_ingest_stream(identity.tenant_id, stream_id)
             .await?;
         if mode == RecordingStreamFinishMode::CompleteRecording {
-            self.store
-                .finish_recording(
-                    &identity,
-                    typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?,
-                    stream.finished_at.unwrap_or_else(chrono::Utc::now),
-                )
+            let recording_id =
+                typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
+            let finished_at = stream.finished_at.unwrap_or_else(chrono::Utc::now);
+            let segments = self
+                .store
+                .recording_segments(identity.tenant_id, recording_id, 10_000)
                 .await?;
+            if segments.is_empty() {
+                self.store
+                    .interrupt_recording(
+                        &identity,
+                        recording_id,
+                        finished_at,
+                        "producer completed recording before durable data",
+                    )
+                    .await?;
+            } else {
+                self.store
+                    .finish_recording(&identity, recording_id, finished_at)
+                    .await?;
+            }
         }
         self.authorized_streams
             .lock()
