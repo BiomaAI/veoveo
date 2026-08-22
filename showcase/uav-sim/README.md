@@ -192,9 +192,10 @@ state or blocking the GPU simulation loop.
 
 The Isaac timeline remains playing because Newton gates integration on that state, while
 app-driven physics stepping is disabled. `SimulationManager` alone advances Newton at the
-exact fixed cadence. Elapsed monotonic time determines the number of authoritative steps
-due on each scheduler pass. The clock retains bounded debt instead of dropping elapsed
-time. When rendering misses visual
+exact 30 Hz fixed cadence. PX4 receives IMU, barometer, and magnetometer HIL fields on
+every authoritative step and GPS fields at 10 Hz. Elapsed monotonic time determines the
+number of authoritative steps due on each scheduler pass. The clock retains bounded debt
+instead of dropping elapsed time. When rendering misses visual
 deadlines, the runtime advances every due physics step and renders only the newest state.
 Rerun serialization, browser traffic, native encode, and recording retries remain outside
 that authority boundary and cannot slow the simulation timeline.
