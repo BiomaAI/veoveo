@@ -351,21 +351,21 @@ fn converge_inner(
                 "wait for Deployment readiness",
             )?;
         }
-        let observed = get_resource::<FluxKustomization>(arguments, KUSTOMIZATION_RESOURCE, root)?;
-        ensure!(
-            kustomization_ready_at(&observed, &arguments.revision),
-            "root Kustomization {}/{} lost exact-revision readiness",
-            root.namespace,
-            root.name
-        );
+        wait_for_resource::<FluxKustomization>(
+            arguments,
+            KUSTOMIZATION_RESOURCE,
+            root,
+            deadline,
+            |kustomization| kustomization_ready_at(kustomization, &arguments.revision),
+        )?;
         for release in releases {
-            let observed = get_resource::<HelmRelease>(arguments, HELM_RELEASE_RESOURCE, release)?;
-            ensure!(
-                helm_release_ready(&observed),
-                "HelmRelease {}/{} lost readiness or its inventory",
-                release.namespace,
-                release.name
-            );
+            wait_for_resource::<HelmRelease>(
+                arguments,
+                HELM_RELEASE_RESOURCE,
+                release,
+                deadline,
+                helm_release_ready,
+            )?;
         }
         Ok(())
     })
