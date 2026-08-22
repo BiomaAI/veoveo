@@ -54,11 +54,14 @@ def run(config: RuntimeConfig) -> None:
     simulation_app = SimulationApp(
         {
             "headless": True,
-            # Cesium 0.29's streamed glTF material path is qualified against
-            # Isaac's RTX lighting renderer. Low-latency Hydra scheduling
-            # keeps all products asynchronous without changing that shading.
-            "renderer": "RaytracedLighting",
-            "anti_aliasing": 3,
+            # Live fleet cameras need textured geographic evidence, not a
+            # lighting simulation per view. Isaac's RTX minimal renderer mode
+            # 2 keeps Cesium's glTF textures and runs every Hydra product on
+            # the GPU without tracing lighting rays for the same world five
+            # times. FXAA keeps the post-process bounded at native 720p.
+            "renderer": "MinimalRendering",
+            "minimal_shading_mode": 2,
+            "anti_aliasing": 2,
             "width": viewport_width,
             "height": viewport_height,
             # A streamed 3D Tiles world never reaches a terminal "all assets
