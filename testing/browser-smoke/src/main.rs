@@ -43,11 +43,13 @@ const FOCUSED_UAV_APP_HOST_PREFLIGHTS: [FocusedUavAppHostPreflight; 2] = [
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
     "uav-sim:read",
+    "uav-sim:control",
     "uav-sim:stream",
     "view:read",
     "view:write",
     "view:capture",
     "map:dataset:read",
+    "map:route",
     "time:read",
 ];
 
