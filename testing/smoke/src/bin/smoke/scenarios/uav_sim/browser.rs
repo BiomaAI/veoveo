@@ -97,6 +97,8 @@ impl ConsoleLiveGridEvidence {
         self.videos
             .iter()
             .map(|video| video.stream_product_id.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
             .collect()
     }
 }
@@ -781,9 +783,9 @@ async fn capture_console_live_app_grid_inner(
             .collect::<std::collections::BTreeSet<_>>();
         ensure!(
             viewer_instances.len() == 1
-                && live_views.len() == expected_camera_ids.len()
-                && products.len() == expected_camera_ids.len(),
-            "one App grid did not receive one shared native product per selected camera: {second:?}"
+                && live_views.len() == 1
+                && products.len() == 1,
+            "one App grid did not share one tiled native product across every selected camera: {second:?}"
         );
         if let Some(simultaneous) = simultaneous {
             tokio::time::timeout(SIMULTANEOUS_VIEW_BARRIER_TIMEOUT, simultaneous.wait())
@@ -3414,10 +3416,10 @@ const APP_FRAME_DECODE_IDENTITY: &str = r#"(async () => {
   const result=await navigator.mediaCapabilities.decodingInfo({
     type:"file",
     video:{
-      contentType:'video/mp4; codecs="avc1.4D401F"',
+      contentType:'video/mp4; codecs="avc1.640033"',
       width:Number(video.dataset.sourceWidth),
       height:Number(video.dataset.sourceHeight),
-      bitrate:8000000,
+      bitrate:12000000,
       framerate:Number(video.dataset.frameRate)
     }
   });

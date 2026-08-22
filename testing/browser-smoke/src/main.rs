@@ -266,7 +266,8 @@ struct LiveViewPerformanceEvidence {
     physics_real_time_factor: f64,
     qualified_camera_count: usize,
     browser_user_count: usize,
-    simultaneous_stream_count: usize,
+    simultaneous_camera_views: usize,
+    simultaneous_encoded_streams: usize,
     minimum_observed_frame_rate_hz: f64,
     maximum_observed_frame_rate_hz: f64,
     browser_dropped_frames: u64,
@@ -608,26 +609,30 @@ async fn verify_running_showcase(
     let initial_products = initial_state
         .get("stream_products")
         .and_then(Value::as_array)
-        .context("authoritative simulator omitted its shared camera products")?;
-    let initial_product_ids = initial_products
-        .iter()
-        .filter_map(|product| product.get("streamProductId").and_then(Value::as_str))
-        .collect::<std::collections::BTreeSet<_>>();
+        .context("authoritative simulator omitted its tiled camera product")?;
     let initial_camera_ids = initial_products
         .iter()
-        .filter_map(|product| product.get("cameraId").and_then(Value::as_str))
+        .flat_map(|product| {
+            product
+                .get("cameraRegions")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|region| region.get("cameraId").and_then(Value::as_str))
+        })
         .collect::<std::collections::BTreeSet<_>>();
     ensure!(
-        initial_products.len() == QUALIFIED_CAMERA_IDS.len()
-            && initial_product_ids.len() == QUALIFIED_CAMERA_IDS.len()
+        initial_products.len() == 1
             && initial_camera_ids.len() == QUALIFIED_CAMERA_IDS.len()
             && initial_products.iter().all(|product| {
                 product.get("lifecycle").and_then(Value::as_str) == Some("ready")
                     && product.get("activeViewers").and_then(Value::as_u64) == Some(0)
                     && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
                     && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
+                    && product.get("codedWidthPx").and_then(Value::as_u64) == Some(3_840)
+                    && product.get("codedHeightPx").and_then(Value::as_u64) == Some(1_440)
             }),
-        "focused browser acceptance requires five ready shared camera products: {initial_products:?}"
+        "focused browser acceptance requires one ready five-camera tiled product: {initial_products:?}"
     );
 
     let source_revision = git_revision()?;
@@ -652,7 +657,7 @@ async fn verify_running_showcase(
         first_live.viewer_instance_id() != second_live.viewer_instance_id()
             && first_live.live_view_id() != second_live.live_view_id()
             && first_live.stream_product_id() == second_live.stream_product_id(),
-        "simultaneous browser instances did not share one native camera product: \
+        "simultaneous browser instances did not share one native camera atlas: \
          first=({}, {}, {}) second=({}, {}, {})",
         first_live.viewer_instance_id(),
         first_live.live_view_id(),
@@ -706,14 +711,14 @@ async fn verify_running_showcase(
         concurrent_users.len() == 5
             && concurrent_users
                 .iter()
-                .all(|user| user.products().len() == QUALIFIED_CAMERA_IDS.len()),
-        "five concurrent browser users did not each receive all five camera streams"
+                .all(|user| user.products().len() == 1),
+        "five concurrent browser users did not each share one atlas across all five cameras"
     );
     let final_state = simulation_state(&operator, &scenario.session_id).await?;
     let final_products = final_state
         .get("stream_products")
         .and_then(Value::as_array)
-        .context("authoritative simulator lost its shared camera products")?;
+        .context("authoritative simulator lost its tiled camera product")?;
     for live in &live_views {
         let product = final_products.iter().find(|product| {
             product.get("streamProductId").and_then(Value::as_str) == Some(live.stream_product_id())
@@ -725,7 +730,7 @@ async fn verify_running_showcase(
                     && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
                     && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
             }),
-            "browser close disrupted shared camera product {}: {final_products:?}",
+            "browser close disrupted tiled camera product {}: {final_products:?}",
             live.stream_product_id(),
         );
     }
@@ -741,7 +746,7 @@ async fn verify_running_showcase(
                     && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
                     && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
             }),
-            "browser grid close disrupted shared camera product {stream_product_id}: {final_products:?}",
+            "browser grid close disrupted tiled camera product {stream_product_id}: {final_products:?}",
         );
     }
     ensure!(
@@ -839,7 +844,8 @@ fn live_view_performance(
         physics_real_time_factor,
         qualified_camera_count: QUALIFIED_CAMERA_IDS.len(),
         browser_user_count: 5,
-        simultaneous_stream_count: 25,
+        simultaneous_camera_views: 25,
+        simultaneous_encoded_streams: 5,
         minimum_observed_frame_rate_hz,
         maximum_observed_frame_rate_hz,
         browser_dropped_frames: live_views
