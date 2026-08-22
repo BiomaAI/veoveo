@@ -1,7 +1,8 @@
 {
-  "schema": "veoveo.uav-sim-acceptance/v10",
+  "schema": "veoveo.uav-sim-acceptance/v11",
   "session_id": "uav-showcase",
   "geospatial_layer_id": "photorealistic-world",
+  "map_mobility_profile_uri": "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1",
   "world": {
     "world_id": "uav-showcase-new-york",
     "display_name": "UAV fleet showcase — New York",
