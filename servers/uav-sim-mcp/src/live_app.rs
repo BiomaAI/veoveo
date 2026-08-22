@@ -13,6 +13,7 @@ mod tests {
             "VideoDecoder",
             "EncodedVideoChunk",
             "veoveo.h264.annexb.v1",
+            "avc1.4D401F",
             "list_live_cameras",
             "open_live_view",
             "renew_live_view",
@@ -51,6 +52,7 @@ mod tests {
             "OVWebRTC",
             "AppStreamer",
             "PressureObserver",
+            "avc1.42E01E",
         ] {
             assert!(!html.contains(removed), "obsolete App surface {removed}");
         }
