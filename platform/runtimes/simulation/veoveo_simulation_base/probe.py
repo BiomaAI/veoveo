@@ -448,10 +448,13 @@ def main() -> int:
         module_roots = _verify_module_graph(wp, newton, torch)
         module_duration = _duration(started)
 
+        print(STEP_MARKER + "newton_dynamics", flush=True)
+        started = time.perf_counter()
+        newton_dynamics = _verify_simulation_manager_newton(app, wp)
+        newton_dynamics_duration = _duration(started)
+
         print(STEP_MARKER + "newton_tiled_camera", flush=True)
         started = time.perf_counter()
-        print(STEP_MARKER + "newton_tiled_camera.simulation_manager", flush=True)
-        newton_dynamics = _verify_simulation_manager_newton(app, wp)
         newton_camera = _run_newton_camera(wp, newton, args.cameras)
         newton_duration = _duration(started)
 
@@ -486,6 +489,7 @@ def main() -> int:
             "probeDurationsMilliseconds": {
                 "componentTuple": tuple_duration,
                 "moduleGraph": module_duration,
+                "newtonDynamics": newton_dynamics_duration,
                 "newtonTiledCamera": newton_duration,
                 "independentRtxCameras": rtx_duration,
                 "overlayBoundary": overlay_duration,

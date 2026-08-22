@@ -20,7 +20,7 @@ It joins an installation through versioned artifacts and installation-owned comp
 | `veoveo.io/deployment/v6` | optional repository-development profile with installation-owned values, exact platform publication, managed GPU allocator closure, and configurable private-registry transport |
 | `veoveo.io/deployment-lock/v6` | immutable installation revision, source evidence, and managed allocator artifacts emitted by that repository-development publication flow |
 | `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical Isaac simulation-base inputs and GPU requirements |
-| `veoveo.io/simulation-conformance-result/v1` | hardware result for one immutable simulator overlay and base |
+| `veoveo.io/simulation-conformance-result/v2` | hardware result for one immutable simulator overlay and base, including native Newton motion |
 | `veoveo.io/simulation-runtime-release-evidence/v1` | paired first-party and anonymous-overlay evidence published through private OCI |
 | SHA-256 | artifact identity and composition input integrity |
 

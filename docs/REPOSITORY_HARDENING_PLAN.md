@@ -38,7 +38,7 @@ profiles:
 | Veoveo extension Helm library API | delivered versioned chart-helper contract, packaged for authenticated OCI registry or offline-bundle distribution; consumer charts remain responsible for their values shape and installation policy |
 | OCI Distribution Specification, images, and registries | reproducible build, digest pinning, SBOM, provenance, and private release distribution through an installation-configured registry; OCI packaging does not require public availability |
 | `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical-base record for Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, source archives, wheel digests, and NVIDIA runtime requirements |
-| `veoveo.io/simulation-conformance-result/v1` | hardware-backed result for one immutable first-party or anonymous external overlay against one base digest |
+| `veoveo.io/simulation-conformance-result/v2` | hardware-backed result for one immutable first-party or anonymous external overlay against one base digest, including native Newton motion |
 | `veoveo.io/simulation-runtime-release-evidence/v1` | immutable base, runtime tuple, paired result, and private OCI conformance-bundle release record |
 | Kubernetes and Helm | deployment rendering and workload security boundary, using the versions pinned by the repository when implemented |
 | SPDX license expressions | dependency-license policy input |
@@ -393,7 +393,7 @@ image inspection reject removal or reordering of platform-owned roots.
 
 `simulation-certify` accepts only digest-addressed base and overlay images. It inspects
 the canonical base's SBOM and provenance attestations and writes
-`veoveo.io/simulation-conformance-result/v1`. `cargo xtask release
+`veoveo.io/simulation-conformance-result/v2`. `cargo xtask release
 simulation-runtime` accepts one first-party and one anonymous result from the same
 source revision and base digest, publishes their private OCI evidence bundle, and writes
 `veoveo.io/simulation-runtime-release-evidence/v1`. Compatibility publication consumes

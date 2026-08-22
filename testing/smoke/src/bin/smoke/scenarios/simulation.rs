@@ -14,8 +14,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use veoveo_deploy_contract::{DeploymentLock, RegistryTransport};
 use veoveo_extension_contract::{
     ArtifactCoordinate, ArtifactDigest, SimulationAttestationEvidence, SimulationConformanceResult,
-    SimulationConformanceResultSchema, SimulationHardwareEvidence, SimulationOverlayKind,
-    SimulationProbeKind, SimulationProbeResult, SimulationRuntimeBuildLock, SourceRevision,
+    SimulationConformanceResultSchema, SimulationHardwareEvidence,
+    SimulationNewtonDynamicsEvidence, SimulationOverlayKind, SimulationProbeKind,
+    SimulationProbeResult, SimulationRuntimeBuildLock, SourceRevision,
 };
 
 use super::*;
@@ -98,6 +99,7 @@ struct ProbePayload {
     camera_count: u32,
     module_roots: ModuleRoots,
     newton_camera: NewtonCameraResult,
+    newton_dynamics: NewtonDynamicsResult,
     rtx: RtxResult,
     overlay: OverlayResult,
     probe_durations_milliseconds: ProbeDurations,
@@ -165,6 +167,17 @@ struct NewtonCameraResult {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct NewtonDynamicsResult {
+    device: String,
+    initial_height: f64,
+    final_height: f64,
+    final_vertical_velocity: f64,
+    force_newtons: f64,
+    steps: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RtxResult {
     shape: Vec<u64>,
     minimum_standard_deviation: f64,
@@ -184,6 +197,7 @@ struct OverlayResult {
 struct ProbeDurations {
     component_tuple: u64,
     module_graph: u64,
+    newton_dynamics: u64,
     newton_tiled_camera: u64,
     independent_rtx_cameras: u64,
     overlay_boundary: u64,
@@ -376,7 +390,7 @@ async fn simulation_certify_inner(
     );
 
     let result = SimulationConformanceResult {
-        schema_version: SimulationConformanceResultSchema::V1,
+        schema_version: SimulationConformanceResultSchema::V2,
         profile: build_lock.profile,
         base_image: base_coordinate,
         base_digest,
@@ -393,6 +407,14 @@ async fn simulation_certify_inner(
             graphics_api: payload.hardware.graphics_api,
             renderer: payload.hardware.renderer,
         },
+        newton_dynamics: SimulationNewtonDynamicsEvidence {
+            device: payload.newton_dynamics.device,
+            initial_height: payload.newton_dynamics.initial_height,
+            final_height: payload.newton_dynamics.final_height,
+            final_vertical_velocity: payload.newton_dynamics.final_vertical_velocity,
+            force_newtons: payload.newton_dynamics.force_newtons,
+            steps: payload.newton_dynamics.steps,
+        },
         attestations,
         camera_count: payload.camera_count,
         completed_at: Utc::now().to_rfc3339(),
@@ -404,6 +426,10 @@ async fn simulation_certify_inner(
             probe(
                 SimulationProbeKind::ModuleGraph,
                 payload.probe_durations_milliseconds.module_graph,
+            ),
+            probe(
+                SimulationProbeKind::NewtonDynamics,
+                payload.probe_durations_milliseconds.newton_dynamics,
             ),
             probe(
                 SimulationProbeKind::NewtonTiledCamera,
@@ -468,6 +494,20 @@ fn validate_probe(
             "probe observed unexpected {name} version {observed}"
         );
     }
+    ensure!(
+        payload.newton_dynamics.device == payload.hardware.cuda_device
+            && payload.newton_dynamics.device.starts_with("cuda:")
+            && payload.newton_dynamics.initial_height.is_finite()
+            && payload.newton_dynamics.final_height.is_finite()
+            && payload.newton_dynamics.final_vertical_velocity.is_finite()
+            && payload.newton_dynamics.force_newtons.is_finite()
+            && payload.newton_dynamics.final_height
+                > payload.newton_dynamics.initial_height + 1.0e-3
+            && payload.newton_dynamics.final_vertical_velocity > 0.0
+            && payload.newton_dynamics.force_newtons > 0.0
+            && payload.newton_dynamics.steps >= 12,
+        "native Newton dynamics evidence is incomplete"
+    );
     ensure!(
         payload.camera_count >= 20
             && payload.newton_camera.shape.first().copied() == Some(1)
