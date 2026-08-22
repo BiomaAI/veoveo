@@ -208,8 +208,8 @@
   "vehicle_id": "uav-1",
   "world_ready_timeout_seconds": 1200,
   "takeoff": {
-    "relative_altitude_m": 300.0,
-    "minimum_reached_altitude_m": 295.0,
+    "relative_altitude_m": 197.0,
+    "minimum_reached_altitude_m": 192.0,
     "state_timeout_seconds": 1800
   },
   "camera": {
