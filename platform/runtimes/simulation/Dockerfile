@@ -131,6 +131,11 @@ RUN curl --fail --location --show-error \
       "${warp_extension}/config/extension.toml" \
     && grep -Fx 'version = "1.16.0"' \
       "${warp_extension}/config/extension.toml" \
+    && newton_adapter=/isaac-sim/exts/isaacsim.physics.newton \
+    && find "${newton_adapter}" \
+      -type f \( -name '*.py' -o -name '*.md' \) \
+      -exec sed -i '/ls_parallel/d' {} + \
+    && ! grep -Rqs 'ls_parallel' "${newton_adapter}" \
     && rm -rf \
       /tmp/veoveo-warp \
       /tmp/veoveo-newton \

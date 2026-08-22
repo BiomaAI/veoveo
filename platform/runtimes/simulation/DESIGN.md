@@ -46,7 +46,10 @@ the latest published release with explicit Isaac Sim 6.0.1 support, and no stabl
 Isaac Lab 3.0 release exists. Veoveo qualifies its source revision with Warp 1.16.0,
 Newton 1.5.0, and Newton's required MuJoCo 3.11 line. A narrow source patch replaces
 Newton's removed `SolverNotifyFlags` import with `ModelFlags`; the build rejects the
-old import after applying that patch.
+old import after applying that patch. The image also removes Isaac Sim's obsolete
+`ls_parallel` MuJoCo solver field because Newton 1.5 no longer accepts that constructor
+argument. The live Isaac adapter therefore initializes the pinned GPU solver without
+retaining the removed configuration surface.
 
 The supported Isaac Lab surface contains the core, PhysX, Newton, OV, OVPhysX,
 camera-render specification, and frame-view packages. Training environments, policy
