@@ -94,7 +94,9 @@ def run(config: RuntimeConfig) -> None:
         }
     )
 
+    import isaacsim.physics.newton
     import omni.kit.app
+    import omni.timeline
     import omni.usd
     from isaacsim.core.simulation_manager import SimulationManager
     from pxr import Gf, Usd, UsdGeom, UsdLux
@@ -134,9 +136,12 @@ def run(config: RuntimeConfig) -> None:
     from cesium.usd.plugins.CesiumUsdSchemas import (
         Tileset as CesiumTileset,
     )
+
+    from .adapter_server import AdapterServer
     from .cesium_camera import current_pose_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
+    from .fleet_runtime import NewtonFleetRuntime
     from .hydra_camera import NativeH264CameraSensor
     from .operator_camera import (
         AuthoritativeOperatorCameraCollection,
@@ -148,19 +153,17 @@ def run(config: RuntimeConfig) -> None:
     )
     from .operator_products import OperatorProductCollection
     from .physical_camera import create_physical_rgb_camera, physical_camera_path
-    from .fleet_runtime import NewtonFleetRuntime
     from .px4 import Px4Commander
     from .px4_hil import Px4HilFleet
     from .realtime import FixedStepCadenceGate, MonotonicPhysicsClock
     from .recording import ImuTelemetry, RecordingPublisher
     from .render_pose import rendered_pose_agreement
-    from .scene import create_fleet_scene
     from .runtime_events import (
         RuntimeEventPublisher,
         notify_adapter_ready,
         notify_runtime_ready,
     )
-    from .adapter_server import AdapterServer
+    from .scene import create_fleet_scene
     from .server import (
         AdapterApplication,
         PreconfigurationApplication,
@@ -203,6 +206,7 @@ def run(config: RuntimeConfig) -> None:
     simulation_generation = 1
     tile_event_bridge: NativeTileEventBridge | None = None
     tile_controller: TileLifecycleController | None = None
+    physics_timeline = None
     runtime_events = RuntimeEventPublisher()
 
     try:
@@ -236,6 +240,11 @@ def run(config: RuntimeConfig) -> None:
         if SimulationManager.get_active_physics_engine() != "newton":
             raise RuntimeError("Newton is not the active Isaac Sim physics engine")
         SimulationManager.setup_simulation(dt=1.0 / config.physics_hz, device="cuda:0")
+        newton_stage = isaacsim.physics.newton.acquire_stage()
+        if newton_stage is None:
+            raise RuntimeError("Isaac Sim did not expose the active Newton stage")
+        newton_stage.cfg.time_step_app = False
+        physics_timeline = omni.timeline.get_timeline_interface()
         # Newton owns the authoritative clock. Kit remains in manual mode and
         # advances only render products and extension work.
         from omni.kit.loop import _loop as omni_loop
@@ -399,9 +408,13 @@ def run(config: RuntimeConfig) -> None:
                 "failed to enable required extension omni.kit.livestream.aov"
             )
         state.update_stream_products(operator_products.state(content_ready=False))
+        physics_timeline.play()
+        simulation_app.update()
         SimulationManager.initialize_physics()
         if SimulationManager.get_active_physics_engine() != "newton":
             raise RuntimeError("Newton changed during physics initialization")
+        if not physics_timeline.is_playing() or not newton_stage.playing:
+            raise RuntimeError("Newton timeline did not enter the playing state")
 
         recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
@@ -972,6 +985,8 @@ def run(config: RuntimeConfig) -> None:
             _cleanup("native H.264 RTP publication", stream_publication.close)
         if hil_fleet is not None:
             _cleanup("PX4 HIL fleet", hil_fleet.close)
+        if physics_timeline is not None:
+            _cleanup("Newton timeline", physics_timeline.stop)
         _cleanup("Newton physics", SimulationManager.invalidate_physics)
         for commander in commanders.values():
             _cleanup("PX4 commander", commander.close)

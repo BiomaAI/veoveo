@@ -151,8 +151,9 @@ acceptance.
 - the NVENC API version and session entrypoint;
 - Torch and Warp kernels on `cuda:0`;
 - a Newton `SolverMuJoCo` rigid-body step and `SensorTiledCamera` output on `cuda:0`;
-- `SimulationManager` initialization and an Experimental `RigidPrim` backed by Newton's
-  CUDA tensor view;
+- `SimulationManager` initialization, a playing externally stepped Newton timeline, and
+  an Experimental `RigidPrim` that rises under a CUDA-resident applied force through
+  Newton's native tensor view;
 - one authoritative Torch, Warp, Newton, and Isaac Lab module graph after Kit startup;
 - a CUDA-resident Isaac Lab RTX RGB batch with nonblank, distinct cameras.
 

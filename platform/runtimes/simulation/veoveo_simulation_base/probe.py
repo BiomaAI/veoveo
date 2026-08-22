@@ -67,7 +67,9 @@ def _driver_version() -> str:
     ).stdout
     versions = {line.strip() for line in output.splitlines() if line.strip()}
     if len(versions) != 1:
-        raise RuntimeError(f"expected one NVIDIA driver version, received {sorted(versions)}")
+        raise RuntimeError(
+            f"expected one NVIDIA driver version, received {sorted(versions)}"
+        )
     return versions.pop()
 
 
@@ -76,23 +78,27 @@ def _verify_tuple(
 ) -> tuple[dict[str, str], object, object, object]:
     import mujoco
     import mujoco_warp
+
     print(STEP_MARKER + "component_tuple.mujoco", flush=True)
     import newton
+
     print(STEP_MARKER + "component_tuple.newton", flush=True)
     import omni.kit.app
     import torch
     import warp as wp
+
     print(STEP_MARKER + "component_tuple.warp", flush=True)
 
     import isaaclab  # noqa: F401 - importability is part of the contract.
     import isaaclab_newton  # noqa: F401 - Newton integration must import.
+
     print(STEP_MARKER + "component_tuple.isaac_lab", flush=True)
 
     expected = _component_map(lock)
     observed: dict[str, str] = {}
-    observed["isaac_sim"] = Path("/isaac-sim/VERSION").read_text(
-        encoding="utf-8"
-    ).strip()
+    observed["isaac_sim"] = (
+        Path("/isaac-sim/VERSION").read_text(encoding="utf-8").strip()
+    )
     print(STEP_MARKER + "component_tuple.version.isaac_sim", flush=True)
     observed["isaac_lab"] = expected["isaac_lab"]["version"]
     print(STEP_MARKER + "component_tuple.version.isaac_lab", flush=True)
@@ -108,12 +114,12 @@ def _verify_tuple(
     observed["torch"] = torch.__version__
     observed["cuda"] = str(torch.version.cuda)
     missing_rtx_nvrtc = [
-        library for library in RTX_NVRTC_BUILTINS if not (RTX_NVRTC_ROOT / library).is_file()
+        library
+        for library in RTX_NVRTC_BUILTINS
+        if not (RTX_NVRTC_ROOT / library).is_file()
     ]
     if missing_rtx_nvrtc:
-        raise RuntimeError(
-            f"Isaac RTX NVRTC builtins are missing: {missing_rtx_nvrtc}"
-        )
+        raise RuntimeError(f"Isaac RTX NVRTC builtins are missing: {missing_rtx_nvrtc}")
     observed["isaac_rtx_nvrtc"] = expected["isaac_rtx_nvrtc"]["version"]
     observed["kit"] = expected["kit"]["version"]
     for name, value in observed.items():
@@ -143,9 +149,7 @@ def _verify_tuple(
     return observed, wp, newton, torch
 
 
-def _verify_module_graph(
-    wp: object, newton: object, torch: object
-) -> dict[str, str]:
+def _verify_module_graph(wp: object, newton: object, torch: object) -> dict[str, str]:
     roots = {
         "torch": Path(torch.__file__).resolve().parent,
         "warp": Path(wp.__file__).resolve().parent,
@@ -170,7 +174,9 @@ def _verify_module_graph(
     return {name: str(root) for name, root in roots.items()}
 
 
-def _verify_simulation_manager_newton(wp: object) -> None:
+def _verify_simulation_manager_newton(app: object, wp: object) -> dict[str, Any]:
+    import isaacsim.physics.newton
+    import omni.timeline
     import omni.usd
     from isaacsim.core.experimental.prims import RigidPrim
     from isaacsim.core.simulation_manager import SimulationManager
@@ -191,22 +197,64 @@ def _verify_simulation_manager_newton(wp: object) -> None:
     mass = UsdPhysics.MassAPI.Apply(prim)
     mass.CreateMassAttr(1.0)
 
-    SimulationManager.set_device("cuda:0")
     if not SimulationManager.switch_physics_engine("newton"):
         raise RuntimeError("SimulationManager could not select Newton")
+    SimulationManager.setup_simulation(dt=1.0 / 120.0, device="cuda:0")
+    newton_stage = isaacsim.physics.newton.acquire_stage()
+    if newton_stage is None:
+        raise RuntimeError("Isaac Sim did not expose the Newton stage")
+    newton_stage.cfg.time_step_app = False
+    timeline = omni.timeline.get_timeline_interface()
+    timeline.play()
+    app.update()
     SimulationManager.initialize_physics()
     if SimulationManager.get_active_physics_engine() != "newton":
-        raise RuntimeError("SimulationManager did not retain Newton after initialization")
+        raise RuntimeError(
+            "SimulationManager did not retain Newton after initialization"
+        )
     simulation_view = SimulationManager.get_physics_simulation_view()
     if simulation_view is None or not simulation_view.is_valid():
-        raise RuntimeError("SimulationManager did not create a valid Newton tensor view")
+        raise RuntimeError(
+            "SimulationManager did not create a valid Newton tensor view"
+        )
 
     rigid = RigidPrim([body_path], resolve_paths=True)
     if len(rigid) != 1 or not rigid.is_physics_tensor_entity_valid():
-        raise RuntimeError("Experimental RigidPrim did not resolve through Newton tensors")
+        raise RuntimeError(
+            "Experimental RigidPrim did not resolve through Newton tensors"
+        )
     positions, _ = rigid.get_world_poses()
     if not wp.get_device(positions.device).is_cuda:
         raise RuntimeError("Experimental RigidPrim did not retain CUDA tensor storage")
+    initial_height = float(positions.numpy()[0, 2])
+    forces = wp.array([[0.0, 0.0, 25.0]], dtype=wp.float32, device=positions.device)
+    torques = wp.zeros((1, 3), dtype=wp.float32, device=positions.device)
+    for _ in range(12):
+        rigid.apply_forces_and_torques_at_pos(
+            forces,
+            torques,
+            local_frame=False,
+        )
+        SimulationManager.step(steps=1, update_fabric=False)
+    wp.synchronize_device(positions.device)
+    final_positions, _ = rigid.get_world_poses()
+    final_linear_velocities, _ = rigid.get_velocities()
+    final_height = float(final_positions.numpy()[0, 2])
+    final_vertical_velocity = float(final_linear_velocities.numpy()[0, 2])
+    if final_height <= initial_height + 1.0e-3 or final_vertical_velocity <= 0.0:
+        raise RuntimeError(
+            "Experimental RigidPrim did not respond to a Newton CUDA force: "
+            f"initial z={initial_height}, final z={final_height}, "
+            f"final vz={final_vertical_velocity}"
+        )
+    return {
+        "device": str(positions.device),
+        "initialHeight": initial_height,
+        "finalHeight": final_height,
+        "finalVerticalVelocity": final_vertical_velocity,
+        "forceNewtons": 25.0,
+        "steps": 12,
+    }
 
 
 def _run_newton_camera(wp: object, newton: object, cameras: int) -> dict[str, Any]:
@@ -251,7 +299,9 @@ def _run_newton_camera(wp: object, newton: object, cameras: int) -> dict[str, An
         or np.unique(pixels).size < 2
         or len(frame_hashes) != cameras
     ):
-        raise RuntimeError("Newton tiled cameras produced no independent CUDA image variation")
+        raise RuntimeError(
+            "Newton tiled cameras produced no independent CUDA image variation"
+        )
     return {
         "shape": list(pixels.shape),
         "uniquePixelValues": int(np.unique(pixels).size),
@@ -313,7 +363,9 @@ def _run_rtx_cameras(app: object, cameras: int) -> dict[str, Any]:
             if image.shape != (height, width, 3) or not np.issubdtype(
                 image.dtype, np.number
             ):
-                raise RuntimeError(f"RTX camera returned invalid RGB data {image.shape}")
+                raise RuntimeError(
+                    f"RTX camera returned invalid RGB data {image.shape}"
+                )
             images.append(image.copy())
         batch = np.stack(images, axis=0)
         standard_deviations = batch.astype(np.float32).std(axis=(1, 2, 3))
@@ -399,7 +451,7 @@ def main() -> int:
         print(STEP_MARKER + "newton_tiled_camera", flush=True)
         started = time.perf_counter()
         print(STEP_MARKER + "newton_tiled_camera.simulation_manager", flush=True)
-        _verify_simulation_manager_newton(wp)
+        newton_dynamics = _verify_simulation_manager_newton(app, wp)
         newton_camera = _run_newton_camera(wp, newton, args.cameras)
         newton_duration = _duration(started)
 
@@ -428,6 +480,7 @@ def main() -> int:
             "cameraCount": args.cameras,
             "moduleRoots": module_roots,
             "newtonCamera": newton_camera,
+            "newtonDynamics": newton_dynamics,
             "rtx": rtx,
             "overlay": overlay,
             "probeDurationsMilliseconds": {

@@ -13,8 +13,8 @@ from unittest.mock import patch
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from pymavlink import mavutil
-from veoveo_uav_sim.app import kit_live_render_arguments, kit_newton_arguments
 from veoveo_uav_sim.adapter_auth import authorization_middleware
+from veoveo_uav_sim.app import kit_live_render_arguments, kit_newton_arguments
 from veoveo_uav_sim.config import (
     FleetLoopConfig,
     RuntimeConfig,
@@ -23,6 +23,7 @@ from veoveo_uav_sim.config import (
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.event_queue import NonBlockingEventQueue
 from veoveo_uav_sim.fleet_loop import FleetLoopController, vehicle_loop_route
+from veoveo_uav_sim.fleet_runtime import FleetPhysicsTiming
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.h264 import (
     annex_b_nals,
@@ -37,7 +38,6 @@ from veoveo_uav_sim.physical_camera import (
     physical_camera_path,
     physical_camera_product_name,
 )
-from veoveo_uav_sim.fleet_runtime import FleetPhysicsTiming
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.px4_hil import PX4_EXTERNAL_IRIS_AUTOSTART, Px4Process
 from veoveo_uav_sim.realtime import (
@@ -1086,6 +1086,9 @@ class NativeCadenceTests(unittest.TestCase):
         asset_source = (runtime_root / "assets" / "iris.usda").read_text()
 
         self.assertIn('switch_physics_engine("newton"', app_source)
+        self.assertIn("newton_stage.cfg.time_step_app = False", app_source)
+        self.assertIn("physics_timeline.play()", app_source)
+        self.assertIn("not newton_stage.playing", app_source)
         self.assertIn("isaacsim.core.experimental.prims", fleet_source)
         self.assertIn("RigidPrim(list(paths), resolve_paths=True)", fleet_source)
         self.assertIn("self._wp.launch(", fleet_source)
