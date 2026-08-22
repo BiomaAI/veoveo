@@ -23,16 +23,6 @@ ARG NVIDIA_LIVESTREAM_AOV_CONFIG_SHA256=71081c9a5190fc4ed116e31a97fbdf54423e8383
 
 USER root
 
-COPY --chmod=0555 patches/apply_isaac_newton_1_5.py /tmp/apply-isaac-newton-1.5.py
-RUN simulation_manager=/isaac-sim/exts/isaacsim.core.simulation_manager/isaacsim/core/simulation_manager/impl/simulation_manager.py \
-    && /isaac-sim/kit/python/bin/python3 \
-      /tmp/apply-isaac-newton-1.5.py \
-      "${simulation_manager}" \
-    && grep -Fq \
-      'isaacsim.physics.newton.tensors.create_simulation_view' \
-      "${simulation_manager}" \
-    && rm /tmp/apply-isaac-newton-1.5.py
-
 COPY requirements.lock /opt/veoveo/simulation-runtime/requirements.lock
 RUN /isaac-sim/kit/python/bin/python3 -m pip install \
       --disable-pip-version-check \
@@ -201,6 +191,16 @@ RUN curl --fail --location --show-error \
       "${config}" \
     && ! grep -q 'spectatorStream' "${config}" \
     && rm /tmp/omni.kit.livestream.aov.zip
+
+COPY --chmod=0555 patches/apply_isaac_newton_1_5.py /tmp/apply-isaac-newton-1.5.py
+RUN simulation_manager=/isaac-sim/exts/isaacsim.core.simulation_manager/isaacsim/core/simulation_manager/impl/simulation_manager.py \
+    && /isaac-sim/kit/python/bin/python3 \
+      /tmp/apply-isaac-newton-1.5.py \
+      "${simulation_manager}" \
+    && grep -Fq \
+      'isaacsim.physics.newton.tensors.create_simulation_view' \
+      "${simulation_manager}" \
+    && rm /tmp/apply-isaac-newton-1.5.py
 
 RUN groupadd --gid 10001 veoveo \
     && useradd \
