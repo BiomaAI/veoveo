@@ -249,6 +249,10 @@ sources when a requested clip crosses a source boundary. The authenticated
 production path carries static context into every shard and begins rollover shards at
 a decoder-reentrant access unit. The bounded live response supplies recent video
 preroll for just-arrived ranges without assuming a producer-specific GoP duration.
+No-transcode MP4 materialization maps nanosecond source indices onto the standard
+90 kHz H.264 media clock. This preserves ordinary frame cadence while admitting
+real ingest discontinuities longer than the 32-bit duration field permits at a
+one-gigahertz track timescale.
 
 ## Representative archive measurement
 

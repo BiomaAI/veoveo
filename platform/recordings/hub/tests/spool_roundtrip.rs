@@ -443,6 +443,32 @@ async fn h264_video_extracts_across_restart_segment_boundary() {
         .expect("read remuxed MP4");
     assert_eq!(reader.sample_count(1).expect("video track"), 2);
 
+    let mut discontinuous = clip.clone();
+    discontinuous.samples[1].index = discontinuous.decode_start_index + 6_000_000_000;
+    let discontinuous_mp4 =
+        remux_h264_mp4(&discontinuous).expect("remux a gap larger than four seconds");
+    let mut discontinuous_reader = mp4::Mp4Reader::read_header(
+        std::io::Cursor::new(&discontinuous_mp4),
+        discontinuous_mp4.len() as u64,
+    )
+    .expect("read discontinuous MP4");
+    assert_eq!(
+        discontinuous_reader
+            .tracks()
+            .get(&1)
+            .expect("video track")
+            .timescale(),
+        90_000
+    );
+    assert_eq!(
+        discontinuous_reader
+            .read_sample(1, 1)
+            .expect("read first discontinuous sample")
+            .expect("first discontinuous sample")
+            .duration,
+        540_000
+    );
+
     if std::process::Command::new("ffmpeg")
         .arg("-version")
         .output()
