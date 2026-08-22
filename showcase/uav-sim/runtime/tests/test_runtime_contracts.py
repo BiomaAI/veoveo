@@ -381,6 +381,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("is_async_low_latency=True", hydra_camera_source)
         self.assertIn("AnnotatorRegistry", hydra_camera_source)
         self.assertIn("rep.create.render_product_tiled", hydra_camera_source)
+        self.assertIn("reset_xform_op_properties=False", hydra_camera_source)
         self.assertIn('device="cuda", do_array_copy=False', hydra_camera_source)
         self.assertIn('"streamType": "rtsp"', hydra_camera_source)
         self.assertIn("RtspH264Receiver", operator_product_source)

@@ -188,7 +188,12 @@ class RtxTiledHydraRenderProduct:
             raise ValueError("RTX tiled product requires at least one camera")
         if tile_width < 1 or tile_height < 1:
             raise ValueError("RTX tiled product dimensions must be positive")
-        self._camera = Camera(list(camera_paths))
+        # The authoritative operator camera objects retain their USD XformOp
+        # handles for every render update. Experimental Camera wrapping resets
+        # Xform ops by default, which would invalidate those exact handles.
+        self._camera = Camera(
+            list(camera_paths), reset_xform_op_properties=False
+        )
         self._camera.enforce_square_pixels(
             (tile_height, tile_width), modes="horizontal"
         )
