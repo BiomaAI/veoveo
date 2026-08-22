@@ -19,6 +19,14 @@ PX4_EXTERNAL_IRIS_AUTOSTART = "10016"
 PX4_HIL_QUEUE_CAPACITY = 128
 
 
+def _signed_centimeters_per_second(value_mps: float) -> int:
+    return max(-32_768, min(32_767, int(round(value_mps * 100.0))))
+
+
+def _unsigned_centimeters_per_second(value_mps: float) -> int:
+    return max(0, min(65_535, int(round(value_mps * 100.0))))
+
+
 @dataclass(frozen=True, slots=True)
 class Px4ProcessCommand:
     executable: Path
@@ -242,10 +250,10 @@ class Px4HilBridge:
                 int(round(frame.altitude_m * 1000.0)),
                 int(round(frame.eph_m * 100.0)),
                 int(round(frame.epv_m * 100.0)),
-                int(round(frame.ground_speed_mps * 100.0)),
-                int(round(north * 100.0)),
-                int(round(east * 100.0)),
-                int(round(down * 100.0)),
+                _unsigned_centimeters_per_second(frame.ground_speed_mps),
+                _signed_centimeters_per_second(north),
+                _signed_centimeters_per_second(east),
+                _signed_centimeters_per_second(down),
                 int(round(frame.course_over_ground_degrees * 100.0)) % 36_000,
                 frame.satellites_visible,
             )

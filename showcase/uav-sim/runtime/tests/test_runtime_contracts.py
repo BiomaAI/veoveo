@@ -45,6 +45,8 @@ from veoveo_uav_sim.px4_hil import (
     PX4_HIL_QUEUE_CAPACITY,
     Px4HilBridge,
     Px4Process,
+    _signed_centimeters_per_second,
+    _unsigned_centimeters_per_second,
 )
 from veoveo_uav_sim.realtime import (
     FixedStepCadenceGate,
@@ -1079,10 +1081,12 @@ class NativeCadenceTests(unittest.TestCase):
         self.assertIn('switch_physics_engine("newton"', app_source)
         self.assertIn("newton_stage.cfg.time_step_app = False", app_source)
         self.assertIn("newton_stage.cfg.num_substeps = 1", app_source)
-        self.assertIn("newton_stage.cfg.solver_cfg.iterations = 1", app_source)
-        self.assertIn("newton_stage.cfg.solver_cfg.ls_iterations = 1", app_source)
-        self.assertIn('newton_stage.cfg.solver_cfg.integrator = "euler"', app_source)
-        self.assertIn("newton_stage.cfg.solver_cfg.disable_contacts = True", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.iterations = 4", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.ls_iterations = 4", app_source)
+        self.assertIn(
+            'newton_stage.cfg.solver_cfg.integrator = "implicitfast"', app_source
+        )
+        self.assertIn("newton_stage.cfg.solver_cfg.disable_contacts = False", app_source)
         self.assertIn("newton_stage.cfg.solver_cfg.use_mujoco_contacts = True", app_source)
         self.assertIn("physics_timeline.play()", app_source)
         self.assertIn("not newton_stage.playing", app_source)
@@ -1200,6 +1204,13 @@ class Px4HilPlantContractTests(unittest.TestCase):
         self.assertEqual(len(bridge._pending), PX4_HIL_QUEUE_CAPACITY)
         with self.assertRaisesRegex(RuntimeError, "sensor queue is full"):
             bridge.publish(PX4_HIL_QUEUE_CAPACITY, SimpleNamespace())
+
+    def test_hil_gps_velocity_fields_saturate_to_mavlink_wire_bounds(self) -> None:
+        self.assertEqual(_signed_centimeters_per_second(-1_000.0), -32_768)
+        self.assertEqual(_signed_centimeters_per_second(1_000.0), 32_767)
+        self.assertEqual(_signed_centimeters_per_second(12.345), 1_234)
+        self.assertEqual(_unsigned_centimeters_per_second(-1.0), 0)
+        self.assertEqual(_unsigned_centimeters_per_second(1_000.0), 65_535)
 
 
 class AdapterContractTests(unittest.TestCase):
