@@ -1081,9 +1081,7 @@ class NativeCadenceTests(unittest.TestCase):
         asset_source = (runtime_root / "assets" / "iris.usda").read_text()
 
         self.assertIn('switch_physics_engine("newton"', app_source)
-        self.assertIn('"renderer": "RealTimePathTracing"', app_source)
-        self.assertIn('"max_bounces": 1', app_source)
-        self.assertIn('"max_volume_bounces": 0', app_source)
+        self.assertIn('"renderer": "RaytracedLighting"', app_source)
         hydra_source = (module_root / "hydra_camera.py").read_text()
         self.assertIn("is_async_low_latency=True", hydra_source)
         self.assertIn("newton_stage.cfg.time_step_app = False", app_source)
