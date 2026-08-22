@@ -90,7 +90,7 @@ cache:
 session:
   id: uav-showcase
   vehicleCount: 4
-  physicsHz: 30
+  physicsHz: 60
   renderingHz: 16
   tileReadyFrames: 30
   px4ConnectTimeoutSeconds: 180

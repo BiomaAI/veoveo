@@ -241,6 +241,14 @@ def run(config: RuntimeConfig) -> None:
         if newton_stage is None:
             raise RuntimeError("Isaac Sim did not expose the active Newton stage")
         newton_stage.cfg.time_step_app = False
+        if newton_stage.cfg.solver_cfg.solver_type != "mujoco":
+            raise RuntimeError("UAV fleet requires the MuJoCo-Warp Newton solver")
+        newton_stage.cfg.num_substeps = 1
+        newton_stage.cfg.solver_cfg.iterations = 1
+        newton_stage.cfg.solver_cfg.ls_iterations = 1
+        newton_stage.cfg.solver_cfg.integrator = "euler"
+        newton_stage.cfg.solver_cfg.disable_contacts = True
+        newton_stage.cfg.solver_cfg.use_mujoco_contacts = True
         physics_timeline = omni.timeline.get_timeline_interface()
         # Newton owns the authoritative clock. Kit remains in manual mode and
         # advances only render products and extension work.

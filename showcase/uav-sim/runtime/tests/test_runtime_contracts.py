@@ -80,7 +80,6 @@ from veoveo_uav_sim.tile_lifecycle import (
     tile_content_ready,
 )
 from veoveo_uav_sim.vehicle_spec import (
-    PX4_HIL_HZ,
     PX4_IRIS_MOMENT_CONSTANT,
     PX4_IRIS_MOTOR_CONSTANT,
     PX4_IRIS_SENSOR_CADENCE,
@@ -170,17 +169,16 @@ class RuntimeConfigTests(unittest.TestCase):
             physical_camera_path("uav/1")
 
     def test_px4_sensor_cadence_is_bounded_by_the_hil_transport(self) -> None:
-        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(PX4_HIL_HZ)
-        self.assertEqual(PX4_HIL_HZ, 60)
+        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(60)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 60)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.barometer_hz, 30)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.magnetometer_hz, 30)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.gps_hz, 10)
 
         with self.assertRaisesRegex(ValueError, "exceeds physics cadence"):
-            SensorCadence(imu_hz=120).validate_for_physics(PX4_HIL_HZ)
+            SensorCadence(imu_hz=120).validate_for_physics(60)
         with self.assertRaisesRegex(ValueError, "must divide physics cadence"):
-            SensorCadence(gps_hz=11).validate_for_physics(PX4_HIL_HZ)
+            SensorCadence(gps_hz=11).validate_for_physics(60)
 
     def test_authoritative_tick_does_not_wait_for_present_threads(self) -> None:
         arguments = kit_live_render_arguments()
@@ -322,7 +320,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
     def test_operator_render_cadence_is_independent_of_sensor_cadence(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
-        self.assertEqual(config.physics_hz, 30)
+        self.assertEqual(config.physics_hz, 60)
         self.assertEqual(config.rendering_hz, 30)
         self.assertEqual(config.camera.fps, 2)
         self.assertEqual(config.operator_live_view.cameras[0].optics.frame_rate_hz, 30)
@@ -479,7 +477,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             config = RuntimeConfig.from_environment()
 
         timing = initial_runtime_timing(config)
-        self.assertEqual(timing["physics_hz"], 30)
+        self.assertEqual(timing["physics_hz"], 60)
         self.assertEqual(timing["native_rendering_hz"], 30)
         self.assertEqual(timing["render_cycles"], 0)
         self.assertEqual(timing["physics_steps"], 0)
@@ -1080,6 +1078,12 @@ class NativeCadenceTests(unittest.TestCase):
 
         self.assertIn('switch_physics_engine("newton"', app_source)
         self.assertIn("newton_stage.cfg.time_step_app = False", app_source)
+        self.assertIn("newton_stage.cfg.num_substeps = 1", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.iterations = 1", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.ls_iterations = 1", app_source)
+        self.assertIn('newton_stage.cfg.solver_cfg.integrator = "euler"', app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.disable_contacts = True", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.use_mujoco_contacts = True", app_source)
         self.assertIn("physics_timeline.play()", app_source)
         self.assertIn("not newton_stage.playing", app_source)
         self.assertIn("isaacsim.core.experimental.prims", fleet_source)

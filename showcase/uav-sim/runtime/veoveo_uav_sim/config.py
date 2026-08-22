@@ -457,7 +457,7 @@ class RuntimeConfig:
             adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "0.0.0.0"),
             adapter_port=_int("UAV_SIM_ADAPTER_PORT", "8810", 1, 65_535),
             adapter_bearer_token=adapter_bearer_token,
-            physics_hz=_int("UAV_SIM_PHYSICS_HZ", "30", 30, 1_000),
+            physics_hz=_int("UAV_SIM_PHYSICS_HZ", "60", 30, 1_000),
             rendering_hz=_int("UAV_SIM_RENDERING_HZ", "2", 1, 120),
             tile_ready_frames=_int("UAV_SIM_TILE_READY_FRAMES", "30", 1, 600),
             px4_connect_timeout_seconds=_float(
