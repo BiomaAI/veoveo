@@ -7,7 +7,6 @@ ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.08.0
 FROM --platform=${TARGETPLATFORM} ${PX4_BUILDER_IMAGE} AS uav-upstream
 
 ARG PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4
-ARG PEGASUS_COMMIT=644da37e9d5268e5f9a34e78bdcfd57a8bab82b4
 
 WORKDIR /src
 RUN git clone https://github.com/PX4/PX4-Autopilot.git px4 \
@@ -18,19 +17,6 @@ RUN git -C px4 apply --check /tmp/px4.patch \
     && git -C px4 apply /tmp/px4.patch \
     && make -C px4 px4_sitl_default \
     && rm -rf px4/.git px4/build/px4_sitl_default/build_gtest
-
-RUN git clone https://github.com/PegasusSimulator/PegasusSimulator.git pegasus \
-    && git -C pegasus checkout --detach "${PEGASUS_COMMIT}" \
-    && find pegasus/extensions/pegasus.simulator -type f \
-      \( -name '*.py' -o -name '*.toml' \) \
-      -exec sed -i 's/[[:space:]]\+$//' {} +
-COPY patches/pegasus-5.1.0-isaac-6.0.1.patch /tmp/pegasus.patch
-COPY patches/pegasus-5.1.0-hot-path.patch /tmp/pegasus-hot-path.patch
-RUN git -C pegasus apply --unidiff-zero --check /tmp/pegasus.patch \
-    && git -C pegasus apply --unidiff-zero /tmp/pegasus.patch \
-    && git -C pegasus apply --check /tmp/pegasus-hot-path.patch \
-    && git -C pegasus apply /tmp/pegasus-hot-path.patch \
-    && rm -rf pegasus/.git
 
 FROM --platform=${TARGETPLATFORM} ${CESIUM_BUILDER_IMAGE} AS cesium-upstream
 
@@ -116,7 +102,6 @@ RUN /isaac-sim/python.sh -m pip install \
       /opt/veoveo/extensions/cesium.omniverse/vendor/lxml-6.0.2-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl \
     && chown -R 10001:10001 /opt/veoveo/uav-python
 
-COPY --from=uav-upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
 COPY --from=uav-upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
 RUN PYTHONPATH=/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python \
     /isaac-sim/python.sh -c \

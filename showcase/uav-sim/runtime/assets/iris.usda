@@ -1,0 +1,92 @@
+#usda 1.0
+(
+    defaultPrim = "Vehicle"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "Vehicle"
+{
+    def Xform "body" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0, 0, 0)
+        float3 physics:diagonalInertia = (0.029125, 0.029125, 0.055225)
+        float physics:mass = 1.5
+        quatf physics:principalAxes = (1, 0, 0, 0)
+        bool physics:rigidBodyEnabled = true
+
+        def Cube "collision" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        )
+        {
+            token purpose = "guide"
+            double size = 1
+            float3 xformOp:scale = (0.22, 0.16, 0.075)
+            uniform token[] xformOpOrder = ["xformOp:scale"]
+        }
+
+        def Cube "chassis"
+        {
+            color3f[] primvars:displayColor = [(0.06, 0.08, 0.11)]
+            double size = 1
+            float3 xformOp:scale = (0.34, 0.20, 0.09)
+            uniform token[] xformOpOrder = ["xformOp:scale"]
+        }
+
+        def Cube "arm_forward_left"
+        {
+            color3f[] primvars:displayColor = [(0.14, 0.17, 0.20)]
+            double size = 1
+            float xformOp:rotateZ = 55
+            float3 xformOp:scale = (0.50, 0.035, 0.025)
+            uniform token[] xformOpOrder = ["xformOp:rotateZ", "xformOp:scale"]
+        }
+
+        def Cube "arm_forward_right"
+        {
+            color3f[] primvars:displayColor = [(0.14, 0.17, 0.20)]
+            double size = 1
+            float xformOp:rotateZ = -55
+            float3 xformOp:scale = (0.50, 0.035, 0.025)
+            uniform token[] xformOpOrder = ["xformOp:rotateZ", "xformOp:scale"]
+        }
+
+        def Cylinder "rotor0"
+        {
+            color3f[] primvars:displayColor = [(0.95, 0.20, 0.12)]
+            double height = 0.012
+            double radius = 0.13
+            double3 xformOp:translate = (0.13798545, -0.20671639, 0.075)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Cylinder "rotor1"
+        {
+            color3f[] primvars:displayColor = [(0.95, 0.20, 0.12)]
+            double height = 0.012
+            double radius = 0.13
+            double3 xformOp:translate = (-0.12511168, 0.21875414, 0.075)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Cylinder "rotor2"
+        {
+            color3f[] primvars:displayColor = [(0.20, 0.55, 0.95)]
+            double height = 0.012
+            double radius = 0.13
+            double3 xformOp:translate = (0.138, 0.20257577, 0.075)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Cylinder "rotor3"
+        {
+            color3f[] primvars:displayColor = [(0.20, 0.55, 0.95)]
+            double height = 0.012
+            double radius = 0.13
+            double3 xformOp:translate = (-0.1241536, -0.2223458, 0.075)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+}

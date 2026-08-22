@@ -4,6 +4,7 @@ import concurrent.futures
 import logging
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from .config import RuntimeConfig
 from .hydra_camera import native_sensor_aov_arguments
@@ -84,11 +85,8 @@ def run(config: RuntimeConfig) -> None:
     )
 
     import omni.kit.app
-    import omni.timeline
     import omni.usd
-    from isaacsim.core.api import World
-    from isaacsim.core.api.materials import PhysicsMaterial
-    from isaacsim.core.api.objects import GroundPlane
+    from isaacsim.core.simulation_manager import SimulationManager
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     extension_manager = omni.kit.app.get_app().get_extension_manager()
@@ -96,10 +94,14 @@ def run(config: RuntimeConfig) -> None:
     for extension in (
         "cesium.usd.plugins",
         "cesium.omniverse",
+        "isaacsim.physics.newton",
+        "isaacsim.core.simulation_manager",
         "isaacsim.core.experimental.prims",
+        "isaacsim.core.experimental.objects",
+        "isaacsim.core.experimental.materials",
+        "isaacsim.core.experimental.utils",
         "omni.kit.livestream.rtsp",
         "omni.kit.livestream.webrtc",
-        "pegasus.simulator",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
         if not extension_manager.is_extension_enabled(extension):
@@ -122,15 +124,6 @@ def run(config: RuntimeConfig) -> None:
     from cesium.usd.plugins.CesiumUsdSchemas import (
         Tileset as CesiumTileset,
     )
-    from pegasus.simulator.logic.backends.px4_mavlink_backend import (
-        PX4MavlinkBackend,
-        PX4MavlinkBackendConfig,
-    )
-    from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
-    from pegasus.simulator.logic.sensors import GPS, IMU, Barometer, Magnetometer
-    from pegasus.simulator.logic.vehicles.multirotor import Multirotor, MultirotorConfig
-    from pegasus.simulator.params import ROBOTS
-
     from .cesium_camera import current_pose_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
@@ -145,11 +138,13 @@ def run(config: RuntimeConfig) -> None:
     )
     from .operator_products import OperatorProductCollection
     from .physical_camera import create_physical_rgb_camera, physical_camera_path
-    from .physics_batch import FleetPhysicsLifecycle
+    from .fleet_runtime import NewtonFleetRuntime
     from .px4 import Px4Commander
+    from .px4_hil import Px4HilFleet
     from .realtime import FixedStepCadenceGate, MonotonicPhysicsClock
     from .recording import ImuTelemetry, RecordingPublisher
     from .render_pose import rendered_pose_agreement
+    from .scene import create_fleet_scene
     from .runtime_events import (
         RuntimeEventPublisher,
         notify_adapter_ready,
@@ -170,30 +165,28 @@ def run(config: RuntimeConfig) -> None:
         begin_provider_session_replacement,
         tile_content_ready,
     )
-    from .vehicle_model import PX4_IRIS_SENSOR_CADENCE, Px4IrisThrustCurve
     from .world_config import WorldConfiguration, WorldConfigurationSlot
 
     state: RuntimeState | None = None
     world_config: WorldConfiguration | None = None
     world_slot = WorldConfigurationSlot()
     command_queue = MainThreadQueue()
-    timeline = omni.timeline.get_timeline_interface()
     recording: RecordingPublisher | None = None
     stream_publication: StreamPublicationWorker | None = None
     server: AdapterServer | None = None
     connection_executor: concurrent.futures.ThreadPoolExecutor | None = None
     tileset_path: str | None = None
     tileset_paths: set[str] = set()
-    world: World | None = None
     physics_step = 0
     simulation_time_s = 0.0
     commanders: dict[str, Px4Commander] = {}
-    vehicles: dict[str, Multirotor] = {}
-    vehicle_callback_prefixes: dict[str, str] = {}
+    vehicle_ids = tuple(f"uav-{index + 1}" for index in range(config.vehicle_count))
     camera_sensors: dict[str, NativeH264CameraSensor] = {}
     camera_sensor_sequences: dict[str, int] = {}
     camera_frames_observed: dict[str, int] = {}
-    physics_lifecycle: FleetPhysicsLifecycle | None = None
+    fleet_runtime: NewtonFleetRuntime | None = None
+    hil_fleet: Px4HilFleet | None = None
+    simulation_running = True
     fleet_loop: FleetLoopController | None = None
     operator_cameras: AuthoritativeOperatorCameraCollection | None = None
     operator_products: OperatorProductCollection | None = None
@@ -228,47 +221,24 @@ def run(config: RuntimeConfig) -> None:
         recording = RecordingPublisher(config, world_config)
         if config.stream_publication is not None:
             stream_publication = StreamPublicationWorker(config.stream_publication)
-        world = World(
-            physics_dt=1.0 / config.physics_hz,
-            rendering_dt=1.0 / config.rendering_hz,
-            stage_units_in_meters=1.0,
-            backend="warp",
-            device="cuda:0",
-        )
-        # This standalone process owns Kit updates through world.step(). Keep
-        # the loop in manual mode as required by SimulationContext instead of
-        # mixing an automatic Kit run loop with an external update caller.
-        # Native AOV/WebRTC otherwise takes automatic loop ownership when a
-        # product activates and blocks the authoritative simulation caller.
+        if not SimulationManager.switch_physics_engine("newton", verbose=True):
+            raise RuntimeError("Isaac Sim did not activate the Newton physics engine")
+        if SimulationManager.get_active_physics_engine() != "newton":
+            raise RuntimeError("Newton is not the active Isaac Sim physics engine")
+        SimulationManager.setup_simulation(dt=1.0 / config.physics_hz, device="cuda:0")
+        # Newton owns the authoritative clock. Kit remains in manual mode and
+        # advances only render products and extension work.
         from omni.kit.loop import _loop as omni_loop
 
         loop_runner = omni_loop.acquire_loop_interface()
         loop_runner.set_manual_mode(True)
-        launch_surface_material = PhysicsMaterial(
-            prim_path="/World/Physics_Materials/uav_launch_surface",
-            static_friction=1.0,
-            dynamic_friction=0.8,
-            restitution=0.0,
-        )
-        world.scene.add(
-            GroundPlane(
-                prim_path="/World/uav_launch_surface",
-                name="uav_launch_surface",
-                size=40.0,
-                z_position=0.0,
-                visible=False,
-                physics_material=launch_surface_material,
-            )
-        )
-        pegasus = PegasusInterface()
-        pegasus._world = world
-        pegasus.set_global_coordinates(
-            world_config.georeference_origin.latitude_degrees,
-            world_config.georeference_origin.longitude_degrees,
-            world_config.georeference_origin.ellipsoid_height_m,
-        )
 
         stage = omni.usd.get_context().get_stage()
+        fleet_scene = create_fleet_scene(
+            stage,
+            Path("/opt/veoveo/uav-sim/assets/iris.usda"),
+            config.vehicle_count,
+        )
         stage.DefinePrim("/World/Environment", "Xform")
         sky = UsdLux.DomeLight.Define(stage, "/World/Environment/Sky")
         sky.CreateIntensityAttr(1000.0)
@@ -373,58 +343,6 @@ def run(config: RuntimeConfig) -> None:
         physical_cameras = {}
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
-            vehicle_prim_path = f"/World/uav_{index + 1}"
-            multirotor_config = MultirotorConfig()
-            multirotor_config.thrust_curve = Px4IrisThrustCurve()
-            PX4_IRIS_SENSOR_CADENCE.validate_for_physics(config.physics_hz)
-            multirotor_config.sensors = [
-                Barometer({"update_rate": float(PX4_IRIS_SENSOR_CADENCE.barometer_hz)}),
-                IMU({"update_rate": float(PX4_IRIS_SENSOR_CADENCE.imu_hz)}),
-                Magnetometer(
-                    {"update_rate": float(PX4_IRIS_SENSOR_CADENCE.magnetometer_hz)}
-                ),
-                GPS({"update_rate": float(PX4_IRIS_SENSOR_CADENCE.gps_hz)}),
-            ]
-            px4_backend = PX4MavlinkBackend(
-                PX4MavlinkBackendConfig(
-                    {
-                        "vehicle_id": index,
-                        "px4_autolaunch": True,
-                        "px4_dir": config.px4_directory,
-                        "px4_vehicle_model": "gazebo-classic_iris",
-                        # This process owns the one real-time physics clock.
-                        # Waiting serially for four independent PX4 actuator
-                        # replies here would multiply their latency and make
-                        # native rendering stall the authoritative timeline.
-                        "enable_lockstep": False,
-                        "update_rate": float(config.physics_hz),
-                    }
-                )
-            )
-            multirotor_config.backends = [px4_backend]
-            vehicle = Multirotor(
-                vehicle_prim_path,
-                ROBOTS["Iris"],
-                index,
-                [float(index * 3), 0.0, 0.07],
-                [0.0, 0.0, 0.0, 1.0],
-                config=multirotor_config,
-            )
-            vehicles[vehicle_id] = vehicle
-            vehicle_callback_prefixes[vehicle_id] = vehicle_prim_path
-
-            # Pegasus's Iris asset binds two MDL materials over plain HTTP.
-            # The UAV geometry remains functional without those cosmetic
-            # bindings, and deactivating them keeps the production image
-            # self-contained under the chart's HTTPS-only egress policy.
-            for looks_path in (
-                f"{vehicle_prim_path}/body/Looks",
-                *(f"{vehicle_prim_path}/rotor{rotor}/Looks" for rotor in range(4)),
-            ):
-                looks = stage.GetPrimAtPath(looks_path)
-                if looks.IsValid():
-                    looks.SetActive(False)
-
             commander = Px4Commander(
                 index, world_config.georeference_origin.ellipsoid_height_m
             )
@@ -471,12 +389,10 @@ def run(config: RuntimeConfig) -> None:
                 "failed to enable required extension omni.kit.livestream.aov"
             )
         state.update_stream_products(operator_products.state(content_ready=False))
+        SimulationManager.initialize_physics()
+        if SimulationManager.get_active_physics_engine() != "newton":
+            raise RuntimeError("Newton changed during physics initialization")
 
-        rigid_body_paths = tuple(
-            f"{vehicle_callback_prefixes[vehicle_id]}/{body_name}"
-            for vehicle_id in vehicles
-            for body_name in ("body", "rotor0", "rotor1", "rotor2", "rotor3")
-        )
         recording_cadence = FixedStepCadenceGate(
             config.physics_hz, config.recording.telemetry_hz
         )
@@ -487,22 +403,18 @@ def run(config: RuntimeConfig) -> None:
         render_cadence = FixedStepCadenceGate(config.physics_hz, config.rendering_hz)
 
         def telemetry_snapshot() -> list[VehicleTelemetry]:
+            assert fleet_runtime is not None
             telemetry: list[VehicleTelemetry] = []
-            for vehicle_id, vehicle in vehicles.items():
+            for vehicle_id, vehicle_state in zip(
+                vehicle_ids, fleet_runtime.snapshots(), strict=True
+            ):
                 px4_status = commanders[vehicle_id].status()
-                vehicle_state = vehicle.state
                 telemetry.append(
                     VehicleTelemetry(
                         vehicle_id=vehicle_id,
-                        position_enu=tuple(
-                            float(value) for value in vehicle_state.position
-                        ),
-                        attitude_xyzw=tuple(
-                            float(value) for value in vehicle_state.attitude
-                        ),
-                        linear_velocity_enu_mps=tuple(
-                            float(value) for value in vehicle_state.linear_velocity
-                        ),
+                        position_enu=vehicle_state.position_enu_m,
+                        attitude_xyzw=vehicle_state.attitude_xyzw,
+                        linear_velocity_enu_mps=vehicle_state.linear_velocity_enu_mps,
                         flight_state=px4_status.flight_state,
                         battery_percent=px4_status.battery_percent,
                         px4_connected=px4_status.connected,
@@ -511,17 +423,18 @@ def run(config: RuntimeConfig) -> None:
             return telemetry
 
         def operator_entity_transforms() -> dict[str, EntityTransform]:
+            assert fleet_runtime is not None
             return {
                 vehicle_id: EntityTransform(
                     vehicle_id,
                     Pose(
-                        Vector3(*(float(value) for value in vehicle.state.position)),
-                        QuaternionXyzw(
-                            *(float(value) for value in vehicle.state.attitude)
-                        ).normalized(),
+                        Vector3(*vehicle_state.position_enu_m),
+                        QuaternionXyzw(*vehicle_state.attitude_xyzw).normalized(),
                     ),
                 )
-                for vehicle_id, vehicle in vehicles.items()
+                for vehicle_id, vehicle_state in zip(
+                    vehicle_ids, fleet_runtime.snapshots(), strict=True
+                )
             }
 
         def update_operator_cameras(now: float | None = None) -> None:
@@ -561,36 +474,41 @@ def run(config: RuntimeConfig) -> None:
                 [
                     ImuTelemetry(
                         vehicle_id=vehicle_id,
-                        linear_acceleration_mps2=tuple(
-                            float(value) for value in vehicle.state.linear_acceleration
+                        linear_acceleration_mps2=(
+                            vehicle_state.linear_acceleration_frd_mps2
                         ),
-                        angular_velocity_rps=tuple(
-                            float(value) for value in vehicle.state.angular_velocity
-                        ),
+                        angular_velocity_rps=vehicle_state.angular_velocity_frd_rps,
                     )
-                    for vehicle_id, vehicle in vehicles.items()
+                    for vehicle_id, vehicle_state in zip(
+                        vehicle_ids, fleet_runtime.snapshots(), strict=True
+                    )
                 ],
                 simulation_time_s,
                 physics_step,
             )
 
-        physics_lifecycle = FleetPhysicsLifecycle(
-            world,
-            vehicles,
-            vehicle_callback_prefixes,
-            rigid_body_paths,
+        hil_fleet = Px4HilFleet(config.px4_directory, config.vehicle_count)
+        fleet_runtime = NewtonFleetRuntime(
+            fleet_scene.body_paths,
+            fleet_scene.initial_positions_enu_m,
+            world_config.georeference_origin.latitude_degrees,
+            world_config.georeference_origin.longitude_degrees,
+            world_config.georeference_origin.ellipsoid_height_m,
+            config.physics_hz,
+            hil_fleet,
             after_step=advance_physics,
         )
-        physics_batch = physics_lifecycle.reset()
+        hil_fleet.start()
         LOGGER.info(
-            "UAV fleet physics batch ready: bodies=%d device=%s",
-            physics_batch.body_count,
-            physics_batch.device,
+            "Newton CUDA UAV fleet ready: bodies=%d device=%s",
+            fleet_runtime.body_count,
+            fleet_runtime.device,
         )
 
         def pause() -> None:
             def action() -> None:
-                timeline.pause()
+                nonlocal simulation_running
+                simulation_running = False
                 physics_clock.reset(physics_step)
                 state.set_lifecycle("paused")
 
@@ -598,8 +516,9 @@ def run(config: RuntimeConfig) -> None:
 
         def resume() -> None:
             def action() -> None:
+                nonlocal simulation_running
                 physics_clock.reset(physics_step)
-                timeline.play()
+                simulation_running = True
                 state.set_lifecycle("running")
 
             command_queue.submit(action)
@@ -607,10 +526,9 @@ def run(config: RuntimeConfig) -> None:
         def reset() -> None:
             def action() -> None:
                 nonlocal physics_step, simulation_time_s, simulation_generation
-                assert world is not None
-                was_playing = timeline.is_playing()
-                assert physics_lifecycle is not None
-                physics_lifecycle.reset()
+                assert fleet_runtime is not None
+                was_running = simulation_running
+                fleet_runtime.reset()
                 physics_step = 0
                 simulation_time_s = 0.0
                 simulation_generation += 1
@@ -618,20 +536,18 @@ def run(config: RuntimeConfig) -> None:
                 physics_clock.reset(physics_step)
                 render_cadence.reset(physics_step)
                 state.advance(simulation_time_s, physics_step)
-                state.set_lifecycle("running" if was_playing else "paused")
+                state.set_lifecycle("running" if was_running else "paused")
 
             command_queue.submit(action)
 
         def step(steps: int) -> None:
             def action() -> None:
-                nonlocal physics_step, simulation_time_s
-                assert world is not None
-                timeline.play()
-                simulation_app.update()
+                nonlocal simulation_running
+                assert fleet_runtime is not None
+                simulation_running = False
                 for _ in range(steps):
-                    world.step(render=False)
-                world.render()
-                timeline.pause()
+                    fleet_runtime.step(physics_step + 1)
+                update_operator_cameras()
                 simulation_app.update()
                 physics_clock.reset(physics_step)
                 render_cadence.reset(physics_step)
@@ -662,7 +578,6 @@ def run(config: RuntimeConfig) -> None:
         server = AdapterServer(config, application.application)
         server.start()
 
-        timeline.play()
         connection_executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=config.vehicle_count, thread_name_prefix="px4-connect"
         )
@@ -681,7 +596,8 @@ def run(config: RuntimeConfig) -> None:
             time.monotonic() + config.px4_connect_timeout_seconds + 15.0
         )
         while not all(future.done() for future in connection_futures.values()):
-            world.step(render=False)
+            assert fleet_runtime is not None
+            fleet_runtime.step(physics_step + 1)
             for vehicle_id, future in connection_futures.items():
                 if future.done() and future.exception() is not None:
                     raise RuntimeError(
@@ -759,10 +675,11 @@ def run(config: RuntimeConfig) -> None:
             fleet_loop.raise_if_failed()
             command_queue.drain()
             render = False
-            if timeline.is_playing():
+            if simulation_running:
                 due_steps = physics_clock.due_steps(physics_step)
                 for _ in range(due_steps):
-                    world.step(render=False)
+                    assert fleet_runtime is not None
+                    fleet_runtime.step(physics_step + 1)
                     render = render_cadence.due(physics_step) or render
                 if render:
                     render_cycle_started = time.monotonic()
@@ -775,7 +692,7 @@ def run(config: RuntimeConfig) -> None:
                         sensor.observe_simulation_time(simulation_time_s, physics_step)
                     update_cesium_viewport()
                     native_update_started = time.monotonic()
-                    world.render()
+                    simulation_app.update()
                     native_update_wall_seconds = (
                         time.monotonic() - native_update_started
                     )
@@ -787,9 +704,7 @@ def run(config: RuntimeConfig) -> None:
                             content_ready=tile_content_ready(
                                 lifecycle=tile_state["lifecycle"],
                                 visible_tiles=tile_state["visible_tiles"],
-                                geometries_rendered=tile_state[
-                                    "geometries_rendered"
-                                ],
+                                geometries_rendered=tile_state["geometries_rendered"],
                                 materials_loaded=tile_state["materials_loaded"],
                             )
                         )
@@ -965,7 +880,7 @@ def run(config: RuntimeConfig) -> None:
                 state.observe_render_cycle(
                     native_update_wall_seconds,
                     time.monotonic() - render_cycle_started,
-                    physics_lifecycle.timing(),
+                    fleet_runtime.timing(),
                 )
 
             for vehicle_id, future in connection_futures.items():
@@ -1045,8 +960,9 @@ def run(config: RuntimeConfig) -> None:
             _cleanup("native Isaac H.264 camera sensor", camera_sensor.close)
         if stream_publication is not None:
             _cleanup("native H.264 RTP publication", stream_publication.close)
-        if timeline.is_playing():
-            _cleanup("timeline", timeline.stop)
+        if hil_fleet is not None:
+            _cleanup("PX4 HIL fleet", hil_fleet.close)
+        _cleanup("Newton physics", SimulationManager.invalidate_physics)
         for commander in commanders.values():
             _cleanup("PX4 commander", commander.close)
         if recording is not None:
