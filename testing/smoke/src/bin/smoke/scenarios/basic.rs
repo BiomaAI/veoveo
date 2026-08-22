@@ -783,10 +783,6 @@ pub(crate) async fn helm_config() -> Result<()> {
                 .and_then(Value::as_str)
                 == Some("0.29.0")
             && uav_dependencies
-                .pointer("/components/pegasus_simulator/version")
-                .and_then(Value::as_str)
-                == Some("5.1.0")
-            && uav_dependencies
                 .pointer("/components/px4_autopilot/version")
                 .and_then(Value::as_str)
                 == Some("1.17.0")
@@ -904,10 +900,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.08.0",
         "px4io/px4-dev:v1.17.0@sha256:",
         "PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4",
-        "PEGASUS_COMMIT=644da37e9d5268e5f9a34e78bdcfd57a8bab82b4",
         "cesium-0.29.0-preinstalled-vendor.patch",
         "lxml-6.0.2-cp312-cp312",
-        "git -C pegasus apply --unidiff-zero --check",
         "ARG RERUN_SDK_VERSION=0.36.0",
         "rerun-sdk==${RERUN_SDK_VERSION}",
         "FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS uav-overlay",
@@ -918,7 +912,12 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&uav_runtime_dockerfile, expected)?;
     }
-    for removed in ["UAV_SIM_BASE_IMAGE", "ISAAC_SIM_IMAGE", "AS runtime-base"] {
+    for removed in [
+        "UAV_SIM_BASE_IMAGE",
+        "ISAAC_SIM_IMAGE",
+        "AS runtime-base",
+        "pegasus.simulator",
+    ] {
         not_contains(&uav_runtime_dockerfile, removed)?;
     }
     contains(

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "verified_at": "2026-08-18",
+  "verified_at": "2026-08-21",
   "architecture": "linux/amd64",
   "components": {
     "simulation_runtime": {
@@ -52,12 +52,6 @@
     "nvidia_gpu_operator": {
       "version": "26.3.3",
       "source": "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html"
-    },
-    "ros_2": {
-      "distribution": "jazzy",
-      "required": false,
-      "reason": "Isaac Sim 6.0.1 recommends ROS 2 Jazzy on Ubuntu 24.04; Phase 1 vehicle control uses MAVLink.",
-      "source": "https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html"
     },
     "python_runtime": {
       "aiohappyeyeballs": "2.7.1",

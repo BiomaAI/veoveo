@@ -348,11 +348,11 @@ canonical tuple.
 | Isaac Sim | `6.0.1-rc.7+release.42383.32955d8d.gl` from the digest-pinned Isaac Sim 6.0.1 image |
 | Isaac Lab | `v3.0.0-beta2.patch1` at `ffff603eafc6b74264a5261cc0183d6a65390d78` |
 | Python | `3.12.13` |
-| Warp | `1.15.0` |
-| Newton | `1.4.0` |
-| MuJoCo | `3.10.0` |
-| MuJoCo Warp | `3.10.0.3` |
-| CUDA toolkit | `12.9` |
+| Warp | `1.16.0` |
+| Newton | `1.5.0` |
+| MuJoCo | `3.11.0` |
+| MuJoCo Warp | `3.11.0` |
+| CUDA toolkit | `13.0` |
 | Kit | `110.1.2` |
 
 Isaac Lab is pinned to a pre-release because it has no stable Isaac Sim 6.0-compatible
@@ -378,8 +378,8 @@ Kit cache and data paths, and a private memory-backed `/dev/shm`. The 20-camera 
 passed with a 2 GiB shared-memory limit. Shader-cache persistence remains configurable
 because cold RTX startup performs material compilation work.
 
-The shared base does not own one simulator domain. Cesium, Pegasus, PX4, UAV code,
-scenarios, and UAV environment conventions remain in the existing UAV overlay, where
+The shared base does not own one simulator domain. Cesium, PX4, the Warp UAV plant, UAV
+assets, scenarios, and UAV environment conventions remain in the existing overlay, where
 they can evolve without changing the shared runtime contract.
 
 An external repository may build its own simulator overlay from the exact base digest.

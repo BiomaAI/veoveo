@@ -154,8 +154,8 @@ result and records the reason.
 A target build compiles only the Rust packages and binaries declared by its selected
 image targets. A group or exact build still consolidates every selected member of a
 compatible family into one Cargo invocation. The UAV runtime follows the same boundary:
-its dependency payload contains pinned Isaac, Cesium, PX4, Pegasus, and Python wheels,
-while the runnable target adds only repository-owned runtime source and identity.
+its dependency payload contains pinned Isaac, Cesium, PX4, and Python wheels, while the
+runnable target adds the repository-owned asset, Warp plant, runtime source, and identity.
 
 A development image lock starts from one validated qualified deployment lock. Each
 staged image replaces the matching source/target/repository tuple, while every

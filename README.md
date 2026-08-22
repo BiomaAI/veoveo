@@ -246,7 +246,7 @@ or repeat the
 | A multirotor under PX4 control above the Jorge “Mágico” González stadium district | Dense New York photogrammetry around Times Square and Central Park |
 
 Both frames come from the live headless Isaac Sim RTX viewport. The showcase
-camera follows the Pegasus vehicle after PX4 reaches the configured flight
+camera follows the Newton-simulated vehicle after PX4 reaches the configured flight
 altitude. [Explore the complete UAV showcase](showcase/uav-sim/README.md).
 
 | Governed UAV recording | SUMO traffic world |
@@ -510,7 +510,7 @@ profile rather than support for every optional feature of each standard.
 | Recordings, data, and media | Rerun RRD and `VideoStream`; versioned protobuf recording ingest; S3-compatible object APIs; DuckDB SQL; Apache Parquet; and OTLP/HTTP telemetry. |
 | Geography and time | WGS84/EPSG identities; GeoJSON RFC 7946; OGC JSON-FG and CQL2; GeoParquet 1.0; Mapbox Vector Tile 2.1; MapLibre Style 8; RFC 3339; RFC 9557; IANA TZDB/TZif and leap-second data; TAI and GPS time. |
 | Optimization | NVIDIA cuOpt 26.06 on CUDA 13.2; `veoveo.io/travel-model-artifact/v1` for the Map handoff; and the private pod-local `veoveo.io/cuopt-executor/v1` adapter protocol. |
-| 3D and vehicles | OGC 3D Tiles 1.0/1.1; glTF/GLB 2.0; Draco geometry compression; MAVLink 2; and pod-private ROS 2 simulator paths. |
+| 3D and vehicles | OGC 3D Tiles 1.0/1.1; glTF/GLB 2.0; Draco geometry compression; OpenUSD; Newton and Warp CUDA; and MAVLink 2 HIL. |
 | Packaging and operations | Kubernetes resources, Helm charts, OCI images and charts, S3-compatible storage, and OpenTelemetry. |
 
 The exact supported subsets are collected in
@@ -646,7 +646,7 @@ planned dedicated GPU CI architecture are described in
 | [`extensions/`](extensions/) | Release, compatibility, and conformance contracts for externally owned extensions. |
 | [`sdk/`](sdk/) | Python SDK shared by showcase runtimes and external clients. |
 | [`templates/`](templates/) | Python MCP server template behind the datasheet server. |
-| [`showcase/uav-sim/`](showcase/uav-sim/) | Isaac, Cesium, Pegasus, and PX4 UAV workload. |
+| [`showcase/uav-sim/`](showcase/uav-sim/) | Isaac, Cesium, Newton, CUDA Warp, and PX4 UAV workload. |
 | [`showcase/sumo/`](showcase/sumo/) | SUMO, LuST, TraCI, and the traffic world MCP server. |
 | [`deploy/`](deploy/) | Helm, local k3d, and offline installation material. |
 | [`examples/bioma/`](examples/bioma/) | Enterprise GitOps reference installation. |

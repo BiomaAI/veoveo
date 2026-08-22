@@ -18,8 +18,8 @@ REPO = ARCH.parents[1]
 OUTPUT = REPO / "output" / "architecture"
 STAGING = REPO / "tmp" / "architecture-packages"
 VERSION = "0.3.0"
-REVISION_DATE = "2026-08-07"
-SOURCE_COMMIT = "1a12539706eefcc9fde7359a4bb5f5f8114eb5f2"
+REVISION_DATE = "2026-08-21"
+SOURCE_COMMIT = "92bf00a93147ecec552c32e4a3cb75d1dcce9439"
 FIXED_ZIP_TIME = (2026, 8, 7, 12, 0, 0)
 
 

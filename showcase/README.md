@@ -8,7 +8,7 @@ That boundary keeps simulators independent and lets new ones arrive as siblings.
 | Showcase | What it proves |
 |----------|----------------|
 | [`sumo/`](sumo/README.md) | The [SUMO](https://eclipse.dev/sumo/) traffic simulator as a live world: a task-native Rust MCP server owns the one TraCI connection, pushes `/world/sumo/**` into the Recording Hub as typed Rerun streams (map + 3D views of real Luxembourg), and exposes SUMO control as governed `sumo__*` tools. |
-| [`uav-sim/`](uav-sim/README.md) | Isaac Sim renders Google Photorealistic 3D Tiles through Cesium ion while Pegasus and PX4 operate UAVs; a provider-neutral MCP server governs sessions and missions, the encoded camera feeds Stream directly, and typed world state enters Recording Hub independently. |
+| [`uav-sim/`](uav-sim/README.md) | Isaac Sim renders Google Photorealistic 3D Tiles through Cesium ion while Newton and a batched CUDA Warp plant simulate PX4-controlled UAVs; a provider-neutral MCP server governs sessions and missions, the encoded camera feeds Stream directly, and typed world state enters Recording Hub independently. |
 
 Component tests remain native Cargo commands. Cross-component acceptance lives
 in the typed Rust smoke harness and is dispatched through `cargo xtask smoke`.

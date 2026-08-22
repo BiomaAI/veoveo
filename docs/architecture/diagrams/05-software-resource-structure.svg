@@ -503,7 +503,7 @@
 <text x="1831.0" y="1778" class="body" text-anchor="start">
 <tspan x="1831.0" dy="0">UAV simulation execution stack</tspan>
 </text>
-<text x="2138.0" y="1753" class="tiny" text-anchor="end">Isaac Sim 6.0.1, Cesium for Omniverse 0.29.0, Pegasus 5.1.0, PX4 1.17.0</text>
+<text x="2138.0" y="1753" class="tiny" text-anchor="end">Isaac Sim 6.0.1, Newton 1.5.0, Warp 1.16.0, Cesium 0.29.0, PX4 1.17.0</text>
 <rect x="50.0" y="1824" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="50.0" y="1824" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="66.0" y="1845" class="node-id" text-anchor="start">VV-CMP-071</text>
@@ -513,5 +513,5 @@
 <text x="373.0" y="1845" class="tiny" text-anchor="end">NVIDIA cuOpt 26.06 and CUDA 13.2</text>
 <rect x="28" y="2065" width="2144" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="2086" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="2170" y="2086" class="tiny" text-anchor="end">Revision 2026-08-07 | VV-VIEW-05</text>
+<text x="2170" y="2086" class="tiny" text-anchor="end">Revision 2026-08-21 | VV-VIEW-05</text>
 </svg>

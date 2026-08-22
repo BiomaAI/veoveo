@@ -212,5 +212,5 @@
 <text x="62" y="1174" class="body inverse" text-anchor="start">Fail-closed rule: unknown profiles, servers, methods, resources, task IDs, artifact IDs, issuers, keys, and policy targets are denied.</text>
 <rect x="28" y="1205" width="1844" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1226" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1870" y="1226" class="tiny" text-anchor="end">Revision 2026-08-07 | VV-VIEW-08</text>
+<text x="1870" y="1226" class="tiny" text-anchor="end">Revision 2026-08-21 | VV-VIEW-08</text>
 </svg>

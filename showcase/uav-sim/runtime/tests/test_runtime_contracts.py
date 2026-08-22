@@ -39,7 +39,7 @@ from veoveo_uav_sim.physical_camera import (
 )
 from veoveo_uav_sim.fleet_runtime import FleetPhysicsTiming
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
-from veoveo_uav_sim.px4_hil import Px4Process
+from veoveo_uav_sim.px4_hil import PX4_EXTERNAL_IRIS_AUTOSTART, Px4Process
 from veoveo_uav_sim.realtime import (
     FixedStepCadenceGate,
     MonotonicPhysicsClock,
@@ -1065,6 +1065,27 @@ class _FleetLoopCommander:
 
 
 class NativeCadenceTests(unittest.TestCase):
+    def test_fleet_hot_path_is_newton_experimental_and_batched_warp(self) -> None:
+        runtime_root = Path(__file__).parents[1]
+        module_root = runtime_root / "veoveo_uav_sim"
+        app_source = (module_root / "app.py").read_text()
+        fleet_source = (module_root / "fleet_runtime.py").read_text()
+        plant_source = (module_root / "plant_warp.py").read_text()
+        scene_source = (module_root / "scene.py").read_text()
+        asset_source = (runtime_root / "assets" / "iris.usda").read_text()
+
+        self.assertIn('switch_physics_engine("newton"', app_source)
+        self.assertIn("isaacsim.core.experimental.prims", fleet_source)
+        self.assertIn("RigidPrim(list(paths), resolve_paths=True)", fleet_source)
+        self.assertIn("self._wp.launch(", fleet_source)
+        self.assertIn("@wp.kernel\ndef update_motor_wrench", plant_source)
+        self.assertIn("@wp.kernel\ndef sample_hil_sensors", plant_source)
+        self.assertIn("isaacsim.core.experimental.objects", scene_source)
+        self.assertIn("float physics:mass = 1.5", asset_source)
+        self.assertNotIn("import numpy", fleet_source)
+        self.assertNotIn("import numpy", plant_source)
+        self.assertNotIn("from isaacsim.core.api", app_source)
+
     def test_runtime_coalesces_render_work_after_due_fixed_physics(self) -> None:
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
@@ -1141,6 +1162,7 @@ class Px4HilPlantContractTests(unittest.TestCase):
         )
 
     def test_px4_process_selects_external_iris_airframe(self) -> None:
+        self.assertEqual(PX4_EXTERNAL_IRIS_AUTOSTART, "10016")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             process = Px4Process(str(root), 3)
