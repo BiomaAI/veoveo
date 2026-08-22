@@ -19,7 +19,7 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Native sensor video | `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`, packaged by Isaac Sim `6.0.1`, for CUDA-AOV-to-NVENC H.264 output. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
 | Rerun RRD | Version `0.36.0` telemetry, leader-camera video, and producer Blueprint publication. |
-| NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, rendering, and server-side video encoding. |
+| NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, low-latency RTX Real-Time Path Tracing, and server-side video encoding. |
 | MAVLink 2 | Pod-local PX4 `1.17.0` command, telemetry, actuator, and HIL sensor integration. |
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` and its pinned Cesium Native revision stream photorealistic terrain and buildings. A repository-owned internal event extension reports redacted load lifecycle state. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit Frames-governed world, physics, entity, sensor, and operator-camera mappings. |
@@ -132,12 +132,12 @@ The selected revision determines the Cesium georeference, Newton fleet coordinat
 geographic conversion, mission guard, recording metadata, sensor frames, and
 operator-camera world.
 
-The stage uses `RaytracedLighting` and the pinned Cesium extension. The headless runtime
-is the sole owner of Cesium's active viewport list. It submits every active domain
-sensor and operator camera during the same Kit update; the extension's interactive
-viewport-window callback is disabled for this process because an empty window inventory
-would otherwise erase those authoritative viewports between frames. The runtime does
-not create another provider connection or tile cache for live views.
+The stage uses Isaac 6's `RealTimePathTracing` renderer and the pinned Cesium
+extension. The headless runtime is the sole owner of Cesium's active viewport list. It
+submits every active domain sensor and operator camera during the same Kit update; the
+extension's interactive viewport-window callback is disabled for this process because
+an empty window inventory would otherwise erase those authoritative viewports between
+frames. The runtime does not create another provider connection or tile cache for live views.
 
 Moving cameras use hole-free tile refinement. Cesium retains a loaded parent until its
 replacement children are ready, while ancestor and sibling preloading keep the next
