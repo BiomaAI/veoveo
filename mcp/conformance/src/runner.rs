@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use crate::{
     CheckResult, CheckStatus, ConformanceCredentials, ConformanceReport, ConformanceReportSchema,
     HostedServerConformanceProfile, ObservedImplementation, SurfaceExpectation,
+    validate_tool_input_schema,
 };
 
 #[derive(Clone, Default)]
@@ -816,7 +817,7 @@ fn check_tools(
     let invalid = tools
         .iter()
         .filter_map(|tool| {
-            validate_tool_schema(tool)
+            validate_tool_input_schema(tool)
                 .err()
                 .map(|error| error.to_string())
         })
@@ -824,7 +825,7 @@ fn check_tools(
     checks.push(if invalid.is_empty() {
         passed(
             "VV-MCP-TOOLS-003",
-            "tool input schemas are self-contained JSON Schema object roots",
+            "tool input schemas are bounded JSON Schema 2020-12 object roots",
             Some(json!({"validated": tools.len()})),
         )
     } else {
@@ -833,19 +834,6 @@ fn check_tools(
             format!("invalid tool schemas: {invalid:?}"),
         )
     });
-}
-
-fn validate_tool_schema(tool: &Tool) -> Result<()> {
-    let schema = Value::Object(tool.input_schema.as_ref().clone());
-    jsonschema::meta::validate(&schema)
-        .map_err(|error| anyhow!("tool `{}`: {error}", tool.name))?;
-    if schema.get("type").and_then(Value::as_str) != Some("object") {
-        return Err(anyhow!("tool `{}` schema root is not an object", tool.name));
-    }
-    if contains_key(&schema, "$ref") {
-        return Err(anyhow!("tool `{}` schema contains $ref", tool.name));
-    }
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -920,16 +908,6 @@ fn capability_present(capabilities: &Value, name: &str) -> bool {
         .as_object()
         .and_then(|object| object.get(name))
         .is_some_and(|value| !value.is_null())
-}
-
-fn contains_key(value: &Value, key: &str) -> bool {
-    match value {
-        Value::Object(object) => {
-            object.contains_key(key) || object.values().any(|value| contains_key(value, key))
-        }
-        Value::Array(values) => values.iter().any(|value| contains_key(value, key)),
-        _ => false,
-    }
 }
 
 fn passed(
