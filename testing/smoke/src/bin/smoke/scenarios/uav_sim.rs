@@ -619,6 +619,11 @@ async fn uav_sim_verify_with_visual_hold(
                 }),
             )
             .await?;
+        let mission_timeout = governed_mission_timeout(
+            &route,
+            scenario.mission.speed_mps,
+            scenario.mission.task_timeout_seconds,
+        )?;
         let mission_id = format!("acceptance-{}", uuid::Uuid::now_v7());
         let plan = operator
             .call_tool(
@@ -644,7 +649,7 @@ async fn uav_sim_verify_with_visual_hold(
                         .and_then(Value::as_u64)
                         .context("prepared UAV mission plan omitted its revision")?
                 }),
-                Duration::from_secs(scenario.mission.task_timeout_seconds),
+                mission_timeout,
             )
             .await?;
         ensure!(
@@ -1984,6 +1989,34 @@ fn nearby_mission_position(
     Ok(target)
 }
 
+fn governed_mission_timeout(route: &Value, speed_mps: f64, limit_seconds: u64) -> Result<Duration> {
+    let distance_m = route
+        .pointer("/summary/distance")
+        .and_then(Value::as_f64)
+        .context("governed Map route omitted its summary distance")?;
+    let modeled_duration_s = route
+        .pointer("/summary/duration")
+        .and_then(Value::as_f64)
+        .context("governed Map route omitted its summary duration")?;
+    ensure!(
+        distance_m.is_finite()
+            && distance_m >= 0.0
+            && modeled_duration_s.is_finite()
+            && modeled_duration_s >= 0.0,
+        "governed Map route returned invalid cost quantities: {route}"
+    );
+    let minimum_flight_duration_s = distance_m / speed_mps;
+    let required_seconds = modeled_duration_s
+        .max(minimum_flight_duration_s)
+        .mul_add(2.0, 60.0)
+        .ceil() as u64;
+    ensure!(
+        required_seconds <= limit_seconds,
+        "governed route requires a {required_seconds}-second flight budget, above the configured {limit_seconds}-second acceptance limit"
+    );
+    Ok(Duration::from_secs(required_seconds.max(1)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2052,8 +2085,8 @@ mod tests {
         assert_eq!(scenario.takeoff.relative_altitude_m, 197.0);
         assert_eq!(scenario.takeoff.state_timeout_seconds, 1800);
         assert_eq!(scenario.mission.longitude_offset_degrees, 0.0002);
-        assert_eq!(scenario.mission.speed_mps, 3.0);
-        assert_eq!(scenario.mission.task_timeout_seconds, 120);
+        assert_eq!(scenario.mission.speed_mps, 20.0);
+        assert_eq!(scenario.mission.task_timeout_seconds, 1800);
         assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
         assert_eq!(scenario.camera.stream_timeout_seconds, 60);
         assert_eq!(scenario.stream.recording_replay.range_lag_seconds, 1.0);
@@ -2158,6 +2191,22 @@ mod tests {
         assert_eq!(target.latitude_degrees, current.latitude_degrees);
         assert_eq!(target.longitude_degrees, -73.9853);
         assert_eq!(target.ellipsoid_height_m, current.ellipsoid_height_m);
+    }
+
+    #[test]
+    fn governed_mission_budget_tracks_the_authoritative_route_cost() {
+        let route = serde_json::json!({
+            "summary": {"distance": 580.0, "duration": 29.0}
+        });
+        assert_eq!(
+            governed_mission_timeout(&route, 20.0, 1800).unwrap(),
+            Duration::from_secs(118)
+        );
+
+        let excessive = serde_json::json!({
+            "summary": {"distance": 20_000.0, "duration": 1_000.0}
+        });
+        assert!(governed_mission_timeout(&excessive, 20.0, 1800).is_err());
     }
 
     #[test]

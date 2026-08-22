@@ -217,9 +217,9 @@
   },
   "mission": {
     "longitude_offset_degrees": 0.0002,
-    "speed_mps": 3.0,
+    "speed_mps": 20.0,
     "hold_seconds": 0.5,
-    "task_timeout_seconds": 120
+    "task_timeout_seconds": 1800
   },
   "recording": {
     "live_rows_timeout_seconds": 120
