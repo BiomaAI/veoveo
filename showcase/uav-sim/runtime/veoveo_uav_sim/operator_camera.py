@@ -185,7 +185,6 @@ class CameraRigKind(StrEnum):
 
 class CameraStreamPolicy(StrEnum):
     DISABLED = "disabled"
-    ON_DEMAND = "on_demand"
     CONTINUOUS = "continuous"
 
 

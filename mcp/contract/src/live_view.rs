@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fmt, net::IpAddr, str::FromStr};
+use std::{collections::BTreeSet, fmt, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -9,7 +9,7 @@ use crate::{
     AccessSubject, DataLabelId, GatewayInternalIdentity, PolicyVersion, TenantId, WorkContextId,
 };
 
-pub const LIVE_VIEW_SCHEMA: &str = "veoveo.io/live-view/v2";
+pub const LIVE_VIEW_SCHEMA: &str = "veoveo.io/live-view/v3";
 
 fn validate_id(value: &str) -> Result<(), LiveViewIdentityError> {
     if value.is_empty()
@@ -162,7 +162,7 @@ impl LiveViewAccessToken {
         Ok(Self(value))
     }
 
-    pub fn expose_for_signaling(&self) -> &str {
+    pub fn expose_for_stream(&self) -> &str {
         &self.0
     }
 }
@@ -451,7 +451,6 @@ impl LiveCameraRig {
 #[serde(rename_all = "snake_case")]
 pub enum LiveCameraStreamPolicy {
     Disabled,
-    OnDemand,
     Continuous,
 }
 
@@ -514,13 +513,9 @@ pub enum LiveStreamProductLifecycle {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveStreamProductState {
     pub stream_product_id: LiveStreamProductId,
-    pub capacity_slot: u16,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub camera_id: Option<LiveCameraId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub live_view_id: Option<LiveViewId>,
+    pub camera_id: LiveCameraId,
     pub lifecycle: LiveStreamProductLifecycle,
-    pub active_viewer_leases: u32,
+    pub active_viewers: u32,
     pub connected_viewers: u32,
     pub nvenc_sessions: u32,
     pub encoded_frames: u64,
@@ -539,12 +534,10 @@ pub struct LiveStreamProductState {
 #[serde(rename_all = "snake_case")]
 pub enum LiveViewCapacityDimension {
     LogicalCameras,
-    ViewerSlots,
+    StreamProducts,
     RenderPixelsPerSecond,
     NvencSessions,
     GpuMemoryBytes,
-    TransportSlots,
-    ViewerLeases,
     NetworkBitsPerSecond,
 }
 
@@ -552,12 +545,10 @@ impl fmt::Display for LiveViewCapacityDimension {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::LogicalCameras => "logical_cameras",
-            Self::ViewerSlots => "viewer_slots",
+            Self::StreamProducts => "stream_products",
             Self::RenderPixelsPerSecond => "render_pixels_per_second",
             Self::NvencSessions => "nvenc_sessions",
             Self::GpuMemoryBytes => "gpu_memory_bytes",
-            Self::TransportSlots => "transport_slots",
-            Self::ViewerLeases => "viewer_leases",
             Self::NetworkBitsPerSecond => "network_bits_per_second",
         })
     }
@@ -568,12 +559,10 @@ impl fmt::Display for LiveViewCapacityDimension {
 pub struct LiveViewCapacityProfile {
     pub profile: String,
     pub maximum_logical_cameras: u32,
-    pub maximum_viewer_slots: u32,
+    pub maximum_stream_products: u32,
     pub maximum_render_pixels_per_second: u64,
     pub maximum_nvenc_sessions: u32,
     pub gpu_memory_budget_bytes: u64,
-    pub maximum_transport_slots: u32,
-    pub maximum_viewer_leases: u32,
     pub maximum_network_bits_per_second: u64,
 }
 
@@ -581,12 +570,11 @@ pub struct LiveViewCapacityProfile {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveViewCapacityUsage {
     pub logical_cameras: u32,
-    pub viewer_slots: u32,
+    pub stream_products: u32,
     pub render_pixels_per_second: u64,
     pub nvenc_sessions: u32,
     pub reserved_gpu_memory_bytes: u64,
-    pub transport_slots: u32,
-    pub viewer_leases: u32,
+    pub connected_viewers: u32,
     pub estimated_network_bits_per_second: u64,
 }
 
@@ -668,21 +656,19 @@ pub struct LiveColorMetadata {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LiveMediaTransport {
-    WebRtc,
+    WebSocketH264,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveMediaEndpoint {
     pub transport: LiveMediaTransport,
-    pub signaling_url: String,
-    pub media_host: IpAddr,
-    pub media_port: u16,
+    pub stream_url: String,
 }
 
-/// Returns whether a public live-view signaling URL uses the canonical
+/// Returns whether a public live-stream URL uses the canonical
 /// credential-free secure profile or the exact-loopback development exception.
-pub fn is_valid_live_signaling_url(value: &str) -> bool {
+pub fn is_valid_live_stream_url(value: &str) -> bool {
     let Ok(url) = Url::parse(value) else {
         return false;
     };
@@ -702,11 +688,7 @@ pub fn is_valid_live_signaling_url(value: &str) -> bool {
 
 impl LiveMediaEndpoint {
     pub fn validate(&self) -> Result<(), LiveViewStateError> {
-        if !is_valid_live_signaling_url(&self.signaling_url)
-            || self.media_host.is_unspecified()
-            || self.media_host.is_multicast()
-            || self.media_port == 0
-        {
+        if !is_valid_live_stream_url(&self.stream_url) {
             return Err(LiveViewStateError::Endpoint);
         }
         Ok(())
@@ -728,7 +710,6 @@ pub struct LiveViewState {
     pub schema_version: String,
     pub live_view_id: LiveViewId,
     pub stream_product_id: LiveStreamProductId,
-    pub capacity_slot: u16,
     pub resource_uri: LiveViewUri,
     pub owner: LiveViewOwner,
     pub viewer_actor: crate::PrincipalId,
@@ -747,7 +728,6 @@ pub struct LiveViewState {
     pub height_px: u32,
     pub frame_rate_millihertz: u32,
     pub connected_viewers: u32,
-    pub viewer_limit: u32,
     pub camera_health: LiveCameraHealth,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_frame_at: Option<DateTime<Utc>>,
@@ -769,8 +749,6 @@ impl LiveViewState {
             || self.width_px == 0
             || self.height_px == 0
             || self.frame_rate_millihertz == 0
-            || self.viewer_limit == 0
-            || self.connected_viewers > self.viewer_limit
             || self.maximum_frame_age_ms == 0
             || self.expires_at <= self.created_at
             || matches!(
@@ -808,7 +786,7 @@ impl fmt::Display for LiveViewStateError {
             Self::Limits => {
                 "invalid live-view dimensions, cadence, viewer, frame-age, or expiry limits"
             }
-            Self::Endpoint => "invalid live-view signaling or media endpoint",
+            Self::Endpoint => "invalid live-view stream endpoint",
         })
     }
 }
@@ -823,7 +801,7 @@ mod tests {
     fn access_token_debug_is_redacted() {
         let token = LiveViewAccessToken::new("a".repeat(32)).unwrap();
         assert_eq!(format!("{token:?}"), "LiveViewAccessToken(<redacted>)");
-        assert_eq!(token.expose_for_signaling(), "a".repeat(32));
+        assert_eq!(token.expose_for_stream(), "a".repeat(32));
     }
 
     #[test]
@@ -896,58 +874,55 @@ mod tests {
     }
 
     #[test]
-    fn signaling_url_accepts_secure_or_exact_loopback_transports() {
+    fn stream_url_accepts_secure_or_exact_loopback_transports() {
         for url in [
-            "https://views.example.test/signaling",
-            "wss://views.example.test/signaling",
-            "ws://localhost:8782/signaling",
-            "ws://LOCALHOST:8782/signaling",
-            "ws://127.0.0.1:8782/signaling",
-            "ws://127.255.255.254:8782/signaling",
-            "ws://[::1]:8782/signaling",
+            "https://views.example.test/live",
+            "wss://views.example.test/live",
+            "ws://localhost:8782/live",
+            "ws://LOCALHOST:8782/live",
+            "ws://127.0.0.1:8782/live",
+            "ws://127.255.255.254:8782/live",
+            "ws://[::1]:8782/live",
         ] {
-            assert!(is_valid_live_signaling_url(url), "{url}");
+            assert!(is_valid_live_stream_url(url), "{url}");
         }
     }
 
     #[test]
-    fn signaling_url_rejects_insecure_or_ambiguous_transports() {
+    fn stream_url_rejects_insecure_or_ambiguous_transports() {
         for url in [
-            "http://localhost:8782/signaling",
-            "ws://localhost.example:8782/signaling",
-            "ws://128.0.0.1:8782/signaling",
-            "ws://192.0.2.1:8782/signaling",
-            "ws://user@localhost:8782/signaling",
-            "ws://localhost:8782/signaling?token=secret",
-            "ws://localhost:8782/signaling#fragment",
+            "http://localhost:8782/live",
+            "ws://localhost.example:8782/live",
+            "ws://128.0.0.1:8782/live",
+            "ws://192.0.2.1:8782/live",
+            "ws://user@localhost:8782/live",
+            "ws://localhost:8782/live?token=secret",
+            "ws://localhost:8782/live#fragment",
             "not a URL",
         ] {
-            assert!(!is_valid_live_signaling_url(url), "{url}");
+            assert!(!is_valid_live_stream_url(url), "{url}");
         }
     }
 
     #[test]
-    fn media_endpoint_requires_a_numeric_unicast_address() {
+    fn media_endpoint_requires_a_canonical_stream_url() {
         let endpoint: LiveMediaEndpoint = serde_json::from_value(serde_json::json!({
-            "transport": "web_rtc",
-            "signalingUrl": "wss://views.example.test/signaling",
-            "mediaHost": "192.0.2.10",
-            "mediaPort": 47998
+            "transport": "web_socket_h264",
+            "streamUrl": "wss://views.example.test/live"
         }))
         .unwrap();
         assert!(endpoint.validate().is_ok());
 
-        for host in ["media.example.test", "0.0.0.0", "224.0.0.1", "::"] {
+        for stream_url in [
+            "ws://views.example.test/live",
+            "wss://user@views.example.test/live",
+            "wss://views.example.test/live?token=secret",
+        ] {
             let result = serde_json::from_value::<LiveMediaEndpoint>(serde_json::json!({
-                "transport": "web_rtc",
-                "signalingUrl": "wss://views.example.test/signaling",
-                "mediaHost": host,
-                "mediaPort": 47998
+                "transport": "web_socket_h264",
+                "streamUrl": stream_url
             }));
-            match result {
-                Ok(endpoint) => assert!(endpoint.validate().is_err(), "{host}"),
-                Err(_) => assert_eq!(host, "media.example.test"),
-            }
+            assert!(result.unwrap().validate().is_err(), "{stream_url}");
         }
     }
 }

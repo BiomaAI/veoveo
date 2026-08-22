@@ -104,7 +104,7 @@ pub(crate) async fn uav_showcase_verify(
     }
 
     ensure_world_configured(&operator, &scenario).await?;
-    wait_for_live_capacity(
+    wait_for_live_products(
         &operator,
         &scenario,
         PRIMARY_CAMERA_ID,
@@ -221,7 +221,7 @@ pub(crate) async fn uav_showcase_up(
         base: public_base_url,
     };
     ensure_world_configured(&operator, &scenario).await?;
-    let viewer_slots = wait_for_live_capacity(
+    let camera_products = wait_for_live_products(
         &operator,
         &scenario,
         PRIMARY_CAMERA_ID,
@@ -229,13 +229,13 @@ pub(crate) async fn uav_showcase_up(
     )
     .await?;
     println!(
-        "UAV showcase is live: session={}, camera={}, native-viewer-slots={viewer_slots}",
+        "UAV showcase is live: session={}, camera={}, shared-camera-products={camera_products}",
         scenario.session_id, PRIMARY_CAMERA_ID,
     );
     Ok(())
 }
 
-async fn wait_for_live_capacity(
+async fn wait_for_live_products(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
     camera_id: &str,
@@ -256,24 +256,23 @@ async fn wait_for_live_capacity(
             state
                 .get("stream_products")
                 .cloned()
-                .context("authoritative simulator omitted its native viewer-slot pool")?,
+                .context("authoritative simulator omitted its shared camera products")?,
         )
-        .context("authoritative simulator returned an invalid native viewer-slot pool")?;
-        let inactive_slots = products.len();
+        .context("authoritative simulator returned invalid shared camera products")?;
+        let product_count = products.len();
         if json_string(&state, "/lifecycle").ok() == Some("running")
             && camera
                 .and_then(|item| item.get("health"))
                 .and_then(Value::as_str)
                 == Some("healthy")
-            && camera.is_some_and(|item| item.get("streamProductId").is_none())
-            && idle_viewer_slot_pool_matches_contract(&products)
+            && ready_camera_product_set_matches_contract(&products)
         {
-            return Ok(inactive_slots);
+            return Ok(product_count);
         }
         ensure!(
             json_string(&state, "/lifecycle").ok() != Some("failed")
                 && tokio::time::Instant::now() < deadline,
-            "authoritative UAV logical camera and native viewer capacity did not become healthy within {timeout:?}: {state}"
+            "authoritative UAV logical camera products did not become healthy within {timeout:?}: {state}"
         );
         tokio::time::sleep(Duration::from_millis(250)).await;
     }

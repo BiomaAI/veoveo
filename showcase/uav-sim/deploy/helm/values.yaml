@@ -129,16 +129,12 @@ session:
         z: -0.7071067811865476
 
 liveView:
-  publicSignalingUrl: ws://127.0.0.1:8803/uav-sim/signaling
-  signalingGatePort: 8803
-  publicMediaHost: 127.0.0.1
-  signalingPortBase: 49100
-  mediaPortBase: 47998
-  viewerSlots: 2
-  activationTimeoutSeconds: 10
-  leaseSeconds: 120
+  publicStreamUrl: ws://127.0.0.1:8803/uav-sim/live
+  streamGatePort: 8803
+  operatorRtspPortBase: 8560
+  authorizationSeconds: 3600
   maximumFrameAgeMs: 2000
-  signalingIngress:
+  streamIngress:
     enabled: false
     className: ""
     host: ""
@@ -146,14 +142,6 @@ liveView:
     tls:
       enabled: false
       secretName: ""
-  mediaService:
-    type: LoadBalancer
-    loadBalancerIP: ""
-    externalTrafficPolicy: Local
-    # Set when an installation pre-binds public UDP ports to a fixed Kubernetes
-    # NodePort range, as local k3d profiles do. Leave null for allocator-owned
-    # NodePorts behind a normal LoadBalancer.
-    nodePortBase: null
   cameras:
     - cameraId: follow
       revision: 1
@@ -179,7 +167,7 @@ liveView:
       revision: 1
       rig:
         kind: chase_entity
-        targetEntityId: uav-1
+        targetEntityId: uav-2
         distanceM: 15.0
         heightM: 4.0
         smoothing:
@@ -188,12 +176,12 @@ liveView:
           teleportDistanceM: 100.0
           resetAfterGapMs: 1000
       optics: *operatorOptics
-      streamPolicy: on_demand
+      streamPolicy: continuous
     - cameraId: orbit
       revision: 1
       rig:
         kind: orbit
-        targetEntityId: uav-1
+        targetEntityId: uav-3
         radiusM: 25.0
         azimuthDegrees: 225.0
         elevationDegrees: 20.0
@@ -203,12 +191,12 @@ liveView:
           teleportDistanceM: 100.0
           resetAfterGapMs: 1000
       optics: *operatorOptics
-      streamPolicy: on_demand
+      streamPolicy: continuous
     - cameraId: stabilized
       revision: 1
       rig:
         kind: stabilized_mounted_entity
-        targetEntityId: uav-1
+        targetEntityId: uav-4
         mount:
           positionM: {x: 0.60, "y": 0.0, z: -0.20}
           orientationXyzw: {x: 0.0, "y": 0.0, z: 0.0, w: 1.0}
@@ -218,7 +206,7 @@ liveView:
           teleportDistanceM: 100.0
           resetAfterGapMs: 1000
       optics: *operatorOptics
-      streamPolicy: on_demand
+      streamPolicy: continuous
     - cameraId: formation
       revision: 1
       rig:
@@ -231,7 +219,7 @@ liveView:
           teleportDistanceM: 150.0
           resetAfterGapMs: 1000
       optics: *operatorOptics
-      streamPolicy: on_demand
+      streamPolicy: continuous
 
 streamPublication:
   enabled: true

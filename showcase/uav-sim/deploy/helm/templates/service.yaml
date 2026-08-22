@@ -13,9 +13,9 @@ spec:
     - name: http
       port: {{ .Values.service.port }}
       targetPort: mcp
-    - name: signaling
-      port: {{ .Values.liveView.signalingGatePort }}
-      targetPort: signaling
+    - name: live-stream
+      port: {{ .Values.liveView.streamGatePort }}
+      targetPort: live-stream
 ---
 apiVersion: v1
 kind: Service
@@ -31,35 +31,4 @@ spec:
     - name: adapter
       port: 8810
       targetPort: adapter
-    {{- range $slot := until (int .Values.liveView.viewerSlots) }}
-    - name: {{ printf "signal-%d" $slot }}
-      port: {{ add $.Values.liveView.signalingPortBase $slot }}
-      targetPort: {{ printf "signal-%d" $slot }}
-      protocol: TCP
-    {{- end }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: uav-sim-media
-  labels:
-    {{- include "uav-sim.labels" . | nindent 4 }}
-spec:
-  type: {{ .Values.liveView.mediaService.type }}
-  externalTrafficPolicy: {{ .Values.liveView.mediaService.externalTrafficPolicy }}
-  {{- with .Values.liveView.mediaService.loadBalancerIP }}
-  loadBalancerIP: {{ . | quote }}
-  {{- end }}
-  selector:
-    {{- include "uav-sim.runtimeSelectorLabels" . | nindent 4 }}
-  ports:
-    {{- range $slot := until (int .Values.liveView.viewerSlots) }}
-    - name: {{ printf "media-%d" $slot }}
-      protocol: UDP
-      port: {{ add $.Values.liveView.mediaPortBase $slot }}
-      targetPort: {{ printf "media-%d" $slot }}
-      {{- with $.Values.liveView.mediaService.nodePortBase }}
-      nodePort: {{ add (int .) $slot }}
-      {{- end }}
-    {{- end }}
 {{- end }}

@@ -118,16 +118,8 @@
   value: {{ .root.Values.session.camera.vehicleId | quote }}
 - name: UAV_SIM_OPERATOR_CAMERAS_JSON
   value: {{ .root.Values.liveView.cameras | toJson | quote }}
-- name: UAV_SIM_LIVE_VIEWER_SLOTS
-  value: {{ .root.Values.liveView.viewerSlots | quote }}
-- name: UAV_SIM_LIVE_ACTIVATION_TIMEOUT_SECONDS
-  value: {{ .root.Values.liveView.activationTimeoutSeconds | quote }}
-- name: UAV_SIM_LIVE_SIGNALING_PORT_BASE
-  value: {{ .root.Values.liveView.signalingPortBase | quote }}
-- name: UAV_SIM_LIVE_MEDIA_PORT_BASE
-  value: {{ .root.Values.liveView.mediaPortBase | quote }}
-- name: UAV_SIM_LIVE_PUBLIC_MEDIA_IP
-  value: {{ .root.Values.liveView.publicMediaHost | quote }}
+- name: UAV_SIM_OPERATOR_RTSP_PORT_BASE
+  value: {{ .root.Values.liveView.operatorRtspPortBase | quote }}
 - name: UAV_SIM_TILE_READY_FRAMES
   value: {{ .root.Values.session.tileReadyFrames | quote }}
 - name: UAV_SIM_PX4_CONNECT_TIMEOUT_SECONDS
@@ -216,39 +208,21 @@
 {{- if or (lt $cameraCount 1) (gt $cameraCount 32) -}}
 {{- fail "liveView.cameras must contain 1-32 logical cameras" -}}
 {{- end -}}
-{{- $slotCount := int .Values.liveView.viewerSlots -}}
-{{- if or (lt $slotCount 1) (gt $slotCount 32) -}}
-{{- fail "liveView.viewerSlots must be between 1 and 32" -}}
+{{- if eq (int .Values.liveView.streamGatePort) (int .Values.service.port) -}}
+{{- fail "liveView.streamGatePort must differ from service.port" -}}
 {{- end -}}
-{{- $lastSlot := sub $slotCount 1 -}}
-{{- if eq (int .Values.liveView.signalingGatePort) (int .Values.service.port) -}}
-{{- fail "liveView.signalingGatePort must differ from service.port" -}}
+{{- if or (lt (int .Values.liveView.streamGatePort) 1) (gt (int .Values.liveView.streamGatePort) 65535) -}}
+{{- fail "liveView.streamGatePort must be between 1 and 65535" -}}
 {{- end -}}
-{{- if or (lt (int .Values.liveView.signalingGatePort) 1) (gt (int .Values.liveView.signalingGatePort) 65535) -}}
-{{- fail "liveView.signalingGatePort must be between 1 and 65535" -}}
+{{- $lastRtspPort := add (int .Values.liveView.operatorRtspPortBase) (sub (mul $cameraCount 2) 1) -}}
+{{- if or (lt (int .Values.liveView.operatorRtspPortBase) 1) (gt $lastRtspPort 65535) -}}
+{{- fail "liveView operator RTSP port range exceeds 65535" -}}
 {{- end -}}
-{{- if gt (add (int .Values.liveView.signalingPortBase) $lastSlot) 65535 -}}
-{{- fail "liveView signaling port range exceeds 65535" -}}
+{{- if not (regexMatch "^(ws|wss)://[^/@[:space:]]+(/[^[:space:]]*)?$" .Values.liveView.publicStreamUrl) -}}
+{{- fail "liveView.publicStreamUrl must be an absolute credential-free ws or wss URL" -}}
 {{- end -}}
-{{- if gt (add (int .Values.liveView.mediaPortBase) $lastSlot) 65535 -}}
-{{- fail "liveView media port range exceeds 65535" -}}
-{{- end -}}
-{{- with .Values.liveView.mediaService.nodePortBase -}}
-{{- if gt (add (int .) $lastSlot) 32767 -}}
-{{- fail "liveView media NodePort range exceeds 32767" -}}
-{{- end -}}
-{{- end -}}
-{{- if and (le (int .Values.liveView.mediaPortBase) (add (int .Values.liveView.signalingPortBase) $lastSlot)) (le (int .Values.liveView.signalingPortBase) (add (int .Values.liveView.mediaPortBase) $lastSlot)) -}}
-{{- fail "liveView signaling and media port ranges overlap" -}}
-{{- end -}}
-{{- if not (regexMatch "^(ws|wss)://[^/@[:space:]]+(/[^[:space:]]*)?$" .Values.liveView.publicSignalingUrl) -}}
-{{- fail "liveView.publicSignalingUrl must be an absolute credential-free ws or wss URL" -}}
-{{- end -}}
-{{- if not (or (regexMatch "^([0-9]{1,3}\\.){3}[0-9]{1,3}$" .Values.liveView.publicMediaHost) (regexMatch "^[0-9A-Fa-f:]+$" .Values.liveView.publicMediaHost)) -}}
-{{- fail "liveView.publicMediaHost must be a numeric IP address" -}}
-{{- end -}}
-{{- if and .Values.liveView.signalingIngress.enabled (empty .Values.liveView.signalingIngress.host) -}}
-{{- fail "liveView.signalingIngress.host is required when signaling ingress is enabled" -}}
+{{- if and .Values.liveView.streamIngress.enabled (empty .Values.liveView.streamIngress.host) -}}
+{{- fail "liveView.streamIngress.host is required when stream ingress is enabled" -}}
 {{- end -}}
 {{- end -}}
 

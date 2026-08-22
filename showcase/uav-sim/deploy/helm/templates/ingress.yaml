@@ -1,33 +1,33 @@
-{{- if and .Values.interactive.enabled .Values.liveView.signalingIngress.enabled }}
+{{- if and .Values.interactive.enabled .Values.liveView.streamIngress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: uav-sim-signaling
+  name: uav-sim-live-stream
   labels:
     {{- include "uav-sim.labels" . | nindent 4 }}
-  {{- with .Values.liveView.signalingIngress.annotations }}
+  {{- with .Values.liveView.streamIngress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with .Values.liveView.signalingIngress.className }}
+  {{- with .Values.liveView.streamIngress.className }}
   ingressClassName: {{ . }}
   {{- end }}
-  {{- if .Values.liveView.signalingIngress.tls.enabled }}
+  {{- if .Values.liveView.streamIngress.tls.enabled }}
   tls:
     - hosts:
-        - {{ required "liveView.signalingIngress.host is required" .Values.liveView.signalingIngress.host | quote }}
-      secretName: {{ required "liveView.signalingIngress.tls.secretName is required" .Values.liveView.signalingIngress.tls.secretName }}
+        - {{ required "liveView.streamIngress.host is required" .Values.liveView.streamIngress.host | quote }}
+      secretName: {{ required "liveView.streamIngress.tls.secretName is required" .Values.liveView.streamIngress.tls.secretName }}
   {{- end }}
   rules:
-    - host: {{ required "liveView.signalingIngress.host is required" .Values.liveView.signalingIngress.host | quote }}
+    - host: {{ required "liveView.streamIngress.host is required" .Values.liveView.streamIngress.host | quote }}
       http:
         paths:
-          - path: /uav-sim/signaling
+          - path: /uav-sim/live
             pathType: Prefix
             backend:
               service:
                 name: uav-sim-mcp
                 port:
-                  number: {{ .Values.liveView.signalingGatePort }}
+                  number: {{ .Values.liveView.streamGatePort }}
 {{- end }}

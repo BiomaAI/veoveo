@@ -159,7 +159,7 @@ pub use live_view::{
     LiveVector3, LiveViewAccessToken, LiveViewCapacityDimension, LiveViewCapacityProfile,
     LiveViewCapacityState, LiveViewCapacityUsage, LiveViewCodec, LiveViewConnection,
     LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState,
-    LiveViewUri, LiveViewerInstanceId, is_valid_live_signaling_url,
+    LiveViewUri, LiveViewerInstanceId, is_valid_live_stream_url,
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use protocol::{

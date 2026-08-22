@@ -29,23 +29,6 @@ RUN --mount=type=bind,source=.,target=/src,readonly \
     bash -euc '\
         [[ -n "${VEOVEO_CARGO_PACKAGES}" ]] || { echo "no Cargo packages selected" >&2; exit 1; }; \
         [[ -n "${VEOVEO_CARGO_BINARIES}" ]] || { echo "no Cargo binaries selected" >&2; exit 1; }; \
-        if [[ ",${VEOVEO_CARGO_PACKAGES}," == *,veoveo-uav-sim-mcp,* ]]; then \
-            readonly bundle_root=/tmp/nvidia-ov-web-rtc; \
-            readonly bundle_url=https://edge.urm.nvidia.com/artifactory/api/npm/omniverse-client-npm/@nvidia/ov-web-rtc/-/@nvidia/ov-web-rtc-6.6.0.tgz; \
-            readonly bundle_tar_sha=77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5; \
-            readonly bundle_umd_sha=ef2bab07d13bee861c30922100f9c98fd61982826fdc8cedc6e43f032d8fa70d; \
-            mkdir -p "${bundle_root}"; \
-            curl --fail --location --silent --show-error \
-                "${bundle_url}" \
-                --output "${bundle_root}/package.tgz"; \
-            echo "${bundle_tar_sha}  ${bundle_root}/package.tgz" \
-                | sha256sum --check --strict; \
-            tar --extract --gzip --file "${bundle_root}/package.tgz" \
-                --directory "${bundle_root}" package/dist/ov-web-rtc.umd.cjs; \
-            echo "${bundle_umd_sha}  ${bundle_root}/package/dist/ov-web-rtc.umd.cjs" \
-                | sha256sum --check --strict; \
-            export UAV_SIM_WEBRTC_CLIENT_BUNDLE="${bundle_root}/package/dist/ov-web-rtc.umd.cjs"; \
-        fi; \
         cargo_args=(build --release --locked); \
         IFS=, read -r -a packages <<< "${VEOVEO_CARGO_PACKAGES}"; \
         for package in "${packages[@]}"; do \

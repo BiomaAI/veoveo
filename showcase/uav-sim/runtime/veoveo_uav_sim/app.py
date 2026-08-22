@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .config import RuntimeConfig
 from .hydra_camera import native_sensor_aov_arguments
-from .operator_products import livestream_aov_arguments
+from .operator_products import operator_aov_arguments
 from .physical_camera import physical_camera_product_name
 
 LOGGER = logging.getLogger("veoveo.uav_sim")
@@ -77,8 +77,6 @@ def run(config: RuntimeConfig) -> None:
                 "cesium.usd.plugins",
                 "--/exts/cesium.omniverse/externallyManagedViewports=true",
                 "--enable",
-                "omni.kit.livestream.webrtc",
-                "--enable",
                 "omni.kit.livestream.rtsp",
                 *kit_newton_arguments(),
                 *native_sensor_aov_arguments(
@@ -86,7 +84,7 @@ def run(config: RuntimeConfig) -> None:
                     rtsp_port=config.camera.rtsp_port,
                     target_fps=config.camera.fps,
                 ),
-                *livestream_aov_arguments(config.operator_live_view),
+                *operator_aov_arguments(config.operator_live_view),
                 *kit_live_render_arguments(),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
@@ -113,7 +111,6 @@ def run(config: RuntimeConfig) -> None:
         "isaacsim.core.experimental.materials",
         "isaacsim.core.experimental.utils",
         "omni.kit.livestream.rtsp",
-        "omni.kit.livestream.webrtc",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
         if not extension_manager.is_extension_enabled(extension):
@@ -398,7 +395,7 @@ def run(config: RuntimeConfig) -> None:
         )
         operator_products = OperatorProductCollection.create(
             config.operator_live_view,
-            stage,
+            operator_cameras,
         )
         extension_manager.set_extension_enabled_immediate(
             "omni.kit.livestream.aov", True
@@ -720,7 +717,6 @@ def run(config: RuntimeConfig) -> None:
                         time.monotonic() - native_update_started
                     )
                     assert operator_products is not None
-                    operator_products.observe_render_completion(time.monotonic())
                     tile_state = state.snapshot()["tiles"]
                     state.update_stream_products(
                         operator_products.state(

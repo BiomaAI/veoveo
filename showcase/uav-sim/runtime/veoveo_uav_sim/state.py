@@ -105,16 +105,18 @@ class RuntimeState:
             ],
             "stream_products": [
                 {
-                    "streamProductId": f"product-slot-{capacity_slot}",
-                    "capacitySlot": capacity_slot,
-                    "lifecycle": "inactive",
-                    "activeViewerLeases": 0,
+                    "streamProductId": f"camera-product-{product_index}",
+                    "cameraId": camera.camera_id,
+                    "lifecycle": "starting",
+                    "activeViewers": 0,
                     "connectedViewers": 0,
                     "nvencSessions": 0,
                     "encodedFrames": 0,
                     "sourceToRenderSamples": 0,
                 }
-                for capacity_slot in range(config.operator_live_view.viewer_slot_count)
+                for product_index, camera in enumerate(
+                    config.operator_live_view.streamable_cameras
+                )
             ],
             "vehicles": [],
             "recordings": [

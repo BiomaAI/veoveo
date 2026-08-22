@@ -66,21 +66,20 @@ host-limited token and server-side recording session protect the route; the
 general Rerun catalog and mutation methods are unavailable.
 
 Simulation live views belong to each simulation application's release. The
-application owns one authoritative simulator GPU, its logical cameras, bounded physical
-viewer slots, isolated Hydra/NVENC/WebRTC products, signaling proxy, media ports, cache,
+application owns one authoritative simulator GPU, its logical cameras, continuous
+camera-owned Hydra/NVENC products, authenticated H.264 WebSocket fan-out, cache,
 and MCP App. The platform chart does not
 install a shared renderer, pose ingress, mirror cache, or reconciliation controller.
-Viewer leases remain ephemeral in the domain server. A simulator restart recreates its
-configured logical cameras and preallocated viewer slots through ordinary runtime startup,
-and browsers open fresh
-leases.
+Viewer authorizations remain ephemeral in the domain server. A simulator restart
+recreates its configured logical cameras and continuous products through ordinary runtime
+startup, and browsers open fresh authorizations.
 
 A deployment profile may bind an application-owned GPU container to a named DRA
 request. The allocator supplies the selected UUID; no chart may set
 `NVIDIA_VISIBLE_DEVICES`. Required driver capabilities remain explicit. Use
 `gpu-allocation-verify` to prove exclusive device-plugin isolation, and use the
-application's hardware acceptance to prove isolated per-viewer RTX, NVENC, and native
-WebRTC products.
+application's hardware acceptance to prove shared camera RTX/NVENC products and browser
+H.264 delivery.
 
 Every hosted MCP server workload has one active pod and uses `Recreate`. This
 includes domain servers, GPU servers, and the stdio bridge that owns its child

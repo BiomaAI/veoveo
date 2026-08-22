@@ -75,7 +75,6 @@ struct RestartVideoIdentity {
     viewer_instance_id: String,
     live_view_id: String,
     stream_product_id: String,
-    capacity_slot: u16,
     current_time: f64,
 }
 
@@ -87,7 +86,6 @@ impl From<&AppVideoState> for RestartVideoIdentity {
             viewer_instance_id: state.viewer_instance_id.clone(),
             live_view_id: state.live_view_id.clone(),
             stream_product_id: state.stream_product_id.clone(),
-            capacity_slot: state.capacity_slot,
             current_time: state.current_time,
         }
     }
@@ -95,15 +93,15 @@ impl From<&AppVideoState> for RestartVideoIdentity {
 
 impl ConsoleLiveGridEvidence {
     #[allow(dead_code)] // Consumed by the focused browser binary that includes this module.
-    pub(crate) fn products(&self) -> Vec<(String, u16)> {
+    pub(crate) fn products(&self) -> Vec<String> {
         self.videos
             .iter()
-            .map(|video| (video.stream_product_id.clone(), video.capacity_slot))
+            .map(|video| video.stream_product_id.clone())
             .collect()
     }
 }
 
-#[allow(dead_code)] // Viewer-slot identity is consumed by the focused browser binary.
+#[allow(dead_code)] // Viewer authorization identity is consumed by the focused browser binary.
 impl ConsoleLiveCaptureEvidence {
     pub(crate) fn camera_id(&self) -> &str {
         &self.video.camera_id
@@ -119,10 +117,6 @@ impl ConsoleLiveCaptureEvidence {
 
     pub(crate) fn stream_product_id(&self) -> &str {
         &self.video.stream_product_id
-    }
-
-    pub(crate) fn capacity_slot(&self) -> u16 {
-        self.video.capacity_slot
     }
 
     pub(crate) fn observed_frame_rate_hz(&self) -> f64 {
@@ -282,10 +276,55 @@ pub(crate) async fn capture_console_live_app_grid(
             &page_url,
             expected_camera_ids,
             screenshot_path,
+            None,
         ),
     )
     .await
     .with_context(|| format!("Console live-App grid capture exceeded {timeout:?}"))?
+}
+
+#[allow(dead_code)] // Five-user acceptance is owned by the focused browser binary.
+pub(crate) async fn capture_console_live_app_five_user_grid(
+    cdp_base: &str,
+    public_base_url: &str,
+    expected_camera_ids: &[&str],
+    screenshot_directory: &Path,
+    timeout: Duration,
+) -> Result<Vec<ConsoleLiveGridEvidence>> {
+    const USER_COUNT: usize = 5;
+    ensure!(
+        expected_camera_ids.len() == 5,
+        "five-user acceptance requires the complete five-camera collection"
+    );
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let barrier = Arc::new(tokio::sync::Barrier::new(USER_COUNT));
+    let screenshot_paths = (1..=USER_COUNT)
+        .map(|user| screenshot_directory.join(format!("uav-live-view-user-{user}.png")))
+        .collect::<Vec<_>>();
+    futures::future::try_join_all(screenshot_paths.iter().enumerate().map(|(index, path)| {
+        let barrier = Arc::clone(&barrier);
+        let page_url = &page_url;
+        async move {
+            tokio::time::timeout(
+                timeout,
+                capture_console_live_app_grid_inner(
+                    cdp_base,
+                    page_url,
+                    expected_camera_ids,
+                    path,
+                    Some(barrier),
+                ),
+            )
+            .await
+            .with_context(|| {
+                format!(
+                    "Console five-user live-App grid {} exceeded {timeout:?}",
+                    index + 1
+                )
+            })?
+        }
+    }))
+    .await
 }
 
 #[allow(dead_code)] // Component-restart acceptance is owned by the focused browser binary.
@@ -680,6 +719,7 @@ async fn capture_console_live_app_grid_inner(
     page_url: &str,
     expected_camera_ids: &[&str],
     screenshot_path: &Path,
+    simultaneous: Option<Arc<tokio::sync::Barrier>>,
 ) -> Result<ConsoleLiveGridEvidence> {
     ensure!(
         expected_camera_ids.len() >= 2,
@@ -723,7 +763,6 @@ async fn capture_console_live_app_grid_inner(
                     && after.viewer_instance_id == before.viewer_instance_id
                     && after.live_view_id == before.live_view_id
                     && after.stream_product_id == before.stream_product_id
-                    && after.capacity_slot == before.capacity_slot
                     && after.current_time > before.current_time + 0.25,
                 "grid camera did not remain mounted on one advancing native product: {before:?} -> {after:?}"
             );
@@ -740,17 +779,17 @@ async fn capture_console_live_app_grid_inner(
             .iter()
             .map(|video| video.stream_product_id.as_str())
             .collect::<std::collections::BTreeSet<_>>();
-        let slots = second
-            .iter()
-            .map(|video| video.capacity_slot)
-            .collect::<std::collections::BTreeSet<_>>();
         ensure!(
             viewer_instances.len() == 1
                 && live_views.len() == expected_camera_ids.len()
-                && products.len() == expected_camera_ids.len()
-                && slots.len() == expected_camera_ids.len(),
-            "one App grid did not receive one isolated native product per selected camera: {second:?}"
+                && products.len() == expected_camera_ids.len(),
+            "one App grid did not receive one shared native product per selected camera: {second:?}"
         );
+        if let Some(simultaneous) = simultaneous {
+            tokio::time::timeout(SIMULTANEOUS_VIEW_BARRIER_TIMEOUT, simultaneous.wait())
+                .await
+                .context("five-user camera grids did not become live concurrently")?;
+        }
         let decode: DecodeIdentity = evaluate_console_app(
             &mut cdp,
             &target_id,
@@ -863,14 +902,14 @@ fn finish_live_capture<T>(
 ) -> Result<T> {
     match acceptance {
         Ok(evidence) => {
-            release.context("releasing native viewer lease after browser capture")?;
+            release.context("closing live-view authorization after browser capture")?;
             close.context("closing headed browser target after live capture")?;
             Ok(evidence)
         }
         Err(error) => {
             let mut cleanup_failures = Vec::new();
             if let Err(release_error) = release {
-                cleanup_failures.push(format!("viewer lease: {release_error:#}"));
+                cleanup_failures.push(format!("live-view authorization: {release_error:#}"));
             }
             if let Err(close_error) = close {
                 cleanup_failures.push(format!("browser target: {close_error:#}"));
@@ -1953,7 +1992,7 @@ async fn wait_for_console_video_advance(
     .await?;
     let cadence = if startup_cadence.needs_steady_state_sample(first.declared_frame_rate_hz) {
         eprintln!(
-            "native WebRTC startup window is still warming; requiring one strict steady-state window: {startup_cadence:?}"
+            "shared H.264 startup window is still warming; requiring one strict steady-state window: {startup_cadence:?}"
         );
         evaluate_console_app(
             cdp,
@@ -1973,7 +2012,6 @@ async fn wait_for_console_video_advance(
             && second.viewer_instance_id == first.viewer_instance_id
             && second.live_view_id == first.live_view_id
             && second.stream_product_id == first.stream_product_id
-            && second.capacity_slot == first.capacity_slot
             && second.current_time > first.current_time + 0.25,
         "Console H.264 video did not remain mounted and advance: {first:?} -> {second:?}"
     );
@@ -1986,11 +2024,8 @@ async fn wait_for_console_video_advance(
     second.source_to_render_samples = cadence.source_to_render_samples;
     second.composed_motion_to_photon_upper_bound_p95_ms =
         cadence.composed_motion_to_photon_upper_bound_p95_ms;
-    second.stream_stats_samples = cadence.stream_stats_samples;
-    second.stream_round_trip_p95_ms = cadence.stream_round_trip_p95_ms;
-    second.stream_decode_p95_ms = cadence.stream_decode_p95_ms;
-    second.stream_frame_loss = cadence.stream_frame_loss;
-    second.stream_packet_loss = cadence.stream_packet_loss;
+    second.delivery_samples = cadence.delivery_samples;
+    second.receive_to_display_p95_ms = cadence.receive_to_display_p95_ms;
     Ok(second)
 }
 
@@ -2023,13 +2058,13 @@ async fn wait_for_console_video_replacement(
                 state.document_epoch_ms == before.document_epoch_ms
                     && state.viewer_instance_id == before.viewer_instance_id
                     && state.live_view_id != before.live_view_id,
-                "component restart reloaded the App or reused the stale viewer lease: {before:?} -> {state:?}"
+                "component restart reloaded the App or reused stale stream authorization: {before:?} -> {state:?}"
             );
             return Ok(state);
         }
         ensure!(
             tokio::time::Instant::now() < deadline,
-            "Console UAV live view App did not replace its lease and native product after component restart: {before:?} -> {state:?}"
+            "Console UAV live view App did not replace its stream authorization after component restart: {before:?} -> {state:?}"
         );
         cdp.assert_no_software_renderer_events()?;
         assert_page_visible(cdp, session_id).await?;
@@ -2367,7 +2402,6 @@ struct AppVideoState {
     viewer_instance_id: String,
     live_view_id: String,
     stream_product_id: String,
-    capacity_slot: u16,
     ready_state: u16,
     video_width: u32,
     video_height: u32,
@@ -2391,15 +2425,9 @@ struct AppVideoState {
     #[serde(default)]
     composed_motion_to_photon_upper_bound_p95_ms: f64,
     #[serde(default)]
-    stream_stats_samples: u64,
+    delivery_samples: u64,
     #[serde(default)]
-    stream_round_trip_p95_ms: f64,
-    #[serde(default)]
-    stream_decode_p95_ms: f64,
-    #[serde(default)]
-    stream_frame_loss: u64,
-    #[serde(default)]
-    stream_packet_loss: u64,
+    receive_to_display_p95_ms: f64,
     mean_luma: f64,
     luma_standard_deviation: f64,
     minimum_luma: u8,
@@ -2409,7 +2437,6 @@ struct AppVideoState {
     status: String,
     error: String,
     body_text: String,
-    rtc_states: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -2421,7 +2448,6 @@ struct GridVideoState {
     viewer_instance_id: String,
     live_view_id: String,
     stream_product_id: String,
-    capacity_slot: u16,
     ready_state: u16,
     video_width: u32,
     video_height: u32,
@@ -2461,11 +2487,8 @@ struct VideoCadenceSample {
     source_to_render_p95_ms: f64,
     source_to_render_samples: u64,
     composed_motion_to_photon_upper_bound_p95_ms: f64,
-    stream_stats_samples: u64,
-    stream_round_trip_p95_ms: f64,
-    stream_decode_p95_ms: f64,
-    stream_frame_loss: u64,
-    stream_packet_loss: u64,
+    delivery_samples: u64,
+    receive_to_display_p95_ms: f64,
 }
 
 impl VideoCadenceSample {
@@ -2482,11 +2505,8 @@ impl VideoCadenceSample {
                 || self.source_to_render_samples < 12
                 || !self.source_to_render_p95_ms.is_finite()
                 || self.source_to_render_p95_ms >= MAXIMUM_SOURCE_TO_RENDER_P95_MS
-                || self.stream_stats_samples == 0
-                || !self.stream_round_trip_p95_ms.is_finite()
-                || !self.stream_decode_p95_ms.is_finite()
-                || self.stream_frame_loss > 0
-                || self.stream_packet_loss > 0
+                || self.delivery_samples < 48
+                || !self.receive_to_display_p95_ms.is_finite()
                 || !self
                     .composed_motion_to_photon_upper_bound_p95_ms
                     .is_finite()
@@ -2519,19 +2539,15 @@ impl VideoCadenceSample {
             "authoritative camera source-to-render p95 exceeded {MAXIMUM_SOURCE_TO_RENDER_P95_MS:.0} ms or lacked evidence: {self:?}"
         );
         ensure!(
-            self.stream_stats_samples > 0
-                && self.stream_round_trip_p95_ms.is_finite()
-                && self.stream_round_trip_p95_ms >= 0.0
-                && self.stream_decode_p95_ms.is_finite()
-                && self.stream_decode_p95_ms >= 0.0
-                && self.stream_frame_loss == 0
-                && self.stream_packet_loss == 0
+            self.delivery_samples >= 48
+                && self.receive_to_display_p95_ms.is_finite()
+                && self.receive_to_display_p95_ms >= 0.0
                 && self
                     .composed_motion_to_photon_upper_bound_p95_ms
                     .is_finite()
                 && (0.0..MAXIMUM_MOTION_TO_PHOTON_P95_MS)
                     .contains(&self.composed_motion_to_photon_upper_bound_p95_ms),
-            "native WebRTC composed motion-to-photon upper bound exceeded {MAXIMUM_MOTION_TO_PHOTON_P95_MS:.0} ms or lacked NVIDIA stream statistics: {self:?}"
+            "shared H.264 composed motion-to-photon upper bound exceeded {MAXIMUM_MOTION_TO_PHOTON_P95_MS:.0} ms or lacked browser delivery evidence: {self:?}"
         );
         Ok(())
     }
@@ -2548,7 +2564,7 @@ impl AppVideoState {
             !self.viewer_instance_id.is_empty()
                 && !self.live_view_id.is_empty()
                 && !self.stream_product_id.is_empty(),
-            "authoritative live-view App omitted its isolated viewer-slot identity: {self:?}"
+            "authoritative live-view App omitted its viewer and shared-product identity: {self:?}"
         );
         ensure!(
             self.ready_state >= 2
@@ -2803,7 +2819,7 @@ impl DecodeIdentity {
     fn validate(&self) -> Result<()> {
         ensure!(
             self.supported && self.smooth,
-            "browser does not report supported, smooth H.264 WebRTC decode: {self:?}"
+            "browser does not report supported, smooth H.264 decode: {self:?}"
         );
         let expected = if self.power_efficient {
             "NVIDIA NVENC · hardware H.264 decode"
@@ -3283,19 +3299,18 @@ const HARDWARE_PREFLIGHT: &str = r#"(async () => {
 })()"#;
 
 const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
-  const video=document.querySelector("video");
-  const view=video?.closest(".view");
-  const camera=document.querySelector(`#choices input[type="checkbox"]:checked`);
-  const quality=video?.getVideoPlaybackQuality?.();
+  const canvas=document.querySelector(".view canvas");
+  const view=canvas?.closest(".view");
+  const decodedFrames=Number(canvas?.dataset.decodedFrames ?? 0);
   const frame={meanLuma:0,lumaStandardDeviation:0,minimumLuma:0,maximumLuma:0,pixelSampleError:""};
   try {
-    if(!video?.videoWidth||!video?.videoHeight) throw new Error("video dimensions are unavailable");
-    const canvas=document.createElement("canvas");
-    canvas.width=64;canvas.height=36;
-    const context=canvas.getContext("2d",{willReadFrequently:true});
+    if(!canvas?.width||!canvas?.height) throw new Error("video canvas dimensions are unavailable");
+    const sample=document.createElement("canvas");
+    sample.width=64;sample.height=36;
+    const context=sample.getContext("2d",{willReadFrequently:true});
     if(!context) throw new Error("2D frame sampler is unavailable");
-    context.drawImage(video,0,0,canvas.width,canvas.height);
-    const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+    context.drawImage(canvas,0,0,sample.width,sample.height);
+    const pixels=context.getImageData(0,0,sample.width,sample.height).data;
     let sum=0,sumSquares=0,minimum=255,maximum=0,count=0;
     for(let index=0;index<pixels.length;index+=4){
       const luma=0.2126*pixels[index]+0.7152*pixels[index+1]+0.0722*pixels[index+2];
@@ -3308,27 +3323,25 @@ const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
   }catch(error){frame.pixelSampleError=String(error?.message||error);}
   return {
     documentEpochMs:performance.timeOrigin,
-    cameraId:camera?.parentElement?.textContent?.split(" · ")[0]?.trim() ?? "",
+    cameraId:view?.id?.startsWith("view-") ? view.id.slice(5) : "",
     viewerInstanceId:view?.dataset.viewerInstanceId ?? "",
     liveViewId:view?.dataset.liveViewId ?? "",
     streamProductId:view?.dataset.streamProductId ?? "",
-    capacitySlot:Number(view?.dataset.capacitySlot ?? 0),
-    readyState:video?.readyState ?? 0,
-    videoWidth:video?.videoWidth ?? 0,
-    videoHeight:video?.videoHeight ?? 0,
-    currentTime:video?.currentTime ?? 0,
+    readyState:decodedFrames>0 ? 2 : 0,
+    videoWidth:canvas?.width ?? 0,
+    videoHeight:canvas?.height ?? 0,
+    currentTime:Number(canvas?.dataset.mediaTimeSeconds ?? 0),
     sampledAtMs:performance.now(),
-    totalVideoFrames:quality?.totalVideoFrames ?? 0,
-    droppedVideoFrames:quality?.droppedVideoFrames ?? 0,
-    declaredFrameRateHz:Number(view?.querySelector(".stats span")?.textContent?.match(/·\s*([\d.]+)\s*fps/)?.[1] ?? 0),
+    totalVideoFrames:decodedFrames,
+    droppedVideoFrames:Number(canvas?.dataset.droppedFrames ?? 0),
+    declaredFrameRateHz:Number(canvas?.dataset.frameRate ?? 0),
     observedFrameRateHz:0,
     ...frame,
     decodeLabel:document.getElementById("decode")?.textContent ?? "",
     status:document.getElementById("status")?.textContent ?? "",
     error:document.getElementById("error")?.hidden === false
       ? document.getElementById("error").textContent : "",
-    bodyText:document.body?.innerText ?? "",
-    rtcStates:[]
+    bodyText:document.body?.innerText ?? ""
   };
 })()"#;
 
@@ -3336,100 +3349,76 @@ const APP_FRAME_GRID_VIDEO_STATES: &str = r#"(() => {
   const error=document.getElementById("error")?.hidden === false
     ? document.getElementById("error").textContent : "";
   return [...document.querySelectorAll(".view")].map((view)=>{
-    const video=view.querySelector("video");
+    const canvas=view.querySelector("canvas"),decoded=Number(canvas?.dataset.decodedFrames ?? 0);
     return {
       documentEpochMs:performance.timeOrigin,
       cameraId:view.id.startsWith("view-") ? view.id.slice(5) : "",
       viewerInstanceId:view.dataset.viewerInstanceId ?? "",
       liveViewId:view.dataset.liveViewId ?? "",
       streamProductId:view.dataset.streamProductId ?? "",
-      capacitySlot:Number(view.dataset.capacitySlot ?? 0),
-      readyState:video?.readyState ?? 0,
-      videoWidth:video?.videoWidth ?? 0,
-      videoHeight:video?.videoHeight ?? 0,
-      currentTime:video?.currentTime ?? 0,
+      readyState:decoded>0 ? 2 : 0,
+      videoWidth:canvas?.width ?? 0,
+      videoHeight:canvas?.height ?? 0,
+      currentTime:Number(canvas?.dataset.mediaTimeSeconds ?? 0),
       error
     };
   });
 })()"#;
 
 const APP_FRAME_VIDEO_CADENCE: &str = r#"(async()=>{
-  const video=document.querySelector("video");
-  if(!video?.requestVideoFrameCallback)throw new Error("requestVideoFrameCallback is unavailable");
-  const view=video.closest(".view"),cameraId=view?.id?.startsWith("view-")?view.id.slice(5):"",player=players.get(cameraId);
-  if(!player)throw new Error("native stream player is unavailable");
-  const liveViewId=view?.dataset.liveViewId??"",minimumSourceSamples=256,warmupDeadline=Date.now()+60000;
+  const canvas=document.querySelector(".view canvas");
+  if(!canvas)throw new Error("shared H.264 video canvas is unavailable");
+  const view=canvas.closest(".view"),liveViewId=view?.dataset.liveViewId??"",minimumSourceSamples=64,warmupDeadline=Date.now()+60000;
+  const waitForFrame=(deadline)=>new Promise((resolve,reject)=>{
+    const before=Number(canvas.dataset.decodedFrames??0),remaining=deadline-Date.now();
+    if(remaining<=0){reject(new Error("reactive video cadence sample did not complete"));return;}
+    const observer=new MutationObserver(()=>{
+      const decoded=Number(canvas.dataset.decodedFrames??0);
+      if(decoded<=before)return;
+      clearTimeout(timeout);observer.disconnect();resolve({now:performance.now(),decoded,mediaTime:Number(canvas.dataset.mediaTimeSeconds??0),receiveToDisplayMs:Number(canvas.dataset.receiveToDisplayMs??0)});
+    });
+    const timeout=setTimeout(()=>{observer.disconnect();reject(new Error("reactive video cadence sample did not complete"));},remaining);
+    observer.observe(canvas,{attributes:true,attributeFilter:["data-decoded-frames"]});
+  });
   let warmLive=null;
   while(Date.now()<warmupDeadline){
     warmLive=await read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`);
     if(Number(warmLive.sourceToRenderSamples??0)>=minimumSourceSamples)break;
-    await new Promise((resolve,reject)=>{
-      const timeout=setTimeout(()=>reject(new Error("native render warm-up did not advance")),2000);
-      video.requestVideoFrameCallback(()=>{clearTimeout(timeout);resolve();});
-    });
+    await waitForFrame(Math.min(warmupDeadline,Date.now()+3000));
   }
   if(Number(warmLive?.sourceToRenderSamples??0)<minimumSourceSamples)throw new Error("native render warm-up lacked source-to-render samples");
-  return new Promise((resolve,reject)=>{
-  const warmupFrames=12,sampleIntervals=48,initialStats=player.streamStats.length;
-  const initialFrameLoss=Number(player.streamStats.at(-1)?.frameLoss??0),initialPacketLoss=Number(player.streamStats.at(-1)?.packetLoss??0);
-  let callbacks=0,firstNow=0,firstMediaTime=0,qualityBefore=null,finished=false;
+  const warmupFrames=12,sampleIntervals=48,deadline=Date.now()+15000;
   const p95=values=>{const ordered=[...values].sort((a,b)=>a-b);return ordered.length?ordered[Math.max(0,Math.ceil(ordered.length*0.95)-1)]:-1;};
-  const timeout=setTimeout(()=>{
-    if(finished)return;
-    finished=true;
-    reject(new Error("reactive video cadence sample did not complete"));
-  },15000);
-  const observe=(now,metadata)=>{
-    if(finished)return;
-    callbacks++;
-    if(callbacks===warmupFrames){
-      firstNow=now;
-      firstMediaTime=metadata.mediaTime;
-      qualityBefore=video.getVideoPlaybackQuality?.() ?? {totalVideoFrames:0,droppedVideoFrames:0};
-    }
-    const stats=player.streamStats.slice(initialStats);
-    if(callbacks>=warmupFrames+sampleIntervals&&stats.length){
-      const qualityAfter=video.getVideoPlaybackQuality?.() ?? qualityBefore;
-      finished=true;
-      clearTimeout(timeout);
-      const intervalSeconds=(now-firstNow)/1000,presentedFrameIntervals=callbacks-warmupFrames;
-      read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`).then(live=>{
-        const sourceToRenderP95Ms=Number(live.sourceToRenderP95Microseconds??-1000)/1000;
-        const streamFps=p95(stats.map(value=>value.fps)),roundTripP95Ms=p95(stats.map(value=>value.rtd)),decodeP95Ms=p95(stats.map(value=>value.avgDecodeTime));
-        const boundedFps=Math.max(1,Math.min(streamFps,presentedFrameIntervals/intervalSeconds));
-        resolve({
-        intervalSeconds,
-        mediaTimeSeconds:metadata.mediaTime-firstMediaTime,
-        presentedFrameIntervals,
-        decodedVideoFrames:Math.max(0,(qualityAfter?.totalVideoFrames??0)-(qualityBefore?.totalVideoFrames??0)),
-        droppedVideoFrames:Math.max(0,(qualityAfter?.droppedVideoFrames??0)-(qualityBefore?.droppedVideoFrames??0)),
-        sourceToRenderP95Ms,
-        sourceToRenderSamples:Number(live.sourceToRenderSamples??0),
-        composedMotionToPhotonUpperBoundP95Ms:sourceToRenderP95Ms+roundTripP95Ms+decodeP95Ms+2000/boundedFps,
-        streamStatsSamples:stats.length,
-        streamRoundTripP95Ms:roundTripP95Ms,
-        streamDecodeP95Ms:decodeP95Ms,
-        streamFrameLoss:Math.max(0,Math.max(...stats.map(value=>value.frameLoss))-initialFrameLoss),
-        streamPacketLoss:Math.max(0,Math.max(...stats.map(value=>value.packetLoss))-initialPacketLoss)
-      });}).catch(reject);
-      return;
-    }
-    video.requestVideoFrameCallback(observe);
+  for(let index=0;index<warmupFrames;index++)await waitForFrame(deadline);
+  const first={now:performance.now(),mediaTime:Number(canvas.dataset.mediaTimeSeconds??0),decoded:Number(canvas.dataset.decodedFrames??0),dropped:Number(canvas.dataset.droppedFrames??0)};
+  const delivery=[];let last=null;
+  for(let index=0;index<sampleIntervals;index++){last=await waitForFrame(deadline);delivery.push(last.receiveToDisplayMs);}
+  const live=await read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`),intervalSeconds=(last.now-first.now)/1000;
+  const sourceToRenderP95Ms=Number(live.sourceToRenderP95Microseconds??-1000)/1000,observedFps=sampleIntervals/intervalSeconds,boundedFps=Math.max(1,Math.min(Number(canvas.dataset.frameRate??observedFps),observedFps)),receiveToDisplayP95Ms=p95(delivery);
+  return {
+    intervalSeconds,
+    mediaTimeSeconds:last.mediaTime-first.mediaTime,
+    presentedFrameIntervals:sampleIntervals,
+    decodedVideoFrames:last.decoded-first.decoded,
+    droppedVideoFrames:Math.max(0,Number(canvas.dataset.droppedFrames??0)-first.dropped),
+    sourceToRenderP95Ms,
+    sourceToRenderSamples:Number(live.sourceToRenderSamples??0),
+    composedMotionToPhotonUpperBoundP95Ms:sourceToRenderP95Ms+receiveToDisplayP95Ms+2000/boundedFps,
+    deliverySamples:delivery.length,
+    receiveToDisplayP95Ms
   };
-  video.requestVideoFrameCallback(observe);
-  });
 })()"#;
 
 const APP_FRAME_DECODE_IDENTITY: &str = r#"(async () => {
-  const video=document.querySelector("video");
+  const video=document.querySelector(".view canvas");
   const result=await navigator.mediaCapabilities.decodingInfo({
-    type:"webrtc",
+    type:"file",
     video:{
-      contentType:'video/H264; codecs="avc1.42E01E"',
-      width:video.videoWidth,
-      height:video.videoHeight,
+      contentType:'video/mp4; codecs="avc1.42E01E"',
+      width:Number(video.dataset.sourceWidth),
+      height:Number(video.dataset.sourceHeight),
       bitrate:8000000,
-      framerate:30
+      framerate:Number(video.dataset.frameRate)
     }
   });
   return {
@@ -3565,11 +3554,8 @@ mod tests {
             source_to_render_p95_ms: 18.0,
             source_to_render_samples: 48,
             composed_motion_to_photon_upper_bound_p95_ms: 85.0,
-            stream_stats_samples: 2,
-            stream_round_trip_p95_ms: 7.0,
-            stream_decode_p95_ms: 2.0,
-            stream_frame_loss: 0,
-            stream_packet_loss: 0,
+            delivery_samples: 48,
+            receive_to_display_p95_ms: 7.0,
         };
         accepted.validate(24.0).unwrap();
         assert!(!accepted.needs_steady_state_sample(24.0));
@@ -3873,7 +3859,6 @@ mod tests {
             viewer_instance_id: "browser-a".to_owned(),
             live_view_id: "view-a".to_owned(),
             stream_product_id: "product-a".to_owned(),
-            capacity_slot: 0,
             ready_state: 4,
             video_width: 1280,
             video_height: 720,

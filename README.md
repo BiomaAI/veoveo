@@ -320,7 +320,7 @@ without changing the underlying server identities.
 | `stream` | Operator-admitted live and replay GStreamer pipelines, typed detection profiles, and an MCP App for encoded video with overlays. |
 | `time` | Authority-bound civil time, calendars, clocks, timelines, and event operations. |
 | `timeseries` | Forecasting, uncertainty output, governed artifacts, and an interactive forecast app. |
-| `uav-sim` | Authoritative multi-vehicle simulation, missions, datasets, simulator-hosted operator cameras, shared NVENC products, governed viewer leases, and a WebRTC App. |
+| `uav-sim` | Authoritative multi-vehicle simulation, missions, datasets, simulator-hosted operator cameras, shared NVENC products, governed stream authorization, and a WebCodecs App. |
 | `view` | 3D Tiles views rendered on cluster GPUs, camera control, and reproducible offscreen frame capture. |
 
 The runtime for autonomous agents adds durable episodes, detach and resume,

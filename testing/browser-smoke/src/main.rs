@@ -18,13 +18,14 @@ mod restart;
 
 use browser::{
     ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence, ConsoleRecordingArchiveCaptureEvidence,
-    ConsoleRecordingCaptureEvidence, capture_console_live_app, capture_console_live_app_grid,
+    ConsoleRecordingCaptureEvidence, capture_console_live_app,
+    capture_console_live_app_five_user_grid, capture_console_live_app_grid,
     capture_console_live_app_pair, capture_console_recording, capture_console_recording_archive,
     preflight_console_live_app, preflight_standalone_live_app,
 };
 use restart::{RestartVerification, verify_live_view_restarts};
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v11";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v12";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const MINIMUM_PHYSICS_REAL_TIME_FACTOR: f64 = 0.98;
 const PRIMARY_CAMERA_ID: &str = "follow";
@@ -190,6 +191,7 @@ struct BrowserAcceptanceEvidence {
     sensor_isolation: SensorIsolationEvidence,
     performance: LiveViewPerformanceEvidence,
     grid: ConsoleLiveGridEvidence,
+    concurrent_users: Vec<ConsoleLiveGridEvidence>,
     live_views: Vec<ConsoleLiveCaptureEvidence>,
 }
 
@@ -261,7 +263,8 @@ struct SourceTimelineAlignmentEvidence {
 struct LiveViewPerformanceEvidence {
     physics_real_time_factor: f64,
     qualified_camera_count: usize,
-    simultaneous_viewer_count: usize,
+    browser_user_count: usize,
+    simultaneous_stream_count: usize,
     minimum_observed_frame_rate_hz: f64,
     maximum_observed_frame_rate_hz: f64,
     browser_dropped_frames: u64,
@@ -603,18 +606,26 @@ async fn verify_running_showcase(
     let initial_products = initial_state
         .get("stream_products")
         .and_then(Value::as_array)
-        .context("authoritative simulator omitted its viewer-slot collection")?;
+        .context("authoritative simulator omitted its shared camera products")?;
+    let initial_product_ids = initial_products
+        .iter()
+        .filter_map(|product| product.get("streamProductId").and_then(Value::as_str))
+        .collect::<std::collections::BTreeSet<_>>();
+    let initial_camera_ids = initial_products
+        .iter()
+        .filter_map(|product| product.get("cameraId").and_then(Value::as_str))
+        .collect::<std::collections::BTreeSet<_>>();
     ensure!(
-        initial_products
-            .iter()
-            .filter(|product| {
-                product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
-                    && product.get("cameraId").is_none()
-                    && product.get("liveViewId").is_none()
-            })
-            .count()
-            >= 2,
-        "focused browser acceptance requires two unassigned native viewer slots: {initial_products:?}"
+        initial_products.len() == QUALIFIED_CAMERA_IDS.len()
+            && initial_product_ids.len() == QUALIFIED_CAMERA_IDS.len()
+            && initial_camera_ids.len() == QUALIFIED_CAMERA_IDS.len()
+            && initial_products.iter().all(|product| {
+                product.get("lifecycle").and_then(Value::as_str) == Some("ready")
+                    && product.get("activeViewers").and_then(Value::as_u64) == Some(0)
+                    && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
+                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
+            }),
+        "focused browser acceptance requires five ready shared camera products: {initial_products:?}"
     );
 
     let source_revision = git_revision()?;
@@ -638,24 +649,21 @@ async fn verify_running_showcase(
     ensure!(
         first_live.viewer_instance_id() != second_live.viewer_instance_id()
             && first_live.live_view_id() != second_live.live_view_id()
-            && first_live.stream_product_id() != second_live.stream_product_id()
-            && first_live.capacity_slot() != second_live.capacity_slot(),
-        "simultaneous browser instances did not receive isolated native viewer slots: \
-         first=({}, {}, {}, {}) second=({}, {}, {}, {})",
+            && first_live.stream_product_id() == second_live.stream_product_id(),
+        "simultaneous browser instances did not share one native camera product: \
+         first=({}, {}, {}) second=({}, {}, {})",
         first_live.viewer_instance_id(),
         first_live.live_view_id(),
         first_live.stream_product_id(),
-        first_live.capacity_slot(),
         second_live.viewer_instance_id(),
         second_live.live_view_id(),
         second_live.stream_product_id(),
-        second_live.capacity_slot(),
     );
     let mut live_views = vec![first_live, second_live];
     let grid = capture_console_live_app_grid(
         chrome_cdp_url,
         public_base_url,
-        &[PRIMARY_CAMERA_ID, "chase"],
+        &QUALIFIED_CAMERA_IDS,
         &evidence_directory.join("uav-live-view-grid.png"),
         timeout,
     )
@@ -684,43 +692,54 @@ async fn verify_running_showcase(
             "focused browser evidence omitted qualified camera {camera_id}: expected {expected_captures} captures"
         );
     }
+    let concurrent_users = capture_console_live_app_five_user_grid(
+        chrome_cdp_url,
+        public_base_url,
+        &QUALIFIED_CAMERA_IDS,
+        &evidence_directory,
+        timeout,
+    )
+    .await?;
+    ensure!(
+        concurrent_users.len() == 5
+            && concurrent_users
+                .iter()
+                .all(|user| user.products().len() == QUALIFIED_CAMERA_IDS.len()),
+        "five concurrent browser users did not each receive all five camera streams"
+    );
     let final_state = simulation_state(&operator, &scenario.session_id).await?;
     let final_products = final_state
         .get("stream_products")
         .and_then(Value::as_array)
-        .context("authoritative simulator lost its viewer-slot collection")?;
+        .context("authoritative simulator lost its shared camera products")?;
     for live in &live_views {
-        let released = final_products.iter().find(|product| {
+        let product = final_products.iter().find(|product| {
             product.get("streamProductId").and_then(Value::as_str) == Some(live.stream_product_id())
         });
         ensure!(
-            released.is_some_and(|product| {
-                product.get("capacitySlot").and_then(Value::as_u64)
-                    == Some(u64::from(live.capacity_slot()))
-                    && product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
-                    && product.get("cameraId").is_none()
-                    && product.get("liveViewId").is_none()
-                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(0)
+            product.is_some_and(|product| {
+                product.get("lifecycle").and_then(Value::as_str) == Some("ready")
+                    && product.get("activeViewers").and_then(Value::as_u64) == Some(0)
+                    && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
+                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
             }),
-            "browser close did not release native viewer slot {} immediately: {final_products:?}",
-            live.capacity_slot(),
+            "browser close disrupted shared camera product {}: {final_products:?}",
+            live.stream_product_id(),
         );
     }
-    for (stream_product_id, capacity_slot) in grid.products() {
-        let released = final_products.iter().find(|product| {
+    for stream_product_id in grid.products() {
+        let product = final_products.iter().find(|product| {
             product.get("streamProductId").and_then(Value::as_str)
                 == Some(stream_product_id.as_str())
         });
         ensure!(
-            released.is_some_and(|product| {
-                product.get("capacitySlot").and_then(Value::as_u64)
-                    == Some(u64::from(capacity_slot))
-                    && product.get("lifecycle").and_then(Value::as_str) == Some("inactive")
-                    && product.get("cameraId").is_none()
-                    && product.get("liveViewId").is_none()
-                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(0)
+            product.is_some_and(|product| {
+                product.get("lifecycle").and_then(Value::as_str) == Some("ready")
+                    && product.get("activeViewers").and_then(Value::as_u64) == Some(0)
+                    && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
+                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
             }),
-            "browser grid close did not release native viewer slot {capacity_slot} immediately: {final_products:?}",
+            "browser grid close disrupted shared camera product {stream_product_id}: {final_products:?}",
         );
     }
     ensure!(
@@ -750,6 +769,7 @@ async fn verify_running_showcase(
         sensor_isolation,
         performance,
         grid,
+        concurrent_users,
         live_views,
     };
     let manifest = evidence_directory.join("evidence.json");
@@ -816,7 +836,8 @@ fn live_view_performance(
     Ok(LiveViewPerformanceEvidence {
         physics_real_time_factor,
         qualified_camera_count: QUALIFIED_CAMERA_IDS.len(),
-        simultaneous_viewer_count: 2,
+        browser_user_count: 5,
+        simultaneous_stream_count: 25,
         minimum_observed_frame_rate_hz,
         maximum_observed_frame_rate_hz,
         browser_dropped_frames: live_views

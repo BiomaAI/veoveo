@@ -95,7 +95,7 @@ def native_sensor_aov_arguments(
         # The pinned livestream core gives every server type a default
         # signalPort of 49100. RTSP does not expose that socket, but the AOV
         # manager still reserves the value and would displace the first
-        # operator WebRTC product from its locked endpoint. Give the internal
+        # AOV product from its locked endpoint. Give the internal
         # RTSP server an explicit, disjoint reservation beside its listener.
         "signalPort": str(signal_port),
         "streamPort": str(rtsp_port),

@@ -39,7 +39,7 @@ boundary is the compatibility profile and immutable image digest.
 | Torch | `2.12.0+cu130` |
 | Isaac RTX NVRTC builtins | `12.8.61`, retained from the pinned Isaac Sim image |
 | NVIDIA AOV live stream | `10.2.0+110.1.2.lx64.r.cp312` |
-| NVIDIA WebRTC live stream | `10.3.2+110.0.0.lx64.r.cp312` from Isaac Sim |
+| NVIDIA RTSP live stream | `10.2.0+110.1.2.lx64.r.cp312` from Isaac Sim |
 
 Isaac Lab `v3.0.0-beta2.patch1` is a deliberate pre-release dependency. It is
 the latest published release with explicit Isaac Sim 6.0.1 support, and no stable
@@ -109,17 +109,17 @@ Isaac Sim driver `595.58.03`.
 
 A domain simulator overlay renders operator cameras inside the same authoritative Isaac
 process that owns physics and the USD/Cesium world. Logical cameras own the final
-authoritative poses. A bounded preallocated viewer slot copies one selected pose into an
-isolated camera clone and activates one RTX render product, NVENC H.264 encode, and native
-WebRTC peer. Viewer count never creates another scene or Cesium consumer, but each admitted
-viewer deliberately consumes one measured render-and-encode slot.
+authoritative poses. Each streamable camera owns one continuous camera, RTX render product,
+and NVENC H.264 encode. Every authorized viewer receives the exact same camera bitstream
+through WebSocket fanout. Viewer count creates no camera, scene, Cesium consumer, render
+product, or encoder session.
 
 Operator-camera smoothing consumes the current authoritative entity transform on every
 render tick and changes only the camera pose. It never buffers, interpolates, or delays
 simulation state. Physical sensor capture retains its own declared cadence and exact
 mount, independent of the operator-camera cadence. The reusable base supplies GPU,
-camera, RTX, and NVENC compatibility; camera rigs, product admission, governance, and
-signaling remain the domain overlay's responsibility.
+camera, RTX, and NVENC compatibility; camera rigs, stream authorization, governance,
+and fanout remain the domain overlay's responsibility.
 
 ## Build And Publication
 

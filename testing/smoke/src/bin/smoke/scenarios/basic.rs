@@ -184,14 +184,11 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: anonymous-simulation-mcp",
         "registry.example.internal/extensions/anonymous-simulation-mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
         "veoveo.ai/simulator-hosted-live-view: \"true\"",
-        "name: ANONYMOUS_SIMULATION_PUBLIC_SIGNALING_URL",
-        "value: \"wss://simulation.example/anonymous-simulation/signaling\"",
-        "name: ANONYMOUS_SIMULATION_PUBLIC_MEDIA_HOST",
-        "value: \"192.0.2.10\"",
+        "name: ANONYMOUS_SIMULATION_PUBLIC_STREAM_URL",
+        "value: \"wss://simulation.example/anonymous-simulation/live\"",
         "runAsUser: 10001",
         "readOnlyRootFilesystem: true",
         "port: 8812",
-        "port: 48030",
     ] {
         contains(&external_simulation, expected)?;
     }
@@ -605,18 +602,12 @@ pub(crate) async fn helm_config() -> Result<()> {
         "value: \"bioma\"",
         "veoveo.ai/simulator-hosted-live-view: \"true\"",
         "name: UAV_SIM_OPERATOR_CAMERAS_JSON",
-        "name: UAV_SIM_LIVE_VIEWER_SLOTS",
-        "name: UAV_SIM_LIVE_SIGNALING_PORT_BASE",
-        "name: UAV_SIM_LIVE_MEDIA_PORT_BASE",
-        "name: UAV_SIM_PUBLIC_SIGNALING_URL",
-        "value: \"wss://veoveo.bioma.ai/uav-sim/signaling\"",
-        "name: UAV_SIM_NATIVE_SIGNALING_URL",
-        "value: \"ws://uav-sim-runtime:49100/webrtc\"",
-        "name: UAV_SIM_LIVE_VIEW_MAXIMUM_VIEWERS",
-        "name: uav-sim-media",
-        "nodePort: 30998",
-        "nodePort: 30999",
-        "name: uav-sim-signaling",
+        "name: UAV_SIM_OPERATOR_RTSP_PORT_BASE",
+        "name: UAV_SIM_PUBLIC_STREAM_URL",
+        "value: \"wss://veoveo.bioma.ai/uav-sim/live\"",
+        "name: UAV_SIM_RUNTIME_STREAM_URL",
+        "value: \"ws://uav-sim-runtime:8810/v1/live-streams\"",
+        "name: uav-sim-live-stream",
         "http://127.0.0.1:8810/healthz",
         "http://127.0.0.1:8810/readyz",
         "nvidia.com/gpu: 1",
@@ -1003,12 +994,8 @@ pub(crate) async fn helm_config() -> Result<()> {
     }
     not_contains(&anonymous_simulation_adapter, "veoveo-python-index")?;
     let workspace_builder = fs::read_to_string("tools/image-build/rust-workspace.Dockerfile")?;
-    for expected in [
-        "@nvidia/ov-web-rtc-6.6.0.tgz",
-        "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
-        "UAV_SIM_WEBRTC_CLIENT_BUNDLE=",
-    ] {
-        contains(&workspace_builder, expected)?;
+    for forbidden in ["@nvidia/ov-web-rtc", "UAV_SIM_WEBRTC_CLIENT_BUNDLE"] {
+        not_contains(&workspace_builder, forbidden)?;
     }
     let bake = fs::read_to_string("docker-bake.hcl")?;
     for expected in [

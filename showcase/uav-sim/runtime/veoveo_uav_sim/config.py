@@ -370,12 +370,14 @@ class RuntimeConfig:
             native_sensor_aov_signal_port(self.camera.rtsp_port),
         }
         operator_aov_ports = {
-            base + slot
-            for base in (
-                self.operator_live_view.signaling_port_base,
-                self.operator_live_view.media_port_base,
+            port
+            for product_index in range(
+                len(self.operator_live_view.streamable_cameras)
             )
-            for slot in range(self.operator_live_view.viewer_slot_count)
+            for port in (
+                self.operator_live_view.rtsp_port(product_index),
+                self.operator_live_view.rtsp_port(product_index) + 1,
+            )
         }
         if overlap := sorted(sensor_aov_ports & operator_aov_ports):
             raise ValueError(
@@ -470,22 +472,9 @@ class RuntimeConfig:
             camera=CameraConfig.from_environment(),
             operator_live_view=OperatorLiveViewRuntimeConfig.from_json(
                 _required("UAV_SIM_OPERATOR_CAMERAS_JSON"),
-                viewer_slot_count=_int(
-                    "UAV_SIM_LIVE_VIEWER_SLOTS", "2", 1, 32
+                rtsp_port_base=_int(
+                    "UAV_SIM_OPERATOR_RTSP_PORT_BASE", "8560", 1, 65_535
                 ),
-                activation_timeout_seconds=_float(
-                    "UAV_SIM_LIVE_ACTIVATION_TIMEOUT_SECONDS",
-                    "10.0",
-                    0.1,
-                    60.0,
-                ),
-                signaling_port_base=_int(
-                    "UAV_SIM_LIVE_SIGNALING_PORT_BASE", "49100", 1, 65_535
-                ),
-                media_port_base=_int(
-                    "UAV_SIM_LIVE_MEDIA_PORT_BASE", "47998", 1, 65_535
-                ),
-                public_media_ip=_required("UAV_SIM_LIVE_PUBLIC_MEDIA_IP"),
             ),
             fleet_loop=FleetLoopConfig.from_environment(),
             stream_publication=StreamPublicationConfig.from_environment(),
