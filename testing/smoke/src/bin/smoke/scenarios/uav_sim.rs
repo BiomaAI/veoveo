@@ -2061,7 +2061,7 @@ mod tests {
         assert_eq!(origin.latitude_degrees, 40.758);
         assert_eq!(origin.longitude_degrees, -73.9855);
         assert_eq!(origin.ellipsoid_height_m, -17.0);
-        assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
+        assert_eq!(scenario.takeoff.relative_altitude_m, 197.0);
         assert_eq!(scenario.takeoff.state_timeout_seconds, 1800);
         assert_eq!(scenario.mission.longitude_offset_degrees, 0.0002);
         assert_eq!(scenario.mission.speed_mps, 3.0);

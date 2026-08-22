@@ -155,7 +155,7 @@ session:
     outputPath: /tmp/isaac-uav.png
     width: 1920
     height: 1080
-    minimumRelativeAltitudeM: 295.0
+    minimumRelativeAltitudeM: 192.0
     settleRenderedFrames: 60
     focalLengthMm: 45.0
     eyeOffsetM:
@@ -170,7 +170,7 @@ session:
 
 Prove that the pod reports an active NVIDIA Vulkan device before flight. Call
 `uav-sim__arm_vehicle` for `uav-1`, then call
-`uav-sim__takeoff_vehicle` with `relative_altitude_m` set to `300`.
+`uav-sim__takeoff_vehicle` with `relative_altitude_m` set to `197`.
 The capture waits for the altitude threshold, resident tiles, visible camera
 content, and 60 consecutive rendered frames. Copy the completed PNG from the
 pod:
