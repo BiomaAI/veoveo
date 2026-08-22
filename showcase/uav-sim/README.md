@@ -10,8 +10,8 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Boundary | Supported profile |
 |---|---|
 | Isaac Sim | Marketing release `6.0.1`; internal build `6.0.1-rc.7+release.42383.32955d8d.gl`. |
-| Isaac Experimental API and Newton | Experimental prims and objects drive one Newton `1.5.0` rigid-body fleet on CUDA. The classic Core API and PhysX UAV path are absent. |
-| Warp and MuJoCo | Warp `1.16.0`, MuJoCo `3.11.0`, and MuJoCo Warp `3.11.0` are one certified simulation tuple. Repository Warp kernels own the UAV plant and HIL sensors. |
+| Isaac Experimental API and Newton | Experimental prims and objects expose one Newton `1.5.0` CUDA rigid-body tensor state to the fleet. The classic Core API and PhysX UAV path are absent. |
+| Warp and MuJoCo | Warp `1.16.0`, MuJoCo `3.11.0`, and MuJoCo Warp `3.11.0` are one certified runtime tuple. Repository Warp kernels own UAV integration, launch contact, the plant, and HIL sensors; MuJoCo-Warp does not step the fleet. |
 | `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
 | `veoveo.io/live-view/v3` | Authoritative operator cameras, stable camera-owned encoded products, ephemeral viewer authorizations, and typed GPU capacity. |
 | `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
@@ -190,13 +190,13 @@ actuator arrival. Each worker preserves frame order, the next fixed step consume
 latest PX4 controls, and queue overflow is terminal instead of silently dropping HIL
 state or blocking the GPU simulation loop.
 
-The Isaac timeline remains playing because Newton gates integration on that state, while
-app-driven physics stepping is disabled. `SimulationManager` alone advances Newton at the
-exact 30 Hz fixed dynamics cadence. The flight profile uses one CUDA substep, implicit-fast
-integration, and one MuJoCo-Warp solver and line-search iteration. Native ground contact
-remains enabled for PX4's landed and arming phases; Google tiles remain visual geometry and
-the airborne reference routes are separated. Newton owns every rigid transform and
-velocity. Each dynamics sample publishes two ordered HIL samples. PX4 receives IMU fields at 60 Hz,
+The Isaac timeline remains playing because Newton gates its CUDA tensor and Fabric state,
+while app-driven and MuJoCo-Warp physics stepping are disabled. One batched repository
+Warp kernel advances force, torque, pose, velocity, gravity, and the launch-surface
+constraint at the exact 30 Hz dynamics cadence. It writes the resulting transforms and
+velocities directly into the Newton Experimental rigid view. Google tiles remain visual
+geometry and the airborne reference routes are separated. Each dynamics sample publishes
+two ordered HIL samples. PX4 receives IMU fields at 60 Hz,
 barometer and magnetometer fields at 30 Hz, and GPS fields at 10 Hz. Elapsed monotonic time
 determines the number of authoritative steps due on each scheduler pass. The clock retains
 bounded debt instead of dropping elapsed time. When rendering misses visual
