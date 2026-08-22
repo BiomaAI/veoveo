@@ -1176,11 +1176,15 @@ pub(crate) async fn helm_config() -> Result<()> {
             && uav_scenario
                 .pointer("/takeoff/relative_altitude_m")
                 .and_then(Value::as_f64)
-                == Some(300.0)
+                == Some(197.0)
             && uav_scenario
                 .pointer("/mission/speed_mps")
                 .and_then(Value::as_f64)
-                == Some(3.0)
+                == Some(20.0)
+            && uav_scenario
+                .pointer("/mission/task_timeout_seconds")
+                .and_then(Value::as_u64)
+                == Some(1_800)
             && uav_scenario
                 .pointer("/reason/maximum_frames")
                 .and_then(Value::as_u64)
