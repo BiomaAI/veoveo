@@ -52,6 +52,10 @@ argument. The live Isaac adapter therefore initializes the pinned GPU solver wit
 retaining the removed configuration surface. A second pinned patch routes
 `SimulationManager` tensor views through Newton's native tensor factory. Isaac Sim
 6.0.1 otherwise asks the legacy tensor plugin for an unregistered `newton` backend.
+Applications enable `isaacsim.physics.newton` in Kit's initial arguments and set
+`SimulationManager`'s default engine to `newton`. Newton registration therefore exists
+before any physics-backed application state is created; a later engine assertion fails
+closed if Kit did not retain that selection.
 
 The supported Isaac Lab surface contains the core, PhysX, Newton, OV, OVPhysX,
 camera-render specification, and frame-view packages. Training environments, policy
