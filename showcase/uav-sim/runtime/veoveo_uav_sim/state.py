@@ -9,7 +9,7 @@ from typing import Any, Callable
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
 from .operator_camera_config import live_camera_descriptor
-from .physics_batch import FleetPhysicsTiming
+from .fleet_runtime import FleetPhysicsTiming
 from .render_pose import RenderPoseAgreement
 from .tile_lifecycle import TileLifecycleSnapshot
 from .world_config import WorldConfiguration

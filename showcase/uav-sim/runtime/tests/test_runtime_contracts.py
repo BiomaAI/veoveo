@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import json
-import math
 import os
 import struct
-import sys
+import tempfile
 import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import numpy as np
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from pymavlink import mavutil
@@ -39,13 +37,9 @@ from veoveo_uav_sim.physical_camera import (
     physical_camera_path,
     physical_camera_product_name,
 )
-from veoveo_uav_sim.physics_batch import (
-    FleetPhysicsLifecycle,
-    FleetPhysicsTiming,
-    IsaacFleetPhysicsBatch,
-    RigidBodyBatchAccumulator,
-)
+from veoveo_uav_sim.fleet_runtime import FleetPhysicsTiming
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
+from veoveo_uav_sim.px4_hil import Px4Process
 from veoveo_uav_sim.realtime import (
     FixedStepCadenceGate,
     MonotonicPhysicsClock,
@@ -79,18 +73,13 @@ from veoveo_uav_sim.tile_lifecycle import (
     begin_provider_session_replacement,
     tile_content_ready,
 )
-from veoveo_uav_sim.vehicle_model import (
+from veoveo_uav_sim.vehicle_spec import (
     PX4_IRIS_MOMENT_CONSTANT,
     PX4_IRIS_MOTOR_CONSTANT,
     PX4_IRIS_SENSOR_CADENCE,
     PX4_IRIS_YAW_MOMENT_COEFFICIENT,
-    Px4IrisSensorCadence,
-    Px4IrisThrustCurve,
-    attitude_enu_flu_to_ned_frd,
-    enu_to_ned_vector,
-    flu_to_frd_vector,
-    inverse_rotate_vector_xyzw,
-    quaternion_multiply_xyzw,
+    SensorCadence,
+    decode_actuator_controls,
 )
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
@@ -175,31 +164,6 @@ class RuntimeConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "vehicle identity is invalid"):
             physical_camera_path("uav/1")
 
-    def test_px4_frame_transforms_do_not_require_scipy_objects(self) -> None:
-        np.testing.assert_allclose(enu_to_ned_vector([1.0, 2.0, 3.0]), [2.0, 1.0, -3.0])
-        np.testing.assert_allclose(
-            flu_to_frd_vector([1.0, 2.0, 3.0]), [1.0, -2.0, -3.0]
-        )
-        np.testing.assert_allclose(
-            inverse_rotate_vector_xyzw([0.0, 0.0, 0.0, 1.0], [1.0, 2.0, 3.0]),
-            [1.0, 2.0, 3.0],
-        )
-        quarter_turn_z = [0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5)]
-        np.testing.assert_allclose(
-            inverse_rotate_vector_xyzw(quarter_turn_z, [0.0, 1.0, 0.0]),
-            [1.0, 0.0, 0.0],
-            atol=1.0e-12,
-        )
-        np.testing.assert_allclose(
-            quaternion_multiply_xyzw(quarter_turn_z, [0.0, 0.0, 0.0, 1.0]),
-            quarter_turn_z,
-        )
-        converted = attitude_enu_flu_to_ned_frd([0.0, 0.0, 0.0, 1.0])
-        self.assertAlmostEqual(float(np.linalg.norm(converted)), 1.0)
-        np.testing.assert_allclose(
-            converted, [0.0, 0.0, -math.sqrt(0.5), -math.sqrt(0.5)]
-        )
-
     def test_px4_sensor_cadence_is_bounded_by_the_physics_clock(self) -> None:
         PX4_IRIS_SENSOR_CADENCE.validate_for_physics(60)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 60)
@@ -208,9 +172,9 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.gps_hz, 10)
 
         with self.assertRaisesRegex(ValueError, "exceeds physics cadence"):
-            Px4IrisSensorCadence(imu_hz=120).validate_for_physics(60)
+            SensorCadence(imu_hz=120).validate_for_physics(60)
         with self.assertRaisesRegex(ValueError, "must divide physics cadence"):
-            Px4IrisSensorCadence(gps_hz=11).validate_for_physics(60)
+            SensorCadence(gps_hz=11).validate_for_physics(60)
 
     def test_authoritative_tick_does_not_wait_for_present_threads(self) -> None:
         arguments = kit_live_render_arguments()
@@ -546,12 +510,8 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("git -C px4 apply --check /tmp/px4.patch", dockerfile)
         self.assertIn("udp_gcs_port_remote=$((14550+px4_instance))", px4_patch)
 
-        pegasus_patch = (
-            runtime_root / "patches" / "pegasus-5.1.0-isaac-6.0.1.patch"
-        ).read_text()
-        self.assertIn("if self._enable_lockstep:", pegasus_patch)
-        self.assertIn("for _ in range(256):", pegasus_patch)
-        self.assertIn("recv_match(blocking=False)", pegasus_patch)
+        self.assertNotIn("Pegasus", dockerfile)
+        self.assertNotIn("pegasus", dockerfile)
         self.assertIn("-o $udp_gcs_port_remote", px4_patch)
         self.assertIn("param set-default SDLOG_BACKEND 0", px4_patch)
 
@@ -1063,298 +1023,6 @@ class FleetLoopTests(unittest.TestCase):
         controller.close()
 
 
-class RigidBodyBatchTests(unittest.TestCase):
-    def test_fleet_batch_is_bound_only_after_reset_and_rebinds_atomically(self) -> None:
-        events: list[str] = []
-        prefix = "/World/uav_1"
-
-        class FakeWorld:
-            def __init__(self) -> None:
-                self.physics_sim_view = object()
-                self.callbacks = {
-                    prefix + suffix: object()
-                    for suffix in ("/state", "/update", "/Sensors", "/mav_state")
-                }
-
-            def physics_callback_exists(self, name: str) -> bool:
-                return name in self.callbacks
-
-            def remove_physics_callback(self, name: str) -> None:
-                events.append(f"remove:{name}")
-                del self.callbacks[name]
-
-            def reset(self) -> None:
-                self.assert_no_callbacks_during_reset()
-                events.append("reset")
-
-            def assert_no_callbacks_during_reset(self) -> None:
-                if self.callbacks:
-                    raise AssertionError("physics callback survived reset boundary")
-
-            def add_physics_callback(self, name: str, callback: object) -> None:
-                events.append(f"add:{name}")
-                self.callbacks[name] = callback
-
-        class FakeBatch:
-            def rebind(self, _physics_view: object) -> None:
-                events.append("rebind")
-
-            def refresh_states(self) -> None:
-                events.append("refresh")
-
-            def flush_forces(self) -> None:
-                events.append("flush")
-
-        class FakeVehicle:
-            def bind_physics_batch(self, _batch: FakeBatch) -> None:
-                events.append("bind")
-
-            def update_state(self, _dt: float) -> None:
-                events.append("state")
-
-            def update(self, _dt: float) -> None:
-                events.append("dynamics")
-
-            def update_sensors(self, _dt: float) -> None:
-                events.append("sensors")
-
-            def update_sim_state(self, _dt: float) -> None:
-                events.append("backend")
-
-        world = FakeWorld()
-        batch = FakeBatch()
-        lifecycle = FleetPhysicsLifecycle(
-            world,
-            {"uav-1": FakeVehicle()},
-            {"uav-1": prefix},
-            (prefix + "/body",),
-            batch_factory=lambda _paths, _physics_view: (
-                events.append("create") or batch
-            ),
-            after_step=lambda _dt: events.append("after"),
-        )
-
-        self.assertIs(lifecycle.reset(), batch)
-        self.assertEqual(
-            events[-4:],
-            [
-                "reset",
-                "create",
-                "bind",
-                "add:/World/veoveo_uav_fleet/physics_batch",
-            ],
-        )
-
-        events.clear()
-        self.assertIs(lifecycle.reset(), batch)
-        self.assertEqual(
-            events,
-            [
-                "remove:/World/veoveo_uav_fleet/physics_batch",
-                "reset",
-                "rebind",
-                "bind",
-                "add:/World/veoveo_uav_fleet/physics_batch",
-            ],
-        )
-
-        events.clear()
-        callback = world.callbacks["/World/veoveo_uav_fleet/physics_batch"]
-        callback(0.004)  # type: ignore[operator]
-        self.assertEqual(
-            events,
-            [
-                "refresh",
-                "state",
-                "dynamics",
-                "sensors",
-                "backend",
-                "flush",
-                "after",
-            ],
-        )
-        timing = lifecycle.timing()
-        self.assertEqual(timing.physics_steps, 1)
-        self.assertGreaterEqual(timing.refresh_states_wall_seconds, 0.0)
-        self.assertGreaterEqual(timing.vehicle_update_wall_seconds, 0.0)
-        self.assertGreaterEqual(timing.state_update_wall_seconds, 0.0)
-        self.assertGreaterEqual(timing.dynamics_update_wall_seconds, 0.0)
-        self.assertGreaterEqual(timing.sensor_update_wall_seconds, 0.0)
-        self.assertGreaterEqual(timing.backend_state_wall_seconds, 0.0)
-        self.assertGreaterEqual(timing.flush_forces_wall_seconds, 0.0)
-        self.assertGreaterEqual(timing.after_step_wall_seconds, 0.0)
-        self.assertGreaterEqual(timing.maximum_physics_step_ms, 0.0)
-
-    def test_force_at_position_is_reduced_to_force_and_torque(self) -> None:
-        batch = RigidBodyBatchAccumulator(("/World/uav_1/body",))
-        batch.queue_force(
-            "/World/uav_1/body",
-            (0.0, 0.0, 4.0),
-            (0.0, 2.0, 0.0),
-        )
-        batch.queue_torque("/World/uav_1/body", (0.0, 0.0, 3.0))
-
-        np.testing.assert_array_equal(batch.forces, [[0.0, 0.0, 4.0]])
-        np.testing.assert_array_equal(batch.torques, [[8.0, 0.0, 3.0]])
-
-        forces = batch.forces
-        torques = batch.torques
-        batch.clear_forces()
-        self.assertIs(batch.forces, forces)
-        self.assertIs(batch.torques, torques)
-        np.testing.assert_array_equal(batch.forces, np.zeros((1, 3)))
-        np.testing.assert_array_equal(batch.torques, np.zeros((1, 3)))
-
-    def test_tensor_batch_uses_live_buffers_and_stream_local_sync(self) -> None:
-        class FakeArray:
-            def __init__(self, value: np.ndarray) -> None:
-                self.value = value
-
-            def numpy(self) -> np.ndarray:
-                return self.value
-
-        class FakeDevice:
-            is_cuda = True
-
-            def __str__(self) -> str:
-                return "cuda:0"
-
-        class FakeWarp:
-            float32 = np.float32
-            uint32 = np.uint32
-
-            def __init__(self) -> None:
-                self.stream_syncs = 0
-
-            def get_device(self, _device: object) -> FakeDevice:
-                return FakeDevice()
-
-            def zeros(
-                self,
-                shape: int | tuple[int, ...],
-                *,
-                dtype: object,
-                device: object,
-            ) -> FakeArray:
-                return FakeArray(np.zeros(shape, dtype=dtype))
-
-            def array(
-                self,
-                value: np.ndarray,
-                *,
-                dtype: object,
-                device: object,
-            ) -> FakeArray:
-                return FakeArray(np.array(value, dtype=dtype, copy=True))
-
-            def copy(self, target: FakeArray, source: FakeArray) -> None:
-                np.copyto(target.value, source.value)
-
-            def synchronize_stream(self, _device: object) -> None:
-                self.stream_syncs += 1
-
-            def synchronize_device(self, _device: object) -> None:
-                raise AssertionError(
-                    "fleet physics must not synchronize unrelated GPU streams"
-                )
-
-        class FakeRigidBodyView:
-            prim_paths = ("/World/uav_1/body",)
-
-            def __init__(self) -> None:
-                self.submitted_forces: np.ndarray | None = None
-
-            def get_transforms(self) -> FakeArray:
-                return FakeArray(
-                    np.array(
-                        [[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]],
-                        dtype=np.float32,
-                    )
-                )
-
-            def get_velocities(self) -> FakeArray:
-                return FakeArray(
-                    np.array(
-                        [[4.0, 5.0, 6.0, 0.1, 0.2, 0.3]],
-                        dtype=np.float32,
-                    )
-                )
-
-            def apply_forces_and_torques_at_position(
-                self,
-                forces: FakeArray,
-                _torques: FakeArray,
-                _positions: object,
-                _indices: FakeArray,
-                _is_global: bool,
-            ) -> None:
-                self.submitted_forces = forces.value.copy()
-
-        class FakeSimulationView:
-            device = "cuda:0"
-
-            def __init__(self) -> None:
-                self.rigid_body_view = FakeRigidBodyView()
-
-            def set_subspace_roots(self, _root: str) -> None:
-                pass
-
-            def create_rigid_body_view(self, _paths: list[str]) -> FakeRigidBodyView:
-                return self.rigid_body_view
-
-        fake_warp = FakeWarp()
-        physics_view = FakeSimulationView()
-        with patch.dict(sys.modules, {"warp": fake_warp}):
-            batch = IsaacFleetPhysicsBatch(("/World/uav_1/body",), physics_view)
-            batch.refresh_states()
-            state = batch.state("/World/uav_1/body")
-            batch.queue_force("/World/uav_1/body", (0.0, 0.0, 4.0), (0.0, 0.0, 0.0))
-            batch.flush_forces()
-
-        self.assertEqual(fake_warp.stream_syncs, 2)
-        np.testing.assert_array_equal(state.position_xyz, [1.0, 2.0, 3.0])
-        np.testing.assert_array_equal(state.linear_velocity_xyz, [4.0, 5.0, 6.0])
-        np.testing.assert_array_equal(
-            physics_view.rigid_body_view.submitted_forces,
-            [0.0, 0.0, 4.0],
-        )
-
-    def test_one_state_batch_serves_distinct_vehicle_bodies(self) -> None:
-        paths = ("/World/uav_1/body", "/World/uav_2/body")
-        batch = RigidBodyBatchAccumulator(paths)
-        transforms = np.array(
-            [
-                [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-                [4.0, 5.0, 6.0, 0.0, 0.0, 1.0, 0.0],
-            ],
-            dtype=np.float32,
-        )
-        velocities = np.array(
-            [
-                [7.0, 8.0, 9.0, 0.1, 0.2, 0.3],
-                [10.0, 11.0, 12.0, 0.4, 0.5, 0.6],
-            ],
-            dtype=np.float32,
-        )
-        batch.update_states(transforms, velocities)
-
-        first = batch.state(paths[0])
-        second = batch.state(paths[1])
-        np.testing.assert_array_equal(first.position_xyz, [1.0, 2.0, 3.0])
-        np.testing.assert_array_equal(first.orientation_xyzw, [0.0, 0.0, 0.0, 1.0])
-        np.testing.assert_array_equal(second.linear_velocity_xyz, [10.0, 11.0, 12.0])
-        np.testing.assert_allclose(second.angular_velocity_xyz, [0.4, 0.5, 0.6])
-
-    def test_unknown_body_and_non_finite_input_fail_closed(self) -> None:
-        batch = RigidBodyBatchAccumulator(("/World/uav_1/body",))
-        with self.assertRaisesRegex(RuntimeError, "outside the admitted fleet"):
-            batch.queue_torque("/World/uav_2/body", (0.0, 0.0, 0.0))
-        with self.assertRaisesRegex(RuntimeError, "non-finite"):
-            batch.queue_force(
-                "/World/uav_1/body", (float("nan"), 0.0, 0.0), (0.0, 0.0, 0.0)
-            )
-
-
 class _FleetLoopStatus:
     def __init__(self, flight_state: str) -> None:
         self.flight_state = flight_state
@@ -1403,14 +1071,15 @@ class NativeCadenceTests(unittest.TestCase):
         ).read_text()
         self.assertIn("physics_clock.due_steps(physics_step)", app_source)
         self.assertIn("render_cadence.due(physics_step)", app_source)
-        self.assertIn("world.step(render=False)", app_source)
-        self.assertIn("world.render()", app_source)
-        physics_index = app_source.rindex("world.step(render=False)")
+        self.assertIn("fleet_runtime.step(physics_step + 1)", app_source)
+        self.assertIn("simulation_app.update()", app_source)
+        physics_index = app_source.rindex("fleet_runtime.step(physics_step + 1)")
         camera_index = app_source.rindex("update_operator_cameras()")
-        render_index = app_source.rindex("world.render()")
+        render_index = app_source.index("simulation_app.update()", camera_index)
         self.assertLess(physics_index, camera_index)
         self.assertLess(camera_index, render_index)
-        self.assertNotIn("world.step(render=True)", app_source)
+        self.assertNotIn("from isaacsim.core.api", app_source)
+        self.assertNotIn("world.step", app_source)
         self.assertIn("loop_runner.set_manual_mode(True)", app_source)
         self.assertNotIn("RealtimePhysicsClock", app_source)
         self.assertNotIn("PeriodicDeadline", app_source)
@@ -1451,7 +1120,7 @@ class NativeCadenceTests(unittest.TestCase):
         )
 
 
-class Px4IrisVehicleModelTests(unittest.TestCase):
+class Px4HilPlantContractTests(unittest.TestCase):
     def test_yaw_coefficient_matches_pinned_px4_iris_contract(self) -> None:
         self.assertEqual(PX4_IRIS_MOTOR_CONSTANT, 5.84e-6)
         self.assertEqual(PX4_IRIS_MOMENT_CONSTANT, 0.06)
@@ -1460,28 +1129,24 @@ class Px4IrisVehicleModelTests(unittest.TestCase):
             PX4_IRIS_MOTOR_CONSTANT * PX4_IRIS_MOMENT_CONSTANT,
         )
 
-    def test_motor_response_uses_bounded_asymmetric_first_order_dynamics(self) -> None:
-        model = Px4IrisThrustCurve()
-        model.set_input_reference([1100.0] * 4)
-        force, rising_velocity, moment = model.update(None, 1.0 / 60.0)
-        self.assertTrue(all(0.0 < value < 1100.0 for value in rising_velocity))
-        self.assertTrue(all(value > 0.0 for value in force))
-        self.assertAlmostEqual(moment, 0.0)
-
-        model.set_input_reference([0.0] * 4)
-        _, falling_velocity, _ = model.update(None, 1.0 / 60.0)
-        self.assertTrue(
-            all(
-                0.0 < after < before
-                for after, before in zip(falling_velocity, rising_velocity)
-            )
+    def test_actuator_decode_is_armed_bounded_and_exact(self) -> None:
+        armed = mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+        self.assertEqual(
+            decode_actuator_controls([0.0, 0.25, 1.0, 2.0], armed, armed),
+            (100.0, 350.0, 1100.0, 1100.0),
+        )
+        self.assertEqual(
+            decode_actuator_controls([1.0, 1.0, 1.0, 1.0], 0, armed),
+            (0.0, 0.0, 0.0, 0.0),
         )
 
-    def test_motor_model_preserves_px4_rotor_yaw_directions(self) -> None:
-        model = Px4IrisThrustCurve()
-        model.set_input_reference([900.0, 900.0, 300.0, 300.0])
-        _, _, moment = model.update(None, 1.0)
-        self.assertLess(moment, 0.0)
+    def test_px4_process_selects_external_iris_airframe(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            process = Px4Process(str(root), 3)
+            self.assertEqual(process.command.instance, 3)
+            self.assertEqual(process.command.argv()[-3:], ("-i", "3", "-d"))
+            process.close()
 
 
 class AdapterContractTests(unittest.TestCase):

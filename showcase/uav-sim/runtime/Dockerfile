@@ -2,6 +2,7 @@
 FROM uav-sim-dependencies AS runtime
 
 COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
+COPY --chown=10001:10001 assets/ /opt/veoveo/uav-sim/assets/
 COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
 COPY --chown=10001:10001 uav-overlay.identity.json /opt/veoveo/simulation-overlay/identity.json
 
