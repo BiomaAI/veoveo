@@ -1565,7 +1565,7 @@ fn assert_world_ready(state: &Value, revision_uri: &str, simulation_frame_uri: &
     .context("authoritative simulator returned invalid stream_products")?;
     ensure!(
         camera_product_set_matches_contract(&products),
-        "authoritative simulator camera products violate their shared-stream contract: {state}"
+        "authoritative simulator tiled camera product violates its shared-stream contract: {state}"
     );
     Ok(())
 }
@@ -1580,10 +1580,20 @@ fn camera_product_set_matches_contract(products: &[LiveStreamProductState]) -> b
         .collect::<std::collections::BTreeSet<_>>();
     let camera_ids = products
         .iter()
-        .map(|product| &product.camera_id)
+        .flat_map(|product| {
+            product
+                .camera_regions
+                .iter()
+                .map(|region| &region.camera_id)
+        })
         .collect::<std::collections::BTreeSet<_>>();
+    let camera_region_count = products
+        .iter()
+        .map(|product| product.camera_regions.len())
+        .sum::<usize>();
     product_ids.len() == products.len()
-        && camera_ids.len() == products.len()
+        && camera_ids.len() == camera_region_count
+        && products.iter().all(LiveStreamProductState::validate)
         && products.iter().all(|product| match product.lifecycle {
             LiveStreamProductLifecycle::Starting => {
                 product.active_viewers == 0
@@ -2090,14 +2100,14 @@ mod tests {
     }
 
     #[test]
-    fn stream_product_acceptance_requires_one_ready_product_per_camera() {
+    fn stream_product_acceptance_requires_one_ready_tiled_product() {
         let products: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
-            {"streamProductId":"camera-product-0","cameraId":"follow","lifecycle":"ready",
+            {"streamProductId":"camera-atlas","cameraRegions":[
+                {"cameraId":"follow","xPx":0,"yPx":0,"widthPx":1280,"heightPx":720},
+                {"cameraId":"chase","xPx":1280,"yPx":0,"widthPx":1280,"heightPx":720}
+             ],"codedWidthPx":2560,"codedHeightPx":720,"lifecycle":"ready",
              "activeViewers":0,"connectedViewers":0,"nvencSessions":1,"encodedFrames":12,
-             "sourceToRenderSamples":120,"lastFrameAt":"2026-08-07T18:00:00Z","visible":true},
-            {"streamProductId":"camera-product-1","cameraId":"chase","lifecycle":"ready",
-             "activeViewers":0,"connectedViewers":0,"nvencSessions":1,"encodedFrames":9,
-             "sourceToRenderSamples":90,"lastFrameAt":"2026-08-07T18:00:00Z","visible":true}
+             "sourceToRenderSamples":120,"lastFrameAt":"2026-08-07T18:00:00Z","visible":true}
         ]))
         .unwrap();
         assert!(ready_camera_product_set_matches_contract(&products));
@@ -2107,7 +2117,9 @@ mod tests {
     #[test]
     fn stream_product_acceptance_allows_many_viewers_on_one_product() {
         let shared: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
-            {"streamProductId":"camera-product-0","cameraId":"follow",
+            {"streamProductId":"camera-atlas","cameraRegions":[
+                {"cameraId":"follow","xPx":0,"yPx":0,"widthPx":1280,"heightPx":720}
+             ],"codedWidthPx":1280,"codedHeightPx":720,
              "lifecycle":"ready","activeViewers":25,
              "connectedViewers":25,"nvencSessions":1,"encodedFrames":12,
              "sourceToRenderP95Microseconds":18000,"sourceToRenderSamples":120,
@@ -2121,10 +2133,14 @@ mod tests {
     #[test]
     fn stream_product_acceptance_rejects_duplicate_camera_products() {
         let duplicate: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
-            {"streamProductId":"camera-product-0","cameraId":"follow","lifecycle":"starting",
+            {"streamProductId":"camera-atlas-a","cameraRegions":[
+                {"cameraId":"follow","xPx":0,"yPx":0,"widthPx":1280,"heightPx":720}
+             ],"codedWidthPx":1280,"codedHeightPx":720,"lifecycle":"starting",
              "activeViewers":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
              "sourceToRenderSamples":0},
-            {"streamProductId":"camera-product-1","cameraId":"follow","lifecycle":"starting",
+            {"streamProductId":"camera-atlas-b","cameraRegions":[
+                {"cameraId":"follow","xPx":0,"yPx":0,"widthPx":1280,"heightPx":720}
+             ],"codedWidthPx":1280,"codedHeightPx":720,"lifecycle":"starting",
              "activeViewers":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
              "sourceToRenderSamples":0}
         ]))
