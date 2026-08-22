@@ -109,7 +109,6 @@ RUN PYTHONPATH=/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python \
 
 ENV MAVLINK20=1 \
     PYTHONPATH=/opt/veoveo/uav-sim:/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python:/opt/veoveo/simulation-overlay:${PYTHONPATH} \
-    ROS_LOG_DIR=/tmp/ros/log \
     UAV_SIM_EXTENSION_DIRECTORY=/opt/veoveo/extensions \
     UAV_SIM_PX4_DIRECTORY=/opt/veoveo/px4
 

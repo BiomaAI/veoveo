@@ -512,6 +512,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn("Pegasus", dockerfile)
         self.assertNotIn("pegasus", dockerfile)
+        self.assertNotIn("ROS_LOG_DIR", dockerfile)
         self.assertIn("-o $udp_gcs_port_remote", px4_patch)
         self.assertIn("param set-default SDLOG_BACKEND 0", px4_patch)
 
