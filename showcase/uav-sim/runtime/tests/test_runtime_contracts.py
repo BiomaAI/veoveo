@@ -1406,6 +1406,32 @@ class Px4CommanderTests(unittest.TestCase):
             [mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM],
         )
 
+    def test_takeoff_atomically_arms_before_launch(self) -> None:
+        connection = _MavlinkConnection(
+            [mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM]
+        )
+        connection._messages.append(
+            _MavlinkMessage(
+                "COMMAND_ACK",
+                command=mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+                result=mavutil.mavlink.MAV_RESULT_ACCEPTED,
+            )
+        )
+        commander = Px4Commander(instance=0, origin_height_m=-17.0)
+        commander._connection = connection
+        commander._connected = True
+
+        commander.takeoff(197.0)
+
+        self.assertEqual(
+            [command for command, _parameters in connection.mav.commands],
+            [
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            ],
+        )
+        self.assertEqual(connection.mav.commands[-1][1][-1], 180.0)
+
 
 class WorldConfigurationTests(unittest.TestCase):
     def test_world_binding_is_strict_and_typed(self) -> None:

@@ -120,39 +120,27 @@ class Px4Commander:
     def arm(self) -> None:
         with self._lock:
             self._require_connection()
-            if (
-                self._has_flown
-                and self._landed_state == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
-            ):
-                # PX4 remains in AUTO_LAND after a successful landing, and
-                # AUTO_LAND intentionally rejects a later arm request. This
-                # headless showcase has no manual-control input, so POSCTL is
-                # also unarmable. AUTO_LOITER provides the stationary,
-                # autonomous landed state required before re-arming.
-                base_mode, custom_mode, custom_sub_mode = mavutil.px4_map["LOITER"]
-                self._send_command_locked(
-                    mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-                    base_mode,
-                    custom_mode,
-                    custom_sub_mode,
-                )
-                self._await_px4_mode_locked(custom_mode, custom_sub_mode)
-            self._arm_when_ready_locked()
+            self._arm_locked()
 
     def takeoff(self, relative_altitude_m: float) -> None:
-        target_altitude = (
-            max(self._absolute_altitude_m, self._origin_height_m) + relative_altitude_m
-        )
-        self._command(
-            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-            math.nan,
-            0.0,
-            0.0,
-            math.nan,
-            math.nan,
-            math.nan,
-            target_altitude,
-        )
+        with self._lock:
+            self._require_connection()
+            if not self._armed:
+                self._arm_locked()
+            target_altitude = (
+                max(self._absolute_altitude_m, self._origin_height_m)
+                + relative_altitude_m
+            )
+            self._send_command_locked(
+                mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+                math.nan,
+                0.0,
+                0.0,
+                math.nan,
+                math.nan,
+                math.nan,
+                target_altitude,
+            )
 
     def land(self) -> None:
         self._mission_interrupt.set()
@@ -277,6 +265,26 @@ class Px4Commander:
             f"PX4 did not become ready to arm {self.vehicle_id} within "
             f"{timeout_seconds:g} seconds"
         )
+
+    def _arm_locked(self) -> None:
+        if (
+            self._has_flown
+            and self._landed_state == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
+        ):
+            # PX4 remains in AUTO_LAND after a successful landing, and
+            # AUTO_LAND intentionally rejects a later arm request. This
+            # headless showcase has no manual-control input, so POSCTL is
+            # also unarmable. AUTO_LOITER provides the stationary,
+            # autonomous landed state required before re-arming.
+            base_mode, custom_mode, custom_sub_mode = mavutil.px4_map["LOITER"]
+            self._send_command_locked(
+                mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                base_mode,
+                custom_mode,
+                custom_sub_mode,
+            )
+            self._await_px4_mode_locked(custom_mode, custom_sub_mode)
+        self._arm_when_ready_locked()
 
     def _send_reposition_locked(self, waypoint: Waypoint) -> None:
         self._send_gcs_heartbeat_locked()

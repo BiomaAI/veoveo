@@ -534,15 +534,6 @@ async fn uav_sim_verify_with_visual_hold(
         ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
         operator
             .call_tool(
-                "uav-sim__arm_vehicle",
-                serde_json::json!({
-                    "session_id": scenario.session_id,
-                    "vehicle_id": scenario.vehicle_id
-                }),
-            )
-            .await?;
-        operator
-            .call_tool(
                 "uav-sim__takeoff_vehicle",
                 serde_json::json!({
                     "session_id": scenario.session_id,

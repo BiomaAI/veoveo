@@ -756,7 +756,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Take off simulated UAV",
-        description = "Start a bounded takeoff to a typed relative altitude.",
+        description = "Atomically arm one PX4-backed vehicle and start a bounded takeoff to a typed relative altitude.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CommandAcknowledgement>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]

@@ -693,11 +693,6 @@ impl FakeAdapter {
             SimulationCommand::Takeoff(request) => {
                 self.require_session(&request.session_id)?;
                 let vehicle = self.vehicle_mut(&request.vehicle_id)?;
-                if vehicle.flight_state != VehicleFlightState::Armed {
-                    return Err(AdapterError::InvalidState(
-                        "vehicle must be armed before takeoff".to_owned(),
-                    ));
-                }
                 vehicle.flight_state = VehicleFlightState::Flying;
                 vehicle.enu.up_m = request.relative_altitude_m;
                 vehicle.ned.down_m = -request.relative_altitude_m;
@@ -1195,9 +1190,9 @@ mod tests {
     }
 
     #[test]
-    fn fake_adapter_enforces_arm_before_takeoff() {
+    fn fake_adapter_takeoff_atomically_arms_and_launches() {
         let mut adapter = FakeAdapter::new(fake_state());
-        let error = adapter
+        adapter
             .command(&SimulationCommand::Takeoff(
                 crate::contract::TakeoffRequest {
                     session_id: SessionId::new("session-alpha").unwrap(),
@@ -1205,8 +1200,11 @@ mod tests {
                     relative_altitude_m: 10.0,
                 },
             ))
-            .unwrap_err();
-        assert!(matches!(error, AdapterError::InvalidState(_)));
+            .unwrap();
+        assert_eq!(
+            adapter.state().vehicles[0].flight_state,
+            VehicleFlightState::Flying
+        );
     }
 
     #[test]
