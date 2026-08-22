@@ -54,14 +54,11 @@ def run(config: RuntimeConfig) -> None:
     simulation_app = SimulationApp(
         {
             "headless": True,
-            # Isaac 6's current real-time renderer keeps every Hydra product
-            # on the RTPT path. The opaque streamed city needs one direct
-            # bounce, not legacy convergence work for each 720p view.
-            "renderer": "RealTimePathTracing",
+            # Cesium 0.29's streamed glTF material path is qualified against
+            # Isaac's RTX lighting renderer. Low-latency Hydra scheduling
+            # keeps all products asynchronous without changing that shading.
+            "renderer": "RaytracedLighting",
             "anti_aliasing": 3,
-            "max_bounces": 1,
-            "max_specular_transmission_bounces": 1,
-            "max_volume_bounces": 0,
             "width": viewport_width,
             "height": viewport_height,
             # A streamed 3D Tiles world never reaches a terminal "all assets
