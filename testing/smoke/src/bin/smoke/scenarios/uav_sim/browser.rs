@@ -3414,7 +3414,7 @@ const APP_FRAME_DECODE_IDENTITY: &str = r#"(async () => {
   const result=await navigator.mediaCapabilities.decodingInfo({
     type:"file",
     video:{
-      contentType:'video/mp4; codecs="avc1.42E01E"',
+      contentType:'video/mp4; codecs="avc1.4D401F"',
       width:Number(video.dataset.sourceWidth),
       height:Number(video.dataset.sourceHeight),
       bitrate:8000000,
