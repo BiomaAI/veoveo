@@ -1076,31 +1076,66 @@ impl RecordingIngestService {
         path: &Path,
     ) -> Result<()> {
         self.forget_active_segment(stream_id)?;
+        let segment_id = typed_record_uuid::<SegmentId>(&segment.id, SegmentId::TABLE)?;
+        let current = self
+            .store
+            .segment(identity.tenant_id, segment_id)
+            .await?
+            .context("recording segment disappeared before freeze")?;
+        if matches!(current.state, SegmentState::Frozen | SegmentState::Sealed) {
+            let expected_byte_len = u64::try_from(current.byte_len)?;
+            let expected_sha256 = current
+                .sha256
+                .clone()
+                .context("cataloged recording segment has no digest")?;
+            let path = path.to_path_buf();
+            let parts_directory = ingest_segment_parts_directory(&path);
+            let validation_parts_directory = parts_directory.clone();
+            tokio::task::spawn_blocking(move || {
+                let inspection = inspect_segment(&path)?;
+                ensure!(
+                    inspection.byte_len == expected_byte_len
+                        && inspection.sha256 == expected_sha256,
+                    "cataloged recording segment identity changed"
+                );
+                remove_directory_if_exists(&validation_parts_directory)
+            })
+            .await
+            .context("joining cataloged segment validation")??;
+            self.forget_segment_byte_len(&parts_directory)?;
+            return Ok(());
+        }
+        ensure!(
+            current.state == SegmentState::Writing,
+            "recording segment cannot be frozen from state {:?}",
+            current.state
+        );
         let recording_id =
             typed_record_uuid::<RecordingId>(&segment.recording, RecordingId::TABLE)?;
         let parts_directory = ingest_segment_parts_directory(path);
-        let (message_count, ended_at) = if path.exists() {
-            let source = path.to_path_buf();
-            let message_count = count_segment_messages(&source)?;
-            let mut inputs = static_context_input(path, recording_id)?;
-            inputs.push(source);
-            crate::materialize_archive_shard(&inputs, path)?;
-            (message_count, chrono::Utc::now())
-        } else {
-            merge_ingest_parts(&parts_directory, path, recording_id)?
-        };
-        let inspection = inspect_segment(path)?;
+        let freeze_path = path.to_path_buf();
+        let freeze_parts_directory = parts_directory.clone();
+        let (message_count, ended_at, inspection) = tokio::task::spawn_blocking(move || {
+            prepare_segment_freeze(&freeze_path, &freeze_parts_directory, recording_id)
+        })
+        .await
+        .context("joining recording segment materialization")??;
         self.store
             .freeze_segment(
                 identity,
-                typed_record_uuid::<SegmentId>(&segment.id, SegmentId::TABLE)?,
+                segment_id,
                 i64::try_from(inspection.byte_len)?,
                 i64::try_from(message_count)?,
                 &inspection.sha256,
                 Some(ended_at),
             )
             .await?;
-        remove_directory_if_exists(&parts_directory)?;
+        tokio::task::spawn_blocking({
+            let parts_directory = parts_directory.clone();
+            move || remove_directory_if_exists(&parts_directory)
+        })
+        .await
+        .context("joining recording ingest part cleanup")??;
         self.forget_segment_byte_len(&parts_directory)?;
         Ok(())
     }
@@ -1533,6 +1568,39 @@ fn merge_ingest_parts(
     Ok((message_count, chrono::Utc::now()))
 }
 
+fn prepare_segment_freeze(
+    path: &Path,
+    parts_directory: &Path,
+    recording_id: RecordingId,
+) -> Result<(u64, chrono::DateTime<chrono::Utc>, crate::SegmentInspection)> {
+    let (message_count, ended_at) = if path.exists() {
+        if is_authenticated_ingest_path(path) {
+            let parts = ingest_part_paths(parts_directory)?;
+            ensure!(
+                !parts.is_empty(),
+                "published authenticated ingest segment has no recovery parts"
+            );
+            let message_count = parts.iter().try_fold(0_u64, |total, part| {
+                total
+                    .checked_add(count_segment_messages(part)?)
+                    .context("ingest segment message count overflow")
+            })?;
+            (message_count, chrono::Utc::now())
+        } else {
+            let source = path.to_path_buf();
+            let message_count = count_segment_messages(&source)?;
+            let mut inputs = static_context_input(path, recording_id)?;
+            inputs.push(source);
+            crate::materialize_archive_shard(&inputs, path)?;
+            (message_count, chrono::Utc::now())
+        }
+    } else {
+        merge_ingest_parts(parts_directory, path, recording_id)?
+    };
+    let inspection = inspect_segment(path)?;
+    Ok((message_count, ended_at, inspection))
+}
+
 fn count_segment_messages(path: &Path) -> Result<u64> {
     let file = File::open(path).with_context(|| format!("opening segment {}", path.display()))?;
     let mut decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(file))
@@ -1837,6 +1905,46 @@ mod tests {
             2,
             "archive compaction deduplicates repeated store info and row ids"
         );
+    }
+
+    #[test]
+    fn published_authenticated_segment_is_never_materialized_again() {
+        let (recording, storage) = RecordingStreamBuilder::new("freeze-recovery")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(42.0))
+            .unwrap();
+        let messages = storage.take();
+        let mut encoder = Encoder::new_eager(
+            CrateVersion::LOCAL,
+            EncodingOptions::PROTOBUF_COMPRESSED,
+            Vec::new(),
+        )
+        .unwrap();
+        for message in &messages {
+            encoder.append(message).unwrap();
+        }
+        encoder.finish().unwrap();
+        let published = encoder.into_inner().unwrap();
+
+        let directory = tempfile::tempdir().unwrap();
+        let day = directory.path().join("governed/2026-08-22");
+        std::fs::create_dir_all(&day).unwrap();
+        let path = day.join(format!("run.ingest-{}-s0.rrd", uuid::Uuid::now_v7()));
+        let parts = ingest_segment_parts_directory(&path);
+        std::fs::create_dir(&parts).unwrap();
+        std::fs::write(&path, &published).unwrap();
+        std::fs::write(parts.join("00000000000000000000.rrd"), &published).unwrap();
+        let expected_message_count = count_segment_messages(&path).unwrap();
+
+        let (message_count, _, inspection) =
+            prepare_segment_freeze(&path, &parts, RecordingId::new()).unwrap();
+
+        assert_eq!(message_count, expected_message_count);
+        assert_eq!(inspection.byte_len, published.len() as u64);
+        assert_eq!(std::fs::read(path).unwrap(), published);
     }
 
     #[test]
