@@ -21,10 +21,10 @@ stream:
     size: 5Gi
 reason:
   engine:
-    # Reserve 40% for vLLM so the six-frame world-model pass has a non-empty KV
+    # Reserve 42% for vLLM so its 8192-token world-model pass has a complete KV
     # cache while all seven required GPU workloads remain on the shared 24 GiB
     # development device.
-    gpuMemoryUtilization: 0.40
+    gpuMemoryUtilization: 0.42
 consoleBff:
   replicas: 1
 telemetry:
