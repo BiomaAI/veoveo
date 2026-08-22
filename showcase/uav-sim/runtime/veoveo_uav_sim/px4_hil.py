@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from pymavlink import mavutil
 from .vehicle_spec import HilSensorFrame, decode_actuator_controls
 
 PX4_EXTERNAL_IRIS_AUTOSTART = "10016"
+PX4_HIL_QUEUE_CAPACITY = 128
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,8 +107,7 @@ class Px4HilBridge:
         self._process = Px4Process(px4_directory, instance)
         self._condition = threading.Condition()
         self._stop = False
-        self._pending: tuple[int, HilSensorFrame] | None = None
-        self._sent_sequence = 0
+        self._pending: deque[tuple[int, HilSensorFrame]] = deque()
         self._controls = (0.0, 0.0, 0.0, 0.0)
         self._heartbeat_received = False
         self._failure: BaseException | None = None
@@ -140,26 +141,12 @@ class Px4HilBridge:
     def publish(self, sequence: int, frame: HilSensorFrame) -> None:
         with self._condition:
             self._raise_if_failed_locked()
-            if self._pending is not None:
+            if len(self._pending) >= PX4_HIL_QUEUE_CAPACITY:
                 raise RuntimeError(
-                    f"PX4 HIL instance {self.instance} still owns an unsent frame"
+                    f"PX4 HIL instance {self.instance} sensor queue is full"
                 )
-            self._pending = (sequence, frame)
+            self._pending.append((sequence, frame))
             self._condition.notify_all()
-
-    def wait_sensor_send(self, sequence: int, deadline: float) -> None:
-        with self._condition:
-            while True:
-                self._raise_if_failed_locked()
-                if self._sent_sequence >= sequence:
-                    return
-                remaining = deadline - time.monotonic()
-                if remaining <= 0.0:
-                    raise TimeoutError(
-                        f"PX4 HIL instance {self.instance} timed out waiting for "
-                        f"sensor send at sequence {sequence}"
-                    )
-                self._condition.wait(remaining)
 
     def raise_if_failed(self) -> None:
         self._process.raise_if_failed()
@@ -185,8 +172,7 @@ class Px4HilBridge:
                 with self._condition:
                     if self._stop:
                         return
-                    pending = self._pending
-                    self._pending = None
+                    pending = self._pending.popleft() if self._pending else None
                 self._process.raise_if_failed()
                 self._drain_messages()
                 now = time.monotonic()
@@ -194,12 +180,9 @@ class Px4HilBridge:
                     self._send_heartbeat()
                     last_heartbeat = now
                 if pending is not None:
-                    sequence, frame = pending
+                    _, frame = pending
                     self._send_frame(frame)
                     self._drain_messages()
-                    with self._condition:
-                        self._sent_sequence = sequence
-                        self._condition.notify_all()
                 else:
                     with self._condition:
                         self._condition.wait(0.001)
@@ -303,19 +286,12 @@ class Px4HilFleet:
     def controls(self) -> tuple[tuple[float, float, float, float], ...]:
         return tuple(bridge.controls() for bridge in self._bridges)
 
-    def publish_sensor_frames(
-        self, frames: tuple[HilSensorFrame, ...], timeout: float
-    ) -> None:
+    def publish_sensor_frames(self, frames: tuple[HilSensorFrame, ...]) -> None:
         if len(frames) != len(self._bridges):
             raise ValueError("PX4 HIL frame count does not match the fleet")
-        if timeout <= 0.0:
-            raise ValueError("PX4 HIL exchange timeout must be positive")
         self._sequence += 1
         for bridge, frame in zip(self._bridges, frames, strict=True):
             bridge.publish(self._sequence, frame)
-        deadline = time.monotonic() + timeout
-        for bridge in self._bridges:
-            bridge.wait_sensor_send(self._sequence, deadline)
 
     def raise_if_failed(self) -> None:
         for bridge in self._bridges:

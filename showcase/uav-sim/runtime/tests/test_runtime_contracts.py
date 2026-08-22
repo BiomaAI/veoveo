@@ -5,8 +5,8 @@ import os
 import struct
 import tempfile
 import threading
-import time
 import unittest
+from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -42,6 +42,7 @@ from veoveo_uav_sim.physical_camera import (
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
 from veoveo_uav_sim.px4_hil import (
     PX4_EXTERNAL_IRIS_AUTOSTART,
+    PX4_HIL_QUEUE_CAPACITY,
     Px4HilBridge,
     Px4Process,
 )
@@ -1181,14 +1182,18 @@ class Px4HilPlantContractTests(unittest.TestCase):
             self.assertEqual(process.command.argv()[-3:], ("-i", "3", "-d"))
             process.close()
 
-    def test_sensor_send_completion_does_not_wait_for_same_step_actuator(self) -> None:
+    def test_sensor_publication_is_bounded_and_does_not_wait_for_transport(self) -> None:
         bridge = Px4HilBridge.__new__(Px4HilBridge)
         bridge.instance = 2
         bridge._condition = threading.Condition()
         bridge._failure = None
-        bridge._sent_sequence = 7
+        bridge._pending = deque()
 
-        bridge.wait_sensor_send(7, time.monotonic() + 0.1)
+        for sequence in range(PX4_HIL_QUEUE_CAPACITY):
+            bridge.publish(sequence, SimpleNamespace())
+        self.assertEqual(len(bridge._pending), PX4_HIL_QUEUE_CAPACITY)
+        with self.assertRaisesRegex(RuntimeError, "sensor queue is full"):
+            bridge.publish(PX4_HIL_QUEUE_CAPACITY, SimpleNamespace())
 
 
 class AdapterContractTests(unittest.TestCase):

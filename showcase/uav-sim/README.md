@@ -185,9 +185,10 @@ tensors directly, preserving the backend's native `xyzw` layout without cloned g
 The only per-step device readback is one compact 30-float packet per vehicle for MAVLink.
 Controls cross back as one four-float packet per vehicle. Isaac's classic `World`, classic
 prim views, the PhysX UAV path, NumPy dynamics, and per-vehicle physics loops are absent.
-Sensor publication completes independently of actuator arrival. The next fixed step
-consumes the latest PX4 controls, which bounds feedback latency to one HIL frame without
-blocking the GPU simulation loop on a same-step MAVLink round trip.
+Sensor publication enters a bounded per-PX4 queue without waiting for transport or
+actuator arrival. Each worker preserves frame order, the next fixed step consumes the
+latest PX4 controls, and queue overflow is terminal instead of silently dropping HIL
+state or blocking the GPU simulation loop.
 
 The Isaac timeline remains playing because Newton gates integration on that state, while
 app-driven physics stepping is disabled. `SimulationManager` alone advances Newton at the
