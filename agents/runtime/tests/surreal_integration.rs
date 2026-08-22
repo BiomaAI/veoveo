@@ -297,10 +297,11 @@ async fn idle_wake_acknowledgement_is_terminal_without_an_episode() {
     assert_eq!(wake.state, WakeState::Acked);
     assert!(wake.acked_by_episode.is_none());
     let episode_counts: Vec<serde_json::Value> = response.take(1).unwrap();
-    assert!(
-        episode_counts.is_empty(),
-        "idle acknowledgement created an episode"
-    );
+    let episode_count = episode_counts
+        .iter()
+        .filter_map(|row| row.get("count").and_then(serde_json::Value::as_u64))
+        .sum::<u64>();
+    assert_eq!(episode_count, 0, "idle acknowledgement created an episode");
 }
 
 #[tokio::test]
