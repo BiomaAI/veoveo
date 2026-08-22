@@ -744,11 +744,13 @@
       ],
       "required_scopes": [
         "operator:use",
+        "uav-sim:control",
         "uav-sim:stream",
         "view:read",
         "view:write",
         "view:capture",
         "map:dataset:read",
+        "map:route",
         "time:read"
       ],
       "servers": [
