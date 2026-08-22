@@ -97,9 +97,7 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
     "UAV_SIM_RENDERING_HZ": "30",
-    "UAV_SIM_LIVE_VIEWER_SLOTS": "2",
-    "UAV_SIM_LIVE_ACTIVATION_TIMEOUT_SECONDS": "7.5",
-    "UAV_SIM_LIVE_PUBLIC_MEDIA_IP": "127.0.0.1",
+    "UAV_SIM_OPERATOR_RTSP_PORT_BASE": "8560",
     "UAV_SIM_OPERATOR_CAMERAS_JSON": json.dumps(
         [
             {
@@ -320,7 +318,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(config.rendering_hz, 30)
         self.assertEqual(config.camera.fps, 2)
         self.assertEqual(config.operator_live_view.cameras[0].optics.frame_rate_hz, 30)
-        self.assertEqual(config.operator_live_view.activation_timeout_seconds, 7.5)
+        self.assertEqual(config.operator_live_view.rtsp_port_base, 8560)
         self.assertEqual(config.px4_connect_timeout_seconds, 180.0)
         self.assertEqual(config.camera.vehicle_id, "uav-1")
         self.assertEqual(config.recording.telemetry_hz, 5)
@@ -370,11 +368,10 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         product_sources = "".join((hydra_camera_source, operator_product_source))
         self.assertEqual(product_sources.count("get_frame_info"), 1)
         self.assertIn("is_async_low_latency=False", hydra_camera_source)
-        self.assertIn("is_async_low_latency=False", operator_product_source)
         self.assertNotIn("AnnotatorRegistry", hydra_camera_source)
         self.assertNotIn("omni.replicator", hydra_camera_source)
         self.assertIn('"streamType": "rtsp"', hydra_camera_source)
-        self.assertIn("RtspH264Receiver", hydra_camera_source)
+        self.assertIn("RtspH264Receiver", operator_product_source)
 
     def test_native_sensor_aov_uses_one_internal_nvenc_stream(self) -> None:
         arguments = native_sensor_aov_arguments(
@@ -396,7 +393,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
     def test_native_sensor_aov_ports_cannot_overlap_operator_products(self) -> None:
         environment = {
             **VALID_ENVIRONMENT,
-            "UAV_SIM_LIVE_SIGNALING_PORT_BASE": "8555",
+            "UAV_SIM_OPERATOR_RTSP_PORT_BASE": "8555",
         }
         with patch.dict(os.environ, environment, clear=True):
             with self.assertRaisesRegex(ValueError, "AOV port ranges overlap at 8555"):
@@ -501,15 +498,15 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             server_source,
         )
 
-    def test_preconfiguration_accepts_ephemeral_viewer_slot_reset(self) -> None:
+    def test_preconfiguration_has_no_viewer_product_mutation_routes(self) -> None:
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
         ).read_text()
         preconfiguration = server_source.split(
             "class PreconfigurationApplication:", maxsplit=1
         )[1].split("class AdapterApplication:", maxsplit=1)[0]
-        self.assertIn('"/v1/live-products/release-all"', preconfiguration)
-        self.assertIn('return web.json_response({"accepted": True})', preconfiguration)
+        self.assertNotIn("/v1/live-products", preconfiguration)
+        self.assertIn('"streamProductId": f"camera-product-{product_index}"', preconfiguration)
 
     def test_multi_instance_px4_has_distinct_gcs_ports(self) -> None:
         runtime_root = Path(__file__).parents[1]
@@ -690,41 +687,29 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(recording["dropped_events"], 9)
         self.assertEqual(recording["diagnostic"], "network unavailable")
 
-    def test_inactive_viewer_slots_do_not_require_camera_assignments(self) -> None:
+    def test_each_streamable_camera_has_one_persistent_product(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
-        inactive_slots = state.snapshot()["stream_products"]
+        products = state.snapshot()["stream_products"]
 
-        state.update_stream_products(inactive_slots)
+        state.update_stream_products(products)
 
         snapshot = state.snapshot()
         self.assertEqual(
-            [product["capacitySlot"] for product in snapshot["stream_products"]],
-            [0, 1],
+            [product["streamProductId"] for product in snapshot["stream_products"]],
+            ["camera-product-0"],
         )
-        self.assertTrue(
-            all("cameraId" not in product for product in snapshot["stream_products"])
-        )
-        self.assertEqual(snapshot["live_cameras"][0]["health"], "healthy")
+        self.assertEqual(snapshot["stream_products"][0]["cameraId"], "follow")
+        self.assertEqual(snapshot["live_cameras"][0]["health"], "warming")
 
-    def test_shared_logical_camera_aggregates_distinct_viewer_slots(self) -> None:
+    def test_camera_health_tracks_its_persistent_product(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
         state.update_stream_products(
             [
                 {
-                    "streamProductId": "product-slot-0",
-                    "capacitySlot": 0,
+                    "streamProductId": "camera-product-0",
                     "cameraId": "follow",
-                    "liveViewId": "view-a",
-                    "lifecycle": "failed",
-                    "lastFrameAt": "2026-08-07T18:00:00Z",
-                },
-                {
-                    "streamProductId": "product-slot-1",
-                    "capacitySlot": 1,
-                    "cameraId": "follow",
-                    "liveViewId": "view-b",
                     "lifecycle": "ready",
                     "lastFrameAt": "2026-08-07T18:00:01Z",
                 },

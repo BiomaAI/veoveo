@@ -1564,13 +1564,13 @@ fn assert_world_ready(state: &Value, revision_uri: &str, simulation_frame_uri: &
     )
     .context("authoritative simulator returned invalid stream_products")?;
     ensure!(
-        viewer_slot_pool_matches_contract(&products),
-        "authoritative simulator viewer-slot pool violates its native product contract: {state}"
+        camera_product_set_matches_contract(&products),
+        "authoritative simulator camera products violate their shared-stream contract: {state}"
     );
     Ok(())
 }
 
-fn viewer_slot_pool_matches_contract(products: &[LiveStreamProductState]) -> bool {
+fn camera_product_set_matches_contract(products: &[LiveStreamProductState]) -> bool {
     if products.is_empty() {
         return false;
     }
@@ -1578,51 +1578,35 @@ fn viewer_slot_pool_matches_contract(products: &[LiveStreamProductState]) -> boo
         .iter()
         .map(|product| &product.stream_product_id)
         .collect::<std::collections::BTreeSet<_>>();
-    let mut capacity_slots = products
+    let camera_ids = products
         .iter()
-        .map(|product| usize::from(product.capacity_slot))
-        .collect::<Vec<_>>();
-    capacity_slots.sort_unstable();
+        .map(|product| &product.camera_id)
+        .collect::<std::collections::BTreeSet<_>>();
     product_ids.len() == products.len()
-        && capacity_slots == (0..products.len()).collect::<Vec<_>>()
+        && camera_ids.len() == products.len()
         && products.iter().all(|product| match product.lifecycle {
-            LiveStreamProductLifecycle::Inactive => {
-                product.camera_id.is_none()
-                    && product.live_view_id.is_none()
-                    && product.active_viewer_leases == 0
-                    && product.connected_viewers == 0
-                    && product.nvenc_sessions == 0
-                    && product.last_frame_at.is_none()
-                    && product.visible.is_none()
-                    && product.diagnostic.is_none()
-            }
             LiveStreamProductLifecycle::Starting => {
-                product.camera_id.is_some()
-                    && product.live_view_id.is_some()
-                    && product.active_viewer_leases == 1
-                    && product.connected_viewers <= 1
-                    && product.nvenc_sessions == 1
+                product.active_viewers == 0
+                    && product.connected_viewers == 0
+                    && product.nvenc_sessions <= 1
             }
             LiveStreamProductLifecycle::Ready => {
-                product.camera_id.is_some()
-                    && product.live_view_id.is_some()
-                    && product.active_viewer_leases == 1
-                    && product.connected_viewers <= 1
+                product.connected_viewers <= product.active_viewers
                     && product.nvenc_sessions == 1
                     && product.encoded_frames > 0
                     && product.last_frame_at.is_some()
                     && product.visible != Some(false)
                     && product.diagnostic.is_none()
             }
-            LiveStreamProductLifecycle::Failed => false,
+            LiveStreamProductLifecycle::Inactive | LiveStreamProductLifecycle::Failed => false,
         })
 }
 
-fn idle_viewer_slot_pool_matches_contract(products: &[LiveStreamProductState]) -> bool {
-    viewer_slot_pool_matches_contract(products)
+fn ready_camera_product_set_matches_contract(products: &[LiveStreamProductState]) -> bool {
+    camera_product_set_matches_contract(products)
         && products
             .iter()
-            .all(|product| product.lifecycle == LiveStreamProductLifecycle::Inactive)
+            .all(|product| product.lifecycle == LiveStreamProductLifecycle::Ready)
 }
 
 fn sensor_camera_is_started(camera: &Value) -> bool {
@@ -2106,47 +2090,47 @@ mod tests {
     }
 
     #[test]
-    fn stream_product_acceptance_requires_an_idle_contiguous_viewer_slot_pool() {
+    fn stream_product_acceptance_requires_one_ready_product_per_camera() {
         let products: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
-            {"streamProductId":"product-slot-0","capacitySlot":0,"lifecycle":"inactive",
-             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":12,
-             "sourceToRenderSamples":0},
-            {"streamProductId":"product-slot-1","capacitySlot":1,"lifecycle":"inactive",
-             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":9,
-             "sourceToRenderSamples":0}
+            {"streamProductId":"camera-product-0","cameraId":"follow","lifecycle":"ready",
+             "activeViewers":0,"connectedViewers":0,"nvencSessions":1,"encodedFrames":12,
+             "sourceToRenderSamples":120,"lastFrameAt":"2026-08-07T18:00:00Z","visible":true},
+            {"streamProductId":"camera-product-1","cameraId":"chase","lifecycle":"ready",
+             "activeViewers":0,"connectedViewers":0,"nvencSessions":1,"encodedFrames":9,
+             "sourceToRenderSamples":90,"lastFrameAt":"2026-08-07T18:00:00Z","visible":true}
         ]))
         .unwrap();
-        assert!(idle_viewer_slot_pool_matches_contract(&products));
-        assert!(viewer_slot_pool_matches_contract(&products));
+        assert!(ready_camera_product_set_matches_contract(&products));
+        assert!(camera_product_set_matches_contract(&products));
     }
 
     #[test]
-    fn stream_product_acceptance_allows_valid_assignment_but_idle_preflight_rejects_it() {
-        let assigned: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
-            {"streamProductId":"product-slot-0","capacitySlot":0,"cameraId":"follow",
-             "liveViewId":"view-a","lifecycle":"ready","activeViewerLeases":1,
-             "connectedViewers":1,"nvencSessions":1,"encodedFrames":12,
+    fn stream_product_acceptance_allows_many_viewers_on_one_product() {
+        let shared: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
+            {"streamProductId":"camera-product-0","cameraId":"follow",
+             "lifecycle":"ready","activeViewers":25,
+             "connectedViewers":25,"nvencSessions":1,"encodedFrames":12,
              "sourceToRenderP95Microseconds":18000,"sourceToRenderSamples":120,
              "lastFrameAt":"2026-08-07T18:00:00Z","visible":true}
         ]))
         .unwrap();
-        assert!(!idle_viewer_slot_pool_matches_contract(&assigned));
-        assert!(viewer_slot_pool_matches_contract(&assigned));
+        assert!(ready_camera_product_set_matches_contract(&shared));
+        assert!(camera_product_set_matches_contract(&shared));
     }
 
     #[test]
-    fn stream_product_acceptance_rejects_duplicate_viewer_slots() {
+    fn stream_product_acceptance_rejects_duplicate_camera_products() {
         let duplicate: Vec<LiveStreamProductState> = serde_json::from_value(serde_json::json!([
-            {"streamProductId":"product-slot-0","capacitySlot":0,"lifecycle":"inactive",
-             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
+            {"streamProductId":"camera-product-0","cameraId":"follow","lifecycle":"starting",
+             "activeViewers":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
              "sourceToRenderSamples":0},
-            {"streamProductId":"product-slot-1","capacitySlot":0,"lifecycle":"inactive",
-             "activeViewerLeases":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
+            {"streamProductId":"camera-product-1","cameraId":"follow","lifecycle":"starting",
+             "activeViewers":0,"connectedViewers":0,"nvencSessions":0,"encodedFrames":0,
              "sourceToRenderSamples":0}
         ]))
         .unwrap();
-        assert!(!idle_viewer_slot_pool_matches_contract(&duplicate));
-        assert!(!viewer_slot_pool_matches_contract(&duplicate));
+        assert!(!ready_camera_product_set_matches_contract(&duplicate));
+        assert!(!camera_product_set_matches_contract(&duplicate));
     }
 
     #[test]

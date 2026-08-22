@@ -48,11 +48,8 @@ session:
         "y": 0.0
         z: -0.7071067811865476
 liveView:
-  publicSignalingUrl: wss://veoveo.bioma.ai/uav-sim/signaling
-  publicMediaHost: 192.168.68.69
-  mediaService:
-    nodePortBase: 30998
-  signalingIngress:
+  publicStreamUrl: wss://veoveo.bioma.ai/uav-sim/live
+  streamIngress:
     enabled: true
     className: traefik
     host: veoveo.bioma.ai

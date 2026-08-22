@@ -32,6 +32,9 @@ from .world_config import (
 )
 
 
+LIVE_STREAM_PROTOCOL = "veoveo.h264.annexb.v1"
+
+
 def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -73,10 +76,6 @@ class PreconfigurationApplication:
                 web.get("/readyz", self._ready),
                 web.get("/v1/state", self._get_state),
                 web.post("/v1/world", self._configure_world),
-                web.post(
-                    "/v1/live-products/release-all",
-                    self._release_all_viewer_slots,
-                ),
                 web.get("/v1/events", runtime_events.stream),
             ]
         )
@@ -132,17 +131,17 @@ class PreconfigurationApplication:
                 ],
                 "stream_products": [
                     {
-                        "streamProductId": f"product-slot-{capacity_slot}",
-                        "capacitySlot": capacity_slot,
-                        "lifecycle": "inactive",
-                        "activeViewerLeases": 0,
+                        "streamProductId": f"camera-product-{product_index}",
+                        "cameraId": camera.camera_id,
+                        "lifecycle": "starting",
+                        "activeViewers": 0,
                         "connectedViewers": 0,
                         "nvencSessions": 0,
                         "encodedFrames": 0,
                         "sourceToRenderSamples": 0,
                     }
-                    for capacity_slot in range(
-                        self._config.operator_live_view.viewer_slot_count
+                    for product_index, camera in enumerate(
+                        self._config.operator_live_view.streamable_cameras
                     )
                 ],
                 "vehicles": [],
@@ -165,10 +164,6 @@ class PreconfigurationApplication:
         return web.json_response(
             _world_configuration_response(self._config.session_id, configured)
         )
-
-    async def _release_all_viewer_slots(self, _request: web.Request) -> web.Response:
-        return web.json_response({"accepted": True})
-
 
 class AdapterApplication:
     def __init__(
@@ -205,18 +200,7 @@ class AdapterApplication:
                 web.post("/v1/world", self._configure_world),
                 web.post("/v1/commands", self._command),
                 web.post("/v1/operations", self._operation),
-                web.put(
-                    "/v1/live-products/{capacity_slot}/assignment",
-                    self._assign_product,
-                ),
-                web.delete(
-                    "/v1/live-products/{capacity_slot}/assignment",
-                    self._release_product,
-                ),
-                web.post(
-                    "/v1/live-products/release-all",
-                    self._release_all_viewer_slots,
-                ),
+                web.get("/v1/live-streams/{camera_id}", self._live_stream),
                 web.get("/v1/events", runtime_events.stream),
             ]
         )
@@ -297,100 +281,42 @@ class AdapterApplication:
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
 
-    async def _release_all_viewer_slots(self, _request: web.Request) -> web.Response:
-        try:
-            await asyncio.to_thread(
-                self._submit_main_thread,
-                self._operator_products.release_all,
+    async def _live_stream(self, request: web.Request) -> web.StreamResponse:
+        requested_protocols = {
+            value.strip()
+            for value in request.headers.get("Sec-WebSocket-Protocol", "").split(",")
+            if value.strip()
+        }
+        if LIVE_STREAM_PROTOCOL not in requested_protocols:
+            return web.json_response(
+                {"error": "the canonical H.264 stream protocol is required"},
+                status=400,
             )
-            self._state.update_stream_products(
-                self._operator_products.state(
-                    content_ready=self._stream_content_ready()
-                )
-            )
-            return web.json_response({"accepted": True})
-        except (RuntimeError, TimeoutError) as error:
-            return web.json_response({"error": str(error)}, status=409)
-
-    async def _assign_product(self, request: web.Request) -> web.Response:
+        camera_id = request.match_info["camera_id"]
+        websocket = web.WebSocketResponse(
+            protocols=(LIVE_STREAM_PROTOCOL,),
+            heartbeat=10.0,
+            max_msg_size=16 * 1024 * 1024,
+        )
+        await websocket.prepare(request)
+        after_sequence = 0
         try:
-            capacity_slot = int(request.match_info["capacity_slot"])
-            body = await request.json()
-            if not isinstance(body, dict) or set(body) != {"cameraId", "liveViewId"}:
-                raise ValueError(
-                    "viewer-product assignment requires cameraId and liveViewId"
-                )
-            camera_id = body["cameraId"]
-            live_view_id = body["liveViewId"]
-            if not isinstance(camera_id, str) or not isinstance(live_view_id, str):
-                raise ValueError("viewer-product assignment identities must be strings")
-            await asyncio.to_thread(
-                self._submit_main_thread,
-                lambda: self._operator_products.assign(
-                    capacity_slot,
+            while not websocket.closed:
+                frame = await asyncio.to_thread(
+                    self._operator_products.wait_for_frame,
                     camera_id,
-                    live_view_id,
-                    content_ready=self._stream_content_ready(),
-                ),
-            )
-            try:
-                result = await asyncio.to_thread(
-                    self._operator_products.wait_until_ready,
-                    capacity_slot,
-                    live_view_id,
-                    timeout_seconds=(
-                        self._config.operator_live_view.activation_timeout_seconds
-                    ),
-                    content_ready=self._stream_content_ready(),
+                    after_sequence,
+                    5.0,
                 )
-            except (RuntimeError, TimeoutError):
-                await asyncio.to_thread(
-                    self._submit_main_thread,
-                    lambda: self._operator_products.release(
-                        capacity_slot,
-                        live_view_id,
-                        content_ready=self._stream_content_ready(),
-                    ),
-                )
-                raise
-            self._state.update_stream_products(
-                self._operator_products.state(
-                    content_ready=self._stream_content_ready()
-                )
-            )
-            return web.json_response(result)
-        except (TypeError, ValueError) as error:
-            return web.json_response({"error": str(error)}, status=400)
-        except (RuntimeError, TimeoutError) as error:
-            return web.json_response({"error": str(error)}, status=409)
-
-    async def _release_product(self, request: web.Request) -> web.Response:
-        try:
-            capacity_slot = int(request.match_info["capacity_slot"])
-            body = await request.json()
-            if not isinstance(body, dict) or set(body) != {"liveViewId"}:
-                raise ValueError("viewer-product release requires liveViewId")
-            live_view_id = body["liveViewId"]
-            if not isinstance(live_view_id, str):
-                raise ValueError("viewer-product liveViewId must be a string")
-            result = await asyncio.to_thread(
-                self._submit_main_thread,
-                lambda: self._operator_products.release(
-                    capacity_slot,
-                    live_view_id,
-                    content_ready=self._stream_content_ready(),
-                ),
-            )
-            self._state.update_stream_products(
-                self._operator_products.state(
-                    content_ready=self._stream_content_ready()
-                )
-            )
-            return web.json_response(result)
-        except (TypeError, ValueError) as error:
-            return web.json_response({"error": str(error)}, status=400)
-        except (RuntimeError, TimeoutError) as error:
-            return web.json_response({"error": str(error)}, status=409)
+                if frame is None:
+                    continue
+                await websocket.send_bytes(frame.access_unit.sample)
+                after_sequence = frame.sequence
+        except (ConnectionResetError, RuntimeError, ValueError):
+            pass
+        finally:
+            await websocket.close()
+        return websocket
 
     def _stream_content_ready(self) -> bool:
         tiles = self._state.snapshot()["tiles"]

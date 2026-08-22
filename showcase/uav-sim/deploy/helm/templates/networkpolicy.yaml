@@ -17,15 +17,6 @@ spec:
               {{- include "uav-sim.mcpSelectorLabels" . | nindent 14 }}
       ports:
         - {protocol: TCP, port: 8810}
-        {{- range $slot := until (int .Values.liveView.viewerSlots) }}
-        - protocol: TCP
-          port: {{ add $.Values.liveView.signalingPortBase $slot }}
-        {{- end }}
-    - ports:
-        {{- range $slot := until (int .Values.liveView.viewerSlots) }}
-        - protocol: UDP
-          port: {{ add $.Values.liveView.mediaPortBase $slot }}
-        {{- end }}
   egress:
     - to:
         - podSelector:
@@ -65,10 +56,10 @@ spec:
               {{- include "veoveo-extension.componentSelector" (dict "installation" .Values.platform.installationId "component" "gateway") | nindent 14 }}
       ports:
         - {protocol: TCP, port: 8802}
-    {{- if .Values.liveView.signalingIngress.enabled }}
+    {{- if .Values.liveView.streamIngress.enabled }}
     - ports:
         - protocol: TCP
-          port: {{ .Values.liveView.signalingGatePort }}
+          port: {{ .Values.liveView.streamGatePort }}
     {{- end }}
   egress:
     - to:

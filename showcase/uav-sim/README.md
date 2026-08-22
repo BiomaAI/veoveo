@@ -13,9 +13,9 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Isaac Experimental API and Newton | Experimental prims and objects drive one Newton `1.5.0` rigid-body fleet on CUDA. The classic Core API and PhysX UAV path are absent. |
 | Warp and MuJoCo | Warp `1.16.0`, MuJoCo `3.11.0`, and MuJoCo Warp `3.11.0` are one certified simulation tuple. Repository Warp kernels own the UAV plant and HIL sensors. |
 | `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
-| `veoveo.io/live-view/v2` | Authoritative operator cameras, stable encoded products, ephemeral viewer leases, and typed capacity. |
+| `veoveo.io/live-view/v3` | Authoritative operator cameras, stable camera-owned encoded products, ephemeral viewer authorizations, and typed GPU capacity. |
 | `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
-| WebRTC and H.264 | One isolated native Omniverse WebRTC and NVIDIA NVENC product per active viewer lease. |
+| WebSocket and H.264 | One continuous NVIDIA NVENC product per camera, delivered as Annex B H.264 access units to every authenticated viewer. |
 | Native sensor video | `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`, packaged by Isaac Sim `6.0.1`, for CUDA-AOV-to-NVENC H.264 output. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
 | Rerun RRD | Version `0.36.0` telemetry, leader-camera video, and producer Blueprint publication. |
@@ -88,10 +88,10 @@ headless requests, pass criteria, and evidence record for another run.
 |---|---|
 | `../../platform/runtimes/simulation/` | Canonical Isaac, Isaac Lab, Warp, Newton, CUDA, and RTX lineage. |
 | `runtime/` | Cesium, the repository-owned Warp UAV plant, PX4 HIL, Newton fleet state, domain sensors, authoritative operator cameras, Hydra/NVENC products, recording, and the cluster-private adapter. |
-| `../../servers/uav-sim-mcp/` | Domain tools, resources, tasks, subscriptions, camera/product projection, viewer leases, signaling, audit, and the live App. |
+| `../../servers/uav-sim-mcp/` | Domain tools, resources, tasks, subscriptions, camera/product projection, stream authorization, WebSocket delivery, audit, and the live App. |
 | `agents/` | Reviewed showcase packaging for isolated generic pilot agents. |
 | `map/` | Map-owned named places and operational air-network fixture used by the showcase. |
-| `deploy/helm/` | Independent GPU runtime and MCP Deployments, isolated agent Deployments, recording forwarder, stable media ports, cache, and NetworkPolicy. |
+| `deploy/helm/` | Independent GPU runtime and MCP Deployments, isolated agent Deployments, recording forwarder, shared-stream ingress, cache, and NetworkPolicy. |
 | `scenarios/` | Installation-independent Frames trees and acceptance parameters. |
 
 There is one stage, one Cesium world, one runtime cache, and one GPU allocation. No
@@ -207,31 +207,27 @@ reconstructs the default route from immutable configuration.
 ## Operator Cameras
 
 At startup the runtime creates a bounded logical-camera set under
-`/World/OperatorCameras` and a separate preallocated viewer-slot pool under
-`/World/OperatorViewerCameras`. Supported rigs are fixed, look-at, orbit, follow, chase,
-stabilized mounted, and formation overview. Every assigned viewer slot owns its camera
-clone, Hydra texture, product ID, native signaling port, UDP media port, RTX render, and
-NVENC session.
+`/World/OperatorCameras`. Supported rigs are fixed, look-at, orbit, follow, chase,
+stabilized mounted, and formation overview. Every streamable camera owns one Hydra
+texture, product ID, pod-loopback RTSP port pair, RTX render, NVENC session, and shared
+H.264 access-unit ring.
 
 The camera update reads current authoritative entity transforms directly. Its
 frame-rate-independent filter smooths only the final operator-camera position and
 orientation. Target changes, camera revisions, simulation generations, long gaps, and
 teleports reset the filter. No entity-pose history or visualization interpolation exists.
 
-Unassigned viewer products remain inactive. Assignment copies the chosen logical pose
-into one slot, enables its Hydra texture, and completes only after a drawable event
-proves the first assigned GPU frame and the native signaling socket is listening. The
-adapter uses a bounded event wait and releases the slot on activation failure. Multiple
-users, profiles, or tabs receive independent leases, camera clones, RTX renders, NVENC
-sessions, and peer state even when they select the same logical camera.
+Each streamable logical camera owns a continuous Hydra texture, RTX render, NVENC session,
+and keyframe-aware H.264 ring. Multiple users, profiles, or tabs receive independent
+authorizations and cursors while sharing that exact camera product. Viewer count does not
+change GPU product count.
 
-The live App runs in an opaque-origin sandbox. It disables the pinned NVIDIA browser
-client's optional Compute Pressure telemetry before client initialization because that
-browser API is unavailable to an opaque origin. RTX rendering, NVENC encoding, and the
-native WebRTC data plane remain unchanged.
+The live App runs in an opaque-origin sandbox and decodes the shared Annex B stream with
+WebCodecs. RTX rendering and NVENC encoding remain inside the authoritative simulator.
 
-The qualified one-GPU profile targets 16 FPS for each of two simultaneous 1280×720
-viewer products. Acceptance requires at least 12 delivered FPS, source-to-render p95
+The qualified one-GPU profile targets 16 FPS for each 1280×720 camera product. Acceptance
+opens all five cameras for five simultaneous browser users and requires at least 12
+delivered FPS, source-to-render p95
 below 85 ms after the 256-event warm window, and a conservative composed
 motion-to-photon upper bound below 250 ms. These are measured product limits rather
 than adaptive downgrade rules; admission never rewrites a camera's requested optics or
@@ -243,7 +239,7 @@ server receives that edge on an authenticated HTTP stream, reapplies the binding
 waits for the runtime's final `ready` edge, emitted
 after physics, the streamed world, and logical cameras are current. The companion turns
 the final edge into a live-camera resource notification, and selected App tiles reconnect
-with fresh leases. No browser, MCP server, or disconnected event consumer can delay the
+with fresh authorizations. No browser, MCP server, or disconnected event consumer can delay the
 simulation loop.
 
 ## Domain Sensor And Recording
@@ -287,24 +283,18 @@ The chart requires:
 - one immutable Frames world and simulation frame, with an optional installation-owned
   startup binding ConfigMap for restart-stable always-on operation;
 - bounded fleet route, takeoff, vehicle, and PX4 parameters;
-- a strict logical operator-camera collection and a bounded physical viewer-slot pool;
-- stable native signaling and public media port ranges;
-- bounded live-view lease, viewer, frame-age, and product-activation limits;
+- a strict logical operator-camera collection and one continuous product per camera;
+- pod-loopback RTSP port pairs and one authenticated public WebSocket route;
+- bounded stream authorization and frame-age limits without a viewer quota;
 - a leader identity and bounded recording cadence and queue;
 - platform database and recording-forwarder credentials;
 - `nvidia.com/gpu: 1`, the NVIDIA runtime class, and driver capabilities
   `compute,graphics,utility,video`;
 - digest-pinned images in production.
 
-The public signaling URL is credential-free. Provider and adapter credentials are
+The public stream URL is credential-free. Provider and adapter credentials are
 mounted from distinct Secrets and never enter ConfigMaps, MCP resources, logs,
 recordings, or evidence.
-
-`liveView.mediaService.nodePortBase` is required when an installation maps a fixed
-public UDP range through Kubernetes NodePorts. The chart assigns one contiguous
-NodePort per physical viewer slot and rejects a range that exceeds the Kubernetes
-NodePort boundary. A normal LoadBalancer installation leaves the value null and uses
-allocator-owned NodePorts.
 
 ## Credential-Free Verification
 
@@ -331,9 +321,9 @@ SBOM, and provenance.
 ## Hardware Acceptance
 
 The installation-owned acceptance deploys one simulator GPU workload. Live-view
-acceptance proves the always-on fleet, authoritative camera health, one isolated product
-per active viewer, RTX/NVENC/WebRTC playback, simultaneous same-camera viewer isolation,
-one-App multi-camera grid isolation, sensor separation, simulation real-time factor,
+acceptance proves the always-on fleet, authoritative camera health, one shared product
+per camera, RTX/NVENC/WebCodecs playback, five users with all five camera streams,
+same-camera fan-out, sensor separation, simulation real-time factor,
 source-to-render latency, and browser motion-to-photon latency. Stream, Recording, and
 mission acceptance remain independent consumer checkpoints.
 
@@ -373,5 +363,5 @@ SHA-256 evidence digests.
 Restart evidence is written beneath
 `output/acceptance/uav-live-restart/{source-revision}/{run-id}/`. It records the exact
 pod, immutable image, before-and-after container IDs and restart counts, the unchanged
-headed App document and viewer identity, fresh lease IDs, advancing video, hardware
+headed App document and viewer identity, fresh authorization IDs, advancing video, hardware
 graphics proof, screenshots, and digests.

@@ -160,16 +160,11 @@ memory limits remain available
 for bursts without making the six-workload placement unschedulable on the reference
 64 GiB node.
 
-The local fixture advertises simulator-owned live-view signaling through
-`wss://veoveo.bioma.ai/uav-sim/signaling`. Its two preallocated viewer slots use
-the bounded UDP media range `192.168.68.69:47998-47999`. The chart assigns those
-slots to NodePorts `30998-30999`, and the k3d bindings admit each UDP port on the
-host's network interfaces before forwarding it to the matching NodePort. The fixed
-mapping is part of the
-acceptance contract because a Kubernetes-assigned NodePort cannot satisfy a
-predeclared browser media endpoint. An installation on a different network
-must advertise its routable signaling origin and UDP media address instead. A
-loopback media address is valid only when every browser runs on the cluster host.
+The local fixture advertises simulator-owned shared H.264 delivery through
+`wss://veoveo.bioma.ai/uav-sim/live`. The existing HTTPS ingress upgrades authenticated
+WebSocket connections and requires no public UDP range or per-viewer NodePort. Each
+camera is rendered and encoded once inside the simulator, then its exact access units
+fan out to browser viewers.
 
 Install the local platform fixture separately:
 

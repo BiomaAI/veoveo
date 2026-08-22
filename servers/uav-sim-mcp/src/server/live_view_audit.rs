@@ -53,44 +53,47 @@ impl LiveViewAudit {
         Ok(())
     }
 
-    pub(super) async fn append_lease(
+    pub(super) async fn append_authorization(
         &self,
-        lease: &LiveViewState,
+        authorization: &LiveViewState,
         action: &'static str,
         outcome: AuditOutcome,
         mut details: BTreeMap<String, Value>,
     ) -> anyhow::Result<()> {
-        let tenant_key = lease.owner.tenant.as_str();
+        let tenant_key = authorization.owner.tenant.as_str();
         details.insert(
             "session_id".to_owned(),
-            Value::String(lease.session_id.to_string()),
+            Value::String(authorization.session_id.to_string()),
         );
         details.insert(
             "camera_id".to_owned(),
-            Value::String(lease.camera_id.to_string()),
+            Value::String(authorization.camera_id.to_string()),
         );
         details.insert(
             "work_context".to_owned(),
-            Value::String(lease.owner.work_context.to_string()),
+            Value::String(authorization.owner.work_context.to_string()),
         );
         self.store
             .append_live_view_audit(AuditEventRecord {
                 id: AuditEventId::new().record_id(),
                 tenant: Some(deterministic_tenant_id(tenant_key)?.record_id()),
                 actor: Some(
-                    deterministic_principal_id(tenant_key, lease.viewer_actor.as_str())?
+                    deterministic_principal_id(tenant_key, authorization.viewer_actor.as_str())?
                         .record_id(),
                 ),
                 action: action.to_owned(),
                 resource_type: "simulator_live_view".to_owned(),
-                resource_id: Some(lease.live_view_id.to_string()),
+                resource_id: Some(authorization.live_view_id.to_string()),
                 outcome,
                 request_id: None,
                 trace_id: None,
                 source_ip: None,
                 details: OpenObject::new(details),
                 occurred_at: Utc::now(),
-                search_text: format!("simulator_live_view {action} {}", lease.live_view_id),
+                search_text: format!(
+                    "simulator_live_view {action} {}",
+                    authorization.live_view_id
+                ),
             })
             .await?;
         Ok(())

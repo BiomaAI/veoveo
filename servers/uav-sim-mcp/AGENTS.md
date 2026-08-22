@@ -37,20 +37,20 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   revision. The adapter derives Cesium and Newton fleet georeferencing from that
   binding, converts ENU/NED locally, and makes no MCP calls in the physics loop.
 - Operator cameras, RTX rendering, and NVIDIA NVENC products stay inside the
-  authoritative simulator. This server owns ephemeral actor-and-browser viewer
-  leases, access audit, signaling authorization, and `ui://uav-sim/live.html`.
+  authoritative simulator. This server owns actor-and-browser stream
+  authorization, access audit, WebSocket admission, and `ui://uav-sim/live.html`.
   It never persists renderer desired state or mirrors entity poses.
-- Every active viewer lease owns one exclusively assigned physical slot with a
-  camera clone, RTX render, Cesium viewport, NVIDIA NVENC session, and native
-  WebRTC peer. Logical cameras and their final poses may be shared; encoded
-  products and transport state are never shared between viewers.
+- Every streamable logical camera owns one continuously active RTX render,
+  Cesium viewport, NVIDIA NVENC session, and decoder-reentrant Annex B H.264
+  product. Authorized viewers share that exact bitstream. Viewer count never
+  changes render-product or NVENC-session count, and no viewer quota is exposed.
 - `CESIUM_ION_ACCESS_TOKEN` comes only from the dedicated Kubernetes Secret.
   It is never a tool argument, ConfigMap value, resource field, log field, or
   exported USD content.
 - Recording state publishes its producer key and typed catalog lifecycle
   immediately. The canonical `recording://recordings/{recording_id}` identity
   appears only after catalog resolution; catalog delay or failure never blocks
-  simulation, operator rendering, or live-view signaling. Native Recording Hub
+  simulation, operator rendering, or live-stream delivery. Native Recording Hub
   ports stay private.
 
 ## Build And Test

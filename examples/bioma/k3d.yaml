@@ -14,18 +14,6 @@ ports:
   - port: 127.0.0.1:49101:30910
     nodeFilters:
       - loadbalancer
-  - port: 0.0.0.0:47998:30998/udp
-    nodeFilters:
-      - loadbalancer
-  - port: 0.0.0.0:47999:30999/udp
-    nodeFilters:
-      - loadbalancer
-  - port: 0.0.0.0:48000:31000/udp
-    nodeFilters:
-      - loadbalancer
-  - port: 0.0.0.0:48001:31001/udp
-    nodeFilters:
-      - loadbalancer
 registries:
   use:
     - k3d-veoveo-registry.localhost:5001

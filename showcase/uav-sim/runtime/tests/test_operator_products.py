@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import json
-import socket
+from collections import deque
 import threading
 import unittest
 
+from veoveo_uav_sim.h264 import NativeH264AccessUnit
 from veoveo_uav_sim.operator_camera import CameraRigKind
 from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
 from veoveo_uav_sim.operator_health import OperatorProductHealth
 from veoveo_uav_sim.operator_products import (
-    OperatorRenderProduct,
-    livestream_aov_arguments,
-    livestream_aov_product_arguments,
-    native_signaling_is_listening,
+    OperatorCameraProduct,
+    operator_aov_arguments,
     operator_product_name,
     operator_stream_product_id,
 )
@@ -44,18 +43,14 @@ def _camera(camera_id: str, slot: int, rig: dict[str, object]) -> dict[str, obje
         "revision": 1,
         "rig": rig,
         "optics": _optics(),
-        "streamPolicy": "on_demand",
+        "streamPolicy": "continuous",
     }
 
 
 def _config(cameras: list[dict[str, object]]) -> OperatorLiveViewRuntimeConfig:
     return OperatorLiveViewRuntimeConfig.from_json(
         json.dumps(cameras),
-        viewer_slot_count=2,
-        activation_timeout_seconds=10.0,
-        signaling_port_base=49100,
-        media_port_base=47998,
-        public_media_ip="203.0.113.8",
+        rtsp_port_base=8560,
     )
 
 
@@ -166,52 +161,28 @@ class OperatorCameraConfigTests(unittest.TestCase):
 
 
 class OperatorProductTests(unittest.TestCase):
-    def test_native_signaling_readiness_requires_a_listening_socket(self) -> None:
-        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        listener.bind(("127.0.0.1", 0))
-        port = listener.getsockname()[1]
-        listener.listen(1)
-        try:
-            self.assertTrue(native_signaling_is_listening(port))
-        finally:
-            listener.close()
-        self.assertFalse(native_signaling_is_listening(port))
-
-    def test_product_activation_waits_for_frame_and_signaling(self) -> None:
-        product = OperatorRenderProduct.__new__(OperatorRenderProduct)
-        product.product_id = "product-slot-0"
-        product._activation = threading.Event()
-        product._lock = threading.Lock()
-        product._active = True
-        product._live_view_id = "view-1"
+    def test_new_viewer_starts_at_latest_keyframe_and_then_advances(self) -> None:
+        product = OperatorCameraProduct.__new__(OperatorCameraProduct)
+        product._condition = threading.Condition()
+        product._closed = False
         product._failure = None
-        product._activation_frame_ready = False
-        product._signaling_ready = False
+        product._frames = deque(maxlen=256)
+        product._sequence = 0
+        product._health = OperatorProductHealth(maximum_frame_age_ms=1_000)
+        product._health.activate()
+        keyframe = NativeH264AccessUnit(b"key", (7, 8, 5))
+        delta = NativeH264AccessUnit(b"delta", (1,))
+        product._on_access_unit(keyframe)
+        product._on_access_unit(delta)
 
-        with self.assertRaisesRegex(TimeoutError, "native signaling"):
-            product.wait_until_ready("view-1", 0.0)
+        first = product.wait_for_frame(0, 0.01)
+        assert first is not None
+        self.assertEqual(first.sequence, 1)
+        second = product.wait_for_frame(first.sequence, 0.01)
+        assert second is not None
+        self.assertEqual(second.sequence, 2)
 
-        product._activation_frame_ready = True
-        product._signaling_ready = True
-        product._activation.set()
-        product.wait_until_ready("view-1", 0.0)
-
-    def test_one_aov_product_has_one_exact_gpu_stream(self) -> None:
-        arguments = livestream_aov_product_arguments(
-            "uav_viewer_slot_0",
-            signaling_port=49100,
-            media_port=47998,
-            public_media_ip="127.0.0.1",
-            target_fps=24,
-        )
-        self.assertEqual(len(arguments), 7)
-        self.assertTrue(
-            all("uav_viewer_slot_0.LdrColor" in item for item in arguments)
-        )
-        self.assertTrue(any("signalPort=49100" in item for item in arguments))
-        self.assertTrue(any("streamPort=47998" in item for item in arguments))
-
-    def test_aov_arguments_have_one_locked_port_pair_per_product(self) -> None:
+    def test_aov_arguments_have_one_rtsp_nvenc_product_per_camera(self) -> None:
         cameras = [
             _camera(
                 camera_id,
@@ -226,15 +197,16 @@ class OperatorProductTests(unittest.TestCase):
             )
             for slot, camera_id in enumerate(("follow", "chase"))
         ]
-        arguments = livestream_aov_arguments(_config(cameras))
-        self.assertEqual(len(arguments), 14)
-        self.assertTrue(any("uav_viewer_slot_0" in item for item in arguments))
-        self.assertTrue(any("signalPort=49100" in item for item in arguments))
-        self.assertTrue(any("signalPort=49101" in item for item in arguments))
-        self.assertTrue(any("streamPort=47998" in item for item in arguments))
-        self.assertTrue(any("streamPort=47999" in item for item in arguments))
-        self.assertEqual(operator_product_name(1), "uav_viewer_slot_1")
-        self.assertEqual(operator_stream_product_id(1), "product-slot-1")
+        config = _config(cameras)
+        arguments = operator_aov_arguments(config)
+        self.assertEqual(len(arguments), 10)
+        self.assertTrue(any("uav_camera_product_0" in item for item in arguments))
+        self.assertTrue(any("signalPort=8561" in item for item in arguments))
+        self.assertTrue(any("signalPort=8563" in item for item in arguments))
+        self.assertTrue(any("streamPort=8560" in item for item in arguments))
+        self.assertTrue(any("streamPort=8562" in item for item in arguments))
+        self.assertEqual(operator_product_name(1), "uav_camera_product_1")
+        self.assertEqual(operator_stream_product_id(1), "camera-product-1")
 
     def test_visibility_survives_metadata_only_frame_observation(self) -> None:
         health = OperatorProductHealth(maximum_frame_age_ms=1_000)

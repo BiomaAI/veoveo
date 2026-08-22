@@ -2,7 +2,6 @@
 name = "veoveo-uav-sim-mcp"
 version.workspace = true
 edition.workspace = true
-build = "build.rs"
 
 [lib]
 name = "veoveo_uav_sim_mcp"
@@ -47,6 +46,3 @@ veoveo-task-runtime = { path = "../../platform/task-runtime" }
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }
 veoveo-map-mcp = { path = "../map-mcp" }
-
-[build-dependencies]
-sha2.workspace = true

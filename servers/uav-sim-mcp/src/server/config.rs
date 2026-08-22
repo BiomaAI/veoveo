@@ -1,4 +1,4 @@
-use std::{net::IpAddr, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use clap::{Parser, ValueEnum};
 use secrecy::SecretString;
@@ -77,30 +77,28 @@ pub(super) struct Args {
     pub(super) surreal_password: SecretString,
     #[arg(long, env = "VEOVEO_INTERNAL_TRUST_JWKS", hide_env_values = true)]
     pub(super) internal_trust_jwks: String,
-    #[arg(long, env = "UAV_SIM_PUBLIC_SIGNALING_URL")]
-    pub(super) public_signaling_url: String,
-    #[arg(long, env = "UAV_SIM_SIGNALING_GATE_PORT", default_value_t = 8803)]
-    pub(super) signaling_gate_port: u16,
+    #[arg(long, env = "UAV_SIM_PUBLIC_STREAM_URL")]
+    pub(super) public_stream_url: String,
+    #[arg(long, env = "UAV_SIM_LIVE_STREAM_GATE_PORT", default_value_t = 8803)]
+    pub(super) live_stream_gate_port: u16,
     #[arg(
         long,
-        env = "UAV_SIM_NATIVE_SIGNALING_URL",
-        default_value = "ws://127.0.0.1:49100/webrtc"
+        env = "UAV_SIM_RUNTIME_STREAM_URL",
+        default_value = "ws://127.0.0.1:8810/v1/live-streams"
     )]
-    pub(super) native_signaling_url: String,
-    #[arg(long, env = "UAV_SIM_PUBLIC_MEDIA_HOST")]
-    pub(super) public_media_host: IpAddr,
-    #[arg(long, env = "UAV_SIM_PUBLIC_MEDIA_PORT_BASE", default_value_t = 47998)]
-    pub(super) public_media_port_base: u16,
-    #[arg(long, env = "UAV_SIM_LIVE_VIEW_LEASE_SECONDS", default_value_t = 120)]
-    pub(super) live_view_lease_seconds: u64,
+    pub(super) runtime_stream_url: String,
+    #[arg(
+        long,
+        env = "UAV_SIM_LIVE_VIEW_AUTHORIZATION_SECONDS",
+        default_value_t = 3600
+    )]
+    pub(super) live_view_authorization_seconds: u64,
     #[arg(
         long,
         env = "UAV_SIM_LIVE_VIEW_MAXIMUM_FRAME_AGE_MS",
         default_value_t = 2_000
     )]
     pub(super) live_view_maximum_frame_age_ms: u32,
-    #[arg(long, env = "UAV_SIM_LIVE_VIEW_MAXIMUM_VIEWERS", default_value_t = 64)]
-    pub(super) live_view_maximum_viewers: u32,
     /// Installation-configured generic agent ids the UAV App may message
     /// through the authenticated Console bridge.
     #[arg(
@@ -141,12 +139,12 @@ impl Args {
         Ok(Duration::from_secs(self.adapter_operation_timeout_seconds))
     }
 
-    pub(super) fn live_view_lease_duration(&self) -> anyhow::Result<Duration> {
+    pub(super) fn live_view_session_duration(&self) -> anyhow::Result<Duration> {
         anyhow::ensure!(
-            self.live_view_lease_seconds > 0,
-            "live-view lease duration must be positive"
+            self.live_view_authorization_seconds > 0,
+            "live-view authorization duration must be positive"
         );
-        Ok(Duration::from_secs(self.live_view_lease_seconds))
+        Ok(Duration::from_secs(self.live_view_authorization_seconds))
     }
 }
 

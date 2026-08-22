@@ -58,14 +58,6 @@ spec:
           ports:
             - name: adapter
               containerPort: 8810
-            {{- range $slot := until (int .Values.liveView.viewerSlots) }}
-            - name: {{ printf "signal-%d" $slot }}
-              containerPort: {{ add $.Values.liveView.signalingPortBase $slot }}
-              protocol: TCP
-            - name: {{ printf "media-%d" $slot }}
-              containerPort: {{ add $.Values.liveView.mediaPortBase $slot }}
-              protocol: UDP
-            {{- end }}
           startupProbe:
             exec:
               command: [/usr/bin/curl, --fail, --silent, --show-error, --max-time, "1", http://127.0.0.1:8810/healthz]
@@ -169,14 +161,11 @@ spec:
             - name: UAV_SIM_WORLD_BOOTSTRAP_FILE
               value: {{ printf "/etc/veoveo/uav-sim-world/%s" .Values.world.bootstrap.key | quote }}
             {{- end }}
-            - {name: UAV_SIM_PUBLIC_SIGNALING_URL, value: {{ .Values.liveView.publicSignalingUrl | quote }}}
-            - {name: UAV_SIM_SIGNALING_GATE_PORT, value: {{ .Values.liveView.signalingGatePort | quote }}}
-            - {name: UAV_SIM_NATIVE_SIGNALING_URL, value: {{ printf "ws://uav-sim-runtime:%d/webrtc" (int .Values.liveView.signalingPortBase) | quote }}}
-            - {name: UAV_SIM_PUBLIC_MEDIA_HOST, value: {{ .Values.liveView.publicMediaHost | quote }}}
-            - {name: UAV_SIM_PUBLIC_MEDIA_PORT_BASE, value: {{ .Values.liveView.mediaPortBase | quote }}}
-            - {name: UAV_SIM_LIVE_VIEW_LEASE_SECONDS, value: {{ .Values.liveView.leaseSeconds | quote }}}
+            - {name: UAV_SIM_PUBLIC_STREAM_URL, value: {{ .Values.liveView.publicStreamUrl | quote }}}
+            - {name: UAV_SIM_LIVE_STREAM_GATE_PORT, value: {{ .Values.liveView.streamGatePort | quote }}}
+            - {name: UAV_SIM_RUNTIME_STREAM_URL, value: "ws://uav-sim-runtime:8810/v1/live-streams"}
+            - {name: UAV_SIM_LIVE_VIEW_AUTHORIZATION_SECONDS, value: {{ .Values.liveView.authorizationSeconds | quote }}}
             - {name: UAV_SIM_LIVE_VIEW_MAXIMUM_FRAME_AGE_MS, value: {{ .Values.liveView.maximumFrameAgeMs | quote }}}
-            - {name: UAV_SIM_LIVE_VIEW_MAXIMUM_VIEWERS, value: {{ .Values.liveView.viewerSlots | quote }}}
             {{- if .Values.agents.enabled }}
             - name: UAV_SIM_AGENT_MESSAGE_TARGETS
               value: {{ join "," $agentMessageTargets | quote }}
@@ -196,7 +185,7 @@ spec:
             - {name: RUST_LOG, value: info}
           ports:
             - {name: mcp, containerPort: 8802}
-            - {name: signaling, containerPort: {{ .Values.liveView.signalingGatePort }}}
+            - {name: live-stream, containerPort: {{ .Values.liveView.streamGatePort }}}
           startupProbe:
             httpGet:
               path: /uav-sim/healthz
