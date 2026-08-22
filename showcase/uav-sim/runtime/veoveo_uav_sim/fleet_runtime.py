@@ -262,7 +262,7 @@ class NewtonFleetRuntime:
         self._sensor_update_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
-        self._hil.publish_sensor_frames(frames, timeout=max(0.25, 8.0 * self._dt))
+        self._hil.publish_sensor_frames(frames)
         self._backend_state_wall_seconds += time.perf_counter() - phase
         self._vehicle_update_wall_seconds += time.perf_counter() - started
 
