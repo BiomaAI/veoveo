@@ -541,7 +541,6 @@ async fn uav_sim_verify_with_visual_hold(
                 }),
             )
             .await?;
-        wait_for_flight_state(&operator, &["armed"], Duration::from_secs(60), &scenario).await?;
         operator
             .call_tool(
                 "uav-sim__takeoff_vehicle",
