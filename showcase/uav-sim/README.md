@@ -192,8 +192,9 @@ state or blocking the GPU simulation loop.
 
 The Isaac timeline remains playing because Newton gates integration on that state, while
 app-driven physics stepping is disabled. `SimulationManager` alone advances Newton at the
-exact 30 Hz fixed cadence. PX4 receives IMU, barometer, and magnetometer HIL fields on
-every authoritative step and GPS fields at 10 Hz. Elapsed monotonic time determines the
+exact 30 Hz fixed cadence. Each state sample produces two ordered PX4 HIL frames, which
+keeps the estimator's IMU transport at 60 Hz while barometer and magnetometer fields
+update at 30 Hz and GPS fields update at 10 Hz. Elapsed monotonic time determines the
 number of authoritative steps due on each scheduler pass. The clock retains bounded debt
 instead of dropping elapsed time. When rendering misses visual
 deadlines, the runtime advances every due physics step and renders only the newest state.

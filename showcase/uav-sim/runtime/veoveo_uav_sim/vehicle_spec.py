@@ -22,11 +22,12 @@ PX4_IRIS_MAX_ROTOR_VELOCITY_RPS = 1100.0
 PX4_IRIS_TIME_CONSTANT_UP_S = 0.0125
 PX4_IRIS_TIME_CONSTANT_DOWN_S = 0.025
 PX4_IRIS_LINEAR_DRAG_FLU_NS_M = (0.50, 0.30, 0.0)
+PX4_HIL_HZ = 60
 
 
 @dataclass(frozen=True, slots=True)
 class SensorCadence:
-    imu_hz: int = 30
+    imu_hz: int = 60
     barometer_hz: int = 30
     magnetometer_hz: int = 30
     gps_hz: int = 10
