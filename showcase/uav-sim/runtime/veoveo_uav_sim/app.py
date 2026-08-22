@@ -138,7 +138,7 @@ def run(config: RuntimeConfig) -> None:
     from .cesium_camera import current_pose_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
-    from .fleet_runtime import NewtonFleetRuntime
+    from .fleet_runtime import WarpFleetRuntime
     from .hydra_camera import NativeH264CameraSensor
     from .operator_camera import (
         AuthoritativeOperatorCameraCollection,
@@ -194,7 +194,7 @@ def run(config: RuntimeConfig) -> None:
     camera_sensors: dict[str, NativeH264CameraSensor] = {}
     camera_sensor_sequences: dict[str, int] = {}
     camera_frames_observed: dict[str, int] = {}
-    fleet_runtime: NewtonFleetRuntime | None = None
+    fleet_runtime: WarpFleetRuntime | None = None
     hil_fleet: Px4HilFleet | None = None
     simulation_running = True
     fleet_loop: FleetLoopController | None = None
@@ -244,11 +244,14 @@ def run(config: RuntimeConfig) -> None:
         if newton_stage.cfg.solver_cfg.solver_type != "mujoco":
             raise RuntimeError("UAV fleet requires the MuJoCo-Warp Newton solver")
         newton_stage.cfg.num_substeps = 1
+        newton_stage.cfg.use_cuda_graph = False
         newton_stage.cfg.solver_cfg.iterations = 1
         newton_stage.cfg.solver_cfg.ls_iterations = 1
-        newton_stage.cfg.solver_cfg.integrator = "implicitfast"
-        newton_stage.cfg.solver_cfg.disable_contacts = False
-        newton_stage.cfg.solver_cfg.use_mujoco_contacts = True
+        newton_stage.cfg.solver_cfg.integrator = "euler"
+        newton_stage.cfg.solver_cfg.disable_contacts = True
+        newton_stage.cfg.solver_cfg.use_mujoco_contacts = False
+        newton_stage.cfg.solver_cfg.njmax = 1
+        newton_stage.cfg.solver_cfg.nconmax = 0
         physics_timeline = omni.timeline.get_timeline_interface()
         # Newton owns the authoritative clock. Kit remains in manual mode and
         # advances only render products and extension work.
@@ -516,7 +519,7 @@ def run(config: RuntimeConfig) -> None:
             )
 
         hil_fleet = Px4HilFleet(config.px4_directory, config.vehicle_count)
-        fleet_runtime = NewtonFleetRuntime(
+        fleet_runtime = WarpFleetRuntime(
             fleet_scene.body_paths,
             fleet_scene.initial_positions_enu_m,
             world_config.georeference_origin.latitude_degrees,

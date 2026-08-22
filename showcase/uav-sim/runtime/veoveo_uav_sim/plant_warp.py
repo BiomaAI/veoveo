@@ -3,7 +3,9 @@ from __future__ import annotations
 import warp as wp
 
 from .vehicle_spec import (
+    PX4_IRIS_DIAGONAL_INERTIA_KG_M2,
     PX4_IRIS_LINEAR_DRAG_FLU_NS_M,
+    PX4_IRIS_MASS_KG,
     PX4_IRIS_MOTOR_CONSTANT,
     PX4_IRIS_ROTOR_DIRECTIONS,
     PX4_IRIS_ROTOR_POSITIONS_FLU_M,
@@ -20,6 +22,13 @@ TIME_CONSTANT_UP_S = wp.constant(PX4_IRIS_TIME_CONSTANT_UP_S)
 TIME_CONSTANT_DOWN_S = wp.constant(PX4_IRIS_TIME_CONSTANT_DOWN_S)
 DRAG_X = wp.constant(PX4_IRIS_LINEAR_DRAG_FLU_NS_M[0])
 DRAG_Y = wp.constant(PX4_IRIS_LINEAR_DRAG_FLU_NS_M[1])
+MASS_KG = wp.constant(PX4_IRIS_MASS_KG)
+INERTIA_X = wp.constant(PX4_IRIS_DIAGONAL_INERTIA_KG_M2[0])
+INERTIA_Y = wp.constant(PX4_IRIS_DIAGONAL_INERTIA_KG_M2[1])
+INERTIA_Z = wp.constant(PX4_IRIS_DIAGONAL_INERTIA_KG_M2[2])
+GRAVITY_MPS2 = wp.constant(9.80665)
+LAUNCH_SURFACE_CENTER_UP_M = wp.constant(0.04)
+GROUND_FRICTION_PER_SECOND = wp.constant(8.0)
 ROTOR_0_X = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[0][0])
 ROTOR_0_Y = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[0][1])
 ROTOR_1_X = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[1][0])
@@ -105,6 +114,104 @@ def update_motor_wrench(
         + ROTOR_2_DIRECTION * motor_velocity[vehicle, 2] * motor_velocity[vehicle, 2]
         + ROTOR_3_DIRECTION * motor_velocity[vehicle, 3] * motor_velocity[vehicle, 3]
     )
+
+
+@wp.kernel
+def integrate_fleet_state(
+    transforms_xyzw: wp.array2d(dtype=wp.float32),
+    velocities_enu: wp.array2d(dtype=wp.float32),
+    forces_flu: wp.array2d(dtype=wp.float32),
+    torques_flu: wp.array2d(dtype=wp.float32),
+    dt: wp.float32,
+):
+    """Integrate the complete free-flight plant and launch-surface constraint."""
+    vehicle = wp.tid()
+    position = wp.vec3(
+        transforms_xyzw[vehicle, 0],
+        transforms_xyzw[vehicle, 1],
+        transforms_xyzw[vehicle, 2],
+    )
+    orientation = wp.quat(
+        transforms_xyzw[vehicle, 3],
+        transforms_xyzw[vehicle, 4],
+        transforms_xyzw[vehicle, 5],
+        transforms_xyzw[vehicle, 6],
+    )
+    linear_velocity = wp.vec3(
+        velocities_enu[vehicle, 0],
+        velocities_enu[vehicle, 1],
+        velocities_enu[vehicle, 2],
+    )
+    angular_velocity = wp.vec3(
+        velocities_enu[vehicle, 3],
+        velocities_enu[vehicle, 4],
+        velocities_enu[vehicle, 5],
+    )
+    force_world = wp.quat_rotate(
+        orientation,
+        wp.vec3(
+            forces_flu[vehicle, 0],
+            forces_flu[vehicle, 1],
+            forces_flu[vehicle, 2],
+        ),
+    )
+    linear_velocity = linear_velocity + (
+        force_world / MASS_KG + wp.vec3(0.0, 0.0, -GRAVITY_MPS2)
+    ) * dt
+    position = position + linear_velocity * dt
+
+    angular_body = wp.quat_rotate_inv(orientation, angular_velocity)
+    inertia_angular = wp.vec3(
+        INERTIA_X * angular_body[0],
+        INERTIA_Y * angular_body[1],
+        INERTIA_Z * angular_body[2],
+    )
+    torque_body = wp.vec3(
+        torques_flu[vehicle, 0],
+        torques_flu[vehicle, 1],
+        torques_flu[vehicle, 2],
+    ) - wp.cross(angular_body, inertia_angular)
+    angular_delta = wp.vec3(
+        torque_body[0] / INERTIA_X,
+        torque_body[1] / INERTIA_Y,
+        torque_body[2] / INERTIA_Z,
+    ) * dt
+    angular_velocity = wp.quat_rotate(
+        orientation,
+        angular_body + angular_delta,
+    )
+    orientation = wp.normalize(
+        orientation
+        + wp.quat(angular_velocity, 0.0) * orientation * 0.5 * dt
+    )
+
+    if position[2] < LAUNCH_SURFACE_CENTER_UP_M:
+        position = wp.vec3(position[0], position[1], LAUNCH_SURFACE_CENTER_UP_M)
+        if linear_velocity[2] < 0.0:
+            linear_velocity = wp.vec3(
+                linear_velocity[0], linear_velocity[1], 0.0
+            )
+        friction = wp.max(0.0, 1.0 - GROUND_FRICTION_PER_SECOND * dt)
+        linear_velocity = wp.vec3(
+            linear_velocity[0] * friction,
+            linear_velocity[1] * friction,
+            linear_velocity[2],
+        )
+        angular_velocity = angular_velocity * friction
+
+    transforms_xyzw[vehicle, 0] = position[0]
+    transforms_xyzw[vehicle, 1] = position[1]
+    transforms_xyzw[vehicle, 2] = position[2]
+    transforms_xyzw[vehicle, 3] = orientation[0]
+    transforms_xyzw[vehicle, 4] = orientation[1]
+    transforms_xyzw[vehicle, 5] = orientation[2]
+    transforms_xyzw[vehicle, 6] = orientation[3]
+    velocities_enu[vehicle, 0] = linear_velocity[0]
+    velocities_enu[vehicle, 1] = linear_velocity[1]
+    velocities_enu[vehicle, 2] = linear_velocity[2]
+    velocities_enu[vehicle, 3] = angular_velocity[0]
+    velocities_enu[vehicle, 4] = angular_velocity[1]
+    velocities_enu[vehicle, 5] = angular_velocity[2]
 
 
 @wp.kernel

@@ -1083,19 +1083,23 @@ class NativeCadenceTests(unittest.TestCase):
         self.assertIn('switch_physics_engine("newton"', app_source)
         self.assertIn("newton_stage.cfg.time_step_app = False", app_source)
         self.assertIn("newton_stage.cfg.num_substeps = 1", app_source)
+        self.assertIn("newton_stage.cfg.use_cuda_graph = False", app_source)
         self.assertIn("newton_stage.cfg.solver_cfg.iterations = 1", app_source)
         self.assertIn("newton_stage.cfg.solver_cfg.ls_iterations = 1", app_source)
         self.assertIn(
-            'newton_stage.cfg.solver_cfg.integrator = "implicitfast"', app_source
+            'newton_stage.cfg.solver_cfg.integrator = "euler"', app_source
         )
-        self.assertIn("newton_stage.cfg.solver_cfg.disable_contacts = False", app_source)
-        self.assertIn("newton_stage.cfg.solver_cfg.use_mujoco_contacts = True", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.disable_contacts = True", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.use_mujoco_contacts = False", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.njmax = 1", app_source)
+        self.assertIn("newton_stage.cfg.solver_cfg.nconmax = 0", app_source)
         self.assertIn("physics_timeline.play()", app_source)
         self.assertIn("not newton_stage.playing", app_source)
         self.assertIn("isaacsim.core.experimental.prims", fleet_source)
         self.assertIn("RigidPrim(list(paths), resolve_paths=True)", fleet_source)
         self.assertIn("self._wp.launch(", fleet_source)
         self.assertIn("@wp.kernel\ndef update_motor_wrench", plant_source)
+        self.assertIn("@wp.kernel\ndef integrate_fleet_state", plant_source)
         self.assertIn("@wp.kernel\ndef sample_hil_sensors", plant_source)
         self.assertIn("isaacsim.core.experimental.objects", scene_source)
         self.assertIn("float physics:mass = 1.5", asset_source)
@@ -1107,6 +1111,11 @@ class NativeCadenceTests(unittest.TestCase):
         )[0]
         self.assertNotIn("self._rigid.get_world_poses()", step_source)
         self.assertNotIn("self._rigid.get_velocities()", step_source)
+        self.assertNotIn("SimulationManager.step", step_source)
+        self.assertNotIn("apply_forces_and_torques_at_pos", step_source)
+        self.assertIn("self._kernels.integrate_fleet_state", step_source)
+        self.assertIn("self._rigid_tensor_view.set_transforms", step_source)
+        self.assertIn("self._rigid_tensor_view.set_velocities", step_source)
         self.assertIn("self._rigid_tensor_view.get_transforms()", step_source)
         self.assertIn("self._rigid_tensor_view.get_velocities()", step_source)
 

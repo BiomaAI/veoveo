@@ -28,8 +28,8 @@ class FleetPhysicsTiming:
     maximum_physics_step_ms: float
 
 
-class NewtonFleetRuntime:
-    """One Newton rigid-body view and one CUDA Warp plant for the fleet."""
+class WarpFleetRuntime:
+    """One Newton rigid-body tensor view with Warp-owned fleet dynamics."""
 
     def __init__(
         self,
@@ -44,8 +44,6 @@ class NewtonFleetRuntime:
     ) -> None:
         import warp as wp
         from isaacsim.core.experimental.prims import RigidPrim
-        from isaacsim.core.simulation_manager import SimulationManager
-
         from . import plant_warp
 
         paths = tuple(body_paths)
@@ -60,7 +58,6 @@ class NewtonFleetRuntime:
 
         self._wp = wp
         self._kernels = plant_warp
-        self._simulation_manager = SimulationManager
         self._paths = paths
         self._initial_positions = initial_positions
         self._physics_hz = physics_hz
@@ -87,6 +84,9 @@ class NewtonFleetRuntime:
             raise RuntimeError("Newton rigid-body tensor view is unavailable")
 
         count = len(paths)
+        self._indices = wp.array(
+            list(range(count)), dtype=wp.int32, device=self._device
+        )
         self._control_host = wp.zeros((count, 4), dtype=wp.float32, device="cpu")
         self._control_host_values = self._control_host.numpy()
         self._controls = wp.zeros((count, 4), dtype=wp.float32, device=self._device)
@@ -228,12 +228,20 @@ class NewtonFleetRuntime:
         self._dynamics_update_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
-        self._rigid.apply_forces_and_torques_at_pos(
-            self._forces,
-            self._torques,
-            local_frame=True,
+        self._wp.launch(
+            self._kernels.integrate_fleet_state,
+            dim=len(self._paths),
+            inputs=[
+                self._transforms,
+                self._velocities,
+                self._forces,
+                self._torques,
+                self._dt,
+            ],
+            device=self._device,
         )
-        self._simulation_manager.step(steps=1, update_fabric=False)
+        self._rigid_tensor_view.set_transforms(self._transforms, self._indices)
+        self._rigid_tensor_view.set_velocities(self._velocities, self._indices)
         self._flush_forces_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
