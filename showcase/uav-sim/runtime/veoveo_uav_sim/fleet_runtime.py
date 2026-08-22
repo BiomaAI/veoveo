@@ -170,9 +170,21 @@ class NewtonFleetRuntime:
         rotations = self._wp.array(
             orientations, dtype=self._wp.float32, device=self._device
         )
-        zeros = self._wp.zeros((count, 3), dtype=self._wp.float32, device=self._device)
+        linear_zeros = self._wp.zeros(
+            (count, 3), dtype=self._wp.float32, device=self._device
+        )
+        angular_zeros = self._wp.zeros(
+            (count, 3), dtype=self._wp.float32, device=self._device
+        )
         self._rigid.set_world_poses(positions=positions, orientations=rotations)
-        self._rigid.set_velocities(linear_velocities=zeros, angular_velocities=zeros)
+        self._rigid.set_velocities(
+            linear_velocities=linear_zeros,
+            angular_velocities=angular_zeros,
+        )
+        self._positions = positions
+        self._orientations = rotations
+        self._linear_velocity = linear_zeros
+        self._angular_velocity = angular_zeros
         self._controls.zero_()
         self._motor_velocity.zero_()
         self._forces.zero_()
@@ -189,8 +201,6 @@ class NewtonFleetRuntime:
             for rotor, value in enumerate(values):
                 self._control_host_values[vehicle, rotor] = value
         self._wp.copy(self._controls, self._control_host)
-        positions, orientations = self._rigid.get_world_poses()
-        linear_velocity, angular_velocity = self._rigid.get_velocities()
         self._state_update_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
@@ -200,8 +210,8 @@ class NewtonFleetRuntime:
             inputs=[
                 self._controls,
                 self._motor_velocity,
-                orientations,
-                linear_velocity,
+                self._orientations,
+                self._linear_velocity,
                 self._forces,
                 self._torques,
                 self._dt,
@@ -220,8 +230,8 @@ class NewtonFleetRuntime:
         self._flush_forces_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
-        positions, orientations = self._rigid.get_world_poses()
-        linear_velocity, angular_velocity = self._rigid.get_velocities()
+        self._positions, self._orientations = self._rigid.get_world_poses()
+        self._linear_velocity, self._angular_velocity = self._rigid.get_velocities()
         self._refresh_states_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
@@ -229,10 +239,10 @@ class NewtonFleetRuntime:
             self._kernels.sample_hil_sensors,
             dim=len(self._paths),
             inputs=[
-                positions,
-                orientations,
-                linear_velocity,
-                angular_velocity,
+                self._positions,
+                self._orientations,
+                self._linear_velocity,
+                self._angular_velocity,
                 self._previous_linear_velocity,
                 self._packet_device,
                 self._dt,
@@ -251,7 +261,7 @@ class NewtonFleetRuntime:
         self._sensor_update_wall_seconds += time.perf_counter() - phase
 
         phase = time.perf_counter()
-        self._hil.exchange(frames, timeout=max(0.25, 8.0 * self._dt))
+        self._hil.publish_sensor_frames(frames, timeout=max(0.25, 8.0 * self._dt))
         self._backend_state_wall_seconds += time.perf_counter() - phase
         self._vehicle_update_wall_seconds += time.perf_counter() - started
 

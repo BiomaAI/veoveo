@@ -98,7 +98,7 @@ class Px4Process:
 
 
 class Px4HilBridge:
-    """One concurrent MAVLink HIL worker with a latest-frame exchange slot."""
+    """One concurrent MAVLink HIL worker with asynchronous actuator feedback."""
 
     def __init__(self, px4_directory: str, instance: int) -> None:
         self.instance = instance
@@ -107,7 +107,6 @@ class Px4HilBridge:
         self._stop = False
         self._pending: tuple[int, HilSensorFrame] | None = None
         self._sent_sequence = 0
-        self._actuator_generation = 0
         self._controls = (0.0, 0.0, 0.0, 0.0)
         self._heartbeat_received = False
         self._failure: BaseException | None = None
@@ -138,40 +137,27 @@ class Px4HilBridge:
             self._raise_if_failed_locked()
             return self._controls
 
-    def publish(self, sequence: int, frame: HilSensorFrame) -> int:
+    def publish(self, sequence: int, frame: HilSensorFrame) -> None:
         with self._condition:
             self._raise_if_failed_locked()
             if self._pending is not None:
                 raise RuntimeError(
                     f"PX4 HIL instance {self.instance} still owns an unsent frame"
                 )
-            prior_actuator_generation = self._actuator_generation
             self._pending = (sequence, frame)
             self._condition.notify_all()
-            return prior_actuator_generation
 
-    def wait_exchange(
-        self,
-        sequence: int,
-        prior_actuator_generation: int,
-        deadline: float,
-    ) -> None:
+    def wait_sensor_send(self, sequence: int, deadline: float) -> None:
         with self._condition:
             while True:
                 self._raise_if_failed_locked()
-                sent = self._sent_sequence >= sequence
-                actuator_ready = (
-                    prior_actuator_generation == 0
-                    or self._actuator_generation > prior_actuator_generation
-                )
-                if sent and actuator_ready:
+                if self._sent_sequence >= sequence:
                     return
                 remaining = deadline - time.monotonic()
                 if remaining <= 0.0:
-                    waiting_for = "actuator response" if sent else "sensor send"
                     raise TimeoutError(
                         f"PX4 HIL instance {self.instance} timed out waiting for "
-                        f"{waiting_for} at sequence {sequence}"
+                        f"sensor send at sequence {sequence}"
                     )
                 self._condition.wait(remaining)
 
@@ -210,10 +196,10 @@ class Px4HilBridge:
                 if pending is not None:
                     sequence, frame = pending
                     self._send_frame(frame)
+                    self._drain_messages()
                     with self._condition:
                         self._sent_sequence = sequence
                         self._condition.notify_all()
-                    self._drain_messages()
                 else:
                     with self._condition:
                         self._condition.wait(0.001)
@@ -237,7 +223,6 @@ class Px4HilBridge:
                         int(message.mode),
                         mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED,
                     )
-                    self._actuator_generation += 1
                 self._condition.notify_all()
 
     def _send_heartbeat(self) -> None:
@@ -290,7 +275,7 @@ class Px4HilBridge:
 
 
 class Px4HilFleet:
-    """Launch and exchange every PX4 HIL endpoint concurrently."""
+    """Publish fleet sensors concurrently and consume the latest PX4 controls."""
 
     def __init__(self, px4_directory: str, vehicle_count: int) -> None:
         if vehicle_count < 1:
@@ -318,19 +303,19 @@ class Px4HilFleet:
     def controls(self) -> tuple[tuple[float, float, float, float], ...]:
         return tuple(bridge.controls() for bridge in self._bridges)
 
-    def exchange(self, frames: tuple[HilSensorFrame, ...], timeout: float) -> None:
+    def publish_sensor_frames(
+        self, frames: tuple[HilSensorFrame, ...], timeout: float
+    ) -> None:
         if len(frames) != len(self._bridges):
             raise ValueError("PX4 HIL frame count does not match the fleet")
         if timeout <= 0.0:
             raise ValueError("PX4 HIL exchange timeout must be positive")
         self._sequence += 1
-        generations = tuple(
+        for bridge, frame in zip(self._bridges, frames, strict=True):
             bridge.publish(self._sequence, frame)
-            for bridge, frame in zip(self._bridges, frames, strict=True)
-        )
         deadline = time.monotonic() + timeout
-        for bridge, generation in zip(self._bridges, generations, strict=True):
-            bridge.wait_exchange(self._sequence, generation, deadline)
+        for bridge in self._bridges:
+            bridge.wait_sensor_send(self._sequence, deadline)
 
     def raise_if_failed(self) -> None:
         for bridge in self._bridges:

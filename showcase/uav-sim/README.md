@@ -183,6 +183,9 @@ motor states and body wrenches on CUDA, then a second launch samples every HIL s
 The only per-step device readback is one compact 30-float packet per vehicle for MAVLink.
 Controls cross back as one four-float packet per vehicle. Isaac's classic `World`, classic
 prim views, the PhysX UAV path, NumPy dynamics, and per-vehicle physics loops are absent.
+Sensor publication completes independently of actuator arrival. The next fixed step
+consumes the latest PX4 controls, which bounds feedback latency to one HIL frame without
+blocking the GPU simulation loop on a same-step MAVLink round trip.
 
 The Isaac timeline remains playing because Newton gates integration on that state, while
 app-driven physics stepping is disabled. `SimulationManager` alone advances Newton at the
