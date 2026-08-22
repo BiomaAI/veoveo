@@ -38,8 +38,8 @@ ROTOR_3_DIRECTION = wp.constant(PX4_IRIS_ROTOR_DIRECTIONS[3])
 def update_motor_wrench(
     controls: wp.array2d(dtype=wp.float32),
     motor_velocity: wp.array2d(dtype=wp.float32),
-    orientations_wxyz: wp.array2d(dtype=wp.float32),
-    linear_velocity_enu: wp.array2d(dtype=wp.float32),
+    transforms_xyzw: wp.array2d(dtype=wp.float32),
+    velocities_enu: wp.array2d(dtype=wp.float32),
     forces_flu: wp.array2d(dtype=wp.float32),
     torques_flu: wp.array2d(dtype=wp.float32),
     dt: wp.float32,
@@ -70,17 +70,17 @@ def update_motor_wrench(
             force_3 = thrust
 
     orientation = wp.quat(
-        orientations_wxyz[vehicle, 1],
-        orientations_wxyz[vehicle, 2],
-        orientations_wxyz[vehicle, 3],
-        orientations_wxyz[vehicle, 0],
+        transforms_xyzw[vehicle, 3],
+        transforms_xyzw[vehicle, 4],
+        transforms_xyzw[vehicle, 5],
+        transforms_xyzw[vehicle, 6],
     )
     velocity_flu = wp.quat_rotate_inv(
         orientation,
         wp.vec3(
-            linear_velocity_enu[vehicle, 0],
-            linear_velocity_enu[vehicle, 1],
-            linear_velocity_enu[vehicle, 2],
+            velocities_enu[vehicle, 0],
+            velocities_enu[vehicle, 1],
+            velocities_enu[vehicle, 2],
         ),
     )
     forces_flu[vehicle, 0] = -DRAG_X * velocity_flu[0]
@@ -109,10 +109,8 @@ def update_motor_wrench(
 
 @wp.kernel
 def sample_hil_sensors(
-    positions_enu: wp.array2d(dtype=wp.float32),
-    orientations_wxyz: wp.array2d(dtype=wp.float32),
-    linear_velocity_enu: wp.array2d(dtype=wp.float32),
-    angular_velocity_enu: wp.array2d(dtype=wp.float32),
+    transforms_xyzw: wp.array2d(dtype=wp.float32),
+    velocities_enu: wp.array2d(dtype=wp.float32),
     previous_linear_velocity_enu: wp.array2d(dtype=wp.float32),
     packet: wp.array2d(dtype=wp.float32),
     dt: wp.float32,
@@ -123,13 +121,13 @@ def sample_hil_sensors(
     meters_per_degree_longitude: wp.float32,
 ):
     vehicle = wp.tid()
-    east = positions_enu[vehicle, 0]
-    north = positions_enu[vehicle, 1]
-    up = positions_enu[vehicle, 2]
+    east = transforms_xyzw[vehicle, 0]
+    north = transforms_xyzw[vehicle, 1]
+    up = transforms_xyzw[vehicle, 2]
     velocity = wp.vec3(
-        linear_velocity_enu[vehicle, 0],
-        linear_velocity_enu[vehicle, 1],
-        linear_velocity_enu[vehicle, 2],
+        velocities_enu[vehicle, 0],
+        velocities_enu[vehicle, 1],
+        velocities_enu[vehicle, 2],
     )
     previous_velocity = wp.vec3(
         previous_linear_velocity_enu[vehicle, 0],
@@ -137,10 +135,10 @@ def sample_hil_sensors(
         previous_linear_velocity_enu[vehicle, 2],
     )
     orientation = wp.quat(
-        orientations_wxyz[vehicle, 1],
-        orientations_wxyz[vehicle, 2],
-        orientations_wxyz[vehicle, 3],
-        orientations_wxyz[vehicle, 0],
+        transforms_xyzw[vehicle, 3],
+        transforms_xyzw[vehicle, 4],
+        transforms_xyzw[vehicle, 5],
+        transforms_xyzw[vehicle, 6],
     )
 
     specific_force_enu = (velocity - previous_velocity) / dt - wp.vec3(
@@ -150,9 +148,9 @@ def sample_hil_sensors(
     angular_flu = wp.quat_rotate_inv(
         orientation,
         wp.vec3(
-            angular_velocity_enu[vehicle, 0],
-            angular_velocity_enu[vehicle, 1],
-            angular_velocity_enu[vehicle, 2],
+            velocities_enu[vehicle, 3],
+            velocities_enu[vehicle, 4],
+            velocities_enu[vehicle, 5],
         ),
     )
     magnetic_flu = wp.quat_rotate_inv(orientation, wp.vec3(0.0, 0.215, -0.427))
@@ -170,10 +168,10 @@ def sample_hil_sensors(
     packet[vehicle, 0] = east
     packet[vehicle, 1] = north
     packet[vehicle, 2] = up
-    packet[vehicle, 3] = orientations_wxyz[vehicle, 1]
-    packet[vehicle, 4] = orientations_wxyz[vehicle, 2]
-    packet[vehicle, 5] = orientations_wxyz[vehicle, 3]
-    packet[vehicle, 6] = orientations_wxyz[vehicle, 0]
+    packet[vehicle, 3] = transforms_xyzw[vehicle, 3]
+    packet[vehicle, 4] = transforms_xyzw[vehicle, 4]
+    packet[vehicle, 5] = transforms_xyzw[vehicle, 5]
+    packet[vehicle, 6] = transforms_xyzw[vehicle, 6]
     packet[vehicle, 7] = velocity[0]
     packet[vehicle, 8] = velocity[1]
     packet[vehicle, 9] = velocity[2]

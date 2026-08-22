@@ -180,6 +180,8 @@ and one dedicated concurrent HIL transport.
 
 One Experimental `RigidPrim` resolves the whole fleet. A single Warp launch updates all
 motor states and body wrenches on CUDA, then a second launch samples every HIL sensor.
+The plant consumes the pinned Isaac 6.0.1 Newton view's cached transform and velocity
+tensors directly, preserving the backend's native `xyzw` layout without cloned gathers.
 The only per-step device readback is one compact 30-float packet per vehicle for MAVLink.
 Controls cross back as one four-float packet per vehicle. Isaac's classic `World`, classic
 prim views, the PhysX UAV path, NumPy dynamics, and per-vehicle physics loops are absent.

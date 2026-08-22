@@ -1092,10 +1092,10 @@ class NativeCadenceTests(unittest.TestCase):
         step_source = fleet_source.split("    def step(", 1)[1].split(
             "    def _decode_packets", 1
         )[0]
-        self.assertEqual(step_source.count("get_world_poses()"), 1)
-        self.assertEqual(step_source.count("get_velocities()"), 1)
-        self.assertIn("self._orientations", step_source)
-        self.assertIn("self._linear_velocity", step_source)
+        self.assertNotIn("self._rigid.get_world_poses()", step_source)
+        self.assertNotIn("self._rigid.get_velocities()", step_source)
+        self.assertIn("self._rigid_tensor_view.get_transforms()", step_source)
+        self.assertIn("self._rigid_tensor_view.get_velocities()", step_source)
 
     def test_runtime_coalesces_render_work_after_due_fixed_physics(self) -> None:
         app_source = (
