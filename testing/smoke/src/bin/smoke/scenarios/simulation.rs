@@ -540,7 +540,7 @@ fn registry_access(
         validate_locked_authority(field, image, &lock.registry.pull_address)?;
     }
     Ok(RegistryAccess {
-        address: Some(lock.registry.push_address),
+        address: Some(lock.registry.pull_address),
         transport: lock.registry.transport,
     })
 }
