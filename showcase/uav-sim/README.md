@@ -192,11 +192,11 @@ state or blocking the GPU simulation loop.
 
 The Isaac timeline remains playing because Newton gates integration on that state, while
 app-driven physics stepping is disabled. `SimulationManager` alone advances Newton at the
-exact 60 Hz fixed cadence. The flight profile uses one CUDA substep, implicit-fast
-integration, and four MuJoCo-Warp solver and line-search iterations. Native ground contact
+exact 30 Hz fixed dynamics cadence. The flight profile uses one CUDA substep, implicit-fast
+integration, and one MuJoCo-Warp solver and line-search iteration. Native ground contact
 remains enabled for PX4's landed and arming phases; Google tiles remain visual geometry and
 the airborne reference routes are separated. Newton owns every rigid transform and
-velocity. PX4 receives IMU fields at 60 Hz,
+velocity. Each dynamics sample publishes two ordered HIL samples. PX4 receives IMU fields at 60 Hz,
 barometer and magnetometer fields at 30 Hz, and GPS fields at 10 Hz. Elapsed monotonic time
 determines the number of authoritative steps due on each scheduler pass. The clock retains
 bounded debt instead of dropping elapsed time. When rendering misses visual
