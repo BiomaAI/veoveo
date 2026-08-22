@@ -13,7 +13,7 @@ from unittest.mock import patch
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from pymavlink import mavutil
-from veoveo_uav_sim.app import kit_live_render_arguments
+from veoveo_uav_sim.app import kit_live_render_arguments, kit_newton_arguments
 from veoveo_uav_sim.adapter_auth import authorization_middleware
 from veoveo_uav_sim.config import (
     FleetLoopConfig,
@@ -188,6 +188,16 @@ class RuntimeConfigTests(unittest.TestCase):
                 "--/app/runLoops/rendering_1/syncToPresent=false",
                 "--/app/runLoopsGlobal/syncToPresent=false",
                 "--/exts/omni.kit.renderer.core/present/presentAfterRendering=false",
+            ],
+        )
+
+    def test_newton_is_enabled_before_kit_initializes_physics(self) -> None:
+        self.assertEqual(
+            kit_newton_arguments(),
+            [
+                "--enable",
+                "isaacsim.physics.newton",
+                "--/exts/isaacsim.core.simulation_manager/default_engine=newton",
             ],
         )
 

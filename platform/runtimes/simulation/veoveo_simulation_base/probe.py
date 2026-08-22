@@ -377,6 +377,11 @@ def main() -> int:
             "renderer": "RaytracedLighting",
             "width": 64,
             "height": 64,
+            "extra_args": [
+                "--enable",
+                "isaacsim.physics.newton",
+                "--/exts/isaacsim.core.simulation_manager/default_engine=newton",
+            ],
         }
     )
     try:

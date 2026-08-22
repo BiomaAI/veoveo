@@ -28,6 +28,15 @@ def kit_live_render_arguments() -> list[str]:
     return [f"--{path}={value}" for path, value in settings.items()]
 
 
+def kit_newton_arguments() -> list[str]:
+    """Register Newton before Kit creates any physics-backed application state."""
+    return [
+        "--enable",
+        "isaacsim.physics.newton",
+        "--/exts/isaacsim.core.simulation_manager/default_engine=newton",
+    ]
+
+
 def _cleanup(name: str, action: Callable[[], None]) -> None:
     try:
         action()
@@ -71,6 +80,7 @@ def run(config: RuntimeConfig) -> None:
                 "omni.kit.livestream.webrtc",
                 "--enable",
                 "omni.kit.livestream.rtsp",
+                *kit_newton_arguments(),
                 *native_sensor_aov_arguments(
                     physical_product_name,
                     rtsp_port=config.camera.rtsp_port,
