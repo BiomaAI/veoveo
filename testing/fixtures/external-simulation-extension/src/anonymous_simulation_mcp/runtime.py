@@ -1,4 +1,4 @@
-"""Authoritative camera product and ephemeral viewer-lease fixture runtime."""
+"""Authoritative shared camera product and viewer authorization fixture runtime."""
 
 from __future__ import annotations
 
@@ -17,38 +17,36 @@ from .contract import (
     CloseLiveViewRequest,
     CloseLiveViewResult,
     FixtureState,
-    LeaseLifecycle,
     LiveViewConnection,
+    LiveViewState,
+    MediaEndpoint,
     OpenLiveViewRequest,
     ProductLifecycle,
     RenewLiveViewRequest,
     StreamProduct,
-    ViewerLease,
+    ViewLifecycle,
 )
 
 
 SESSION_ID = "authoritative-session"
 CAMERA_ID = "operator-fixed"
-
-
-def product_id(capacity_slot: int) -> str:
-    return f"viewer-slot-{capacity_slot}"
+STREAM_PRODUCT_ID = "camera-product-0"
 
 
 @dataclass(slots=True)
-class _Lease:
-    wire: ViewerLease
+class _Authorization:
+    wire: LiveViewState
     token_hash: bytes
     generation: int
 
 
 class FixtureRuntime:
-    """Own stable viewer slots while keeping every assignment and lease ephemeral."""
+    """Own one continuous product and independent viewer authorizations."""
 
     def __init__(self, config: Config) -> None:
         self._config = config
         self._lock = asyncio.Lock()
-        self._leases: dict[str, _Lease] = {}
+        self._authorizations: dict[str, _Authorization] = {}
         self._frame_sequence = 1
         self._camera = CameraDescriptor(
             session_id=SESSION_ID,
@@ -76,51 +74,45 @@ class FixtureRuntime:
         now = _now()
         async with self._lock:
             self._expire(now)
-            for lease in self._leases.values():
+            for authorization in self._authorizations.values():
                 if (
-                    lease.wire.lifecycle is not LeaseLifecycle.CLOSED
-                    and lease.wire.viewer_actor == actor
-                    and lease.wire.owner == owner
-                    and lease.wire.viewer_instance_id == request.viewer_instance_id
-                    and lease.wire.camera_id == request.camera_id
+                    authorization.wire.lifecycle is not ViewLifecycle.CLOSED
+                    and authorization.wire.viewer_actor == actor
+                    and authorization.wire.owner == owner
+                    and authorization.wire.viewer_instance_id == request.viewer_instance_id
+                    and authorization.wire.camera_id == request.camera_id
                 ):
-                    return self._rotate(lease, now)
-            if self._active_count() >= self._config.viewer_slots:
-                raise ValueError("live-view viewer capacity is exhausted")
-            assigned_slots = {
-                lease.wire.capacity_slot
-                for lease in self._leases.values()
-                if lease.wire.lifecycle is not LeaseLifecycle.CLOSED
-            }
-            capacity_slot = next(
-                slot
-                for slot in range(self._config.viewer_slots)
-                if slot not in assigned_slots
-            )
+                    return self._rotate(authorization, now)
             live_view_id = f"view-{uuid4()}"
             token = _token()
-            wire = ViewerLease(
+            wire = LiveViewState(
                 live_view_id=live_view_id,
                 resource_uri=(
                     f"anonymous-simulation://session/{SESSION_ID}/live-view/{live_view_id}"
                 ),
                 session_id=SESSION_ID,
                 camera_id=CAMERA_ID,
-                stream_product_id=product_id(capacity_slot),
-                capacity_slot=capacity_slot,
+                stream_product_id=STREAM_PRODUCT_ID,
                 owner=owner,
                 viewer_actor=actor,
                 viewer_instance_id=request.viewer_instance_id,
-                lifecycle=LeaseLifecycle.READY,
-                signaling_url=self._config.public_signaling_url,
-                media_host=self._config.public_media_host,
-                media_port=self._config.public_media_port + capacity_slot,
+                lifecycle=ViewLifecycle.READY,
+                width_px=self._camera.width_px,
+                height_px=self._camera.height_px,
+                frame_rate_millihertz=self._camera.frame_rate_millihertz,
+                connected_viewers=0,
+                endpoint=MediaEndpoint(stream_url=self._config.public_stream_url),
                 created_at=now,
-                expires_at=now + timedelta(seconds=self._config.lease_seconds),
+                expires_at=now
+                + timedelta(seconds=self._config.authorization_seconds),
             )
-            lease = _Lease(wire=wire, token_hash=_hash(token), generation=1)
-            self._leases[live_view_id] = lease
-            self._arm_expiry(live_view_id, lease.generation, wire.expires_at)
+            authorization = _Authorization(
+                wire=wire,
+                token_hash=_hash(token),
+                generation=1,
+            )
+            self._authorizations[live_view_id] = authorization
+            self._arm_expiry(live_view_id, authorization.generation, wire.expires_at)
             return LiveViewConnection(stream=wire, access_token=token)
 
     async def renew(
@@ -133,11 +125,17 @@ class FixtureRuntime:
         now = _now()
         async with self._lock:
             self._expire(now)
-            lease = self._owned(actor, owner, request.live_view_id, request.viewer_instance_id)
-            if lease.wire.lifecycle is LeaseLifecycle.CLOSED:
+            authorization = self._owned(
+                actor, owner, request.live_view_id, request.viewer_instance_id
+            )
+            if authorization.wire.lifecycle is ViewLifecycle.CLOSED:
                 raise ValueError("live view is closed or expired")
-            connection = self._rotate(lease, now)
-            self._arm_expiry(request.live_view_id, lease.generation, lease.wire.expires_at)
+            connection = self._rotate(authorization, now)
+            self._arm_expiry(
+                request.live_view_id,
+                authorization.generation,
+                authorization.wire.expires_at,
+            )
             return connection
 
     async def close(
@@ -148,124 +146,131 @@ class FixtureRuntime:
     ) -> CloseLiveViewResult:
         self._require_session(request.session_id)
         async with self._lock:
-            lease = self._owned(actor, owner, request.live_view_id, request.viewer_instance_id)
-            self._close(lease)
-            return CloseLiveViewResult(resource_uri=lease.wire.resource_uri, closed=True)
+            authorization = self._owned(
+                actor, owner, request.live_view_id, request.viewer_instance_id
+            )
+            self._close(authorization)
+            return CloseLiveViewResult(
+                resource_uri=authorization.wire.resource_uri,
+                closed=True,
+            )
 
-    async def authorize_signaling(self, live_view_id: str, token: str) -> ViewerLease:
+    async def authorize_stream(self, live_view_id: str, token: str) -> LiveViewState:
         now = _now()
         async with self._lock:
             self._expire(now)
-            lease = self._leases.get(live_view_id)
+            authorization = self._authorizations.get(live_view_id)
             if (
-                lease is None
-                or lease.wire.lifecycle is LeaseLifecycle.CLOSED
-                or not secrets.compare_digest(lease.token_hash, _hash(token))
+                authorization is None
+                or authorization.wire.lifecycle is ViewLifecycle.CLOSED
+                or authorization.wire.connected_viewers != 0
+                or not secrets.compare_digest(authorization.token_hash, _hash(token))
             ):
-                raise ValueError("signaling authorization failed")
-            lease.wire = lease.wire.model_copy(update={"lifecycle": LeaseLifecycle.LIVE})
-            return lease.wire
+                raise ValueError("stream authorization failed")
+            authorization.wire = authorization.wire.model_copy(
+                update={"lifecycle": ViewLifecycle.LIVE, "connected_viewers": 1}
+            )
+            return authorization.wire
+
+    async def finish_stream(self, live_view_id: str) -> None:
+        async with self._lock:
+            authorization = self._authorizations.get(live_view_id)
+            if (
+                authorization is not None
+                and authorization.wire.lifecycle is not ViewLifecycle.CLOSED
+            ):
+                authorization.wire = authorization.wire.model_copy(
+                    update={"lifecycle": ViewLifecycle.READY, "connected_viewers": 0}
+                )
 
     async def fixture_state(self) -> FixtureState:
         async with self._lock:
             self._expire(_now())
-            active_leases = {
-                lease.wire.capacity_slot: lease.wire
-                for lease in self._leases.values()
-                if lease.wire.lifecycle is not LeaseLifecycle.CLOSED
-            }
-            products = tuple(
-                StreamProduct(
-                    stream_product_id=product_id(slot),
-                    capacity_slot=slot,
-                    camera_id=active_leases[slot].camera_id if slot in active_leases else None,
-                    live_view_id=(
-                        active_leases[slot].live_view_id if slot in active_leases else None
-                    ),
-                    lifecycle=(
-                        ProductLifecycle.READY
-                        if slot in active_leases
-                        else ProductLifecycle.INACTIVE
-                    ),
-                    render_products=int(slot in active_leases),
-                    encoder_sessions=int(slot in active_leases),
-                    active_viewer_leases=int(slot in active_leases),
-                    connected_viewers=int(
-                        slot in active_leases
-                        and active_leases[slot].lifecycle is LeaseLifecycle.LIVE
-                    ),
-                    last_frame_sequence=self._frame_sequence,
-                )
-                for slot in range(self._config.viewer_slots)
+            active = [
+                authorization.wire
+                for authorization in self._authorizations.values()
+                if authorization.wire.lifecycle is not ViewLifecycle.CLOSED
+            ]
+            product = StreamProduct(
+                stream_product_id=STREAM_PRODUCT_ID,
+                camera_id=CAMERA_ID,
+                lifecycle=ProductLifecycle.READY,
+                active_viewers=len(active),
+                connected_viewers=sum(view.connected_viewers for view in active),
+                nvenc_sessions=1,
+                encoded_frames=self._frame_sequence,
+                source_to_render_samples=self._frame_sequence,
             )
             return FixtureState(
                 session_id=SESSION_ID,
                 cameras=(self._camera,),
-                stream_products=products,
-                active_viewer_leases=len(active_leases),
+                stream_products=(product,),
             )
 
     async def close_runtime(self) -> None:
         async with self._lock:
-            for lease in self._leases.values():
-                self._close(lease)
+            for authorization in self._authorizations.values():
+                self._close(authorization)
 
     def _owned(
         self, actor: str, owner: str, live_view_id: str, viewer_instance_id: str
-    ) -> _Lease:
-        lease = self._leases.get(live_view_id)
+    ) -> _Authorization:
+        authorization = self._authorizations.get(live_view_id)
         if (
-            lease is None
-            or lease.wire.viewer_actor != actor
-            or lease.wire.owner != owner
-            or lease.wire.viewer_instance_id != viewer_instance_id
+            authorization is None
+            or authorization.wire.viewer_actor != actor
+            or authorization.wire.owner != owner
+            or authorization.wire.viewer_instance_id != viewer_instance_id
         ):
             raise ValueError("live-view ownership does not match the caller")
-        return lease
+        return authorization
 
-    def _rotate(self, lease: _Lease, now: datetime) -> LiveViewConnection:
+    def _rotate(
+        self, authorization: _Authorization, now: datetime
+    ) -> LiveViewConnection:
         token = _token()
-        lease.token_hash = _hash(token)
-        lease.generation += 1
-        lease.wire = lease.wire.model_copy(
+        authorization.token_hash = _hash(token)
+        authorization.generation += 1
+        authorization.wire = authorization.wire.model_copy(
             update={
-                "expires_at": now + timedelta(seconds=self._config.lease_seconds),
+                "expires_at": now
+                + timedelta(seconds=self._config.authorization_seconds),
             }
         )
-        return LiveViewConnection(stream=lease.wire, access_token=token)
+        return LiveViewConnection(stream=authorization.wire, access_token=token)
 
-    def _arm_expiry(self, live_view_id: str, generation: int, expires_at: datetime) -> None:
+    def _arm_expiry(
+        self, live_view_id: str, generation: int, expires_at: datetime
+    ) -> None:
         async def expire() -> None:
             delay = max(0.0, (expires_at - _now()).total_seconds())
             await asyncio.sleep(delay)
             async with self._lock:
-                lease = self._leases.get(live_view_id)
+                authorization = self._authorizations.get(live_view_id)
                 if (
-                    lease is not None
-                    and lease.generation == generation
-                    and lease.wire.expires_at <= _now()
+                    authorization is not None
+                    and authorization.generation == generation
+                    and authorization.wire.expires_at <= _now()
                 ):
-                    self._close(lease)
+                    self._close(authorization)
 
         asyncio.create_task(expire(), name=f"expire-{live_view_id}")
 
     def _expire(self, now: datetime) -> None:
-        for lease in self._leases.values():
-            if lease.wire.expires_at <= now:
-                self._close(lease)
-
-    def _active_count(self) -> int:
-        return sum(
-            lease.wire.lifecycle is not LeaseLifecycle.CLOSED
-            for lease in self._leases.values()
-        )
+        for authorization in self._authorizations.values():
+            if authorization.wire.expires_at <= now:
+                self._close(authorization)
 
     @staticmethod
-    def _close(lease: _Lease) -> None:
-        lease.token_hash = b"\0" * 32
-        lease.generation += 1
-        lease.wire = lease.wire.model_copy(
-            update={"lifecycle": LeaseLifecycle.CLOSED, "expires_at": _now()}
+    def _close(authorization: _Authorization) -> None:
+        authorization.token_hash = b"\0" * 32
+        authorization.generation += 1
+        authorization.wire = authorization.wire.model_copy(
+            update={
+                "lifecycle": ViewLifecycle.CLOSED,
+                "connected_viewers": 0,
+                "expires_at": _now(),
+            }
         )
 
     @staticmethod

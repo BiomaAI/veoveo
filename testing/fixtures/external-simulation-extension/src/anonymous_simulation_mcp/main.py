@@ -45,8 +45,8 @@ class RootApp:
         if scope["type"] == "lifespan":
             await self._lifespan(receive, send)
             return
-        if scope["type"] == "websocket" and scope.get("path") == "/anonymous-simulation/signaling":
-            await _authorized_signaling(self._runtime, scope, receive, send)
+        if scope["type"] == "websocket" and scope.get("path") == "/anonymous-simulation/live":
+            await _authorized_stream(self._runtime, scope, receive, send)
             return
         if scope["type"] != "http":
             return
@@ -99,8 +99,8 @@ async def _plain(send, status: int, body: bytes) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
-async def _authorized_signaling(runtime, scope, receive, send) -> None:
-    """Authenticate like the shared profile before exposing the fixture product."""
+async def _authorized_stream(runtime, scope, receive, send) -> None:
+    """Authenticate the canonical shared H.264 stream profile."""
     message = await receive()
     if message["type"] != "websocket.connect":
         return
@@ -116,30 +116,23 @@ async def _authorized_signaling(runtime, scope, receive, send) -> None:
         ),
         None,
     )
-    product = next(
-        (item for item in protocols if item.startswith("x-nv-sessionid.")), None
-    )
+    stream_protocol = "veoveo.h264.annexb.v1"
     query = parse_qs(scope.get("query_string", b"").decode())
     live_view_id = query.get("live_view_id", [None])[0]
-    if token is None or product is None or live_view_id is None:
+    if token is None or stream_protocol not in protocols or live_view_id is None:
         await send({"type": "websocket.close", "code": 4401})
         return
     try:
-        lease = await runtime.authorize_signaling(live_view_id, token)
+        await runtime.authorize_stream(live_view_id, token)
     except ValueError:
         await send({"type": "websocket.close", "code": 4403})
         return
-    if product != f"x-nv-sessionid.{lease.stream_product_id}":
-        await send({"type": "websocket.close", "code": 4403})
-        return
-    await send({"type": "websocket.accept", "subprotocol": product})
-    await send(
-        {
-            "type": "websocket.send",
-            "text": '{"type":"authoritative-product-ready"}',
-        }
-    )
-    await send({"type": "websocket.close", "code": 1000})
+    try:
+        await send({"type": "websocket.accept", "subprotocol": stream_protocol})
+        await send({"type": "websocket.send", "bytes": b"\x00\x00\x00\x01\x09\xf0"})
+        await send({"type": "websocket.close", "code": 1000})
+    finally:
+        await runtime.finish_stream(live_view_id)
 
 
 async def _markdown(send, content: str) -> None:

@@ -1,12 +1,12 @@
 # Anonymous Simulation Installation
 
 This fixture composes the platform source with an independently packaged simulation
-MCP source. The extension owns its camera, encoded-product, viewer-lease, signaling,
+MCP source. The extension owns its camera, shared encoded product, stream authorization,
 and App contract. The platform supplies gateway, ingress, trust, and simulation runtime
 support without installing a generic simulation renderer.
 
 The installation owns `gateway-binding.json`, the composed gateway document and
-provenance, OCI coordinates, trust material, public signaling/media coordinates, and the
+provenance, OCI coordinates, trust material, public stream coordinate, and the
 combined deployment lock. The extension owns its server fragment, chart, image, and
 release manifest.
 
@@ -51,7 +51,7 @@ cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 The locked deployment verifies every source revision, chart, values file, and image
 digest before Helm. It never resolves a moving source expression during installation.
 The fixture is intentionally contract-only: its declared synthetic product does not
-qualify GPU rendering, NVENC, WebRTC media, or browser playback. Each real external
+qualify GPU rendering, NVENC, advancing H.264 media, or browser playback. Each real external
 simulation implementation owns that hardware evidence; the first-party UAV showcase
 provides the repository's NVIDIA reference.
 

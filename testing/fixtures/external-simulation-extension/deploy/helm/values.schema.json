@@ -51,13 +51,10 @@
     "liveView": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["publicSignalingUrl", "publicMediaHost", "publicMediaPort", "leaseSeconds", "viewerSlots"],
+      "required": ["publicStreamUrl", "authorizationSeconds"],
       "properties": {
-        "publicSignalingUrl": {"type": "string", "pattern": "^wss?://[^@]+$"},
-        "publicMediaHost": {"type": "string", "minLength": 2, "maxLength": 45},
-        "publicMediaPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
-        "leaseSeconds": {"type": "integer", "minimum": 5, "maximum": 3600},
-        "viewerSlots": {"type": "integer", "minimum": 1, "maximum": 32}
+        "publicStreamUrl": {"type": "string", "pattern": "^wss?://[^@]+$"},
+        "authorizationSeconds": {"type": "integer", "minimum": 5, "maximum": 86400}
       }
     },
     "resources": {
