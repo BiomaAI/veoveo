@@ -147,6 +147,15 @@ impl HttpAdapter {
 
     pub async fn state(&self) -> Result<SimulationState, AdapterError> {
         let state: AdapterSimulationState = self.get("v1/state").await?;
+        if state
+            .stream_products
+            .iter()
+            .any(|product| !product.validate())
+        {
+            return Err(AdapterError::InvalidState(
+                "simulator returned an invalid tiled stream product".to_owned(),
+            ));
+        }
         let mut recordings = Vec::with_capacity(state.recordings.len());
         for recording in state.recordings {
             if recording.application_id != RECORDING_APPLICATION_ID {
@@ -1068,8 +1077,16 @@ mod tests {
     #[test]
     fn private_adapter_product_wire_preserves_visibility() {
         let product: LiveStreamProductState = serde_json::from_value(serde_json::json!({
-            "streamProductId": "camera-product-0",
-            "cameraId": "follow",
+            "streamProductId": "camera-atlas",
+            "cameraRegions": [{
+                "cameraId": "follow",
+                "xPx": 0,
+                "yPx": 0,
+                "widthPx": 1280,
+                "heightPx": 720
+            }],
+            "codedWidthPx": 1280,
+            "codedHeightPx": 720,
             "lifecycle": "ready",
             "activeViewers": 1,
             "connectedViewers": 0,

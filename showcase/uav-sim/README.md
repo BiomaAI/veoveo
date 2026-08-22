@@ -13,9 +13,9 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Isaac Experimental API and Newton | Experimental prims and objects expose one Newton `1.5.0` CUDA rigid-body tensor state to the fleet. The classic Core API and PhysX UAV path are absent. |
 | Warp and MuJoCo | Warp `1.16.0`, MuJoCo `3.11.0`, and MuJoCo Warp `3.11.0` are one certified runtime tuple. Repository Warp kernels own UAV integration, launch contact, the plant, and HIL sensors; MuJoCo-Warp does not step the fleet. |
 | `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
-| `veoveo.io/live-view/v3` | Authoritative operator cameras, stable camera-owned encoded products, ephemeral viewer authorizations, and typed GPU capacity. |
+| `veoveo.io/live-view/v4` | Authoritative operator cameras, typed regions in one tiled encoded product, and ephemeral viewer authorizations without viewer quotas. |
 | `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
-| WebSocket and H.264 | One continuous NVIDIA NVENC product per camera, delivered as Annex B H.264 access units to every authenticated viewer. |
+| WebSocket and H.264 | One continuous tiled NVIDIA NVENC atlas for every operator camera, delivered as Annex B H.264 access units to every authenticated browser. |
 | Native sensor video | `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`, packaged by Isaac Sim `6.0.1`, for CUDA-AOV-to-NVENC H.264 output. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
 | Rerun RRD | Version `0.36.0` telemetry, leader-camera video, and producer Blueprint publication. |
@@ -221,24 +221,25 @@ reconstructs the default route from immutable configuration.
 
 At startup the runtime creates a bounded logical-camera set under
 `/World/OperatorCameras`. Supported rigs are fixed, look-at, orbit, follow, chase,
-stabilized mounted, and formation overview. Every streamable camera owns one Hydra
-texture, product ID, pod-loopback RTSP port pair, RTX render, NVENC session, and shared
-H.264 access-unit ring.
+stabilized mounted, and formation overview. Every streamable camera owns one typed
+region in the shared Isaac experimental tiled render. The atlas owns one Hydra texture,
+product ID, pod-loopback RTSP port pair, RTX render, NVENC session, and H.264 ring.
 
 The camera update reads current authoritative entity transforms directly. Its
 frame-rate-independent filter smooths only the final operator-camera position and
 orientation. Target changes, camera revisions, simulation generations, long gaps, and
 teleports reset the filter. No entity-pose history or visualization interpolation exists.
 
-Each streamable logical camera owns a continuous Hydra texture, RTX render, NVENC session,
-and keyframe-aware H.264 ring. Multiple users, profiles, or tabs receive independent
-authorizations and cursors while sharing that exact camera product. Viewer count does not
-change GPU product count.
+The complete logical camera set owns one continuous Hydra texture, RTX render, NVENC
+session, and keyframe-aware H.264 ring. Multiple users, profiles, or tabs receive
+independent authorizations and cursors while sharing that exact atlas. Viewer count and
+camera selection never change GPU product count.
 
-The live App runs in an opaque-origin sandbox and decodes the shared Annex B stream with
-WebCodecs. RTX rendering and NVENC encoding remain inside the authoritative simulator.
+The live App runs in an opaque-origin sandbox and decodes the shared Annex B atlas once
+with WebCodecs. It crops all selected camera regions into independent canvases. RTX
+rendering and NVENC encoding remain inside the authoritative simulator.
 
-The qualified one-GPU profile targets 16 FPS for each 1280×720 camera product. Acceptance
+The qualified one-GPU profile targets 16 FPS for each 1280×720 atlas region. Acceptance
 opens all five cameras for five simultaneous browser users and requires at least 12
 delivered FPS, source-to-render p95
 below 85 ms after the 256-event warm window, and a conservative composed
@@ -296,9 +297,10 @@ The chart requires:
 - one immutable Frames world and simulation frame, with an optional installation-owned
   startup binding ConfigMap for restart-stable always-on operation;
 - bounded fleet route, takeoff, vehicle, and PX4 parameters;
-- a strict logical operator-camera collection and one continuous product per camera;
-- pod-loopback RTSP port pairs and one authenticated public WebSocket route;
-- bounded stream authorization and frame-age limits without a viewer quota;
+- a strict logical operator-camera collection and one continuous tiled product;
+- one pod-loopback RTSP port pair and one authenticated public WebSocket route;
+- expiring stream credentials with transparent renewal, without a viewer lease pool,
+  camera-selection limit, or viewer quota;
 - a leader identity and bounded recording cadence and queue;
 - platform database and recording-forwarder credentials;
 - `nvidia.com/gpu: 1`, the NVIDIA runtime class, and driver capabilities
@@ -334,8 +336,8 @@ SBOM, and provenance.
 ## Hardware Acceptance
 
 The installation-owned acceptance deploys one simulator GPU workload. Live-view
-acceptance proves the always-on fleet, authoritative camera health, one shared product
-per camera, RTX/NVENC/WebCodecs playback, five users with all five camera streams,
+acceptance proves the always-on fleet, authoritative camera health, one tiled product
+for all cameras, RTX/NVENC/WebCodecs playback, five users with all five camera canvases,
 same-camera fan-out, sensor separation, simulation real-time factor,
 source-to-render latency, and browser motion-to-photon latency. Stream, Recording, and
 mission acceptance remain independent consumer checkpoints.

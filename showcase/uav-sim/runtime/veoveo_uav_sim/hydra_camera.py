@@ -170,6 +170,73 @@ class RtxHydraRenderProduct:
         self.set_updates_enabled(False)
 
 
+class RtxTiledHydraRenderProduct:
+    """One Isaac tiled RTX product for a batch of authoritative cameras."""
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        camera_paths: tuple[str, ...],
+        tile_width: int,
+        tile_height: int,
+    ) -> None:
+        import omni.replicator.core as rep
+        from isaacsim.core.experimental.objects import Camera
+
+        if not camera_paths:
+            raise ValueError("RTX tiled product requires at least one camera")
+        if tile_width < 1 or tile_height < 1:
+            raise ValueError("RTX tiled product dimensions must be positive")
+        self._camera = Camera(list(camera_paths))
+        self._camera.enforce_square_pixels(
+            (tile_height, tile_width), modes="horizontal"
+        )
+        self._hydra_texture = rep.create.render_product_tiled(
+            cameras=list(self._camera.paths),
+            tile_resolution=(tile_width, tile_height),
+            force_new=True,
+            name=name,
+        )
+        expected_path = render_product_path(name)
+        if self._hydra_texture.path != expected_path:
+            self.close()
+            raise RuntimeError(
+                "Isaac tiled RTX product used an unexpected path: "
+                f"{self._hydra_texture.path}"
+            )
+        self._annotator = rep.AnnotatorRegistry.get_annotator(
+            "rgb", device="cuda", do_array_copy=False
+        )
+        self._annotator.attach(self._hydra_texture.path)
+
+    @property
+    def path(self) -> str:
+        return self._hydra_texture.path
+
+    @property
+    def width(self) -> int:
+        return int(self._hydra_texture.hydra_texture.width)
+
+    @property
+    def height(self) -> int:
+        return int(self._hydra_texture.hydra_texture.height)
+
+    def observe_gpu_frame(self) -> bool:
+        data = self._annotator.get_data(device="cuda")
+        return data is not None and bool(data.shape[0])
+
+    def close(self) -> None:
+        annotator = getattr(self, "_annotator", None)
+        texture = getattr(self, "_hydra_texture", None)
+        if annotator is not None and texture is not None:
+            annotator.detach([texture.path])
+            self._annotator = None
+        if texture is not None:
+            texture.destroy()
+            self._hydra_texture = None
+
+
 class NativeH264CameraSensor:
     """One native RTX AOV encoded once by Isaac and tapped over RTSP."""
 

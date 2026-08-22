@@ -7,9 +7,9 @@ and produces their encoded video. No second process mirrors the scene or replays
 for visualization.
 
 > A simulation MCP server exposes governed logical cameras rendered by its authoritative
-> simulation. Every streamable camera owns one continuous RTX render and NVIDIA NVENC
-> product. Authorized viewers share its exact H.264 access units without allocating
-> another renderer or encoder. Camera smoothing operates once on the logical-camera
+> simulation. All streamable cameras occupy typed regions in one continuous tiled RTX
+> render and NVIDIA NVENC product. Every browser decodes that atlas once and presents
+> each region as an independent camera canvas. Camera smoothing operates once on each logical-camera
 > transform and never changes or delays authoritative simulation state.
 
 ## Standards And Protocols
@@ -17,10 +17,10 @@ for visualization.
 | Standard or protocol | Supported profile |
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
-| JSON Schema | Draft 2020-12 strict request, result, camera, product, capacity, and health schemas. |
-| `veoveo.io/live-view/v3` | Repository-owned provider-neutral profile for authoritative cameras, stable camera-owned encoded products, viewer authorizations, GPU capacity, WebSocket H.264 endpoints, and redacted state. |
+| JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
+| `veoveo.io/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
 | `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
-| WebSocket and H.264 | RFC 6455 binary messages under subprotocol `veoveo.h264.annexb.v1`; each message carries one decoder-reentrant or predicted Annex B H.264 access unit. One camera-owned NVIDIA NVENC product fans out unchanged to authenticated viewers. This WebSocket is a media adapter, not a public simulator-control protocol. |
+| WebSocket and H.264 | RFC 6455 binary messages under subprotocol `veoveo.h264.annexb.v1`; each message carries one decoder-reentrant or predicted Annex B H.264 access unit. One tiled NVIDIA NVENC atlas fans out unchanged to authenticated viewers. This WebSocket is a media adapter, not a public simulator-control protocol. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.0.1` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
 | Native sensor video | Isaac Sim `6.0.1` packages `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`. The private adapter consumes the loopback RTSP/RTP H.264 stream without decoding or re-encoding. This is not an MCP wire type. |
 | RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
@@ -60,10 +60,10 @@ UAV Simulation MCP server
 authoritative Isaac runtime
   Newton + Warp plant/sensors + PX4 HIL + USD/Cesium + operator cameras + Hydra + NVENC
     |
-    +---- one H.264 product per camera
-             +---- viewer A
-             +---- viewer B
-             +---- viewer N
+    +---- one tiled H.264 atlas for every operator camera
+             +---- browser A: one decode -> five cropped canvases
+             +---- browser B: one decode -> five cropped canvases
+             +---- browser N: one decode -> five cropped canvases
 ```
 
 Simulation never waits for recording, Rerun playback, audit persistence, a browser, or
@@ -235,7 +235,7 @@ product.
 ## Authoritative Operator Cameras
 
 Configured logical cameras are created under `/World/OperatorCameras`. Each camera has a
-stable logical ID, revision, final smoothed pose, and camera-owned render product. A
+stable logical ID, revision, final smoothed pose, and typed atlas region. A
 browser authorization never mutates that definition or its product lifecycle.
 
 The admitted rig set is:
@@ -275,30 +275,31 @@ This prevents camera-target disagreement without delaying simulation.
 
 ## Render Products
 
-Each streamable camera owns one stable Hydra texture, LdrColor AOV, pod-loopback RTSP
-port pair, H.264 product identity, and NVIDIA NVENC session. The runtime submits every
-camera viewport to Cesium in the same Kit frame. Headless operation disables the pinned
+Isaac Sim's experimental tiled-camera path batches every streamable camera into one
+stable Hydra texture and LdrColor AOV. The 3-column by 2-row product is 3840x1440 for
+five 1280x720 cameras and owns one pod-loopback RTSP port pair, H.264 identity, and
+NVIDIA NVENC session. The runtime submits every camera viewport to Cesium in the same
+Kit frame. Headless operation disables the pinned
 Cesium extension's interactive viewport-window update subscription, leaving one
 authoritative viewport writer instead of racing an empty GUI inventory. The runtime does
 not create another Cesium world, provider connection, georeference, material set, or
 cache.
 
-Camera products start with immutable world admission and render continuously. A native
-RTSP receiver depacketizes their exact access units into a 256-entry keyframe-aware ring.
+The atlas starts with immutable world admission and renders continuously. A native
+RTSP receiver depacketizes its exact access units into a 256-entry keyframe-aware ring.
 The WebSocket handler gives each viewer its own cursor, begins at the newest
 decoder-reentrant keyframe, and advances without decoding or re-encoding. A slow viewer
 cannot block the render loop or another connection.
 
-The runtime timestamps each camera when the current authoritative entity snapshot becomes
-its USD camera pose. The corresponding Hydra drawable event closes that source-to-render
-interval. Each product retains the latest 256 event-derived samples and publishes their
+The runtime timestamps the camera batch when the current authoritative entity snapshot becomes
+its USD camera poses. The corresponding CUDA RGB observation closes that source-to-render
+interval without copying pixels to the CPU. The product retains the latest 256 samples and publishes their
 nearest-rank p95 in integer microseconds. The runtime never uses a wall-clock sampler or
 health poll to produce latency evidence.
 
-Camera capacity accounts for active pixels per second, NVENC sessions, GPU memory
-reservation, and aggregate encoded bitrate. Viewer connections consume only ordinary
-WebSocket and network resources. The public contract reports connected-viewer telemetry
-without a quota.
+Live viewing has no lease pool, admission counter, viewer quota, or camera-selection
+limit. The persistent atlas is already running. Additional users allocate ordinary
+WebSocket delivery and one browser decoder, never another simulator render or encode.
 
 The domain nadir sensor and operator cameras have independent cadence. The physical
 sensor camera receives the exact current body-and-mount transform at render cadence.
@@ -326,22 +327,22 @@ the actual visual content; runtime health does not require a diagnostic pixel re
 
 ## Viewer Authorization And Shared Products
 
-A logical camera belongs to the Work Context output owner and owns one continuous camera
-product. Each opened live view binds the gateway actor and browser-instance identity to
-that camera and returns a secret stream token. Two users, tabs, or browser profiles
-selecting the same camera receive different authorization IDs and tokens, but the same
-stream-product identity and exact encoded access units.
+A logical camera belongs to the Work Context output owner and occupies one immutable
+region of the continuous atlas. Opening any camera binds the gateway actor and
+browser-instance identity to that camera and returns a secret stream token. Cameras,
+users, tabs, and browser profiles all resolve to the same stream-product identity and
+exact encoded access units.
 
 Only `open_live_view` and `renew_live_view` return the token. Resources contain redacted
 authorization state. The server retains a SHA-256 token hash in memory and compares it in
 constant time. Renew rotates only that authorization. Close, expiry, and teardown revoke
-only that viewer. None of those actions starts or stops a camera product.
+only that viewer. None of those actions starts or stops the atlas.
 
 The live-stream gate authenticates the WebSocket upgrade, maps the authorization to its
 camera, and injects the private runtime credential. The runtime sends one complete Annex
 B access unit per binary message from a bounded keyframe-aware ring. Each connection gets
 its own cursor and backpressure, while the renderer and NVIDIA NVENC session remain one
-per camera. There is no viewer quota, media relay, duplicate encode, or GPU-to-CPU pixel
+for the entire atlas. There is no viewer quota, media relay, duplicate encode, or GPU-to-CPU pixel
 readback.
 
 Authorization expiry uses one exact deadline task. Close, expiry, revocation, and stream
@@ -363,7 +364,7 @@ The independent MCP Deployment starts whenever the platform database is reachabl
 reports unavailable until the authenticated simulator adapter answers. A Gateway, MCP,
 or recording outage cannot prevent or restart simulation. The simulator's
 preconfiguration API exposes product state but no product mutation route. Immutable world
-admission starts the configured camera products.
+admission starts the configured camera atlas.
 
 Gateway authority is evaluated for every MCP open, renew, close, and resource read. If
 the same actor and browser instance presents a changed output owner, policy revision, or
@@ -374,10 +375,10 @@ connection even when the browser disappears without teardown.
 
 ## Live App
 
-The App discovers the authoritative camera collection and maintains at most one
-authorization per selected camera in one browser instance. It supports the entire camera
-grid. Renewals rotate only that tile's token. Removing a tile or tearing down the App
-closes its authorization.
+The App discovers the authoritative camera collection and opens the atlas when its first
+camera is selected. Every other selected camera attaches its typed crop to that same
+player. Renewal is transparent, and removing one canvas cannot interrupt the remaining
+cameras. Tearing down the App closes the browser's atlas authorization.
 
 Each tile reports requested and decoded dimensions, cadence, frame age, transport state,
 camera health, smoothing profile, and attribution. Cadence values use fixed-width,
@@ -387,8 +388,8 @@ decode as hardware only when the browser reports `powerEfficient`; supported smo
 software decode is labeled explicitly. Browser acceptance still requires a headed,
 hardware-backed WebGPU or WebGL context.
 
-The App uses WebCodecs to decode Annex B H.264 and draws each `VideoFrame` into a
-GPU-composited canvas. Media Capabilities selects hardware decode when it is
+The App uses WebCodecs to decode each Annex B H.264 atlas frame once, then draws its five
+typed regions into independent GPU-composited canvases. Media Capabilities selects hardware decode when it is
 power-efficient and permits the documented smooth software H.264 decode exception.
 
 Focused browser acceptance combines the runtime source-to-render window with reactive
@@ -396,15 +397,15 @@ canvas frame events and browser receive-to-display measurements. It rejects
 source-to-render p95 at 85 ms and motion-to-photon p95 at 250 ms. The measured reference
 profile targets 16 FPS and rejects delivery below 12 FPS. Smoothing response is reported
 by the camera profile and is not counted as transport latency. The same run opens all
-five cameras for five concurrent browser users, proves 25 advancing streams share exactly
-five camera products and five NVENC sessions, then proves closing every viewer leaves
-those products ready.
+five cameras for five concurrent browser users, proves 25 advancing camera canvases use
+five browser connections to exactly one simulator product and one NVENC session, then
+proves closing every viewer leaves that product ready.
 
 Restart acceptance keeps the same headed App document and viewer-instance identity
 mounted while independently restarting the MCP pod and the Isaac container. MCP restart
 evidence requires the simulator pod UID, container ID, and restart count to remain
 unchanged. Each recovery must produce a new authorization, advancing native video, and
-unchanged hardware-browser evidence. The camera product identity remains stable.
+unchanged hardware-browser evidence. The atlas product identity remains stable.
 
 The MCP image uses a minimal PID 1 shell that forwards pod termination to one
 Rust child and exits with that child. Restart acceptance terminates that sole child

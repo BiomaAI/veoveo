@@ -11,7 +11,7 @@
 | `veoveo.io/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.io/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
 | `veoveo.io/hosted-mcp/v3` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
-| `veoveo.io/live-view/v3` | optional provider-neutral authoritative camera, one shared product per streamable camera, actor/browser authorization, Annex B H.264 WebSocket fanout, and redaction profile layered on a domain-owned simulation server |
+| `veoveo.io/live-view/v4` | optional provider-neutral authoritative cameras, typed camera regions in shared encoded products, actor/browser authorization, Annex B H.264 WebSocket fanout, and redaction profile layered on a domain-owned simulation server |
 
 ## Boundary
 
@@ -56,8 +56,8 @@ redaction, App declaration, and authenticated shared-stream admission. Resource 
 the simulation server's own scheme; conformance never requires a shared renderer URI.
 
 The anonymous external simulation fixture exercises this public contract without
-claiming visual or GPU acceptance. Hardware RTX rendering, one NVENC session per camera,
-exact bitstream fanout, frame freshness, and headed-browser
+claiming visual or GPU acceptance. Hardware RTX rendering, declared tiled-product and
+NVENC topology, exact bitstream fanout, frame freshness, and headed-browser
 playback remain implementation-owned evidence. The first-party UAV simulation
 acceptance supplies that evidence for the NVIDIA runtime.
 

@@ -3,7 +3,7 @@
 ## Purpose
 
 Certify that an independently packaged simulation MCP server can own the
-`veoveo.io/live-view/v3` camera, shared-product, stream-authorization, and App surface
+`veoveo.io/live-view/v4` camera, shared-product, stream-authorization, and App surface
 without importing platform source or a shared renderer.
 
 ## Invariants

@@ -10,10 +10,11 @@ from veoveo_uav_sim.operator_camera import CameraRigKind
 from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
 from veoveo_uav_sim.operator_health import OperatorProductHealth
 from veoveo_uav_sim.operator_products import (
+    OPERATOR_ATLAS_NAME,
+    OPERATOR_ATLAS_PRODUCT_ID,
     OperatorCameraProduct,
     operator_aov_arguments,
-    operator_product_name,
-    operator_stream_product_id,
+    operator_atlas_layout,
 )
 
 
@@ -168,6 +169,7 @@ class OperatorProductTests(unittest.TestCase):
         product._failure = None
         product._frames = deque(maxlen=256)
         product._sequence = 0
+        product._camera_ids = ("follow",)
         product._health = OperatorProductHealth(maximum_frame_age_ms=1_000)
         product._health.activate()
         keyframe = NativeH264AccessUnit(b"key", (7, 8, 5))
@@ -175,14 +177,14 @@ class OperatorProductTests(unittest.TestCase):
         product._on_access_unit(keyframe)
         product._on_access_unit(delta)
 
-        first = product.wait_for_frame(0, 0.01)
+        first = product.wait_for_frame("follow", 0, 0.01)
         assert first is not None
         self.assertEqual(first.sequence, 1)
-        second = product.wait_for_frame(first.sequence, 0.01)
+        second = product.wait_for_frame("follow", first.sequence, 0.01)
         assert second is not None
         self.assertEqual(second.sequence, 2)
 
-    def test_aov_arguments_have_one_rtsp_nvenc_product_per_camera(self) -> None:
+    def test_aov_arguments_have_one_tiled_rtsp_nvenc_product(self) -> None:
         cameras = [
             _camera(
                 camera_id,
@@ -199,14 +201,17 @@ class OperatorProductTests(unittest.TestCase):
         ]
         config = _config(cameras)
         arguments = operator_aov_arguments(config)
-        self.assertEqual(len(arguments), 10)
-        self.assertTrue(any("uav_camera_product_0" in item for item in arguments))
+        self.assertEqual(len(arguments), 5)
+        self.assertTrue(any(OPERATOR_ATLAS_NAME in item for item in arguments))
         self.assertTrue(any("signalPort=8561" in item for item in arguments))
-        self.assertTrue(any("signalPort=8563" in item for item in arguments))
         self.assertTrue(any("streamPort=8560" in item for item in arguments))
-        self.assertTrue(any("streamPort=8562" in item for item in arguments))
-        self.assertEqual(operator_product_name(1), "uav_camera_product_1")
-        self.assertEqual(operator_stream_product_id(1), "camera-product-1")
+        self.assertEqual(OPERATOR_ATLAS_PRODUCT_ID, "camera-atlas")
+        regions, width, height = operator_atlas_layout(config)
+        self.assertEqual((width, height), (2560, 720))
+        self.assertEqual(
+            [(region.camera_id, region.x_px, region.y_px) for region in regions],
+            [("follow", 0, 0), ("chase", 1280, 0)],
+        )
 
     def test_visibility_survives_metadata_only_frame_observation(self) -> None:
         health = OperatorProductHealth(maximum_frame_age_ms=1_000)

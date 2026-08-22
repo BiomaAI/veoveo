@@ -370,14 +370,8 @@ class RuntimeConfig:
             native_sensor_aov_signal_port(self.camera.rtsp_port),
         }
         operator_aov_ports = {
-            port
-            for product_index in range(
-                len(self.operator_live_view.streamable_cameras)
-            )
-            for port in (
-                self.operator_live_view.rtsp_port(product_index),
-                self.operator_live_view.rtsp_port(product_index) + 1,
-            )
+            self.operator_live_view.atlas_rtsp_port,
+            self.operator_live_view.atlas_rtsp_port + 1,
         }
         if overlap := sorted(sensor_aov_ports & operator_aov_ports):
             raise ValueError(

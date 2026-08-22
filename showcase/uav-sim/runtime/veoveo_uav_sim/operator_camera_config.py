@@ -42,14 +42,8 @@ class OperatorLiveViewRuntimeConfig:
         camera_ids = [camera.camera_id for camera in self.cameras]
         if len(camera_ids) != len(set(camera_ids)):
             raise ValueError("operator-camera identities must be unique")
-        streamable = tuple(
-            camera
-            for camera in self.cameras
-            if camera.stream_policy is not CameraStreamPolicy.DISABLED
-        )
-        last_reserved_port = self.rtsp_port_base + (len(streamable) - 1) * 2 + 1
-        if not 1 <= self.rtsp_port_base or last_reserved_port > 65_535:
-            raise ValueError("operator-camera RTSP port range exceeds 65535")
+        if not 1 <= self.rtsp_port_base <= 65_534:
+            raise ValueError("operator-camera atlas RTSP port pair exceeds 65535")
 
     @property
     def streamable_cameras(self) -> tuple[OperatorCameraDefinition, ...]:
@@ -59,10 +53,9 @@ class OperatorLiveViewRuntimeConfig:
             if camera.stream_policy is not CameraStreamPolicy.DISABLED
         )
 
-    def rtsp_port(self, product_index: int) -> int:
-        if not 0 <= product_index < len(self.streamable_cameras):
-            raise ValueError("operator-camera product index is out of range")
-        return self.rtsp_port_base + product_index * 2
+    @property
+    def atlas_rtsp_port(self) -> int:
+        return self.rtsp_port_base
 
     @classmethod
     def from_json(

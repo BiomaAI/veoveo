@@ -62,6 +62,8 @@ async def test_twenty_five_viewers_share_one_continuous_product() -> None:
     assert len({view.access_token for view in opened}) == 25
     assert {view.stream.stream_product_id for view in opened} == {STREAM_PRODUCT_ID}
     assert len(state.stream_products) == 1
+    assert state.stream_products[0].camera_regions[0].camera_id == CAMERA_ID
+    assert state.stream_products[0].coded_width_px == 1280
     assert state.stream_products[0].active_viewers == 25
     assert state.stream_products[0].nvenc_sessions == 1
 

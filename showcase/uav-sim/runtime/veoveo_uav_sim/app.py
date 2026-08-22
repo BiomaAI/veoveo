@@ -92,6 +92,10 @@ def run(config: RuntimeConfig) -> None:
                     target_fps=config.camera.fps,
                 ),
                 *operator_aov_arguments(config.operator_live_view),
+                (
+                    "--/rtx/viewTile/limit="
+                    f"{len(config.operator_live_view.streamable_cameras)}"
+                ),
                 *kit_live_render_arguments(),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
@@ -117,6 +121,7 @@ def run(config: RuntimeConfig) -> None:
         "isaacsim.core.experimental.objects",
         "isaacsim.core.experimental.materials",
         "isaacsim.core.experimental.utils",
+        "isaacsim.sensors.experimental.rtx",
         "omni.kit.livestream.rtsp",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
@@ -735,6 +740,7 @@ def run(config: RuntimeConfig) -> None:
                         time.monotonic() - native_update_started
                     )
                     assert operator_products is not None
+                    operator_products.observe_render()
                     tile_state = state.snapshot()["tiles"]
                     state.update_stream_products(
                         operator_products.state(

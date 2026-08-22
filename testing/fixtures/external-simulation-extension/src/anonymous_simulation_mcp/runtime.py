@@ -14,6 +14,7 @@ from .config import Config
 from .contract import (
     CameraDescriptor,
     CameraHealth,
+    CameraRegion,
     CloseLiveViewRequest,
     CloseLiveViewResult,
     FixtureState,
@@ -99,6 +100,15 @@ class FixtureRuntime:
                 lifecycle=ViewLifecycle.READY,
                 width_px=self._camera.width_px,
                 height_px=self._camera.height_px,
+                coded_width_px=self._camera.width_px,
+                coded_height_px=self._camera.height_px,
+                source_region=CameraRegion(
+                    camera_id=CAMERA_ID,
+                    x_px=0,
+                    y_px=0,
+                    width_px=self._camera.width_px,
+                    height_px=self._camera.height_px,
+                ),
                 frame_rate_millihertz=self._camera.frame_rate_millihertz,
                 connected_viewers=0,
                 endpoint=MediaEndpoint(stream_url=self._config.public_stream_url),
@@ -193,7 +203,17 @@ class FixtureRuntime:
             ]
             product = StreamProduct(
                 stream_product_id=STREAM_PRODUCT_ID,
-                camera_id=CAMERA_ID,
+                camera_regions=(
+                    CameraRegion(
+                        camera_id=CAMERA_ID,
+                        x_px=0,
+                        y_px=0,
+                        width_px=self._camera.width_px,
+                        height_px=self._camera.height_px,
+                    ),
+                ),
+                coded_width_px=self._camera.width_px,
+                coded_height_px=self._camera.height_px,
                 lifecycle=ProductLifecycle.READY,
                 active_viewers=len(active),
                 connected_viewers=sum(view.connected_viewers for view in active),

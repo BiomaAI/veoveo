@@ -443,8 +443,9 @@ parity.
 The initial plan landed on 2026-07-30. Veoveo `3dba3913` adds several owners that the
 protocol cut must now address explicitly:
 
-- `veoveo.io/live-view/v3` makes the domain simulator authoritative for camera rigs,
-  one stable encoded product per camera, and actor-and-browser stream authorization. The revision-3 MCP
+- `veoveo.io/live-view/v4` makes the domain simulator authoritative for camera rigs,
+  typed regions in persistent encoded products, and actor-and-browser stream
+  authorization. The revision-3 MCP
   contract preserves these strong types and canonical resource URIs. It does not move
   GPU media, pose traffic, or viewer authorization into protocol-session state.
 - Simulation View now has durable desired state, transactional outbox events, reactive
@@ -1063,7 +1064,7 @@ The Console uses `tasks/get`, `tasks/update`, `tasks/cancel`, and
 | MCP Apps typed host policy and UI resources | retain |
 | direct-call task adapter | retain with final protocol behavior |
 | Simulation View and UAV domain sessions, desired state, deadlines, and ephemeral viewer authorizations | retain; these are explicit application state rather than MCP protocol sessions |
-| `veoveo.io/live-view/v3` authoritative camera and shared stream-product types | retain as a typed negotiated domain extension |
+| `veoveo.io/live-view/v4` authoritative camera and shared stream-product types | retain as a typed negotiated domain extension |
 | Recording Redap, native live RRD channel, gateway playback route, and Console viewer adapter | retain beside MCP; these data planes are not HTTP+SSE or `subscriptions/listen` |
 | focused `testing/deployment-smoke` and `testing/browser-smoke` harnesses | retain and add final-profile deployment and headed hardware-GPU cases |
 
@@ -1237,7 +1238,7 @@ Remaining repository prerequisites:
   schemas.
 - Update gateway fragments and compatibility manifests with the final protocol and
   contract revision.
-- Preserve `veoveo.io/live-view/v3`, Recording playback v8, and other current domain
+- Preserve `veoveo.io/live-view/v4`, Recording playback v8, and other current domain
   extensions as typed extension contracts rather than folding their data planes into
   MCP transport state.
 - Add an enforcement rule that rejects the superseded protocol vocabulary.
