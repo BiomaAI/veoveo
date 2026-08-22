@@ -681,7 +681,14 @@ async fn removes_obsolete_mirror_state_during_forward_migration() {
         .unwrap();
 
     let report = store.migrate().await.unwrap();
-    assert_eq!(report.applied_versions, [36]);
+    assert_eq!(
+        report.applied_versions,
+        migrations()
+            .iter()
+            .skip(36)
+            .map(|migration| migration.version)
+            .collect::<Vec<_>>()
+    );
     assert!(report.status.is_current(), "{:?}", report.status);
 
     let mut response = store.client().query("INFO FOR DB;").await.unwrap();
@@ -1360,6 +1367,34 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
         )
         .await
         .unwrap();
+    let empty_interrupted = store
+        .create_recording(RecordingDraft {
+            identity: identity.clone(),
+            authority: artifact_authority(&identity),
+            dataset: "world".into(),
+            application_id: "sensor-suite".into(),
+            recording_key: "run-interrupted-before-data".into(),
+            classification: "restricted".into(),
+            labels: vec!["operations".into(), "restricted".into()],
+            metadata: BTreeMap::new(),
+            started_at: Utc::now(),
+        })
+        .await
+        .unwrap();
+    let empty_interrupted = store
+        .interrupt_recording(
+            &identity,
+            RecordingId::from_uuid(record_uuid(&empty_interrupted.id)),
+            Utc::now(),
+            "producer stopped before durable data",
+        )
+        .await
+        .unwrap();
+    assert_eq!(empty_interrupted.state, RecordingState::Interrupted);
+    assert_eq!(
+        empty_interrupted.failure_reason.as_deref(),
+        Some("producer stopped before durable data")
+    );
     let interrupted = store
         .create_recording(RecordingDraft {
             identity: identity.clone(),
