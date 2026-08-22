@@ -26,7 +26,7 @@ PX4_IRIS_LINEAR_DRAG_FLU_NS_M = (0.50, 0.30, 0.0)
 
 @dataclass(frozen=True, slots=True)
 class SensorCadence:
-    imu_hz: int = 60
+    imu_hz: int = 30
     barometer_hz: int = 30
     magnetometer_hz: int = 30
     gps_hz: int = 10

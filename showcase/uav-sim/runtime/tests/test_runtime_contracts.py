@@ -169,16 +169,16 @@ class RuntimeConfigTests(unittest.TestCase):
             physical_camera_path("uav/1")
 
     def test_px4_sensor_cadence_is_bounded_by_the_physics_clock(self) -> None:
-        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(60)
-        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 60)
+        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(30)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 30)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.barometer_hz, 30)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.magnetometer_hz, 30)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.gps_hz, 10)
 
         with self.assertRaisesRegex(ValueError, "exceeds physics cadence"):
-            SensorCadence(imu_hz=120).validate_for_physics(60)
+            SensorCadence(imu_hz=60).validate_for_physics(30)
         with self.assertRaisesRegex(ValueError, "must divide physics cadence"):
-            SensorCadence(gps_hz=11).validate_for_physics(60)
+            SensorCadence(gps_hz=11).validate_for_physics(30)
 
     def test_authoritative_tick_does_not_wait_for_present_threads(self) -> None:
         arguments = kit_live_render_arguments()
@@ -320,7 +320,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
     def test_operator_render_cadence_is_independent_of_sensor_cadence(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
-        self.assertEqual(config.physics_hz, 60)
+        self.assertEqual(config.physics_hz, 30)
         self.assertEqual(config.rendering_hz, 30)
         self.assertEqual(config.camera.fps, 2)
         self.assertEqual(config.operator_live_view.cameras[0].optics.frame_rate_hz, 30)
@@ -477,7 +477,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             config = RuntimeConfig.from_environment()
 
         timing = initial_runtime_timing(config)
-        self.assertEqual(timing["physics_hz"], 60)
+        self.assertEqual(timing["physics_hz"], 30)
         self.assertEqual(timing["native_rendering_hz"], 30)
         self.assertEqual(timing["render_cycles"], 0)
         self.assertEqual(timing["physics_steps"], 0)
