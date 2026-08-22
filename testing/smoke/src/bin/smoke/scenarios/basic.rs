@@ -773,7 +773,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         uav_dependencies
             .pointer("/components/simulation_runtime/compatibility_release")
             .and_then(Value::as_str)
-            == Some("2026.07.0")
+            == Some("2026.08.0")
             && uav_dependencies
                 .pointer("/components/simulation_runtime/build_target")
                 .and_then(Value::as_str)
@@ -901,7 +901,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         fs::read_to_string("showcase/uav-sim/runtime/Dockerfile")?,
     );
     for expected in [
-        "ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.07.0",
+        "ARG SIMULATION_RUNTIME_IMAGE=veoveo/simulation-runtime:2026.08.0",
         "px4io/px4-dev:v1.17.0@sha256:",
         "PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4",
         "PEGASUS_COMMIT=644da37e9d5268e5f9a34e78bdcfd57a8bab82b4",

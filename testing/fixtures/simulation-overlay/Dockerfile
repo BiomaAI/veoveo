@@ -14,6 +14,6 @@ RUN /isaac-sim/python.sh -c \
 ARG SOURCE_REVISION=local
 LABEL org.opencontainers.image.revision="${SOURCE_REVISION}" \
       io.veoveo.simulation.overlay="anonymous_external" \
-      io.veoveo.simulation.base-lock="sha256:73b6d5e8f8d8d263d63c42ba3c708738fcf886d6b398ee9df2c0013733d419c0"
+      io.veoveo.simulation.base-lock="sha256:7fa0a425e6e5e2a6aa5fb766d60af10b4eb96985005eb0493d4af65909b3d53b"
 
 USER 10001:10001
