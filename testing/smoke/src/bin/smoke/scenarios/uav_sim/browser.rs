@@ -1155,7 +1155,8 @@ async fn wait_for_console_recording_surface(
             .evaluate(
                 session_id,
                 r#"(() => ({
-                  recordingVisible:document.body?.innerText?.includes("recording://recordings/") ?? false,
+                  recordingVisible:document.body?.innerText?.toLowerCase()
+                    .includes("recording://recordings/") ?? false,
                   canvasCount:document.querySelectorAll(".rerun-web-viewer-host canvas").length,
                   loading:Boolean(document.querySelector(".recording-viewer-state")),
                   error:document.querySelector(".recording-viewer-error")?.textContent ?? "",
