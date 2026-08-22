@@ -30,11 +30,13 @@ const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
     "uav-sim:read",
+    "uav-sim:control",
     "uav-sim:stream",
     "view:read",
     "view:write",
     "view:capture",
     "map:dataset:read",
+    "map:route",
     "time:read",
 ];
 
@@ -49,6 +51,7 @@ struct UavAcceptanceScenario {
     world_ready_timeout_seconds: u64,
     takeoff: TakeoffScenario,
     camera: CameraAcceptance,
+    map_mobility_profile_uri: String,
     mission: MissionScenario,
     recording: RecordingAcceptance,
     stream: StreamScenario,
@@ -180,7 +183,15 @@ struct OperatorClient<'a> {
 impl OperatorClient<'_> {
     async fn conformance(&self, operation: &[&str], timeout: Duration) -> Result<String> {
         let token = gateway_token(self.conformance, self.base).await?;
-        gateway_conformance(self.conformance, self.base, &token, operation, timeout).await
+        gateway_conformance(
+            self.conformance,
+            self.base,
+            "operator",
+            &token,
+            operation,
+            timeout,
+        )
+        .await
     }
 
     async fn call_tool(&self, tool: &str, arguments: Value) -> Result<Value> {
@@ -250,13 +261,14 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v10",
+            self.schema == "veoveo.uav-sim-acceptance/v11",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
         validate_identity("session_id", &self.session_id)?;
         validate_identity("geospatial_layer_id", &self.geospatial_layer_id)?;
         validate_identity("vehicle_id", &self.vehicle_id)?;
+        parse_mobility_profile_uri(&self.map_mobility_profile_uri)?;
         ensure!(
             !self.world.display_name.trim().is_empty(),
             "world display name must not be blank"
@@ -450,7 +462,11 @@ async fn uav_sim_verify_with_visual_hold(
         "frames__publish_world",
         "uav-sim__configure_world",
         "uav-sim__get_simulation_state",
-        "uav-sim__execute_mission",
+        "uav-sim__list_active_vehicle_control_grants",
+        "uav-sim__prepare_vehicle_mission",
+        "uav-sim__execute_vehicle_mission_plan",
+        "map__route",
+        "map__prepare_route_handoff",
         "stream__start_live_session",
         "stream__stop_live_session",
         "stream__run_recording",
@@ -479,6 +495,7 @@ async fn uav_sim_verify_with_visual_hold(
         "UAV camera did not fail closed on the canonical NVIDIA NVENC H.264 path: {state}"
     );
     state = wait_for_recording_catalog(&operator, &scenario, Duration::from_secs(30)).await?;
+    let control_grant = ensure_operator_control_grant(&operator, &scenario).await?;
     let recording_uri = json_string(&state, "/recordings/0/recording_uri")?.to_owned();
     let recording_id = recording_uri
         .strip_prefix("recording://recordings/")
@@ -576,23 +593,69 @@ async fn uav_sim_verify_with_visual_hold(
         .context("UAV state returned an invalid current vehicle WGS84 position")?;
         let target_position =
             nearby_mission_position(&current_position, scenario.mission.longitude_offset_degrees)?;
-        let mission = serde_json::json!({
-            "session_id": scenario.session_id,
-            "mission_id": format!("acceptance-{}", uuid::Uuid::now_v7()),
-            "expected_world_revision_uri": revision_uri,
-            "vehicles": [{
-                "vehicle_id": scenario.vehicle_id,
-                "waypoints": [{
-                    "position": target_position,
+        let (mobility_profile_id, mobility_profile_version) =
+            parse_mobility_profile_uri(json_string(&control_grant, "/map_mobility_profile_uri")?)?;
+        let route = operator
+            .task_tool(
+                "map__route",
+                serde_json::json!({
+                    "mobility_profile_id": mobility_profile_id,
+                    "mobility_profile_version": mobility_profile_version,
+                    "origin": {
+                        "kind": "position",
+                        "position": map_position(&current_position)
+                    },
+                    "destination": {
+                        "kind": "position",
+                        "position": map_position(&target_position)
+                    },
+                    "waypoints": [],
+                    "departure_time": Utc::now(),
+                    "objective": { "kind": "shortest" },
+                    "constraints": {},
+                    "alternatives": 0,
+                    "data_policy": {
+                        "allow_planning_advisory": true,
+                        "allow_stale_operational_data": false,
+                        "required_map_families": ["aviation"]
+                    }
+                }),
+                Duration::from_secs(scenario.mission.task_timeout_seconds),
+            )
+            .await?;
+        let map_route = operator
+            .call_tool(
+                "map__prepare_route_handoff",
+                serde_json::json!({
+                    "route_id": json_string(&route, "/route_id")?
+                }),
+            )
+            .await?;
+        let mission_id = format!("acceptance-{}", uuid::Uuid::now_v7());
+        let plan = operator
+            .call_tool(
+                "uav-sim__prepare_vehicle_mission",
+                serde_json::json!({
+                    "session_id": scenario.session_id,
+                    "mission_id": mission_id,
+                    "vehicle_id": scenario.vehicle_id,
+                    "expected_world_revision_uri": revision_uri,
+                    "map_route": map_route,
                     "speed_mps": scenario.mission.speed_mps,
-                    "hold_seconds": scenario.mission.hold_seconds
-                }]
-            }]
-        });
+                    "hold_seconds_at_destination": scenario.mission.hold_seconds
+                }),
+            )
+            .await?;
         let mission_output = operator
             .task_tool(
-                "uav-sim__execute_mission",
-                mission,
+                "uav-sim__execute_vehicle_mission_plan",
+                serde_json::json!({
+                    "plan_id": json_string(&plan, "/plan_id")?,
+                    "expected_revision": plan
+                        .get("revision")
+                        .and_then(Value::as_u64)
+                        .context("prepared UAV mission plan omitted its revision")?
+                }),
                 Duration::from_secs(scenario.mission.task_timeout_seconds),
             )
             .await?;
@@ -1737,14 +1800,120 @@ async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
     .await
 }
 
+async fn ensure_operator_control_grant(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+) -> Result<Value> {
+    let principal_key = format!("{}/oauth#operator-service", operator.base);
+    let admin_token = gateway_token_for_context(
+        operator.conformance,
+        operator.base,
+        "admin-service",
+        "admin",
+        &["operator:use", "admin:manage", "uav-sim:admin"],
+        "operations",
+    )
+    .await?;
+    let arguments = serde_json::to_string(&serde_json::json!({
+        "grant_id": format!("acceptance-operator-{}", scenario.vehicle_id),
+        "session_id": scenario.session_id,
+        "vehicle_id": scenario.vehicle_id,
+        "principal_key": principal_key,
+        "permissions": ["inspect", "plan", "execute", "abort"],
+        "map_mobility_profile_uri": scenario.map_mobility_profile_uri,
+        "allow_planning_advisory": true,
+        "valid_from": "2026-08-13T00:00:00Z"
+    }))?;
+    let granted = gateway_conformance(
+        operator.conformance,
+        operator.base,
+        "admin",
+        &admin_token,
+        &[
+            "call",
+            "--tool-name",
+            "uav-sim__grant_vehicle_control",
+            "--arguments",
+            &arguments,
+        ],
+        Duration::from_secs(120),
+    )
+    .await?;
+    let granted =
+        structured_output(&granted).context("admin control grant returned invalid output")?;
+
+    let visible = operator
+        .call_tool(
+            "uav-sim__list_active_vehicle_control_grants",
+            serde_json::json!({ "session_id": scenario.session_id }),
+        )
+        .await?;
+    let grant = visible
+        .as_array()
+        .and_then(|grants| {
+            grants.iter().find(|grant| {
+                grant.get("grant_id") == granted.get("grant_id")
+                    && grant.get("principal_key").and_then(Value::as_str)
+                        == Some(principal_key.as_str())
+                    && grant.get("vehicle_id").and_then(Value::as_str)
+                        == Some(scenario.vehicle_id.as_str())
+            })
+        })
+        .context("operator profile did not expose its active UAV control grant")?;
+    ensure!(
+        grant
+            .get("permissions")
+            .and_then(Value::as_array)
+            .is_some_and(|permissions| {
+                ["inspect", "plan", "execute", "abort"]
+                    .into_iter()
+                    .all(|required| permissions.iter().any(|permission| permission == required))
+            })
+            && grant
+                .get("map_mobility_profile_uri")
+                .and_then(Value::as_str)
+                == Some(scenario.map_mobility_profile_uri.as_str()),
+        "operator UAV control grant does not carry the canonical permissions and Map profile: {grant}"
+    );
+    Ok(grant.clone())
+}
+
+fn parse_mobility_profile_uri(value: &str) -> Result<(&str, u64)> {
+    let rest = value
+        .strip_prefix("map://mobility-profile/")
+        .context("mobility profile must use the canonical Map URI")?;
+    let (profile_id, version) = rest
+        .split_once('/')
+        .context("mobility profile URI must include one exact version")?;
+    ensure!(
+        !profile_id.is_empty() && !version.contains('/'),
+        "mobility profile URI must identify exactly one profile version"
+    );
+    Ok((
+        profile_id,
+        version
+            .parse()
+            .context("mobility profile URI version must be an unsigned integer")?,
+    ))
+}
+
+fn map_position(position: &Wgs84Position) -> Value {
+    serde_json::json!({
+        "longitude_deg": position.longitude_degrees,
+        "latitude_deg": position.latitude_degrees,
+        "ellipsoidal_height_m": position.ellipsoid_height_m
+    })
+}
+
 async fn gateway_conformance(
     conformance: &Path,
     base: &str,
+    profile: &str,
     token: &str,
     operation: &[&str],
     timeout: Duration,
 ) -> Result<String> {
-    let url = format!("{base}/mcp/operator");
+    let url = format!("{base}/mcp/{profile}");
     let mut command = tokio::process::Command::new(conformance);
     command
         .args(["--url", &url, "--scheme", "uav-sim"])
@@ -1870,7 +2039,11 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v10");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v11");
+        assert_eq!(
+            scenario.map_mobility_profile_uri,
+            "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1"
+        );
         assert_eq!(scenario.session_id, "uav-showcase");
         assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
         assert_eq!(scenario.world.tree.frames.len(), 15);
