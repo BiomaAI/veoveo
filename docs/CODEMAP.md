@@ -65,7 +65,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | governed static scene compositions, 3D Tiles residency, declarative overlays, and GPU frame capture |
-| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, principal-to-vehicle authority, Map route admission, exclusive command leases, telemetry, authoritative cameras and render products, signaling, and the UAV App |
+| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, principal-to-vehicle authority, Map route admission, exclusive command leases, telemetry, authoritative cameras, shared render products and H.264 fanout, and the UAV App |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -127,7 +127,7 @@ Hub, administration, and GPU policy.
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
-| `showcase/uav-sim/deploy/helm/` | authoritative GPU simulator, UAV MCP server, isolated generic pilot agents, live-view signaling/media ingress, render-product capacity, and per-viewer lease configuration |
+| `showcase/uav-sim/deploy/helm/` | authoritative GPU simulator, UAV MCP server, isolated generic pilot agents, shared H.264 stream ingress, continuous camera-product configuration, and viewer authorization |
 | `testing/smoke/src/bin/smoke/deployment.rs` | profile validation and orchestration, pre-mutation Secret presence closure, immutable gateway activation, and ordered Helm release inputs |
 | `testing/smoke/src/bin/smoke/deployment/gpu.rs` | managed NVIDIA DRA orchestration, ResourceSlice inventory, persistent-claim preservation, and workload placement proof |
 | `testing/smoke/src/bin/smoke/deployment/gpu/helm.rs` | Helm v4 release metadata, exact allocator artifact and render verification, and atomic installation |
@@ -283,7 +283,7 @@ The only durable platform persistence layer.
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
-| `live_views.rs` | append-only audit records for authoritative simulation live-view products and ephemeral viewer leases |
+| `live_views.rs` | append-only audit records for authoritative simulation live-view products and ephemeral viewer authorizations |
 | `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
 | `store.rs` | connection and transaction helpers over domain records |
 
@@ -414,7 +414,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp/src/bin/server/usage_index.rs` | bounded authority-filtered usage discovery with stable task ordering and opaque cursors |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable governed scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
-| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, principal-to-vehicle grants, Map route admission, exclusive command leases, missions, telemetry, tasks, recording references, authoritative logical cameras, isolated per-viewer GPU products, authenticated signaling, and the UAV App |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, principal-to-vehicle grants, Map route admission, exclusive command leases, missions, telemetry, tasks, recording references, authoritative logical cameras, one GPU product per streamable camera, authenticated H.264 fanout, and the UAV App |
 
 The packaged Node chart server keeps its Veoveo boundary beside the image:
 
@@ -427,18 +427,18 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 
 | Path | Responsibility |
 |---|---|
-| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot admission, bounded capacity, renewal, closure, expiry, and typed denial state |
-| `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated WebRTC signaling authorization and per-viewer peer attachment to simulator-owned encoded products |
-| `servers/uav-sim-mcp/src/server/live_view_audit.rs` | durable audit projection for camera, product, lease, denial, expiry, and revocation events |
+| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser stream authorization, shared camera-product projection, token renewal, closure, expiry, and connection state |
+| `servers/uav-sim-mcp/src/server/live_stream.rs` | authenticated WebSocket admission and byte-transparent H.264 forwarding from simulator-owned camera products |
+| `servers/uav-sim-mcp/src/server/live_view_audit.rs` | durable audit projection for camera, product, authorization, denial, expiry, and revocation events |
 | `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready HTTP stream ingestion, immutable binding reapplication trigger, and subscribed live-camera notification |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained authoritative-camera selection and multi-view live App |
 | `showcase/uav-sim/agents/` | reviewed parameterized pilot manifest and durable memory schema; geographic work data remains outside agent memory |
 | `showcase/uav-sim/map/` | Map-owned named-place and operational air-network source fixture for the showcase |
-| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, authoritative logical cameras, isolated per-viewer RTX/NVENC products, direct Stream publication, and Rerun publication |
+| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, authoritative logical cameras, shared camera-owned RTX/NVENC products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | authoritative target sampling and desired poses for every supported camera rig |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | frame-rate-independent position and shortest-arc orientation filters with typed reset rules |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | bounded preallocated viewer slots, each with an isolated camera clone, RTX render product, NVENC bitstream, and native WebRTC peer |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | one continuous RTX/NVENC product and keyframe-aware H.264 access-unit ring per streamable logical camera |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/render_pose.py` | bounded agreement diagnostics between authoritative camera poses and rendered Hydra frames |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py` | exact authoritative body-and-mount USD sensor camera, distinct from smoothed operator views |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | physical-camera Hydra product, CUDA AOV-to-native-RTSP configuration, encoded-frame pairing, and nonblocking sensor health |
@@ -450,7 +450,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/patches/cesium-0.29.0-lifecycle-events.patch` | pinned Omniverse extension events, load generations, and query-secret log redaction |
 | `showcase/uav-sim/runtime/patches/cesium-native-ca0311f-tile-load-events.patch` | pinned Cesium Native child-content failure delivery through the existing tileset callback |
 | `servers/uav-sim-mcp/src/server/world_bootstrap.rs` | strict startup application and reactive same-binding reapplication of an installation-owned immutable world binding |
-| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, four identity- and storage-isolated generic pilot workloads, signaling/media ingress, render-product capacity, versioned persistent cache, typed sensor configuration, and network policy |
+| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, four identity- and storage-isolated generic pilot workloads, shared H.264 ingress, continuous camera products, versioned persistent cache, typed sensor configuration, and network policy |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | reference authoritative camera, product, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
@@ -583,25 +583,25 @@ Authoritative simulation live-view ownership:
 
 | Path | Responsibility |
 |---|---|
-| `mcp/contract/src/live_view.rs` | shared provider-neutral logical-camera, encoded-product, per-viewer lease, capacity, health, and signaling contract |
+| `mcp/contract/src/live_view.rs` | shared provider-neutral logical-camera, camera-product, viewer-authorization, GPU-capacity, health, and WebSocket H.264 contract |
 | `servers/uav-sim-mcp/src/contract.rs` | UAV session, control-grant, Map handoff consumer, mission-plan, and authoritative live-view schemas built from the shared contract |
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, durable control-authority, task, logical-camera, and product services |
 | `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, strict Map handoff admission, mission plans, and exclusive command-lease lifecycle |
-| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser viewer leases, exclusive viewer-slot assignment, bounded capacity, expiry, closure, and typed denial behavior |
-| `servers/uav-sim-mcp/src/server/signaling.rs` | authenticated signaling sessions that attach viewer peers to simulator-owned encoded products |
+| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser stream authorizations, stable shared-product selection, expiry, closure, and connection telemetry |
+| `servers/uav-sim-mcp/src/server/live_stream.rs` | authenticated browser WebSocket sessions that forward camera-owned Annex B H.264 products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | append-only live-view audit writes without runtime coupling |
 | `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready stream receiver, immutable binding reapplication trigger, and MCP subscription projection |
 | `servers/uav-sim-mcp/src/server/service.rs` | MCP tools, resources, subscriptions, well-known surface, and authoritative live-view orchestration |
-| `servers/uav-sim-mcp/assets/live-app.html` | self-contained selected-camera and bounded multi-view MCP App |
+| `servers/uav-sim-mcp/assets/live-app.html` | self-contained all-camera WebCodecs MCP App with shared H.264 delivery |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | simulator-tick camera orchestration, frame transforms, and shared camera/target time |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | desired-pose computation for follow, chase, orbit, look-at, stabilized-mounted, formation, and fixed rigs |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | half-life translation/quaternion filtering and reset rules |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | preallocated viewer-camera clones and isolated RTX, NVENC, native WebRTC, activation, and release lifecycle per assigned slot |
-| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py` | CUDA, RTX, NVENC, product, frame, and capacity evidence |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | continuous one-per-camera RTX/NVENC products, RTSP receivers, and viewer-independent H.264 rings |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py` | CUDA, RTX, NVENC, camera-product, frame, and latency evidence |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready edge before world admission and final-ready edge after authoritative visual admission |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | reactive, deduplicated provider generation state derived from native Cesium lifecycle events and render coverage observations, including expired provider-session reset |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
-| `platform/store/src/live_views.rs` | durable audit persistence for camera, product, lease, denial, expiry, and revocation facts |
+| `platform/store/src/live_views.rs` | durable audit persistence for camera, product, authorization, denial, expiry, and revocation facts |
 | `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |
 
 ## Recordings
