@@ -1,4 +1,4 @@
-"""Strict simulator-hosted camera, product, and viewer-lease contracts."""
+"""Strict simulator-hosted shared camera-stream contracts."""
 
 from __future__ import annotations
 
@@ -23,19 +23,19 @@ class CameraHealth(str, Enum):
 
 
 class ProductLifecycle(str, Enum):
-    INACTIVE = "inactive"
+    STARTING = "starting"
     READY = "ready"
     FAILED = "failed"
 
 
-class LeaseLifecycle(str, Enum):
+class ViewLifecycle(str, Enum):
     READY = "ready"
     LIVE = "live"
     CLOSED = "closed"
 
 
 class CameraDescriptor(WireModel):
-    schema_version: str = "veoveo.io/live-view/v2"
+    schema_version: str = "veoveo.io/live-view/v3"
     session_id: str = Field(min_length=1, max_length=128)
     camera_id: str = Field(min_length=1, max_length=128)
     rig: str = "fixed"
@@ -47,19 +47,14 @@ class CameraDescriptor(WireModel):
 
 
 class StreamProduct(WireModel):
-    schema_version: str = "veoveo.io/live-view/v2"
     stream_product_id: str = Field(min_length=1, max_length=128)
-    capacity_slot: int = Field(ge=0, le=1_023)
-    camera_id: str | None = Field(default=None, min_length=1, max_length=128)
-    live_view_id: str | None = Field(default=None, min_length=1, max_length=128)
+    camera_id: str = Field(min_length=1, max_length=128)
     lifecycle: ProductLifecycle
-    codec: str = "h264"
-    hardware_encoder: str = "nvidia_nvenc"
-    render_products: int = Field(ge=0, le=1)
-    encoder_sessions: int = Field(ge=0, le=1)
-    active_viewer_leases: int = Field(ge=0, le=1)
+    active_viewers: int = Field(ge=0)
     connected_viewers: int = Field(ge=0)
-    last_frame_sequence: int = Field(ge=0)
+    nvenc_sessions: int = Field(ge=0, le=1)
+    encoded_frames: int = Field(ge=0)
+    source_to_render_samples: int = Field(ge=0)
 
 
 class ListLiveCamerasRequest(WireModel):
@@ -80,27 +75,35 @@ class CloseLiveViewRequest(RenewLiveViewRequest):
     pass
 
 
-class ViewerLease(WireModel):
-    schema_version: str = "veoveo.io/live-view/v2"
+class MediaEndpoint(WireModel):
+    transport: str = "web_socket_h264"
+    stream_url: str
+
+
+class LiveViewState(WireModel):
+    schema_version: str = "veoveo.io/live-view/v3"
     live_view_id: str
     resource_uri: str
     session_id: str
     camera_id: str
     stream_product_id: str
-    capacity_slot: int = Field(ge=0, le=1_023)
     owner: str
     viewer_actor: str
     viewer_instance_id: str
-    lifecycle: LeaseLifecycle
-    signaling_url: str
-    media_host: str
-    media_port: int
+    lifecycle: ViewLifecycle
+    codec: str = "h264"
+    hardware_encoder: str = "nvidia_nvenc"
+    width_px: int = Field(ge=16, le=16_384)
+    height_px: int = Field(ge=16, le=16_384)
+    frame_rate_millihertz: int = Field(ge=1_000, le=240_000)
+    connected_viewers: int = Field(ge=0, le=1)
+    endpoint: MediaEndpoint
     created_at: datetime
     expires_at: datetime
 
 
 class LiveViewConnection(WireModel):
-    stream: ViewerLease
+    stream: LiveViewState
     access_token: str = Field(min_length=43, max_length=256)
 
 
@@ -114,8 +117,7 @@ class GetFixtureStateRequest(WireModel):
 
 
 class FixtureState(WireModel):
-    schema_version: str = "veoveo.io/simulator-hosted-live-view-fixture/v1"
+    schema_version: str = "veoveo.io/simulator-hosted-live-view-fixture/v2"
     session_id: str
     cameras: tuple[CameraDescriptor, ...]
     stream_products: tuple[StreamProduct, ...]
-    active_viewer_leases: int = Field(ge=0)

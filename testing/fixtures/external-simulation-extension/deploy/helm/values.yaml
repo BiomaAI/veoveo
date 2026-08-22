@@ -23,11 +23,8 @@ service:
   port: 8812
 
 liveView:
-  publicSignalingUrl: ws://127.0.0.1:8812/anonymous-simulation/signaling
-  publicMediaHost: 127.0.0.1
-  publicMediaPort: 48030
-  leaseSeconds: 120
-  viewerSlots: 2
+  publicStreamUrl: ws://127.0.0.1:8812/anonymous-simulation/live
+  authorizationSeconds: 3600
 
 resources:
   requests:

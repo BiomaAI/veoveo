@@ -41,7 +41,7 @@ APP_URI = "ui://anonymous-simulation/live.html"
 APP_MIME = "text/html;profile=mcp-app"
 INSTRUCTIONS = (
     "Authoritative simulation fixture. Its stable camera and NVIDIA H.264 product "
-    "are simulator-owned; every actor and browser receives an independent ephemeral lease."
+    "is simulator-owned and shared by independently authorized actors and browsers."
 )
 STATE_URI = "anonymous-simulation://state"
 DOCS_URI = "anonymous-simulation://docs"
@@ -86,7 +86,7 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                 types.Tool(
                     name="open_live_view",
                     title="Open authoritative live view",
-                    description="Reserve one viewer slot for this actor and browser instance.",
+                    description="Authorize this actor and browser to receive the shared camera stream.",
                     input_schema=mcp_input_schema(OpenLiveViewRequest),
                     output_schema=LiveViewConnection.model_json_schema(),
                     annotations=_annotations(),
@@ -95,7 +95,7 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                 types.Tool(
                     name="renew_live_view",
                     title="Renew authoritative live view",
-                    description="Rotate only this viewer lease token and expiry.",
+                    description="Rotate only this viewer's stream token and expiry.",
                     input_schema=mcp_input_schema(RenewLiveViewRequest),
                     output_schema=LiveViewConnection.model_json_schema(),
                     annotations=_annotations(),
@@ -104,7 +104,7 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                 types.Tool(
                     name="close_live_view",
                     title="Close authoritative live view",
-                    description="Close only this actor and browser instance's lease.",
+                    description="Close only this actor and browser instance's authorization.",
                     input_schema=mcp_input_schema(CloseLiveViewRequest),
                     output_schema=CloseLiveViewResult.model_json_schema(),
                     annotations=_annotations(destructive=True),

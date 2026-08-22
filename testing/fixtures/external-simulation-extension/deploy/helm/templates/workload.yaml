@@ -20,12 +20,6 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: http
       protocol: TCP
-    {{- range $slot := until (int .Values.liveView.viewerSlots) }}
-    - name: {{ printf "media-%d" $slot }}
-      port: {{ add $.Values.liveView.publicMediaPort $slot }}
-      targetPort: {{ printf "media-%d" $slot }}
-      protocol: UDP
-    {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -70,25 +64,14 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.veoveo.installationSecret | quote }}
                   key: internal-trust-jwks
-            - name: ANONYMOUS_SIMULATION_PUBLIC_SIGNALING_URL
-              value: {{ .Values.liveView.publicSignalingUrl | quote }}
-            - name: ANONYMOUS_SIMULATION_PUBLIC_MEDIA_HOST
-              value: {{ .Values.liveView.publicMediaHost | quote }}
-            - name: ANONYMOUS_SIMULATION_PUBLIC_MEDIA_PORT
-              value: {{ .Values.liveView.publicMediaPort | quote }}
-            - name: ANONYMOUS_SIMULATION_LEASE_SECONDS
-              value: {{ .Values.liveView.leaseSeconds | quote }}
-            - name: ANONYMOUS_SIMULATION_VIEWER_SLOTS
-              value: {{ .Values.liveView.viewerSlots | quote }}
+            - name: ANONYMOUS_SIMULATION_PUBLIC_STREAM_URL
+              value: {{ .Values.liveView.publicStreamUrl | quote }}
+            - name: ANONYMOUS_SIMULATION_AUTHORIZATION_SECONDS
+              value: {{ .Values.liveView.authorizationSeconds | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
-            {{- range $slot := until (int .Values.liveView.viewerSlots) }}
-            - name: {{ printf "media-%d" $slot }}
-              containerPort: {{ add $.Values.liveView.publicMediaPort $slot }}
-              protocol: UDP
-            {{- end }}
           {{- include "veoveo-extension.httpProbes" (dict
               "startupPath" "/anonymous-simulation/healthz"
               "readinessPath" "/anonymous-simulation/readyz"

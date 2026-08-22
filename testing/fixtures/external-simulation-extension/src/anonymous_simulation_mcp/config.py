@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import ipaddress
 import os
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 from veoveo_mcp.host import parse_allowed_host_authority
 
@@ -19,11 +19,8 @@ class Config:
     port: int
     allowed_hosts: tuple[str, ...]
     internal_trust_jwks: str
-    public_signaling_url: str
-    public_media_host: str
-    public_media_port: int
-    lease_seconds: int
-    viewer_slots: int
+    public_stream_url: str
+    authorization_seconds: int
 
 
 def parse_config(argv: list[str] | None = None) -> Config:
@@ -40,30 +37,18 @@ def parse_config(argv: list[str] | None = None) -> Config:
         default=os.environ.get("VEOVEO_INTERNAL_TRUST_JWKS"),
     )
     parser.add_argument(
-        "--public-signaling-url",
+        "--public-stream-url",
         default=os.environ.get(
-            "ANONYMOUS_SIMULATION_PUBLIC_SIGNALING_URL",
-            "ws://127.0.0.1:8812/anonymous-simulation/signaling",
+            "ANONYMOUS_SIMULATION_PUBLIC_STREAM_URL",
+            "ws://127.0.0.1:8812/anonymous-simulation/live",
         ),
     )
     parser.add_argument(
-        "--public-media-host",
-        default=os.environ.get("ANONYMOUS_SIMULATION_PUBLIC_MEDIA_HOST", "127.0.0.1"),
-    )
-    parser.add_argument(
-        "--public-media-port",
+        "--authorization-seconds",
         type=int,
-        default=int(os.environ.get("ANONYMOUS_SIMULATION_PUBLIC_MEDIA_PORT", "48030")),
-    )
-    parser.add_argument(
-        "--lease-seconds",
-        type=int,
-        default=int(os.environ.get("ANONYMOUS_SIMULATION_LEASE_SECONDS", "120")),
-    )
-    parser.add_argument(
-        "--viewer-slots",
-        type=int,
-        default=int(os.environ.get("ANONYMOUS_SIMULATION_VIEWER_SLOTS", "2")),
+        default=int(
+            os.environ.get("ANONYMOUS_SIMULATION_AUTHORIZATION_SECONDS", "3600")
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -76,29 +61,23 @@ def parse_config(argv: list[str] | None = None) -> Config:
             parser.error(f"invalid --allowed-host {host!r}")
     if not args.internal_trust_jwks:
         parser.error("--internal-trust-jwks is required")
-    if not args.public_signaling_url.startswith(("ws://", "wss://")):
-        parser.error("--public-signaling-url must be an absolute WS(S) URL")
-    if "@" in args.public_signaling_url:
-        parser.error("--public-signaling-url must not contain credentials")
-    try:
-        ipaddress.ip_address(args.public_media_host)
-    except ValueError:
-        parser.error("--public-media-host must be a numeric IP address")
-    if not 1_024 <= args.public_media_port <= 65_535:
-        parser.error("--public-media-port must be between 1024 and 65535")
-    if not 5 <= args.lease_seconds <= 3_600:
-        parser.error("--lease-seconds must be between 5 and 3600")
-    if not 1 <= args.viewer_slots <= 32:
-        parser.error("--viewer-slots must be between 1 and 32")
-    if args.public_media_port + args.viewer_slots - 1 > 65_535:
-        parser.error("the viewer-slot media port range exceeds 65535")
+    stream_url = urlsplit(args.public_stream_url)
+    loopback = stream_url.hostname in {"127.0.0.1", "::1", "localhost"}
+    if (
+        stream_url.scheme not in ({"ws", "wss"} if loopback else {"wss"})
+        or stream_url.hostname is None
+        or stream_url.username is not None
+        or stream_url.password is not None
+        or stream_url.query
+        or stream_url.fragment
+    ):
+        parser.error("--public-stream-url must be a credential-free secure WS URL")
+    if not 5 <= args.authorization_seconds <= 86_400:
+        parser.error("--authorization-seconds must be between 5 and 86400")
     return Config(
         port=args.port,
         allowed_hosts=tuple(args.allowed_hosts),
         internal_trust_jwks=args.internal_trust_jwks,
-        public_signaling_url=args.public_signaling_url,
-        public_media_host=args.public_media_host,
-        public_media_port=args.public_media_port,
-        lease_seconds=args.lease_seconds,
-        viewer_slots=args.viewer_slots,
+        public_stream_url=args.public_stream_url,
+        authorization_seconds=args.authorization_seconds,
     )

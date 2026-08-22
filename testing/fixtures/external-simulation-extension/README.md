@@ -1,8 +1,8 @@
 # Anonymous External Simulation Extension
 
 This fixture represents a simulation MCP server built in an independent repository.
-It owns one simulator-hosted logical camera, bounded viewer-product slots, ephemeral viewer leases,
-signaling authorization, and an MCP App. It imports no platform renderer or source
+It owns one simulator-hosted logical camera, one continuous shared product, independent
+viewer authorization, and an MCP App. It imports no platform renderer or source
 checkout.
 
 The compatibility release selects `veoveo-mcp==0.1.0` for CPython 3.13. The committed
@@ -28,4 +28,4 @@ gateway binding, trust, public endpoints, platform selection, and digest lock.
 Canonical acceptance copies this directory into a temporary independent checkout,
 serves the SDK wheel from an authenticated package index, and runs locked tests,
 packaging, Bake graph validation, and Helm validation there. Its synthetic product
-cannot count as GPU, NVENC, WebRTC media, or browser visual evidence.
+cannot count as GPU, NVENC, advancing H.264 media, or browser visual evidence.

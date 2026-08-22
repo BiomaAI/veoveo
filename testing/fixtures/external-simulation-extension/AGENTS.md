@@ -3,15 +3,15 @@
 ## Purpose
 
 Certify that an independently packaged simulation MCP server can own the
-`veoveo.io/live-view/v2` camera, product, viewer-lease, signaling, and App surface
+`veoveo.io/live-view/v3` camera, shared-product, stream-authorization, and App surface
 without importing platform source or a shared renderer.
 
 ## Invariants
 
-- The fixture owns one stable authoritative camera, a bounded stable viewer-slot
-  pool, and ephemeral actor-and-browser viewer leases.
+- The fixture owns one stable authoritative camera, one continuous stream product,
+  and independent actor-and-browser authorizations without a viewer quota.
 - This is a protocol and packaging fixture. It never serves as GPU rendering,
-  NVENC, WebRTC media, or visual acceptance evidence.
+  NVENC, advancing H.264 media, or visual acceptance evidence.
 - It imports the selected Python SDK release from its locked package index rather
   than a Veoveo checkout.
 - Viewer tokens appear only in open and renew results. Resources and logs stay
