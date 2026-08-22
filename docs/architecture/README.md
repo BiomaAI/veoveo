@@ -107,7 +107,7 @@ modules in this directory.
 
 - Architecture: `VV-MODEL-001`
 - Version: `0.3.0`
-- Revision: `2026-08-07`
-- Source commit: `1a12539706eefcc9fde7359a4bb5f5f8114eb5f2`
+- Revision: `2026-08-21`
+- Source commit: `92bf00a93147ecec552c32e4a3cb75d1dcce9439`
 - Governing framework: OMG UAF 1.3
 - Detailed systems language: OMG SysML 1.6

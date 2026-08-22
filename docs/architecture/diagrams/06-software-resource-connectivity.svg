@@ -302,8 +302,8 @@
 <tspan x="1603" dy="0">UAV simulator stack</tspan>
 </text>
 <text x="1603" y="775" class="small" text-anchor="start">
-<tspan x="1603" dy="0">Isaac, Cesium, Pegasus, and</tspan>
-<tspan x="1603" dy="16">PX4</tspan>
+<tspan x="1603" dy="0">Isaac, Cesium, Newton, Warp,</tspan>
+<tspan x="1603" dy="16">and PX4</tspan>
 </text>
 <rect x="1318" y="885" width="245" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="1318" y="885" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -334,5 +334,5 @@
 <path d="M 1086 645 L 1585 780" class="edge-muted"/>
 <rect x="28" y="1185" width="1844" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1206" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1870" y="1206" class="tiny" text-anchor="end">Revision 2026-08-07 | VV-VIEW-06</text>
+<text x="1870" y="1206" class="tiny" text-anchor="end">Revision 2026-08-21 | VV-VIEW-06</text>
 </svg>

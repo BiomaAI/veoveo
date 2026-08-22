@@ -19,8 +19,8 @@ CATALOGS = ARCH / "catalogs"
 DIAGRAMS = ARCH / "diagrams"
 MODEL = ARCH / "model"
 VERSION = "0.3.0"
-REVISION_DATE = "2026-08-07"
-SOURCE_COMMIT = "1a12539706eefcc9fde7359a4bb5f5f8114eb5f2"
+REVISION_DATE = "2026-08-21"
+SOURCE_COMMIT = "92bf00a93147ecec552c32e4a3cb75d1dcce9439"
 
 
 def read_csv(name: str) -> list[dict[str, str]]:
@@ -1024,7 +1024,7 @@ def diagram_connectivity() -> None:
         ("VV-CMP-046", "Map toolchain", "Routing and acquisition"),
         ("VV-CMP-070/071", "cuOpt executor + runtime", "Private NVIDIA GPU optimization"),
         ("VV-CMP-044", "DeepStream / TensorRT", "Local GPU inference"),
-        ("VV-CMP-056", "UAV simulator stack", "Isaac, Cesium, Pegasus, and PX4"),
+        ("VV-CMP-056", "UAV simulator stack", "Isaac, Cesium, Newton, Warp, and PX4"),
         ("VV-CMP-042", "OTel collector", "Approved operational signals"),
     ]
     for index, (ident, title, body) in enumerate(resources):

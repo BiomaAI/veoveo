@@ -9,16 +9,16 @@ Governs interactive and durable work against UAV simulation sessions without
 exposing simulator native control ports through the gateway. The server owns
 the typed simulation protocol, caller ownership, task state, resource
 identities, subscriptions, and recording references; the simulator adapter
-owns Isaac stage mutation, Cesium tiles, Pegasus vehicles, PX4 transport, and
-authoritative operator cameras and encoded products.
+owns Isaac stage mutation, Cesium tiles, Newton rigid bodies, the Warp UAV
+plant, PX4 transport, and authoritative operator cameras and encoded products.
 
 ## Invariants
 
 - Owns the `uav-sim://` URI scheme. Identity: slug `uav-sim`, endpoint
-  `/uav-sim/mcp`, port 8802. Provider names (Isaac, Cesium, Pegasus, PX4)
+  `/uav-sim/mcp`, port 8802. Provider names (Isaac, Cesium, Newton, Warp, PX4)
   never enter canonical tool or resource identities.
-- MAVLink and ROS 2 remain data plane protocols; they are never projected as
-  high rate MCP tools. The simulator adapter HTTP endpoint stays cluster
+- MAVLink remains a data plane protocol; it is never projected as high-rate MCP
+  tools. The simulator adapter HTTP endpoint stays cluster
   private and accepts only typed requests from this server.
 - Durable tools (`run_scenario`, `execute_vehicle_mission_plan`, `capture_dataset`) use
   `interrupted_indeterminate` recovery; live simulator work is never replayed
@@ -34,7 +34,7 @@ authoritative operator cameras and encoded products.
   plan revision and an exclusive vehicle command lease.
 - Every session starts `unconfigured`. `configure_world` binds it exactly once
   to an immutable Frames world revision and a static simulation frame from that
-  revision. The adapter derives Cesium and Pegasus georeferencing from that
+  revision. The adapter derives Cesium and Newton fleet georeferencing from that
   binding, converts ENU/NED locally, and makes no MCP calls in the physics loop.
 - Operator cameras, RTX rendering, and NVIDIA NVENC products stay inside the
   authoritative simulator. This server owns ephemeral actor-and-browser viewer

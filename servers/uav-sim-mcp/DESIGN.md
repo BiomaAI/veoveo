@@ -28,7 +28,7 @@ for visualization.
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
 | `veoveo.io/map-route-handoff/v1` | Map MCP-owned, execution-neutral route projection with exact route, digest, mobility-profile, snapshot, release, restriction, and validation provenance. |
 | `frames://world/{world_id}/revision/{revision_id}` | Frames MCP-owned immutable world revision identity consumed by session configuration and mission admission. |
-| MAVLink 2 and ROS 2 Jazzy | Private simulator integrations. Neither protocol is projected as high-rate MCP traffic. |
+| MAVLink 2 | Private PX4 command, telemetry, actuator, and HIL sensor integration. The protocol is not projected as high-rate MCP traffic. |
 | Rerun RRD | Version `0.36.0` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
 | NVIDIA Container Runtime | One Kubernetes GPU allocation with compute, graphics, utility, and video driver capabilities. CPU rendering and encoding are unsupported. |
 
@@ -58,7 +58,7 @@ UAV Simulation MCP server
     | authenticated cluster-private typed adapter
     v
 authoritative Isaac runtime
-  physics + USD/Cesium + operator cameras + Hydra + NVENC
+  Newton + Warp plant/sensors + PX4 HIL + USD/Cesium + operator cameras + Hydra + NVENC
     |
     +---- WebRTC viewer A
     +---- WebRTC viewer B

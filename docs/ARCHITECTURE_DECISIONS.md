@@ -305,9 +305,10 @@ protocol or shell-based smoke framework.
 
 The UAV simulation showcase follows the same control boundary at GPU scale.
 One MCP server serializes mutations for each simulation session, while a
-cluster-private adapter owns Isaac Sim, Cesium for Omniverse, Pegasus, PX4,
-MAVLink, and sensor capture. Google Photorealistic 3D Tiles rendered inside
-Isaac through Cesium ion are part of the delivered world contract. View MCP's
+cluster-private adapter owns Isaac Sim, Cesium for Omniverse, Newton rigid bodies,
+the CUDA Warp UAV plant and sensors, PX4 HIL, MAVLink, and sensor capture. Google
+Photorealistic 3D Tiles rendered inside Isaac through Cesium ion are part of the
+delivered world contract. View MCP's
 direct Google source is independent and is not a substitute for simulator tile
 residency.
 

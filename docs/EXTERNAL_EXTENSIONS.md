@@ -257,8 +257,8 @@ Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU compatibility contr
 
 The `isaac-sim-6` profile currently fixes Isaac Sim
 `6.0.1-rc.7+release.42383.32955d8d.gl`, Isaac Lab `v3.0.0-beta2.patch1` at
-`ffff603eafc6b74264a5261cc0183d6a65390d78`, Warp `1.15.0`, Newton `1.4.0`,
-MuJoCo `3.10.0`, MuJoCo Warp `3.10.0.3`, Python `3.12.13`, CUDA `12.9`, and
+`ffff603eafc6b74264a5261cc0183d6a65390d78`, Warp `1.16.0`, Newton `1.5.0`,
+MuJoCo `3.11.0`, MuJoCo Warp `3.11.0`, Python `3.12.13`, CUDA `13.0`, and
 Kit `110.1.2`. `platform/runtimes/simulation/simulation-runtime.lock.json` also pins the
 upstream image, source archive, and wheel digests.
 

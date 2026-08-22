@@ -10,6 +10,8 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | Boundary | Supported profile |
 |---|---|
 | Isaac Sim | Marketing release `6.0.1`; internal build `6.0.1-rc.7+release.42383.32955d8d.gl`. |
+| Isaac Experimental API and Newton | Experimental prims and objects drive one Newton `1.5.0` rigid-body fleet on CUDA. The classic Core API and PhysX UAV path are absent. |
+| Warp and MuJoCo | Warp `1.16.0`, MuJoCo `3.11.0`, and MuJoCo Warp `3.11.0` are one certified simulation tuple. Repository Warp kernels own the UAV plant and HIL sensors. |
 | `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
 | `veoveo.io/live-view/v2` | Authoritative operator cameras, stable encoded products, ephemeral viewer leases, and typed capacity. |
 | `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
@@ -18,7 +20,7 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
 | Rerun RRD | Version `0.36.0` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, rendering, and server-side video encoding. |
-| MAVLink 2 and ROS 2 Jazzy | Pod-local PX4 command, telemetry, and simulator integration. |
+| MAVLink 2 | Pod-local PX4 `1.17.0` command, telemetry, actuator, and HIL sensor integration. |
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` and its pinned Cesium Native revision stream photorealistic terrain and buildings. A repository-owned internal event extension reports redacted load lifecycle state. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit Frames-governed world, physics, entity, sensor, and operator-camera mappings. |
 
@@ -29,7 +31,7 @@ physics and rendering, synthetic-data pipeline, application patterns, and practi
 limitations in [*NVIDIA Isaac Sim: Enabling Scalable, GPU-Accelerated Simulation for
 Robotics*](https://arxiv.org/html/2606.03551v1), arXiv:2606.03551v1 (2026). The survey
 provides background for this showcase's choice of an authoritative GPU simulator. It
-does not validate Veoveo's specific Pegasus, PX4, MCP, streaming, or acceptance
+does not validate Veoveo's PX4, Warp plant, MCP, streaming, or acceptance
 implementation; those claims remain tied to the repository's pinned runtime and
 executable evidence.
 
@@ -85,7 +87,7 @@ headless requests, pass criteria, and evidence record for another run.
 | Path | Responsibility |
 |---|---|
 | `../../platform/runtimes/simulation/` | Canonical Isaac, Isaac Lab, Warp, Newton, CUDA, and RTX lineage. |
-| `runtime/` | Cesium, Pegasus, PX4, fleet physics, domain sensors, authoritative operator cameras, Hydra/NVENC products, recording, and the cluster-private adapter. |
+| `runtime/` | Cesium, the repository-owned Warp UAV plant, PX4 HIL, Newton fleet state, domain sensors, authoritative operator cameras, Hydra/NVENC products, recording, and the cluster-private adapter. |
 | `../../servers/uav-sim-mcp/` | Domain tools, resources, tasks, subscriptions, camera/product projection, viewer leases, signaling, audit, and the live App. |
 | `agents/` | Reviewed showcase packaging for isolated generic pilot agents. |
 | `map/` | Map-owned named places and operational air-network fixture used by the showcase. |
@@ -126,7 +128,7 @@ cross-revision, or conflicting bindings fail startup directly. No controller pol
 replays renderer state. An installation that omits the ConfigMap admits the same binding
 once through `configure_world`.
 
-The selected revision determines the Cesium georeference, Pegasus coordinates, local
+The selected revision determines the Cesium georeference, Newton fleet coordinates, local
 geographic conversion, mission guard, recording metadata, sensor frames, and
 operator-camera world.
 
@@ -171,12 +173,23 @@ failure, poll a provider, or stop simulation. Existing operator streams retain t
 resident generation while its replacement loads. Kubernetes visual readiness remains
 current during that overlap only while textured resident coverage is still present.
 
-Fleet dynamics use CUDA-backed PhysX tensor views. Elapsed monotonic time determines the
-number of authoritative fixed physics steps due on each scheduler pass. The clock retains
-bounded physics debt instead of dropping elapsed time. When rendering misses several
-visual deadlines, the runtime advances every due physics step and renders only the newest
-authoritative state. Rerun serialization, browser traffic, native encode, and recording
-retries remain outside that authority boundary and cannot slow the simulation timeline.
+PX4 remains the autopilot, estimator, mission executor, and MAVLink authority. Veoveo
+owns the vehicle asset, rotor model, aerodynamics, coordinate transforms, HIL sensor
+model, and process lifecycle. Every PX4 instance runs against an isolated writable root
+and one dedicated concurrent HIL transport.
+
+One Experimental `RigidPrim` resolves the whole fleet. A single Warp launch updates all
+motor states and body wrenches on CUDA, then a second launch samples every HIL sensor.
+The only per-step device readback is one compact 30-float packet per vehicle for MAVLink.
+Controls cross back as one four-float packet per vehicle. Isaac's classic `World`, classic
+prim views, the PhysX UAV path, NumPy dynamics, and per-vehicle physics loops are absent.
+
+`SimulationManager` advances Newton at the exact fixed cadence. Elapsed monotonic time
+determines the number of authoritative steps due on each scheduler pass, and the clock
+retains bounded debt instead of dropping elapsed time. When rendering misses visual
+deadlines, the runtime advances every due physics step and renders only the newest state.
+Rerun serialization, browser traffic, native encode, and recording retries remain outside
+that authority boundary and cannot slow the simulation timeline.
 
 ## Always-On Fleet
 
@@ -296,7 +309,7 @@ allocator-owned NodePorts.
 ```sh
 cargo test -p veoveo-uav-sim-mcp --all-targets
 PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
-  uv run --with numpy==2.5.1 --with aiohttp==3.14.1 \
+  uv run --with numpy==2.3.1 --with aiohttp==3.14.1 \
   --with pymavlink==2.4.49 --with fastcrc==0.3.6 --python 3.13 \
   python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 helm lint showcase/uav-sim/deploy/helm

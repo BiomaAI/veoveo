@@ -14,6 +14,8 @@ from pymavlink import mavutil
 
 from .vehicle_spec import HilSensorFrame, decode_actuator_controls
 
+PX4_EXTERNAL_IRIS_AUTOSTART = "10016"
+
 
 @dataclass(frozen=True, slots=True)
 class Px4ProcessCommand:
@@ -63,7 +65,7 @@ class Px4Process:
             if not required.exists():
                 raise RuntimeError(f"PX4 runtime input does not exist: {required}")
         environment = os.environ.copy()
-        environment["PX4_SYS_AUTOSTART"] = "10016"
+        environment["PX4_SYS_AUTOSTART"] = PX4_EXTERNAL_IRIS_AUTOSTART
         self._process = subprocess.Popen(
             self.command.argv(),
             cwd=self.command.working_directory,

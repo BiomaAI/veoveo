@@ -82,7 +82,7 @@ material they operate:
 | [`examples/bioma/README.md`](../examples/bioma/README.md) | enterprise GitOps reference and owner-local compiled acceptance over k3d, OCI charts, Entra, and Cloudflare Tunnel |
 | [`showcase/README.md`](../showcase/README.md) | showcase entrypoint |
 | [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
-| [`showcase/uav-sim/README.md`](../showcase/uav-sim/README.md) | Isaac/Cesium/Pegasus/PX4 UAV simulation integration and operations |
+| [`showcase/uav-sim/README.md`](../showcase/uav-sim/README.md) | Isaac/Cesium/Newton/Warp/PX4 UAV simulation integration and operations |
 | [`showcase/uav-sim/ACCEPTANCE.md`](../showcase/uav-sim/ACCEPTANCE.md) | deployed UAV acceptance catalog and the repeatable per-agent named-location mission E2E runbook |
 | [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | canonical Python MCP server template |
 | [`timesfm-showcase/README.md`](../servers/timeseries-mcp/testdata/timesfm-showcase/README.md) | TimesFM test fixture provenance and use |
@@ -138,7 +138,7 @@ Hub, administration, and GPU policy.
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
-| `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Pegasus, and PX4 |
+| `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Newton, Warp, and PX4 |
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `examples/bioma/platform/flux/` | exact Flux controller fixture for the local Bioma cluster; it is installed before installation desired state and remains outside Veoveo runtime ownership |
 | `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and extension Helm releases, and installation-owned edge resources |
@@ -434,7 +434,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained authoritative-camera selection and multi-view live App |
 | `showcase/uav-sim/agents/` | reviewed parameterized pilot manifest and durable memory schema; geographic work data remains outside agent memory |
 | `showcase/uav-sim/map/` | Map-owned named-place and operational air-network source fixture for the showcase |
-| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium/Pegasus compatibility, PX4 lifecycle, RTX domain sensors, authoritative logical cameras, isolated per-viewer RTX/NVENC products, direct Stream publication, and Rerun publication |
+| `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, authoritative logical cameras, isolated per-viewer RTX/NVENC products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | authoritative target sampling and desired poses for every supported camera rig |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | frame-rate-independent position and shortest-arc orientation filters with typed reset rules |

@@ -258,17 +258,16 @@ Internal overlays consume the cache-stable `payload` stage rather than the publi
 `runtime` stage. The latter adds source revision and compatibility labels without
 changing the filesystem. This distinction prevents publication metadata from changing
 the parent image config seen by the Isaac renderer, the first-party UAV overlay, or the
-external overlay fixture. A subsequent UAV publication kept PX4, Pegasus, Cesium, its
-Python and Rerun graph, the canonical simulation payload, and all runtime source layers
-cached. Its 255.647-second Buildx duration was dominated by the 225.9-second reproducible
-export of the inherited image.
+external overlay fixture. A subsequent UAV publication kept PX4, Cesium, its Python and
+Rerun graph, the canonical simulation payload, and all runtime source layers cached. Its
+255.647-second Buildx duration was dominated by the 225.9-second reproducible export of
+the inherited image.
 
 The first-party UAV image adds a second cache boundary. `uav-sim-dependencies` owns the
-pinned PX4 and Pegasus sources, Cesium build, locked Python wheels, and canonical
-simulation payload. `uav-sim-runtime` copies only repository-owned runtime source and
-its overlay identity over that named context. A Python runtime edit therefore cannot
-invalidate upstream checkout, native compilation, wheel installation, or simulator
-payload assembly.
+pinned PX4 source, Cesium build, locked Python wheels, and canonical simulation payload.
+`uav-sim-runtime` copies only repository-owned runtime source, UAV assets, and its overlay
+identity over that named context. A Python runtime edit therefore cannot invalidate
+upstream checkout, native compilation, wheel installation, or simulator payload assembly.
 
 Target selection now narrows the Cargo command as well as the image set. A target in a
 compatible builder family contributes only its declared package and binary to that
@@ -289,7 +288,7 @@ future exporter optimization.
 
 ## External Source Cache Boundary
 
-The UAV runtime assembles pinned PX4, Pegasus, and Cesium sources inside its BuildKit
+The UAV runtime assembles pinned PX4 and Cesium sources inside its BuildKit
 graph. A release starts from a clean committed-source checkout, so a worker-local cache
 alone cannot protect that graph when the managed builder is replaced or garbage
 collection removes its execution history.
