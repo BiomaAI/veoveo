@@ -531,38 +531,27 @@ async fn uav_sim_verify_with_visual_hold(
     };
 
     let flight_result: Result<String> = async {
-        let initial_flight_state = json_string(
-            &simulation_state(&operator, &scenario).await?,
-            "/vehicles/0/flight_state",
-        )?
-        .to_owned();
-        if !matches!(
-            initial_flight_state.as_str(),
-            "armed" | "taking_off" | "flying"
-        ) {
-            ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
-            operator
-                .call_tool(
-                    "uav-sim__arm_vehicle",
-                    serde_json::json!({
-                        "session_id": scenario.session_id,
-                        "vehicle_id": scenario.vehicle_id
-                    }),
-                )
-                .await?;
-            wait_for_flight_state(&operator, &["armed"], Duration::from_secs(60), &scenario)
-                .await?;
-            operator
-                .call_tool(
-                    "uav-sim__takeoff_vehicle",
-                    serde_json::json!({
-                        "session_id": scenario.session_id,
-                        "vehicle_id": scenario.vehicle_id,
-                        "relative_altitude_m": scenario.takeoff.relative_altitude_m
-                    }),
-                )
-                .await?;
-        }
+        ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
+        operator
+            .call_tool(
+                "uav-sim__arm_vehicle",
+                serde_json::json!({
+                    "session_id": scenario.session_id,
+                    "vehicle_id": scenario.vehicle_id
+                }),
+            )
+            .await?;
+        wait_for_flight_state(&operator, &["armed"], Duration::from_secs(60), &scenario).await?;
+        operator
+            .call_tool(
+                "uav-sim__takeoff_vehicle",
+                serde_json::json!({
+                    "session_id": scenario.session_id,
+                    "vehicle_id": scenario.vehicle_id,
+                    "relative_altitude_m": scenario.takeoff.relative_altitude_m
+                }),
+            )
+            .await?;
         state = wait_for_flight_state(
             &operator,
             &["flying"],
