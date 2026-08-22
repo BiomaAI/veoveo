@@ -170,6 +170,45 @@ def _verify_module_graph(
     return {name: str(root) for name, root in roots.items()}
 
 
+def _verify_simulation_manager_newton(wp: object) -> None:
+    import omni.usd
+    from isaacsim.core.experimental.prims import RigidPrim
+    from isaacsim.core.simulation_manager import SimulationManager
+    from pxr import Gf, UsdGeom, UsdPhysics
+
+    stage = omni.usd.get_context().get_stage()
+    UsdGeom.Xform.Define(stage, "/World")
+    scene = UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
+    scene.CreateGravityDirectionAttr(Gf.Vec3f(0.0, 0.0, -1.0))
+    scene.CreateGravityMagnitudeAttr(9.80665)
+    body_path = "/World/VeoveoNewtonManagerProbe"
+    cube = UsdGeom.Cube.Define(stage, body_path)
+    cube.CreateSizeAttr(0.5)
+    cube.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 2.0))
+    prim = cube.GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(prim)
+    UsdPhysics.CollisionAPI.Apply(prim)
+    mass = UsdPhysics.MassAPI.Apply(prim)
+    mass.CreateMassAttr(1.0)
+
+    SimulationManager.set_device("cuda:0")
+    if not SimulationManager.switch_physics_engine("newton"):
+        raise RuntimeError("SimulationManager could not select Newton")
+    SimulationManager.initialize_physics()
+    if SimulationManager.get_active_physics_engine() != "newton":
+        raise RuntimeError("SimulationManager did not retain Newton after initialization")
+    simulation_view = SimulationManager.get_physics_simulation_view()
+    if simulation_view is None or not simulation_view.is_valid():
+        raise RuntimeError("SimulationManager did not create a valid Newton tensor view")
+
+    rigid = RigidPrim([body_path], resolve_paths=True)
+    if len(rigid) != 1 or not rigid.is_physics_tensor_entity_valid():
+        raise RuntimeError("Experimental RigidPrim did not resolve through Newton tensors")
+    positions, _ = rigid.get_world_poses()
+    if not wp.get_device(positions.device).is_cuda:
+        raise RuntimeError("Experimental RigidPrim did not retain CUDA tensor storage")
+
+
 def _run_newton_camera(wp: object, newton: object, cameras: int) -> dict[str, Any]:
     from newton.sensors import SensorTiledCamera
 
@@ -354,6 +393,8 @@ def main() -> int:
 
         print(STEP_MARKER + "newton_tiled_camera", flush=True)
         started = time.perf_counter()
+        print(STEP_MARKER + "newton_tiled_camera.simulation_manager", flush=True)
+        _verify_simulation_manager_newton(wp)
         newton_camera = _run_newton_camera(wp, newton, args.cameras)
         newton_duration = _duration(started)
 

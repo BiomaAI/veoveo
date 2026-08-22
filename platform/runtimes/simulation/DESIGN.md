@@ -49,7 +49,9 @@ Newton's removed `SolverNotifyFlags` import with `ModelFlags`; the build rejects
 old import after applying that patch. The image also removes Isaac Sim's obsolete
 `ls_parallel` MuJoCo solver field because Newton 1.5 no longer accepts that constructor
 argument. The live Isaac adapter therefore initializes the pinned GPU solver without
-retaining the removed configuration surface.
+retaining the removed configuration surface. A second pinned patch routes
+`SimulationManager` tensor views through Newton's native tensor factory. Isaac Sim
+6.0.1 otherwise asks the legacy tensor plugin for an unregistered `newton` backend.
 
 The supported Isaac Lab surface contains the core, PhysX, Newton, OV, OVPhysX,
 camera-render specification, and frame-view packages. Training environments, policy
@@ -145,6 +147,8 @@ acceptance.
 - the NVENC API version and session entrypoint;
 - Torch and Warp kernels on `cuda:0`;
 - a Newton `SolverMuJoCo` rigid-body step and `SensorTiledCamera` output on `cuda:0`;
+- `SimulationManager` initialization and an Experimental `RigidPrim` backed by Newton's
+  CUDA tensor view;
 - one authoritative Torch, Warp, Newton, and Isaac Lab module graph after Kit startup;
 - a CUDA-resident Isaac Lab RTX RGB batch with nonblank, distinct cameras.
 
