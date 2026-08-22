@@ -14,7 +14,7 @@ use crate::{
 pub const SIMULATION_RUNTIME_BUILD_LOCK_SCHEMA: &str = "veoveo.io/simulation-runtime-build-lock/v1";
 
 /// Hardware simulation-conformance result schema identifier.
-pub const SIMULATION_CONFORMANCE_RESULT_SCHEMA: &str = "veoveo.io/simulation-conformance-result/v1";
+pub const SIMULATION_CONFORMANCE_RESULT_SCHEMA: &str = "veoveo.io/simulation-conformance-result/v2";
 
 /// Simulation-runtime release-evidence schema identifier.
 pub const SIMULATION_RUNTIME_RELEASE_EVIDENCE_SCHEMA: &str =
@@ -31,9 +31,9 @@ pub enum SimulationRuntimeBuildLockSchema {
 /// Supported hardware simulation-conformance result schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum SimulationConformanceResultSchema {
-    /// Simulation hardware result version 1.
-    #[serde(rename = "veoveo.io/simulation-conformance-result/v1")]
-    V1,
+    /// Simulation hardware result version 2, including native Newton dynamics.
+    #[serde(rename = "veoveo.io/simulation-conformance-result/v2")]
+    V2,
 }
 
 /// Supported simulation-runtime release evidence schema.
@@ -251,6 +251,8 @@ pub enum SimulationProbeKind {
     ComponentTuple,
     /// One authoritative Warp and Newton module graph.
     ModuleGraph,
+    /// A CUDA-backed rigid body advanced through the native Newton clock.
+    NewtonDynamics,
     /// Newton tiled cameras executed on CUDA.
     NewtonTiledCamera,
     /// Independent RaytracedLighting camera products.
@@ -285,6 +287,24 @@ pub struct SimulationHardwareEvidence {
     pub renderer: String,
 }
 
+/// Native Newton motion observed through Isaac Sim's experimental tensor API.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SimulationNewtonDynamicsEvidence {
+    /// Warp CUDA device that owns the rigid-body tensors.
+    pub device: String,
+    /// Starting world-space height in metres.
+    pub initial_height: f64,
+    /// World-space height after the certified steps in metres.
+    pub final_height: f64,
+    /// Vertical linear velocity after the certified steps in metres per second.
+    pub final_vertical_velocity: f64,
+    /// Applied upward force in newtons.
+    pub force_newtons: f64,
+    /// Number of externally clocked Newton steps.
+    pub steps: u32,
+}
+
 /// OCI attestations inspected for the certified base image.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -296,7 +316,7 @@ pub struct SimulationAttestationEvidence {
 }
 
 /// Hardware-backed result for one overlay and one immutable simulation base.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SimulationConformanceResult {
     /// Schema identifier.
@@ -321,6 +341,8 @@ pub struct SimulationConformanceResult {
     pub components: Vec<RuntimeComponentVersion>,
     /// Observed hardware.
     pub hardware: SimulationHardwareEvidence,
+    /// CUDA motion produced by the authoritative Newton clock.
+    pub newton_dynamics: SimulationNewtonDynamicsEvidence,
     /// OCI attestations attached to the canonical base manifest.
     pub attestations: SimulationAttestationEvidence,
     /// Independent camera count.
@@ -345,6 +367,7 @@ impl SimulationConformanceResult {
         let required_probes = BTreeSet::from([
             SimulationProbeKind::ComponentTuple,
             SimulationProbeKind::ModuleGraph,
+            SimulationProbeKind::NewtonDynamics,
             SimulationProbeKind::NewtonTiledCamera,
             SimulationProbeKind::IndependentRtxCameras,
             SimulationProbeKind::OverlayBoundary,
@@ -361,6 +384,21 @@ impl SimulationConformanceResult {
         if probes != required_probes || self.camera_count < 20 {
             return Err(ExtensionContractError::Empty {
                 field: "simulation hardware probes",
+            });
+        }
+        if self.newton_dynamics.device != self.hardware.cuda_device
+            || !self.newton_dynamics.device.starts_with("cuda:")
+            || !self.newton_dynamics.initial_height.is_finite()
+            || !self.newton_dynamics.final_height.is_finite()
+            || !self.newton_dynamics.final_vertical_velocity.is_finite()
+            || !self.newton_dynamics.force_newtons.is_finite()
+            || self.newton_dynamics.final_height <= self.newton_dynamics.initial_height + 1.0e-3
+            || self.newton_dynamics.final_vertical_velocity <= 0.0
+            || self.newton_dynamics.force_newtons <= 0.0
+            || self.newton_dynamics.steps < 12
+        {
+            return Err(ExtensionContractError::Empty {
+                field: "native Newton dynamics evidence",
             });
         }
         let forbidden = ["swiftshader", "llvmpipe", "software rasterizer"];
@@ -393,7 +431,7 @@ impl SimulationConformanceResult {
 }
 
 /// Immutable publication evidence for one canonical simulation runtime.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SimulationRuntimeReleaseEvidence {
     /// Schema identifier.

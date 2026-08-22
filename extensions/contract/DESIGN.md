@@ -11,7 +11,7 @@
 | `veoveo.io/compatibility-manifest/v1` | Veoveo-supported release tuple |
 | `veoveo.io/extension-release/v1` | independently owned extension release |
 | `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical simulation-base inputs |
-| `veoveo.io/simulation-conformance-result/v1` | hardware-backed immutable overlay result |
+| `veoveo.io/simulation-conformance-result/v2` | hardware-backed immutable overlay result with native Newton dynamics evidence |
 | `veoveo.io/simulation-runtime-release-evidence/v1` | paired overlay and private OCI evidence record |
 
 ## Responsibility

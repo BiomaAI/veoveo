@@ -34,8 +34,8 @@ pub use simulation::{
     NvidiaDriverCapability, PythonDistributionInput, SIMULATION_CONFORMANCE_RESULT_SCHEMA,
     SIMULATION_RUNTIME_BUILD_LOCK_SCHEMA, SIMULATION_RUNTIME_RELEASE_EVIDENCE_SCHEMA,
     SimulationAttestationEvidence, SimulationConformanceResult, SimulationConformanceResultSchema,
-    SimulationGpuRequirement, SimulationHardwareEvidence, SimulationOverlayKind,
-    SimulationProbeKind, SimulationProbeResult, SimulationRuntimeBuildLock,
+    SimulationGpuRequirement, SimulationHardwareEvidence, SimulationNewtonDynamicsEvidence,
+    SimulationOverlayKind, SimulationProbeKind, SimulationProbeResult, SimulationRuntimeBuildLock,
     SimulationRuntimeBuildLockSchema, SimulationRuntimeReleaseEvidence,
     SimulationRuntimeReleaseEvidenceSchema, SimulationSourceInput,
 };
