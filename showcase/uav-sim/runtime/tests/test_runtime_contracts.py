@@ -80,6 +80,7 @@ from veoveo_uav_sim.tile_lifecycle import (
     tile_content_ready,
 )
 from veoveo_uav_sim.vehicle_spec import (
+    PX4_HIL_HZ,
     PX4_IRIS_MOMENT_CONSTANT,
     PX4_IRIS_MOTOR_CONSTANT,
     PX4_IRIS_SENSOR_CADENCE,
@@ -168,17 +169,18 @@ class RuntimeConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "vehicle identity is invalid"):
             physical_camera_path("uav/1")
 
-    def test_px4_sensor_cadence_is_bounded_by_the_physics_clock(self) -> None:
-        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(30)
-        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 30)
+    def test_px4_sensor_cadence_is_bounded_by_the_hil_transport(self) -> None:
+        PX4_IRIS_SENSOR_CADENCE.validate_for_physics(PX4_HIL_HZ)
+        self.assertEqual(PX4_HIL_HZ, 60)
+        self.assertEqual(PX4_IRIS_SENSOR_CADENCE.imu_hz, 60)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.barometer_hz, 30)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.magnetometer_hz, 30)
         self.assertEqual(PX4_IRIS_SENSOR_CADENCE.gps_hz, 10)
 
         with self.assertRaisesRegex(ValueError, "exceeds physics cadence"):
-            SensorCadence(imu_hz=60).validate_for_physics(30)
+            SensorCadence(imu_hz=120).validate_for_physics(PX4_HIL_HZ)
         with self.assertRaisesRegex(ValueError, "must divide physics cadence"):
-            SensorCadence(gps_hz=11).validate_for_physics(30)
+            SensorCadence(gps_hz=11).validate_for_physics(PX4_HIL_HZ)
 
     def test_authoritative_tick_does_not_wait_for_present_threads(self) -> None:
         arguments = kit_live_render_arguments()
