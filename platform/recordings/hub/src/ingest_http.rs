@@ -127,16 +127,20 @@ async fn open_stream(
             None,
         );
     };
-    match bounded_service_operation(
-        "open stream",
-        state.service.open(
-            &gateway,
-            producer,
-            &request.source_stream_id,
-            &request.application_id,
-            &request.recording_id,
-        ),
-    )
+    let service = state.service.clone();
+    let producer = producer.clone();
+    let request = request.clone();
+    match bounded_mutation_operation("open stream", async move {
+        service
+            .open(
+                &gateway,
+                &producer,
+                &request.source_stream_id,
+                &request.application_id,
+                &request.recording_id,
+            )
+            .await
+    })
     .await
     {
         Ok(stream) => protobuf_response(StatusCode::OK, &stream),
@@ -215,10 +219,12 @@ async fn append_batch(
         Ok(stream_id) => stream_id,
         Err(error) => return error.into_response(),
     };
-    match bounded_service_operation(
-        "append batch",
-        state.service.append(&gateway, producer, stream_id, batch),
-    )
+    let service = state.service.clone();
+    let producer = producer.clone();
+    let batch = batch.clone();
+    match bounded_mutation_operation("append batch", async move {
+        service.append(&gateway, &producer, stream_id, &batch).await
+    })
     .await
     {
         Ok(result) => protobuf_response(StatusCode::OK, &result),
@@ -268,12 +274,14 @@ async fn publish_blueprint(
         Ok(stream_id) => stream_id,
         Err(error) => return error.into_response(),
     };
-    match bounded_service_operation(
-        "publish Blueprint",
-        state
-            .service
-            .publish_blueprint(&gateway, producer, stream_id, blueprint),
-    )
+    let service = state.service.clone();
+    let producer = producer.clone();
+    let blueprint = blueprint.clone();
+    match bounded_mutation_operation("publish Blueprint", async move {
+        service
+            .publish_blueprint(&gateway, &producer, stream_id, &blueprint)
+            .await
+    })
     .await
     {
         Ok(result) => protobuf_response(StatusCode::OK, &result),
@@ -331,10 +339,11 @@ async fn finish_stream(
         Ok(stream_id) => stream_id,
         Err(error) => return error.into_response(),
     };
-    match bounded_service_operation(
-        "finish stream",
-        state.service.finish(&gateway, producer, stream_id, mode),
-    )
+    let service = state.service.clone();
+    let producer = producer.clone();
+    match bounded_mutation_operation("finish stream", async move {
+        service.finish(&gateway, &producer, stream_id, mode).await
+    })
     .await
     {
         Ok(stream) => protobuf_response(
@@ -354,6 +363,51 @@ async fn bounded_service_operation<T>(
     bounded_service_operation_with_timeout(operation, STORAGE_OPERATION_TIMEOUT, future).await
 }
 
+async fn bounded_mutation_operation<T, F>(operation: &'static str, future: F) -> Result<T, Response>
+where
+    T: Send + 'static,
+    F: Future<Output = anyhow::Result<T>> + Send + 'static,
+{
+    bounded_mutation_operation_with_timeout(operation, STORAGE_OPERATION_TIMEOUT, future).await
+}
+
+async fn bounded_mutation_operation_with_timeout<T, F>(
+    operation: &'static str,
+    timeout: Duration,
+    future: F,
+) -> Result<T, Response>
+where
+    T: Send + 'static,
+    F: Future<Output = anyhow::Result<T>> + Send + 'static,
+{
+    let mut task = tokio::spawn(future);
+    match tokio::time::timeout(timeout, &mut task).await {
+        Ok(Ok(Ok(value))) => Ok(value),
+        Ok(Ok(Err(error))) => Err(service_error(error)),
+        Ok(Err(error)) => {
+            tracing::warn!(operation, error = %error, "recording ingest mutation task failed");
+            Err(storage_unavailable_error(
+                "recording ingest storage operation failed",
+            ))
+        }
+        Err(_) => {
+            tracing::warn!(
+                operation,
+                timeout_milliseconds = timeout.as_millis(),
+                "recording ingest response timed out; mutation continues"
+            );
+            // Dropping a Tokio JoinHandle detaches the task. The mutation keeps the
+            // service's materialization lock until its filesystem and catalog state
+            // are coherent, while an idempotent producer retry receives a bounded
+            // response and queues behind it.
+            drop(task);
+            Err(storage_unavailable_error(
+                "recording ingest storage operation timed out",
+            ))
+        }
+    }
+}
+
 async fn bounded_service_operation_with_timeout<T>(
     operation: &'static str,
     timeout: Duration,
@@ -368,14 +422,20 @@ async fn bounded_service_operation_with_timeout<T>(
                 timeout_milliseconds = timeout.as_millis(),
                 "recording ingest storage operation timed out"
             );
-            Err(ingest_error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                IngestErrorCode::StorageUnavailable,
+            Err(storage_unavailable_error(
                 "recording ingest storage operation timed out",
-                None,
             ))
         }
     }
+}
+
+fn storage_unavailable_error(message: &str) -> Response {
+    ingest_error(
+        StatusCode::SERVICE_UNAVAILABLE,
+        IngestErrorCode::StorageUnavailable,
+        message,
+        None,
+    )
 }
 
 fn authenticate(
@@ -681,5 +741,30 @@ mod tests {
             response.headers().get(header::CONTENT_TYPE),
             Some(&HeaderValue::from_static(MEDIA_TYPE))
         );
+    }
+
+    #[tokio::test]
+    async fn mutation_response_timeout_does_not_cancel_the_operation() {
+        let (completed_tx, completed_rx) = tokio::sync::oneshot::channel();
+        let result = bounded_mutation_operation_with_timeout(
+            "test mutation",
+            Duration::from_millis(1),
+            async move {
+                tokio::time::sleep(Duration::from_millis(25)).await;
+                completed_tx.send(()).unwrap();
+                anyhow::Ok(())
+            },
+        )
+        .await;
+        let response = match result {
+            Ok(()) => panic!("slow mutation unexpectedly met its response deadline"),
+            Err(response) => response,
+        };
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        tokio::time::timeout(Duration::from_secs(1), completed_rx)
+            .await
+            .expect("detached mutation did not finish")
+            .expect("detached mutation was cancelled");
     }
 }

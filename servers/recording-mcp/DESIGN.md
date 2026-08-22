@@ -130,6 +130,12 @@ parts directory with its frozen shard during capture. A missing part or an
 uncovered writing segment restarts the complete authorized read-plan capture;
 one snapshot never combines paths from two catalog views.
 
+Hub mutation response deadlines do not cancel admitted work. Archive
+publication and its catalog transition finish under one ordered materialization
+lock, while an unacknowledged producer retry waits and resolves idempotently.
+Recovery treats an atomically published authenticated shard as immutable and
+catalogs its verified identity without another optimization pass.
+
 `contract.rs` owns playback manifest v8. `service.rs` resolves an authorized
 playback plan from durable identities, while `service/read.rs` owns governed
 analysis snapshots. `playback.rs` owns session authorization, stable identity,

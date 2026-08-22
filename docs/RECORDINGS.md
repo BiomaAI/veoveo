@@ -42,6 +42,14 @@ does not run again on a read request. Recording Hub also carries its compact
 static-context snapshot into every shard, so codec, calibration, and other
 static state do not depend on an earlier window.
 
+The Hub bounds each mutation response at eight seconds without cancelling an
+admitted write. A slow freeze retains the ordered materialization lock and
+finishes its filesystem publication and catalog transition after the response
+returns `storage_unavailable`. The producer's idempotent retry queues behind
+that work. If a process stops after the optimized shard is atomically published
+but before its catalog transition, recovery validates and catalogs those exact
+bytes; it never runs the published shard through a second optimization pass.
+
 The loopback-native path writes RRD segments directly and never truncates an
 existing file; a restart creates an `.rN` sibling. Startup reconciles journal
 checkpoints, decodes and hashes every segment, repairs crash-safe footer-less
