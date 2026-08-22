@@ -5,6 +5,7 @@ import os
 import struct
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -39,7 +40,11 @@ from veoveo_uav_sim.physical_camera import (
     physical_camera_product_name,
 )
 from veoveo_uav_sim.px4 import Px4Commander, Px4CommandRejected
-from veoveo_uav_sim.px4_hil import PX4_EXTERNAL_IRIS_AUTOSTART, Px4Process
+from veoveo_uav_sim.px4_hil import (
+    PX4_EXTERNAL_IRIS_AUTOSTART,
+    Px4HilBridge,
+    Px4Process,
+)
 from veoveo_uav_sim.realtime import (
     FixedStepCadenceGate,
     MonotonicPhysicsClock,
@@ -1084,6 +1089,13 @@ class NativeCadenceTests(unittest.TestCase):
         self.assertNotIn("import numpy", fleet_source)
         self.assertNotIn("import numpy", plant_source)
         self.assertNotIn("from isaacsim.core.api", app_source)
+        step_source = fleet_source.split("    def step(", 1)[1].split(
+            "    def _decode_packets", 1
+        )[0]
+        self.assertEqual(step_source.count("get_world_poses()"), 1)
+        self.assertEqual(step_source.count("get_velocities()"), 1)
+        self.assertIn("self._orientations", step_source)
+        self.assertIn("self._linear_velocity", step_source)
 
     def test_runtime_coalesces_render_work_after_due_fixed_physics(self) -> None:
         app_source = (
@@ -1168,6 +1180,15 @@ class Px4HilPlantContractTests(unittest.TestCase):
             self.assertEqual(process.command.instance, 3)
             self.assertEqual(process.command.argv()[-3:], ("-i", "3", "-d"))
             process.close()
+
+    def test_sensor_send_completion_does_not_wait_for_same_step_actuator(self) -> None:
+        bridge = Px4HilBridge.__new__(Px4HilBridge)
+        bridge.instance = 2
+        bridge._condition = threading.Condition()
+        bridge._failure = None
+        bridge._sent_sequence = 7
+
+        bridge.wait_sensor_send(7, time.monotonic() + 0.1)
 
 
 class AdapterContractTests(unittest.TestCase):
