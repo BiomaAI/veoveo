@@ -13,7 +13,7 @@ mod tests {
             "VideoDecoder",
             "EncodedVideoChunk",
             "veoveo.h264.annexb.v1",
-            "avc1.4D401F",
+            "avc1.640033",
             "list_live_cameras",
             "open_live_view",
             "renew_live_view",
@@ -25,7 +25,9 @@ mod tests {
             "navigator.mediaCapabilities.decodingInfo",
             "section.dataset.viewerInstanceId",
             "section.dataset.streamProductId",
-            "shared H.264 live",
+            "tiled H.264 live",
+            "stream.codedWidthPx",
+            "stream.sourceRegion",
             "camera.rig?.smoothing",
             "video pending",
             "font-variant-numeric:tabular-nums",
@@ -42,6 +44,8 @@ mod tests {
             "io.veoveo/agent-message-targets",
             "uuidV7",
             "Send instruction",
+            "if(!selected.size)",
+            "await open(camera)",
         ] {
             assert!(html.contains(expected), "missing {expected}");
         }

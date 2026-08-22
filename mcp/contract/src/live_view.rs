@@ -9,7 +9,7 @@ use crate::{
     AccessSubject, DataLabelId, GatewayInternalIdentity, PolicyVersion, TenantId, WorkContextId,
 };
 
-pub const LIVE_VIEW_SCHEMA: &str = "veoveo.io/live-view/v3";
+pub const LIVE_VIEW_SCHEMA: &str = "veoveo.io/live-view/v4";
 
 fn validate_id(value: &str) -> Result<(), LiveViewIdentityError> {
     if value.is_empty()
@@ -511,9 +511,43 @@ pub enum LiveStreamProductLifecycle {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveCameraRegion {
+    pub camera_id: LiveCameraId,
+    pub x_px: u32,
+    pub y_px: u32,
+    pub width_px: u32,
+    pub height_px: u32,
+}
+
+impl LiveCameraRegion {
+    fn validate(&self, coded_width_px: u32, coded_height_px: u32) -> bool {
+        self.width_px > 0
+            && self.height_px > 0
+            && self
+                .x_px
+                .checked_add(self.width_px)
+                .is_some_and(|right| right <= coded_width_px)
+            && self
+                .y_px
+                .checked_add(self.height_px)
+                .is_some_and(|bottom| bottom <= coded_height_px)
+    }
+
+    fn overlaps(&self, other: &Self) -> bool {
+        self.x_px < other.x_px.saturating_add(other.width_px)
+            && other.x_px < self.x_px.saturating_add(self.width_px)
+            && self.y_px < other.y_px.saturating_add(other.height_px)
+            && other.y_px < self.y_px.saturating_add(self.height_px)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveStreamProductState {
     pub stream_product_id: LiveStreamProductId,
-    pub camera_id: LiveCameraId,
+    pub camera_regions: Vec<LiveCameraRegion>,
+    pub coded_width_px: u32,
+    pub coded_height_px: u32,
     pub lifecycle: LiveStreamProductLifecycle,
     pub active_viewers: u32,
     pub connected_viewers: u32,
@@ -530,59 +564,31 @@ pub struct LiveStreamProductState {
     pub diagnostic: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum LiveViewCapacityDimension {
-    LogicalCameras,
-    StreamProducts,
-    RenderPixelsPerSecond,
-    NvencSessions,
-    GpuMemoryBytes,
-    NetworkBitsPerSecond,
-}
-
-impl fmt::Display for LiveViewCapacityDimension {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(match self {
-            Self::LogicalCameras => "logical_cameras",
-            Self::StreamProducts => "stream_products",
-            Self::RenderPixelsPerSecond => "render_pixels_per_second",
-            Self::NvencSessions => "nvenc_sessions",
-            Self::GpuMemoryBytes => "gpu_memory_bytes",
-            Self::NetworkBitsPerSecond => "network_bits_per_second",
-        })
+impl LiveStreamProductState {
+    pub fn region(&self, camera_id: &LiveCameraId) -> Option<&LiveCameraRegion> {
+        self.camera_regions
+            .iter()
+            .find(|region| &region.camera_id == camera_id)
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct LiveViewCapacityProfile {
-    pub profile: String,
-    pub maximum_logical_cameras: u32,
-    pub maximum_stream_products: u32,
-    pub maximum_render_pixels_per_second: u64,
-    pub maximum_nvenc_sessions: u32,
-    pub gpu_memory_budget_bytes: u64,
-    pub maximum_network_bits_per_second: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct LiveViewCapacityUsage {
-    pub logical_cameras: u32,
-    pub stream_products: u32,
-    pub render_pixels_per_second: u64,
-    pub nvenc_sessions: u32,
-    pub reserved_gpu_memory_bytes: u64,
-    pub connected_viewers: u32,
-    pub estimated_network_bits_per_second: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct LiveViewCapacityState {
-    pub limits: LiveViewCapacityProfile,
-    pub usage: LiveViewCapacityUsage,
+    pub fn validate(&self) -> bool {
+        self.coded_width_px > 0
+            && self.coded_height_px > 0
+            && !self.camera_regions.is_empty()
+            && self
+                .camera_regions
+                .iter()
+                .all(|region| region.validate(self.coded_width_px, self.coded_height_px))
+            && self
+                .camera_regions
+                .iter()
+                .enumerate()
+                .all(|(index, region)| {
+                    self.camera_regions[index + 1..]
+                        .iter()
+                        .all(|other| region.camera_id != other.camera_id && !region.overlaps(other))
+                })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -726,6 +732,9 @@ pub struct LiveViewState {
     pub color: LiveColorMetadata,
     pub width_px: u32,
     pub height_px: u32,
+    pub coded_width_px: u32,
+    pub coded_height_px: u32,
+    pub source_region: LiveCameraRegion,
     pub frame_rate_millihertz: u32,
     pub connected_viewers: u32,
     pub camera_health: LiveCameraHealth,
@@ -748,6 +757,14 @@ impl LiveViewState {
         if self.camera_revision == 0
             || self.width_px == 0
             || self.height_px == 0
+            || self.coded_width_px == 0
+            || self.coded_height_px == 0
+            || self.source_region.camera_id != self.camera_id
+            || self.source_region.width_px != self.width_px
+            || self.source_region.height_px != self.height_px
+            || !self
+                .source_region
+                .validate(self.coded_width_px, self.coded_height_px)
             || self.frame_rate_millihertz == 0
             || self.maximum_frame_age_ms == 0
             || self.expires_at <= self.created_at
@@ -784,7 +801,7 @@ impl fmt::Display for LiveViewStateError {
         formatter.write_str(match self {
             Self::Schema => "unsupported live-view schema",
             Self::Limits => {
-                "invalid live-view dimensions, cadence, viewer, frame-age, or expiry limits"
+                "invalid live-view dimensions, cadence, latency samples, frame age, or expiry"
             }
             Self::Endpoint => "invalid live-view stream endpoint",
         })
@@ -871,6 +888,38 @@ mod tests {
             },
         };
         assert_eq!(invalid.validate(), Err(LiveCameraContractError::Rig));
+    }
+
+    #[test]
+    fn tiled_product_requires_unique_non_overlapping_in_bounds_regions() {
+        let region = |camera_id: &str, x_px: u32| LiveCameraRegion {
+            camera_id: LiveCameraId::new(camera_id).unwrap(),
+            x_px,
+            y_px: 0,
+            width_px: 1_280,
+            height_px: 720,
+        };
+        let product = |camera_regions| LiveStreamProductState {
+            stream_product_id: LiveStreamProductId::new("camera-atlas").unwrap(),
+            camera_regions,
+            coded_width_px: 2_560,
+            coded_height_px: 720,
+            lifecycle: LiveStreamProductLifecycle::Ready,
+            active_viewers: 0,
+            connected_viewers: 0,
+            nvenc_sessions: 1,
+            encoded_frames: 1,
+            source_to_render_p95_microseconds: Some(40_000),
+            source_to_render_samples: 256,
+            last_frame_at: None,
+            visible: Some(true),
+            diagnostic: None,
+        };
+
+        assert!(product(vec![region("follow", 0), region("orbit", 1_280)]).validate());
+        assert!(!product(vec![region("follow", 0), region("orbit", 640)]).validate());
+        assert!(!product(vec![region("follow", 0), region("follow", 1_280)]).validate());
+        assert!(!product(vec![region("follow", 0), region("orbit", 2_560)]).validate());
     }
 
     #[test]

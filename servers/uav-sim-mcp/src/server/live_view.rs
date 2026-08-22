@@ -152,7 +152,11 @@ impl LiveViewService {
         let product = simulation
             .stream_products
             .iter()
-            .find(|product| product.camera_id == camera.camera_id)
+            .find(|product| product.region(&camera.camera_id).is_some())
+            .cloned()
+            .ok_or(LiveViewError::CameraUnavailable)?;
+        let source_region = product
+            .region(&camera.camera_id)
             .cloned()
             .ok_or(LiveViewError::CameraUnavailable)?;
         if product.lifecycle == veoveo_mcp_contract::LiveStreamProductLifecycle::Failed {
@@ -193,6 +197,9 @@ impl LiveViewService {
             },
             width_px: camera.width_px,
             height_px: camera.height_px,
+            coded_width_px: product.coded_width_px,
+            coded_height_px: product.coded_height_px,
+            source_region,
             frame_rate_millihertz: camera.frame_rate_millihertz,
             connected_viewers: 0,
             camera_health: camera.health,
@@ -328,7 +335,7 @@ impl LiveViewService {
                 .iter()
                 .find(|product| {
                     product.stream_product_id == result.stream_product_id
-                        && product.camera_id == result.camera_id
+                        && product.region(&result.camera_id).is_some()
                 })
                 .ok_or(LiveViewError::ViewUnavailable)?;
             result.lifecycle = product_lifecycle(product);
@@ -635,7 +642,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn twenty_five_viewers_share_one_camera_product() {
+    async fn twenty_five_viewers_share_one_camera_atlas() {
         let (service, adapter) = service().await;
         let mut opened = Vec::new();
         for index in 0..25 {
@@ -660,7 +667,12 @@ mod tests {
         let product = runtime
             .stream_products
             .iter()
-            .find(|product| product.camera_id.as_str() == "follow")
+            .find(|product| {
+                product
+                    .camera_regions
+                    .iter()
+                    .any(|region| region.camera_id.as_str() == "follow")
+            })
             .unwrap();
         assert_eq!(product.active_viewers, 25);
         assert_eq!(product.nvenc_sessions, 1);

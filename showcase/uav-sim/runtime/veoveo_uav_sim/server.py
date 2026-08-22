@@ -19,7 +19,7 @@ from .contracts import (
 )
 from .fleet_loop import FleetLoopController
 from .operator_camera_config import live_camera_descriptor
-from .operator_products import OperatorProductCollection
+from .operator_products import OperatorProductCollection, initial_operator_atlas_state
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
 from .runtime_events import RuntimeEventPublisher
@@ -130,18 +130,8 @@ class PreconfigurationApplication:
                     for camera in self._config.operator_live_view.cameras
                 ],
                 "stream_products": [
-                    {
-                        "streamProductId": f"camera-product-{product_index}",
-                        "cameraId": camera.camera_id,
-                        "lifecycle": "starting",
-                        "activeViewers": 0,
-                        "connectedViewers": 0,
-                        "nvencSessions": 0,
-                        "encodedFrames": 0,
-                        "sourceToRenderSamples": 0,
-                    }
-                    for product_index, camera in enumerate(
-                        self._config.operator_live_view.streamable_cameras
+                    initial_operator_atlas_state(
+                        self._config.operator_live_view
                     )
                 ],
                 "vehicles": [],

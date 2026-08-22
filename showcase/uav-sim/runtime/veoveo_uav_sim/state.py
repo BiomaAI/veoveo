@@ -9,6 +9,7 @@ from typing import Any, Callable
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
 from .operator_camera_config import live_camera_descriptor
+from .operator_products import initial_operator_atlas_state
 from .fleet_runtime import FleetPhysicsTiming
 from .render_pose import RenderPoseAgreement
 from .tile_lifecycle import TileLifecycleSnapshot
@@ -104,19 +105,7 @@ class RuntimeState:
                 for camera in config.operator_live_view.cameras
             ],
             "stream_products": [
-                {
-                    "streamProductId": f"camera-product-{product_index}",
-                    "cameraId": camera.camera_id,
-                    "lifecycle": "starting",
-                    "activeViewers": 0,
-                    "connectedViewers": 0,
-                    "nvencSessions": 0,
-                    "encodedFrames": 0,
-                    "sourceToRenderSamples": 0,
-                }
-                for product_index, camera in enumerate(
-                    config.operator_live_view.streamable_cameras
-                )
+                initial_operator_atlas_state(config.operator_live_view)
             ],
             "vehicles": [],
             "recordings": [
@@ -274,9 +263,12 @@ class RuntimeState:
     def update_stream_products(self, products: list[dict[str, object]]) -> None:
         by_camera: dict[str, list[dict[str, object]]] = {}
         for product in products:
-            camera_id = product.get("cameraId")
-            if camera_id is not None:
-                by_camera.setdefault(str(camera_id), []).append(product)
+            for region in product.get("cameraRegions", []):
+                if not isinstance(region, dict):
+                    continue
+                camera_id = region.get("cameraId")
+                if camera_id is not None:
+                    by_camera.setdefault(str(camera_id), []).append(product)
         with self._condition:
             self._state["stream_products"] = copy.deepcopy(products)
             for camera in self._state["live_cameras"]:

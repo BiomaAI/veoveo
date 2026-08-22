@@ -27,7 +27,7 @@ complies with in its crate documents and in its contract resource.
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
 | `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
-| `veoveo.io/live-view/v3` | provider-neutral authoritative camera descriptions, stable camera-owned stream products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, GPU capacity, and redacted connection tokens |
+| `veoveo.io/live-view/v4` | provider-neutral authoritative camera descriptions, typed camera regions in shared encoded products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, and redacted connection tokens |
 | `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 
 Each hosted server manifest declares separate typed upstream URLs for MCP and
@@ -39,15 +39,15 @@ health signal.
 ## Live View Extension
 
 The live-view extension describes cameras rendered by the authoritative domain
-runtime. A simulation server owns its logical camera rigs and one persistent stream
-product for each streamable camera. A live-view authorization identifies the gateway
+runtime. A simulation server owns its logical camera rigs and persistent stream
+products whose typed regions map one or more cameras into encoded frames. A live-view
+authorization identifies the gateway
 actor and browser instance, but it never allocates rendering or encoding state. Any
 number of authorized viewers may consume the same encoded product within the host's
 ordinary network and process limits.
 
 The shared types define camera poses, optics, smoothing, health, stream policy,
-camera-owned products, NVIDIA NVENC metadata, WebSocket H.264 endpoints, and GPU
-capacity accounting. Product state reports a bounded
+typed product regions, NVIDIA NVENC metadata, and WebSocket H.264 endpoints. Product state reports a bounded
 authoritative-source-to-render sample count and p95 in integer microseconds; the
 implementation defines the exact source and render events that bracket that measurement.
 Domain-owned resource URIs use the

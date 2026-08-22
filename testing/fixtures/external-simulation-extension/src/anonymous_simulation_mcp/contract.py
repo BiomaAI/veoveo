@@ -35,7 +35,7 @@ class ViewLifecycle(str, Enum):
 
 
 class CameraDescriptor(WireModel):
-    schema_version: str = "veoveo.io/live-view/v3"
+    schema_version: str = "veoveo.io/live-view/v4"
     session_id: str = Field(min_length=1, max_length=128)
     camera_id: str = Field(min_length=1, max_length=128)
     rig: str = "fixed"
@@ -46,9 +46,19 @@ class CameraDescriptor(WireModel):
     revision: int = Field(ge=1)
 
 
+class CameraRegion(WireModel):
+    camera_id: str = Field(min_length=1, max_length=128)
+    x_px: int = Field(ge=0)
+    y_px: int = Field(ge=0)
+    width_px: int = Field(ge=16, le=16_384)
+    height_px: int = Field(ge=16, le=16_384)
+
+
 class StreamProduct(WireModel):
     stream_product_id: str = Field(min_length=1, max_length=128)
-    camera_id: str = Field(min_length=1, max_length=128)
+    camera_regions: tuple[CameraRegion, ...] = Field(min_length=1)
+    coded_width_px: int = Field(ge=16, le=16_384)
+    coded_height_px: int = Field(ge=16, le=16_384)
     lifecycle: ProductLifecycle
     active_viewers: int = Field(ge=0)
     connected_viewers: int = Field(ge=0)
@@ -81,7 +91,7 @@ class MediaEndpoint(WireModel):
 
 
 class LiveViewState(WireModel):
-    schema_version: str = "veoveo.io/live-view/v3"
+    schema_version: str = "veoveo.io/live-view/v4"
     live_view_id: str
     resource_uri: str
     session_id: str
@@ -95,8 +105,11 @@ class LiveViewState(WireModel):
     hardware_encoder: str = "nvidia_nvenc"
     width_px: int = Field(ge=16, le=16_384)
     height_px: int = Field(ge=16, le=16_384)
+    coded_width_px: int = Field(ge=16, le=16_384)
+    coded_height_px: int = Field(ge=16, le=16_384)
+    source_region: CameraRegion
     frame_rate_millihertz: int = Field(ge=1_000, le=240_000)
-    connected_viewers: int = Field(ge=0, le=1)
+    connected_viewers: int = Field(ge=0)
     endpoint: MediaEndpoint
     created_at: datetime
     expires_at: datetime

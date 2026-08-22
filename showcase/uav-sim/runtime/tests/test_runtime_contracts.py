@@ -343,11 +343,12 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('"omni.replicator.core"', app_source)
         self.assertNotIn("import CameraSensor", app_source)
         self.assertNotIn("RtxCamera", app_source)
-        self.assertNotIn("isaacsim.sensors.experimental.rtx", app_source)
+        self.assertIn('"isaacsim.sensors.experimental.rtx"', app_source)
         self.assertIn("NativeH264CameraSensor", app_source)
         self.assertIn("create_physical_rgb_camera", app_source)
         self.assertIn("omni.kit.livestream.aov", app_source)
         self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
+        self.assertIn('"--/rtx/viewTile/limit="', app_source)
         self.assertIn('"sync_loads": False', app_source)
         self.assertIn('"disable_viewport_updates": True', app_source)
         self.assertIn(
@@ -378,8 +379,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         product_sources = "".join((hydra_camera_source, operator_product_source))
         self.assertEqual(product_sources.count("get_frame_info"), 1)
         self.assertIn("is_async_low_latency=True", hydra_camera_source)
-        self.assertNotIn("AnnotatorRegistry", hydra_camera_source)
-        self.assertNotIn("omni.replicator", hydra_camera_source)
+        self.assertIn("AnnotatorRegistry", hydra_camera_source)
+        self.assertIn("rep.create.render_product_tiled", hydra_camera_source)
+        self.assertIn('device="cuda", do_array_copy=False', hydra_camera_source)
         self.assertIn('"streamType": "rtsp"', hydra_camera_source)
         self.assertIn("RtspH264Receiver", operator_product_source)
 
@@ -516,7 +518,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             "class PreconfigurationApplication:", maxsplit=1
         )[1].split("class AdapterApplication:", maxsplit=1)[0]
         self.assertNotIn("/v1/live-products", preconfiguration)
-        self.assertIn('"streamProductId": f"camera-product-{product_index}"', preconfiguration)
+        self.assertIn("initial_operator_atlas_state", preconfiguration)
 
     def test_multi_instance_px4_has_distinct_gcs_ports(self) -> None:
         runtime_root = Path(__file__).parents[1]
@@ -697,7 +699,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(recording["dropped_events"], 9)
         self.assertEqual(recording["diagnostic"], "network unavailable")
 
-    def test_each_streamable_camera_has_one_persistent_product(self) -> None:
+    def test_streamable_cameras_share_one_persistent_atlas(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
         products = state.snapshot()["stream_products"]
@@ -707,9 +709,12 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         snapshot = state.snapshot()
         self.assertEqual(
             [product["streamProductId"] for product in snapshot["stream_products"]],
-            ["camera-product-0"],
+            ["camera-atlas"],
         )
-        self.assertEqual(snapshot["stream_products"][0]["cameraId"], "follow")
+        self.assertEqual(
+            snapshot["stream_products"][0]["cameraRegions"][0]["cameraId"],
+            "follow",
+        )
         self.assertEqual(snapshot["live_cameras"][0]["health"], "warming")
 
     def test_camera_health_tracks_its_persistent_product(self) -> None:
@@ -718,8 +723,18 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         state.update_stream_products(
             [
                 {
-                    "streamProductId": "camera-product-0",
-                    "cameraId": "follow",
+                    "streamProductId": "camera-atlas",
+                    "cameraRegions": [
+                        {
+                            "cameraId": "follow",
+                            "xPx": 0,
+                            "yPx": 0,
+                            "widthPx": 1280,
+                            "heightPx": 720,
+                        }
+                    ],
+                    "codedWidthPx": 1280,
+                    "codedHeightPx": 720,
                     "lifecycle": "ready",
                     "lastFrameAt": "2026-08-07T18:00:01Z",
                 },

@@ -87,7 +87,7 @@ fn live_app_resource(connect_origin: &str, agent_message_targets: &[String]) -> 
     )
     .with_title("UAV live cameras")
     .with_description(
-        "Authoritative simulator cameras with one native NVIDIA NVENC product per camera, shared across viewers.",
+        "Authoritative simulator cameras tiled into one native NVIDIA NVENC product shared across viewers.",
     )
     .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)]);
     if agent_message_targets.is_empty() {
@@ -1853,8 +1853,16 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             last_frame_at: Some(Utc::now()),
         }],
         stream_products: vec![veoveo_mcp_contract::LiveStreamProductState {
-            stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new("camera-product-0")?,
-            camera_id: veoveo_mcp_contract::LiveCameraId::new("follow")?,
+            stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new("camera-atlas")?,
+            camera_regions: vec![veoveo_mcp_contract::LiveCameraRegion {
+                camera_id: veoveo_mcp_contract::LiveCameraId::new("follow")?,
+                x_px: 0,
+                y_px: 0,
+                width_px: 1_280,
+                height_px: 720,
+            }],
+            coded_width_px: 1_280,
+            coded_height_px: 720,
             lifecycle: veoveo_mcp_contract::LiveStreamProductLifecycle::Ready,
             active_viewers: 0,
             connected_viewers: 0,
