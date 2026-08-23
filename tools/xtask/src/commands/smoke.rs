@@ -104,9 +104,10 @@ fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
     let dispatcher = dispatcher_binary(arguments)?;
     let mut binaries = vec![dispatcher];
     if !requests_help(arguments) && dispatcher == BROWSER_SMOKE {
-        if arguments.first().and_then(|argument| argument.to_str())
-            != Some("uav-app-hosts-browser-verify")
-        {
+        if !matches!(
+            arguments.first().and_then(|argument| argument.to_str()),
+            Some("uav-app-hosts-browser-verify" | "uav-agent-instruction-browser-verify")
+        ) {
             binaries.push(CONFORMANCE);
         }
     } else if !requests_help(arguments) && dispatcher == SMOKE {
@@ -155,6 +156,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
     } else if matches!(
         scenario,
         "uav-app-hosts-browser-verify"
+            | "uav-agent-instruction-browser-verify"
             | "uav-showcase-browser-verify"
             | "uav-showcase-live-restart-verify"
             | "uav-recording-browser-verify"
@@ -348,6 +350,23 @@ mod tests {
                 "veoveo-mcp-conformance",
                 "--bin",
                 "conformance",
+            ]
+        );
+    }
+
+    #[test]
+    fn app_agent_instruction_builds_only_the_focused_browser_harness() {
+        let arguments = [OsString::from("uav-agent-instruction-browser-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-browser-smoke",
+                "--bin",
+                "browser-smoke",
             ]
         );
     }
