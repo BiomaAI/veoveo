@@ -2214,10 +2214,10 @@ async fn close_console_live_views(
         &format!(
             r#"(() => {{
                   const expected=new Set({expected});
-                  const inputs=[...document.querySelectorAll('#choices input[type="checkbox"]')]
-                    .filter((candidate)=>expected.has(candidate.parentElement?.textContent?.split(" · ")[0]?.trim()));
+                  const inputs=[...document.querySelectorAll('#choices input[type="checkbox"]')];
+                  const matched=inputs.filter((candidate)=>expected.has(candidate.parentElement?.textContent?.split(" · ")[0]?.trim())).length;
                   for (const input of inputs) if (input.checked) input.click();
-                  return inputs.length;
+                  return matched;
                 }})()"#
         ),
         false,
@@ -2236,7 +2236,7 @@ async fn close_console_live_views(
             "uav-sim",
             r#"(() => ({
                   checked:document.querySelector('#choices input[type="checkbox"]:checked') !== null,
-                  videoCount:document.querySelectorAll("video").length,
+                  canvasCount:document.querySelectorAll(".view canvas").length,
                   status:document.getElementById("status")?.textContent ?? "",
                   error:document.getElementById("error")?.hidden === false
                     ? document.getElementById("error").textContent : ""
@@ -2253,7 +2253,7 @@ async fn close_console_live_views(
             "Console failed to close selected live cameras: {state}"
         );
         if state.get("checked").and_then(Value::as_bool) == Some(false)
-            && state.get("videoCount").and_then(Value::as_u64) == Some(0)
+            && state.get("canvasCount").and_then(Value::as_u64) == Some(0)
         {
             return Ok(());
         }
