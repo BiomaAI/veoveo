@@ -95,10 +95,15 @@ impl GraphPlanner {
             .map(|edge| edge.nominal_duration_s)
             .sum::<f64>()
             + planned.connector_distance_m / profile.routing_speed().get();
+        let geometry = crate::spatial::resample_route_line(
+            &planned.geometry,
+            profile.planning().maximum_segment_length,
+            profile.planning().maximum_route_points,
+        )?;
         let leg = RouteLeg {
             sequence: 0,
             map_family,
-            geometry: planned.geometry,
+            geometry,
             cost: RouteCost {
                 distance: Meters::new(distance)?,
                 duration: Seconds::new(duration)?,

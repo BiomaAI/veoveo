@@ -669,8 +669,11 @@ Off-road, rail, surface-vessel, subsurface-vessel, fixed-wing, rotorcraft, and
 UAS profiles use explicit activated LineString edges for their map family. The
 planner connects each exact endpoint to its nearest governed node within 10 km,
 retains those connector segments in the returned geometry, and costs them at
-the profile's preferred, nominal, or cruise speed. It verifies consistent node
-geometry, applies avoided areas, and runs A* for fastest or shortest objectives. It
+the profile's preferred, nominal, or cruise speed. Before persistence, it densifies
+governed edges and exact-endpoint connectors to the profile's maximum segment length.
+The exact endpoints remain unchanged, and inserted points interpolate ellipsoidal
+height. The planner verifies consistent node geometry, applies avoided areas, and runs
+A* for fastest or shortest objectives. It
 returns `planning_advisory` until the selected sources and performance models
 carry domain-specific certification. Planning requires connected activated
 edges, supports fastest and shortest objectives, and accepts explicit avoided
