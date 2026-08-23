@@ -48,6 +48,7 @@ mod tests {
             "Send instruction",
             "if(!selected.size)",
             "await open(camera)",
+            "views.get(camera.cameraId)!==view",
         ] {
             assert!(html.contains(expected), "missing {expected}");
         }
