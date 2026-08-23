@@ -91,7 +91,7 @@ session:
   id: uav-showcase
   vehicleCount: 4
   physicsHz: 30
-  renderingHz: 16
+  renderingHz: 24
   tileReadyFrames: 30
   px4ConnectTimeoutSeconds: 180
   privacyConsent: false
