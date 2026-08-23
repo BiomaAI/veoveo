@@ -121,7 +121,6 @@ def run(config: RuntimeConfig) -> None:
         "isaacsim.core.experimental.objects",
         "isaacsim.core.experimental.materials",
         "isaacsim.core.experimental.utils",
-        "isaacsim.sensors.experimental.rtx",
         "omni.kit.livestream.rtsp",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
@@ -740,7 +739,6 @@ def run(config: RuntimeConfig) -> None:
                         time.monotonic() - native_update_started
                     )
                     assert operator_products is not None
-                    operator_products.observe_render()
                     tile_state = state.snapshot()["tiles"]
                     state.update_stream_products(
                         operator_products.state(

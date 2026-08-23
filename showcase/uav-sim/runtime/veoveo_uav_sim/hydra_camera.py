@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from collections import deque
 from dataclasses import dataclass
@@ -171,7 +172,7 @@ class RtxHydraRenderProduct:
 
 
 class RtxTiledHydraRenderProduct:
-    """One Isaac tiled RTX product for a batch of authoritative cameras."""
+    """One Isaac Experimental Camera batch rendered as an RTX tile atlas."""
 
     def __init__(
         self,
@@ -180,14 +181,20 @@ class RtxTiledHydraRenderProduct:
         camera_paths: tuple[str, ...],
         tile_width: int,
         tile_height: int,
+        render_fps: int,
     ) -> None:
-        import omni.replicator.core as rep
+        import carb
+        import omni.usd
         from isaacsim.core.experimental.objects import Camera
+        from omni.kit.hydra_texture import create_hydra_texture
+        from pxr import Usd
 
         if not camera_paths:
             raise ValueError("RTX tiled product requires at least one camera")
-        if tile_width < 1 or tile_height < 1:
-            raise ValueError("RTX tiled product dimensions must be positive")
+        if tile_width < 1 or tile_height < 1 or render_fps < 1:
+            raise ValueError(
+                "RTX tiled product dimensions and frame rate must be positive"
+            )
         # The authoritative operator camera objects retain their USD XformOp
         # handles for every render update. Experimental Camera wrapping resets
         # Xform ops by default, which would invalidate those exact handles.
@@ -197,48 +204,64 @@ class RtxTiledHydraRenderProduct:
         self._camera.enforce_square_pixels(
             (tile_height, tile_width), modes="horizontal"
         )
-        self._hydra_texture = rep.create.render_product_tiled(
-            cameras=list(self._camera.paths),
-            tile_resolution=(tile_width, tile_height),
-            force_new=True,
-            name=name,
+
+        columns = math.ceil(math.sqrt(len(camera_paths)))
+        rows = math.ceil(len(camera_paths) / columns)
+        self._width = columns * tile_width
+        self._height = rows * tile_height
+        settings = carb.settings.get_settings()
+        settings.set("/rtx/viewTile/resolution/0", 0)
+        settings.set("/rtx/viewTile/resolution/1", 0)
+
+        self._path = render_product_path(name)
+        self._hydra_texture = create_hydra_texture(
+            name,
+            self._width,
+            self._height,
+            usd_camera_path=camera_paths[0],
+            hydra_engine_name="rtx",
+            is_async=True,
+            is_async_low_latency=True,
+            hydra_tick_rate=render_fps,
         )
-        expected_path = render_product_path(name)
-        if self._hydra_texture.path != expected_path:
+        actual_path = self._hydra_texture.get_render_product_path()
+        if actual_path != self._path:
             self.close()
             raise RuntimeError(
                 "Isaac tiled RTX product used an unexpected path: "
-                f"{self._hydra_texture.path}"
+                f"{actual_path}"
             )
-        self._annotator = rep.AnnotatorRegistry.get_annotator(
-            "rgb", device="cuda", do_array_copy=False
-        )
-        self._annotator.attach(self._hydra_texture.path)
+        stage = omni.usd.get_context().get_stage()
+        product_prim = stage.GetPrimAtPath(self._path)
+        if not product_prim.IsValid():
+            self.close()
+            raise RuntimeError("Isaac tiled RTX render-product prim was not created")
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            product_prim.GetRelationship("camera").SetTargets(list(camera_paths))
 
     @property
     def path(self) -> str:
-        return self._hydra_texture.path
+        return self._path
+
+    @property
+    def hydra_texture(self) -> Any:
+        return self._hydra_texture
 
     @property
     def width(self) -> int:
-        return int(self._hydra_texture.hydra_texture.width)
+        return self._width
 
     @property
     def height(self) -> int:
-        return int(self._hydra_texture.hydra_texture.height)
+        return self._height
 
-    def observe_gpu_frame(self) -> bool:
-        data = self._annotator.get_data(device="cuda")
-        return data is not None and bool(data.shape[0])
+    def set_updates_enabled(self, enabled: bool) -> None:
+        self._hydra_texture.updates_enabled = enabled
 
     def close(self) -> None:
-        annotator = getattr(self, "_annotator", None)
         texture = getattr(self, "_hydra_texture", None)
-        if annotator is not None and texture is not None:
-            annotator.detach([texture.path])
-            self._annotator = None
         if texture is not None:
-            texture.destroy()
+            texture.updates_enabled = False
             self._hydra_texture = None
 
 
