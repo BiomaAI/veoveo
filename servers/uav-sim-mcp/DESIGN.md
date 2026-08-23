@@ -390,9 +390,10 @@ decode as hardware only when the browser reports `powerEfficient`; supported smo
 software decode is labeled explicitly. Browser acceptance still requires a headed,
 hardware-backed WebGPU or WebGL context.
 
-The App uses WebCodecs to decode each Annex B H.264 atlas frame once, then draws its five
-typed regions into independent GPU-composited canvases. Media Capabilities selects hardware decode when it is
-power-efficient and permits the documented smooth software H.264 decode exception.
+The App asks WebCodecs for hardware-preferred decode of each Annex B H.264 atlas frame,
+then draws its five typed regions into independent GPU-composited canvases. It claims
+hardware decode only when Media Capabilities reports `powerEfficient`; otherwise the UI
+uses the documented smooth software H.264 decode label and exception.
 
 Focused browser acceptance combines the runtime source-to-render window with reactive
 canvas frame events and browser receive-to-display measurements. It rejects

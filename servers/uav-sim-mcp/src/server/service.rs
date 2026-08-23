@@ -2488,6 +2488,8 @@ mod tests {
             veoveo_mcp_apps_extension::resource_agent_message_targets(&resource),
             ["uav-1-pilot"]
         );
+        assert!(crate::live_app::html().contains("hardwareAcceleration=\"prefer-hardware\""));
+        assert!(!crate::live_app::html().contains("prefer-software"));
     }
 }
 
