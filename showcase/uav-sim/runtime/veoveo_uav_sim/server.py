@@ -39,6 +39,14 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+async def _consume_live_stream_control_frames(
+    websocket: web.WebSocketResponse,
+) -> None:
+    """Keep aiohttp's heartbeat active by consuming browser PONG and close frames."""
+    async for _message in websocket:
+        pass
+
+
 @dataclass(frozen=True, slots=True)
 class TimelineControls:
     pause: Callable[[], None]
@@ -290,6 +298,9 @@ class AdapterApplication:
         )
         await websocket.prepare(request)
         after_sequence = 0
+        control_frames = asyncio.create_task(
+            _consume_live_stream_control_frames(websocket)
+        )
         try:
             while not websocket.closed:
                 frame = await asyncio.to_thread(
@@ -305,6 +316,8 @@ class AdapterApplication:
         except (ConnectionResetError, RuntimeError, ValueError):
             pass
         finally:
+            control_frames.cancel()
+            await asyncio.gather(control_frames, return_exceptions=True)
             await websocket.close()
         return websocket
 
