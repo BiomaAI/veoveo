@@ -275,11 +275,13 @@ This prevents camera-target disagreement without delaying simulation.
 
 ## Render Products
 
-Isaac Sim's experimental tiled-camera path batches every streamable camera into one
-stable Hydra texture and LdrColor AOV. The 3-column by 2-row product is 3840x1440 for
-five 1280x720 cameras and owns one pod-loopback RTSP port pair, H.264 identity, and
-NVIDIA NVENC session. The runtime submits every camera viewport to Cesium in the same
-Kit frame. Headless operation disables the pinned
+Isaac Sim's Experimental Camera API batches every streamable USD camera with common
+optics. One RTX view-tiled Hydra product binds the complete camera relationship into a
+stable texture and LdrColor AOV. The 3-column by 2-row product is 3840x1440 for five
+1280x720 cameras and owns one pod-loopback RTSP port pair, H.264 identity, and NVIDIA
+NVENC session. No Replicator or RGB annotator is loaded, and raw atlas pixels never
+enter Python. The runtime submits every camera viewport to Cesium in the same Kit frame.
+Headless operation disables the pinned
 Cesium extension's interactive viewport-window update subscription, leaving one
 authoritative viewport writer instead of racing an empty GUI inventory. The runtime does
 not create another Cesium world, provider connection, georeference, material set, or
@@ -292,7 +294,7 @@ decoder-reentrant keyframe, and advances without decoding or re-encoding. A slow
 cannot block the render loop or another connection.
 
 The runtime timestamps the camera batch when the current authoritative entity snapshot becomes
-its USD camera poses. The corresponding CUDA RGB observation closes that source-to-render
+its USD camera poses. The corresponding Hydra drawable event closes that source-to-render
 interval without copying pixels to the CPU. The product retains the latest 256 samples and publishes their
 nearest-rank p95 in integer microseconds. The runtime never uses a wall-clock sampler or
 health poll to produce latency evidence.

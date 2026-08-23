@@ -5,6 +5,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
+from typing import Any
 
 from .h264 import NativeH264AccessUnit
 from .hydra_camera import (
@@ -111,6 +112,9 @@ class OperatorCameraProduct:
         *,
         maximum_frame_age_ms: int = 2_000,
     ) -> None:
+        import omni.hydratexture
+        from carb.eventdispatcher import get_eventdispatcher
+
         definitions = config.streamable_cameras
         if not definitions:
             raise ValueError("operator camera atlas requires a streamable camera")
@@ -143,6 +147,7 @@ class OperatorCameraProduct:
         self._source_pose_monotonic_seconds: float | None = None
         self._health = OperatorProductHealth(maximum_frame_age_ms)
         self._health.activate()
+        self._subscription = None
         self._render_product = RtxTiledHydraRenderProduct(
             name=OPERATOR_ATLAS_NAME,
             camera_paths=tuple(
@@ -151,6 +156,7 @@ class OperatorCameraProduct:
             ),
             tile_width=optics.width_px,
             tile_height=optics.height_px,
+            render_fps=optics.frame_rate_hz,
         )
         if (
             self._render_product.width != self._coded_width_px
@@ -160,6 +166,15 @@ class OperatorCameraProduct:
             raise RuntimeError(
                 "Isaac tiled RTX product resolution does not match its camera atlas"
             )
+        self._subscription = get_eventdispatcher().observe_event(
+            observer_name="veoveo_uav_camera_atlas",
+            event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
+            on_event=self._on_drawable_changed,
+            filter=self._render_product.hydra_texture.get_event_key(),
+        )
+        # The AOV extension consumes this RTX product's CUDA LdrColor resource
+        # directly and performs one NVENC encode shared by every browser.
+        self._render_product.set_updates_enabled(True)
 
     def observe_source_pose(self, monotonic_seconds: float) -> None:
         if not math.isfinite(monotonic_seconds) or monotonic_seconds < 0.0:
@@ -167,10 +182,8 @@ class OperatorCameraProduct:
         with self._condition:
             self._source_pose_monotonic_seconds = monotonic_seconds
 
-    def observe_render(self) -> None:
+    def _on_drawable_changed(self, event: Any) -> None:
         try:
-            if not self._render_product.observe_gpu_frame():
-                return
             start_receiver = False
             now = time.monotonic()
             with self._condition:
@@ -268,6 +281,7 @@ class OperatorCameraProduct:
             self._condition.notify_all()
         if receiver is not None:
             receiver.close()
+        self._subscription = None
         self._render_product.close()
 
     def _on_access_unit(self, access_unit: NativeH264AccessUnit) -> None:
@@ -313,9 +327,6 @@ class OperatorProductCollection:
     ) -> None:
         if any(camera_id in self._product.camera_ids for camera_id in camera_poses):
             self._product.observe_source_pose(source_monotonic_seconds)
-
-    def observe_render(self) -> None:
-        self._product.observe_render()
 
     def state(self, *, content_ready: bool) -> list[dict[str, object]]:
         return [self._product.state(content_ready=content_ready)]

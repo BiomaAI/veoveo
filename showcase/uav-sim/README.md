@@ -222,7 +222,8 @@ reconstructs the default route from immutable configuration.
 At startup the runtime creates a bounded logical-camera set under
 `/World/OperatorCameras`. Supported rigs are fixed, look-at, orbit, follow, chase,
 stabilized mounted, and formation overview. Every streamable camera owns one typed
-region in the shared Isaac experimental tiled render. The atlas owns one Hydra texture,
+region in a shared RTX tiled render. Isaac's Experimental Camera API batches the USD
+cameras and enforces their common optics. The atlas owns one Hydra texture,
 product ID, pod-loopback RTSP port pair, RTX render, NVENC session, and H.264 ring.
 
 The camera update reads current authoritative entity transforms directly. Its
@@ -264,7 +265,7 @@ exact authoritative body-and-mount transform without operator smoothing. Cesium 
 the physical sensor viewport on every Kit update. Its Hydra product renders at the
 declared sensor rate and transfers the CUDA-resident `LdrColor` AOV directly into Isaac's
 native RTSP/NVENC extension. Replicator orchestration and CPU pixel capture are absent
-from this path.
+from both camera paths.
 
 The runtime consumes the pod-local encoded RTSP/RTP stream. It depacketizes H.264 without
 decoding or re-encoding, qualifies normal GOP access units, and fans those same bytes to
