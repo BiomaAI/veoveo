@@ -240,7 +240,8 @@ The live App runs in an opaque-origin sandbox and decodes the shared Annex B atl
 with WebCodecs. It crops all selected camera regions into independent canvases. RTX
 rendering and NVENC encoding remain inside the authoritative simulator.
 
-The qualified one-GPU profile targets 16 FPS for each 1280×720 atlas region. Acceptance
+The qualified one-GPU profile schedules 24 Kit presentation opportunities per second to
+sustain a 16 FPS target for each 1280×720 atlas region under continuous simulation work. Acceptance
 opens all five cameras for five simultaneous browser users and requires at least 12
 delivered FPS, source-to-render p95
 below 85 ms after the 256-event warm window, and a conservative composed

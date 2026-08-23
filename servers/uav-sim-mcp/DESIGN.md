@@ -397,7 +397,8 @@ power-efficient and permits the documented smooth software H.264 decode exceptio
 Focused browser acceptance combines the runtime source-to-render window with reactive
 canvas frame events and browser receive-to-display measurements. It rejects
 source-to-render p95 at 85 ms and motion-to-photon p95 at 250 ms. The measured reference
-profile targets 16 FPS and rejects delivery below 12 FPS. Smoothing response is reported
+profile schedules Kit presentation at 24 Hz, targets 16 FPS, and rejects delivery below
+12 FPS. Smoothing response is reported
 by the camera profile and is not counted as transport latency. The same run opens all
 five cameras for five concurrent browser users, proves 25 advancing camera canvases use
 five browser connections to exactly one simulator product and one NVENC session, then
