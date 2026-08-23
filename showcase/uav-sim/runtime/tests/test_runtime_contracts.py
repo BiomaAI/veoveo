@@ -365,6 +365,13 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sensor.observe_simulation_time(", app_source)
         self.assertIn("simulation_time_s, physics_step", app_source)
 
+        server_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
+        ).read_text()
+        self.assertIn("heartbeat=10.0", server_source)
+        self.assertIn("_consume_live_stream_control_frames(websocket)", server_source)
+        self.assertIn("async for _message in websocket", server_source)
+
         operator_camera_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "operator_camera.py"
         ).read_text()
