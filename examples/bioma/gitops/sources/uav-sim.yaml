@@ -9,7 +9,7 @@ spec:
   url: oci://charts-registry.flux-system.svc.cluster.local:5000/charts/uav-sim
   insecure: true
   ref:
-    digest: sha256:cf5d0ed8caaed6893cf8dffd32d6e36a7386405715d65879376c7af902447d80
+    digest: sha256:6557f3e119c1b4e3a1e468f51d82fb6f3f4fd620b021dbc47a59a94cf0f27e50
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
