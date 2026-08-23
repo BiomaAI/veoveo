@@ -658,17 +658,14 @@ async fn send_console_uav_agent_instruction_inner(
             &format!(
                 r#"(async () => {{
                   const agentId={agent},message={instruction};
-                  const select=document.getElementById("agent"),input=document.getElementById("command"),form=document.getElementById("commands"),output=document.getElementById("command-result");
+                  const select=document.getElementById("agent"),input=document.getElementById("command"),output=document.getElementById("command-result");
                   if (![...select.options].some((option)=>option.value===agentId)) return {{error:`agent ${{agentId}} is unavailable`,result:""}};
-                  select.value=agentId;input.value=message;form.requestSubmit();
-                  const deadline=Date.now()+30000;
-                  while (Date.now()<deadline) {{
-                    const result=output.textContent?.trim() ?? "";
-                    if (result.startsWith("Instruction queued for ")) return {{error:"",result}};
-                    if (result && result!=="Sending…") return {{error:result,result:""}};
-                    await new Promise((resolve)=>setTimeout(resolve,100));
-                  }}
-                  return {{error:"agent instruction did not return a receipt",result:""}};
+                  select.value=agentId;input.value=message;
+                  await sendInstruction({{preventDefault(){{}}}});
+                  const result=output.textContent?.trim() ?? "";
+                  return result.startsWith("Instruction queued for ")
+                    ? {{error:"",result}}
+                    : {{error:result||"agent instruction did not return a receipt",result:""}};
                 }})()"#
             ),
             true,
