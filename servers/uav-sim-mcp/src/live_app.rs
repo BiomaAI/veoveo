@@ -49,6 +49,7 @@ mod tests {
             "if(!selected.size)",
             "await open(camera)",
             "views.get(camera.cameraId)!==view",
+            "section.querySelector(\".empty\")?.remove()",
         ] {
             assert!(html.contains(expected), "missing {expected}");
         }
