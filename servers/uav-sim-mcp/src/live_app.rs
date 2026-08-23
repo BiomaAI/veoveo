@@ -23,6 +23,8 @@ mod tests {
             "ui/resource-teardown",
             "applyHostContext(initialized?.hostContext)",
             "navigator.mediaCapabilities.decodingInfo",
+            "hardwareAcceleration:\"prefer-hardware\"",
+            "hardwareAcceleration:\"no-preference\"",
             "section.dataset.viewerInstanceId",
             "section.dataset.streamProductId",
             "tiled H.264 live",
