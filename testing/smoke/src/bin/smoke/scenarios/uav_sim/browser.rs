@@ -734,7 +734,8 @@ async fn capture_console_live_app_grid_inner(
         expected_camera_ids.len() >= 2,
         "live-view grid acceptance requires at least two cameras"
     );
-    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let (mut cdp, target_id, session_id) =
+        open_headed_target_in_window(cdp_base, page_url, simultaneous.is_some()).await?;
     let acceptance = async {
         wait_for_document(&mut cdp, &session_id).await?;
         assert_page_visible(&mut cdp, &session_id).await?;
