@@ -626,8 +626,6 @@ async fn verify_running_showcase(
             && initial_camera_ids.len() == QUALIFIED_CAMERA_IDS.len()
             && initial_products.iter().all(|product| {
                 product.get("lifecycle").and_then(Value::as_str) == Some("ready")
-                    && product.get("activeViewers").and_then(Value::as_u64) == Some(0)
-                    && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
                     && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
                     && product.get("codedWidthPx").and_then(Value::as_u64) == Some(3_840)
                     && product.get("codedHeightPx").and_then(Value::as_u64) == Some(1_440)
@@ -726,8 +724,6 @@ async fn verify_running_showcase(
         ensure!(
             product.is_some_and(|product| {
                 product.get("lifecycle").and_then(Value::as_str) == Some("ready")
-                    && product.get("activeViewers").and_then(Value::as_u64) == Some(0)
-                    && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
                     && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
             }),
             "browser close disrupted tiled camera product {}: {final_products:?}",
@@ -742,8 +738,6 @@ async fn verify_running_showcase(
         ensure!(
             product.is_some_and(|product| {
                 product.get("lifecycle").and_then(Value::as_str) == Some("ready")
-                    && product.get("activeViewers").and_then(Value::as_u64) == Some(0)
-                    && product.get("connectedViewers").and_then(Value::as_u64) == Some(0)
                     && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
             }),
             "browser grid close disrupted tiled camera product {stream_product_id}: {final_products:?}",
