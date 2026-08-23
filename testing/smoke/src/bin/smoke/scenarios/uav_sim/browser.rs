@@ -607,6 +607,13 @@ async fn capture_console_live_app_inner(
             ready,
             "Console UAV live view App exposed no camera {expected_camera_id:?}"
         );
+        isolate_console_app_camera(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expected_camera_id,
+        )
+        .await?;
         let first = match wait_for_console_video(
             &mut cdp,
             &target_id,
@@ -848,6 +855,7 @@ where
                 .await?,
             "Console UAV live view App exposed no camera {expected_camera_id:?}"
         );
+        isolate_console_app_camera(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
         let before =
             wait_for_console_video(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
         let restart_evidence = restart()
@@ -1937,6 +1945,63 @@ async fn wait_for_console_app_camera(
         cdp.assert_no_software_renderer_events()?;
         tokio::time::sleep(Duration::from_millis(250)).await;
         assert_page_visible(cdp, session_id).await?;
+    }
+}
+
+async fn isolate_console_app_camera(
+    cdp: &mut Cdp,
+    target_id: &str,
+    session_id: &str,
+    expected_camera_id: &str,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let expected = serde_json::to_string(expected_camera_id)?;
+    loop {
+        let expression = format!(
+            r#"(() => {{
+              const expected={expected};
+              const inputs=[...document.querySelectorAll('#choices input[type="checkbox"]')];
+              const cameraId=(input)=>input.parentElement?.textContent?.split(" · ")[0]?.trim() ?? "";
+              const target=inputs.find((input)=>cameraId(input)===expected);
+              if (!target) return {{found:false,checkedIds:[],viewIds:[]}};
+              for (const input of inputs) {{
+                const shouldBeChecked=cameraId(input)===expected;
+                if (input.checked!==shouldBeChecked) input.click();
+              }}
+              return {{
+                found:true,
+                checkedIds:inputs.filter((input)=>input.checked).map(cameraId),
+                viewIds:[...document.querySelectorAll(".view")].map((view)=>view.id.slice(5))
+              }};
+            }})()"#
+        );
+        let state: Value =
+            evaluate_console_app(cdp, target_id, session_id, "uav-sim", &expression, false).await?;
+        let checked_ids = state
+            .get("checkedIds")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let view_ids = state
+            .get("viewIds")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let only_expected =
+            |values: &[Value]| values.len() == 1 && values[0].as_str() == Some(expected_camera_id);
+        if state.get("found").and_then(Value::as_bool) == Some(true)
+            && only_expected(&checked_ids)
+            && only_expected(&view_ids)
+        {
+            return Ok(());
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console UAV live view App did not isolate camera {expected_camera_id}: {state}"
+        );
+        cdp.assert_no_software_renderer_events()?;
+        assert_page_visible(cdp, session_id).await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 
