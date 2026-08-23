@@ -19,6 +19,56 @@ use crate::{
 
 use projection::LocalProjection;
 
+pub(crate) fn resample_route_line(
+    line: &crate::contract::Wgs84LineString,
+    maximum_segment_length: crate::contract::Meters,
+    maximum_route_points: u32,
+) -> Result<crate::contract::Wgs84LineString> {
+    line.validate()?;
+    let operation = crate::contract::SpatialDerivationOperation::ValidateRoute {
+        route: line.clone(),
+    };
+    let projection = LocalProjection::for_operation(&operation)?;
+    let maximum = maximum_segment_length.get();
+    let mut coordinates = vec![line.coordinates[0].clone()];
+    for pair in line.coordinates.windows(2) {
+        let start = projection.project(&pair[0]);
+        let end = projection.project(&pair[1]);
+        let distance = (end.x - start.x).hypot(end.y - start.y);
+        let segments = (distance / maximum).ceil().max(1.0) as usize;
+        for index in 1..=segments {
+            if index == segments {
+                coordinates.push(pair[1].clone());
+                if coordinates.len() > maximum_route_points as usize {
+                    bail!("resampled route exceeds the mobility profile route-point limit");
+                }
+                continue;
+            }
+            let fraction = index as f64 / segments as f64;
+            let projected = geo_types::Coord {
+                x: start.x + (end.x - start.x) * fraction,
+                y: start.y + (end.y - start.y) * fraction,
+            };
+            let position = projection.unproject(projected);
+            let height = pair[0]
+                .ellipsoidal_height_m
+                .zip(pair[1].ellipsoidal_height_m)
+                .map(|(start, end)| start + (end - start) * fraction);
+            coordinates.push(crate::contract::Wgs84Position::new(
+                position.longitude_deg(),
+                position.latitude_deg(),
+                height,
+            )?);
+            if coordinates.len() > maximum_route_points as usize {
+                bail!("resampled route exceeds the mobility profile route-point limit");
+            }
+        }
+    }
+    let resampled = crate::contract::Wgs84LineString { coordinates };
+    resampled.validate()?;
+    Ok(resampled)
+}
+
 pub(crate) fn validate_route_lines(
     profile: &crate::contract::MobilityProfile,
     lines: &[crate::contract::Wgs84LineString],
@@ -63,6 +113,49 @@ pub(crate) fn validate_route_lines(
         &projection,
     )
     .findings)
+}
+
+#[cfg(test)]
+mod route_resampling_tests {
+    use super::*;
+    use crate::contract::{Meters, SpatialDerivationOperation, Wgs84LineString, Wgs84Position};
+
+    #[test]
+    fn resampling_preserves_exact_endpoints_and_bounds_connectors() {
+        let start = Wgs84Position::new(-74.04, 40.70, Some(120.0)).unwrap();
+        let end = Wgs84Position::new(-73.97, 40.76, Some(180.0)).unwrap();
+        let line = Wgs84LineString {
+            coordinates: vec![start.clone(), end.clone()],
+        };
+        let maximum = Meters::new(5_000.0).unwrap();
+        let resampled = resample_route_line(&line, maximum, 1024).unwrap();
+
+        assert_eq!(resampled.coordinates.first(), Some(&start));
+        assert_eq!(resampled.coordinates.last(), Some(&end));
+        assert!(resampled.coordinates.len() > 2);
+        let projection =
+            LocalProjection::for_operation(&SpatialDerivationOperation::ValidateRoute {
+                route: resampled.clone(),
+            })
+            .unwrap();
+        for pair in resampled.coordinates.windows(2) {
+            let start = projection.project(&pair[0]);
+            let end = projection.project(&pair[1]);
+            assert!((end.x - start.x).hypot(end.y - start.y) <= maximum.get());
+        }
+    }
+
+    #[test]
+    fn resampling_fails_closed_at_the_profile_route_point_limit() {
+        let line = Wgs84LineString {
+            coordinates: vec![
+                Wgs84Position::new(-74.04, 40.70, None).unwrap(),
+                Wgs84Position::new(-73.97, 40.76, None).unwrap(),
+            ],
+        };
+        let error = resample_route_line(&line, Meters::new(5_000.0).unwrap(), 2).unwrap_err();
+        assert!(error.to_string().contains("route-point limit"));
+    }
 }
 
 #[derive(Clone, Debug)]
