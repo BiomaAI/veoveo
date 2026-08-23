@@ -17,11 +17,12 @@ mod browser;
 mod restart;
 
 use browser::{
-    ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence, ConsoleRecordingArchiveCaptureEvidence,
-    ConsoleRecordingCaptureEvidence, capture_console_live_app,
-    capture_console_live_app_five_user_grid, capture_console_live_app_grid,
-    capture_console_live_app_pair, capture_console_recording, capture_console_recording_archive,
-    preflight_console_live_app, preflight_standalone_live_app,
+    ConsoleAgentInstructionEvidence, ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence,
+    ConsoleRecordingArchiveCaptureEvidence, ConsoleRecordingCaptureEvidence,
+    capture_console_live_app, capture_console_live_app_five_user_grid,
+    capture_console_live_app_grid, capture_console_live_app_pair, capture_console_recording,
+    capture_console_recording_archive, preflight_console_live_app, preflight_standalone_live_app,
+    send_console_uav_agent_instruction,
 };
 use restart::{RestartVerification, verify_live_view_restarts};
 
@@ -111,6 +112,24 @@ enum SmokeCommand {
         #[arg(long, default_value = "http://127.0.0.1:9222")]
         chrome_cdp_url: String,
         #[arg(long, default_value = "output/acceptance/uav-browser")]
+        evidence_root: PathBuf,
+    },
+    /// Send one UAV App instruction and prove its durable pilot reply through Console.
+    UavAgentInstructionBrowserVerify {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long)]
+        agent_id: String,
+        #[arg(long)]
+        message: String,
+        #[arg(long, default_value_t = 300)]
+        timeout_seconds: u64,
+        #[arg(
+            long,
+            default_value = "output/acceptance/uav-agent-instruction-browser"
+        )]
         evidence_root: PathBuf,
     },
     /// Keep a headed live view mounted while restarting the MCP and simulator containers.
@@ -225,6 +244,16 @@ struct RecordingArchiveBrowserAcceptanceEvidence {
     recording: ConsoleRecordingArchiveCaptureEvidence,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentInstructionBrowserAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: String,
+    run_id: String,
+    instruction: ConsoleAgentInstructionEvidence,
+}
+
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SourceTimelineSample {
@@ -330,6 +359,24 @@ async fn main() -> Result<()> {
             )
             .await
         }
+        SmokeCommand::UavAgentInstructionBrowserVerify {
+            public_base_url,
+            chrome_cdp_url,
+            agent_id,
+            message,
+            timeout_seconds,
+            evidence_root,
+        } => {
+            verify_uav_agent_instruction(
+                &public_base_url,
+                &chrome_cdp_url,
+                &agent_id,
+                &message,
+                Duration::from_secs(timeout_seconds),
+                &evidence_root,
+            )
+            .await
+        }
         SmokeCommand::UavShowcaseLiveRestartVerify {
             conformance_bin,
             scenario,
@@ -383,6 +430,62 @@ async fn main() -> Result<()> {
             .await
         }
     }
+}
+
+async fn verify_uav_agent_instruction(
+    public_base_url: &str,
+    chrome_cdp_url: &str,
+    agent_id: &str,
+    message: &str,
+    timeout: Duration,
+    evidence_root: &Path,
+) -> Result<()> {
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "UAV agent instruction acceptance requires public HTTPS"
+    );
+    ensure!(
+        !agent_id.trim().is_empty() && !message.trim().is_empty(),
+        "UAV agent instruction requires an exact agent and non-empty message"
+    );
+    let source_revision = git_revision()?;
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&source_revision).join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating UAV agent instruction evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let instruction = send_console_uav_agent_instruction(
+        chrome_cdp_url,
+        public_base_url,
+        agent_id,
+        message,
+        &evidence_directory.join("uav-agent-instruction.png"),
+        timeout,
+    )
+    .await?;
+    let evidence = AgentInstructionBrowserAcceptanceEvidence {
+        schema: "veoveo.io/uav-agent-instruction-browser-evidence/v1",
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        instruction,
+    };
+    let manifest = evidence_directory.join("evidence.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?).with_context(|| {
+        format!(
+            "writing UAV agent instruction evidence {}",
+            manifest.display()
+        )
+    })?;
+    println!(
+        "UAV App instruction reached its pilot and received a durable reply. Evidence: {}",
+        manifest.display()
+    );
+    Ok(())
 }
 
 async fn verify_uav_app_hosts(

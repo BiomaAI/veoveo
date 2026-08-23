@@ -198,6 +198,48 @@ pub(crate) struct ConsoleStreamCaptureEvidence {
     decode: StreamDecodeIdentity,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)] // Used by the focused browser binary that includes this module.
+pub(crate) struct ConsoleAgentInstructionEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    agent_id: String,
+    message: String,
+    hardware: HardwareIdentity,
+    app_result: String,
+    operator_entry: Value,
+    agent_reply: Value,
+}
+
+#[allow(dead_code)] // Used by the focused browser binary that includes this module.
+pub(crate) async fn send_console_uav_agent_instruction(
+    cdp_base: &str,
+    public_base_url: &str,
+    agent_id: &str,
+    message: &str,
+    screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<ConsoleAgentInstructionEvidence> {
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    tokio::time::timeout(
+        timeout,
+        send_console_uav_agent_instruction_inner(
+            cdp_base,
+            &page_url,
+            agent_id,
+            message,
+            screenshot_path,
+            timeout,
+        ),
+    )
+    .await
+    .with_context(|| format!("Console UAV agent instruction exceeded {timeout:?}"))?
+}
+
 pub(crate) async fn capture_console_live_app(
     cdp_base: &str,
     public_base_url: &str,
@@ -578,6 +620,155 @@ fn console_app_body_ready(app: &Value, marker: &str) -> bool {
             .get("body")
             .and_then(Value::as_str)
             .is_some_and(|body| body.contains(marker))
+}
+
+#[allow(dead_code)] // Used by the focused browser binary that includes this module.
+async fn send_console_uav_agent_instruction_inner(
+    cdp_base: &str,
+    page_url: &str,
+    agent_id: &str,
+    message: &str,
+    screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<ConsoleAgentInstructionEvidence> {
+    let (mut cdp, target_id, session_id) =
+        open_headed_target_in_window(cdp_base, page_url, true).await?;
+    let acceptance = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        wait_for_console_app_body(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "uav-sim",
+            "UAV live cameras",
+        )
+        .await?;
+
+        let agent = serde_json::to_string(agent_id)?;
+        let instruction = serde_json::to_string(message)?;
+        let app_result: Value = evaluate_console_app(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "uav-sim",
+            &format!(
+                r#"(async () => {{
+                  const agentId={agent},message={instruction};
+                  const select=document.getElementById("agent"),input=document.getElementById("command"),form=document.getElementById("commands"),output=document.getElementById("command-result");
+                  if (![...select.options].some((option)=>option.value===agentId)) return {{error:`agent ${{agentId}} is unavailable`,result:""}};
+                  select.value=agentId;input.value=message;form.requestSubmit();
+                  const deadline=Date.now()+30000;
+                  while (Date.now()<deadline) {{
+                    const result=output.textContent?.trim() ?? "";
+                    if (result.startsWith("Instruction queued for ")) return {{error:"",result}};
+                    if (result && result!=="Sending…") return {{error:result,result:""}};
+                    await new Promise((resolve)=>setTimeout(resolve,100));
+                  }}
+                  return {{error:"agent instruction did not return a receipt",result:""}};
+                }})()"#
+            ),
+            true,
+        )
+        .await?;
+        ensure!(
+            app_result.get("error").and_then(Value::as_str) == Some("")
+                && app_result.get("result").and_then(Value::as_str)
+                    == Some(format!("Instruction queued for {agent_id}.").as_str()),
+            "UAV App did not queue the exact agent instruction: {app_result}"
+        );
+
+        let deadline = tokio::time::Instant::now() + timeout.saturating_sub(Duration::from_secs(5));
+        let (operator_entry, agent_reply) = loop {
+            let conversation: Value = cdp
+                .evaluate(
+                    &session_id,
+                    &format!(
+                        r#"(async () => {{
+                          const response=await fetch(`/console/api/agents/${{encodeURIComponent({agent})}}/conversation`,{{credentials:"same-origin",headers:{{Accept:"application/json"}}}});
+                          return {{status:response.status,body:await response.json()}};
+                        }})()"#
+                    ),
+                    true,
+                )
+                .await?;
+            ensure!(
+                conversation.get("status").and_then(Value::as_u64) == Some(200),
+                "Console agent conversation returned a failure: {conversation}"
+            );
+            let entries = conversation
+                .pointer("/body/entries")
+                .and_then(Value::as_array)
+                .context("Console agent conversation omitted entries")?;
+            let operator = entries.iter().find(|entry| {
+                entry.get("role").and_then(Value::as_str) == Some("operator")
+                    && entry.get("content").and_then(Value::as_str) == Some(message)
+                    && entry.get("request_id").and_then(Value::as_str).is_some()
+                    && entry.get("wake_id").and_then(Value::as_str).is_some()
+            });
+            let request_id = operator
+                .and_then(|entry| entry.get("request_id"))
+                .and_then(Value::as_str);
+            let reply = request_id.and_then(|request_id| {
+                entries.iter().find(|entry| {
+                    entry.get("role").and_then(Value::as_str) == Some("agent")
+                        && entry
+                            .get("in_reply_to_request_ids")
+                            .and_then(Value::as_array)
+                            .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(request_id)))
+                })
+            });
+            if let (Some(operator), Some(reply)) = (operator, reply) {
+                break (operator.clone(), reply.clone());
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "agent {agent_id} did not durably reply to the queued App instruction: {conversation}"
+            );
+            cdp.assert_no_software_renderer_events()?;
+            assert_page_visible(&mut cdp, &session_id).await?;
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        };
+        let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok(ConsoleAgentInstructionEvidence {
+            schema: "veoveo.io/uav-console-agent-instruction/v1",
+            captured_at: chrono::Utc::now(),
+            page_url: page_url.to_owned(),
+            screenshot_path: screenshot_path.display().to_string(),
+            screenshot_sha256,
+            agent_id: agent_id.to_owned(),
+            message: message.to_owned(),
+            hardware,
+            app_result: app_result
+                .get("result")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            operator_entry,
+            agent_reply,
+        })
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    match acceptance {
+        Ok(evidence) => {
+            close.context("closing headed browser target after agent instruction")?;
+            Ok(evidence)
+        }
+        Err(error) => {
+            if let Err(close_error) = close {
+                Err(error.context(format!(
+                    "agent-instruction target cleanup also failed: {close_error:#}"
+                )))
+            } else {
+                Err(error)
+            }
+        }
+    }
 }
 
 async fn capture_console_live_app_inner(
