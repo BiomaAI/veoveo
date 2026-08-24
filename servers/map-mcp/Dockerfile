@@ -50,6 +50,8 @@ RUN ln -s libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so.0 \
     && ln -s libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so \
     && ldconfig \
     && ogr2ogr --formats | grep -q 'Parquet' \
+    && ogr2ogr --formats | grep -q 'GPKG' \
+    && gdal driver gpkg validate --help >/dev/null \
     && ! ldd /usr/local/bin/valhalla_build_tiles | grep -q 'not found' \
     && ! ldd /usr/local/bin/valhalla_service | grep -q 'not found' \
     && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \

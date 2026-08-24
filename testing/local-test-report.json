@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:eeab4316623822d1e2c4a2c0a92e475d983b2babda71cb0ecbf2ba0d44369c84",
-  "updatedAt": "2026-08-24T22:52:15Z",
+  "buildDigest": "sha256:d9829ff371d21e4b232ca1677ca6b2d7ff8da5f734e9885695c01f73b0af2fc8",
+  "updatedAt": "2026-08-24T23:02:36Z",
   "checks": [
     {
-      "name": "map-geopackage-contract-check",
+      "name": "map-feature-package-check",
       "command": [
         "cargo",
         "check",
@@ -12,23 +12,69 @@
         "veoveo-map-mcp"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T22:52:15Z",
-      "durationSeconds": 4.111941743,
+      "finishedAt": "2026-08-24T23:02:36Z",
+      "durationSeconds": 0.550558111,
       "detail": "completed successfully"
     },
     {
-      "name": "map-geopackage-contract-tests",
+      "name": "map-feature-package-gdal-roundtrip",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=256m",
+        "-e",
+        "PYTHONPATH=/workspace/servers/map-mcp/data/src",
+        "-e",
+        "PROJ_NETWORK=OFF",
+        "-v",
+        "/home/rozgo/BiomaAI/veoveo:/workspace:ro",
+        "ghcr.io/osgeo/gdal:ubuntu-full-3.13.2@sha256:de280a240ef4309e6fb64b943e0472e6098099b813a6b9ff0e182bc6976a3fdb",
+        "python3",
+        "/workspace/servers/map-mcp/data/tests/gdal_feature_package_smoke.py"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-24T23:02:34Z",
+      "durationSeconds": 1.292748178,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-feature-package-python-tests",
+      "command": [
+        "uv",
+        "run",
+        "--project",
+        "servers/map-mcp/data",
+        "--python",
+        "3.13",
+        "--with",
+        "pytest==9.1.1",
+        "pytest",
+        "-q",
+        "servers/map-mcp/data/tests/test_feature_package.py"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-24T23:02:32Z",
+      "durationSeconds": 0.256564766,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-feature-package-rust-tests",
       "command": [
         "cargo",
         "test",
         "-p",
         "veoveo-map-mcp",
-        "contract::transfers",
+        "feature_packages",
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T22:52:05Z",
-      "durationSeconds": 8.19006771,
+      "finishedAt": "2026-08-24T23:02:31Z",
+      "durationSeconds": 23.306044187,
       "detail": "completed successfully"
     }
   ]
