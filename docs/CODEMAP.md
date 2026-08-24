@@ -467,7 +467,7 @@ The geospatial hard cut has three canonical servers:
 
 | Path | Responsibility |
 |---|---|
-| `servers/map-mcp` | Earth geography, complete immutable source features, governed COG rasters and terrain derivations, reusable spatial geometry and mobility validation, authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, Optimization travel models, and reachable areas |
+| `servers/map-mcp` | Earth geography, complete immutable source features, governed COG rasters and terrain derivations, reusable spatial geometry and mobility validation, authored GeoJSON/JSON-FG layers, bounded OGC GeoPackage vector transfer, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, Optimization travel models, and reachable areas |
 | `servers/frames-mcp` | ECEF-rooted world trees, geodetic/static/dynamic transforms, immutable revisions, bounded coordinate conversion, durable batch work, operation provenance, artifacts, and usage |
 | `servers/view-mcp` | governed static scene compositions, configured 3D scene layers, camera rigs, exact Map/Frames/Artifact inputs, bounded overlays, NVIDIA-accelerated rendering, and frame resources |
 
@@ -489,10 +489,14 @@ vector-product task contracts. `src/authoring/service.rs` applies Work Context p
 and optimistic concurrency. `src/authoring/projection.rs` consumes canonical SurrealDB outbox events,
 while `src/authoring/query.rs` owns the parameterized DuckDB Spatial and bounded CQL2
 query projection. `src/authoring/presentations.rs` governs immutable products and
-composition revisions. `src/authoring/transfers.rs` owns bounded GeoJSON and RFC 8142
-imports, GeoJSON Sequence and GeoParquet 1.0 exports, and MVT 2.1 bundles.
+composition revisions. `src/authoring/transfers.rs` owns canonical bounded GeoJSON
+and RFC 8142 transfer plus GeoParquet 1.0 and MVT 2.1 products.
+`data/src/map_data/feature_package.py` and `src/feature_packages.rs` own the
+pinned-GDAL OGC GeoPackage inspection and conversion boundary.
 `src/mcp/authoring.rs` publishes the write and query tools. `src/server/tasks.rs` owns
-durable execution and task-local staging. `assets/editor-app.html` is the MCP-only
+durable execution and task-local staging, while
+`src/server/tasks/feature_transfers.rs` owns GeoPackage-aware transfer execution.
+`assets/editor-app.html` is the MCP-only
 feature editor. The canonical SurrealDB schemas are
 `platform/store/migrations/0025_map_authoring.surql`
 and `platform/store/migrations/0026_map_authoring_products.surql`.

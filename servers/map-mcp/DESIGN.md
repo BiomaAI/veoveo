@@ -50,6 +50,7 @@ the `map://` scheme.
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
+| [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | Bounded vector-table inspection, selected-table import, and one-table export. Raster tiles, related tables, and non-linear or measured geometry are outside this profile. GDAL 3.13.2 performs full conformance validation and controlled conversion. |
 | OGC CQL2 1.0 | Bounded Basic CQL2-JSON predicates over top-level authored properties. Arbitrary CQL2 and spatial predicates are not claimed. |
 | GeoParquet 1.0.0 | WKB primary geometry and verified `geo` metadata for immutable analytical products. |
 | OGC Cloud Optimized GeoTIFF 1.0 and GeoTIFF 1.1 | Environmental sources normalize to immutable COG products with explicit CRS, affine transform, extent, resolution, bands, units, nodata values, value interpretation, checksum, license, and attribution. |
@@ -326,6 +327,7 @@ silently change an existing layer or product contract.
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/json-schema-core) | local property schemas; remote references are rejected |
 | [OGC CQL2 1.0, OGC 21-065r2](https://docs.ogc.org/is/21-065r2/21-065r2.html) | bounded Basic CQL2-JSON equality, ordering, null, boolean, and logical predicates over top-level properties |
 | [GeoJSON Text Sequences, RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | record-separator and LF-framed import/export |
+| [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | full validation and bounded vector-table inspection through pinned GDAL 3.13.2; explicit table and metadata-column mappings on import; one two-dimensional WGS84 vector table with an R-tree on export |
 | [GeoParquet 1.0.0](https://github.com/opengeospatial/geoparquet/blob/v1.0.0/format-specs/geoparquet.md) | WKB primary geometry and GeoParquet metadata emitted by pinned DuckDB Spatial |
 | [Mapbox Vector Tile Specification 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | requested XYZ tiles with canonical feature identity retained as an attribute |
 | [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections |
@@ -346,15 +348,31 @@ URI-addressed resources. Mutable heads and indexes support MCP subscriptions and
 resource-update notifications. Individual features are never expanded into the
 resource list; agents traverse them through the paginated query template.
 
-An import task accepts one authorized GeoJSON FeatureCollection or GeoJSON text
-sequence artifact. It stages and hashes the bounded input before task creation,
-maps external string or numeric identifiers to stable typed feature ids, and
-commits at most 10,000 features in one SurrealDB transaction. The request supplies
-a default semantic type for plain GeoJSON. JSON-FG records that declare
-`featureType` must declare the supported conformance classes.
+An import task accepts one authorized GeoJSON FeatureCollection, GeoJSON text
+sequence, or GeoPackage artifact. It stages and hashes the bounded input before
+task creation, maps external string or numeric identifiers to stable typed feature
+ids, and commits at most 10,000 features in one SurrealDB transaction. GeoPackage
+import selects one feature table and explicitly maps identity, semantic type,
+title, and valid-time columns. The pinned GDAL adapter validates the complete
+package, rejects unsupported dimensions and geometry types, converts the declared
+CRS to two-dimensional OGC:CRS84, and emits the same canonical RFC 8142 boundary
+used by native bulk import. The request supplies a default semantic type when the
+source has none. JSON-FG records that declare `featureType` must declare the
+supported conformance classes.
+
+`inspect_geopackage` validates an authorized artifact before import and returns a
+bounded manifest of feature tables, fields, declared CRS identifiers, extensions,
+feature counts, WGS84 extents where safely available, and R-tree declarations.
+The manifest does not grant access to the underlying artifact and never selects a
+table implicitly.
 
 An immutable publication is the only input to export and presentation. Export
-tasks produce GeoJSON text sequence or GeoParquet 1.0. A vector task accepts at
+tasks produce GeoJSON text sequence, GeoParquet 1.0, or GeoPackage 1.4. A
+GeoPackage product contains one explicitly named WGS84 feature table and its
+standard R-tree spatial index. Canonical feature metadata uses reserved
+`veoveo_*` fields. Top-level properties use `property:` columns with OGR scalar
+or JSON subtypes, which preserves their types across Map export and re-import.
+A vector task accepts at
 most 512 distinct XYZ coordinates through zoom 22 and emits a deterministic tar
 bundle containing MVT 2.1 tiles, a manifest, and a MapLibre Style 8 document.
 Every product retains the publication, layer revision, digest, size, format,
@@ -813,7 +831,8 @@ as every other raster derivation.
 | `update_map_composition` | direct | `map:feature:write` | optimistic immutable composition revision |
 | `archive_map_composition` | direct | `map:feature:admin` | archived composition head with history retained |
 | `import_feature_layer` | task only | `map:feature:write` | atomic import changeset from an authorized artifact |
-| `export_feature_layer` | task only | `map:feature:publish` | immutable GeoJSON sequence or GeoParquet 1.0 product |
+| `inspect_geopackage` | task only | `map:feature:read` | validated bounded vector-table manifest for an authorized artifact |
+| `export_feature_layer` | task only | `map:feature:publish` | immutable GeoJSON sequence, GeoParquet 1.0, or GeoPackage 1.4 product |
 | `build_vector_tiles` | task only | `map:feature:publish` | immutable MVT 2.1 bundle and MapLibre style |
 | `derive_raster` | task only | `map:raster:derive` | governed raster sample, terrain-corridor maximum, window, mask, contour, polygon, skeleton, or line artifact |
 | `derive_spatial_geometry` | direct | `map:dataset:read`, `map:spatial:derive` | persisted advisory geometry and complete mobility findings |

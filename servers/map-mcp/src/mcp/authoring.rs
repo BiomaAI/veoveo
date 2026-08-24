@@ -14,10 +14,10 @@ use crate::{
         BuildVectorTilesRequest, CommitFeatureChangesOutput, CommitFeatureChangesRequest,
         CreateFeatureLayerRequest, CreateMapCompositionRequest, ExportFeatureLayerOutput,
         ExportFeatureLayerRequest, FeatureLayer, ImportFeatureLayerOutput,
-        ImportFeatureLayerRequest, LayerPublication, MapComposition, PublishFeatureLayerRequest,
-        QueryFeaturesOutput, QueryFeaturesRequest, RestoreFeatureRequest,
-        UpdateFeatureLayerRequest, UpdateMapCompositionRequest, ValidateFeatureChangesOutput,
-        ValidateFeatureChangesRequest,
+        ImportFeatureLayerRequest, InspectGeoPackageOutput, InspectGeoPackageRequest,
+        LayerPublication, MapComposition, PublishFeatureLayerRequest, QueryFeaturesOutput,
+        QueryFeaturesRequest, RestoreFeatureRequest, UpdateFeatureLayerRequest,
+        UpdateMapCompositionRequest, ValidateFeatureChangesOutput, ValidateFeatureChangesRequest,
     },
     uris,
 };
@@ -403,7 +403,7 @@ impl MapMcp {
 
     #[tool(
         title = "Import feature layer artifact",
-        description = "Validate and atomically import up to 10000 GeoJSON FeatureCollection or RFC 8142 GeoJSON text sequence features from an authorized artifact. This operation requires durable task invocation.",
+        description = "Validate and atomically import up to 10000 features from an authorized GeoJSON FeatureCollection, RFC 8142 GeoJSON text sequence, or explicitly selected OGC GeoPackage vector table. GeoPackage CRS conversion is bounded to two-dimensional OGC:CRS84 output. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ImportFeatureLayerOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -419,8 +419,25 @@ impl MapMcp {
     }
 
     #[tool(
+        title = "Inspect GeoPackage artifact",
+        description = "Validate and inspect the vector feature tables, fields, CRS declarations, extensions, and R-tree declarations in an authorized OGC GeoPackage artifact before import. This operation requires durable task invocation.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<InspectGeoPackageOutput>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn inspect_geopackage(
+        &self,
+        Parameters(_request): Parameters<InspectGeoPackageRequest>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        Err(McpError::invalid_request(
+            "inspect_geopackage requires task-based invocation",
+            None,
+        ))
+    }
+
+    #[tool(
         title = "Export published feature layer",
-        description = "Export an immutable layer publication as RFC 8142 GeoJSON text sequence or GeoParquet 1.0 WKB through a governed artifact. This operation requires durable task invocation.",
+        description = "Export an immutable layer publication as RFC 8142 GeoJSON text sequence, GeoParquet 1.0 WKB, or an OGC GeoPackage 1.4 vector table through a governed artifact. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ExportFeatureLayerOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
