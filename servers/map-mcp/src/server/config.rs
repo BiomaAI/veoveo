@@ -57,6 +57,10 @@ pub(super) struct Args {
     pub helper_module: String,
     #[arg(long, default_value = "map_data.raster_ops")]
     pub raster_helper_module: String,
+    #[arg(long, default_value = "map_data.feature_package")]
+    pub feature_package_helper_module: String,
+    #[arg(long, default_value_t = 300)]
+    pub feature_package_timeout_seconds: u64,
     #[arg(long, default_value_t = 300)]
     pub raster_operation_timeout_seconds: u64,
     #[arg(long, default_value = "/var/lib/veoveo/map/acquisitions")]

@@ -11,6 +11,7 @@ pub mod artifacts;
 pub mod authoring;
 pub mod catalog;
 pub mod contract;
+pub mod feature_packages;
 pub mod geodesy;
 pub mod geography;
 pub mod mcp;

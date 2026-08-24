@@ -149,6 +149,14 @@ async fn serve(args: Args) -> Result<()> {
         maximum_output_bytes: args.max_artifact_bytes,
         timeout: Duration::from_secs(args.raster_operation_timeout_seconds),
     })?;
+    let feature_packages = crate::feature_packages::FeaturePackageService::new(
+        crate::feature_packages::FeaturePackageServiceConfig {
+            python_executable: args.helper_python.clone(),
+            module: args.feature_package_helper_module.clone(),
+            maximum_output_bytes: args.max_artifact_bytes,
+            timeout: Duration::from_secs(args.feature_package_timeout_seconds),
+        },
+    )?;
     let state = Arc::new(MapApplication {
         tasks,
         catalog: catalog.clone(),
@@ -157,6 +165,7 @@ async fn serve(args: Args) -> Result<()> {
         routes,
         geography: GeographyService::new(catalog.clone(), analytics.clone()),
         raster,
+        feature_packages,
         spatial: SpatialService::new(catalog.clone(), analytics.clone()),
         acquisitions,
         artifacts,
