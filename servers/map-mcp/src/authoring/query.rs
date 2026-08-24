@@ -22,6 +22,47 @@ pub(super) fn query_features(
     publication_revision: Option<u64>,
     projection_sequence: u64,
 ) -> Result<QueryFeaturesOutput> {
+    let prepared =
+        build_feature_query(tenant_key, work_context_key, request, publication_revision)?;
+    let connection = analytics.read_connection()?;
+    let mut statement = connection.prepare(&prepared.sql)?;
+    let mut rows = statement.query(params_from_iter(prepared.parameters.iter()))?;
+    let mut features = Vec::new();
+    while let Some(row) = rows.next()? {
+        let canonical_json: String = row.get(0)?;
+        let key: String = row.get(1)?;
+        let feature: MapFeature = serde_json::from_str(&canonical_json)
+            .context("decoding projected authored map feature")?;
+        if feature.id.as_str() != key || feature.layer_id != request.layer_id {
+            bail!("projected authored map feature identity is inconsistent");
+        }
+        features.push(feature);
+    }
+    let next_cursor = if features.len() > request.limit as usize {
+        features.pop();
+        features.last().map(|feature| encode_cursor(&feature.id))
+    } else {
+        None
+    };
+    Ok(QueryFeaturesOutput {
+        layer_id: request.layer_id.clone(),
+        features,
+        next_cursor,
+        projection_sequence,
+    })
+}
+
+struct PreparedFeatureQuery {
+    sql: String,
+    parameters: Vec<DuckValue>,
+}
+
+fn build_feature_query(
+    tenant_key: &str,
+    work_context_key: &str,
+    request: &QueryFeaturesRequest,
+    publication_revision: Option<u64>,
+) -> Result<PreparedFeatureQuery> {
     if !(1..=MAX_QUERY_LIMIT).contains(&request.limit) {
         bail!("feature query limit must be between 1 and {MAX_QUERY_LIMIT}");
     }
@@ -40,18 +81,45 @@ pub(super) fn query_features(
     ];
     let source = if let Some(layer_revision) = publication_revision {
         parameters.push(DuckValue::BigInt(i64::try_from(layer_revision)?));
-        "SELECT * EXCLUDE (version_rank) FROM (
-           SELECT *, row_number() OVER (PARTITION BY feature_key ORDER BY feature_revision DESC) AS version_rank
-           FROM map_authored_feature_revision
-           WHERE tenant_key = ? AND work_context_key = ? AND layer_key = ? AND layer_revision <= ?
-         ) WHERE version_rank = 1"
+        if let Some(bbox) = &request.bbox {
+            format!(
+                "SELECT * EXCLUDE (version_rank) FROM (
+                   SELECT *, row_number() OVER (PARTITION BY feature_key ORDER BY feature_revision DESC) AS version_rank
+                   FROM map_authored_feature_revision
+                   WHERE tenant_key = ? AND work_context_key = ? AND layer_key = ? AND layer_revision <= ?
+                     AND feature_key IN (
+                       {}
+                     )
+                 ) WHERE version_rank = 1",
+                bbox_candidate_query("map_authored_feature_revision", bbox)
+            )
+        } else {
+            "SELECT * EXCLUDE (version_rank) FROM (
+               SELECT *, row_number() OVER (PARTITION BY feature_key ORDER BY feature_revision DESC) AS version_rank
+               FROM map_authored_feature_revision
+               WHERE tenant_key = ? AND work_context_key = ? AND layer_key = ? AND layer_revision <= ?
+             ) WHERE version_rank = 1"
+                .to_owned()
+        }
     } else {
-        "SELECT * FROM map_authored_feature_head
-         WHERE tenant_key = ? AND work_context_key = ? AND layer_key = ?"
+        if let Some(bbox) = &request.bbox {
+            format!(
+                "SELECT * FROM map_authored_feature_head
+                 WHERE tenant_key = ? AND work_context_key = ? AND layer_key = ?
+                   AND feature_key IN (
+                     {}
+                   )",
+                bbox_candidate_query("map_authored_feature_head", bbox)
+            )
+        } else {
+            "SELECT * FROM map_authored_feature_head
+             WHERE tenant_key = ? AND work_context_key = ? AND layer_key = ?"
+                .to_owned()
+        }
     };
     let mut predicates = vec!["authored.deleted = false".to_owned()];
     if let Some(bbox) = &request.bbox {
-        predicates.push(bbox_predicate(bbox));
+        predicates.push(bbox_predicate(bbox, "authored"));
     }
     if let Some(interval) = &request.datetime {
         if let Some(start) = interval.interval[0].as_timestamp() {
@@ -95,51 +163,45 @@ pub(super) fn query_features(
          LIMIT ?",
         predicates.join(" AND ")
     );
-    let connection = analytics.read_connection()?;
-    let mut statement = connection.prepare(&sql)?;
-    let mut rows = statement.query(params_from_iter(parameters.iter()))?;
-    let mut features = Vec::new();
-    while let Some(row) = rows.next()? {
-        let canonical_json: String = row.get(0)?;
-        let key: String = row.get(1)?;
-        let feature: MapFeature = serde_json::from_str(&canonical_json)
-            .context("decoding projected authored map feature")?;
-        if feature.id.as_str() != key || feature.layer_id != request.layer_id {
-            bail!("projected authored map feature identity is inconsistent");
-        }
-        features.push(feature);
-    }
-    let next_cursor = if features.len() > request.limit as usize {
-        features.pop();
-        features.last().map(|feature| encode_cursor(&feature.id))
-    } else {
-        None
-    };
-    Ok(QueryFeaturesOutput {
-        layer_id: request.layer_id.clone(),
-        features,
-        next_cursor,
-        projection_sequence,
-    })
+    Ok(PreparedFeatureQuery { sql, parameters })
 }
 
-fn bbox_predicate(bbox: &Wgs84BoundingBox) -> String {
-    let polygon = |west: f64, east: f64| {
-        format!(
-            "ST_Intersects(authored.geometry, ST_GeomFromText('POLYGON(({west} {south}, {east} {south}, {east} {north}, {west} {north}, {west} {south}))'))",
-            south = bbox.south,
-            north = bbox.north,
-        )
-    };
+fn bbox_predicate(bbox: &Wgs84BoundingBox, relation: &str) -> String {
     if bbox.west <= bbox.east {
-        polygon(bbox.west, bbox.east)
+        bbox_segment_predicate(bbox, relation, bbox.west, bbox.east)
     } else {
         format!(
             "({} OR {})",
-            polygon(bbox.west, 180.0),
-            polygon(-180.0, bbox.east)
+            bbox_segment_predicate(bbox, relation, bbox.west, 180.0),
+            bbox_segment_predicate(bbox, relation, -180.0, bbox.east)
         )
     }
+}
+
+fn bbox_candidate_query(table: &str, bbox: &Wgs84BoundingBox) -> String {
+    let select = |west: f64, east: f64| {
+        format!(
+            "SELECT spatial.feature_key FROM {table} AS spatial WHERE {}",
+            bbox_segment_predicate(bbox, "spatial", west, east)
+        )
+    };
+    if bbox.west <= bbox.east {
+        select(bbox.west, bbox.east)
+    } else {
+        format!(
+            "{} UNION {}",
+            select(bbox.west, 180.0),
+            select(-180.0, bbox.east)
+        )
+    }
+}
+
+fn bbox_segment_predicate(bbox: &Wgs84BoundingBox, relation: &str, west: f64, east: f64) -> String {
+    format!(
+        "ST_Intersects({relation}.geometry, ST_MakeEnvelope({west}, {south}, {east}, {north}))",
+        south = bbox.south,
+        north = bbox.north,
+    )
 }
 
 #[derive(Default)]
@@ -283,6 +345,10 @@ fn decode_cursor(cursor: &str) -> Result<MapFeatureId> {
 }
 
 #[cfg(test)]
+#[path = "query/performance.rs"]
+mod performance_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -327,14 +393,18 @@ mod tests {
 
     #[test]
     fn dateline_bbox_is_split_into_two_query_polygons() {
-        let predicate = bbox_predicate(&Wgs84BoundingBox {
-            west: 170.0,
-            south: -10.0,
-            east: -170.0,
-            north: 10.0,
-        });
-        assert!(predicate.contains("170 -10"));
-        assert!(predicate.contains("-180 -10"));
+        let predicate = bbox_predicate(
+            &Wgs84BoundingBox {
+                west: 170.0,
+                south: -10.0,
+                east: -170.0,
+                north: 10.0,
+            },
+            "candidate",
+        );
+        assert!(predicate.contains("candidate.geometry"));
+        assert!(predicate.contains("170, -10"));
+        assert!(predicate.contains("-180, -10"));
         assert!(predicate.contains(" OR "));
     }
 }

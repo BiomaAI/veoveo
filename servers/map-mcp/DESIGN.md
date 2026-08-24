@@ -218,6 +218,27 @@ from its pinned local path. Map selects the shared runtime's closed
 `GeoJsonLongitudeLatitude` axis policy before configuration is locked. Startup and
 health read `current_setting('geometry_always_xy')` and require `true`.
 
+Selective geometry reads use the existing DuckDB Spatial R-tree indexes on
+boundaries, immutable source features, authored revisions, and authored heads.
+The query shape first obtains geometry-only candidates from the indexed base
+table. Tenant, Work Context, release, layer, revision, and exact spatial
+predicates remain on the authoritative outer query. This separation prevents
+non-spatial selectivity estimates from hiding the R-tree from DuckDB's planner.
+Dateline-crossing boxes use two candidate branches joined by `UNION`, because
+an `OR` between spatial predicates does not produce two R-tree scans.
+
+`src/authoring/query/performance.rs` is the executable performance contract for
+feature-layer viewport reads. It loads 10,000, 100,000, and 1,000,000 indexed
+features under the production 1 GiB memory and four-thread settings. Every
+scale must expose `RTREE_INDEX_SCAN` in the production query plan and match an
+independent numeric point oracle. The same gate covers dateline branches,
+publication revision selection, moved features, delete and reinsert index
+maintenance, R-tree leaf cardinality, and database size. On the test host,
+selective reads must remain below two seconds cold and 250 ms warm p95. Indexed
+fixture loading must sustain 5,000 rows per second and the million-feature
+database must remain below 2 GiB. These generous regression ceilings are local
+acceptance budgets, not service latency claims.
+
 Release-product projection is attempt scoped. Each preparation receives a
 private UUIDv7 attempt and writes complete source features in transactions of
 at most 256 features or 32 MiB of canonical source-feature data. Stable logical
@@ -1032,6 +1053,9 @@ endpoint unavailable.
   no more than 64 cross-track offsets.
 - Raster helpers inherit the 256 MiB artifact limit and terminate their process
   group after the configured five-minute deadline or task cancellation.
+- The authored-feature R-tree performance gate uses 10,000, 100,000, and
+  1,000,000 row fixtures, a two-second cold ceiling, a 250 ms warm p95 ceiling,
+  a 5,000 indexed-row/s floor, and a 2 GiB database-size ceiling.
 
 Unavailable coverage, invalid profile versions, disallowed advisory status,
 unsupported objectives, source digest mismatch, unsafe archives, and

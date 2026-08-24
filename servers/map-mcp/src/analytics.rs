@@ -613,10 +613,16 @@ impl MapAnalytics {
              FROM map_visible_boundary AS boundary \
              WHERE boundary.tenant_key = ? \
                AND boundary.source_release_key IN ({}) \
+               AND boundary.boundary_key IN (\
+                 SELECT spatial.boundary_key FROM map_boundary AS spatial \
+                 WHERE ST_Contains(spatial.geometry, ST_Point({}, {}))\
+               ) \
                AND ST_Contains(boundary.geometry, ST_Point({}, {})) \
              ORDER BY boundary.boundary_key, boundary.source_release_key \
              LIMIT 1000",
             sql_string_list(&active_releases),
+            position.longitude_deg,
+            position.latitude_deg,
             position.longitude_deg,
             position.latitude_deg
         );
@@ -646,10 +652,15 @@ impl MapAnalytics {
              FROM map_visible_boundary AS boundary \
              WHERE boundary.tenant_key = ? \
                AND boundary.source_release_key IN ({}) \
+               AND boundary.boundary_key IN (\
+                 SELECT spatial.boundary_key FROM map_boundary AS spatial \
+                 WHERE ST_Intersects(spatial.geometry, ST_GeomFromGeoJSON({}))\
+               ) \
                AND ST_Intersects(boundary.geometry, ST_GeomFromGeoJSON({})) \
              ORDER BY boundary.boundary_key, boundary.source_release_key \
              LIMIT 1000",
             sql_string_list(&active_releases),
+            duckdb_string_literal(&geometry),
             duckdb_string_literal(&geometry)
         );
         let mut statement = connection.prepare(&sql)?;
@@ -1127,9 +1138,14 @@ fn source_feature_query_sql(
         validate_source_cursor_order(cursor, distance_ordered)?;
     }
     if let Some(spatial) = request.spatial.as_ref()
-        && let Some(predicate) = source_base_spatial_predicate(spatial)?
+        && let Some(predicate) = source_base_spatial_predicate(spatial, "feature")?
     {
         source_predicates.push(predicate);
+        source_predicates.push(format!(
+            "feature.feature_key IN ({})",
+            source_spatial_candidate_query(spatial)?
+                .context("index-eligible spatial predicate has no candidate query")?
+        ));
     }
 
     let mut scored_predicates = Vec::new();
@@ -1202,17 +1218,20 @@ fn source_distance_expression(spatial: &SourceSpatialQuery) -> Option<String> {
     ))
 }
 
-fn source_base_spatial_predicate(spatial: &SourceSpatialQuery) -> Result<Option<String>> {
+fn source_base_spatial_predicate(
+    spatial: &SourceSpatialQuery,
+    relation: &str,
+) -> Result<Option<String>> {
     match spatial {
         SourceSpatialQuery::BoundingBox { bounds } => {
             if bounds.west <= bounds.east {
                 Ok(Some(format!(
-                    "ST_Intersects(feature.geometry, ST_MakeEnvelope({}, {}, {}, {}))",
+                    "ST_Intersects({relation}.geometry, ST_MakeEnvelope({}, {}, {}, {}))",
                     bounds.west, bounds.south, bounds.east, bounds.north
                 )))
             } else {
                 Ok(Some(format!(
-                    "(ST_Intersects(feature.geometry, ST_MakeEnvelope({}, {}, 180, {})) OR ST_Intersects(feature.geometry, ST_MakeEnvelope(-180, {}, {}, {})))",
+                    "(ST_Intersects({relation}.geometry, ST_MakeEnvelope({}, {}, 180, {})) OR ST_Intersects({relation}.geometry, ST_MakeEnvelope(-180, {}, {}, {})))",
                     bounds.west,
                     bounds.south,
                     bounds.north,
@@ -1223,19 +1242,56 @@ fn source_base_spatial_predicate(spatial: &SourceSpatialQuery) -> Result<Option<
             }
         }
         SourceSpatialQuery::Intersects { geometry } => Ok(Some(format!(
-            "ST_Intersects(feature.geometry, ST_GeomFromGeoJSON({}))",
+            "ST_Intersects({relation}.geometry, ST_GeomFromGeoJSON({}))",
             duckdb_string_literal(&geometry.to_geojson_string()?)
         ))),
         SourceSpatialQuery::Contains { geometry } => Ok(Some(format!(
-            "ST_Contains(feature.geometry, ST_GeomFromGeoJSON({}))",
+            "ST_Contains({relation}.geometry, ST_GeomFromGeoJSON({}))",
             duckdb_string_literal(&geometry.to_geojson_string()?)
         ))),
         SourceSpatialQuery::Within { geometry } => Ok(Some(format!(
-            "ST_Within(feature.geometry, ST_GeomFromGeoJSON({}))",
+            "ST_Within({relation}.geometry, ST_GeomFromGeoJSON({}))",
             duckdb_string_literal(&geometry.to_geojson_string()?)
         ))),
         SourceSpatialQuery::WithinDistance { .. } | SourceSpatialQuery::Nearest { .. } => Ok(None),
     }
+}
+
+fn source_spatial_candidate_query(spatial: &SourceSpatialQuery) -> Result<Option<String>> {
+    if let SourceSpatialQuery::BoundingBox { bounds } = spatial
+        && bounds.west > bounds.east
+    {
+        let west = SourceSpatialQuery::BoundingBox {
+            bounds: Wgs84BoundingBox {
+                west: bounds.west,
+                south: bounds.south,
+                east: 180.0,
+                north: bounds.north,
+            },
+        };
+        let east = SourceSpatialQuery::BoundingBox {
+            bounds: Wgs84BoundingBox {
+                west: -180.0,
+                south: bounds.south,
+                east: bounds.east,
+                north: bounds.north,
+            },
+        };
+        return Ok(Some(format!(
+            "SELECT spatial.feature_key FROM map_source_feature AS spatial WHERE {} UNION SELECT spatial.feature_key FROM map_source_feature AS spatial WHERE {}",
+            source_base_spatial_predicate(&west, "spatial")?
+                .context("western dateline segment has no spatial predicate")?,
+            source_base_spatial_predicate(&east, "spatial")?
+                .context("eastern dateline segment has no spatial predicate")?,
+        )));
+    }
+    Ok(
+        source_base_spatial_predicate(spatial, "spatial")?.map(|predicate| {
+            format!(
+                "SELECT spatial.feature_key FROM map_source_feature AS spatial WHERE {predicate}"
+            )
+        }),
+    )
 }
 
 fn source_distance_limit(spatial: &SourceSpatialQuery) -> Option<f64> {
@@ -1544,6 +1600,35 @@ mod tests {
             1
         );
         assert!(NEARBY_FACILITIES_SQL.contains("ST_Point2D(longitude_deg, latitude_deg)"));
+    }
+
+    #[test]
+    fn source_bbox_query_has_rtree_candidates_and_exact_dateline_filtering() {
+        let request = QuerySourceFeaturesRequest {
+            release_id: crate::contract::DatasetReleaseId::new(),
+            source_id: None,
+            source_element_id: None,
+            representation: None,
+            tags_equal: Vec::new(),
+            tags_exist: Vec::new(),
+            normalized_text: None,
+            spatial: Some(SourceSpatialQuery::BoundingBox {
+                bounds: Wgs84BoundingBox {
+                    west: 170.0,
+                    south: -10.0,
+                    east: -170.0,
+                    north: 10.0,
+                },
+            }),
+            limit: 50,
+            cursor: None,
+        };
+        let sql = source_feature_query_sql("tenant", &request, None).unwrap();
+        assert!(sql.contains("feature.feature_key IN ("));
+        assert!(sql.contains("FROM map_source_feature AS spatial"));
+        assert!(sql.contains(" UNION "));
+        assert_eq!(sql.matches("ST_Intersects(spatial.geometry").count(), 2);
+        assert!(sql.contains("(ST_Intersects(feature.geometry"));
     }
 
     #[test]
