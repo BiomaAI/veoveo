@@ -11638,7 +11638,7 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 [[package]]
 name = "rig"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
+source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
 dependencies = [
  "rig-agent",
  "rig-core",
@@ -11652,7 +11652,7 @@ dependencies = [
 [[package]]
 name = "rig-agent"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
+source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
 dependencies = [
  "async-stream",
  "chrono",
@@ -11675,7 +11675,7 @@ dependencies = [
 [[package]]
 name = "rig-core"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
+source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
 dependencies = [
  "as-any",
  "async-stream",
@@ -11709,7 +11709,7 @@ dependencies = [
 [[package]]
 name = "rig-derive"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
+source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
 dependencies = [
  "convert_case 0.11.0",
  "proc-macro-crate",
@@ -11721,7 +11721,7 @@ dependencies = [
 [[package]]
 name = "rig-fastembed"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
+source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
 dependencies = [
  "fastembed",
  "rig-core",
@@ -11734,7 +11734,7 @@ dependencies = [
 [[package]]
 name = "rig-helixdb"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
+source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
 dependencies = [
  "reqwest 0.13.4",
  "rig-core",
@@ -11746,7 +11746,7 @@ dependencies = [
 [[package]]
 name = "rig-lancedb"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
+source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
 dependencies = [
  "arrow-array",
  "futures",
@@ -11759,7 +11759,7 @@ dependencies = [
 [[package]]
 name = "rig-milvus"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=b4b2ddf3ad0803464a70a732a8c2fdb0c026728c#b4b2ddf3ad0803464a70a732a8c2fdb0c026728c"
+source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
 dependencies = [
  "reqwest 0.13.4",
  "rig-core",
@@ -11843,8 +11843,8 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.1.3"
-source = "git+https://github.com/rozgo/rust-sdk?rev=d37833f3d72882461d96a03aa2b662e448310b35#d37833f3d72882461d96a03aa2b662e448310b35"
+version = "3.1.4"
+source = "git+https://github.com/rozgo/rust-sdk?rev=bcbc5afc3ba93d40e5449f7217fa08842ca7dd63#bcbc5afc3ba93d40e5449f7217fa08842ca7dd63"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -11876,8 +11876,8 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "3.1.3"
-source = "git+https://github.com/rozgo/rust-sdk?rev=d37833f3d72882461d96a03aa2b662e448310b35#d37833f3d72882461d96a03aa2b662e448310b35"
+version = "3.1.4"
+source = "git+https://github.com/rozgo/rust-sdk?rev=bcbc5afc3ba93d40e5449f7217fa08842ca7dd63#bcbc5afc3ba93d40e5449f7217fa08842ca7dd63"
 dependencies = [
  "darling 0.24.0",
  "proc-macro2",
