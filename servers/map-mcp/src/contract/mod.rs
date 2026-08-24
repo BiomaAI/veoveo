@@ -12,6 +12,7 @@ mod spatial;
 mod transfers;
 mod travel_models;
 mod units;
+mod workspace;
 
 pub use admin::*;
 pub use compositions::*;
@@ -27,3 +28,4 @@ pub use spatial::*;
 pub use transfers::*;
 pub use travel_models::*;
 pub use units::*;
+pub use workspace::*;

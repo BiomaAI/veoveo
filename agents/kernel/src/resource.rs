@@ -661,7 +661,7 @@ mod tests {
     #[test]
     fn uri_admission_rejects_browser_network_and_credential_surfaces() {
         for uri in [
-            "ui://map/admin.html",
+            "ui://map/workspace.html",
             "file:///etc/passwd",
             "https://example.test/data",
             "map://user:password@layers/private",

@@ -1337,7 +1337,7 @@ mod tests {
     fn app_resource_reads_are_implicit_only_for_the_owning_server() {
         assert!(app_resource_uri_allowed("map", "map://sources"));
         assert!(app_resource_uri_allowed("map", "map://acquisition/acq-1"));
-        assert!(app_resource_uri_allowed("map", "ui://map/admin.html"));
+        assert!(app_resource_uri_allowed("map", "ui://map/workspace.html"));
         assert!(!app_resource_uri_allowed("map", "map://"));
         assert!(!app_resource_uri_allowed("map", "timeseries://usage"));
         assert!(!app_resource_uri_allowed(
@@ -1444,13 +1444,14 @@ mod tests {
 
     #[test]
     fn standalone_descriptor_requires_an_exact_authorized_catalog_resource() {
-        let resource = veoveo_mcp_apps_extension::app_resource("ui://map/admin.html", "map-admin")
-            .with_title("Map administration");
+        let resource =
+            veoveo_mcp_apps_extension::app_resource("ui://map/workspace.html", "map-workspace")
+                .with_title("Map workspace");
         let catalog = McpAppCatalog::for_test(vec![resource], Vec::new());
-        let descriptor = authorized_app_descriptor(&catalog, "ui://map/admin.html")
+        let descriptor = authorized_app_descriptor(&catalog, "ui://map/workspace.html")
             .expect("cataloged route is authorized");
-        assert_eq!(descriptor.standalone_path, "/apps/map/admin.html");
-        assert!(authorized_app_descriptor(&catalog, "ui://map/editor.html").is_none());
+        assert_eq!(descriptor.standalone_path, "/apps/map/workspace.html");
+        assert!(authorized_app_descriptor(&catalog, "ui://map/other.html").is_none());
         assert!(authorized_app_descriptor(&catalog, "ui://other/admin.html").is_none());
     }
 
@@ -1522,31 +1523,31 @@ mod tests {
     fn app_task_registry_admits_only_the_creating_view() {
         let registry = AppTaskRegistry::default();
         let now = Instant::now();
-        registry.record_at(now, "task-1", "map", "ui://map/admin.html");
-        assert!(registry.owns_at(now, "task-1", "map", "ui://map/admin.html"));
+        registry.record_at(now, "task-1", "map", "ui://map/workspace.html");
+        assert!(registry.owns_at(now, "task-1", "map", "ui://map/workspace.html"));
         assert!(!registry.owns_at(now, "task-1", "map", "ui://map/other.html"));
-        assert!(!registry.owns_at(now, "task-1", "timeseries", "ui://map/admin.html"));
-        assert!(!registry.owns_at(now, "task-2", "map", "ui://map/admin.html"));
+        assert!(!registry.owns_at(now, "task-1", "timeseries", "ui://map/workspace.html"));
+        assert!(!registry.owns_at(now, "task-2", "map", "ui://map/workspace.html"));
     }
 
     #[test]
     fn app_task_registry_expires_entries_lazily() {
         let registry = AppTaskRegistry::default();
         let now = Instant::now();
-        registry.record_at(now, "task-1", "map", "ui://map/admin.html");
+        registry.record_at(now, "task-1", "map", "ui://map/workspace.html");
         assert!(registry.owns_at(
             now + APP_TASK_RETENTION - Duration::from_secs(1),
             "task-1",
             "map",
-            "ui://map/admin.html"
+            "ui://map/workspace.html"
         ));
         assert!(!registry.owns_at(
             now + APP_TASK_RETENTION,
             "task-1",
             "map",
-            "ui://map/admin.html"
+            "ui://map/workspace.html"
         ));
-        assert!(!registry.owns_at(now, "task-1", "map", "ui://map/admin.html"));
+        assert!(!registry.owns_at(now, "task-1", "map", "ui://map/workspace.html"));
     }
 
     #[test]
@@ -1554,22 +1555,27 @@ mod tests {
         let registry = AppTaskRegistry::default();
         let now = Instant::now();
         for index in 0..MAX_TRACKED_APP_TASKS {
-            registry.record_at(now, &format!("task-{index}"), "map", "ui://map/admin.html");
+            registry.record_at(
+                now,
+                &format!("task-{index}"),
+                "map",
+                "ui://map/workspace.html",
+            );
         }
-        assert!(registry.owns_at(now, "task-0", "map", "ui://map/admin.html"));
-        registry.record_at(now, "task-overflow", "map", "ui://map/admin.html");
-        assert!(!registry.owns_at(now, "task-0", "map", "ui://map/admin.html"));
-        assert!(registry.owns_at(now, "task-1", "map", "ui://map/admin.html"));
-        assert!(registry.owns_at(now, "task-overflow", "map", "ui://map/admin.html"));
+        assert!(registry.owns_at(now, "task-0", "map", "ui://map/workspace.html"));
+        registry.record_at(now, "task-overflow", "map", "ui://map/workspace.html");
+        assert!(!registry.owns_at(now, "task-0", "map", "ui://map/workspace.html"));
+        assert!(registry.owns_at(now, "task-1", "map", "ui://map/workspace.html"));
+        assert!(registry.owns_at(now, "task-overflow", "map", "ui://map/workspace.html"));
     }
 
     #[test]
     fn app_task_registry_rerecords_a_task_id_without_duplicates() {
         let registry = AppTaskRegistry::default();
         let now = Instant::now();
-        registry.record_at(now, "task-1", "map", "ui://map/admin.html");
+        registry.record_at(now, "task-1", "map", "ui://map/workspace.html");
         registry.record_at(now, "task-1", "map", "ui://map/other.html");
-        assert!(!registry.owns_at(now, "task-1", "map", "ui://map/admin.html"));
+        assert!(!registry.owns_at(now, "task-1", "map", "ui://map/workspace.html"));
         assert!(registry.owns_at(now, "task-1", "map", "ui://map/other.html"));
     }
 }

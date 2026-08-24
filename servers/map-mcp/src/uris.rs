@@ -22,6 +22,7 @@ pub const FEATURE_LAYERS_URI: &str = "map://feature-layers";
 pub const PUBLICATIONS_URI: &str = "map://publications";
 pub const LAYER_PRODUCTS_URI: &str = "map://layer-products";
 pub const COMPOSITIONS_URI: &str = "map://compositions";
+pub const WORKSPACE_URI: &str = "map://workspace";
 
 pub const DOC_TEMPLATE: &str = "map://docs/{doc_id}";
 pub const SOURCE_TEMPLATE: &str = "map://source/{source_id}";
@@ -43,6 +44,7 @@ pub const ARTIFACT_TEMPLATE: &str = "map://artifact/{artifact_id}";
 pub const FEATURE_LAYER_TEMPLATE: &str = "map://feature-layer/{layer_id}";
 pub const FEATURE_SCHEMA_TEMPLATE: &str = "map://feature-layer/{layer_id}/schema/{schema_version}";
 pub const FEATURE_STYLE_TEMPLATE: &str = "map://feature-layer/{layer_id}/style/{style_version}";
+pub const FEATURE_STYLE_REVISION_TEMPLATE: &str = "map://feature-style/{style_revision_id}";
 pub const FEATURES_TEMPLATE: &str = "map://feature-layer/{layer_id}/features{?publication_id,bbox,datetime,geometry_type,filter,limit,cursor,minimum_commit_sequence}";
 pub const FEATURE_TEMPLATE: &str = "map://feature-layer/{layer_id}/feature/{feature_id}";
 pub const FEATURE_REVISION_TEMPLATE: &str =
@@ -56,10 +58,9 @@ pub const COMPOSITION_TEMPLATE: &str = "map://composition/{composition_id}";
 pub const COMPOSITION_REVISION_TEMPLATE: &str =
     "map://composition/{composition_id}/revision/{composition_revision}";
 
-/// The map administration MCP App view. The slug segment matches the
-/// gateway's ServerOwned `ui://{slug}/{page}` projection.
-pub const ADMIN_APP_URI: &str = "ui://map/admin.html";
-pub const EDITOR_APP_URI: &str = "ui://map/editor.html";
+/// The single Map MCP App. The slug segment matches the gateway's
+/// ServerOwned `ui://{slug}/{page}` projection.
+pub const WORKSPACE_APP_URI: &str = "ui://map/workspace.html";
 
 pub fn doc_uri(doc_id: &str) -> String {
     format!("map://docs/{doc_id}")
@@ -137,6 +138,10 @@ pub fn feature_style_uri(layer_id: &str, version: u64) -> String {
     format!("map://feature-layer/{layer_id}/style/{version}")
 }
 
+pub fn feature_style_revision_uri(style_revision_id: &str) -> String {
+    format!("map://feature-style/{style_revision_id}")
+}
+
 pub fn features_uri(layer_id: &str) -> String {
     format!("map://feature-layer/{layer_id}/features")
 }
@@ -212,6 +217,10 @@ pub fn parse_feature_schema(uri: &str) -> Option<(&str, u64)> {
 
 pub fn parse_feature_style(uri: &str) -> Option<(&str, u64)> {
     parse_layer_version(uri, "/style/")
+}
+
+pub fn parse_feature_style_revision(uri: &str) -> Option<&str> {
+    parse_single(uri, "map://feature-style/")
 }
 
 pub fn parse_features(uri: &str) -> Option<&str> {
@@ -455,6 +464,13 @@ mod tests {
 
     #[test]
     fn product_and_composition_parsers_reject_noncanonical_paths() {
+        assert_eq!(
+            parse_feature_style_revision("map://feature-style/style-revision-1"),
+            Some("style-revision-1")
+        );
+        assert!(
+            parse_feature_style_revision("map://feature-style/style-revision-1/extra").is_none()
+        );
         assert_eq!(
             parse_layer_product(
                 "map://feature-layer/layer-1/publication/publication-1/product/product-1"

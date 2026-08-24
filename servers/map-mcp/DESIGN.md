@@ -8,8 +8,8 @@ one strongly typed MCP surface to find places, inspect facilities and borders,
 work with coordinates, apply transport restrictions, calculate routes, build
 matrices, publish cuOpt-ready travel models, inspect reachable areas, and
 author governed feature layers. Source administration runs through the same
-MCP surface: scoped tools for mutations, `map://` resources for reads, and MCP
-App views that hosts render
+MCP surface: scoped tools for mutations, `map://` resources for reads, and one
+permission-aware MCP App that hosts render
 (see `mcp/apps-extension/DESIGN.md`).
 
 ## Status
@@ -19,7 +19,7 @@ Implemented in this workspace.
 The implementation includes the Map domain contract, SurrealDB records,
 tenant-scoped DuckDB Spatial tables, a supervised Valhalla land engine, a
 governed network planner, source acquisition, release activation, MCP discovery
-surfaces, administrative MCP tools, the administration MCP App view, gateway
+surfaces, administrative MCP tools, the Map workspace MCP App, gateway
 proxying, Helm, offline image registration, governed spatial and raster
 derivations, and the immutable travel-model handoff to Optimization MCP.
 
@@ -31,8 +31,7 @@ folder      servers/map-mcp
 slug        map
 URI scheme  map
 MCP         /map/mcp
-admin app   ui://map/admin.html
-editor app  ui://map/editor.html
+workspace   ui://map/workspace.html
 health      /map/healthz
 ```
 
@@ -45,7 +44,7 @@ the `map://` scheme.
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; acquisition, routing, import, export, publication, and vector-product operations use durable task semantics where declared. |
-| [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://map/admin.html` and `ui://map/editor.html` use the sandboxed host bridge and canonical Map tools and resources. |
+| [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://map/workspace.html` uses the sandboxed host bridge and canonical Map tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | MCP schemas and immutable authored-layer property contracts. Layer schemas reject remote references. |
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
@@ -55,7 +54,7 @@ the `map://` scheme.
 | GeoParquet 1.0.0 | WKB primary geometry and verified `geo` metadata for immutable analytical products. |
 | OGC Cloud Optimized GeoTIFF 1.0 and GeoTIFF 1.1 | Environmental sources normalize to immutable COG products with explicit CRS, affine transform, extent, resolution, bands, units, nodata values, value interpretation, checksum, license, and attribution. |
 | Veoveo spatial derivation profile `map-spatial-local-equirectangular-wgs84-v1` | Advisory operations use a WGS84 local equirectangular plane with the exact 6,371,008.8 m mean Earth radius. Each operation is bounded to two degrees on either axis and records its origin and algorithm revision. This is a repository-owned profile, not a projected-CRS standard. |
-| Mapbox Vector Tile 2.1 and MapLibre Style 8 | Deterministic bounded XYZ tile bundles and safe literal presentation styles. |
+| Mapbox Vector Tile 2.1, MapLibre Style 8, and MapLibre GL JS 6.6.0 | Deterministic bounded XYZ tile bundles, safe literal presentation styles, and a self-contained WebGL2 composition viewer. |
 | OSM PBF, GTFS Schedule, S-57/S-100, AIXM, and FAA NASR exchange sets | Registered acquisition adapters accept only their documented snapshot profiles. Product-specific operational validation remains explicit. |
 | HTTPS and mounted exchange sets | Registered sources control hosts, redirects, media types, credentials, byte limits, elapsed time, and filesystem roots before an adapter runs. |
 | Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. The travel-model adapter uses one concise many-to-many request per requested vehicle type. It is an internal projection, never a public Map API. |
@@ -351,7 +350,7 @@ silently change an existing layer or product contract.
 | [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | full validation and bounded vector-table inspection through pinned GDAL 3.13.2; explicit table and metadata-column mappings on import; one two-dimensional WGS84 vector table with an R-tree on export |
 | [GeoParquet 1.0.0](https://github.com/opengeospatial/geoparquet/blob/v1.0.0/format-specs/geoparquet.md) | WKB primary geometry and GeoParquet metadata emitted by pinned DuckDB Spatial |
 | [Mapbox Vector Tile Specification 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | requested XYZ tiles with canonical feature identity retained as an attribute |
-| [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections |
+| [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) and MapLibre GL JS 6.6.0 | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections; self-contained WebGL2 composition viewing |
 
 The image pins [DuckDB Spatial](https://duckdb.org/docs/stable/core_extensions/spatial/overview)
 to DuckDB 1.5.5. Export verification rejects a generated Parquet file unless
@@ -363,7 +362,8 @@ Parquet geometry logical type.
 ### Editing, Transfer, And Publication
 
 The public MCP surface includes create, update, validate, commit, query, restore,
-publish, and archive tools. Layer heads, schema revisions, style revisions,
+publish, and archive tools. Layer heads, schema revisions, style revisions by
+layer version or stable style identity,
 feature queries, feature heads and revisions, changesets, and publications are
 URI-addressed resources. Mutable heads and indexes support MCP subscriptions and
 resource-update notifications. Individual features are never expanded into the
@@ -405,11 +405,26 @@ bounded WGS84 view and literal opacity and visibility settings. The mutable head
 immutable revisions, root indexes, completions, and update subscriptions are MCP
 resources. A composition is the stable handoff to map presentation clients.
 
-The editor app at `ui://map/editor.html` uses the MCP Apps bridge. It reads
-canonical resources and invokes canonical tools; it has no feature-specific REST
-API. The initial app supports JSON-oriented layer creation, validation, commit,
-query, publication, and composition authoring. It does not claim interactive
-canvas editing.
+The workspace app at `ui://map/workspace.html` uses the MCP Apps bridge. It
+reads `map://workspace` first and exposes only the administration, feature-read,
+feature-write, and publication controls admitted for the caller. The Layers and
+Data sections retain the canonical authoring and administration workflows.
+
+The Map section renders an immutable composition with exact publication and
+style-revision pins. MapLibre GL JS 6.6.0 is bundled into the self-contained App
+with its module worker; the App fetches no basemap, script, style, or feature
+bytes outside MCP. Each enabled composition layer issues R-tree-backed,
+viewport-bounded `query_features` calls in pages of 1,000 and stops at 5,000
+features per layer and viewport. A visible cap is reported instead of silently
+dropping the condition. Composition subscriptions wake the App to reread
+canonical state.
+
+The map fails closed unless WebGL2 creation succeeds with the major-performance
+caveat check, the debug renderer extension identifies the adapter, and the
+renderer fingerprint is not a known software path. Browser acceptance must
+prove the same condition in a headed browser. The App is a two-dimensional
+composition viewer and JSON-oriented editor; it does not provide geometry-handle
+editing, a network basemap, raster presentation, or server-side rendering.
 
 ### Deliberate Boundaries
 
@@ -422,7 +437,7 @@ release-promotion operation.
 The implementation does not provide arbitrary CQL2, spatial CQL2 predicates,
 GeoParquet 2.0, mutable raster authoring, 3D authoring, an OGC API Features
 HTTP service, collaborative locks or CRDTs, or automatic promotion of a
-`network_candidate`. View MCP does not yet render authored compositions.
+`network_candidate`.
 These are new contracts, not compatibility details, and must be added through
 their owning components.
 
@@ -433,8 +448,7 @@ caller bearer.
 
 The next implementation phase should add a validated network-candidate promotion
 task, a true GeoParquet 2.0 encoder, streaming artifact ingest for datasets above
-the transactional import bound, schema migration tasks, and a hardware-GPU map
-renderer that consumes composition resources. Property flattening and packaged
+the transactional import bound, and schema migration tasks. Property flattening and packaged
 tile pyramids belong in the vector product path when client requirements justify
 their storage cost.
 
@@ -996,12 +1010,13 @@ versions; activation also uses the expected active-pointer version.
 Validation failures surface as MCP invalid-params errors and concurrency
 conflicts name the changed version.
 
-The administration app view ships as `ui://map/admin.html` from
-`assets/admin-app.html`: a self-contained document listed for `map:admin`
-identities, linked to every administrative tool, discovered and hosted by any
-MCP Apps host. The gateway projects it under `resource_projection:
-server_owned`, and the Console renders it from its generic app catalog — no
-map-specific console page, BFF route, or REST router exists.
+The Map workspace ships as `ui://map/workspace.html` from
+`assets/workspace-app.html`. It is listed when the caller has `map:admin` or
+`map:feature:read`, while `map://workspace` tells the App which sections and
+controls to present. Every operation remains scope-gated by its canonical
+resource or tool handler. The gateway projects the App under
+`resource_projection: server_owned`, and the Console renders it from its generic
+catalog; no map-specific Console page, BFF route, or REST router exists.
 
 ## Isolation And Security
 
@@ -1187,8 +1202,12 @@ servers/map-mcp/
     state.rs
     uris.rs
   assets/
-    admin-app.html
-    editor-app.html
+    workspace-app.html
+  app/
+    build.mjs
+    package.json
+    workspace.js
+    workspace.template.html
   data/
     src/map_data/
       adapters/
@@ -1221,6 +1240,9 @@ The implementation is checked at several boundaries:
   atomic release activation under record versions;
 - Console TypeScript and production Vite builds validate the administrative
   projection;
+- Map workspace contract tests verify one permission-aware App resource, exact
+  MCP bridge operations, immutable publication queries, subscription wiring,
+  the embedded MapLibre pin, and fail-closed hardware WebGL2 checks;
 - the container build verifies the pinned Spatial extension and packages GDAL,
   Osmium, Valhalla, and the Python application;
 - the Rust Map smoke launches that image with a real SurrealDB 3.2 catalog and
@@ -1243,6 +1265,8 @@ The principal local commands are:
 cargo test -p veoveo-map-mcp --lib
 cargo test -p veoveo-platform-store --lib
 uv run --project servers/map-mcp/data --frozen python -m unittest discover -s servers/map-mcp/data/tests -v
+npm --prefix servers/map-mcp/app ci
+npm --prefix servers/map-mcp/app run build
 npm --prefix apps/console/web run build
 cargo xtask image build --target map-mcp
 cargo xtask smoke map-mcp

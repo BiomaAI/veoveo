@@ -15,7 +15,7 @@ Apps.
 ## Invariants
 
 - Canonical identity: slug `map`, URI scheme `map://`, endpoint `/map/mcp`,
-  apps `ui://map/admin.html` and `ui://map/editor.html`. Resource identities
+  app `ui://map/workspace.html`. Resource identities
   keep the `map://` scheme under the gateway `map__` projection.
 - SurrealDB is the canonical operational catalog. The tenant keyed DuckDB
   Spatial schema is a derived analytical projection and must stay
@@ -58,6 +58,12 @@ Apps.
 - R-tree plan, correctness, and million-feature performance evidence requires
   `VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION` to name the exact pinned 1.5.5 Spatial
   extension. A skipped performance test is not acceptance evidence.
+- `npm --prefix servers/map-mcp/app ci && npm --prefix servers/map-mcp/app run build`
+  regenerates the self-contained workspace App from exact MapLibre GL JS and
+  esbuild pins. The generated HTML must remain below the Console's 2 MiB limit.
+- Browser acceptance for the workspace map requires headed Chrome and a proven
+  hardware WebGL2 renderer. Static HTML tests or software graphics are not
+  visual acceptance.
 
 ## Contract Compliance
 

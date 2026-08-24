@@ -689,6 +689,37 @@ impl AuthoringService {
             .transpose()
     }
 
+    pub async fn style_revision_by_id(
+        &self,
+        identity: &GatewayInternalIdentity,
+        scope: &MapScope,
+        style_revision_id: &crate::contract::StyleRevisionId,
+    ) -> Result<Option<MapStyleRevision>> {
+        require_access(identity, AccessLevel::Read)?;
+        let Some(record) = self
+            .store
+            .map_style_revision_by_key(
+                &scope.identity.tenant_key,
+                identity.authority.work_context.as_str(),
+                style_revision_id.as_str(),
+            )
+            .await?
+        else {
+            return Ok(None);
+        };
+        let layer_id = record.layer_key.parse()?;
+        if self.layer(identity, scope, &layer_id).await?.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(MapStyleRevision {
+            style_revision_id: record.style_revision_key.parse()?,
+            layer_id,
+            version: u64::try_from(record.style_version)?,
+            style: serde_json::from_str(&record.style_json)?,
+            created_at: record.created_at,
+        }))
+    }
+
     pub async fn feature_revision(
         &self,
         identity: &GatewayInternalIdentity,
