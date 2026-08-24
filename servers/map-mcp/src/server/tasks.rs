@@ -26,14 +26,16 @@ use crate::{
     contract::{
         BuildTravelModelRequest, BuildVectorTilesOutput, BuildVectorTilesRequest,
         DeriveRasterRequest, ExportFeatureLayerOutput, ExportFeatureLayerRequest,
-        ImportFeatureLayerRequest, LayerProduct, LayerProductId, MAX_RASTER_FULL_DERIVATION_PIXELS,
-        RASTER_DERIVATION_SCHEMA_VERSION, RasterDerivation, RasterDerivationId,
-        RasterDerivationOperation, ReachableAreaRequest, RouteMatrixRequest, RouteRequest,
-        TravelModelId, TravelModelRecord,
+        ImportFeatureLayerRequest, InspectGeoPackageRequest, LayerProduct, LayerProductId,
+        MAX_RASTER_FULL_DERIVATION_PIXELS, RASTER_DERIVATION_SCHEMA_VERSION, RasterDerivation,
+        RasterDerivationId, RasterDerivationOperation, ReachableAreaRequest, RouteMatrixRequest,
+        RouteRequest, TravelModelId, TravelModelRecord,
     },
     server::auth::ForwardedBearer,
     state::MapApplication,
 };
+
+mod feature_transfers;
 
 const SERVER_SLUG: &str = "map";
 const ROUTE_TASK: &str = "route";
@@ -41,6 +43,7 @@ const ROUTE_MATRIX_TASK: &str = "route_matrix";
 const BUILD_TRAVEL_MODEL_TASK: &str = "build_travel_model";
 const REACHABLE_AREA_TASK: &str = "reachable_area";
 const IMPORT_FEATURE_LAYER_TASK: &str = "import_feature_layer";
+const INSPECT_GEOPACKAGE_TASK: &str = "inspect_geopackage";
 const EXPORT_FEATURE_LAYER_TASK: &str = "export_feature_layer";
 const BUILD_VECTOR_TILES_TASK: &str = "build_vector_tiles";
 const DERIVE_RASTER_TASK: &str = "derive_raster";
@@ -116,6 +119,7 @@ enum MapTaskRequest {
     RouteMatrix(RouteMatrixRequest),
     BuildTravelModel(DurableTravelModelRequest),
     ReachableArea(ReachableAreaRequest),
+    InspectGeoPackage(feature_transfers::DurableGeoPackageInspectionRequest),
     ImportFeatureLayer(DurableImportRequest),
     ExportFeatureLayer(DurableExportRequest),
     BuildVectorTiles(DurableVectorTileRequest),
@@ -206,6 +210,21 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     serde_json::from_value(arguments).map_err(|error| {
                         rmcp::ErrorData::invalid_params(error.to_string(), None)
                     })?,
+                )
+            }
+            INSPECT_GEOPACKAGE_TASK => {
+                require_scope(&caller.identity, "map:feature:read")?;
+                let input: InspectGeoPackageRequest = serde_json::from_value(arguments)
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
+                MapTaskRequest::InspectGeoPackage(
+                    feature_transfers::prepare_inspection(
+                        self.state.as_ref(),
+                        caller,
+                        &task_id,
+                        input,
+                    )
+                    .await
+                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?,
                 )
             }
             IMPORT_FEATURE_LAYER_TASK => {
@@ -409,6 +428,7 @@ pub(super) async fn recover_tasks(
                 | ROUTE_MATRIX_TASK
                 | BUILD_TRAVEL_MODEL_TASK
                 | REACHABLE_AREA_TASK
+                | INSPECT_GEOPACKAGE_TASK
                 | IMPORT_FEATURE_LAYER_TASK
                 | EXPORT_FEATURE_LAYER_TASK
                 | BUILD_VECTOR_TILES_TASK
@@ -573,11 +593,20 @@ async fn run_map_task_inner(
                 }),
             Err(error) => Err(error),
         },
+        MapTaskRequest::InspectGeoPackage(request) => {
+            feature_transfers::run_inspection(
+                state.as_ref(),
+                &task_id,
+                request,
+                cancellation.clone(),
+            )
+            .await
+        }
         MapTaskRequest::ImportFeatureLayer(request) => {
-            run_import_task(state.as_ref(), &task_id, request).await
+            run_import_task(state.as_ref(), &task_id, request, cancellation.clone()).await
         }
         MapTaskRequest::ExportFeatureLayer(request) => {
-            run_export_task(state.as_ref(), &task_id, request).await
+            run_export_task(state.as_ref(), &task_id, request, cancellation.clone()).await
         }
         MapTaskRequest::BuildVectorTiles(request) => {
             run_vector_tile_task(state.as_ref(), &task_id, request).await
@@ -630,6 +659,7 @@ impl MapTaskRequest {
             Self::RouteMatrix(_) => ROUTE_MATRIX_TASK,
             Self::BuildTravelModel(_) => BUILD_TRAVEL_MODEL_TASK,
             Self::ReachableArea(_) => REACHABLE_AREA_TASK,
+            Self::InspectGeoPackage(_) => INSPECT_GEOPACKAGE_TASK,
             Self::ImportFeatureLayer(_) => IMPORT_FEATURE_LAYER_TASK,
             Self::ExportFeatureLayer(_) => EXPORT_FEATURE_LAYER_TASK,
             Self::BuildVectorTiles(_) => BUILD_VECTOR_TILES_TASK,
@@ -643,6 +673,7 @@ impl MapTaskRequest {
             Self::RouteMatrix(_) => "logistics route matrix",
             Self::BuildTravelModel(_) => "cuOpt travel model",
             Self::ReachableArea(_) => "land reachable area",
+            Self::InspectGeoPackage(_) => "GeoPackage inspection",
             Self::ImportFeatureLayer(_) => "authored feature import",
             Self::ExportFeatureLayer(_) => "authored feature export",
             Self::BuildVectorTiles(_) => "published feature vector tiles",
@@ -653,7 +684,8 @@ impl MapTaskRequest {
     fn uses_task_directory(&self) -> bool {
         matches!(
             self,
-            Self::ImportFeatureLayer(_)
+            Self::InspectGeoPackage(_)
+                | Self::ImportFeatureLayer(_)
                 | Self::ExportFeatureLayer(_)
                 | Self::BuildVectorTiles(_)
                 | Self::DeriveRaster(_)
@@ -667,7 +699,7 @@ fn tool_result<T: Serialize>(text: String, value: &T) -> anyhow::Result<CallTool
     Ok(result)
 }
 
-fn tool_result_with_links<T, I, U, L>(
+pub(super) fn tool_result_with_links<T, I, U, L>(
     text: String,
     value: &T,
     links: I,
@@ -1077,7 +1109,8 @@ async fn run_travel_model_task(
 async fn run_import_task(
     state: &MapApplication,
     task_id: &str,
-    request: DurableImportRequest,
+    mut request: DurableImportRequest,
+    cancellation: CancellationToken,
 ) -> anyhow::Result<CallToolResult> {
     let directory = task_directory(state, task_id)?;
     let bytes = tokio::fs::read(directory.join("source"))
@@ -1088,6 +1121,14 @@ async fn run_import_task(
     {
         bail!("staged import artifact failed its bound size or digest check");
     }
+    let bytes = feature_transfers::transcode_import(
+        state,
+        task_id,
+        &mut request.input,
+        bytes,
+        cancellation,
+    )
+    .await?;
     let scope = state.scope(&request.identity).await?;
     let output = state
         .authoring
@@ -1135,20 +1176,20 @@ async fn run_export_task(
     state: &MapApplication,
     task_id: &str,
     request: DurableExportRequest,
+    cancellation: CancellationToken,
 ) -> anyhow::Result<CallToolResult> {
     let directory = task_directory(state, task_id)?;
     tokio::fs::create_dir_all(&directory).await?;
     let scope = state.scope(&request.identity).await?;
-    let generated = state
-        .authoring
-        .generate_export(
-            &request.identity,
-            &scope,
-            &request.input,
-            &directory,
-            state.max_artifact_bytes,
-        )
-        .await?;
+    let generated = feature_transfers::generate_export(
+        state,
+        &request.identity,
+        &scope,
+        &request.input,
+        &directory,
+        cancellation,
+    )
+    .await?;
     let product = publish_generated_product(
         state,
         task_id,
@@ -1324,12 +1365,15 @@ fn artifact_provenance(identity: &GatewayInternalIdentity) -> ArtifactProvenance
     }
 }
 
-fn task_directory(state: &MapApplication, task_id: &str) -> anyhow::Result<std::path::PathBuf> {
+pub(super) fn task_directory(
+    state: &MapApplication,
+    task_id: &str,
+) -> anyhow::Result<std::path::PathBuf> {
     let task_id: TaskId = task_id.parse().context("invalid durable task id")?;
     Ok(state.authoring_task_root.join(task_id.to_string()))
 }
 
-async fn cleanup_task_directory(state: &MapApplication, task_id: &str) {
+pub(super) async fn cleanup_task_directory(state: &MapApplication, task_id: &str) {
     let Ok(directory) = task_directory(state, task_id) else {
         return;
     };

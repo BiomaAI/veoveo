@@ -1,21 +1,8 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d9829ff371d21e4b232ca1677ca6b2d7ff8da5f734e9885695c01f73b0af2fc8",
-  "updatedAt": "2026-08-24T23:02:36Z",
+  "buildDigest": "sha256:5dd3349c56c15f5eb307c40e33b88e10d62384bd28b419cd1a695df76e3d9279",
+  "updatedAt": "2026-08-24T23:07:47Z",
   "checks": [
-    {
-      "name": "map-feature-package-check",
-      "command": [
-        "cargo",
-        "check",
-        "-p",
-        "veoveo-map-mcp"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-24T23:02:36Z",
-      "durationSeconds": 0.550558111,
-      "detail": "completed successfully"
-    },
     {
       "name": "map-feature-package-gdal-roundtrip",
       "command": [
@@ -38,8 +25,8 @@
         "/workspace/servers/map-mcp/data/tests/gdal_feature_package_smoke.py"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:02:34Z",
-      "durationSeconds": 1.292748178,
+      "finishedAt": "2026-08-24T23:07:47Z",
+      "durationSeconds": 2.5772788540000002,
       "detail": "completed successfully"
     },
     {
@@ -58,23 +45,22 @@
         "servers/map-mcp/data/tests/test_feature_package.py"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:02:32Z",
-      "durationSeconds": 0.256564766,
+      "finishedAt": "2026-08-24T23:07:43Z",
+      "durationSeconds": 0.18613985,
       "detail": "completed successfully"
     },
     {
-      "name": "map-feature-package-rust-tests",
+      "name": "map-geopackage-task-tests",
       "command": [
         "cargo",
         "test",
         "-p",
         "veoveo-map-mcp",
-        "feature_packages",
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:02:31Z",
-      "durationSeconds": 23.306044187,
+      "finishedAt": "2026-08-24T23:07:43Z",
+      "durationSeconds": 7.641935786,
       "detail": "completed successfully"
     }
   ]

@@ -90,6 +90,7 @@ const EDITOR_TOOLS: &[&str] = &[
     "create_map_composition",
     "export_feature_layer",
     "import_feature_layer",
+    "inspect_geopackage",
     "publish_feature_layer",
     "query_features",
     "restore_feature",
@@ -868,7 +869,7 @@ impl ServerHandler for MapMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Earth geography, governed authored feature layers, and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Create and revise Work Context-owned GeoJSON/JSON-FG features with optimistic changesets, query their DuckDB Spatial projection through bounded CQL2 JSON, and publish immutable layer revisions. Use durable tasks to import an authorized GeoJSON artifact, export a publication as GeoJSON Sequence or GeoParquet 1.0, or build an MVT 2.1 bundle. Compose publication pins through map://composition resources or the ui://map/editor.html MCP App. Generic authored features never affect routing until a separate governed promotion validates them into a routing dataset release. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and use build_travel_model to publish heterogeneous cuOpt-ready cost and transit-time matrices for Optimization MCP. Treat planning_advisory status as non-certified guidance. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
+            "Earth geography, governed authored feature layers, and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Create and revise Work Context-owned GeoJSON/JSON-FG features with optimistic changesets, query their DuckDB Spatial projection through bounded CQL2 JSON, and publish immutable layer revisions. Use durable tasks to inspect or import an authorized OGC GeoPackage 1.4 vector artifact, import GeoJSON, export a publication as GeoJSON Sequence, GeoParquet 1.0, or GeoPackage 1.4, or build an MVT 2.1 bundle. Compose publication pins through map://composition resources or the ui://map/editor.html MCP App. Generic authored features never affect routing until a separate governed promotion validates them into a routing dataset release. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and use build_travel_model to publish heterogeneous cuOpt-ready cost and transit-time matrices for Optimization MCP. Treat planning_advisory status as non-certified guidance. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
                 .to_owned(),
         );
         info
