@@ -1,57 +1,13 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:5dd3349c56c15f5eb307c40e33b88e10d62384bd28b419cd1a695df76e3d9279",
-  "updatedAt": "2026-08-24T23:07:47Z",
+  "buildDigest": "sha256:1aa9d30e460404721e27249e7a443f6d374378aa09372905d76d954c7085502b",
+  "updatedAt": "2026-08-24T23:21:36Z",
   "checks": [
     {
-      "name": "map-feature-package-gdal-roundtrip",
+      "name": "map-duckdb-spatial-full-tests",
       "command": [
-        "docker",
-        "run",
-        "--rm",
-        "--network",
-        "none",
-        "--read-only",
-        "--tmpfs",
-        "/tmp:rw,nosuid,nodev,size=256m",
-        "-e",
-        "PYTHONPATH=/workspace/servers/map-mcp/data/src",
-        "-e",
-        "PROJ_NETWORK=OFF",
-        "-v",
-        "/home/rozgo/BiomaAI/veoveo:/workspace:ro",
-        "ghcr.io/osgeo/gdal:ubuntu-full-3.13.2@sha256:de280a240ef4309e6fb64b943e0472e6098099b813a6b9ff0e182bc6976a3fdb",
-        "python3",
-        "/workspace/servers/map-mcp/data/tests/gdal_feature_package_smoke.py"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-24T23:07:47Z",
-      "durationSeconds": 2.5772788540000002,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-feature-package-python-tests",
-      "command": [
-        "uv",
-        "run",
-        "--project",
-        "servers/map-mcp/data",
-        "--python",
-        "3.13",
-        "--with",
-        "pytest==9.1.1",
-        "pytest",
-        "-q",
-        "servers/map-mcp/data/tests/test_feature_package.py"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-24T23:07:43Z",
-      "durationSeconds": 0.18613985,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-geopackage-task-tests",
-      "command": [
+        "env",
+        "VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION=/home/rozgo/BiomaAI/veoveo/target/duckdb-spatial/spatial.duckdb_extension",
         "cargo",
         "test",
         "-p",
@@ -59,8 +15,27 @@
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:07:43Z",
-      "durationSeconds": 7.641935786,
+      "finishedAt": "2026-08-24T23:21:36Z",
+      "durationSeconds": 7.660455693,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-duckdb-spatial-performance",
+      "command": [
+        "env",
+        "VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION=/home/rozgo/BiomaAI/veoveo/target/duckdb-spatial/spatial.duckdb_extension",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-map-mcp",
+        "million_feature_rtree_plan_correctness_and_latency_budget",
+        "--lib",
+        "--",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-24T23:21:28Z",
+      "durationSeconds": 15.407216135,
       "detail": "completed successfully"
     }
   ]

@@ -488,7 +488,9 @@ composition contracts. `src/contract/transfers.rs` owns durable import, export, 
 vector-product task contracts. `src/authoring/service.rs` applies Work Context policy
 and optimistic concurrency. `src/authoring/projection.rs` consumes canonical SurrealDB outbox events,
 while `src/authoring/query.rs` owns the parameterized DuckDB Spatial and bounded CQL2
-query projection. `src/authoring/presentations.rs` governs immutable products and
+query projection. `src/authoring/query/performance.rs` owns the 10k, 100k, and
+million-feature R-tree plan, correctness, maintenance, latency, throughput, and
+storage gates. `src/authoring/presentations.rs` governs immutable products and
 composition revisions. `src/authoring/transfers.rs` owns canonical bounded GeoJSON
 and RFC 8142 transfer plus GeoParquet 1.0 and MVT 2.1 products.
 `data/src/map_data/feature_package.py` and `src/feature_packages.rs` own the

@@ -55,6 +55,9 @@ Apps.
 - Docker is required for SurrealDB backed tests and deployment work.
 - The image build verifies the Spatial extension digest and copies native map
   utilities from pinned sources (`servers/map-mcp/Dockerfile`).
+- R-tree plan, correctness, and million-feature performance evidence requires
+  `VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION` to name the exact pinned 1.5.5 Spatial
+  extension. A skipped performance test is not acceptance evidence.
 
 ## Contract Compliance
 
