@@ -15,7 +15,11 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from pymavlink import mavutil
 from veoveo_uav_sim.adapter_auth import authorization_middleware
-from veoveo_uav_sim.app import kit_live_render_arguments, kit_newton_arguments
+from veoveo_uav_sim.app import (
+    kit_live_render_arguments,
+    kit_newton_arguments,
+    kit_rtpt_visual_arguments,
+)
 from veoveo_uav_sim.config import (
     FleetLoopConfig,
     RuntimeConfig,
@@ -208,6 +212,18 @@ class RuntimeConfigTests(unittest.TestCase):
                 "--/exts/isaacsim.core.simulation_manager/default_engine=newton",
             ],
         )
+
+    def test_rtpt_uses_fixed_iray_exposure_for_the_complete_atlas(self) -> None:
+        arguments = kit_rtpt_visual_arguments()
+        self.assertIn("--/rtx/post/histogram/enabled=false", arguments)
+        self.assertIn("--/rtx/post/tonemap/op=7", arguments)
+        self.assertIn(
+            "--/rtx/post/tonemap/irayReinhard/crushBlacks=0.0", arguments
+        )
+        self.assertIn(
+            "--/rtx/post/tonemap/irayReinhard/burnHighlights=0.35", arguments
+        )
+        self.assertIn("--/rtx/rtpt/fireflyFilter/enabled=true", arguments)
 
     def test_google_tiles_are_mandatory_and_exact(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -1106,9 +1122,19 @@ class NativeCadenceTests(unittest.TestCase):
         asset_source = (runtime_root / "assets" / "iris.usda").read_text()
 
         self.assertIn('switch_physics_engine("newton"', app_source)
-        self.assertIn('"renderer": "MinimalRendering"', app_source)
-        self.assertIn('"minimal_shading_mode": 2', app_source)
-        self.assertIn('"anti_aliasing": 2', app_source)
+        self.assertIn('"renderer": "RealTimePathTracing"', app_source)
+        self.assertIn('"anti_aliasing": 3', app_source)
+        self.assertIn('"max_bounces": 2', app_source)
+        self.assertIn('"max_specular_transmission_bounces": 1', app_source)
+        self.assertIn('"max_volume_bounces": 0', app_source)
+        self.assertIn('"/rtx/post/histogram/enabled": "false"', app_source)
+        self.assertIn('"/rtx/post/tonemap/op": str(RTX_TONEMAP_IRAY)', app_source)
+        self.assertIn(
+            "sky.CreateExposureAttr(DAYLIGHT_SKY_EXPOSURE_STOPS)", app_source
+        )
+        self.assertIn(
+            "sun.CreateExposureAttr(DAYLIGHT_SUN_EXPOSURE_STOPS)", app_source
+        )
         hydra_source = (module_root / "hydra_camera.py").read_text()
         self.assertIn("is_async_low_latency=True", hydra_source)
         self.assertIn("newton_stage.cfg.time_step_app = False", app_source)

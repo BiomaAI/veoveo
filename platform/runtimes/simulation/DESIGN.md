@@ -109,10 +109,10 @@ Isaac Sim driver `595.58.03`.
 
 A domain simulator overlay renders operator cameras inside the same authoritative Isaac
 process that owns physics and the USD/Cesium world. Logical cameras own the final
-authoritative poses. Each streamable camera owns one continuous camera, RTX render product,
-and NVENC H.264 encode. Every authorized viewer receives the exact same camera bitstream
-through WebSocket fanout. Viewer count creates no camera, scene, Cesium consumer, render
-product, or encoder session.
+authoritative poses. An overlay may bind its bounded logical-camera set into one typed
+view-tiled RTX product and one NVENC H.264 atlas. Every authorized viewer receives the
+exact same encoded product through WebSocket fanout. Viewer count creates no camera,
+scene, Cesium consumer, render product, or encoder session.
 
 Operator-camera smoothing consumes the current authoritative entity transform on every
 render tick and changes only the camera pose. It never buffers, interpolates, or delays

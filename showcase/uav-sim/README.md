@@ -132,14 +132,16 @@ The selected revision determines the Cesium georeference, Newton fleet coordinat
 geographic conversion, mission guard, recording metadata, sensor frames, and
 operator-camera world.
 
-The stage uses Isaac 6's GPU-native `MinimalRendering` renderer in textured-diffuse mode
-with the pinned Cesium extension. This mode preserves Cesium's glTF imagery while it
-removes per-camera lighting rays from the five-product live path. The headless runtime is
-the sole owner of Cesium's active viewport list. It submits every active domain sensor
-and operator camera during the same Kit update; the extension's interactive
-viewport-window callback is disabled for this process because an empty window inventory
-would otherwise erase those authoritative viewports between frames. The runtime does not
-create another provider connection or tile cache for live views.
+The stage uses Isaac 6's GPU-native RTX Real-Time 2.0 renderer with the pinned Cesium
+extension. One color-temperature-calibrated dome and distant sun light every region of
+the shared camera atlas. Two total ray bounces, one specular/transmission bounce, no
+volume bounces, DLSS, fixed exposure, and Iray tone mapping retain daylight detail
+without allowing five different camera regions to drive one another's exposure. The
+headless runtime is the sole owner of Cesium's active viewport list. It submits every
+active domain sensor and operator camera during the same Kit update; the extension's
+interactive viewport-window callback is disabled for this process because an empty window
+inventory would otherwise erase those authoritative viewports between frames. The runtime
+does not create another provider connection or tile cache for live views.
 
 Moving cameras use hole-free tile refinement. Cesium retains a loaded parent until its
 replacement children are ready, while ancestor and sibling preloading keep the next
