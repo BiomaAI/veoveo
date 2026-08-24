@@ -1,0 +1,18 @@
+{
+  "name": "veoveo-map-workspace-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "maplibre-gl": "6.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="veoveo-map-workspace" content="maplibre-gl@6.6.0;hardware-webgl2-required">
+<title>Map workspace</title>
+<style>
+/*__MAPLIBRE_CSS__*/
+:root {
+  --surface:#f4f2ec; --panel:#fffdf8; --raised:#f9f7f1; --ink:#211f1a;
+  --muted:#716c61; --line:#dcd6ca; --strong-line:#bdb5a6; --accent:#1f4d40;
+  --accent-ink:#f7f4ed; --good:#387052; --warn:#8a6430; --bad:#99463f;
+  --map-water:#e5edf0; --map-land:#f5f1e6; --map-grid:#c9c3b6;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,ui-serif,serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",ui-monospace,monospace;
+}
+:root[data-theme="dark"] {
+  --surface:#0f1011; --panel:#171819; --raised:#1d1e20; --ink:#ebe7dd;
+  --muted:#9a958b; --line:#2d2e30; --strong-line:#555458; --accent:#a8d5c4;
+  --accent-ink:#102019; --good:#79a98b; --warn:#c28b49; --bad:#d57a70;
+  --map-water:#111a1f; --map-land:#1c1d1b; --map-grid:#383936;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; min-height:100%; background:var(--surface); color:var(--ink);
+  font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+body { padding:12px 14px 18px; }
+button,input,select,textarea { color:var(--ink); background:var(--panel); border:1px solid var(--line);
+  border-radius:0; padding:6px 8px; font:inherit; }
+button { cursor:pointer; font-weight:650; }
+button:hover,input:hover,select:hover,textarea:hover { border-color:var(--strong-line); }
+button:disabled,input:disabled,select:disabled,textarea:disabled { opacity:.45; cursor:default; }
+button.primary { color:var(--accent-ink); background:var(--accent); border-color:var(--accent); }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+h1,h2,h3 { font-family:var(--serif); font-weight:400; }
+h1 { margin:0; font-size:18px; } h2 { margin:0; font-size:16px; } h3 { margin:0; font-size:14px; }
+.topbar { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.topbar-copy { min-width:190px; }
+.subtitle,.muted { color:var(--muted); }
+.subtitle { font-size:11px; }
+.tabs { display:flex; gap:2px; margin-left:8px; }
+.tab { min-width:72px; background:transparent; border-color:transparent; }
+.tab[aria-selected="true"] { background:var(--panel); border-color:var(--line); color:var(--accent); }
+.spacer { flex:1; }
+.access { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+.chip { border:1px solid var(--line); background:var(--raised); color:var(--muted); padding:2px 7px;
+  font:10px/1.4 var(--mono); text-transform:uppercase; letter-spacing:.06em; }
+.chip.on { color:var(--good); border-color:color-mix(in srgb,var(--good),transparent 55%); }
+.status { min-height:22px; margin:5px 0 9px; color:var(--muted); white-space:pre-wrap; }
+.status.good { color:var(--good); } .status.warn { color:var(--warn); } .status.bad { color:var(--bad); }
+.view[hidden],.permission-note[hidden] { display:none; }
+.panel { background:var(--panel); border:1px solid var(--line); padding:11px; }
+.section-head { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+.section-head .count { color:var(--muted); font:11px var(--mono); }
+.map-layout { display:grid; grid-template-columns:250px minmax(420px,1fr); min-height:610px; }
+.map-sidebar { border-right:1px solid var(--line); background:var(--panel); padding:11px; overflow:auto; }
+.map-stage { position:relative; min-height:610px; background:var(--map-water); }
+#map { position:absolute; inset:0; }
+.maplibregl-canvas { outline:none; }
+.maplibregl-ctrl-group { border-radius:0; box-shadow:none; border:1px solid var(--line); }
+.maplibregl-ctrl-group button { border:0; }
+.maplibregl-ctrl-scale { color:#1c1c1c; border-color:#1c1c1c; }
+.gpu-badge { position:absolute; top:10px; left:10px; z-index:2; max-width:70%; padding:5px 8px;
+  background:color-mix(in srgb,var(--panel),transparent 8%); border:1px solid var(--line); font:10px var(--mono); }
+.map-failure { position:absolute; inset:0; z-index:3; display:grid; place-items:center; padding:36px;
+  background:var(--panel); color:var(--bad); text-align:center; }
+.map-failure[hidden] { display:none; }
+label { display:flex; flex-direction:column; gap:3px; margin-bottom:7px; color:var(--muted);
+  font:10px/1.4 var(--mono); text-transform:uppercase; letter-spacing:.07em; }
+select,textarea,input[type="text"] { width:100%; }
+textarea { resize:vertical; font:11px/1.4 var(--mono); }
+.actions { display:flex; gap:6px; flex-wrap:wrap; margin:7px 0; }
+.layer-row { display:grid; grid-template-columns:18px 1fr auto; align-items:start; gap:7px; padding:8px 0;
+  border-top:1px solid var(--line); }
+.layer-row:first-child { border-top:0; }
+.layer-title { overflow-wrap:anywhere; }
+.mono { color:var(--muted); font:10px/1.45 var(--mono); overflow-wrap:anywhere; }
+.count-badge { color:var(--muted); font:10px var(--mono); }
+.workspace-grid { display:grid; grid-template-columns:minmax(260px,.75fr) minmax(430px,1.25fr); gap:10px; }
+.stack { display:grid; gap:10px; align-content:start; }
+.item { padding:7px 0; border-top:1px solid var(--line); }
+.item:first-child { border-top:0; }
+.item-head { display:flex; gap:8px; align-items:baseline; }
+.item-head strong { flex:1; }
+pre { max-height:310px; margin:6px 0 0; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere;
+  padding:8px; border:1px solid var(--line); background:var(--raised); font:10px/1.45 var(--mono); }
+details { border-top:1px solid var(--line); margin-top:8px; padding-top:7px; }
+summary { cursor:pointer; font-weight:650; color:var(--muted); }
+.admin-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.table-wrap { overflow:auto; }
+table { width:100%; border-collapse:collapse; font-size:11px; }
+th { color:var(--muted); text-align:left; font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; }
+th,td { padding:5px 8px 5px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+.inline-form { display:flex; align-items:end; gap:6px; flex-wrap:wrap; }
+.inline-form label { margin:0; }
+.inline-form input { width:82px; }
+.permission-note { padding:24px; border:1px dashed var(--strong-line); color:var(--muted); text-align:center; }
+@media(max-width:900px) {
+  .topbar { align-items:flex-start; flex-wrap:wrap; } .access { justify-content:flex-start; }
+  .map-layout,.workspace-grid,.admin-grid { grid-template-columns:1fr; }
+  .map-sidebar { border-right:0; border-bottom:1px solid var(--line); }
+  .map-stage { min-height:500px; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-copy"><h1>Map workspace</h1><div class="subtitle">Governed layers, immutable compositions, and map data</div></div>
+  <nav class="tabs" aria-label="Workspace sections">
+    <button class="tab" data-view="map-view" aria-selected="true">Map</button>
+    <button class="tab" data-view="layers-view" aria-selected="false">Layers</button>
+    <button class="tab" data-view="data-view" aria-selected="false">Data</button>
+  </nav>
+  <div class="spacer"></div>
+  <div id="access" class="access" aria-label="Current permissions"></div>
+  <button id="refresh">Refresh</button>
+</header>
+<div id="status" class="status">Connecting to the MCP host…</div>
+
+<main>
+  <section id="map-view" class="view">
+    <div id="map-permission" class="permission-note" hidden>Map viewing requires feature read permission.</div>
+    <div id="map-workspace" class="map-layout">
+      <aside class="map-sidebar">
+        <div class="section-head"><h2>Composition viewer</h2></div>
+        <label>Immutable composition<select id="composition-select"></select></label>
+        <div class="actions"><button id="fit-composition">Reset view</button><button id="reload-map">Reload viewport</button></div>
+        <div id="viewport" class="mono"></div>
+        <div class="section-head" style="margin-top:14px"><h3>Publication layers</h3><span id="map-total" class="count"></span></div>
+        <div id="map-layers"></div>
+      </aside>
+      <div class="map-stage">
+        <div id="map" aria-label="Interactive composition map"></div>
+        <div id="gpu-badge" class="gpu-badge">Checking hardware WebGL2…</div>
+        <div id="map-failure" class="map-failure" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="layers-view" class="view" hidden>
+    <div id="layers-permission" class="permission-note" hidden>Layer resources require feature read permission.</div>
+    <div id="layers-workspace" class="workspace-grid">
+      <div class="stack">
+        <section class="panel">
+          <div class="section-head"><h2>Feature layers</h2><span id="layer-count" class="count"></span></div>
+          <label>Active layer<select id="layer-select"></select></label>
+          <div id="layer-detail" class="muted">No layer selected.</div>
+          <div class="actions"><button id="publish-layer">Publish current revision</button><button id="query-layer">Query first 100</button></div>
+          <pre id="features-output">[]</pre>
+        </section>
+        <section class="panel" data-write-control>
+          <h2>Create layer</h2>
+          <form id="layer-form">
+            <label>Title<input id="layer-title" type="text" required maxlength="256"></label>
+            <label>Content class<select id="content-class"><option>reference</option><option>named_locations</option><option>facilities</option><option>boundaries</option><option>network_candidate</option></select></label>
+            <label>JSON Schema 2020-12<textarea id="schema-json" rows="7" spellcheck="false">{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":true}</textarea></label>
+            <button class="primary" type="submit">Create layer</button>
+          </form>
+        </section>
+        <section class="panel" data-write-control>
+          <h2>Composition</h2>
+          <label>Create request JSON<textarea id="composition-json" rows="9" spellcheck="false">{"title":"Operational map","layers":[],"view":{"center":{"longitude_deg":-89.2,"latitude_deg":13.7},"zoom":10,"bearing_deg":0,"pitch_deg":0}}</textarea></label>
+          <button id="create-composition">Create composition</button>
+          <div id="composition-list"></div>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="panel" data-write-control>
+          <h2>Create feature changeset</h2>
+          <label>FeatureInput JSON<textarea id="feature-json" rows="16" spellcheck="false">{"geometry":{"type":"Point","coordinates":[-89.2,13.7]},"properties":{"name":"New place"},"semantic_type":"place","title":"New place","related_resources":[],"evidence_resources":[]}</textarea></label>
+          <div class="actions"><button id="validate-feature">Validate</button><button class="primary" id="commit-feature">Commit</button></div>
+          <pre id="validation-output">No validation run.</pre>
+        </section>
+        <section class="panel">
+          <div class="section-head"><h2>Publications</h2><span id="publication-count" class="count"></span></div>
+          <div id="publication-list"></div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <section id="data-view" class="view" hidden>
+    <div id="data-permission" class="permission-note" hidden>Map data administration requires the map admin permission.</div>
+    <div id="data-workspace" class="admin-grid">
+      <section class="panel">
+        <div class="section-head"><h2>Authoritative sources</h2><span id="source-count" class="count"></span></div>
+        <div id="source-list"></div>
+        <details><summary>Register source</summary><form id="source-form">
+          <label>Canonical RegisteredSource JSON<textarea id="source-json" rows="8" spellcheck="false" required></textarea></label>
+          <button class="primary" type="submit">Register source</button>
+        </form></details>
+      </section>
+      <section class="panel">
+        <div class="section-head"><h2>Acquisitions</h2><span id="acquisition-count" class="count"></span></div>
+        <form id="acquire-form" class="inline-form" novalidate>
+          <label>Source<select id="acquire-source" required></select></label>
+          <label>West<input id="bbox-west" type="number" step="any" min="-180" max="180"></label>
+          <label>South<input id="bbox-south" type="number" step="any" min="-90" max="90"></label>
+          <label>East<input id="bbox-east" type="number" step="any" min="-180" max="180"></label>
+          <label>North<input id="bbox-north" type="number" step="any" min="-90" max="90"></label>
+          <button class="primary" id="acquire-submit" type="submit">Start acquisition</button>
+        </form>
+        <div id="acquisition-list" class="table-wrap"></div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><h2>Dataset releases</h2><span id="release-count" class="count"></span></div>
+        <div id="release-list" class="table-wrap"></div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><h2>Mobility profiles</h2><span id="profile-count" class="count"></span></div>
+        <div id="profile-list"></div>
+        <details><summary>Register mobility profile</summary><form id="profile-form">
+          <label>Canonical MobilityProfile JSON<textarea id="profile-json" rows="8" spellcheck="false" required></textarea></label>
+          <button class="primary" type="submit">Register profile version</button>
+        </form></details>
+      </section>
+    </div>
+  </section>
+</main>
+
+<script type="module">/*__WORKSPACE_JS__*/</script>
+</body>
+</html>

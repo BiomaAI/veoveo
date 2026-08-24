@@ -1,10 +1,51 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:1aa9d30e460404721e27249e7a443f6d374378aa09372905d76d954c7085502b",
-  "updatedAt": "2026-08-24T23:21:36Z",
+  "buildDigest": "sha256:497a5ec5be6a8d6a333e7e12b45887e32ad5f1f67e8359cb4222615add2aeb2d",
+  "updatedAt": "2026-08-24T23:48:25Z",
   "checks": [
     {
-      "name": "map-duckdb-spatial-full-tests",
+      "name": "map-workspace-agent-resource-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-agent-kernel",
+        "resource"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-24T23:48:25Z",
+      "durationSeconds": 0.853800426,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-workspace-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "servers/map-mcp/app",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-24T23:48:01Z",
+      "durationSeconds": 0.366891323,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-workspace-console-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-console-bff"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-24T23:48:22Z",
+      "durationSeconds": 0.755219568,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-workspace-map-tests",
       "command": [
         "env",
         "VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION=/home/rozgo/BiomaAI/veoveo/target/duckdb-spatial/spatial.duckdb_extension",
@@ -15,27 +56,22 @@
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:21:36Z",
-      "durationSeconds": 7.660455693,
+      "finishedAt": "2026-08-24T23:48:20Z",
+      "durationSeconds": 18.411573753,
       "detail": "completed successfully"
     },
     {
-      "name": "map-duckdb-spatial-performance",
+      "name": "map-workspace-projection-tests",
       "command": [
-        "env",
-        "VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION=/home/rozgo/BiomaAI/veoveo/target/duckdb-spatial/spatial.duckdb_extension",
         "cargo",
         "test",
         "-p",
-        "veoveo-map-mcp",
-        "million_feature_rtree_plan_correctness_and_latency_budget",
-        "--lib",
-        "--",
-        "--nocapture"
+        "veoveo-mcp-gateway",
+        "mcp_support"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:21:28Z",
-      "durationSeconds": 15.407216135,
+      "finishedAt": "2026-08-24T23:48:23Z",
+      "durationSeconds": 0.637504109,
       "detail": "completed successfully"
     }
   ]

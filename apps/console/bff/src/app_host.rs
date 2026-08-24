@@ -209,15 +209,15 @@ mod tests {
         let route = parse("/apps/charts/views/main.html").expect("valid nested App route");
         assert_eq!(route.resource_uri(), "ui://charts/views/main.html");
         assert_eq!(route.path(), "/apps/charts/views/main.html");
-        let encoded = parse("/apps/map/admin%2Ehtml").expect("valid decoded document name");
-        assert_eq!(encoded.resource_uri(), "ui://map/admin.html");
+        let encoded = parse("/apps/map/workspace%2Ehtml").expect("valid decoded document name");
+        assert_eq!(encoded.resource_uri(), "ui://map/workspace.html");
     }
 
     #[test]
     fn projected_resource_round_trips_through_the_route_authority() {
-        let route = StandaloneAppRoute::from_resource_uri("ui://map/admin.html").unwrap();
-        assert_eq!(route.path(), "/apps/map/admin.html");
-        assert_eq!(route.resource_uri(), "ui://map/admin.html");
+        let route = StandaloneAppRoute::from_resource_uri("ui://map/workspace.html").unwrap();
+        assert_eq!(route.path(), "/apps/map/workspace.html");
+        assert_eq!(route.resource_uri(), "ui://map/workspace.html");
         assert!(StandaloneAppRoute::from_resource_uri("map://admin.html").is_err());
     }
 

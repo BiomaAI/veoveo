@@ -512,7 +512,10 @@ mod tests {
     #[test]
     fn server_owned_projection_falls_back_to_identity_for_own_scheme_uris() {
         let server = test_server("map", "map", ResourceProjectionMode::ServerOwned);
-        let listed_only = vec![Resource::new("ui://map/admin.html", "map-admin-app")];
+        let listed_only = vec![Resource::new(
+            "ui://map/workspace.html",
+            "map-workspace-app",
+        )];
 
         // Template-instantiated and artifact URIs are never listed but
         // project identically, so reads must still resolve.
