@@ -26,6 +26,8 @@ const SIMULTANEOUS_VIEW_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
 const MINIMUM_DELIVERED_FRAME_RATE_HZ: f64 = 12.0;
 const MAXIMUM_SOURCE_TO_RENDER_P95_MS: f64 = 85.0;
 const MAXIMUM_MOTION_TO_PHOTON_P95_MS: f64 = 250.0;
+const MINIMUM_MEAN_LUMA: f64 = 25.0;
+const MAXIMUM_MEAN_LUMA: f64 = 225.0;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2832,8 +2834,8 @@ impl AppVideoState {
         );
         ensure!(
             self.pixel_sample_error.is_empty()
-                && self.mean_luma > 2.0
-                && self.mean_luma < 253.0
+                && self.mean_luma >= MINIMUM_MEAN_LUMA
+                && self.mean_luma <= MAXIMUM_MEAN_LUMA
                 && self.luma_standard_deviation >= 5.0
                 && self.minimum_luma < self.maximum_luma,
             "authoritative live-view App displayed a blank or uniform GPU frame: {self:?}"

@@ -13,6 +13,14 @@ from .physical_camera import physical_camera_product_name
 
 LOGGER = logging.getLogger("veoveo.uav_sim")
 
+RTX_TONEMAP_IRAY = 7
+DAYLIGHT_SKY_INTENSITY = 1000.0
+DAYLIGHT_SKY_EXPOSURE_STOPS = -0.5
+DAYLIGHT_SKY_TEMPERATURE_K = 6500.0
+DAYLIGHT_SUN_INTENSITY = 500.0
+DAYLIGHT_SUN_EXPOSURE_STOPS = -0.75
+DAYLIGHT_SUN_TEMPERATURE_K = 5500.0
+
 
 def kit_live_render_arguments() -> list[str]:
     """Use measured native time while decoupling presentation threads."""
@@ -37,6 +45,22 @@ def kit_newton_arguments() -> list[str]:
     ]
 
 
+def kit_rtpt_visual_arguments() -> list[str]:
+    """Use one stable exposure across every region of the shared camera atlas."""
+    settings = {
+        "/rtx/post/histogram/enabled": "false",
+        "/rtx/post/tonemap/op": str(RTX_TONEMAP_IRAY),
+        "/rtx/post/tonemap/irayReinhard/crushBlacks": "0.0",
+        "/rtx/post/tonemap/irayReinhard/burnHighlights": "0.35",
+        "/rtx/post/tonemap/irayReinhard/burnHighlightsPerComponent": "false",
+        "/rtx/post/tonemap/irayReinhard/burnHighlightsMaxComponent": "false",
+        "/rtx/post/tonemap/irayReinhard/saturation": "1.0",
+        "/rtx/post/tonemap/enableSrgbToGamma": "true",
+        "/rtx/rtpt/fireflyFilter/enabled": "true",
+    }
+    return [f"--{path}={value}" for path, value in settings.items()]
+
+
 def _cleanup(name: str, action: Callable[[], None]) -> None:
     try:
         action()
@@ -54,14 +78,16 @@ def run(config: RuntimeConfig) -> None:
     simulation_app = SimulationApp(
         {
             "headless": True,
-            # Live fleet cameras need textured geographic evidence, not a
-            # lighting simulation per view. Isaac's RTX minimal renderer mode
-            # 2 keeps Cesium's glTF textures and runs every Hydra product on
-            # the GPU without tracing lighting rays for the same world five
-            # times. FXAA keeps the post-process bounded at native 720p.
-            "renderer": "MinimalRendering",
-            "minimal_shading_mode": 2,
-            "anti_aliasing": 2,
+            # The complete logical-camera set owns one tiled RTX product, so
+            # Real-Time 2.0 lights the atlas without multiplying products or
+            # encoder sessions. Two total bounces retain direct environment
+            # light while bounding the five-region 720p atlas. DLSS preserves
+            # native output resolution on the hardware-only renderer path.
+            "renderer": "RealTimePathTracing",
+            "anti_aliasing": 3,
+            "max_bounces": 2,
+            "max_specular_transmission_bounces": 1,
+            "max_volume_bounces": 0,
             "width": viewport_width,
             "height": viewport_height,
             # A streamed 3D Tiles world never reaches a terminal "all assets
@@ -96,6 +122,7 @@ def run(config: RuntimeConfig) -> None:
                     "--/rtx/viewTile/limit="
                     f"{len(config.operator_live_view.streamable_cameras)}"
                 ),
+                *kit_rtpt_visual_arguments(),
                 *kit_live_render_arguments(),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
@@ -279,9 +306,15 @@ def run(config: RuntimeConfig) -> None:
         )
         stage.DefinePrim("/World/Environment", "Xform")
         sky = UsdLux.DomeLight.Define(stage, "/World/Environment/Sky")
-        sky.CreateIntensityAttr(1000.0)
+        sky.CreateIntensityAttr(DAYLIGHT_SKY_INTENSITY)
+        sky.CreateExposureAttr(DAYLIGHT_SKY_EXPOSURE_STOPS)
+        sky.CreateEnableColorTemperatureAttr(True)
+        sky.CreateColorTemperatureAttr(DAYLIGHT_SKY_TEMPERATURE_K)
         sun = UsdLux.DistantLight.Define(stage, "/World/Environment/Sun")
-        sun.CreateIntensityAttr(500.0)
+        sun.CreateIntensityAttr(DAYLIGHT_SUN_INTENSITY)
+        sun.CreateExposureAttr(DAYLIGHT_SUN_EXPOSURE_STOPS)
+        sun.CreateEnableColorTemperatureAttr(True)
+        sun.CreateColorTemperatureAttr(DAYLIGHT_SUN_TEMPERATURE_K)
         sun.CreateAngleAttr(0.53)
         UsdGeom.Xformable(sun.GetPrim()).AddRotateXYZOp().Set(
             Gf.Vec3f(-45.0, -45.0, 0.0)
