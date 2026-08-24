@@ -17,6 +17,7 @@ pub const MAX_COMPOSITION_LAYERS: usize = 64;
 pub enum LayerProductFormat {
     GeoJsonSeq,
     GeoParquet,
+    GeoPackage,
     MvtBundle,
 }
 

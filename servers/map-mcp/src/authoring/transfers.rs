@@ -16,7 +16,7 @@ use crate::{
     catalog::MapScope,
     contract::{
         BuildVectorTilesRequest, CommitFeatureChangesRequest, FeatureExportFormat, FeatureGeometry,
-        FeatureImportFormat, FeatureInput, FeatureMutation, FeatureTime, GeoJsonFeatureType,
+        FeatureImportSource, FeatureInput, FeatureMutation, FeatureTime, GeoJsonFeatureType,
         ImportFeatureLayerOutput, ImportFeatureLayerRequest, JSON_FG_CORE_CONFORMANCE,
         JSON_FG_TYPES_SCHEMAS_CONFORMANCE, LayerProductFormat, LayerStyle, MAX_IMPORT_FEATURES,
         MAX_VECTOR_TILES, MapFeatureId, QueryFeaturesRequest, StyleRule, TileCoordinate,
@@ -48,8 +48,19 @@ impl AuthoringService {
         request: ImportFeatureLayerRequest,
         bytes: &[u8],
     ) -> Result<ImportFeatureLayerOutput> {
-        validate_semantic_type(&request.default_semantic_type)?;
-        let inputs = parse_import(bytes, request.format, &request.default_semantic_type)?;
+        let default_semantic_type = match &request.source {
+            FeatureImportSource::GeoJsonFeatureCollection {
+                default_semantic_type,
+            }
+            | FeatureImportSource::GeoJsonTextSequence {
+                default_semantic_type,
+            } => default_semantic_type,
+            FeatureImportSource::GeoPackage { .. } => {
+                bail!("GeoPackage input must be decoded by the bounded GDAL adapter")
+            }
+        };
+        validate_semantic_type(default_semantic_type)?;
+        let inputs = parse_import(bytes, &request.source, default_semantic_type)?;
         let imported_feature_count = u64::try_from(inputs.len())?;
         let mutations = inputs
             .into_iter()
@@ -86,7 +97,7 @@ impl AuthoringService {
             .product_publication(identity, scope, &request.layer_id, &request.publication_id)
             .await?;
         self.reconcile_projection().await?;
-        match request.format {
+        match &request.format {
             FeatureExportFormat::GeoJsonSeq => {
                 let (bytes, feature_count) = self
                     .encode_publication_geojson_sequence(
@@ -137,6 +148,9 @@ impl AuthoringService {
                     feature_count,
                     None,
                 ))
+            }
+            FeatureExportFormat::GeoPackage { .. } => {
+                bail!("GeoPackage output must be encoded by the bounded GDAL adapter")
             }
         }
     }
@@ -318,11 +332,11 @@ struct ImportGeoJsonFeature {
 
 fn parse_import(
     bytes: &[u8],
-    format: FeatureImportFormat,
+    source: &FeatureImportSource,
     default_semantic_type: &str,
 ) -> Result<Vec<FeatureInput>> {
-    let values = match format {
-        FeatureImportFormat::GeoJsonFeatureCollection => {
+    let values = match source {
+        FeatureImportSource::GeoJsonFeatureCollection { .. } => {
             let collection: ImportFeatureCollection = serde_json::from_slice(bytes)
                 .context("decoding GeoJSON FeatureCollection import")?;
             if collection.feature_type != "FeatureCollection" {
@@ -330,7 +344,10 @@ fn parse_import(
             }
             collection.features
         }
-        FeatureImportFormat::GeoJsonTextSequence => parse_geojson_sequence(bytes)?,
+        FeatureImportSource::GeoJsonTextSequence { .. } => parse_geojson_sequence(bytes)?,
+        FeatureImportSource::GeoPackage { .. } => {
+            bail!("GeoPackage input must be decoded by the bounded GDAL adapter")
+        }
     };
     if values.is_empty() || values.len() > MAX_IMPORT_FEATURES {
         bail!("a feature import must contain between one and {MAX_IMPORT_FEATURES} features");
