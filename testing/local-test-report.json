@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:0cfce0dd55ca2e61d367b6c42bfc371ab72b9c6f89be76d6bfa9fb58bc3c3938",
-  "updatedAt": "2026-08-25T04:56:22Z",
+  "buildDigest": "sha256:25c1691e89620f6718b202da8132cdc2fce2bd9e18880e6b58a1285ed18d186d",
+  "updatedAt": "2026-08-25T05:01:30Z",
   "checks": [
     {
       "name": "map-live-browser-harness-build",
@@ -13,8 +13,8 @@
         "veoveo-browser-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:56:22Z",
-      "durationSeconds": 2.309506366,
+      "finishedAt": "2026-08-25T05:01:30Z",
+      "durationSeconds": 1.339723088,
       "detail": "completed successfully"
     }
   ]

@@ -1940,48 +1940,34 @@ async fn capture_console_map_workspace_app_inner(
         let composition = serde_json::to_string(expected_composition_title)?;
         let layer = serde_json::to_string(expected_layer_title)?;
         let deadline = tokio::time::Instant::now() + timeout;
-        let map = loop {
-            let state: Value = evaluate_console_app(
-                &mut cdp,
-                &target_id,
-                &session_id,
-                "map",
-                &format!(
-                    r#"(() => {{
-                      document.querySelector('[data-view="map-view"]')?.click();
-                      const select=document.getElementById('composition-select');
-                      const option=[...(select?.options ?? [])].find(option=>option.textContent?.includes({composition}));
-                      if(option && select.value!==option.value){{select.value=option.value;select.dispatchEvent(new Event('change',{{bubbles:true}}));}}
-                      const canvas=document.querySelector('#map canvas');
-                      const gl=canvas?.getContext('webgl2');
-                      const debug=gl?.getExtension('WEBGL_debug_renderer_info');
-                      const publicationRows=document.querySelectorAll('#map-layers .layer-row');
-                      if(option && publicationRows.length > 0 && !document.documentElement.dataset.veoveoAcceptanceMapInteracted){{
-                        document.documentElement.dataset.veoveoAcceptanceMapInteracted='true';
-                        document.getElementById('fit-composition')?.click();
-                        const visibility=publicationRows[0].querySelector('input[type="checkbox"]');
-                        visibility?.click();
-                        visibility?.click();
-                        document.getElementById('reload-map')?.click();
-                      }}
-                      return {{
-                        compositionFound:Boolean(option),selectedTitle:option?.textContent?.trim() ?? '',
-                        status:document.getElementById('status')?.textContent?.trim() ?? '',
-                        gpuBadge:document.getElementById('gpu-badge')?.textContent?.trim() ?? '',
-                        mapFailureHidden:Boolean(document.getElementById('map-failure')?.hidden),
-                        mapFailure:document.getElementById('map-failure')?.textContent?.trim() ?? '',
-                        mapTotal:document.getElementById('map-total')?.textContent?.trim() ?? '',
-                        canvasWidth:canvas?.width ?? 0,canvasHeight:canvas?.height ?? 0,
-                        webglRenderer:debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : '',
-                        publicationRows:publicationRows.length,
-                        viewerInteracted:document.documentElement.dataset.veoveoAcceptanceMapInteracted === 'true'
-                      }};
-                    }})()"#
-                ),
-                false,
+        let map_state_script = || {
+            format!(
+                r#"(() => {{
+                  document.querySelector('[data-view="map-view"]')?.click();
+                  const select=document.getElementById('composition-select');
+                  const option=[...(select?.options ?? [])].find(option=>option.textContent?.includes({composition}));
+                  if(option && select.value!==option.value){{select.value=option.value;select.dispatchEvent(new Event('change',{{bubbles:true}}));}}
+                  const canvas=document.querySelector('#map canvas');
+                  const gl=canvas?.getContext('webgl2');
+                  const debug=gl?.getExtension('WEBGL_debug_renderer_info');
+                  const publicationRows=document.querySelectorAll('#map-layers .layer-row');
+                  return {{
+                    compositionFound:Boolean(option),selectedTitle:option?.textContent?.trim() ?? '',
+                    status:document.getElementById('status')?.textContent?.trim() ?? '',
+                    gpuBadge:document.getElementById('gpu-badge')?.textContent?.trim() ?? '',
+                    mapFailureHidden:Boolean(document.getElementById('map-failure')?.hidden),
+                    mapFailure:document.getElementById('map-failure')?.textContent?.trim() ?? '',
+                    mapTotal:document.getElementById('map-total')?.textContent?.trim() ?? '',
+                    canvasWidth:canvas?.width ?? 0,canvasHeight:canvas?.height ?? 0,
+                    webglRenderer:debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : '',
+                    publicationRows:publicationRows.length,
+                    viewerInteracted:document.documentElement.dataset.veoveoAcceptanceMapInteracted === 'true'
+                  }};
+                }})()"#
             )
-            .await?;
-            if state.get("compositionFound").and_then(Value::as_bool) == Some(true)
+        };
+        let map_ready = |state: &Value| {
+            state.get("compositionFound").and_then(Value::as_bool) == Some(true)
                 && state.get("mapFailureHidden").and_then(Value::as_bool) == Some(true)
                 && state.get("canvasWidth").and_then(Value::as_u64).unwrap_or(0) >= 800
                 && state.get("canvasHeight").and_then(Value::as_u64).unwrap_or(0) >= 500
@@ -1996,7 +1982,18 @@ async fn capture_console_map_workspace_app_inner(
                     .get("publicationRows")
                     .and_then(Value::as_u64)
                     .is_some_and(|rows| rows > 0)
-                && state.get("viewerInteracted").and_then(Value::as_bool) == Some(true)
+        };
+        let initial_map = loop {
+            let state: Value = evaluate_console_app(
+                &mut cdp,
+                &target_id,
+                &session_id,
+                "map",
+                &map_state_script(),
+                false,
+            )
+            .await?;
+            if map_ready(&state)
                 && state
                     .get("mapTotal")
                     .and_then(Value::as_str)
@@ -2014,7 +2011,97 @@ async fn capture_console_map_workspace_app_inner(
             );
             tokio::time::sleep(Duration::from_millis(250)).await;
         };
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        let expected_map_total = initial_map
+            .get("mapTotal")
+            .and_then(Value::as_str)
+            .context("rendered Map workspace omitted its feature total")?
+            .to_owned();
+        let hidden: bool = evaluate_console_app(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "map",
+            r#"(() => {
+              document.getElementById('fit-composition')?.click();
+              const visibility=document.querySelector('#map-layers .layer-row input[type="checkbox"]');
+              if(!visibility?.checked) return false;
+              visibility.click();
+              document.getElementById('reload-map')?.click();
+              return !visibility.checked;
+            })()"#,
+            false,
+        )
+        .await?;
+        ensure!(hidden, "live Map workspace did not hide its publication layer");
+        loop {
+            let state: Value = evaluate_console_app(
+                &mut cdp,
+                &target_id,
+                &session_id,
+                "map",
+                &map_state_script(),
+                false,
+            )
+            .await?;
+            if map_ready(&state)
+                && state.get("mapTotal").and_then(Value::as_str) == Some("0 feature(s)")
+                && state
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .is_some_and(|status| status.starts_with("Rendered "))
+            {
+                break;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "live Map workspace did not hide its publication features: {state}"
+            );
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+        let shown: bool = evaluate_console_app(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "map",
+            r#"(() => {
+              const visibility=document.querySelector('#map-layers .layer-row input[type="checkbox"]');
+              if(visibility?.checked) return false;
+              visibility.click();
+              document.getElementById('reload-map')?.click();
+              document.documentElement.dataset.veoveoAcceptanceMapInteracted='true';
+              return visibility.checked;
+            })()"#,
+            false,
+        )
+        .await?;
+        ensure!(shown, "live Map workspace did not restore its publication layer");
+        let map = loop {
+            let state: Value = evaluate_console_app(
+                &mut cdp,
+                &target_id,
+                &session_id,
+                "map",
+                &map_state_script(),
+                false,
+            )
+            .await?;
+            if map_ready(&state)
+                && state.get("viewerInteracted").and_then(Value::as_bool) == Some(true)
+                && state.get("mapTotal").and_then(Value::as_str)
+                    == Some(expected_map_total.as_str())
+                && state
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .is_some_and(|status| status.starts_with("Rendered "))
+            {
+                break state;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "live Map workspace did not restore its publication features: {state}"
+            );
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        };
         cdp.assert_no_software_renderer_events()?;
         let map_screenshot = screenshot_directory.join("map.png");
         let map_screenshot_sha256 =
