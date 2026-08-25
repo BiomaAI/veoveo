@@ -1,117 +1,39 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ac798d0c05c539c79a3b9113ac222d72546e8b75a4e934a5e0a5ae94a88d9ea8",
-  "updatedAt": "2026-08-25T00:55:07Z",
+  "buildDigest": "sha256:5c0acb18f4e0d6fa6a39ec2f306ee6183226118d45b9feefa3758bb5543a5195",
+  "updatedAt": "2026-08-25T03:46:55Z",
   "checks": [
     {
-      "name": "map-image-build",
+      "name": "bioma-gateway-control-plane",
       "command": [
         "cargo",
-        "xtask",
-        "image",
-        "build",
-        "--target",
-        "map-mcp"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T00:51:59Z",
-      "durationSeconds": 80.839291549,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-product-store-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-platform-store",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T00:55:07Z",
-      "durationSeconds": 0.560891503,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-smoke",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "map-mcp"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T00:52:33Z",
-      "durationSeconds": 29.313399332,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-browser",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "map-workspace-browser-verify"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T00:54:55Z",
-      "durationSeconds": 5.46025703,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-browser-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-browser-smoke"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T00:53:54Z",
-      "durationSeconds": 0.492045358,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "servers/map-mcp/app",
         "run",
-        "build"
+        "--locked",
+        "--package",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway",
+        "--",
+        "validate",
+        "--control-plane",
+        "examples/bioma/gateway.json"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T00:53:48Z",
-      "durationSeconds": 0.414462487,
+      "finishedAt": "2026-08-25T03:46:55Z",
+      "durationSeconds": 19.478681859,
       "detail": "completed successfully"
     },
     {
-      "name": "map-workspace-map-tests",
-      "command": [
-        "env",
-        "VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION=/home/rozgo/BiomaAI/veoveo/target/duckdb-spatial/spatial.duckdb_extension",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-map-mcp",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T00:54:43Z",
-      "durationSeconds": 35.654204671,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-xtask-tests",
+      "name": "bioma-helm-image-lock",
       "command": [
         "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask"
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T00:54:01Z",
-      "durationSeconds": 0.505034229,
+      "finishedAt": "2026-08-25T03:46:30Z",
+      "durationSeconds": 13.465362901,
       "detail": "completed successfully"
     }
   ]
