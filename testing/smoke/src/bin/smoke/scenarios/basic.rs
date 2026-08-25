@@ -621,7 +621,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "GOOGLE_MAPS_API_KEY",
         "UAV_SIM_POSE_",
         "simulation-view",
-        "name: uav-sim-live",
+        "\n  name: uav-sim-live\n",
         "path: /webrtc",
         "name: stream-signal",
         "name: stream-media",
