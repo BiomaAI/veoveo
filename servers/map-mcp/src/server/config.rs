@@ -6,6 +6,8 @@ use url::Url;
 use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
 use veoveo_task_runtime::StoreAuthLevel;
 
+use crate::contract::MapWorkspaceBasemap;
+
 #[derive(Parser)]
 #[command(name = "map-mcp", about = "Map MCP and administrative server")]
 pub(super) enum Cli {
@@ -39,6 +41,12 @@ pub(super) struct Args {
     pub duckdb_memory_limit: String,
     #[arg(long, default_value_t = 4)]
     pub duckdb_threads: u32,
+    #[arg(
+        long,
+        env = "VEOVEO_MAP_BASEMAP_TILE_URL_TEMPLATE",
+        default_value = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    )]
+    pub workspace_basemap_tile_url_template: String,
     #[arg(long, default_value = "http://127.0.0.1:8002/")]
     pub valhalla_url: Url,
     #[arg(long, default_value = "/usr/local/bin/valhalla_service")]
@@ -116,6 +124,11 @@ pub(super) struct Args {
 impl Args {
     pub fn public_deployment(&self) -> anyhow::Result<PublicDeployment> {
         PublicDeployment::new(&self.public_base_url)
+    }
+
+    pub fn workspace_basemap(&self) -> anyhow::Result<MapWorkspaceBasemap> {
+        MapWorkspaceBasemap::open_street_map(self.workspace_basemap_tile_url_template.clone())
+            .map_err(anyhow::Error::msg)
     }
 }
 

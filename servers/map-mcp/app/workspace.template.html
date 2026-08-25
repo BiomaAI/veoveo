@@ -3,220 +3,328 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="veoveo-map-workspace" content="maplibre-gl@6.6.0;hardware-webgl2-required">
+<meta name="veoveo-map-workspace" content="maplibre-gl@6.6.0;hardware-webgl2-required;unified-workspace">
 <title>Map workspace</title>
 <style>
 /*__MAPLIBRE_CSS__*/
 :root {
-  --surface:#f4f2ec; --panel:#fffdf8; --raised:#f9f7f1; --ink:#211f1a;
-  --muted:#716c61; --line:#dcd6ca; --strong-line:#bdb5a6; --accent:#1f4d40;
-  --accent-ink:#f7f4ed; --good:#387052; --warn:#8a6430; --bad:#99463f;
-  --map-water:#e5edf0; --map-land:#f5f1e6; --map-grid:#c9c3b6;
+  --surface:#f1efe9; --panel:#fffdf8; --raised:#f7f4ed; --ink:#211f1a;
+  --muted:#716c61; --line:#d9d3c7; --strong-line:#aaa294; --accent:#1f5144;
+  --accent-soft:#dcebe4; --accent-ink:#fbfaf5; --good:#397354; --warn:#93652d;
+  --bad:#9d433d; --map-water:#dce8ed; --shadow:0 12px 32px rgb(23 24 22 / .16);
   --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,ui-serif,serif;
   --mono:"SFMono-Regular",Consolas,"Liberation Mono",ui-monospace,monospace;
 }
 :root[data-theme="dark"] {
-  --surface:#0f1011; --panel:#171819; --raised:#1d1e20; --ink:#ebe7dd;
-  --muted:#9a958b; --line:#2d2e30; --strong-line:#555458; --accent:#a8d5c4;
-  --accent-ink:#102019; --good:#79a98b; --warn:#c28b49; --bad:#d57a70;
-  --map-water:#111a1f; --map-land:#1c1d1b; --map-grid:#383936;
+  --surface:#0e0f10; --panel:#171819; --raised:#1e1f20; --ink:#ebe7dd;
+  --muted:#9d978e; --line:#303133; --strong-line:#5d5b5d; --accent:#9fd4c0;
+  --accent-soft:#1f352d; --accent-ink:#102019; --good:#80b194; --warn:#cc914d;
+  --bad:#df7c71; --map-water:#111b20; --shadow:0 12px 32px rgb(0 0 0 / .45);
 }
 * { box-sizing:border-box; }
-html,body { margin:0; min-height:100%; background:var(--surface); color:var(--ink);
-  font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
-body { padding:12px 14px 18px; }
+html,body { margin:0; width:100%; min-height:100%; background:var(--surface); color:var(--ink);
+  font:13px/1.42 system-ui,-apple-system,"Segoe UI",sans-serif; }
+body { overflow:hidden; }
 button,input,select,textarea { color:var(--ink); background:var(--panel); border:1px solid var(--line);
-  border-radius:0; padding:6px 8px; font:inherit; }
+  border-radius:0; padding:7px 9px; font:inherit; }
 button { cursor:pointer; font-weight:650; }
 button:hover,input:hover,select:hover,textarea:hover { border-color:var(--strong-line); }
-button:disabled,input:disabled,select:disabled,textarea:disabled { opacity:.45; cursor:default; }
+button:disabled,input:disabled,select:disabled,textarea:disabled { opacity:.42; cursor:default; }
 button.primary { color:var(--accent-ink); background:var(--accent); border-color:var(--accent); }
+button.quiet { background:transparent; border-color:transparent; color:var(--muted); }
+button.icon { width:30px; height:30px; padding:0; display:grid; place-items:center; }
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-h1,h2,h3 { font-family:var(--serif); font-weight:400; }
-h1 { margin:0; font-size:18px; } h2 { margin:0; font-size:16px; } h3 { margin:0; font-size:14px; }
-.topbar { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
-.topbar-copy { min-width:190px; }
+h1,h2,h3 { margin:0; font-family:var(--serif); font-weight:400; }
+h1 { font-size:19px; } h2 { font-size:16px; } h3 { font-size:14px; }
+.shell { height:100vh; min-height:680px; display:grid; grid-template-rows:auto auto minmax(0,1fr); }
+.topbar { min-height:54px; display:flex; align-items:center; gap:10px; padding:8px 12px;
+  background:var(--panel); border-bottom:1px solid var(--line); }
+.identity { min-width:210px; }
 .subtitle,.muted { color:var(--muted); }
 .subtitle { font-size:11px; }
-.tabs { display:flex; gap:2px; margin-left:8px; }
-.tab { min-width:72px; background:transparent; border-color:transparent; }
-.tab[aria-selected="true"] { background:var(--panel); border-color:var(--line); color:var(--accent); }
-.spacer { flex:1; }
-.access { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
-.chip { border:1px solid var(--line); background:var(--raised); color:var(--muted); padding:2px 7px;
-  font:10px/1.4 var(--mono); text-transform:uppercase; letter-spacing:.06em; }
-.chip.on { color:var(--good); border-color:color-mix(in srgb,var(--good),transparent 55%); }
-.status { min-height:22px; margin:5px 0 9px; color:var(--muted); white-space:pre-wrap; }
-.status.good { color:var(--good); } .status.warn { color:var(--warn); } .status.bad { color:var(--bad); }
-.view[hidden],.permission-note[hidden] { display:none; }
-.panel { background:var(--panel); border:1px solid var(--line); padding:11px; }
-.section-head { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
-.section-head .count { color:var(--muted); font:11px var(--mono); }
-.map-layout { display:grid; grid-template-columns:250px minmax(420px,1fr); min-height:610px; }
-.map-sidebar { border-right:1px solid var(--line); background:var(--panel); padding:11px; overflow:auto; }
-.map-stage { position:relative; min-height:610px; background:var(--map-water); }
+.toolbar { display:flex; align-items:center; gap:6px; margin-left:auto; }
+.access { display:flex; gap:4px; }
+.chip { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--line);
+  background:var(--raised); color:var(--muted); padding:2px 6px; font:10px/1.4 var(--mono);
+  text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+.chip.good,.chip.on { color:var(--good); border-color:color-mix(in srgb,var(--good),transparent 55%); }
+.chip.warn { color:var(--warn); border-color:color-mix(in srgb,var(--warn),transparent 55%); }
+.statusbar { min-height:28px; display:flex; align-items:center; gap:8px; padding:4px 12px;
+  border-bottom:1px solid var(--line); background:var(--raised); color:var(--muted); font-size:11px; }
+.statusbar.good { color:var(--good); } .statusbar.warn { color:var(--warn); } .statusbar.bad { color:var(--bad); }
+.status-dot { width:7px; height:7px; border-radius:50%; background:currentColor; flex:0 0 auto; }
+.workbench { min-height:0; display:grid; grid-template-columns:282px minmax(420px,1fr) 330px;
+  grid-template-rows:minmax(390px,1fr) 238px; background:var(--panel); }
+.catalog { grid-row:1 / 3; min-height:0; overflow:auto; border-right:1px solid var(--line); background:var(--panel); }
+.catalog-head,.inspector-head,.preview-head { position:sticky; top:0; z-index:2; display:flex;
+  align-items:center; gap:7px; padding:10px; background:color-mix(in srgb,var(--panel),transparent 3%);
+  border-bottom:1px solid var(--line); }
+.catalog-head h2,.inspector-head h2,.preview-head h2 { flex:1; }
+.catalog-search { padding:8px 10px; border-bottom:1px solid var(--line); }
+.catalog-search input { width:100%; }
+.catalog-section { border-bottom:1px solid var(--line); }
+.catalog-section > header { display:flex; align-items:center; gap:7px; padding:9px 10px 5px; }
+.catalog-section > header h3 { flex:1; }
+.count { color:var(--muted); font:10px var(--mono); }
+.catalog-list { padding:0 5px 7px; }
+.layer-row { width:100%; display:grid; grid-template-columns:24px 12px minmax(0,1fr) auto; align-items:center;
+  gap:7px; padding:7px 5px; border:1px solid transparent; background:transparent; text-align:left; font-weight:400; }
+.layer-row:hover { background:var(--raised); border-color:var(--line); }
+.layer-row.selected { background:var(--accent-soft); border-color:color-mix(in srgb,var(--accent),transparent 55%); }
+.layer-row input { margin:0; }
+.swatch { width:10px; height:10px; border-radius:50%; border:1px solid rgb(0 0 0 / .28); }
+.layer-copy { min-width:0; }
+.layer-title { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650; }
+.layer-meta { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--muted); font:10px/1.35 var(--mono); }
+.layer-count { color:var(--muted); font:10px var(--mono); }
+.empty { padding:12px 10px; color:var(--muted); font-size:11px; }
+.saved-views { padding:8px 10px 12px; }
+.saved-views select { width:100%; }
+.map-stage { grid-column:2; grid-row:1; min-width:0; min-height:0; position:relative; background:var(--map-water); }
 #map { position:absolute; inset:0; }
 .maplibregl-canvas { outline:none; }
 .maplibregl-ctrl-group { border-radius:0; box-shadow:none; border:1px solid var(--line); }
-.maplibregl-ctrl-group button { border:0; }
-.maplibregl-ctrl-scale { color:#1c1c1c; border-color:#1c1c1c; }
-.gpu-badge { position:absolute; top:10px; left:10px; z-index:2; max-width:70%; padding:5px 8px;
-  background:color-mix(in srgb,var(--panel),transparent 8%); border:1px solid var(--line); font:10px var(--mono); }
-.map-failure { position:absolute; inset:0; z-index:3; display:grid; place-items:center; padding:36px;
+.maplibregl-ctrl-attrib { font-size:10px; }
+.map-overlay { position:absolute; z-index:2; background:color-mix(in srgb,var(--panel),transparent 7%);
+  border:1px solid var(--line); box-shadow:0 2px 8px rgb(0 0 0 / .08); }
+.gpu-badge { left:10px; bottom:27px; max-width:min(68%,520px); padding:4px 7px; font:9px/1.35 var(--mono); }
+.map-context { left:10px; top:10px; display:flex; align-items:center; gap:6px; padding:5px 7px; }
+.map-context .context-label { max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650; }
+.draw-tools { top:10px; left:50%; transform:translateX(-50%); display:flex; gap:4px; padding:5px; }
+.draw-tools[hidden] { display:none; }
+.map-failure { position:absolute; inset:0; z-index:4; display:grid; place-items:center; padding:36px;
   background:var(--panel); color:var(--bad); text-align:center; }
 .map-failure[hidden] { display:none; }
-label { display:flex; flex-direction:column; gap:3px; margin-bottom:7px; color:var(--muted);
-  font:10px/1.4 var(--mono); text-transform:uppercase; letter-spacing:.07em; }
-select,textarea,input[type="text"] { width:100%; }
-textarea { resize:vertical; font:11px/1.4 var(--mono); }
-.actions { display:flex; gap:6px; flex-wrap:wrap; margin:7px 0; }
-.layer-row { display:grid; grid-template-columns:18px 1fr auto; align-items:start; gap:7px; padding:8px 0;
-  border-top:1px solid var(--line); }
-.layer-row:first-child { border-top:0; }
-.layer-title { overflow-wrap:anywhere; }
+.inspector { grid-column:3; grid-row:1 / 3; min-height:0; overflow:auto; border-left:1px solid var(--line); background:var(--panel); }
+.inspector-body { padding:11px; }
+.inspector-empty { min-height:240px; display:grid; align-content:center; gap:5px; color:var(--muted); text-align:center; }
+.inspector-section { padding:9px 0; border-top:1px solid var(--line); }
+.inspector-section:first-child { border-top:0; padding-top:0; }
+.eyebrow,label { color:var(--muted); font:10px/1.4 var(--mono); text-transform:uppercase; letter-spacing:.06em; }
+.value { margin-top:2px; overflow-wrap:anywhere; }
 .mono { color:var(--muted); font:10px/1.45 var(--mono); overflow-wrap:anywhere; }
-.count-badge { color:var(--muted); font:10px var(--mono); }
-.workspace-grid { display:grid; grid-template-columns:minmax(260px,.75fr) minmax(430px,1.25fr); gap:10px; }
-.stack { display:grid; gap:10px; align-content:start; }
-.item { padding:7px 0; border-top:1px solid var(--line); }
-.item:first-child { border-top:0; }
-.item-head { display:flex; gap:8px; align-items:baseline; }
-.item-head strong { flex:1; }
-pre { max-height:310px; margin:6px 0 0; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere;
-  padding:8px; border:1px solid var(--line); background:var(--raised); font:10px/1.45 var(--mono); }
-details { border-top:1px solid var(--line); margin-top:8px; padding-top:7px; }
-summary { cursor:pointer; font-weight:650; color:var(--muted); }
-.admin-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.table-wrap { overflow:auto; }
-table { width:100%; border-collapse:collapse; font-size:11px; }
-th { color:var(--muted); text-align:left; font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; }
-th,td { padding:5px 8px 5px 0; border-bottom:1px solid var(--line); vertical-align:top; }
-.inline-form { display:flex; align-items:end; gap:6px; flex-wrap:wrap; }
-.inline-form label { margin:0; }
-.inline-form input { width:82px; }
-.permission-note { padding:24px; border:1px dashed var(--strong-line); color:var(--muted); text-align:center; }
+.actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+label { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+label input,label select,label textarea { width:100%; text-transform:none; letter-spacing:normal; }
+textarea { resize:vertical; min-height:72px; font:11px/1.45 var(--mono); }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 8px; }
+.form-grid .wide { grid-column:1 / 3; }
+.choice-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.choice { min-height:86px; padding:10px; text-align:left; background:var(--raised); }
+.choice strong,.choice span { display:block; }
+.choice span { margin-top:3px; color:var(--muted); font-size:11px; font-weight:400; }
+details { border-top:1px solid var(--line); margin-top:10px; padding-top:8px; }
+summary { cursor:pointer; color:var(--muted); font-weight:650; }
+.property-row { display:grid; grid-template-columns:.85fr 1.15fr 28px; gap:5px; margin-bottom:5px; }
+.property-row input { min-width:0; }
+.finding { margin:7px 0; padding:7px; background:var(--raised); border-left:3px solid var(--warn); font-size:11px; }
+.record { padding:8px 0; border-top:1px solid var(--line); }
+.record:first-child { border-top:0; }
+.record-head { display:flex; align-items:baseline; gap:6px; }
+.record-head strong { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.preview { grid-column:2; grid-row:2; min-width:0; min-height:0; border-top:1px solid var(--line);
+  background:var(--panel); display:grid; grid-template-rows:auto minmax(0,1fr); }
+.preview.collapsed { grid-template-rows:auto; }
+.preview.collapsed .preview-body { display:none; }
+.preview-head { position:static; padding:7px 10px; }
+.preview-body { min-height:0; overflow:auto; }
+table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:11px; }
+th { position:sticky; top:0; z-index:1; background:var(--raised); color:var(--muted); text-align:left;
+  font:10px var(--mono); text-transform:uppercase; letter-spacing:.05em; }
+th,td { padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+tbody tr { cursor:pointer; }
+tbody tr:hover { background:var(--raised); }
+tbody tr.selected { background:var(--accent-soft); }
+.preview-pager { display:flex; gap:5px; align-items:center; }
+.preview-pager button { padding:3px 7px; }
+.permission-note { margin:12px; padding:22px; border:1px dashed var(--strong-line); color:var(--muted); text-align:center; }
+[hidden] { display:none !important; }
+@media(max-width:1180px) {
+  .workbench { grid-template-columns:252px minmax(390px,1fr) 300px; }
+  .access { display:none; }
+}
 @media(max-width:900px) {
-  .topbar { align-items:flex-start; flex-wrap:wrap; } .access { justify-content:flex-start; }
-  .map-layout,.workspace-grid,.admin-grid { grid-template-columns:1fr; }
-  .map-sidebar { border-right:0; border-bottom:1px solid var(--line); }
-  .map-stage { min-height:500px; }
+  body { overflow:auto; }
+  .shell { height:auto; min-height:100vh; }
+  .workbench { display:grid; grid-template-columns:220px minmax(0,1fr); grid-template-rows:520px 230px auto; }
+  .catalog { grid-column:1; grid-row:1 / 3; }
+  .map-stage { grid-column:2; grid-row:1; }
+  .preview { grid-column:2; grid-row:2; }
+  .inspector { grid-column:1 / 3; grid-row:3; min-height:320px; border-left:0; border-top:1px solid var(--line); }
+  .toolbar .secondary-action { display:none; }
 }
 </style>
 </head>
 <body>
-<header class="topbar">
-  <div class="topbar-copy"><h1>Map workspace</h1><div class="subtitle">Governed layers, immutable compositions, and map data</div></div>
-  <nav class="tabs" aria-label="Workspace sections">
-    <button class="tab" data-view="map-view" aria-selected="true">Map</button>
-    <button class="tab" data-view="layers-view" aria-selected="false">Layers</button>
-    <button class="tab" data-view="data-view" aria-selected="false">Data</button>
-  </nav>
-  <div class="spacer"></div>
-  <div id="access" class="access" aria-label="Current permissions"></div>
-  <button id="refresh">Refresh</button>
-</header>
-<div id="status" class="status">Connecting to the MCP host…</div>
-
-<main>
-  <section id="map-view" class="view">
-    <div id="map-permission" class="permission-note" hidden>Map viewing requires feature read permission.</div>
-    <div id="map-workspace" class="map-layout">
-      <aside class="map-sidebar">
-        <div class="section-head"><h2>Composition viewer</h2></div>
-        <label>Immutable composition<select id="composition-select"></select></label>
-        <div class="actions"><button id="fit-composition">Reset view</button><button id="reload-map">Reload viewport</button></div>
-        <div id="viewport" class="mono"></div>
-        <div class="section-head" style="margin-top:14px"><h3>Publication layers</h3><span id="map-total" class="count"></span></div>
-        <div id="map-layers"></div>
-      </aside>
-      <div class="map-stage">
-        <div id="map" aria-label="Interactive composition map"></div>
-        <div id="gpu-badge" class="gpu-badge">Checking hardware WebGL2…</div>
-        <div id="map-failure" class="map-failure" hidden></div>
-      </div>
+<div class="shell">
+  <header class="topbar">
+    <div class="identity"><h1>Map workspace</h1><div class="subtitle">Layers, source releases, features, and saved views</div></div>
+    <div id="access" class="access" aria-label="Current permissions"></div>
+    <div class="toolbar">
+      <button id="refresh" class="quiet secondary-action">Refresh</button>
+      <button id="save-view" class="secondary-action" data-feature-write>Save view</button>
+      <button id="add-data" class="primary">Add data</button>
     </div>
-  </section>
+  </header>
+  <div id="status" class="statusbar"><span class="status-dot"></span><span id="status-message">Connecting to the MCP host…</span></div>
 
-  <section id="layers-view" class="view" hidden>
-    <div id="layers-permission" class="permission-note" hidden>Layer resources require feature read permission.</div>
-    <div id="layers-workspace" class="workspace-grid">
-      <div class="stack">
-        <section class="panel">
-          <div class="section-head"><h2>Feature layers</h2><span id="layer-count" class="count"></span></div>
-          <label>Active layer<select id="layer-select"></select></label>
-          <div id="layer-detail" class="muted">No layer selected.</div>
-          <div class="actions"><button id="publish-layer">Publish current revision</button><button id="query-layer">Query first 100</button></div>
-          <pre id="features-output">[]</pre>
-        </section>
-        <section class="panel" data-write-control>
-          <h2>Create layer</h2>
-          <form id="layer-form">
-            <label>Title<input id="layer-title" type="text" required maxlength="256"></label>
-            <label>Content class<select id="content-class"><option>reference</option><option>named_locations</option><option>facilities</option><option>boundaries</option><option>network_candidate</option></select></label>
-            <label>JSON Schema 2020-12<textarea id="schema-json" rows="7" spellcheck="false">{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":true}</textarea></label>
-            <button class="primary" type="submit">Create layer</button>
-          </form>
-        </section>
-        <section class="panel" data-write-control>
-          <h2>Composition</h2>
-          <label>Create request JSON<textarea id="composition-json" rows="9" spellcheck="false">{"title":"Operational map","layers":[],"view":{"center":{"longitude_deg":-89.2,"latitude_deg":13.7},"zoom":10,"bearing_deg":0,"pitch_deg":0}}</textarea></label>
-          <button id="create-composition">Create composition</button>
-          <div id="composition-list"></div>
-        </section>
-      </div>
-      <div class="stack">
-        <section class="panel" data-write-control>
-          <h2>Create feature changeset</h2>
-          <label>FeatureInput JSON<textarea id="feature-json" rows="16" spellcheck="false">{"geometry":{"type":"Point","coordinates":[-89.2,13.7]},"properties":{"name":"New place"},"semantic_type":"place","title":"New place","related_resources":[],"evidence_resources":[]}</textarea></label>
-          <div class="actions"><button id="validate-feature">Validate</button><button class="primary" id="commit-feature">Commit</button></div>
-          <pre id="validation-output">No validation run.</pre>
-        </section>
-        <section class="panel">
-          <div class="section-head"><h2>Publications</h2><span id="publication-count" class="count"></span></div>
-          <div id="publication-list"></div>
-        </section>
-      </div>
-    </div>
-  </section>
+  <main id="workspace" class="workbench">
+    <aside class="catalog" aria-label="Map layers">
+      <div class="catalog-head"><h2>Layers</h2><span id="visible-total" class="count">0 visible</span></div>
+      <div class="catalog-search"><input id="layer-search" type="search" placeholder="Filter layers" aria-label="Filter layers"></div>
+      <section class="catalog-section">
+        <header><h3>Authored</h3><span id="authored-count" class="count"></span></header>
+        <div id="authored-list" class="catalog-list"></div>
+      </section>
+      <section id="source-section" class="catalog-section">
+        <header><h3>Active sources</h3><span id="source-layer-count" class="count"></span></header>
+        <div id="source-layer-list" class="catalog-list"></div>
+      </section>
+      <section class="catalog-section">
+        <header><h3>Saved views</h3><span id="composition-count" class="count"></span></header>
+        <div class="saved-views">
+          <select id="composition-select" aria-label="Saved map view"></select>
+          <div class="actions"><button id="reset-view">Reset camera</button></div>
+        </div>
+      </section>
+    </aside>
 
-  <section id="data-view" class="view" hidden>
-    <div id="data-permission" class="permission-note" hidden>Map data administration requires the map admin permission.</div>
-    <div id="data-workspace" class="admin-grid">
-      <section class="panel">
-        <div class="section-head"><h2>Authoritative sources</h2><span id="source-count" class="count"></span></div>
-        <div id="source-list"></div>
-        <details><summary>Register source</summary><form id="source-form">
-          <label>Canonical RegisteredSource JSON<textarea id="source-json" rows="8" spellcheck="false" required></textarea></label>
-          <button class="primary" type="submit">Register source</button>
-        </form></details>
-      </section>
-      <section class="panel">
-        <div class="section-head"><h2>Acquisitions</h2><span id="acquisition-count" class="count"></span></div>
-        <form id="acquire-form" class="inline-form" novalidate>
-          <label>Source<select id="acquire-source" required></select></label>
-          <label>West<input id="bbox-west" type="number" step="any" min="-180" max="180"></label>
-          <label>South<input id="bbox-south" type="number" step="any" min="-90" max="90"></label>
-          <label>East<input id="bbox-east" type="number" step="any" min="-180" max="180"></label>
-          <label>North<input id="bbox-north" type="number" step="any" min="-90" max="90"></label>
-          <button class="primary" id="acquire-submit" type="submit">Start acquisition</button>
-        </form>
-        <div id="acquisition-list" class="table-wrap"></div>
-      </section>
-      <section class="panel">
-        <div class="section-head"><h2>Dataset releases</h2><span id="release-count" class="count"></span></div>
-        <div id="release-list" class="table-wrap"></div>
-      </section>
-      <section class="panel">
-        <div class="section-head"><h2>Mobility profiles</h2><span id="profile-count" class="count"></span></div>
-        <div id="profile-list"></div>
-        <details><summary>Register mobility profile</summary><form id="profile-form">
-          <label>Canonical MobilityProfile JSON<textarea id="profile-json" rows="8" spellcheck="false" required></textarea></label>
-          <button class="primary" type="submit">Register profile version</button>
-        </form></details>
-      </section>
+    <section class="map-stage" aria-label="Persistent map">
+      <div id="map" aria-label="Interactive geographic map"></div>
+      <div class="map-overlay map-context"><span id="map-context-label" class="context-label">Live workspace</span><span id="viewport" class="mono"></span></div>
+      <div id="draw-tools" class="map-overlay draw-tools" hidden>
+        <span id="draw-instruction" class="muted"></span>
+        <button id="undo-drawing">Undo</button><button id="finish-drawing" class="primary">Finish</button><button id="cancel-drawing">Cancel</button>
+      </div>
+      <div id="gpu-badge" class="map-overlay gpu-badge">Checking hardware WebGL2…</div>
+      <div id="map-failure" class="map-failure" hidden></div>
+    </section>
+
+    <aside class="inspector" aria-label="Layer and feature inspector">
+      <div class="inspector-head"><h2 id="inspector-title">Inspector</h2><button id="close-action" class="icon quiet" title="Close action" hidden>×</button></div>
+      <div id="inspector-body" class="inspector-body">
+        <div class="inspector-empty"><h3>Select a layer or feature</h3><div>The map stays visible while details and actions appear here.</div></div>
+      </div>
+    </aside>
+
+    <section id="preview" class="preview">
+      <div class="preview-head">
+        <h2 id="preview-title">Data preview</h2><span id="preview-count" class="count">Select a layer</span>
+        <div class="preview-pager"><button id="preview-prev" aria-label="Previous page">‹</button><span id="preview-page" class="mono">1 / 1</span><button id="preview-next" aria-label="Next page">›</button><button id="toggle-preview" aria-label="Collapse data preview">⌄</button></div>
+      </div>
+      <div class="preview-body">
+        <table aria-label="Visible feature data"><thead><tr><th style="width:28%">Title</th><th style="width:20%">Type</th><th style="width:17%">Geometry</th><th>Properties</th></tr></thead><tbody id="preview-rows"></tbody></table>
+      </div>
+    </section>
+  </main>
+  <div id="permission-note" class="permission-note" hidden>This workspace requires map dataset-read, feature-read, or administration access.</div>
+</div>
+
+<template id="action-picker-template">
+  <div class="inspector-section"><div class="eyebrow">Add to workspace</div><h2>Add data</h2><p class="muted">Choose a guided workflow. The map remains available throughout.</p></div>
+  <div class="choice-grid">
+    <button class="choice" data-action="create-layer" data-feature-write><strong>New layer</strong><span>Create an authored feature layer.</span></button>
+    <button class="choice" data-action="add-feature" data-feature-write><strong>Draw feature</strong><span>Add a point, line, or polygon.</span></button>
+    <button class="choice" data-action="import-artifact" data-feature-write><strong>Import artifact</strong><span>GeoJSON, RFC 8142, or GeoPackage.</span></button>
+    <button class="choice" data-action="acquire-source" data-admin><strong>Acquire source</strong><span>Draw coverage for a governed source.</span></button>
+  </div>
+  <details data-admin><summary>Advanced administration</summary>
+    <div class="actions"><button data-action="manage-data">Manage releases</button><button data-action="register-source">Register source</button><button data-action="register-profile">Register mobility profile</button></div>
+  </details>
+</template>
+
+<template id="create-layer-template">
+  <form id="create-layer-form">
+    <div class="inspector-section"><div class="eyebrow">Authored data</div><h2>New layer</h2><p class="muted">Create the container first, then draw or import features into it.</p></div>
+    <label>Layer title<input id="new-layer-title" required maxlength="256" placeholder="Operational boundaries"></label>
+    <label>Description<input id="new-layer-description" maxlength="1024" placeholder="What this layer contains"></label>
+    <label>Content class<select id="new-layer-class"><option value="reference">Reference</option><option value="named_locations">Named locations</option><option value="facilities">Facilities</option><option value="boundaries">Boundaries</option><option value="network_candidate">Network candidate</option></select></label>
+    <details><summary>Advanced schema and style</summary>
+      <label>JSON Schema 2020-12<textarea id="new-layer-schema" spellcheck="false">{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":true}</textarea></label>
+      <label>Style JSON (optional)<textarea id="new-layer-style" spellcheck="false" placeholder='{"rules":[{"circle_color":"#287e8e"}]}'></textarea></label>
+    </details>
+    <div class="actions"><button type="submit" class="primary">Create layer</button><button type="button" data-action="picker">Back</button></div>
+  </form>
+</template>
+
+<template id="add-feature-template">
+  <form id="add-feature-form">
+    <div class="inspector-section"><div class="eyebrow">Authored data</div><h2>Draw feature</h2><p class="muted">Choose a layer and geometry. Click the map to draw.</p></div>
+    <label>Destination layer<select id="feature-layer"></select></label>
+    <div class="actions"><button type="button" data-draw="point">Point</button><button type="button" data-draw="line">Line</button><button type="button" data-draw="polygon">Polygon</button></div>
+    <div id="feature-geometry-status" class="finding">No geometry drawn yet.</div>
+    <label>Title<input id="feature-title" required maxlength="256" placeholder="Command post"></label>
+    <label>Semantic type<input id="feature-semantic-type" required maxlength="256" placeholder="command_post"></label>
+    <div class="inspector-section"><div class="eyebrow">Properties</div><div id="property-rows"></div><button id="add-property" type="button">Add property</button></div>
+    <details><summary>Advanced feature JSON</summary><label>FeatureInput JSON<textarea id="feature-json-advanced" spellcheck="false"></textarea></label><button id="apply-feature-json" type="button">Apply advanced JSON</button></details>
+    <div class="actions"><button id="validate-feature" type="button">Validate</button><button type="submit" class="primary">Commit feature</button><button type="button" data-action="picker">Back</button></div>
+    <div id="feature-findings"></div>
+  </form>
+</template>
+
+<template id="import-artifact-template">
+  <form id="import-artifact-form">
+    <div class="inspector-section"><div class="eyebrow">Bulk transfer</div><h2>Import artifact</h2><p class="muted">Use an artifact already authorized in this Work Context. Import is atomic and task-backed.</p></div>
+    <label>Destination layer<select id="import-layer"></select></label>
+    <label>Artifact ID<input id="import-artifact-id" required placeholder="UUIDv7 artifact id"></label>
+    <label>Format<select id="import-format"><option value="geo_json_feature_collection">GeoJSON FeatureCollection · RFC 7946</option><option value="geo_json_text_sequence">GeoJSON Text Sequence · RFC 8142</option><option value="geo_package">GeoPackage · OGC 1.4</option></select></label>
+    <label>Default semantic type<input id="import-semantic-type" required value="feature"></label>
+    <div id="geopackage-fields" hidden>
+      <div class="actions"><button id="inspect-geopackage" type="button">Inspect GeoPackage</button></div>
+      <label>Feature table<select id="geopackage-table"></select></label>
+      <div id="geopackage-summary" class="muted">Inspect the artifact to choose a table.</div>
+      <details><summary>Column mapping</summary>
+        <label>Identity column<select id="geopackage-identity"></select></label>
+        <label>Semantic type column<select id="geopackage-semantic"></select></label>
+        <label>Title column<select id="geopackage-title"></select></label>
+      </details>
     </div>
-  </section>
-</main>
+    <div class="actions"><button type="submit" class="primary">Start import</button><button type="button" data-action="picker">Back</button></div>
+    <div id="import-progress" class="muted"></div>
+  </form>
+</template>
+
+<template id="acquire-source-template">
+  <form id="acquire-source-form">
+    <div class="inspector-section"><div class="eyebrow">Governed source</div><h2>Acquire source</h2><p class="muted">Select a source, then draw two corners of its requested WGS84 extent.</p></div>
+    <label>Source<select id="acquire-source"></select></label>
+    <button id="draw-coverage" type="button">Draw extent on map</button>
+    <div id="coverage-status" class="finding">No requested extent drawn.</div>
+    <details><summary>Exact bounds</summary><div class="form-grid">
+      <label>West<input id="bbox-west" type="number" step="any" min="-180" max="180"></label>
+      <label>South<input id="bbox-south" type="number" step="any" min="-90" max="90"></label>
+      <label>East<input id="bbox-east" type="number" step="any" min="-180" max="180"></label>
+      <label>North<input id="bbox-north" type="number" step="any" min="-90" max="90"></label>
+    </div></details>
+    <div class="actions"><button type="submit" class="primary">Start acquisition</button><button type="button" data-action="picker">Back</button></div>
+  </form>
+</template>
+
+<template id="save-view-template">
+  <form id="save-view-form">
+    <div class="inspector-section"><div class="eyebrow">Immutable presentation</div><h2>Save view</h2><p class="muted">The current camera and visible authored publications become a governed composition. Active source releases remain live workspace context.</p></div>
+    <label>View title<input id="save-view-title" required maxlength="256" placeholder="Operational picture"></label>
+    <div id="save-view-summary" class="finding"></div>
+    <div class="actions"><button type="submit" class="primary">Save composition</button><button type="button" data-action="close">Cancel</button></div>
+  </form>
+</template>
+
+<template id="raw-admin-template">
+  <form id="raw-admin-form">
+    <div class="inspector-section"><div class="eyebrow">Advanced administration</div><h2 id="raw-admin-title">Canonical record</h2><p class="muted">This editor exposes the complete typed contract. It is intended for operators who already have a canonical record.</p></div>
+    <label>Canonical JSON<textarea id="raw-admin-json" rows="16" spellcheck="false" required></textarea></label>
+    <div class="actions"><button type="submit" class="primary">Submit</button><button type="button" data-action="picker">Back</button></div>
+  </form>
+</template>
+
+<template id="manage-data-template">
+  <div class="inspector-section"><div class="eyebrow">Governed data</div><h2>Acquisitions and releases</h2><p class="muted">Review source progress and promote or quarantine immutable releases.</p></div>
+  <div class="inspector-section"><div class="eyebrow">Acquisitions</div><div id="manage-acquisitions"></div></div>
+  <div class="inspector-section"><div class="eyebrow">Dataset releases</div><div id="manage-releases"></div></div>
+  <div class="actions"><button data-action="picker">Back</button></div>
+</template>
 
 <script type="module">/*__WORKSPACE_JS__*/</script>
 </body>

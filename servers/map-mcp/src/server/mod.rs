@@ -61,6 +61,7 @@ async fn serve(args: Args) -> Result<()> {
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-map-mcp", "info,veoveo_map_mcp=debug")?;
     let public_deployment = args.public_deployment()?;
+    let workspace_basemap = args.workspace_basemap()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let verifier = GatewayInternalTokenVerifier::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
@@ -158,6 +159,7 @@ async fn serve(args: Args) -> Result<()> {
         },
     )?;
     let state = Arc::new(MapApplication {
+        workspace_basemap,
         tasks,
         catalog: catalog.clone(),
         analytics: analytics.clone(),
