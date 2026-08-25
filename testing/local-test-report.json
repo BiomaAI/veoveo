@@ -1,27 +1,61 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:201767d6a1b736c338ce05883fccb9c8f4bfba4451aa90e9f332c242df27fbcc",
-  "updatedAt": "2026-08-25T19:41:52Z",
+  "buildDigest": "sha256:4cfd27117e33cc3f8ca2f1167da64f10fe18f3b25722f82f23646b37188ee7c4",
+  "updatedAt": "2026-08-25T22:31:12Z",
   "checks": [
     {
-      "name": "map-workspace-live-headed-browser",
+      "name": "console-bff-oauth-tests",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "map-workspace-live-browser-verify",
-        "--public-base-url",
-        "https://veoveo.bioma.ai",
-        "--chrome-cdp-url",
-        "http://127.0.0.1:9222",
-        "--evidence-root",
-        "output/acceptance/map-workspace-live-themed",
-        "--timeout-seconds",
-        "180"
+        "test",
+        "-p",
+        "veoveo-console-bff",
+        "oauth::tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T19:41:52Z",
-      "durationSeconds": 9.139357045,
+      "finishedAt": "2026-08-25T22:31:12Z",
+      "durationSeconds": 39.334078911,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-web-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T22:30:14Z",
+      "durationSeconds": 4.182823026,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-web-lint",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T22:30:26Z",
+      "durationSeconds": 3.460095575,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-web-tests",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "test"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T22:30:29Z",
+      "durationSeconds": 0.331875503,
       "detail": "completed successfully"
     }
   ]

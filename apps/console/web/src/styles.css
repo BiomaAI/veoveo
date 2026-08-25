@@ -1,12 +1,14 @@
+@import "@fontsource-variable/geist/wght.css";
+
 /* Ledger theme: the institutional register. Ink surfaces, bone chrome,
    and one strict law — brass is reserved for value. Interactive states
    read as engraving (bone, inversion), never as glow. */
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sans: "Geist Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   letter-spacing: 0;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
   --brand-accent: #c2a15c;
   /* Accessible type scale: nothing below 11px. */
@@ -198,7 +200,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .topbar-title { min-width: 0; display: flex; align-items: center; gap: 10px; }
 .topbar-title span { display: block; color: var(--muted); font: 500 var(--text-2xs)/15px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
-.topbar-title h1 { margin: 0; font: 400 var(--text-xl)/26px var(--serif); }
+.topbar-title h1 { margin: 0; font: 550 var(--text-xl)/26px var(--sans); letter-spacing: -0.015em; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .icon-button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 0; background: var(--surface-raised); color: var(--text-soft); }
 .icon-button:hover { border-color: var(--border-hover); color: var(--text); }
@@ -245,7 +247,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .recording-player-panel { display: flex; flex-direction: column; overflow: hidden; background: var(--viewer-surface); }
 .recording-player-header { min-height: 86px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .recording-player-header span { color: var(--muted); font: 500 var(--text-2xs) var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
-.recording-player-header h2 { max-width: 680px; margin: 2px 0 0; overflow: hidden; font: 400 var(--text-md) var(--serif); text-overflow: ellipsis; white-space: nowrap; }
+.recording-player-header h2 { max-width: 680px; margin: 2px 0 0; overflow: hidden; font: 550 var(--text-md) var(--sans); text-overflow: ellipsis; white-space: nowrap; }
 .recording-uri { max-width: min(680px, 72vw); display: flex; align-items: center; gap: 6px; margin-top: 4px; padding: 0; border: 0; background: transparent; color: var(--muted); }
 .recording-uri:hover { color: var(--blue); }
 .recording-uri span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -281,11 +283,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .recording-archive-details-panel li { display: grid; grid-template-columns: minmax(80px, 1fr) auto auto; gap: 10px; align-items: center; padding-top: 4px; border-top: 1px solid var(--viewer-border); }
 .recording-archive-details-panel code { color: var(--viewer-muted); font-size: inherit; }
 .recording-empty-player { min-height: 100%; background: var(--surface); color: var(--muted); }
-.recording-empty-player h2 { margin: 4px 0 0; color: var(--text-strong); font: 400 var(--text-md) var(--serif); }
+.recording-empty-player h2 { margin: 4px 0 0; color: var(--text-strong); font: 550 var(--text-md) var(--sans); }
 .recording-empty-player p { max-width: 440px; margin: 0; font-size: var(--text-sm); line-height: 20px; }
 .section-header { min-height: 51px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--border); }
 .section-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.section-header h2 { margin: 0; font: 400 var(--text-md)/21px var(--serif); }
+.section-header h2 { margin: 0; font: 550 var(--text-md)/21px var(--sans); }
 .count { min-width: 22px; padding: 2px 6px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); text-align: center; font: 500 var(--text-2xs) var(--mono); font-variant-numeric: tabular-nums; }
 .section-actions { min-width: 0; display: flex; align-items: center; gap: 7px; }
 
@@ -343,7 +345,7 @@ td strong { color: var(--text-strong); font-size: var(--text-sm); line-height: 1
 a.button { text-decoration: none; }
 .standalone-app-shell { min-height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .standalone-app-header { min-height: 58px; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.standalone-app-header h1 { margin: 0; font: 400 1rem var(--serif); }
+.standalone-app-header h1 { margin: 0; font: 550 1rem var(--sans); letter-spacing: -0.01em; }
 .standalone-app-content { min-height: 0; display: grid; }
 .standalone-app-content .app-frame { width: 100%; height: 100%; min-height: 0; border: 0; }
 .button-primary { border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); }
@@ -436,7 +438,7 @@ a.button { text-decoration: none; }
 .drawer-wide { width: min(900px, calc(100vw - 24px)); }
 .drawer > header { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px; border-bottom: 1px solid var(--border); }
 .drawer > header span { color: var(--muted); font: 500 var(--text-2xs) var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
-.drawer > header h2 { max-width: 370px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 var(--text-lg)/22px var(--serif); }
+.drawer > header h2 { max-width: 370px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 550 var(--text-lg)/22px var(--sans); letter-spacing: -0.01em; }
 .drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 0 16px 20px; }
 .drawer-status { min-height: 49px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-subtle); color: var(--muted); font-size: var(--text-2xs); }
 .drawer-body section { padding: 16px 0; border-bottom: 1px solid var(--border-subtle); }
@@ -573,7 +575,7 @@ a.button { text-decoration: none; }
 
 .modal-layer { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; }
 .modal { position: relative; width: min(440px, 100%); padding: 18px; border: 1px solid var(--border); border-radius: 0; background: var(--surface); box-shadow: var(--shadow-lg); }
-.modal h2 { margin: 0 0 8px; font: 400 var(--text-md)/21px var(--serif); }
+.modal h2 { margin: 0 0 8px; font: 550 var(--text-md)/21px var(--sans); }
 .modal-body { color: var(--muted); font-size: var(--text-sm); line-height: 19px; overflow-wrap: anywhere; }
 .modal-body code { padding: 1px 4px; border: 1px solid var(--border); border-radius: 0; background: var(--surface-soft); font-family: var(--mono); font-size: var(--text-xs); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
@@ -613,7 +615,7 @@ a.button { text-decoration: none; }
 .app-card p { margin: 0; font-size: var(--text-xs); color: var(--muted); }
 
 .center-state { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; color: var(--text-soft); text-align: center; }
-.center-state h1 { margin: 4px 0 0; font: 400 var(--text-xl) var(--serif); }
+.center-state h1 { margin: 4px 0 0; font: 550 var(--text-xl) var(--sans); letter-spacing: -0.015em; }
 .center-state p { max-width: 440px; margin: 0 0 6px; color: var(--muted); font-size: var(--text-md); }
 .loading-mark { width: 26px; height: 26px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 .spin { animation: spin 0.8s linear infinite; }
