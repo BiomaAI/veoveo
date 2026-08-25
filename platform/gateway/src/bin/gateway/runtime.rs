@@ -194,10 +194,10 @@ pub(super) fn spawn_gateway_retention_gc_loop(
 ) {
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(60 * 60)).await;
             if let Err(err) = run_gateway_retention_gc(&gateway_state, retention).await {
                 tracing::error!("gateway retention gc failed: {err}");
             }
+            tokio::time::sleep(Duration::from_secs(60 * 60)).await;
         }
     });
 }
