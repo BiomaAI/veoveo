@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{Array, RecordId, SurrealValue};
 
+use crate::store::primary_transaction_error;
 use crate::{
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, MapCompositionRecord,
     MapCompositionRevisionRecord, MapLayerProductRecord, OpenObject, OutboxDraft, PlatformIdentity,
@@ -183,7 +184,10 @@ impl PlatformStore {
             .bind(("product", content))
             .bind(("event", event))
             .await
-            .and_then(|response| response.check());
+            .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
+                Some(error) => Err(error),
+                None => Ok(()),
+            });
         if let Err(error) = result {
             if let Some(existing) = select_scoped::<MapLayerProductRecord>(
                 self,
@@ -475,10 +479,7 @@ fn matching_product(
 }
 
 fn validate_product(draft: &MapLayerProductDraft) -> Result<(), StoreError> {
-    if !matches!(
-        draft.format.as_str(),
-        "geojson_seq" | "geoparquet" | "mvt_bundle"
-    ) {
+    if !supported_product_format(&draft.format) {
         return Err(invalid("format", "unsupported layer product format"));
     }
     if draft.layer_revision < 0 || draft.size_bytes < 0 || draft.feature_count < 0 {
@@ -496,6 +497,13 @@ fn validate_product(draft: &MapLayerProductDraft) -> Result<(), StoreError> {
         ));
     }
     validate_json("canonical_json", &draft.canonical_json)
+}
+
+fn supported_product_format(value: &str) -> bool {
+    matches!(
+        value,
+        "geojson_seq" | "geoparquet" | "geo_package" | "mvt_bundle"
+    )
 }
 
 fn validate_composition_revision(draft: &MapCompositionRevisionDraft) -> Result<(), StoreError> {
@@ -592,4 +600,17 @@ fn presentation_event<const N: usize>(
 
 fn invalid(field: &'static str, reason: &'static str) -> StoreError {
     StoreError::InvalidMapField { field, reason }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::supported_product_format;
+
+    #[test]
+    fn map_layer_product_formats_match_the_public_contract() {
+        for format in ["geojson_seq", "geoparquet", "geo_package", "mvt_bundle"] {
+            assert!(supported_product_format(format), "rejected {format}");
+        }
+        assert!(!supported_product_format("shapefile"));
+    }
 }

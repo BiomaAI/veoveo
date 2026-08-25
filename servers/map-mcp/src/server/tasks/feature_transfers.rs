@@ -21,6 +21,17 @@ use crate::{
 
 use super::{AuthenticatedCaller, cleanup_task_directory, task_directory, tool_result_with_links};
 
+const STAGED_GEOPACKAGE_FILENAME: &str = "source.gpkg";
+const STAGED_GENERIC_FEATURE_FILENAME: &str = "source";
+
+pub(super) fn staged_import_filename(source: &FeatureImportSource) -> &'static str {
+    match source {
+        FeatureImportSource::GeoPackage { .. } => STAGED_GEOPACKAGE_FILENAME,
+        FeatureImportSource::GeoJsonFeatureCollection { .. }
+        | FeatureImportSource::GeoJsonTextSequence { .. } => STAGED_GENERIC_FEATURE_FILENAME,
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct DurableGeoPackageInspectionRequest {
     pub(super) input: InspectGeoPackageRequest,
@@ -55,7 +66,7 @@ pub(super) async fn run_inspection(
     request: DurableGeoPackageInspectionRequest,
     cancellation: CancellationToken,
 ) -> Result<CallToolResult> {
-    let source_path = task_directory(state, task_id)?.join("source");
+    let source_path = task_directory(state, task_id)?.join(STAGED_GEOPACKAGE_FILENAME);
     verify_staged_source(state, &source_path, &request.source_digest_sha256).await?;
     let manifest = state
         .feature_packages
@@ -98,7 +109,7 @@ pub(super) async fn transcode_import(
     let decoded = state
         .feature_packages
         .decode(
-            &directory.join("source"),
+            &directory.join(STAGED_GEOPACKAGE_FILENAME),
             &output_dir,
             GeoPackageDecode {
                 table,
@@ -220,7 +231,7 @@ async fn stage_authorized_artifact(
         let mut file = tokio::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(directory.join("source"))
+            .open(directory.join(STAGED_GEOPACKAGE_FILENAME))
             .await?;
         file.write_all(&artifact.bytes).await?;
         file.sync_all().await

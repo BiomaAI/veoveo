@@ -2578,6 +2578,22 @@ mod workspace_app_tests {
         assert!(WORKSPACE_APP.contains("tools/call"));
         assert!(!WORKSPACE_APP.contains("<script src="));
         assert!(!WORKSPACE_APP.contains("<link href="));
+        for external_reference in [
+            "src=\"http://",
+            "src=\"https://",
+            "href=\"http://",
+            "href=\"https://",
+            "url(http://",
+            "url(https://",
+            "@import",
+        ] {
+            assert!(
+                !WORKSPACE_APP
+                    .to_ascii_lowercase()
+                    .contains(external_reference),
+                "workspace contains external fetch reference {external_reference}"
+            );
+        }
     }
 
     #[test]
@@ -2621,6 +2637,9 @@ mod workspace_app_tests {
             "query_features",
             "subscriptions/listen",
             "maplibre-gl@6.6.0",
+            "maplibre-worker.cjs",
+            "renderedFeatureCount",
+            "without painting any returned feature",
         ] {
             assert!(
                 WORKSPACE_APP.contains(marker),

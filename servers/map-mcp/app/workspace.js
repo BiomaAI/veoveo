@@ -1,7 +1,10 @@
 import * as maplibregl from "maplibre-gl";
 import workerSource from "embedded:maplibre-worker";
 
-const workerUrl = URL.createObjectURL(new Blob([workerSource], { type: "text/javascript" }));
+// The opaque-origin App sandbox cannot directly fetch its own blob URL.
+// MapLibre recognizes the `.cjs` suffix, fetches this CSP-admitted data URL,
+// and starts the resulting classic worker under `worker-src blob:`.
+const workerUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(workerSource)}#maplibre-worker.cjs`;
 maplibregl.setWorkerUrl(workerUrl);
 
 const bridge = (() => {
@@ -452,6 +455,7 @@ async function refreshViewport() {
     const results = await Promise.all(state.mapLayers.map((layer) =>
       queryVisibleFeatures(layer, bbox, generation)));
     if (generation !== state.queryGeneration) return;
+    const painted = waitForMapPaint();
     results.forEach((features, index) => {
       if (!features) return;
       const mapLayer = state.mapLayers[index];
@@ -459,6 +463,15 @@ async function refreshViewport() {
       const source = state.map.getSource(`composition-source-${mapLayer.index}`);
       source.setData({ type: "FeatureCollection", features });
     });
+    await painted;
+    if (generation !== state.queryGeneration) return;
+    const renderedFeatureCount = state.renderedLayerIds.length
+      ? state.map.queryRenderedFeatures({ layers: state.renderedLayerIds }).length : 0;
+    el("map").dataset.renderedFeatureCount = String(renderedFeatureCount);
+    const expectedFeatureCount = results.reduce((sum, features) => sum + (features ? features.length : 0), 0);
+    if (expectedFeatureCount && !renderedFeatureCount) {
+      throw new Error("MapLibre completed the viewport update without painting any returned feature.");
+    }
     renderMapLayerList();
     const truncated = state.mapLayers.some((layer) => layer.truncated);
     setStatus(truncated
@@ -468,6 +481,24 @@ async function refreshViewport() {
   } catch (error) {
     if (generation === state.queryGeneration) setStatus(`Map query failed: ${error.message}`, "bad");
   }
+}
+
+function waitForMapPaint() {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("MapLibre did not finish painting the viewport within 5 seconds."));
+    }, 5000);
+    const idle = () => { cleanup(); resolve(); };
+    const failed = (event) => { cleanup(); reject(event.error || new Error("MapLibre viewport paint failed.")); };
+    const cleanup = () => {
+      clearTimeout(timeout);
+      state.map.off("idle", idle);
+      state.map.off("error", failed);
+    };
+    state.map.once("idle", idle);
+    state.map.once("error", failed);
+  });
 }
 
 function showFeaturePopup(event) {
@@ -707,7 +738,7 @@ bridge.on("ui/notifications/resource-updated", (params) => {
 bridge.on("ui/resource-teardown", (_params, id) => {
   state.closing = true;
   clearTimeout(state.refreshTimer); clearTimeout(state.pollTimer);
-  state.map?.remove(); URL.revokeObjectURL(workerUrl);
+  state.map?.remove();
   if (id !== undefined) bridge.post({ jsonrpc: "2.0", id, result: {} });
 });
 
