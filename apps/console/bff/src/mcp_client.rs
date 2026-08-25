@@ -33,14 +33,17 @@ use crate::{config::Config, outbound_http::OutboundTrust};
 #[derive(Clone)]
 pub(crate) struct ConsoleHostHandler {
     resource_updates: broadcast::Sender<String>,
+    catalog_updates: broadcast::Sender<u64>,
     catalog_revision: Arc<AtomicU64>,
 }
 
 impl Default for ConsoleHostHandler {
     fn default() -> Self {
         let (resource_updates, _) = broadcast::channel(128);
+        let (catalog_updates, _) = broadcast::channel(128);
         Self {
             resource_updates,
+            catalog_updates,
             catalog_revision: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -48,7 +51,7 @@ impl Default for ConsoleHostHandler {
 
 impl ConsoleHostHandler {
     fn invalidate_catalog(&self) {
-        self.catalog_revision.fetch_add(1, Ordering::AcqRel);
+        publish_catalog_change(&self.catalog_revision, &self.catalog_updates);
     }
 }
 
@@ -132,6 +135,8 @@ pub(crate) struct AuthScopedMcpClient {
     service: Arc<RunningMcpClient>,
     app_catalog: Mutex<Option<CachedMcpAppCatalog>>,
     catalog_revision: Arc<AtomicU64>,
+    catalog_updates: broadcast::Sender<u64>,
+    catalog_listener: Mutex<Option<AppResourceListener>>,
     resource_updates: broadcast::Sender<String>,
     app_resource_subscriptions: Mutex<AppResourceSubscriptions>,
     app_resource_subscription_locks: Mutex<BTreeMap<String, Arc<Mutex<()>>>>,
@@ -230,6 +235,70 @@ impl Deref for AuthScopedMcpClient {
 }
 
 impl AuthScopedMcpClient {
+    pub(crate) fn catalog_updates(&self) -> broadcast::Receiver<u64> {
+        self.catalog_updates.subscribe()
+    }
+
+    async fn start_catalog_listener(&self) -> anyhow::Result<()> {
+        let mut slot = self.catalog_listener.lock().await;
+        if slot.is_some() {
+            return Ok(());
+        }
+        let capabilities = self
+            .service
+            .peer_info()
+            .context("Console MCP peer information is unavailable")?
+            .capabilities
+            .clone();
+        let mut filter = SubscriptionFilter::new();
+        filter.resources_list_changed = capabilities
+            .resources
+            .as_ref()
+            .is_some_and(|resources| resources.list_changed == Some(true))
+            .then_some(true);
+        filter.tools_list_changed = capabilities
+            .tools
+            .as_ref()
+            .is_some_and(|tools| tools.list_changed == Some(true))
+            .then_some(true);
+        if filter.resources_list_changed.is_none() && filter.tools_list_changed.is_none() {
+            return Ok(());
+        }
+        let mut listener = self
+            .service
+            .listen(filter)
+            .await
+            .context("opening Console MCP App catalog listener")?;
+        let (cancel_tx, mut cancel_rx) = oneshot::channel();
+        let (stopped_tx, stopped_rx) = oneshot::channel();
+        let catalog_revision = self.catalog_revision.clone();
+        let catalog_updates = self.catalog_updates.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = &mut cancel_rx => {
+                        let _ = listener.cancel().await;
+                        break;
+                    }
+                    notification = listener.next() => match notification {
+                        Ok(Some(ServerNotification::ResourceListChangedNotification(_)
+                            | ServerNotification::ToolListChangedNotification(_))) => {
+                            publish_catalog_change(&catalog_revision, &catalog_updates);
+                        }
+                        Ok(Some(_)) => {}
+                        Ok(None) | Err(_) => break,
+                    }
+                }
+            }
+            let _ = stopped_tx.send(());
+        });
+        *slot = Some(AppResourceListener {
+            cancel: cancel_tx,
+            stopped: stopped_rx,
+        });
+        Ok(())
+    }
+
     pub(crate) async fn app_catalog(&self) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
         let revision = self.catalog_revision.load(Ordering::Acquire);
         let mut cached = self.app_catalog.lock().await;
@@ -336,6 +405,7 @@ impl AuthScopedMcpClient {
         let (stopped_tx, stopped_rx) = oneshot::channel();
         let resource_updates = self.resource_updates.clone();
         let catalog_revision = self.catalog_revision.clone();
+        let catalog_updates = self.catalog_updates.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -348,7 +418,7 @@ impl AuthScopedMcpClient {
                             let _ = resource_updates.send(update.params.uri);
                         }
                         Ok(Some(ServerNotification::ResourceListChangedNotification(_))) => {
-                            catalog_revision.fetch_add(1, Ordering::AcqRel);
+                            publish_catalog_change(&catalog_revision, &catalog_updates);
                         }
                         Ok(Some(_)) => {}
                         Ok(None) | Err(_) => break,
@@ -406,6 +476,7 @@ impl AuthScopedMcpClient {
         if self.shutting_down.swap(true, Ordering::AcqRel) {
             return;
         }
+        let catalog_listener = self.catalog_listener.lock().await.take();
         let listeners = {
             let mut subscriptions = self.app_resource_subscriptions.lock().await;
             subscriptions.by_id.clear();
@@ -418,6 +489,9 @@ impl AuthScopedMcpClient {
         };
         futures::future::join_all(listeners.into_iter().map(Self::stop_app_resource_listener))
             .await;
+        if let Some(listener) = catalog_listener {
+            let _ = Self::stop_app_resource_listener(listener).await;
+        }
         self.service.cancellation_token().cancel();
     }
 
@@ -594,12 +668,15 @@ impl AuthScopedMcpClientPool {
             service,
             app_catalog: Mutex::new(None),
             catalog_revision: handler.catalog_revision,
+            catalog_updates: handler.catalog_updates,
+            catalog_listener: Mutex::new(None),
             resource_updates: handler.resource_updates,
             app_resource_subscriptions: Mutex::new(AppResourceSubscriptions::default()),
             app_resource_subscription_locks: Mutex::new(BTreeMap::new()),
             app_resource_capacity: self.app_resource_capacity,
             shutting_down: AtomicBool::new(false),
         });
+        client.start_catalog_listener().await?;
         clients.insert(
             key,
             CachedClient {
@@ -623,6 +700,11 @@ impl AuthScopedMcpClientPool {
             cached.client.shutdown().await;
         }
     }
+}
+
+fn publish_catalog_change(revision: &AtomicU64, updates: &broadcast::Sender<u64>) {
+    let revision = revision.fetch_add(1, Ordering::AcqRel).saturating_add(1);
+    let _ = updates.send(revision);
 }
 
 async fn list_resources_with_degradation(

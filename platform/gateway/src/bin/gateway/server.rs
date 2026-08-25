@@ -390,23 +390,17 @@ fn build_profile_mcp_service(
     state: &DynamicMcpState,
     profile_id: GatewayProfileId,
 ) -> ProfileMcpService {
-    let internal_token_issuer = state.internal_token_issuer.clone();
+    // Every stateless request gets its own handler clone while the profile's
+    // discovery cache and change broadcaster remain process-wide.
+    let gateway_mcp = GatewayMcp::new(
+        state.catalog.clone(),
+        profile_id.clone(),
+        state.gateway_state.clone(),
+        state.internal_token_issuer.clone(),
+        state.upstream_http.clone(),
+    );
     let mcp_service = StreamableHttpService::new(
-        {
-            let catalog = state.catalog.clone();
-            let gateway_state = state.gateway_state.clone();
-            let profile_id = profile_id.clone();
-            let upstream_http = state.upstream_http.clone();
-            move || {
-                Ok(GatewayMcp::new(
-                    catalog.clone(),
-                    profile_id.clone(),
-                    gateway_state.clone(),
-                    internal_token_issuer.clone(),
-                    upstream_http.clone(),
-                ))
-            }
-        },
+        move || Ok(gateway_mcp.clone()),
         veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(state.allowed_hosts.iter().cloned())

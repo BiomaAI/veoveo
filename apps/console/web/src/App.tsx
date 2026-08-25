@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logoutConsole } from "./api";
-import { useConsoleLiveStream } from "./live";
+import { useAppCatalogLive, useConsoleLiveStream } from "./live";
 import { queryKeys, useApps, useSnapshot } from "./queries";
 import { Overview } from "./views/Overview";
 import { WorkView } from "./views/Work";
@@ -79,6 +79,7 @@ export function App() {
   const queryClient = useQueryClient();
   const { data: snapshot, error, isLoading } = useSnapshot();
   const { data: appsCatalog } = useApps(Boolean(snapshot));
+  useAppCatalogLive(Boolean(snapshot));
   const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor);
   const [view, setView] = useState<ViewId>(initial.view);
   const [selectedAppUri, setSelectedAppUri] = useState<string | undefined>(initial.appUri);

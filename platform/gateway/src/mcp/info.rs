@@ -1,7 +1,7 @@
 use rmcp::model::{
     ExtensionCapabilities, Implementation, JsonObject, ServerCapabilities, ServerInfo,
 };
-use veoveo_mcp_contract::{McpSurfaceCapabilities, ServerSlug};
+use veoveo_mcp_contract::{DiscoveryFailureMode, McpSurfaceCapabilities, ServerSlug};
 
 use super::GatewayMcp;
 
@@ -37,6 +37,15 @@ impl GatewayMcp {
         for (_, server) in catalog.profile_servers(&self.profile_id) {
             merge_surface_capabilities(&mut capabilities, server.capabilities);
         }
+        if catalog
+            .profile(&self.profile_id)
+            .is_some_and(|profile| profile.discovery_failure_mode == DiscoveryFailureMode::Isolate)
+        {
+            // Isolation-mode lists are intentionally partial while per-server
+            // discoveries finish. The gateway therefore owns list-change support
+            // even when every upstream catalog is otherwise static.
+            enable_gateway_discovery_changes(&mut capabilities);
+        }
         let mut extensions = self.auth_extension_capabilities();
         if catalog
             .profile_servers(&self.profile_id)
@@ -69,6 +78,15 @@ impl GatewayMcp {
                 .to_string(),
         );
         info
+    }
+}
+
+fn enable_gateway_discovery_changes(capabilities: &mut ServerCapabilities) {
+    if let Some(resources) = capabilities.resources.as_mut() {
+        resources.list_changed = Some(true);
+    }
+    if let Some(tools) = capabilities.tools.as_mut() {
+        tools.list_changed = Some(true);
     }
 }
 
@@ -197,6 +215,31 @@ mod tests {
                 .as_ref()
                 .and_then(|resources| resources.list_changed),
             None
+        );
+    }
+
+    #[test]
+    fn isolation_mode_adds_gateway_owned_catalog_changes() {
+        let mut capabilities = ServerCapabilities::builder()
+            .enable_resources()
+            .enable_tools()
+            .build();
+
+        enable_gateway_discovery_changes(&mut capabilities);
+
+        assert_eq!(
+            capabilities
+                .resources
+                .as_ref()
+                .and_then(|resources| resources.list_changed),
+            Some(true)
+        );
+        assert_eq!(
+            capabilities
+                .tools
+                .as_ref()
+                .and_then(|tools| tools.list_changed),
+            Some(true)
         );
     }
 }

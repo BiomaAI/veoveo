@@ -44,6 +44,7 @@ pub(crate) struct ConsoleLiveCaptureEvidence {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code, reason = "shared by the focused browser-smoke binary")]
 pub(crate) struct MapWorkspaceCaptureEvidence {
     schema: &'static str,
     captured_at: chrono::DateTime<chrono::Utc>,
@@ -76,6 +77,7 @@ pub(crate) struct ConsoleMapWorkspaceCaptureEvidence {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code, reason = "shared by the focused browser-smoke binary")]
 struct MapWorkspaceBridgeEvidence {
     initialized: bool,
     query_calls: u64,
@@ -1772,6 +1774,7 @@ async fn sample_rerun_responsiveness(
 /// Exercise the exact generated Map MCP App in the same opaque-origin sandbox
 /// and offline CSP used by Console. The local parent implements only the MCP
 /// App bridge calls needed to render one immutable composition.
+#[allow(dead_code, reason = "shared by the focused browser-smoke binary")]
 pub(crate) async fn capture_map_workspace_app(
     cdp_base: &str,
     app_html_path: &Path,
@@ -2293,6 +2296,7 @@ fn analyze_map_workspace_render(screenshot_path: &Path) -> Result<MapWorkspaceRe
     })
 }
 
+#[allow(dead_code, reason = "shared by the focused browser-smoke binary")]
 async fn serve_map_workspace_acceptance(
     app_html: Vec<u8>,
 ) -> Result<(String, tokio::task::JoinHandle<Result<()>>)> {
@@ -2351,6 +2355,7 @@ async fn serve_map_workspace_acceptance(
     Ok((format!("http://{address}/"), server))
 }
 
+#[allow(dead_code, reason = "shared by the focused browser-smoke binary")]
 fn map_workspace_acceptance_harness() -> String {
     let resources = serde_json::json!({
         "map://workspace": {

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { attachAppCatalogEvents } from "./apps/catalogEvents";
 import { queryKeys } from "./queries";
 import type {
   AgentSummary,
+  AppCatalog,
   ArtifactSummary,
   AuditSummary,
   InstallationSnapshot,
@@ -184,4 +186,17 @@ export function useConsoleLiveStream(cursor: string | undefined): LiveStatus {
   }, [cursor, client]);
 
   return status;
+}
+
+/** Keep the MCP App catalog synchronized with gateway list-change events. */
+export function useAppCatalogLive(enabled: boolean): void {
+  const client = useQueryClient();
+
+  useEffect(() => {
+    if (!enabled || import.meta.env.VITE_DEMO_DATA === "true") return;
+    const source = new EventSource("/console/api/apps/events");
+    return attachAppCatalogEvents(source, (catalog) => {
+      client.setQueryData<AppCatalog>(queryKeys.apps, catalog);
+    });
+  }, [client, enabled]);
 }

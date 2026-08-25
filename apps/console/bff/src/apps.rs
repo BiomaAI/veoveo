@@ -306,6 +306,89 @@ pub(crate) async fn list_apps(
     )
 }
 
+/// Stream complete catalog snapshots independently from App domain-resource
+/// wakes. The receiver is attached before the first snapshot, so no discovery
+/// completion can fall between the snapshot and subscription.
+pub(crate) async fn app_catalog_events(
+    State(state): State<AppState>,
+    request_headers: HeaderMap,
+) -> Response {
+    let subscription = with_apps_session(&state, &request_headers, |mcp| async move {
+        let receiver = mcp.catalog_updates();
+        let catalog = mcp.app_catalog().await?;
+        Ok::<_, rmcp::ServiceError>((receiver, catalog))
+    })
+    .await;
+    let AppsSessionOutcome {
+        client,
+        response_headers,
+        access_expires_at,
+        result,
+        ..
+    } = match subscription {
+        Ok(outcome) => outcome,
+        Err(response) => return response,
+    };
+    let (receiver, catalog) = match result {
+        Ok(subscription) => subscription,
+        Err(error) => {
+            tracing::error!(%error, "console App catalog event stream failed");
+            return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
+        }
+    };
+    let remaining = access_expires_at
+        .saturating_sub(5)
+        .saturating_sub(chrono::Utc::now().timestamp())
+        .max(1);
+    let deadline = Box::pin(tokio::time::sleep(Duration::from_secs(
+        remaining.unsigned_abs(),
+    )));
+    let stream = futures::stream::unfold(
+        (client, receiver, deadline, Some(catalog)),
+        |(client, mut receiver, mut deadline, initial)| async move {
+            let catalog = if let Some(catalog) = initial {
+                catalog
+            } else {
+                let update = tokio::select! {
+                    _ = &mut deadline => return None,
+                    update = receiver.recv() => update,
+                };
+                match update {
+                    Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+                }
+                match client.app_catalog().await {
+                    Ok(catalog) => catalog,
+                    Err(error) => {
+                        tracing::warn!(%error, "Console MCP App catalog stream will reconnect");
+                        return None;
+                    }
+                }
+            };
+            let event = Event::default()
+                .event("catalog")
+                .json_data(AppCatalog {
+                    apps: app_descriptors(&catalog),
+                    degradations: catalog.degradation().failures.clone(),
+                })
+                .expect("App catalog serializes");
+            Some((
+                Ok::<Event, Infallible>(event),
+                (client, receiver, deadline, None),
+            ))
+        },
+    );
+    let mut response = Sse::new(stream).into_response();
+    response.headers_mut().extend(response_headers);
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+        .headers_mut()
+        .insert("x-accel-buffering", HeaderValue::from_static("no"));
+    response
+}
+
 fn app_descriptors(catalog: &McpAppCatalog) -> Vec<AppDescriptor> {
     let mut apps = Vec::new();
     for resource in catalog
