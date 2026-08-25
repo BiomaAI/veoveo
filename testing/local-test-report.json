@@ -1,86 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:f8ae1915697e96980cc443702405054723bd83ce6201727f54b3750b381ed4c8",
-  "updatedAt": "2026-08-25T16:56:41Z",
+  "buildDigest": "sha256:c73cec2d216aef143687bd6c76552702f47eba71242384098822299f63c94a60",
+  "updatedAt": "2026-08-25T17:01:18Z",
   "checks": [
     {
-      "name": "console-bff-reactive-catalog",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-console-bff"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T16:56:20Z",
-      "durationSeconds": 0.706074719,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T16:56:41Z",
-      "durationSeconds": 4.643280132,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T16:56:33Z",
-      "durationSeconds": 4.144466866,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-tests",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T16:56:25Z",
-      "durationSeconds": 0.640109267,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "gateway-reactive-catalog",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-mcp-gateway"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T16:56:15Z",
-      "durationSeconds": 3.968027031,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rust-workspace",
+      "name": "bioma-helm-image-lock",
       "command": [
         "cargo",
         "xtask",
-        "enforce",
-        "rust"
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T16:54:55Z",
-      "durationSeconds": 1175.394167902,
+      "finishedAt": "2026-08-25T17:01:18Z",
+      "durationSeconds": 21.808948997999998,
       "detail": "completed successfully"
     }
   ]
