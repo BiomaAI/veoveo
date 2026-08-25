@@ -221,6 +221,9 @@ enum Command {
             default_value = "http://artifact-service:8790"
         )]
         artifact_service_url: String,
+        /// Seed control-plane file whose canonical revision must be active before serving.
+        #[arg(long)]
+        expected_control_plane: Option<PathBuf>,
         #[command(flatten)]
         store: SurrealStoreArgs,
         /// Base64-encoded PKCS#8 Ed25519 private key used only by the gateway
@@ -461,6 +464,7 @@ async fn main() -> anyhow::Result<()> {
             port,
             public_base_url,
             artifact_service_url,
+            expected_control_plane,
             store,
             internal_signing_key_der_b64,
             internal_signing_key_id,
@@ -471,6 +475,13 @@ async fn main() -> anyhow::Result<()> {
             audit_event_retention_days,
         } => {
             let control_store = GatewayControlStore::connect(store.into_config()?).await?;
+            let expected_control_plane_sha256 = expected_control_plane
+                .as_ref()
+                .map(|path| {
+                    let catalog = GatewayCatalog::load_json(path)?;
+                    control_plane_sha256(catalog.control_plane())
+                })
+                .transpose()?;
             let retention = GatewayRetentionPolicy {
                 audit_event_days: audit_event_retention_days,
             };
@@ -484,6 +495,7 @@ async fn main() -> anyhow::Result<()> {
                 public_base_url,
                 artifact_service_url,
                 control_store,
+                expected_control_plane_sha256,
                 internal_signing_key_der_b64: internal_signing_key_der_b64.0,
                 internal_signing_key_id,
                 refresh_delivery_cipher,

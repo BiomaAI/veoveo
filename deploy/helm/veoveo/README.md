@@ -283,6 +283,11 @@ initial gateway control revision. Every long-running workload authenticates at
 database scope with the runtime Secret. Rotating either Secret is owned by the
 installation operator.
 
+Each gateway replica canonicalizes the mounted seed control plane and compares its
+revision with the active platform-store revision before it opens a listener. A replica
+that races ahead of `installation-bootstrap` exits and restarts instead of serving a
+stale authorization catalog.
+
 The Work Context governance schema uses a coordinated hard-cut rollout. Stop
 producers, preserve any externally required evidence, then clear SurrealDB,
 recording data, artifact objects, and durable forwarder queues together before
