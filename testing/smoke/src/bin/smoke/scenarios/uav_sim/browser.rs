@@ -1940,13 +1940,39 @@ async fn capture_console_map_workspace_app_inner(
         let composition = serde_json::to_string(expected_composition_title)?;
         let layer = serde_json::to_string(expected_layer_title)?;
         let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let selected: bool = evaluate_console_app(
+                &mut cdp,
+                &target_id,
+                &session_id,
+                "map",
+                &format!(
+                    r#"(() => {{
+                      document.querySelector('[data-view="map-view"]')?.click();
+                      const select=document.getElementById('composition-select');
+                      const option=[...(select?.options ?? [])].find(option=>option.textContent?.includes({composition}));
+                      if(!option) return false;
+                      if(select.value!==option.value){{select.value=option.value;select.dispatchEvent(new Event('change',{{bubbles:true}}));}}
+                      return true;
+                    }})()"#
+                ),
+                false,
+            )
+            .await?;
+            if selected {
+                break;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "live Map workspace did not list the expected composition"
+            );
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
         let map_state_script = || {
             format!(
                 r#"(() => {{
-                  document.querySelector('[data-view="map-view"]')?.click();
                   const select=document.getElementById('composition-select');
                   const option=[...(select?.options ?? [])].find(option=>option.textContent?.includes({composition}));
-                  if(option && select.value!==option.value){{select.value=option.value;select.dispatchEvent(new Event('change',{{bubbles:true}}));}}
                   const canvas=document.querySelector('#map canvas');
                   const gl=canvas?.getContext('webgl2');
                   const debug=gl?.getExtension('WEBGL_debug_renderer_info');
