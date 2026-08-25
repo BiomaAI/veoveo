@@ -294,15 +294,17 @@ mod tests {
             return;
         };
         let root = TempDir::new().unwrap();
-        let analytics = MapAnalytics::open(MapAnalyticsConfig {
+        let config = MapAnalyticsConfig {
             database_path: root.path().join("map.duckdb"),
             authoring_task_root: root.path().join("tasks"),
             spill_dir: root.path().join("spill"),
             spatial_extension: extension.into(),
             memory_limit: "256MB".to_owned(),
             threads: 1,
-        })
-        .unwrap();
+        };
+        let analytics = MapAnalytics::open(config.clone()).unwrap();
+        drop(analytics);
+        let analytics = MapAnalytics::open(config).unwrap();
         let geometries = [
             (
                 "Point",

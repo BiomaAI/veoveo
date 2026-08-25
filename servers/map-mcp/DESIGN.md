@@ -328,12 +328,14 @@ interval, geometry type, opaque keyset cursor, and a bounded Basic CQL2-JSON sub
 Property paths and literal values remain parameters. A dateline-crossing box is
 split into two query polygons.
 
-Projection writes use ordinary `INSERT` statements after deterministic replay checks.
-They do not use DuckDB conflict-merge insertion against R-tree tables, because that
-path can buffer non-flat Spatial vectors when one transaction mixes point, line, and
-polygon geometries. Duplicate projected identities fail the transaction. The pinned
-Spatial regression test commits all three geometry families together, inspects both
-R-tree leaf sets, and executes an indexed intersection before acceptance.
+Map eagerly binds and inspects every persisted R-tree during startup before accepting
+projection writes. Projection writes then use ordinary `INSERT` statements after
+deterministic replay checks. They do not use DuckDB conflict-merge insertion against
+R-tree tables, because lazy index binding can replay non-flat Spatial vectors when one
+transaction mixes point, line, and polygon geometries. Duplicate projected identities
+fail the transaction. The pinned Spatial regression test reopens the database, commits
+all three geometry families together, inspects both authored R-tree leaf sets, and
+executes an indexed intersection before acceptance.
 
 The artifact plane stores bulk input bytes and immutable output products. The
 task root stages a verified import under its parsed task identity. It survives
