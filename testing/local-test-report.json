@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ad0d5b87ce0288a370c7d71781c303d87b6f47fcef2358a6134d4ce33e4c0212",
-  "updatedAt": "2026-08-25T04:17:29Z",
+  "buildDigest": "sha256:c53be2e280d10473baa013d0c53a4babeac583438424210378830b6d6a19176c",
+  "updatedAt": "2026-08-25T04:19:29Z",
   "checks": [
     {
       "name": "bioma-helm-image-lock",
@@ -12,24 +12,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:17:29Z",
-      "durationSeconds": 4.900190898,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "gateway-control-plane-generation-guard",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--bin",
-        "gateway"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T04:17:23Z",
-      "durationSeconds": 0.597392889,
+      "finishedAt": "2026-08-25T04:19:29Z",
+      "durationSeconds": 4.775163954,
       "detail": "completed successfully"
     }
   ]
