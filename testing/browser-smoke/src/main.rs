@@ -18,9 +18,10 @@ mod restart;
 
 use browser::{
     ConsoleAgentInstructionEvidence, ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence,
-    ConsoleRecordingArchiveCaptureEvidence, ConsoleRecordingCaptureEvidence,
-    MapWorkspaceCaptureEvidence, capture_console_live_app, capture_console_live_app_five_user_grid,
-    capture_console_live_app_grid, capture_console_live_app_pair, capture_console_recording,
+    ConsoleMapWorkspaceCaptureEvidence, ConsoleRecordingArchiveCaptureEvidence,
+    ConsoleRecordingCaptureEvidence, MapWorkspaceCaptureEvidence, capture_console_live_app,
+    capture_console_live_app_five_user_grid, capture_console_live_app_grid,
+    capture_console_live_app_pair, capture_console_map_workspace_app, capture_console_recording,
     capture_console_recording_archive, capture_map_workspace_app, preflight_console_live_app,
     preflight_standalone_live_app, send_console_uav_agent_instruction,
 };
@@ -98,6 +99,21 @@ enum SmokeCommand {
         #[arg(long, default_value = "output/acceptance/map-workspace")]
         evidence_root: PathBuf,
         #[arg(long, default_value_t = 60)]
+        timeout_seconds: u64,
+    },
+    /// Interact with the deployed Map workspace through the authenticated public Console.
+    MapWorkspaceLiveBrowserVerify {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "VeoVeo Map live acceptance")]
+        composition_title: String,
+        #[arg(long, default_value = "VeoVeo GeoPackage live acceptance")]
+        layer_title: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value = "output/acceptance/map-workspace-live")]
+        evidence_root: PathBuf,
+        #[arg(long, default_value_t = 120)]
         timeout_seconds: u64,
     },
     /// Verify the Console and standalone UAV App hosts without opening live products.
@@ -275,6 +291,16 @@ struct MapWorkspaceBrowserAcceptanceEvidence {
     workspace: MapWorkspaceCaptureEvidence,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MapWorkspaceLiveBrowserAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: String,
+    run_id: String,
+    workspace: ConsoleMapWorkspaceCaptureEvidence,
+}
+
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SourceTimelineSample {
@@ -361,6 +387,24 @@ async fn main() -> Result<()> {
             verify_map_workspace(
                 &chrome_cdp_url,
                 &app_html,
+                &evidence_root,
+                Duration::from_secs(timeout_seconds),
+            )
+            .await
+        }
+        SmokeCommand::MapWorkspaceLiveBrowserVerify {
+            public_base_url,
+            composition_title,
+            layer_title,
+            chrome_cdp_url,
+            evidence_root,
+            timeout_seconds,
+        } => {
+            verify_live_map_workspace(
+                &public_base_url,
+                &composition_title,
+                &layer_title,
+                &chrome_cdp_url,
                 &evidence_root,
                 Duration::from_secs(timeout_seconds),
             )
@@ -501,6 +545,58 @@ async fn verify_map_workspace(
         .with_context(|| format!("writing Map workspace evidence {}", manifest.display()))?;
     println!(
         "Map workspace rendered through hardware WebGL2 and completed a bounded viewport query. Evidence: {}",
+        manifest.display()
+    );
+    Ok(())
+}
+
+async fn verify_live_map_workspace(
+    public_base_url: &str,
+    composition_title: &str,
+    layer_title: &str,
+    chrome_cdp_url: &str,
+    evidence_root: &Path,
+    timeout: Duration,
+) -> Result<()> {
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "live Map workspace acceptance requires public HTTPS"
+    );
+    ensure!(
+        !composition_title.trim().is_empty() && !layer_title.trim().is_empty(),
+        "live Map workspace acceptance requires exact composition and layer titles"
+    );
+    let source_revision = git_revision()?;
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&source_revision).join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating live Map workspace evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let workspace = capture_console_map_workspace_app(
+        chrome_cdp_url,
+        public_base_url,
+        composition_title,
+        layer_title,
+        &evidence_directory,
+        timeout,
+    )
+    .await?;
+    let evidence = MapWorkspaceLiveBrowserAcceptanceEvidence {
+        schema: "veoveo.io/map-workspace-live-browser-evidence/v1",
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        workspace,
+    };
+    let manifest = evidence_directory.join("evidence.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
+        .with_context(|| format!("writing live Map workspace evidence {}", manifest.display()))?;
+    println!(
+        "The public Console rendered and interacted with the Map, Layers, and Data workspace tabs through hardware WebGL2. Evidence: {}",
         manifest.display()
     );
     Ok(())
