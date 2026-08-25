@@ -1,52 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:bc743ba50e964cf18fe15c80d44673c33b3d5b37d310ceaf446602498289af7d",
-  "updatedAt": "2026-08-25T19:30:33Z",
+  "buildDigest": "sha256:b6c9eac253e921e79d994f1cd1e35cee303add14dffd50249ea32a43ea531dc2",
+  "updatedAt": "2026-08-25T19:33:33Z",
   "checks": [
     {
-      "name": "map-mcp-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-map-mcp"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T19:30:25Z",
-      "durationSeconds": 12.49923699,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-app-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "servers/map-mcp/app",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T19:30:12Z",
-      "durationSeconds": 0.40362039,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-headed-browser",
+      "name": "bioma-helm-image-lock",
       "command": [
         "cargo",
         "xtask",
         "smoke",
-        "map-workspace-browser-verify",
-        "--chrome-cdp-url",
-        "http://127.0.0.1:9222",
-        "--app-html",
-        "servers/map-mcp/assets/workspace-app.html",
-        "--evidence-root",
-        "output/acceptance/map-workspace-style"
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T19:30:33Z",
-      "durationSeconds": 6.299712638,
+      "finishedAt": "2026-08-25T19:33:33Z",
+      "durationSeconds": 15.007856478,
       "detail": "completed successfully"
     }
   ]
