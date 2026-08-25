@@ -23,12 +23,37 @@ mod projection;
 
 pub(crate) use projection::ReleaseProjectionWriter;
 
-const SCHEMA_VERSION: i64 = 9;
-const SPATIAL_INDEXES: [&str; 4] = [
-    "map_boundary_geometry",
-    "map_source_feature_geometry",
-    "map_authored_revision_geometry",
-    "map_authored_head_geometry",
+const SCHEMA_VERSION: i64 = 10;
+const REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION: i64 = 9;
+
+#[derive(Clone, Copy)]
+struct SpatialIndexDefinition {
+    name: &'static str,
+    table: &'static str,
+    column: &'static str,
+}
+
+const SPATIAL_INDEXES: [SpatialIndexDefinition; 4] = [
+    SpatialIndexDefinition {
+        name: "map_boundary_geometry",
+        table: "map_boundary",
+        column: "geometry",
+    },
+    SpatialIndexDefinition {
+        name: "map_source_feature_geometry",
+        table: "map_source_feature",
+        column: "geometry",
+    },
+    SpatialIndexDefinition {
+        name: "map_authored_revision_geometry",
+        table: "map_authored_feature_revision",
+        column: "geometry",
+    },
+    SpatialIndexDefinition {
+        name: "map_authored_head_geometry",
+        table: "map_authored_feature_head",
+        column: "geometry",
+    },
 ];
 const NEARBY_FACILITIES_SQL: &str = "WITH scored AS MATERIALIZED (\
        SELECT canonical_json, facility_key, source_release_key, \
@@ -788,17 +813,21 @@ impl MapAnalytics {
             |row| row.get(0),
         )?;
         if schema_exists {
-            let version: Option<i64> = connection
-                .query_row(
-                    "SELECT version FROM map_schema WHERE version = ? AND (SELECT count(*) FROM map_schema) = 1",
-                    params![SCHEMA_VERSION],
-                    |row| row.get(0),
-                )
-                .ok();
-            if version != Some(SCHEMA_VERSION) {
-                bail!(
-                    "unsupported map analytics schema marker; rebuild the derived Map projection"
-                );
+            let version: Option<i64> = connection.query_row(
+                "SELECT CASE WHEN count(*) = 1 THEN max(version) ELSE NULL END FROM map_schema",
+                [],
+                |row| row.get(0),
+            )?;
+            match version {
+                Some(SCHEMA_VERSION) => {}
+                Some(REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION) => {
+                    rebuild_spatial_indexes_for_schema_upgrade(&connection)?;
+                }
+                _ => {
+                    bail!(
+                        "unsupported map analytics schema marker; rebuild the derived Map projection"
+                    );
+                }
             }
         } else if managed_table_count != 0 {
             bail!(
@@ -990,13 +1019,43 @@ fn verify_spatial_indexes(connection: &Connection) -> Result<()> {
     for index in SPATIAL_INDEXES {
         connection
             .query_row(
-                &format!("SELECT count(*) FROM rtree_index_dump('{index}')"),
+                &format!("SELECT count(*) FROM rtree_index_dump('{}')", index.name),
                 [],
                 |row| row.get::<_, u64>(0),
             )
-            .with_context(|| format!("binding and verifying DuckDB Spatial index {index}"))?;
+            .with_context(|| {
+                format!("binding and verifying DuckDB Spatial index {}", index.name)
+            })?;
     }
     Ok(())
+}
+
+fn rebuild_spatial_indexes_for_schema_upgrade(connection: &Connection) -> Result<()> {
+    let mut drop_sql = String::new();
+    for index in SPATIAL_INDEXES {
+        drop_sql.push_str(&format!("DROP INDEX IF EXISTS {};\n", index.name));
+    }
+    connection.execute_batch(&drop_sql).with_context(|| {
+        format!(
+            "dropping DuckDB Spatial indexes while upgrading Map analytics schema from {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION} to {SCHEMA_VERSION}"
+        )
+    })?;
+
+    let mut create_sql = String::from("BEGIN TRANSACTION;\n");
+    for index in SPATIAL_INDEXES {
+        create_sql.push_str(&format!(
+            "CREATE INDEX {} ON {} USING RTREE ({});\n",
+            index.name, index.table, index.column
+        ));
+    }
+    create_sql.push_str(&format!(
+        "UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version = {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION};\nCOMMIT;"
+    ));
+    connection.execute_batch(&create_sql).with_context(|| {
+        format!(
+            "rebuilding DuckDB Spatial indexes while upgrading Map analytics schema from {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION} to {SCHEMA_VERSION}"
+        )
+    })
 }
 
 fn polygon_geojson(polygon: &crate::contract::Wgs84Polygon) -> Result<String> {
@@ -1836,6 +1895,62 @@ mod tests {
         drop(connection);
         let error = MapAnalytics::open(analytics_config(&root, &extension)).unwrap_err();
         assert!(error.to_string().contains("schema marker"));
+    }
+
+    #[test]
+    fn schema_nine_upgrade_rebuilds_spatial_indexes_without_losing_mixed_geometries() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let analytics = configured_analytics(&root, &extension);
+        let connection = analytics.connection().unwrap();
+        connection
+            .execute_batch(
+                r#"
+                INSERT INTO map_source_feature (
+                  tenant_key, release_key, feature_key, source_key,
+                  source_element_type, source_element_key, source_element_version,
+                  representation, geometry_digest_sha256, geometry, normalized_text,
+                  tags_json, canonical_json, source_digest_sha256,
+                  projection_attempt_key, projection_ordinal
+                ) VALUES
+                  ('tenant', 'release', 'point', 'source', 'node', 'point', '1',
+                   'center', 'point-digest', ST_GeomFromGeoJSON('{"type":"Point","coordinates":[-89.214,13.696]}'),
+                   'point', '{}', '{}', 'source-digest', 'attempt', 0),
+                  ('tenant', 'release', 'line', 'source', 'way', 'line', '1',
+                   'centerline', 'line-digest', ST_GeomFromGeoJSON('{"type":"LineString","coordinates":[[-89.22,13.69],[-89.21,13.70]]}'),
+                   'line', '{}', '{}', 'source-digest', 'attempt', 1),
+                  ('tenant', 'release', 'polygon', 'source', 'relation', 'polygon', '1',
+                   'footprint', 'polygon-digest', ST_GeomFromGeoJSON('{"type":"Polygon","coordinates":[[[-89.22,13.69],[-89.21,13.69],[-89.21,13.70],[-89.22,13.70],[-89.22,13.69]]]}'),
+                   'polygon', '{}', '{}', 'source-digest', 'attempt', 2);
+                UPDATE map_schema SET version = 9;
+                "#,
+            )
+            .unwrap();
+        drop(connection);
+        drop(analytics);
+
+        let upgraded = configured_analytics(&root, &extension);
+        let connection = upgraded.connection().unwrap();
+        let version: i64 = connection
+            .query_row("SELECT version FROM map_schema", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        let stored: u64 = connection
+            .query_row("SELECT count(*) FROM map_source_feature", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(stored, 3);
+        let indexed: u64 = connection
+            .query_row(
+                "SELECT count(*) FROM rtree_index_dump('map_source_feature_geometry') WHERE row_id IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(indexed, stored);
     }
 
     #[test]

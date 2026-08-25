@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:73ea2f502945555f5ab2e8cecab91007f445e736026f2b1b612db15432917aa1",
-  "updatedAt": "2026-08-25T04:33:18Z",
+  "buildDigest": "sha256:c9689fb04dc57077978a4df66e59d1e3849a2f7ce6099efcaac148e048c3f64b",
+  "updatedAt": "2026-08-25T04:48:08Z",
   "checks": [
     {
       "name": "bioma-helm-image-lock",
@@ -12,8 +12,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:33:07Z",
-      "durationSeconds": 4.48867674,
+      "finishedAt": "2026-08-25T04:48:08Z",
+      "durationSeconds": 4.463278564,
       "detail": "completed successfully"
     },
     {
@@ -28,8 +28,8 @@
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:33:18Z",
-      "durationSeconds": 9.987608177,
+      "finishedAt": "2026-08-25T04:47:54Z",
+      "durationSeconds": 22.488836612,
       "detail": "completed successfully"
     }
   ]
