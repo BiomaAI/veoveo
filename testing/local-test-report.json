@@ -1,62 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:38415788d2cd38f52a52093e1354349290bef62833055386e1aa94aeb97fe324",
-  "updatedAt": "2026-08-25T23:03:06Z",
+  "buildDigest": "sha256:be16aed3415370dc823ebc74a73ada8b866352568b7cc6671b3470ffdc98ad13",
+  "updatedAt": "2026-08-25T23:14:17Z",
   "checks": [
     {
-      "name": "map-workspace-app-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "servers/map-mcp/app",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T22:54:40Z",
-      "durationSeconds": 0.387475678,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-app-tests",
+      "name": "bioma-helm-image-lock",
       "command": [
         "cargo",
-        "test",
-        "-p",
-        "veoveo-map-mcp",
-        "workspace_app_tests"
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T22:57:47Z",
-      "durationSeconds": 181.594813856,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "timeseries-forecast-app-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-timeseries-mcp",
-        "forecast_app_tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T23:03:06Z",
-      "durationSeconds": 134.055853842,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "view-preview-app-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-view-mcp",
-        "app::tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T23:00:34Z",
-      "durationSeconds": 160.519459966,
+      "finishedAt": "2026-08-25T23:14:17Z",
+      "durationSeconds": 199.156960645,
       "detail": "completed successfully"
     }
   ]
