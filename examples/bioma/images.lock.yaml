@@ -6,13 +6,13 @@ global:
     veoveo/artifact-mcp: sha256:74707d3680aa6a3e7ce6e972054c3c5e628dd833f72d3d5e26514baaa1e4f703
     veoveo/artifact-service: sha256:b52f8c04519d16e3026bbb2eefe5ec2cd9e359cfd2fb12a41090435ac2e5c608
     veoveo/chart-mcp: sha256:1bda238893ba48fcbb89daf95956e841354048059c0ad08b8c5079207edc23c1
-    veoveo/console-bff: sha256:f0f256984c7a7d4ac32c3950eb4d947ed34531217f9f125d83f519d05a8e37f1
+    veoveo/console-bff: sha256:f518df8914d1e6bdf32195fad92f4dd3a471278246fb2c465c341133cb8d40b4
     veoveo/cuopt-executor: sha256:165f804961048f7430641ea9bb8892d19485e24c54c612ed7d9e815c1361a361
     veoveo/datasheet-mcp: sha256:69e591ac8bd189880420dd626eb328e576d37174edf3cfb347a29214e3c469dd
     veoveo/duckdb-mcp: sha256:7f9d1db208208cc65aa1399fcc728705bfe295cb4442fd73908cfec1a2031ca5
     veoveo/frames-mcp: sha256:80b6cbcfeea87c60ed5344dc08c45eb66bb93a770329dcc076780d50a7b7d6d0
     veoveo/map-mcp: sha256:8295c4903b0240f31ee3437fc8a98b846009ae6119c7bdec8ee117c733a4c153
-    veoveo/mcp-gateway: sha256:96393a33745880963a022066329c71fdd872244d43aaba78269c9c42ad957801
+    veoveo/mcp-gateway: sha256:7e50b3460c313d5e64a3f25bcc9cfbadb18e7dce4d39eff489bb34c34567ea17
     veoveo/mcp-legacy-bridge: sha256:05da8f060e6fffa9afa271c2656d7d60a313cd7874612c94a1bc01881c9c2d60
     veoveo/mcp-stdio-bridge: sha256:ae434fd9928b8ca64b7b19b8991cea9d71aae60d7feb270b96554a8fd9a298e3
     veoveo/media-mcp: sha256:eedec7f1589606a64a94ac6551259f8b88363d45f5642d70d3783a714ee6507b
