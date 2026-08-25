@@ -590,7 +590,6 @@ a.button { text-decoration: none; }
   border-radius: 0;
 }
 .app-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 12px; }
-.catalog-degradation { margin: 12px; padding: 8px 10px; border: 1px solid var(--amber); border-radius: 0; background: var(--amber-soft); color: var(--text); font-size: var(--text-xs); line-height: 17px; }
 .app-card {
   display: flex;
   flex-direction: column;
@@ -606,6 +605,10 @@ a.button { text-decoration: none; }
   cursor: pointer;
 }
 .app-card:hover { border-color: var(--accent); }
+.app-card-unavailable { cursor: default; border-style: dashed; color: var(--text-soft); }
+.app-card-unavailable:hover { border-color: var(--border); }
+.app-card-heading { display: flex; align-items: center; gap: 8px; width: 100%; }
+.app-unavailable-tag { margin-left: auto; padding: 1px 5px; border: 1px solid var(--amber); color: var(--amber); font: var(--text-2xs)/15px var(--mono); text-transform: uppercase; letter-spacing: .04em; }
 .app-card strong { font-size: var(--text-sm); }
 .app-card p { margin: 0; font-size: var(--text-xs); color: var(--muted); }
 
