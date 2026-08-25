@@ -534,7 +534,7 @@ async fn verify_map_workspace(
     )
     .await?;
     let evidence = MapWorkspaceBrowserAcceptanceEvidence {
-        schema: "veoveo.io/map-workspace-browser-evidence/v1",
+        schema: "veoveo.io/map-workspace-browser-evidence/v2",
         completed_at: Utc::now(),
         source_revision,
         run_id,
@@ -544,7 +544,7 @@ async fn verify_map_workspace(
     fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
         .with_context(|| format!("writing Map workspace evidence {}", manifest.display()))?;
     println!(
-        "Map workspace rendered through hardware WebGL2 and completed a bounded viewport query. Evidence: {}",
+        "Map workspace rendered its persistent hardware WebGL2 map and completed bounded authored and source-release viewport queries. Evidence: {}",
         manifest.display()
     );
     Ok(())
@@ -586,7 +586,7 @@ async fn verify_live_map_workspace(
     )
     .await?;
     let evidence = MapWorkspaceLiveBrowserAcceptanceEvidence {
-        schema: "veoveo.io/map-workspace-live-browser-evidence/v1",
+        schema: "veoveo.io/map-workspace-live-browser-evidence/v3",
         completed_at: Utc::now(),
         source_revision,
         run_id,
@@ -596,7 +596,7 @@ async fn verify_live_map_workspace(
     fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
         .with_context(|| format!("writing live Map workspace evidence {}", manifest.display()))?;
     println!(
-        "The public Console rendered and interacted with the Map, Layers, and Data workspace tabs through hardware WebGL2. Evidence: {}",
+        "The public Console rendered and interacted with the persistent map, authored and source previews, every guided workflow, and governed-data inspector through hardware WebGL2. Evidence: {}",
         manifest.display()
     );
     Ok(())
