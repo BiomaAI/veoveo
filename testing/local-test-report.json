@@ -1,8 +1,21 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:79f0081b8420e78901a35060a33524dbc035a7aa15816dfee1564ae966579382",
-  "updatedAt": "2026-08-25T04:25:10Z",
+  "buildDigest": "sha256:b6b4c0ff72547bae12415e63c0adc81a63dfe48daee65fbd09d429bbdf77bb91",
+  "updatedAt": "2026-08-25T04:27:29Z",
   "checks": [
+    {
+      "name": "bioma-helm-image-lock",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T04:27:10Z",
+      "durationSeconds": 4.701780703,
+      "detail": "completed successfully"
+    },
     {
       "name": "map-duckdb-spatial-full",
       "command": [
@@ -15,8 +28,8 @@
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:25:10Z",
-      "durationSeconds": 22.048089395,
+      "finishedAt": "2026-08-25T04:27:29Z",
+      "durationSeconds": 9.607546746,
       "detail": "completed successfully"
     }
   ]
