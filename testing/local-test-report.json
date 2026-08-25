@@ -1,19 +1,22 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c53be2e280d10473baa013d0c53a4babeac583438424210378830b6d6a19176c",
-  "updatedAt": "2026-08-25T04:19:29Z",
+  "buildDigest": "sha256:79f0081b8420e78901a35060a33524dbc035a7aa15816dfee1564ae966579382",
+  "updatedAt": "2026-08-25T04:25:10Z",
   "checks": [
     {
-      "name": "bioma-helm-image-lock",
+      "name": "map-duckdb-spatial-full",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-map-mcp",
+        "--",
+        "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:19:29Z",
-      "durationSeconds": 4.775163954,
+      "finishedAt": "2026-08-25T04:25:10Z",
+      "durationSeconds": 22.048089395,
       "detail": "completed successfully"
     }
   ]
