@@ -53,6 +53,7 @@ pub(crate) struct MapWorkspaceCaptureEvidence {
     screenshot_sha256: String,
     hardware: HardwareIdentity,
     bridge: MapWorkspaceBridgeEvidence,
+    theme: Value,
     render: MapWorkspaceRenderEvidence,
 }
 
@@ -1809,6 +1810,7 @@ pub(crate) async fn capture_map_workspace_app(
     let acceptance: Result<(
         HardwareIdentity,
         MapWorkspaceBridgeEvidence,
+        Value,
         MapWorkspaceRenderEvidence,
         String,
     )> = async {
@@ -1890,6 +1892,92 @@ pub(crate) async fn capture_map_workspace_app(
             bridge.last_source_query
         );
 
+        let light = loop {
+            let value: Value = evaluate_console_app(
+                &mut cdp,
+                &target_id,
+                &session_id,
+                "map",
+                r#"({
+                  theme:document.documentElement.dataset.theme ?? '',
+                  basemapTheme:document.getElementById('map')?.dataset.basemapTheme ?? '',
+                  basemapAvailable:document.getElementById('map')?.dataset.basemapAvailable ?? '',
+                  viewport:document.getElementById('viewport')?.textContent ?? '',
+                  renderedFeatureCount:Number(document.getElementById('map')?.dataset.renderedFeatureCount ?? 0)
+                })"#,
+                false,
+            )
+            .await?;
+            if value.get("theme").and_then(Value::as_str) == Some("light")
+                && value.get("basemapTheme").and_then(Value::as_str) == Some("light")
+                && value.get("basemapAvailable").and_then(Value::as_str) == Some("true")
+                && value
+                    .get("renderedFeatureCount")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0)
+                    > 0
+            {
+                break value;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "Map workspace did not initialize its light basemap and overlays: {value}"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        };
+        let switched: bool = cdp
+            .evaluate(
+                &session_id,
+                r#"(() => {
+                  const frame=document.getElementById('app');
+                  frame?.contentWindow?.postMessage({
+                    jsonrpc:'2.0',method:'ui/notifications/host-context-changed',
+                    params:{hostContext:{theme:'dark'}}
+                  },'*');
+                  return Boolean(frame);
+                })()"#,
+                false,
+            )
+            .await?;
+        ensure!(switched, "Map workspace acceptance frame disappeared before theme switching");
+        let dark = loop {
+            let value: Value = evaluate_console_app(
+                &mut cdp,
+                &target_id,
+                &session_id,
+                "map",
+                r#"({
+                  theme:document.documentElement.dataset.theme ?? '',
+                  basemapTheme:document.getElementById('map')?.dataset.basemapTheme ?? '',
+                  basemapAvailable:document.getElementById('map')?.dataset.basemapAvailable ?? '',
+                  viewport:document.getElementById('viewport')?.textContent ?? '',
+                  renderedFeatureCount:Number(document.getElementById('map')?.dataset.renderedFeatureCount ?? 0)
+                })"#,
+                false,
+            )
+            .await?;
+            if value.get("theme").and_then(Value::as_str) == Some("dark")
+                && value.get("basemapTheme").and_then(Value::as_str) == Some("dark")
+                && value.get("basemapAvailable").and_then(Value::as_str) == Some("true")
+                && value
+                    .get("renderedFeatureCount")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0)
+                    > 0
+            {
+                break value;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "Map workspace did not reactively restore its overlays on the dark basemap: {value}"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        };
+        ensure!(
+            dark.get("viewport") == light.get("viewport"),
+            "Map workspace changed its camera while switching basemap theme: {light} -> {dark}"
+        );
+
         // GeoJSON source updates are worker-driven. Give MapLibre enough time
         // to place and paint the returned geometries before capture.
         tokio::time::sleep(Duration::from_secs(3)).await;
@@ -1898,7 +1986,14 @@ pub(crate) async fn capture_map_workspace_app(
         let screenshot_sha256 =
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
         let render = analyze_map_workspace_render(screenshot_path)?;
-        Ok((hardware, bridge, render, screenshot_sha256))
+        let bridge: MapWorkspaceBridgeEvidence = cdp
+            .evaluate(&session_id, "window.__mapWorkspaceEvidence", false)
+            .await?;
+        ensure!(
+            bridge.authored_query_calls >= 2 && bridge.source_query_calls >= 2,
+            "Map workspace did not refresh both spatial previews after its theme switch: {bridge:?}"
+        );
+        Ok((hardware, bridge, dark, render, screenshot_sha256))
     }
     .await;
     let acceptance = match acceptance {
@@ -1910,7 +2005,7 @@ pub(crate) async fn capture_map_workspace_app(
     };
     let close = close_target(&mut cdp, &target_id).await;
     server.abort();
-    let (hardware, bridge, render, screenshot_sha256) = acceptance?;
+    let (hardware, bridge, theme, render, screenshot_sha256) = acceptance?;
     close?;
     Ok(MapWorkspaceCaptureEvidence {
         schema: "veoveo.io/map-workspace-capture-evidence/v2",
@@ -1920,6 +2015,7 @@ pub(crate) async fn capture_map_workspace_app(
         screenshot_sha256,
         hardware,
         bridge,
+        theme,
         render,
     })
 }
@@ -2489,9 +2585,24 @@ async fn serve_map_workspace_acceptance(
     let address = listener.local_addr()?;
     let harness = Arc::<[u8]>::from(map_workspace_acceptance_harness(address).into_bytes());
     let app_html = Arc::<[u8]>::from(app_html);
-    let tile = Arc::<[u8]>::from(STANDARD.decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-    )?);
+    let light_style = Arc::<[u8]>::from(serde_json::to_vec(&serde_json::json!({
+        "version": 8,
+        "sources": {},
+        "layers": [{
+            "id": "acceptance-light",
+            "type": "background",
+            "paint": {"background-color": "#dfe8ee"}
+        }]
+    }))?);
+    let dark_style = Arc::<[u8]>::from(serde_json::to_vec(&serde_json::json!({
+        "version": 8,
+        "sources": {},
+        "layers": [{
+            "id": "acceptance-dark",
+            "type": "background",
+            "paint": {"background-color": "#111820"}
+        }]
+    }))?);
     let app_csp = format!(
         "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; \
          img-src data: blob: http://{address}; media-src blob:; connect-src data: http://{address}; \
@@ -2511,15 +2622,17 @@ async fn serve_map_workspace_acceptance(
                 .and_then(|line| line.split_whitespace().nth(1))
                 .unwrap_or("/");
             let (status, content_type, csp, body): (&str, &str, Option<&str>, &[u8]) =
-                if target.starts_with("/app") {
+                if target.starts_with("/app") || target.starts_with("/console/api/apps/frame") {
                     (
                         "200 OK",
                         "text/html; charset=utf-8",
                         Some(app_csp.as_str()),
                         &app_html,
                     )
-                } else if target.starts_with("/tiles/") {
-                    ("200 OK", "image/png", None, &tile)
+                } else if target.starts_with("/style-light.json") {
+                    ("200 OK", "application/json", None, &light_style)
+                } else if target.starts_with("/style-dark.json") {
+                    ("200 OK", "application/json", None, &dark_style)
                 } else if target == "/" || target.starts_with("/?") {
                     ("200 OK", "text/html; charset=utf-8", None, &harness)
                 } else {
@@ -2552,15 +2665,12 @@ fn map_workspace_acceptance_harness(address: std::net::SocketAddr) -> String {
             "feature_read": true,
             "feature_write": true,
             "feature_publish": true,
-            "basemap": {
-                "id": "acceptance_basemap",
-                "title": "Acceptance basemap",
-                "tile_url_template": format!("http://{address}/tiles/{{z}}/{{x}}/{{y}}.png"),
-                "attribution": "Veoveo acceptance basemap",
-                "minimum_zoom": 0,
-                "maximum_zoom": 19,
-                "tile_size": 256
-            }
+                "basemap": {
+                    "id": "acceptance_basemap",
+                    "title": "Acceptance basemap",
+                    "light_style_url": format!("http://{address}/style-light.json"),
+                    "dark_style_url": format!("http://{address}/style-dark.json")
+                }
         },
         "map://feature-layers": [{
             "layer_id": "layer-0198-map-workspace",
@@ -2726,7 +2836,7 @@ addEventListener("message",event=>{{
   if(message.method==="subscriptions/listen") return reply({{}});
   if(message.id!==undefined) return fail(`unexpected request ${{message.method}}`);
 }});
-</script></head><body><iframe id="app" title="Map workspace" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/app"></iframe></body></html>"#,
+</script></head><body><iframe id="app" class="app-frame" title="Map workspace" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/console/api/apps/frame?uri=ui%3A%2F%2Fmap%2Fworkspace.html"></iframe></body></html>"#,
         resources = resources,
         features = features,
         source_features = source_features,

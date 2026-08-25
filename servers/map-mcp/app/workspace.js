@@ -66,6 +66,10 @@ const state = {
   previewPage: 0,
   map: null,
   mapReady: false,
+  basemapTheme: null,
+  basemapStyleUrl: null,
+  desiredBasemapTheme: "light",
+  basemapSwitchPromise: null,
   renderedLayerIds: [],
   queryGeneration: 0,
   refreshTimer: null,
@@ -415,6 +419,107 @@ function css(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+function fallbackStyle(theme) {
+  return {
+    version: 8,
+    sources: {},
+    layers: [{
+      id: "workspace-background",
+      type: "background",
+      paint: { "background-color": theme === "dark" ? "#111820" : css("--map-water") },
+    }],
+  };
+}
+
+function basemapStyleUrl(theme) {
+  const basemap = state.access?.basemap;
+  return theme === "dark" ? basemap?.dark_style_url : basemap?.light_style_url;
+}
+
+function waitForMapEvent(eventName, timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const onEvent = () => {
+      clearTimeout(timeout);
+      state.map.off(eventName, onEvent);
+      resolve();
+    };
+    const timeout = setTimeout(() => {
+      state.map.off(eventName, onEvent);
+      reject(new Error(`MapLibre ${eventName} did not complete within ${timeoutMs / 1000} seconds.`));
+    }, timeoutMs);
+    state.map.on(eventName, onEvent);
+  });
+}
+
+function cameraState() {
+  const center = state.map.getCenter();
+  return {
+    center: [center.lng, center.lat],
+    zoom: state.map.getZoom(),
+    bearing: state.map.getBearing(),
+    pitch: state.map.getPitch(),
+  };
+}
+
+async function loadReplacementStyle(style, theme) {
+  let ready = waitForMapEvent("style.load");
+  state.map.setStyle(style);
+  try {
+    await ready;
+    return true;
+  } catch (error) {
+    setStatus(`The ${theme} basemap is unavailable; governed layers remain interactive.`, "warn");
+    ready = waitForMapEvent("style.load");
+    state.map.setStyle(fallbackStyle(theme));
+    await ready;
+    return false;
+  }
+}
+
+async function applyBasemapTheme(theme) {
+  state.desiredBasemapTheme = theme;
+  if (!state.map || !state.mapReady) return;
+  const requestedUrl = basemapStyleUrl(theme) || null;
+  if (state.basemapTheme === theme && state.basemapStyleUrl === requestedUrl) return;
+  if (state.basemapSwitchPromise) return state.basemapSwitchPromise;
+  state.basemapSwitchPromise = (async () => {
+    while (!state.closing) {
+      const nextTheme = state.desiredBasemapTheme;
+      const nextUrl = basemapStyleUrl(nextTheme) || null;
+      if (state.basemapTheme === nextTheme && state.basemapStyleUrl === nextUrl) break;
+      const camera = cameraState();
+      clearTimeout(state.refreshTimer);
+      state.mapReady = false;
+      state.queryGeneration += 1;
+      clearInstalledEntries();
+      el("map").dataset.basemapTheme = `loading-${nextTheme}`;
+      const loaded = await loadReplacementStyle(nextUrl || fallbackStyle(nextTheme), nextTheme);
+      if (state.closing) break;
+      state.map.jumpTo(camera);
+      state.basemapTheme = nextTheme;
+      state.basemapStyleUrl = nextUrl;
+      el("map").dataset.basemapTheme = nextTheme;
+      el("map").dataset.basemapAvailable = String(loaded);
+      state.mapReady = true;
+      installUtilitySources();
+      installEntries();
+      renderSelection();
+      updateViewportLabel();
+      await refreshViewport();
+    }
+  })().catch((error) => {
+    setStatus(`Basemap theme switch failed: ${error.message}`, "bad");
+  }).finally(() => {
+    state.basemapSwitchPromise = null;
+    const requestedUrl = basemapStyleUrl(state.desiredBasemapTheme) || null;
+    if (!state.closing && state.mapReady
+      && (state.basemapTheme !== state.desiredBasemapTheme || state.basemapStyleUrl !== requestedUrl)) {
+      void applyBasemapTheme(state.desiredBasemapTheme);
+    }
+  });
+  return state.basemapSwitchPromise;
+}
+
 async function initializeMap() {
   if (state.map) return;
   let gpu;
@@ -428,19 +533,11 @@ async function initializeMap() {
   }
   el("gpu-badge").textContent = `Hardware WebGL2 · ${gpu.renderer}`;
   const basemap = state.access.basemap;
-  const sources = {};
-  const layers = [{ id: "workspace-background", type: "background", paint: { "background-color": css("--map-water") } }];
-  if (basemap) {
-    sources["workspace-basemap"] = {
-      type: "raster",
-      tiles: [basemap.tile_url_template],
-      tileSize: basemap.tile_size,
-      minzoom: basemap.minimum_zoom,
-      maxzoom: basemap.maximum_zoom,
-      attribution: basemap.attribution,
-    };
-    layers.push({ id: "workspace-basemap", type: "raster", source: "workspace-basemap", paint: { "raster-opacity": 0.9 } });
-  }
+  const theme = state.desiredBasemapTheme;
+  const styleUrl = basemapStyleUrl(theme) || null;
+  state.basemapTheme = theme;
+  state.basemapStyleUrl = styleUrl;
+  el("map").dataset.basemapTheme = theme;
   state.map = new maplibregl.Map({
     container: "map",
     center: [-89.2, 13.7],
@@ -448,7 +545,7 @@ async function initializeMap() {
     bearing: 0,
     pitch: 0,
     attributionControl: false,
-    style: { version: 8, sources, layers },
+    style: styleUrl || fallbackStyle(theme),
   });
   state.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
   state.map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -456,15 +553,21 @@ async function initializeMap() {
   let basemapWarningShown = false;
   state.map.on("error", (event) => {
     const message = String(event?.error?.message || "");
-    if (!basemapWarningShown && /tile|network|fetch|image/i.test(message)) {
+    if (!basemapWarningShown && /style|sprite|glyph|tile|network|fetch|image/i.test(message)) {
       basemapWarningShown = true;
-      setStatus("Basemap tiles are unavailable; governed layers remain interactive.", "warn");
+      setStatus("Basemap geography is unavailable; governed layers remain interactive.", "warn");
     }
   });
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("MapLibre initialization did not complete within 10 seconds.")), 10000);
-    state.map.once("load", () => { clearTimeout(timeout); resolve(); });
-  });
+  try {
+    await waitForMapEvent("load");
+    el("map").dataset.basemapAvailable = String(Boolean(styleUrl));
+  } catch (_error) {
+    setStatus(`The ${theme} basemap is unavailable; governed layers remain interactive.`, "warn");
+    const ready = waitForMapEvent("style.load");
+    state.map.setStyle(fallbackStyle(theme));
+    await ready;
+    el("map").dataset.basemapAvailable = "false";
+  }
   state.mapReady = true;
   installUtilitySources();
   installEntries();
@@ -884,6 +987,7 @@ function renderEntryInspector(entry) {
   }
   heading.append(actions);
   body.append(heading);
+  if (entry.error) appendDetail(body, "Preview unavailable", entry.error);
   if (entry.kind === "authored") {
     appendDetail(body, "Identity", entry.layer.layer_id, true);
     appendDetail(body, "Content class", entry.layer.content_class);
@@ -1709,6 +1813,7 @@ function resetView() {
 function applyHostContext(context) {
   if (context && (context.theme === "dark" || context.theme === "light")) {
     document.documentElement.dataset.theme = context.theme;
+    void applyBasemapTheme(context.theme);
   }
 }
 
@@ -1766,8 +1871,7 @@ bridge.on("ui/resource-teardown", (_params, id) => {
     if (state.access.feature_read) subscriptions.push(
       "map://feature-layers", "map://publications", "map://compositions");
     if (state.access.dataset_read) subscriptions.push(
-      "map://sources", "map://datasets", "map://active-releases", "map://mobility-profiles");
-    if (state.access.administration) subscriptions.push("map://acquisitions");
+      "map://datasets", "map://active-releases", "map://mobility-profiles");
     void bridge.request("subscriptions/listen", { notifications: { resourceSubscriptions: subscriptions } })
       .catch((error) => { if (!state.closing) setStatus(`Live resource updates unavailable: ${error.message}`, "warn"); });
   } catch (error) {

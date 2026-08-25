@@ -2561,9 +2561,11 @@ mod well_known_tests {
 
     #[test]
     fn resource_discovery_is_bounded_by_the_protocol_surface() {
-        let basemap =
-            MapWorkspaceBasemap::open_street_map("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
-                .unwrap();
+        let basemap = MapWorkspaceBasemap::open_free_map(
+            "https://tiles.openfreemap.org/styles/positron",
+            "https://tiles.openfreemap.org/styles/dark",
+        )
+        .unwrap();
         let resources = discoverable_resources(
             ResourceDiscoveryAccess {
                 admin: true,
@@ -2595,13 +2597,23 @@ mod workspace_app_tests {
     use crate::{contract::MapWorkspaceBasemap, uris};
 
     fn basemap() -> MapWorkspaceBasemap {
-        MapWorkspaceBasemap::open_street_map("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
-            .unwrap()
+        MapWorkspaceBasemap::open_free_map(
+            "https://tiles.openfreemap.org/styles/positron",
+            "https://tiles.openfreemap.org/styles/dark",
+        )
+        .unwrap()
     }
 
     #[test]
-    fn tool_input_schemas_use_the_canonical_profile() {
-        assert!(!MapMcp::tool_router().list_all().is_empty());
+    fn workspace_tools_exist_in_the_canonical_router() {
+        let tools = MapMcp::full_tool_router().list_all();
+        assert!(!tools.is_empty());
+        for expected in super::WORKSPACE_TOOLS {
+            assert!(
+                tools.iter().any(|tool| tool.name.as_ref() == *expected),
+                "workspace tool {expected} is absent from the canonical router"
+            );
+        }
     }
 
     const WORKSPACE_APP: &str = include_str!("../assets/workspace-app.html");
@@ -2679,7 +2691,8 @@ mod workspace_app_tests {
             "Persistent map",
             "Data preview",
             "preview cap reached",
-            "workspace-basemap",
+            "light_style_url",
+            "dark_style_url",
             "subscriptions/listen",
             "maplibre-gl@6.6.0",
             "maplibre-worker.cjs",
@@ -2738,7 +2751,7 @@ mod workspace_app_tests {
             .expect("map workspace UI metadata is valid");
         assert_eq!(metadata.prefers_border, None);
         let csp = metadata.csp.unwrap();
-        assert_eq!(csp.connect_domains, ["https://tile.openstreetmap.org"]);
-        assert_eq!(csp.resource_domains, ["https://tile.openstreetmap.org"]);
+        assert_eq!(csp.connect_domains, ["https://tiles.openfreemap.org"]);
+        assert_eq!(csp.resource_domains, ["https://tiles.openfreemap.org"]);
     }
 }
