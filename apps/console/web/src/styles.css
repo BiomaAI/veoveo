@@ -591,7 +591,6 @@ a.button { text-decoration: none; }
 }
 .app-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 12px; }
 .catalog-degradation { margin: 12px; padding: 8px 10px; border: 1px solid var(--amber); border-radius: 0; background: var(--amber-soft); color: var(--text); font-size: var(--text-xs); line-height: 17px; }
-.catalog-degradation-fullbleed { position: absolute; z-index: 2; top: 0; right: 0; max-width: min(520px, calc(100% - 24px)); }
 .app-card {
   display: flex;
   flex-direction: column;
