@@ -1,19 +1,20 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:fc90339b56ce69fba8af0c2b23b9bcc86d90d9f60fa2757057f3f2d21cf91a2d",
-  "updatedAt": "2026-08-25T04:50:37Z",
+  "buildDigest": "sha256:0cfce0dd55ca2e61d367b6c42bfc371ab72b9c6f89be76d6bfa9fb58bc3c3938",
+  "updatedAt": "2026-08-25T04:56:22Z",
   "checks": [
     {
-      "name": "bioma-helm-image-lock",
+      "name": "map-live-browser-harness-build",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "check",
+        "--locked",
+        "-p",
+        "veoveo-browser-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:50:37Z",
-      "durationSeconds": 4.4392314729999995,
+      "finishedAt": "2026-08-25T04:56:22Z",
+      "durationSeconds": 2.309506366,
       "detail": "completed successfully"
     }
   ]

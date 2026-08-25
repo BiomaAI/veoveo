@@ -1955,6 +1955,15 @@ async fn capture_console_map_workspace_app_inner(
                       const canvas=document.querySelector('#map canvas');
                       const gl=canvas?.getContext('webgl2');
                       const debug=gl?.getExtension('WEBGL_debug_renderer_info');
+                      const publicationRows=document.querySelectorAll('#map-layers .layer-row');
+                      if(option && publicationRows.length > 0 && !document.documentElement.dataset.veoveoAcceptanceMapInteracted){{
+                        document.documentElement.dataset.veoveoAcceptanceMapInteracted='true';
+                        document.getElementById('fit-composition')?.click();
+                        const visibility=publicationRows[0].querySelector('input[type="checkbox"]');
+                        visibility?.click();
+                        visibility?.click();
+                        document.getElementById('reload-map')?.click();
+                      }}
                       return {{
                         compositionFound:Boolean(option),selectedTitle:option?.textContent?.trim() ?? '',
                         status:document.getElementById('status')?.textContent?.trim() ?? '',
@@ -1964,7 +1973,8 @@ async fn capture_console_map_workspace_app_inner(
                         mapTotal:document.getElementById('map-total')?.textContent?.trim() ?? '',
                         canvasWidth:canvas?.width ?? 0,canvasHeight:canvas?.height ?? 0,
                         webglRenderer:debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : '',
-                        publicationRows:document.querySelectorAll('#map-layers .layer-row').length
+                        publicationRows:publicationRows.length,
+                        viewerInteracted:document.documentElement.dataset.veoveoAcceptanceMapInteracted === 'true'
                       }};
                     }})()"#
                 ),
@@ -1986,6 +1996,15 @@ async fn capture_console_map_workspace_app_inner(
                     .get("publicationRows")
                     .and_then(Value::as_u64)
                     .is_some_and(|rows| rows > 0)
+                && state.get("viewerInteracted").and_then(Value::as_bool) == Some(true)
+                && state
+                    .get("mapTotal")
+                    .and_then(Value::as_str)
+                    .is_some_and(|total| total != "0 feature(s)" && total.ends_with(" feature(s)"))
+                && state
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .is_some_and(|status| status.starts_with("Rendered "))
             {
                 break state;
             }
