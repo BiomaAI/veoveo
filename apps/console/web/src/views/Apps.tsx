@@ -98,11 +98,6 @@ export function AppsView({
   if (isFullBleedApp(selected)) {
     return (
       <section className="app-workspace">
-        {degradations.length ? (
-          <p className="catalog-degradation catalog-degradation-fullbleed" role="status">
-            Some hosted Apps are temporarily unavailable: {formatDegradations(degradations)}.
-          </p>
-        ) : null}
         <div className="app-frame-panel app-frame-panel-fullbleed">{frame}</div>
       </section>
     );
@@ -111,7 +106,6 @@ export function AppsView({
   return (
     <section className="panel full-panel">
       <SectionHeader title={selected.title ?? selected.name} />
-      {degradationNotice}
       <p className="panel-intro">
         {selected.description ??
           "Interactive view shipped by the MCP server, rendered in an isolated sandbox."}{" "}
