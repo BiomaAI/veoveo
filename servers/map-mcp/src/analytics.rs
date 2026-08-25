@@ -24,6 +24,12 @@ mod projection;
 pub(crate) use projection::ReleaseProjectionWriter;
 
 const SCHEMA_VERSION: i64 = 9;
+const SPATIAL_INDEXES: [&str; 4] = [
+    "map_boundary_geometry",
+    "map_source_feature_geometry",
+    "map_authored_revision_geometry",
+    "map_authored_head_geometry",
+];
 const NEARBY_FACILITIES_SQL: &str = "WITH scored AS MATERIALIZED (\
        SELECT canonical_json, facility_key, source_release_key, \
        ST_Distance_Sphere(ST_Point2D(longitude_deg, latitude_deg), ST_Point2D(?, ?)) AS distance_m \
@@ -955,7 +961,8 @@ impl MapAnalytics {
         if version != SCHEMA_VERSION {
             bail!("unsupported map analytics schema version {version}");
         }
-        self.verify_spatial()
+        self.verify_spatial()?;
+        verify_spatial_indexes(&connection)
     }
 
     pub(crate) fn connection(&self) -> Result<Connection> {
@@ -977,6 +984,19 @@ impl MapAnalytics {
         }
         self.instance.connection()
     }
+}
+
+fn verify_spatial_indexes(connection: &Connection) -> Result<()> {
+    for index in SPATIAL_INDEXES {
+        connection
+            .query_row(
+                &format!("SELECT count(*) FROM rtree_index_dump('{index}')"),
+                [],
+                |row| row.get::<_, u64>(0),
+            )
+            .with_context(|| format!("binding and verifying DuckDB Spatial index {index}"))?;
+    }
+    Ok(())
 }
 
 fn polygon_geojson(polygon: &crate::contract::Wgs84Polygon) -> Result<String> {
