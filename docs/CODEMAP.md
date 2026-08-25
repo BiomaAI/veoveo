@@ -34,7 +34,7 @@ authorize implementation:
 |---|---|
 | [`SELF_IMPROVING_HARNESS.md`](SELF_IMPROVING_HARNESS.md) | auth-aware profile strategies, MCP dynamics evidence, evaluation, measured acceptance through the scorer primitive, and possible self-improving harness boundaries |
 | [`HARNESS_MEDIATED_MODEL_POST_TRAINING.md`](HARNESS_MEDIATED_MODEL_POST_TRAINING.md) | exact-call trajectories through the deployed harness, rollout-level post-training semantics, governed evaluation, and candidate-model admission boundaries |
-| [`FACTORY_ISOLATION.md`](FACTORY_ISOLATION.md) | kernel-isolated runtime for the factory loop: candidate policy domains, the container-socket question, trial acceptance criteria, and the adoption path |
+| [`FACTORY_ISOLATION.md`](FACTORY_ISOLATION.md) | harness-neutral software-factory product plan: developer specification and deployment journey, staged author/verifier/broker architecture, OpenShell isolation, typed contracts, implementation sequence, trial acceptance, and adoption path |
 | [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
 
 Implementation plans describe future hard cuts. A plan's status line records whether
