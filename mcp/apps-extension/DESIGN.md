@@ -88,7 +88,12 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
 - **Catalog** — the BFF discovers apps dynamically from `resources/list`
   (`is_app_resource`), derives ownership from the `ui://{server}/…` prefix,
   and attaches only that server's app-visible linked tools. There is no
-  manual registration step anywhere.
+  manual registration step anywhere. The initial catalog may be empty or
+  partial while hosted servers discover. Each auth-scoped BFF client opens one
+  resource-and-tool list-change listener before taking its first snapshot, then
+  streams complete caller-visible catalog snapshots to the browser. The shell
+  renders immediately and replaces its catalog query data as each server
+  responds; one unresponsive server cannot retain the page's loading state.
 - **Frame** — app HTML is served same-origin with `default-src 'none'` into an
   `<iframe sandbox="allow-scripts">`. The BFF validates every declared CSP
   origin, sorts and deduplicates the result, and adds only those exact sources
@@ -135,8 +140,10 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
 - **Navigation** — the host's menu merges its static platform views with one
   entry per discovered app (label from the resource title, icon from the
   resource icons). Discovery failures are isolated by server and surface.
-  Healthy Apps remain available beside a typed degradation notice, and a
-  failed server never blocks the shell or the rest of the catalog.
+  Healthy Apps appear independently beside a typed degradation notice, and a
+  failed server never blocks the shell or the rest of the catalog. Catalog
+  arrivals use MCP `listChanged` through the BFF event stream; timer-based
+  refresh is not part of the correctness path.
 - **Context links** — an App may send `ui/open-link` for another exact `ui://`
   resource or one of the two declared platform targets. The Console resolves
   App targets against its current caller-visible catalog and never accepts a

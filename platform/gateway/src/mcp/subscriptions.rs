@@ -1,11 +1,13 @@
 use std::{collections::BTreeMap, pin::Pin};
 
-use futures::{Stream, StreamExt, stream::select_all};
+use futures::{Stream, StreamExt, stream::SelectAll};
 use rmcp::{
     model::{ErrorData as McpError, ServerNotification, SubscriptionFilter},
     service::{ServiceError, SubscriptionContext},
 };
-use veoveo_mcp_contract::{CanonicalTaskId, GatewayAction, ServerSlug};
+use veoveo_mcp_contract::{
+    CanonicalTaskId, DiscoveryFailureMode, GatewayAction, GatewayDiscoverySurface, ServerSlug,
+};
 
 use crate::mcp_support::{mcp_internal, upstream_error};
 
@@ -18,8 +20,18 @@ struct UpstreamSubscriptionRoute {
 }
 
 type RoutedNotificationStream = Pin<
-    Box<dyn Stream<Item = Result<(ServerSlug, ServerNotification), ServiceError>> + Send + 'static>,
+    Box<
+        dyn Stream<Item = (ServerSlug, bool, Result<ServerNotification, ServiceError>)>
+            + Send
+            + 'static,
+    >,
 >;
+
+struct OpenedUpstreamSubscription {
+    task_ids: BTreeMap<String, String>,
+    connection: super::RequestUpstream,
+    notifications: RoutedNotificationStream,
+}
 
 impl GatewayMcp {
     pub(super) fn accepted_subscriptions(
@@ -68,6 +80,29 @@ impl GatewayMcp {
         let request_context = context.request_context();
         let subject = self.authenticated(request_context)?;
         let accepted = context.accepted().clone();
+        let snapshot = self.catalog.snapshot();
+        let catalog_generation = snapshot.generation();
+        let authorization_fingerprint =
+            super::invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let mut discovery_changes = self.discovery.subscribe();
+
+        // A catalog listener primes discovery on the same replica that owns the
+        // stream. Each server completes independently and wakes the caller through
+        // the shared cache without delaying subscription acknowledgement.
+        if accepted.resources_list_changed == Some(true) {
+            let _ = self
+                .available_resources(request_context.clone(), subject.clone())
+                .await?;
+        }
+        let isolate_tools = snapshot
+            .catalog()
+            .profile(&self.profile_id)
+            .is_some_and(|profile| profile.discovery_failure_mode == DiscoveryFailureMode::Isolate);
+        if accepted.tools_list_changed == Some(true) && isolate_tools {
+            let _ = self
+                .available_tools(request_context.clone(), subject.clone())
+                .await?;
+        }
         let mut routes = BTreeMap::<ServerSlug, UpstreamSubscriptionRoute>::new();
 
         if accepted.tools_list_changed == Some(true)
@@ -142,59 +177,150 @@ impl GatewayMcp {
         }
 
         routes.retain(|_, route| !subscription_filter_is_empty(&route.filter));
-        let mut streams = Vec::<RoutedNotificationStream>::new();
+        let gateway = self.clone();
+        let downstream = request_context.peer.clone();
+        let subscription_subject = subject.clone();
+        let mut pending = futures::stream::iter(routes.into_iter().map(move |(server, route)| {
+            let gateway = gateway.clone();
+            let downstream = downstream.clone();
+            let subject = subscription_subject.clone();
+            async move {
+                let required = route.filter.resource_subscriptions.is_some()
+                    || route.filter.task_ids.is_some();
+                let result = gateway
+                    .open_upstream_subscription(
+                        server.clone(),
+                        route,
+                        downstream,
+                        subject,
+                        required,
+                    )
+                    .await;
+                (server, required, result)
+            }
+        }))
+        .buffer_unordered(super::discovery::MAX_CONCURRENT_DISCOVERY);
+        let mut pending_done = false;
+        let mut notifications = SelectAll::<RoutedNotificationStream>::new();
         let mut task_routes = BTreeMap::<ServerSlug, BTreeMap<String, String>>::new();
         let mut upstream_connections = Vec::new();
-        for (server, route) in routes {
-            let needs_tasks = route.filter.task_ids.is_some();
-            let upstream = self
-                .upstream_with_tasks(&server, request_context.peer.clone(), &subject, needs_tasks)
-                .await?;
-            let observed = upstream
-                .peer
-                .peer_info()
-                .ok_or_else(|| mcp_internal(format!("upstream `{server}` was not discovered")))?;
-            let effective = route.filter.supported_by(&observed.capabilities);
-            if effective != route.filter {
-                return Err(mcp_internal(format!(
-                    "upstream `{server}` does not support the accepted subscription filter"
-                )));
-            }
-            let subscription = upstream
-                .peer
-                .listen(effective)
-                .await
-                .map_err(upstream_error)?;
-            if subscription.acknowledged() != &route.filter {
-                return Err(mcp_internal(format!(
-                    "upstream `{server}` narrowed the accepted subscription filter"
-                )));
-            }
-            task_routes.insert(server.clone(), route.task_ids);
-            streams.push(Box::pin(routed_notifications(server, subscription)));
-            upstream_connections.push(upstream);
-        }
-
-        let mut notifications = select_all(streams);
         loop {
             tokio::select! {
                 () = context.cancelled() => return Ok(()),
-                update = notifications.next() => {
-                    let Some(update) = update else {
-                        return Ok(());
-                    };
-                    let (server, mut notification) = update.map_err(upstream_error)?;
-                    self.project_subscription_notification(
-                        &server,
-                        task_routes.get(&server),
-                        &mut notification,
-                    )?;
-                    context.sink().send(notification).await.map_err(|error| {
-                        mcp_internal(format!("failed to forward subscription notification: {error}"))
-                    })?;
+                opened = pending.next(), if !pending_done => {
+                    match opened {
+                        Some((server, _, Ok(opened))) => {
+                            task_routes.insert(server, opened.task_ids);
+                            notifications.push(opened.notifications);
+                            upstream_connections.push(opened.connection);
+                        }
+                        Some((_server, true, Err(error))) => return Err(error),
+                        Some((server, false, Err(error))) => {
+                            tracing::warn!(%server, %error, "isolated upstream catalog-listener failure");
+                        }
+                        None => pending_done = true,
+                    }
+                }
+                update = notifications.next(), if !notifications.is_empty() => {
+                    let Some(update) = update else { continue; };
+                    let (server, required, update) = update;
+                    match update {
+                        Ok(mut notification) => {
+                            self.project_subscription_notification(
+                                &server,
+                                task_routes.get(&server),
+                                &mut notification,
+                            )?;
+                            context.sink().send(notification).await.map_err(|error| {
+                                mcp_internal(format!("failed to forward subscription notification: {error}"))
+                            })?;
+                        }
+                        Err(error) if required => return Err(upstream_error(error)),
+                        Err(error) => {
+                            tracing::warn!(%error, "isolated upstream subscription stream failure");
+                        }
+                    }
+                }
+                change = discovery_changes.recv() => {
+                    match change {
+                        Ok(change) if change.belongs_to(
+                            catalog_generation,
+                            &subject.actor.id,
+                            &authorization_fingerprint,
+                        ) => match change.surface {
+                            GatewayDiscoverySurface::Resources
+                            | GatewayDiscoverySurface::ResourceTemplates
+                                if accepted.resources_list_changed == Some(true) => {
+                                    context.sink().notify_resource_list_changed().await.map_err(|error| {
+                                        mcp_internal(format!("failed to publish resource catalog change: {error}"))
+                                    })?;
+                                }
+                            GatewayDiscoverySurface::Tools
+                                if accepted.tools_list_changed == Some(true) => {
+                                    context.sink().notify_tool_list_changed().await.map_err(|error| {
+                                        mcp_internal(format!("failed to publish tool catalog change: {error}"))
+                                    })?;
+                                }
+                            _ => {}
+                        },
+                        Ok(_) => {}
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                            tracing::warn!(skipped, "gateway discovery changes lagged");
+                            if accepted.resources_list_changed == Some(true) {
+                                context.sink().notify_resource_list_changed().await.map_err(|error| {
+                                    mcp_internal(format!("failed to publish resource catalog resync: {error}"))
+                                })?;
+                            }
+                            if accepted.tools_list_changed == Some(true) {
+                                context.sink().notify_tool_list_changed().await.map_err(|error| {
+                                    mcp_internal(format!("failed to publish tool catalog resync: {error}"))
+                                })?;
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
+                    }
                 }
             }
         }
+    }
+
+    async fn open_upstream_subscription(
+        &self,
+        server: ServerSlug,
+        route: UpstreamSubscriptionRoute,
+        downstream: rmcp::service::Peer<rmcp::service::RoleServer>,
+        subject: crate::AuthenticatedSubject,
+        required: bool,
+    ) -> Result<OpenedUpstreamSubscription, McpError> {
+        let needs_tasks = route.filter.task_ids.is_some();
+        let upstream = self
+            .upstream_with_tasks(&server, downstream, &subject, needs_tasks)
+            .await?;
+        let observed = upstream
+            .peer
+            .peer_info()
+            .ok_or_else(|| mcp_internal(format!("upstream `{server}` was not discovered")))?;
+        let effective = route.filter.supported_by(&observed.capabilities);
+        if effective != route.filter {
+            return Err(mcp_internal(format!(
+                "upstream `{server}` does not support the accepted subscription filter"
+            )));
+        }
+        let subscription = upstream
+            .peer
+            .listen(effective)
+            .await
+            .map_err(upstream_error)?;
+        if subscription.acknowledged() != &route.filter {
+            return Err(mcp_internal(format!(
+                "upstream `{server}` narrowed the accepted subscription filter"
+            )));
+        }
+        Ok(OpenedUpstreamSubscription {
+            task_ids: route.task_ids,
+            connection: upstream,
+            notifications: Box::pin(routed_notifications(server, required, subscription)),
+        })
     }
 
     fn project_subscription_notification(
@@ -241,11 +367,20 @@ fn subscription_filter_is_empty(filter: &SubscriptionFilter) -> bool {
 
 fn routed_notifications(
     server: ServerSlug,
+    required: bool,
     mut subscription: rmcp::service::Subscription,
-) -> impl Stream<Item = Result<(ServerSlug, ServerNotification), ServiceError>> + Send + 'static {
-    async_stream::try_stream! {
-        while let Some(notification) = subscription.next().await? {
-            yield (server.clone(), notification);
+) -> impl Stream<Item = (ServerSlug, bool, Result<ServerNotification, ServiceError>)> + Send + 'static
+{
+    async_stream::stream! {
+        loop {
+            match subscription.next().await {
+                Ok(Some(notification)) => yield (server.clone(), required, Ok(notification)),
+                Ok(None) => break,
+                Err(error) => {
+                    yield (server.clone(), required, Err(error));
+                    break;
+                }
+            }
         }
     }
 }

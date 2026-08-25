@@ -57,7 +57,7 @@ struct RequestUpstream {
     _running: RunningService<RoleClient, GatewayUpstreamHandler>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GatewayMcp {
     catalog: GatewayCatalogHandle,
     state: GatewayState,

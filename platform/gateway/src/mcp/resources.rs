@@ -1,4 +1,3 @@
-use futures::{StreamExt, stream};
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
@@ -8,7 +7,8 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
-    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoverySurface,
+    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoveryDegradation,
+    GatewayDiscoveryFailure, GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
     GatewayResourceProjection, GatewayTaskStatus, GatewayTaskStatusDocument, paginate,
     parse_gateway_task_resource_uri,
 };
@@ -22,8 +22,7 @@ use crate::mcp_support::{
 
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
 use super::{
-    GATEWAY_PAGE_SIZE, GatewayMcp,
-    discovery::{DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY, isolate_discovery_failures},
+    GATEWAY_PAGE_SIZE, GatewayMcp, discovery::DiscoveryCacheKey,
     invocation_authorization_fingerprint,
 };
 
@@ -34,81 +33,7 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let subject = self.authenticated(&context)?;
-        let profile_server_list = self.profile_servers();
-        let profile_servers = profile_server_list.iter().cloned().collect();
-        let snapshot = self.catalog.snapshot();
-        let catalog = snapshot.catalog().clone();
-        let catalog_generation = snapshot.generation();
-        let authorization_fingerprint =
-            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
-        let results = stream::iter(profile_server_list.into_iter().map(|server_slug| {
-            let catalog = catalog.clone();
-            let profile_servers = &profile_servers;
-            let context = &context;
-            let subject = &subject;
-            async move {
-                let key = DiscoveryCacheKey {
-                    catalog_generation,
-                    principal: subject.actor.id.clone(),
-                    authorization_fingerprint,
-                    server: server_slug.clone(),
-                };
-                if let Some(resources) = self.discovery.resources(&key).await {
-                    return (server_slug, Ok::<_, McpError>(resources));
-                }
-                let result = async {
-                    let manifest = catalog.server(&server_slug).ok_or_else(|| {
-                        mcp_internal(format!("unknown profile server `{server_slug}`"))
-                    })?;
-                    let upstream_resources = self
-                        .idempotent_upstream_request(
-                            &server_slug,
-                            context.peer.clone(),
-                            subject,
-                            |upstream| async move { upstream.list_all_resources().await },
-                        )
-                        .await?;
-                    let mut resources = Vec::new();
-                    for mut resource in upstream_resources {
-                        let projection =
-                            self.project_upstream_resource(&server_slug, &resource.uri)?;
-                        project_listed_resource_uri(manifest, &mut resource)?;
-                        project_listed_resource(&mut resource, &projection);
-                        project_app_resource_dependencies(
-                            manifest,
-                            &mut resource,
-                            profile_servers,
-                            &subject.actor.scopes,
-                            &subject.actor.data_labels,
-                        )?;
-                        if !self
-                            .allows_resource(
-                                context,
-                                GatewayAction::ResourcesList,
-                                projection.server.clone(),
-                                &resource.uri,
-                            )
-                            .await?
-                        {
-                            continue;
-                        }
-                        resources.push(resource);
-                    }
-                    self.discovery.store_resources(key, resources.clone()).await;
-                    Ok(resources)
-                }
-                .await;
-                (server_slug, result)
-            }
-        }))
-        .buffer_unordered(MAX_CONCURRENT_DISCOVERY)
-        .collect::<Vec<_>>()
-        .await;
-        let (mut resources, degradation, errors) =
-            isolate_discovery_failures(GatewayDiscoverySurface::Resources, results);
-        for (server, error) in errors {
-            tracing::warn!(%server, %error, "isolated upstream resource discovery failure");
-        }
+        let (mut resources, degradation) = self.available_resources(context, subject).await?;
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = paginate(resources, request.as_ref(), GATEWAY_PAGE_SIZE)
             .map_err(|err| mcp_invalid_params(err.to_string()))?;
@@ -122,76 +47,142 @@ impl GatewayMcp {
         })
     }
 
+    /// Return the per-server results already known for this caller and start each
+    /// missing discovery independently. A non-responsive server therefore never
+    /// participates in the latency of this list response. Successful background
+    /// completions publish a matching list-change event through the shared cache.
+    pub(super) async fn available_resources(
+        &self,
+        context: RequestContext<RoleServer>,
+        subject: crate::AuthenticatedSubject,
+    ) -> Result<(Vec<rmcp::model::Resource>, GatewayDiscoveryDegradation), McpError> {
+        let profile_server_list = self.profile_servers();
+        let profile_servers = profile_server_list
+            .iter()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
+        let snapshot = self.catalog.snapshot();
+        let catalog = snapshot.catalog().clone();
+        let catalog_generation = snapshot.generation();
+        let authorization_fingerprint =
+            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let mut resources = Vec::new();
+        let mut failures = Vec::new();
+        for server_slug in profile_server_list {
+            let key = DiscoveryCacheKey {
+                catalog_generation,
+                principal: subject.actor.id.clone(),
+                authorization_fingerprint,
+                server: server_slug.clone(),
+            };
+            if let Some(mut cached) = self.discovery.resources(&key).await {
+                resources.append(&mut cached);
+                continue;
+            }
+            failures.push(GatewayDiscoveryFailure {
+                server: server_slug.clone(),
+                surface: GatewayDiscoverySurface::Resources,
+                code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+            });
+            if !self
+                .discovery
+                .begin(GatewayDiscoverySurface::Resources, key.clone())
+                .await
+            {
+                continue;
+            }
+            let gateway = self.clone();
+            let catalog = catalog.clone();
+            let profile_servers = profile_servers.clone();
+            let context = context.clone();
+            let subject = subject.clone();
+            tokio::spawn(async move {
+                let result = gateway
+                    .discover_resources_for_server(
+                        &catalog,
+                        &profile_servers,
+                        &server_slug,
+                        &context,
+                        &subject,
+                    )
+                    .await;
+                match result {
+                    Ok(discovered) => {
+                        gateway.discovery.finish_resources(key, discovered).await;
+                    }
+                    Err(error) => {
+                        gateway
+                            .discovery
+                            .finish_failure(GatewayDiscoverySurface::Resources, &key)
+                            .await;
+                        tracing::warn!(
+                            server = %server_slug,
+                            %error,
+                            "isolated upstream resource discovery failure"
+                        );
+                    }
+                }
+            });
+        }
+        Ok((resources, GatewayDiscoveryDegradation::new(failures)))
+    }
+
+    async fn discover_resources_for_server(
+        &self,
+        catalog: &crate::GatewayCatalog,
+        profile_servers: &std::collections::BTreeSet<veoveo_mcp_contract::ServerSlug>,
+        server_slug: &veoveo_mcp_contract::ServerSlug,
+        context: &RequestContext<RoleServer>,
+        subject: &crate::AuthenticatedSubject,
+    ) -> Result<Vec<rmcp::model::Resource>, McpError> {
+        let manifest = catalog
+            .server(server_slug)
+            .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
+        let upstream_resources = self
+            .idempotent_upstream_request(
+                server_slug,
+                context.peer.clone(),
+                subject,
+                |upstream| async move { upstream.list_all_resources().await },
+            )
+            .await?;
+        let mut resources = Vec::new();
+        for mut resource in upstream_resources {
+            let projection = self.project_upstream_resource(server_slug, &resource.uri)?;
+            project_listed_resource_uri(manifest, &mut resource)?;
+            project_listed_resource(&mut resource, &projection);
+            project_app_resource_dependencies(
+                manifest,
+                &mut resource,
+                profile_servers,
+                &subject.actor.scopes,
+                &subject.actor.data_labels,
+            )?;
+            if !self
+                .allows_resource(
+                    context,
+                    GatewayAction::ResourcesList,
+                    projection.server.clone(),
+                    &resource.uri,
+                )
+                .await?
+            {
+                continue;
+            }
+            resources.push(resource);
+        }
+        Ok(resources)
+    }
+
     pub(super) async fn handle_list_resource_templates(
         &self,
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let subject = self.authenticated(&context)?;
-        let snapshot = self.catalog.snapshot();
-        let catalog = snapshot.catalog().clone();
-        let catalog_generation = snapshot.generation();
-        let authorization_fingerprint =
-            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
-        let results = stream::iter(self.profile_servers().into_iter().map(|server_slug| {
-            let catalog = catalog.clone();
-            let context = &context;
-            let subject = &subject;
-            async move {
-                let key = DiscoveryCacheKey {
-                    catalog_generation,
-                    principal: subject.actor.id.clone(),
-                    authorization_fingerprint,
-                    server: server_slug.clone(),
-                };
-                if let Some(templates) = self.discovery.resource_templates(&key).await {
-                    return (server_slug, Ok::<_, McpError>(templates));
-                }
-                let result = async {
-                    let manifest = catalog.server(&server_slug).ok_or_else(|| {
-                        mcp_internal(format!("unknown profile server `{server_slug}`"))
-                    })?;
-                    let upstream_templates = self
-                        .idempotent_upstream_request(
-                            &server_slug,
-                            context.peer.clone(),
-                            subject,
-                            |upstream| async move { upstream.list_all_resource_templates().await },
-                        )
-                        .await?;
-                    let mut templates = Vec::new();
-                    for mut template in upstream_templates {
-                        project_resource_template_uri(manifest, &mut template)?;
-                        if !self
-                            .allows_resource(
-                                context,
-                                GatewayAction::ResourcesTemplatesList,
-                                server_slug.clone(),
-                                &template.uri_template,
-                            )
-                            .await?
-                        {
-                            continue;
-                        }
-                        templates.push(template);
-                    }
-                    self.discovery
-                        .store_resource_templates(key, templates.clone())
-                        .await;
-                    Ok(templates)
-                }
-                .await;
-                (server_slug, result)
-            }
-        }))
-        .buffer_unordered(MAX_CONCURRENT_DISCOVERY)
-        .collect::<Vec<_>>()
-        .await;
-        let (mut templates, degradation, errors) =
-            isolate_discovery_failures(GatewayDiscoverySurface::ResourceTemplates, results);
-        for (server, error) in errors {
-            tracing::warn!(%server, %error, "isolated upstream resource-template discovery failure");
-        }
+        let (mut templates, degradation) = self
+            .available_resource_templates(context, subject.clone())
+            .await?;
         if self.client_allows_task_projection(&subject)? {
             templates.push(
                 ResourceTemplate::new(GATEWAY_TASK_RESOURCE_TEMPLATE, "task status")
@@ -213,6 +204,115 @@ impl GatewayMcp {
             cache_scope: Some(rmcp::model::CacheScope::Private),
             meta: degradation.into_meta(),
         })
+    }
+
+    async fn available_resource_templates(
+        &self,
+        context: RequestContext<RoleServer>,
+        subject: crate::AuthenticatedSubject,
+    ) -> Result<(Vec<ResourceTemplate>, GatewayDiscoveryDegradation), McpError> {
+        let snapshot = self.catalog.snapshot();
+        let catalog = snapshot.catalog().clone();
+        let catalog_generation = snapshot.generation();
+        let authorization_fingerprint =
+            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let mut templates = Vec::new();
+        let mut failures = Vec::new();
+        for server_slug in self.profile_servers() {
+            let key = DiscoveryCacheKey {
+                catalog_generation,
+                principal: subject.actor.id.clone(),
+                authorization_fingerprint,
+                server: server_slug.clone(),
+            };
+            if let Some(mut cached) = self.discovery.resource_templates(&key).await {
+                templates.append(&mut cached);
+                continue;
+            }
+            failures.push(GatewayDiscoveryFailure {
+                server: server_slug.clone(),
+                surface: GatewayDiscoverySurface::ResourceTemplates,
+                code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+            });
+            if !self
+                .discovery
+                .begin(GatewayDiscoverySurface::ResourceTemplates, key.clone())
+                .await
+            {
+                continue;
+            }
+            let gateway = self.clone();
+            let catalog = catalog.clone();
+            let context = context.clone();
+            let subject = subject.clone();
+            tokio::spawn(async move {
+                let result = gateway
+                    .discover_resource_templates_for_server(
+                        &catalog,
+                        &server_slug,
+                        &context,
+                        &subject,
+                    )
+                    .await;
+                match result {
+                    Ok(discovered) => {
+                        gateway
+                            .discovery
+                            .finish_resource_templates(key, discovered)
+                            .await;
+                    }
+                    Err(error) => {
+                        gateway
+                            .discovery
+                            .finish_failure(GatewayDiscoverySurface::ResourceTemplates, &key)
+                            .await;
+                        tracing::warn!(
+                            server = %server_slug,
+                            %error,
+                            "isolated upstream resource-template discovery failure"
+                        );
+                    }
+                }
+            });
+        }
+        Ok((templates, GatewayDiscoveryDegradation::new(failures)))
+    }
+
+    async fn discover_resource_templates_for_server(
+        &self,
+        catalog: &crate::GatewayCatalog,
+        server_slug: &veoveo_mcp_contract::ServerSlug,
+        context: &RequestContext<RoleServer>,
+        subject: &crate::AuthenticatedSubject,
+    ) -> Result<Vec<ResourceTemplate>, McpError> {
+        let manifest = catalog
+            .server(server_slug)
+            .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
+        let upstream_templates = self
+            .idempotent_upstream_request(
+                server_slug,
+                context.peer.clone(),
+                subject,
+                |upstream| async move { upstream.list_all_resource_templates().await },
+            )
+            .await?;
+        let mut templates = Vec::new();
+        for mut template in upstream_templates {
+            project_resource_template_uri(manifest, &mut template)?;
+            if !self
+                .allows_resource(
+                    context,
+                    GatewayAction::ResourcesTemplatesList,
+                    server_slug.clone(),
+                    &template.uri_template,
+                )
+                .await?
+            {
+                continue;
+            }
+            templates.push(template);
+        }
+        Ok(templates)
     }
 
     pub(super) async fn handle_read_resource(
