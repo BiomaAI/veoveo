@@ -58,6 +58,7 @@ pub(super) struct ServeConfig {
     pub(super) public_base_url: String,
     pub(super) artifact_service_url: String,
     pub(super) control_store: GatewayControlStore,
+    pub(super) expected_control_plane_sha256: Option<String>,
     pub(super) internal_signing_key_der_b64: SecretString,
     pub(super) internal_signing_key_id: String,
     pub(super) refresh_delivery_cipher: RefreshTokenDeliveryCipher,
@@ -73,6 +74,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         public_base_url,
         artifact_service_url,
         control_store,
+        expected_control_plane_sha256,
         internal_signing_key_der_b64,
         internal_signing_key_id,
         refresh_delivery_cipher,
@@ -86,7 +88,8 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     let agent_control = AgentControl::new(control_store.platform_store().clone())?;
     spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
     spawn_refresh_delivery_gc_loop(gateway_state.clone());
-    let initial_catalog = load_initial_catalog(&control_store).await?;
+    let initial_catalog =
+        load_initial_catalog(&control_store, expected_control_plane_sha256.as_deref()).await?;
     let catalog = GatewayCatalogHandle::new(initial_catalog.clone());
     let internal_signing_key_der = BASE64_STANDARD
         .decode(internal_signing_key_der_b64.expose_secret().trim())
@@ -327,10 +330,14 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn load_initial_catalog(store: &GatewayControlStore) -> anyhow::Result<Arc<GatewayCatalog>> {
+async fn load_initial_catalog(
+    store: &GatewayControlStore,
+    expected_sha256: Option<&str>,
+) -> anyhow::Result<Arc<GatewayCatalog>> {
     let revision = store.load_active_revision().await?.context(
         "SurrealDB platform store has no active gateway control-plane revision; run installation-bootstrap first",
     )?;
+    verify_expected_control_plane_revision(&revision.sha256, expected_sha256)?;
     let catalog = Arc::new(GatewayCatalog::from_control_plane(revision.control_plane)?);
     tracing::info!(
         revision_id = %revision.revision_id,
@@ -341,6 +348,19 @@ async fn load_initial_catalog(store: &GatewayControlStore) -> anyhow::Result<Arc
         "loaded active gateway control-plane revision from the SurrealDB platform store"
     );
     Ok(catalog)
+}
+
+fn verify_expected_control_plane_revision(
+    active_sha256: &str,
+    expected_sha256: Option<&str>,
+) -> anyhow::Result<()> {
+    if let Some(expected_sha256) = expected_sha256 {
+        anyhow::ensure!(
+            active_sha256 == expected_sha256,
+            "active gateway control-plane revision {active_sha256} does not match requested revision {expected_sha256}; installation-bootstrap has not converged"
+        );
+    }
+    Ok(())
 }
 
 async fn dynamic_mcp_profile(
@@ -457,5 +477,18 @@ mod tests {
             .as_deref(),
             Some("operator")
         );
+    }
+
+    #[test]
+    fn requested_control_plane_revision_rejects_a_stale_active_revision() {
+        let error = verify_expected_control_plane_revision("old", Some("requested"))
+            .expect_err("stale active revision must fail closed");
+        assert!(
+            error
+                .to_string()
+                .contains("installation-bootstrap has not converged")
+        );
+        verify_expected_control_plane_revision("requested", Some("requested")).unwrap();
+        verify_expected_control_plane_revision("old", None).unwrap();
     }
 }

@@ -421,6 +421,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: view-mcp",
         "name: stream-mcp",
         "name: reason-mcp",
+        "--expected-control-plane",
+        "/etc/veoveo/gateway/gateway.json",
         "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,datasheet,uav-sim\"",
         "checksum/reason-runtime:",
     ] {

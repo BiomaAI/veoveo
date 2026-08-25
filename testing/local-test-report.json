@@ -1,28 +1,8 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b97cfb46489bed291481a5bdc624714aa367e2aff03be4227bfcace354d0a620",
-  "updatedAt": "2026-08-25T04:07:01Z",
+  "buildDigest": "sha256:ad0d5b87ce0288a370c7d71781c303d87b6f47fcef2358a6134d4ce33e4c0212",
+  "updatedAt": "2026-08-25T04:17:29Z",
   "checks": [
-    {
-      "name": "bioma-gateway-control-plane",
-      "command": [
-        "cargo",
-        "run",
-        "--locked",
-        "--package",
-        "veoveo-mcp-gateway",
-        "--bin",
-        "gateway",
-        "--",
-        "validate",
-        "--control-plane",
-        "examples/bioma/gateway.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T04:06:58Z",
-      "durationSeconds": 0.616772645,
-      "detail": "completed successfully"
-    },
     {
       "name": "bioma-helm-image-lock",
       "command": [
@@ -32,44 +12,24 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:06:57Z",
-      "durationSeconds": 4.606285318,
+      "finishedAt": "2026-08-25T04:17:29Z",
+      "durationSeconds": 4.900190898,
       "detail": "completed successfully"
     },
     {
-      "name": "local-gateway-control-plane",
-      "command": [
-        "cargo",
-        "run",
-        "--locked",
-        "--package",
-        "veoveo-mcp-gateway",
-        "--bin",
-        "gateway",
-        "--",
-        "validate",
-        "--control-plane",
-        "configs/gateway.local.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T04:07:00Z",
-      "durationSeconds": 0.630236521,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-live-browser-tests",
+      "name": "gateway-control-plane-generation-guard",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-browser-smoke",
-        "-p",
-        "veoveo-xtask"
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T04:07:01Z",
-      "durationSeconds": 0.60670102,
+      "finishedAt": "2026-08-25T04:17:23Z",
+      "durationSeconds": 0.597392889,
       "detail": "completed successfully"
     }
   ]

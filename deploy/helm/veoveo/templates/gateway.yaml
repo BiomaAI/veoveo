@@ -70,6 +70,8 @@ spec:
             - {{ .Values.global.publicBaseUrl | quote }}
             - --artifact-service-url
             - http://artifact-service:8790
+            - --expected-control-plane
+            - /etc/veoveo/gateway/{{ .Values.gateway.controlPlaneKey }}
           env:
             {{- include "veoveo.surrealEnv" . | nindent 12 }}
             - name: VEOVEO_INTERNAL_SIGNING_KEY_DER_B64
