@@ -18,7 +18,7 @@
     --ok: #3f7354;
     --danger: #96423b;
     --warn: #8a6430;
-    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
   }
   :root[data-theme="dark"] {
@@ -38,10 +38,10 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--surface); color: var(--ink);
-    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    font: 13px/1.45 var(--sans); }
   body { padding: 14px 16px 16px; }
   .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  h1 { margin: 0; font-family: var(--serif); font-size: 16px; font-weight: 400; }
+  h1 { margin: 0; font-family: var(--sans); font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
   .subtitle { color: var(--ink-secondary); font-size: 12px; }
   form { display: flex; align-items: center; gap: 8px; }
   label { color: var(--ink-muted); font-family: var(--mono); font-size: 11px;
