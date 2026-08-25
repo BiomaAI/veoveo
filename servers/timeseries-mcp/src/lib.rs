@@ -35,6 +35,23 @@ mod forecast_app_tests {
     }
 
     #[test]
+    fn forecast_app_uses_sans_serif_typography() {
+        assert!(FORECAST_APP_HTML.contains("--sans:"));
+        for obsolete_family in [
+            "--serif",
+            "ui-serif",
+            "Iowan Old Style",
+            "Palatino",
+            "Georgia",
+        ] {
+            assert!(
+                !FORECAST_APP_HTML.contains(obsolete_family),
+                "forecast app retains obsolete serif family {obsolete_family}"
+            );
+        }
+    }
+
+    #[test]
     fn forecast_app_stays_under_the_host_size_cap() {
         assert!(FORECAST_APP_HTML.len() < MAX_APP_HTML_BYTES);
         assert!(FORECAST_APP_HTML.contains("ui/initialize"));

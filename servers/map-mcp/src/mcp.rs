@@ -2619,6 +2619,23 @@ mod workspace_app_tests {
     const WORKSPACE_APP: &str = include_str!("../assets/workspace-app.html");
 
     #[test]
+    fn workspace_uses_sans_serif_typography() {
+        assert!(WORKSPACE_APP.contains("--sans:"));
+        for obsolete_family in [
+            "--serif",
+            "ui-serif",
+            "Iowan Old Style",
+            "Palatino",
+            "Georgia",
+        ] {
+            assert!(
+                !WORKSPACE_APP.contains(obsolete_family),
+                "workspace retains obsolete serif family {obsolete_family}"
+            );
+        }
+    }
+
+    #[test]
     fn workspace_applies_host_context_and_uses_only_the_mcp_bridge() {
         assert!(WORKSPACE_APP.contains("ui/initialize"));
         assert!(WORKSPACE_APP.contains("ui/notifications/host-context-changed"));

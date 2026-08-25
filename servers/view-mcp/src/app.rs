@@ -47,6 +47,24 @@ mod tests {
     }
 
     #[test]
+    fn preview_app_uses_sans_serif_typography() {
+        let html = preview_app_html();
+        assert!(html.contains("--sans:"));
+        for obsolete_family in [
+            "--serif",
+            "ui-serif",
+            "Iowan Old Style",
+            "Palatino",
+            "Georgia",
+        ] {
+            assert!(
+                !html.contains(obsolete_family),
+                "preview app retains obsolete serif family {obsolete_family}"
+            );
+        }
+    }
+
+    #[test]
     fn preview_app_speaks_the_bridge_protocol() {
         let html = preview_app_html();
         for needle in [
