@@ -16,6 +16,8 @@ use super::query;
 const CONSUMER: &str = "map-mcp-authored-features-v1";
 const PAGE_SIZE: u32 = 1_000;
 const COMMITTED_EVENT: &str = "map.feature_changes.committed";
+const INSERT_REVISION_SQL: &str = "INSERT INTO map_authored_feature_revision VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?::JSON, ?::JSON, ?)";
+const INSERT_HEAD_SQL: &str = "INSERT INTO map_authored_feature_head VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?::JSON, ?::JSON, ?)";
 
 #[derive(Clone, Debug)]
 pub struct AuthoringProjection {
@@ -192,7 +194,7 @@ fn insert_revision(transaction: &Transaction<'_>, projected: &ProjectedRevision)
     }
     let properties = serde_json::to_string(&feature.properties)?;
     transaction.execute(
-        "INSERT OR IGNORE INTO map_authored_feature_revision VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?::JSON, ?::JSON, ?)",
+        INSERT_REVISION_SQL,
         params![
             projected.tenant_key,
             projected.work_context_key,
@@ -237,7 +239,7 @@ fn replace_head(transaction: &Transaction<'_>, projected: &ProjectedRevision) ->
         ],
     )?;
     transaction.execute(
-        "INSERT OR IGNORE INTO map_authored_feature_head VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?::JSON, ?::JSON, ?)",
+        INSERT_HEAD_SQL,
         params![
             projected.tenant_key,
             projected.work_context_key,
@@ -275,4 +277,130 @@ fn event_string(event: &OutboxEventRecord, field: &'static str) -> Result<String
         .and_then(serde_json::Value::as_str)
         .map(str::to_owned)
         .with_context(|| format!("authored map event {} lacks {field}", event.sequence))
+}
+
+#[cfg(test)]
+mod tests {
+    use duckdb::params;
+    use tempfile::TempDir;
+
+    use crate::analytics::{MapAnalytics, MapAnalyticsConfig};
+
+    use super::*;
+
+    #[test]
+    fn heterogeneous_geometry_transaction_keeps_both_rtrees_queryable() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let analytics = MapAnalytics::open(MapAnalyticsConfig {
+            database_path: root.path().join("map.duckdb"),
+            authoring_task_root: root.path().join("tasks"),
+            spill_dir: root.path().join("spill"),
+            spatial_extension: extension.into(),
+            memory_limit: "256MB".to_owned(),
+            threads: 1,
+        })
+        .unwrap();
+        let geometries = [
+            (
+                "Point",
+                r#"{"type":"Point","coordinates":[-89.215,13.695]}"#,
+            ),
+            (
+                "LineString",
+                r#"{"type":"LineString","coordinates":[[-89.222,13.698],[-89.207,13.691]]}"#,
+            ),
+            (
+                "Polygon",
+                r#"{"type":"Polygon","coordinates":[[[-89.219,13.701],[-89.219,13.692],[-89.209,13.692],[-89.209,13.701],[-89.219,13.701]]]}"#,
+            ),
+        ];
+        let mut connection = analytics.connection().unwrap();
+        let transaction = connection.transaction().unwrap();
+        for (index, (geometry_type, geometry_json)) in geometries.iter().enumerate() {
+            let feature_key = format!("feature-{index}");
+            let changeset_key = format!("changeset-{index}");
+            let now = Utc::now();
+            let values = params![
+                "tenant",
+                "operations",
+                "mixed-layer",
+                feature_key,
+                1_i64,
+                1_i64,
+                1_i64,
+                changeset_key,
+                index as i64 + 1,
+                false,
+                geometry_type,
+                geometry_json,
+                -89.222_f64,
+                13.691_f64,
+                -89.207_f64,
+                13.701_f64,
+                Option::<chrono::DateTime<Utc>>::None,
+                Option::<chrono::DateTime<Utc>>::None,
+                "AcceptanceFeature",
+                Option::<String>::None,
+                "{}",
+                "{}",
+                now,
+            ];
+            transaction.execute(INSERT_REVISION_SQL, values).unwrap();
+            let head_values = params![
+                "tenant",
+                "operations",
+                "mixed-layer",
+                feature_key,
+                1_i64,
+                1_i64,
+                1_i64,
+                changeset_key,
+                index as i64 + 1,
+                false,
+                geometry_type,
+                geometry_json,
+                -89.222_f64,
+                13.691_f64,
+                -89.207_f64,
+                13.701_f64,
+                Option::<chrono::DateTime<Utc>>::None,
+                Option::<chrono::DateTime<Utc>>::None,
+                "AcceptanceFeature",
+                Option::<String>::None,
+                "{}",
+                "{}",
+                now,
+            ];
+            transaction.execute(INSERT_HEAD_SQL, head_values).unwrap();
+        }
+        transaction.commit().unwrap();
+
+        let read = analytics.read_connection().unwrap();
+        for index in [
+            "map_authored_revision_geometry",
+            "map_authored_head_geometry",
+        ] {
+            let indexed: u64 = read
+                .query_row(
+                    &format!(
+                        "SELECT count(*) FROM rtree_index_dump('{index}') WHERE row_id IS NOT NULL"
+                    ),
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(indexed, 3, "{index} lost heterogeneous geometry entries");
+        }
+        let intersecting: u64 = read
+            .query_row(
+                "SELECT count(*) FROM map_authored_feature_head WHERE ST_Intersects(geometry, ST_MakeEnvelope(-89.23, 13.68, -89.20, 13.71))",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(intersecting, 3);
+    }
 }
