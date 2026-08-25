@@ -108,6 +108,7 @@ fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
             arguments.first().and_then(|argument| argument.to_str()),
             Some(
                 "map-workspace-browser-verify"
+                    | "map-workspace-live-browser-verify"
                     | "uav-app-hosts-browser-verify"
                     | "uav-agent-instruction-browser-verify"
             )
@@ -160,6 +161,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
     } else if matches!(
         scenario,
         "map-workspace-browser-verify"
+            | "map-workspace-live-browser-verify"
             | "uav-app-hosts-browser-verify"
             | "uav-agent-instruction-browser-verify"
             | "uav-showcase-browser-verify"
@@ -396,6 +398,23 @@ mod tests {
     #[test]
     fn map_workspace_acceptance_builds_only_the_focused_browser_harness() {
         let arguments = [OsString::from("map-workspace-browser-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-browser-smoke",
+                "--bin",
+                "browser-smoke",
+            ]
+        );
+    }
+
+    #[test]
+    fn live_map_workspace_acceptance_builds_only_the_focused_browser_harness() {
+        let arguments = [OsString::from("map-workspace-live-browser-verify")];
         assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
         assert_eq!(
             cargo_build_arguments(&arguments).unwrap(),

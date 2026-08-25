@@ -420,6 +420,7 @@
         "geodesic_direct",
         "geodesic_inverse",
         "inspect_corridor",
+        "inspect_geopackage",
         "inspect_location",
         "inspect_position",
         "import_feature_layer",
@@ -969,6 +970,7 @@
               "geodesic_direct",
               "geodesic_inverse",
               "inspect_corridor",
+              "inspect_geopackage",
               "inspect_location",
               "inspect_position",
               "build_vector_tiles",
@@ -3188,6 +3190,32 @@
           "required_scopes": [
             "operator:use",
             "map:feature:write"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_map_geopackage_inspection_task",
+          "effect": "allow",
+          "actions": [
+            "tools_call",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "subscriptions_listen"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "map"
+          ],
+          "tools": [
+            "inspect_geopackage"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:feature:read"
           ],
           "metadata": {}
         },
