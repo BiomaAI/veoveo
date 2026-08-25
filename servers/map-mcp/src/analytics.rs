@@ -21,6 +21,10 @@ use crate::contract::{
 
 mod projection;
 
+#[cfg(test)]
+#[path = "analytics/performance.rs"]
+mod performance_tests;
+
 pub(crate) use projection::ReleaseProjectionWriter;
 
 const SCHEMA_VERSION: i64 = 10;

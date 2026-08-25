@@ -516,6 +516,9 @@ durable artifact publication. `src/geography.rs` owns direct governed
 position, location, and corridor inspection plus restriction publication,
 surfaced through tools such as `inspect_position`, while `src/analytics.rs`
 owns the sandboxed DuckDB Spatial engine behind those reads.
+`src/analytics/performance.rs` owns the active-source 10k, 100k, and
+million-feature R-tree plan, correctness, latency, throughput, and storage
+gates.
 
 Reusable spatial planning is split from routing. `src/contract/spatial.rs`
 owns the bounded operation and persisted-result schemas. `src/spatial/derive.rs`

@@ -365,7 +365,8 @@ silently change an existing layer or product contract.
 | [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | full validation and bounded vector-table inspection through pinned GDAL 3.13.2; explicit table and metadata-column mappings on import; one two-dimensional WGS84 vector table with an R-tree on export |
 | [GeoParquet 1.0.0](https://github.com/opengeospatial/geoparquet/blob/v1.0.0/format-specs/geoparquet.md) | WKB primary geometry and GeoParquet metadata emitted by pinned DuckDB Spatial |
 | [Mapbox Vector Tile Specification 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | requested XYZ tiles with canonical feature identity retained as an attribute |
-| [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) and MapLibre GL JS 6.6.0 | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections; self-contained WebGL2 composition viewing |
+| [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) and MapLibre GL JS 6.6.0 | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections; self-contained WebGL2 workspace viewing |
+| XYZ raster tiles and OpenStreetMap attribution | One credential-free HTTPS tile template supplies geographic context to the workspace. Map MCP validates the template, publishes its presentation-safe descriptor, and declares the exact origin in MCP App CSP metadata. The default is OpenStreetMap; an installation may replace it with a controlled XYZ service. This is a basemap presentation profile, not an OGC API Tiles conformance claim. |
 
 The image pins [DuckDB Spatial](https://duckdb.org/docs/stable/core_extensions/spatial/overview)
 to DuckDB 1.5.5. Export verification rejects a generated Parquet file unless
@@ -421,28 +422,59 @@ immutable revisions, root indexes, completions, and update subscriptions are MCP
 resources. A composition is the stable handoff to map presentation clients.
 
 The workspace app at `ui://map/workspace.html` uses the MCP Apps bridge. It
-reads `map://workspace` first and exposes only the administration, feature-read,
-feature-write, and publication controls admitted for the caller. The Layers and
-Data sections retain the canonical authoring and administration workflows.
+reads `map://workspace` first and exposes only the dataset, administration,
+feature-read, feature-write, and publication controls admitted for the caller.
+The map remains visible while the user discovers layers, previews records,
+inspects a feature, authors geometry, imports an artifact, acquires a source, or
+saves a composition. Authoring and administration live in contextual drawers
+instead of replacing the map with unrelated forms.
 
-The Map section renders an immutable composition with exact publication and
-style-revision pins. MapLibre GL JS 6.6.0 is bundled into the self-contained App
-with a classic worker emitted from the same pinned source. The opaque-origin
-sandbox admits the worker source through its existing `connect-src data:` and
-`worker-src blob:` boundaries. The App fetches no basemap, script, style, or feature
-bytes outside MCP. Each enabled composition layer issues R-tree-backed,
-viewport-bounded `query_features` calls in pages of 1,000 and stops at 5,000
-features per layer and viewport. A visible cap is reported instead of silently
-dropping the condition. The UI reports a successful refresh only after MapLibre
-reaches an idle paint with returned geometry visible. Composition subscriptions
-wake the App to reread canonical state.
+The left catalog presents authored layers and active governed source releases
+through one visibility model. Authored layers render their current heads by
+default; selecting a saved composition switches them to its exact publication
+and style-revision pins. Active source releases render through
+`query_source_features`. The bottom preview is a bounded table synchronized
+with the visible map, and the right inspector follows the selected catalog item
+or feature. A map or table selection highlights the same feature in both
+places. Raw JSON is an advanced diagnostic view, never the primary workflow.
+
+MapLibre GL JS 6.6.0 is bundled into the self-contained App with a classic
+worker emitted from the same pinned source. The opaque-origin sandbox admits
+the worker through its `connect-src data:` and `worker-src blob:` boundaries.
+Map MCP supplies one validated credential-free XYZ basemap descriptor and
+declares its exact HTTPS tile origin to the host; all governed feature bytes
+continue to cross only the MCP bridge. Basemap failure leaves governed layers
+usable and reports the degraded context locally without taking down the
+workspace.
+
+Each enabled authored layer issues R-tree-backed, viewport-bounded
+`query_features` calls in pages of 1,000 and stops at 5,000 features per layer
+and viewport. Each enabled active release issues DuckDB Spatial R-tree-backed
+`query_source_features` calls in pages of 500 and stops at 5,000 features per
+release and viewport. Generation cancellation prevents stale responses from
+painting after a camera or visibility change. The visible cap is reported
+instead of silently dropping the condition. The UI reports a successful
+refresh only after MapLibre reaches an idle paint with returned geometry
+visible. Resource subscriptions wake the App to reread canonical state.
+
+The Add data workflow distinguishes three actions. Create layer uses ordinary
+fields with a permissive JSON Schema default. Add feature uses map drawing,
+title, semantic type, and a property editor. Import artifact accepts an
+authorized artifact id and explicit GeoJSON FeatureCollection, RFC 8142, or
+GeoPackage settings; GeoPackage inspection runs first and the user selects one
+reported feature table. Task-only imports use the MCP Tasks lifecycle inside
+the App. Source acquisition chooses a governed source and draws its WGS84
+extent on the persistent map. Canonical source, schema, profile, and request
+JSON remain available under an Advanced disclosure for operators who need the
+complete typed contract.
 
 The map fails closed unless WebGL2 creation succeeds with the major-performance
 caveat check, the debug renderer extension identifies the adapter, and the
 renderer fingerprint is not a known software path. Browser acceptance must
 prove the same condition in a headed browser. The App is a two-dimensional
-composition viewer and JSON-oriented editor; it does not provide geometry-handle
-editing, a network basemap, raster presentation, or server-side rendering.
+feature and source-release workspace. It does not provide raster presentation,
+3D geometry authoring, collaborative geometry editing, or server-side
+rendering.
 
 ### Deliberate Boundaries
 
@@ -1020,19 +1052,19 @@ Administration crosses the same MCP boundary as every other operation
 | `quarantine_release` | quarantine an inactive release |
 | `register_mobility_profile` | register an immutable profile version |
 
-Administrative reads are resources: `map://sources`, `map://datasets`,
-`map://acquisitions` and `map://acquisition/{acquisition_id}` (map:admin),
-`map://active-releases` (map:admin), and `map://mobility-profiles`. Creation
-tools use idempotency keys; source and release mutations use expected record
+Dataset readers use `map://sources`, `map://datasets`,
+`map://active-releases`, and `map://mobility-profiles`. Administrative job
+reads use `map://acquisitions` and `map://acquisition/{acquisition_id}`.
+Creation tools use idempotency keys; source and release mutations use expected record
 versions; activation also uses the expected active-pointer version.
 Validation failures surface as MCP invalid-params errors and concurrency
 conflicts name the changed version.
 
 The Map workspace ships as `ui://map/workspace.html` from
-`assets/workspace-app.html`. It is listed when the caller has `map:admin` or
-`map:feature:read`, while `map://workspace` tells the App which sections and
-controls to present. Every operation remains scope-gated by its canonical
-resource or tool handler. The gateway projects the App under
+`assets/workspace-app.html`. It is listed when the caller has
+`map:dataset:read`, `map:feature:read`, or `map:admin`, while
+`map://workspace` tells the App which sections and controls to present. Every
+operation remains scope-gated by its canonical resource or tool handler. The gateway projects the App under
 `resource_projection: server_owned`, and the Console renders it from its generic
 catalog; no map-specific Console page, BFF route, or REST router exists.
 
@@ -1089,6 +1121,11 @@ endpoint unavailable.
 - The authored-feature R-tree performance gate uses 10,000, 100,000, and
   1,000,000 row fixtures, a two-second cold ceiling, a 250 ms warm p95 ceiling,
   a 5,000 indexed-row/s floor, and a 2 GiB database-size ceiling.
+- The source-feature R-tree performance gate applies the same scales and
+  latency, ingest-rate, and storage ceilings to the exact viewport query used
+  by the workspace. It asserts the physical R-tree plan at every scale, checks
+  results against a full-scan point oracle, verifies two index scans across the
+  antimeridian, and inspects one million index leaves.
 
 Unavailable coverage, invalid profile versions, disallowed advisory status,
 unsupported objectives, source digest mismatch, unsafe archives, and
@@ -1118,6 +1155,7 @@ Important arguments include:
 --spatial-extension
 --duckdb-memory-limit
 --duckdb-threads
+--workspace-basemap-tile-url-template
 --valhalla-url
 --valhalla-executable
 --valhalla-config
@@ -1258,13 +1296,17 @@ The implementation is checked at several boundaries:
   atomic release activation under record versions;
 - Console TypeScript and production Vite builds validate the administrative
   projection;
-- Map workspace contract tests verify one permission-aware App resource, exact
-  MCP bridge operations, immutable publication queries, subscription wiring,
-  the embedded MapLibre pin, and fail-closed hardware WebGL2 checks;
+- Map workspace contract tests verify one permission-aware App resource, the
+  validated basemap origin and CSP declaration, exact MCP bridge operations,
+  immutable publication and active-release queries, guided GeoPackage tasks,
+  subscription wiring, the embedded MapLibre pin, and fail-closed hardware
+  WebGL2 checks;
 - the Rust Map workspace browser smoke serves the exact generated App under the
-  Console's opaque-origin sandbox and offline CSP. Headed Chrome must prove an
-  NVIDIA WebGL adapter before the App completes a bounded publication-pinned
-  viewport query and emits screenshot evidence;
+  Console's opaque-origin sandbox and an exact local XYZ CSP. Headed Chrome
+  must prove an NVIDIA WebGL adapter before the App completes bounded
+  publication-pinned and active-release viewport queries, synchronizes map and
+  table selection, retains the map during governed-data inspection, and emits
+  screenshot evidence;
 - the container build verifies the pinned Spatial extension and packages GDAL,
   Osmium, Valhalla, and the Python application;
 - the Rust Map smoke launches that image with a real SurrealDB 3.2 catalog and
