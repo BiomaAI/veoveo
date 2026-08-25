@@ -219,6 +219,12 @@ health read `current_setting('geometry_always_xy')` and require `true`.
 
 Selective geometry reads use the existing DuckDB Spatial R-tree indexes on
 boundaries, immutable source features, authored revisions, and authored heads.
+The schema 9 to 10 upgrade drops and recreates those four derived indexes before any
+index is bound. It preserves every base-table row, advances the schema marker in the
+replacement transaction only after all indexes exist, and then eagerly verifies each
+index. An interruption leaves schema 9 in place, making the replacement sequence
+repeatable at the next startup.
+Other obsolete schema markers fail closed with an explicit projection-rebuild error.
 The query shape first obtains geometry-only candidates from the indexed base
 table. Tenant, Work Context, release, layer, revision, and exact spatial
 predicates remain on the authoritative outer query. This separation prevents
