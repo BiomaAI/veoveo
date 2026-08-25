@@ -1,61 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4cfd27117e33cc3f8ca2f1167da64f10fe18f3b25722f82f23646b37188ee7c4",
-  "updatedAt": "2026-08-25T22:31:12Z",
+  "buildDigest": "sha256:d735ee8a7e4243c011f09a63c5bdade2b2479cb50447b74786dafefd9c91f6e7",
+  "updatedAt": "2026-08-25T22:34:57Z",
   "checks": [
     {
-      "name": "console-bff-oauth-tests",
+      "name": "bioma-helm-image-lock",
       "command": [
         "cargo",
-        "test",
-        "-p",
-        "veoveo-console-bff",
-        "oauth::tests"
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T22:31:12Z",
-      "durationSeconds": 39.334078911,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-web-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T22:30:14Z",
-      "durationSeconds": 4.182823026,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-web-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T22:30:26Z",
-      "durationSeconds": 3.460095575,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-web-tests",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T22:30:29Z",
-      "durationSeconds": 0.331875503,
+      "finishedAt": "2026-08-25T22:34:57Z",
+      "durationSeconds": 16.13198403,
       "detail": "completed successfully"
     }
   ]
