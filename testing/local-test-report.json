@@ -1,19 +1,27 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b6c9eac253e921e79d994f1cd1e35cee303add14dffd50249ea32a43ea531dc2",
-  "updatedAt": "2026-08-25T19:33:33Z",
+  "buildDigest": "sha256:201767d6a1b736c338ce05883fccb9c8f4bfba4451aa90e9f332c242df27fbcc",
+  "updatedAt": "2026-08-25T19:41:52Z",
   "checks": [
     {
-      "name": "bioma-helm-image-lock",
+      "name": "map-workspace-live-headed-browser",
       "command": [
         "cargo",
         "xtask",
         "smoke",
-        "helm-config"
+        "map-workspace-live-browser-verify",
+        "--public-base-url",
+        "https://veoveo.bioma.ai",
+        "--chrome-cdp-url",
+        "http://127.0.0.1:9222",
+        "--evidence-root",
+        "output/acceptance/map-workspace-live-themed",
+        "--timeout-seconds",
+        "180"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T19:33:33Z",
-      "durationSeconds": 15.007856478,
+      "finishedAt": "2026-08-25T19:41:52Z",
+      "durationSeconds": 9.139357045,
       "detail": "completed successfully"
     }
   ]
