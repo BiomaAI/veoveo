@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:a22859731237b5b8fa0272841e45ff3823262cd1db5ca41c3ecca6f36eb6583b",
-  "updatedAt": "2026-08-25T17:32:30Z",
+  "buildDigest": "sha256:3f76ed6269caae9fbb30fe02af550e35fabc101264d42757992f7494a89c63fc",
+  "updatedAt": "2026-08-25T17:34:10Z",
   "checks": [
     {
       "name": "console-build",
@@ -13,8 +13,8 @@
         "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T17:32:30Z",
-      "durationSeconds": 4.299175541,
+      "finishedAt": "2026-08-25T17:34:10Z",
+      "durationSeconds": 4.316350831,
       "detail": "completed successfully"
     },
     {
@@ -27,8 +27,8 @@
         "lint"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T17:32:22Z",
-      "durationSeconds": 3.196616231,
+      "finishedAt": "2026-08-25T17:34:00Z",
+      "durationSeconds": 3.037914714,
       "detail": "completed successfully"
     },
     {
@@ -40,8 +40,8 @@
         "test"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T17:32:13Z",
-      "durationSeconds": 0.332570154,
+      "finishedAt": "2026-08-25T17:33:50Z",
+      "durationSeconds": 0.323042518,
       "detail": "completed successfully"
     }
   ]

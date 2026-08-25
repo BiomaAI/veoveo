@@ -2,10 +2,11 @@ import { LayoutGrid } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { EmptyState, SectionHeader } from "../components/primitives";
 import { AppFrame } from "../apps/AppFrame";
+import { appServerTitle, unavailableAppServers } from "../apps/catalogPresentation";
 import { resolveAppLink, type PlatformAppLink } from "../apps/links";
 import { isFullBleedApp } from "../appPresentation";
 import { useApps } from "../queries";
-import type { AppCatalogDegradation, AppDescriptor } from "../types";
+import type { AppDescriptor } from "../types";
 
 export function AppsView({
   selectedUri,
@@ -42,13 +43,8 @@ export function AppsView({
     );
   }
   const degradations = data?.degradations ?? [];
-  const degradationNotice = degradations.length ? (
-    <p className="catalog-degradation" role="status">
-      Some hosted Apps are temporarily unavailable: {formatDegradations(degradations)}. Healthy
-      Apps remain available.
-    </p>
-  ) : null;
-  if (!apps.length) {
+  const unavailableServers = unavailableAppServers(apps, degradations);
+  if (!apps.length && !unavailableServers.length) {
     const message =
       error instanceof Error
         ? error.message
@@ -56,7 +52,6 @@ export function AppsView({
     return (
       <section className="panel full-panel">
         <SectionHeader title="Apps" />
-        {degradationNotice}
         <EmptyState>{message}</EmptyState>
       </section>
     );
@@ -68,11 +63,10 @@ export function AppsView({
   if (!selected) {
     return (
       <section className="panel full-panel">
-        <SectionHeader title="Apps" count={apps.length} />
+        <SectionHeader title="Apps" count={apps.length + unavailableServers.length} />
         <p className="panel-intro">
           Interactive views shipped by hosted MCP servers, rendered in an isolated sandbox.
         </p>
-        {degradationNotice}
         <div className="app-catalog">
           {apps.map((app) => (
             <button key={app.resourceUri} className="app-card" onClick={() => onSelect(app)}>
@@ -85,6 +79,20 @@ export function AppsView({
               <span className="mono subdued">{app.server}</span>
               {app.description && <p>{app.description}</p>}
             </button>
+          ))}
+          {unavailableServers.map((server) => (
+            <div
+              key={server}
+              className="app-card app-card-unavailable"
+              aria-label={`${appServerTitle(server)} unavailable`}
+            >
+              <LayoutGrid size={28} />
+              <div className="app-card-heading">
+                <strong>{appServerTitle(server)}</strong>
+                <span className="app-unavailable-tag">Unavailable</span>
+              </div>
+              <span className="mono subdued">{server}</span>
+            </div>
           ))}
         </div>
       </section>
@@ -114,9 +122,4 @@ export function AppsView({
       <div className="app-frame-panel">{frame}</div>
     </section>
   );
-}
-
-function formatDegradations(degradations: AppCatalogDegradation[]): string {
-  const servers = [...new Set(degradations.map((failure) => failure.server))];
-  return servers.join(", ");
 }
