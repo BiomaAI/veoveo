@@ -528,10 +528,10 @@ fn authentication_error_page(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title} | Console</title>
   <style>
-    :root {{ color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }}
+    :root {{ color-scheme: dark; font-family: "Geist Variable", Inter, ui-sans-serif, system-ui, sans-serif; }}
     body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; background: #101012; color: #eae6dc; }}
     main {{ width: min(34rem, calc(100vw - 3rem)); padding: 2.5rem; border: 1px solid #2b2a2d; background: #161618; box-shadow: 0 1.5rem 4rem #000b; }}
-    h1 {{ font: 400 1.6rem "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif; }}
+    h1 {{ font-size: 1.6rem; line-height: 1.2; font-weight: 550; letter-spacing: -.015em; }}
     p {{ color: #cfcabf; line-height: 1.6; }}
     nav {{ display: flex; flex-wrap: wrap; gap: .75rem; margin: 2rem 0; }}
     a {{ padding: .75rem 1rem; color: #eae6dc; border: 1px solid #3e3c38; text-decoration: none; }}
