@@ -43,10 +43,16 @@ pub(super) struct Args {
     pub duckdb_threads: u32,
     #[arg(
         long,
-        env = "VEOVEO_MAP_BASEMAP_TILE_URL_TEMPLATE",
-        default_value = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        env = "VEOVEO_MAP_BASEMAP_LIGHT_STYLE_URL",
+        default_value = "https://tiles.openfreemap.org/styles/positron"
     )]
-    pub workspace_basemap_tile_url_template: String,
+    pub workspace_basemap_light_style_url: String,
+    #[arg(
+        long,
+        env = "VEOVEO_MAP_BASEMAP_DARK_STYLE_URL",
+        default_value = "https://tiles.openfreemap.org/styles/dark"
+    )]
+    pub workspace_basemap_dark_style_url: String,
     #[arg(long, default_value = "http://127.0.0.1:8002/")]
     pub valhalla_url: Url,
     #[arg(long, default_value = "/usr/local/bin/valhalla_service")]
@@ -127,8 +133,11 @@ impl Args {
     }
 
     pub fn workspace_basemap(&self) -> anyhow::Result<MapWorkspaceBasemap> {
-        MapWorkspaceBasemap::open_street_map(self.workspace_basemap_tile_url_template.clone())
-            .map_err(anyhow::Error::msg)
+        MapWorkspaceBasemap::open_free_map(
+            self.workspace_basemap_light_style_url.clone(),
+            self.workspace_basemap_dark_style_url.clone(),
+        )
+        .map_err(anyhow::Error::msg)
     }
 }
 

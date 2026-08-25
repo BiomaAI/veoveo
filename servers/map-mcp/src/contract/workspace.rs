@@ -1,34 +1,30 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-const XYZ_TOKENS: [&str; 3] = ["{z}", "{x}", "{y}"];
-
-/// Presentation-safe XYZ basemap configuration owned by Map MCP.
+/// Presentation-safe MapLibre Style basemap configuration owned by Map MCP.
 ///
-/// The tile template is returned to the sandboxed App and therefore must not
-/// contain credentials. The App resource declares the template's exact HTTPS
-/// origin through MCP Apps CSP metadata.
+/// The style URLs are returned to the sandboxed App and therefore must not
+/// contain credentials. The supported profile keeps both styles and every
+/// style dependency on the same origin, which the App resource declares
+/// through MCP Apps CSP metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MapWorkspaceBasemap {
     pub id: String,
     pub title: String,
-    pub tile_url_template: String,
-    pub attribution: String,
-    pub minimum_zoom: u8,
-    pub maximum_zoom: u8,
-    pub tile_size: u16,
+    pub light_style_url: String,
+    pub dark_style_url: String,
 }
 
 impl MapWorkspaceBasemap {
-    pub fn open_street_map(tile_url_template: impl Into<String>) -> Result<Self, String> {
+    pub fn open_free_map(
+        light_style_url: impl Into<String>,
+        dark_style_url: impl Into<String>,
+    ) -> Result<Self, String> {
         let basemap = Self {
-            id: "open_street_map".to_owned(),
-            title: "OpenStreetMap".to_owned(),
-            tile_url_template: tile_url_template.into(),
-            attribution: "© OpenStreetMap contributors".to_owned(),
-            minimum_zoom: 0,
-            maximum_zoom: 19,
-            tile_size: 256,
+            id: "open_free_map".to_owned(),
+            title: "OpenFreeMap".to_owned(),
+            light_style_url: light_style_url.into(),
+            dark_style_url: dark_style_url.into(),
         };
         basemap.validate()?;
         Ok(basemap)
@@ -44,55 +40,39 @@ impl MapWorkspaceBasemap {
         {
             return Err("basemap title must contain 1 to 128 non-control characters".to_owned());
         }
-        if self.attribution.is_empty()
-            || self.attribution.len() > 1_024
-            || self.attribution.chars().any(char::is_control)
-        {
-            return Err(
-                "basemap attribution must contain 1 to 1024 non-control characters".to_owned(),
-            );
-        }
-        if self.minimum_zoom > self.maximum_zoom || self.maximum_zoom > 24 {
-            return Err("basemap zooms must be ordered within 0..=24".to_owned());
-        }
-        if self.tile_size != 256 && self.tile_size != 512 {
-            return Err("basemap tile size must be 256 or 512 pixels".to_owned());
-        }
-        for token in XYZ_TOKENS {
-            if self.tile_url_template.matches(token).count() != 1 {
-                return Err(format!(
-                    "basemap tile URL template must contain exactly one `{token}` token"
-                ));
-            }
-        }
-        if self.tile_url_template.contains(['\n', '\r', '\t']) {
-            return Err("basemap tile URL template must not contain control whitespace".to_owned());
-        }
         self.origin()?;
         Ok(())
     }
 
     pub fn origin(&self) -> Result<String, String> {
-        let mut probe = self.tile_url_template.clone();
-        for token in XYZ_TOKENS {
-            probe = probe.replace(token, "0");
+        let light_origin = style_origin("light", &self.light_style_url)?;
+        let dark_origin = style_origin("dark", &self.dark_style_url)?;
+        if light_origin != dark_origin {
+            return Err("light and dark basemap styles must use the same exact origin".to_owned());
         }
-        let url = url::Url::parse(&probe)
-            .map_err(|error| format!("basemap tile URL template is invalid: {error}"))?;
-        if url.scheme() != "https" || url.host_str().is_none() || !url.username().is_empty() {
-            return Err(
-                "basemap tile URL template must use credential-free HTTPS with an explicit host"
-                    .to_owned(),
-            );
-        }
-        if url.password().is_some() || url.query().is_some() || url.fragment().is_some() {
-            return Err(
-                "basemap tile URL template must not contain credentials, a query, or a fragment"
-                    .to_owned(),
-            );
-        }
-        Ok(url.origin().ascii_serialization())
+        Ok(light_origin)
     }
+}
+
+fn style_origin(variant: &str, style_url: &str) -> Result<String, String> {
+    if style_url.contains(['\n', '\r', '\t']) {
+        return Err(format!(
+            "{variant} basemap style URL must not contain control whitespace"
+        ));
+    }
+    let url = url::Url::parse(style_url)
+        .map_err(|error| format!("{variant} basemap style URL is invalid: {error}"))?;
+    if url.scheme() != "https" || url.host_str().is_none() || !url.username().is_empty() {
+        return Err(format!(
+            "{variant} basemap style URL must use credential-free HTTPS with an explicit host"
+        ));
+    }
+    if url.password().is_some() || url.query().is_some() || url.fragment().is_some() {
+        return Err(format!(
+            "{variant} basemap style URL must not contain credentials, a query, or a fragment"
+        ));
+    }
+    Ok(url.origin().ascii_serialization())
 }
 
 fn valid_slug_byte(byte: u8) -> bool {
@@ -119,20 +99,32 @@ mod tests {
     use super::MapWorkspaceBasemap;
 
     #[test]
-    fn xyz_basemap_requires_a_credential_free_https_template() {
-        let basemap =
-            MapWorkspaceBasemap::open_street_map("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
-                .expect("valid XYZ template");
-        assert_eq!(basemap.origin().unwrap(), "https://tile.openstreetmap.org");
-        assert!(MapWorkspaceBasemap::open_street_map("http://tiles.test/{z}/{x}/{y}.png").is_err());
+    fn style_basemap_requires_credential_free_same_origin_https_urls() {
+        let basemap = MapWorkspaceBasemap::open_free_map(
+            "https://tiles.openfreemap.org/styles/positron",
+            "https://tiles.openfreemap.org/styles/dark",
+        )
+        .expect("valid MapLibre style URLs");
+        assert_eq!(basemap.origin().unwrap(), "https://tiles.openfreemap.org");
+        for invalid in [
+            "http://tiles.test/style.json",
+            "https://user@tiles.test/style.json",
+            "https://tiles.test/style.json?key=secret",
+            "https://tiles.test/style.json#fragment",
+        ] {
+            assert!(
+                MapWorkspaceBasemap::open_free_map(invalid, "https://tiles.test/dark").is_err()
+            );
+            assert!(
+                MapWorkspaceBasemap::open_free_map("https://tiles.test/light", invalid).is_err()
+            );
+        }
         assert!(
-            MapWorkspaceBasemap::open_street_map("https://user@tiles.test/{z}/{x}/{y}.png")
-                .is_err()
+            MapWorkspaceBasemap::open_free_map(
+                "https://light.test/style.json",
+                "https://dark.test/style.json"
+            )
+            .is_err()
         );
-        assert!(
-            MapWorkspaceBasemap::open_street_map("https://tiles.test/{z}/{x}/{y}.png?key=secret")
-                .is_err()
-        );
-        assert!(MapWorkspaceBasemap::open_street_map("https://tiles.test/{z}/{x}.png").is_err());
     }
 }

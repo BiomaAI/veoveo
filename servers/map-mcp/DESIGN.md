@@ -54,7 +54,7 @@ the `map://` scheme.
 | GeoParquet 1.0.0 | WKB primary geometry and verified `geo` metadata for immutable analytical products. |
 | OGC Cloud Optimized GeoTIFF 1.0 and GeoTIFF 1.1 | Environmental sources normalize to immutable COG products with explicit CRS, affine transform, extent, resolution, bands, units, nodata values, value interpretation, checksum, license, and attribution. |
 | Veoveo spatial derivation profile `map-spatial-local-equirectangular-wgs84-v1` | Advisory operations use a WGS84 local equirectangular plane with the exact 6,371,008.8 m mean Earth radius. Each operation is bounded to two degrees on either axis and records its origin and algorithm revision. This is a repository-owned profile, not a projected-CRS standard. |
-| Mapbox Vector Tile 2.1, MapLibre Style 8, and MapLibre GL JS 6.6.0 | Deterministic bounded XYZ tile bundles, safe literal presentation styles, and a self-contained WebGL2 composition viewer. |
+| Mapbox Vector Tile 2.1, MapLibre Style 8, MapLibre GL JS 6.6.0, and the OpenFreeMap hosted style profile | Deterministic bounded XYZ tile bundles, safe literal presentation styles, a keyless vector basemap, and a self-contained WebGL2 composition viewer. |
 | OSM PBF, GTFS Schedule, S-57/S-100, AIXM, and FAA NASR exchange sets | Registered acquisition adapters accept only their documented snapshot profiles. Product-specific operational validation remains explicit. |
 | HTTPS and mounted exchange sets | Registered sources control hosts, redirects, media types, credentials, byte limits, elapsed time, and filesystem roots before an adapter runs. |
 | Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. The travel-model adapter uses one concise many-to-many request per requested vehicle type. It is an internal projection, never a public Map API. |
@@ -366,7 +366,7 @@ silently change an existing layer or product contract.
 | [GeoParquet 1.0.0](https://github.com/opengeospatial/geoparquet/blob/v1.0.0/format-specs/geoparquet.md) | WKB primary geometry and GeoParquet metadata emitted by pinned DuckDB Spatial |
 | [Mapbox Vector Tile Specification 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | requested XYZ tiles with canonical feature identity retained as an attribute |
 | [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) and MapLibre GL JS 6.6.0 | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections; self-contained WebGL2 workspace viewing |
-| XYZ raster tiles and OpenStreetMap attribution | One credential-free HTTPS tile template supplies geographic context to the workspace. Map MCP validates the template, publishes its presentation-safe descriptor, and declares the exact origin in MCP App CSP metadata. The default is OpenStreetMap; an installation may replace it with a controlled XYZ service. This is a basemap presentation profile, not an OGC API Tiles conformance claim. |
+| [OpenFreeMap](https://openfreemap.org/quick_start/) hosted MapLibre Style profile | Credential-free MapLibre Style 8 URLs supply vector geographic context for both Console themes. The defaults are OpenFreeMap Positron for light mode and OpenFreeMap Dark for dark mode. Map MCP validates both URLs, requires one exact HTTPS origin, and declares that origin in MCP App CSP metadata. The supported profile requires both style documents, sprites, glyphs, TileJSON, and tiles to remain on that origin; an installation may replace the pair with controlled or self-hosted styles that preserve this boundary. This is a basemap presentation profile, not complete conformance to an external tile-service API. |
 
 The image pins [DuckDB Spatial](https://duckdb.org/docs/stable/core_extensions/spatial/overview)
 to DuckDB 1.5.5. Export verification rejects a generated Parquet file unless
@@ -441,11 +441,14 @@ places. Raw JSON is an advanced diagnostic view, never the primary workflow.
 MapLibre GL JS 6.6.0 is bundled into the self-contained App with a classic
 worker emitted from the same pinned source. The opaque-origin sandbox admits
 the worker through its `connect-src data:` and `worker-src blob:` boundaries.
-Map MCP supplies one validated credential-free XYZ basemap descriptor and
-declares its exact HTTPS tile origin to the host; all governed feature bytes
-continue to cross only the MCP bridge. Basemap failure leaves governed layers
-usable and reports the degraded context locally without taking down the
-workspace.
+Map MCP supplies one validated basemap descriptor with credential-free light
+and dark MapLibre Style URLs and declares their shared exact HTTPS resource
+origin to the host. The workspace follows the initial host theme and reacts to
+host-context changes without losing its camera, governed overlays, selection,
+or bounded preview. The style profile keeps both documents, sprites, glyphs,
+TileJSON, and tiles on that origin, while governed feature bytes continue to
+cross only the MCP bridge. Basemap failure leaves governed layers usable and
+reports the degraded context locally without taking down the workspace.
 
 Each enabled authored layer issues R-tree-backed, viewport-bounded
 `query_features` calls in pages of 1,000 and stops at 5,000 features per layer
@@ -1155,7 +1158,8 @@ Important arguments include:
 --spatial-extension
 --duckdb-memory-limit
 --duckdb-threads
---workspace-basemap-tile-url-template
+--workspace-basemap-light-style-url
+--workspace-basemap-dark-style-url
 --valhalla-url
 --valhalla-executable
 --valhalla-config
@@ -1297,16 +1301,17 @@ The implementation is checked at several boundaries:
 - Console TypeScript and production Vite builds validate the administrative
   projection;
 - Map workspace contract tests verify one permission-aware App resource, the
-  validated basemap origin and CSP declaration, exact MCP bridge operations,
+  validated same-origin light and dark basemap contract and CSP declaration, exact MCP bridge operations,
   immutable publication and active-release queries, guided GeoPackage tasks,
   subscription wiring, the embedded MapLibre pin, and fail-closed hardware
   WebGL2 checks;
 - the Rust Map workspace browser smoke serves the exact generated App under the
-  Console's opaque-origin sandbox and an exact local XYZ CSP. Headed Chrome
+  Console's opaque-origin sandbox and an exact local MapLibre Style CSP. Headed Chrome
   must prove an NVIDIA WebGL adapter before the App completes bounded
-  publication-pinned and active-release viewport queries, synchronizes map and
-  table selection, retains the map during governed-data inspection, and emits
-  screenshot evidence;
+  publication-pinned and active-release viewport queries, switches from light
+  to dark basemap without moving the camera or losing overlays, synchronizes
+  map and table selection, retains the map during governed-data inspection,
+  and emits screenshot evidence;
 - the container build verifies the pinned Spatial extension and packages GDAL,
   Osmium, Valhalla, and the Python application;
 - the Rust Map smoke launches that image with a real SurrealDB 3.2 catalog and
