@@ -954,11 +954,12 @@ async fn prepare_import_request(
     tokio::fs::create_dir(&directory)
         .await
         .with_context(|| format!("creating import task directory {}", directory.display()))?;
+    let staged_filename = feature_transfers::staged_import_filename(&input.source);
     let staging = async {
         let mut file = tokio::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(directory.join("source"))
+            .open(directory.join(staged_filename))
             .await?;
         file.write_all(&artifact.bytes).await?;
         file.sync_all().await
@@ -1113,7 +1114,8 @@ async fn run_import_task(
     cancellation: CancellationToken,
 ) -> anyhow::Result<CallToolResult> {
     let directory = task_directory(state, task_id)?;
-    let bytes = tokio::fs::read(directory.join("source"))
+    let staged_filename = feature_transfers::staged_import_filename(&request.input.source);
+    let bytes = tokio::fs::read(directory.join(staged_filename))
         .await
         .context("reading staged import artifact")?;
     if bytes.len() as u64 > state.max_artifact_bytes

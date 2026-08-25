@@ -31,6 +31,7 @@ use serde_json::Value;
 use veoveo_extension_contract::SimulationOverlayKind;
 use veoveo_mcp_contract::{
     GatewayTaskStatusDocument, GatewayTaskStatusKind, RELATED_TASK_META_KEY,
+    parse_artifact_plane_uri,
 };
 
 #[allow(dead_code)]

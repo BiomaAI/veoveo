@@ -1,20 +1,74 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:497a5ec5be6a8d6a333e7e12b45887e32ad5f1f67e8359cb4222615add2aeb2d",
-  "updatedAt": "2026-08-24T23:48:25Z",
+  "buildDigest": "sha256:ac798d0c05c539c79a3b9113ac222d72546e8b75a4e934a5e0a5ae94a88d9ea8",
+  "updatedAt": "2026-08-25T00:55:07Z",
   "checks": [
     {
-      "name": "map-workspace-agent-resource-tests",
+      "name": "map-image-build",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "build",
+        "--target",
+        "map-mcp"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T00:51:59Z",
+      "durationSeconds": 80.839291549,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-product-store-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-agent-kernel",
-        "resource"
+        "veoveo-platform-store",
+        "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:48:25Z",
-      "durationSeconds": 0.853800426,
+      "finishedAt": "2026-08-25T00:55:07Z",
+      "durationSeconds": 0.560891503,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-smoke",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "map-mcp"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T00:52:33Z",
+      "durationSeconds": 29.313399332,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-workspace-browser",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "map-workspace-browser-verify"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T00:54:55Z",
+      "durationSeconds": 5.46025703,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-workspace-browser-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-browser-smoke"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T00:53:54Z",
+      "durationSeconds": 0.492045358,
       "detail": "completed successfully"
     },
     {
@@ -27,21 +81,8 @@
         "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:48:01Z",
-      "durationSeconds": 0.366891323,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "map-workspace-console-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-console-bff"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-24T23:48:22Z",
-      "durationSeconds": 0.755219568,
+      "finishedAt": "2026-08-25T00:53:48Z",
+      "durationSeconds": 0.414462487,
       "detail": "completed successfully"
     },
     {
@@ -56,22 +97,21 @@
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:48:20Z",
-      "durationSeconds": 18.411573753,
+      "finishedAt": "2026-08-25T00:54:43Z",
+      "durationSeconds": 35.654204671,
       "detail": "completed successfully"
     },
     {
-      "name": "map-workspace-projection-tests",
+      "name": "map-workspace-xtask-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-mcp-gateway",
-        "mcp_support"
+        "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-24T23:48:23Z",
-      "durationSeconds": 0.637504109,
+      "finishedAt": "2026-08-25T00:54:01Z",
+      "durationSeconds": 0.505034229,
       "detail": "completed successfully"
     }
   ]

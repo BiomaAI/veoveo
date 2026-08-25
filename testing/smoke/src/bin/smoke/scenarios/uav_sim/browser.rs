@@ -44,6 +44,38 @@ pub(crate) struct ConsoleLiveCaptureEvidence {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct MapWorkspaceCaptureEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    bridge: MapWorkspaceBridgeEvidence,
+    render: MapWorkspaceRenderEvidence,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MapWorkspaceBridgeEvidence {
+    initialized: bool,
+    query_calls: u64,
+    query_responses: u64,
+    size_height: f64,
+    last_query: Value,
+    errors: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MapWorkspaceRenderEvidence {
+    screenshot_width: u32,
+    screenshot_height: u32,
+    feature_colored_pixels: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ConsoleLiveGridEvidence {
     schema: &'static str,
     captured_at: chrono::DateTime<chrono::Utc>,
@@ -1716,6 +1748,352 @@ async fn sample_rerun_responsiveness(
         )
         .await?;
     Ok(evidence)
+}
+
+/// Exercise the exact generated Map MCP App in the same opaque-origin sandbox
+/// and offline CSP used by Console. The local parent implements only the MCP
+/// App bridge calls needed to render one immutable composition.
+pub(crate) async fn capture_map_workspace_app(
+    cdp_base: &str,
+    app_html_path: &Path,
+    screenshot_path: &Path,
+    timeout: Duration,
+) -> Result<MapWorkspaceCaptureEvidence> {
+    ensure!(
+        app_html_path.is_file(),
+        "generated Map workspace App does not exist: {}",
+        app_html_path.display()
+    );
+    let app_html = fs::read(app_html_path)
+        .with_context(|| format!("reading Map workspace App {}", app_html_path.display()))?;
+    ensure!(
+        app_html
+            .windows("maplibre-gl@6.6.0".len())
+            .any(|window| window == b"maplibre-gl@6.6.0"),
+        "Map workspace acceptance requires the pinned MapLibre 6.6.0 artifact"
+    );
+    let (page_url, server) = serve_map_workspace_acceptance(app_html).await?;
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, &page_url).await?;
+    let acceptance: Result<(
+        HardwareIdentity,
+        MapWorkspaceBridgeEvidence,
+        MapWorkspaceRenderEvidence,
+        String,
+    )> = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+
+        let deadline = tokio::time::Instant::now() + timeout;
+        let bridge = loop {
+            let bridge: MapWorkspaceBridgeEvidence = cdp
+                .evaluate(&session_id, "window.__mapWorkspaceEvidence", false)
+                .await?;
+            ensure!(
+                bridge.errors.is_empty(),
+                "Map workspace bridge failed: {:?}",
+                bridge.errors
+            );
+            if bridge.initialized && bridge.query_calls > 0 && bridge.query_responses > 0 {
+                break bridge;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "Map workspace did not initialize and complete a viewport query within {timeout:?}: {bridge:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        };
+        ensure!(
+            bridge.size_height >= 500.0,
+            "Map workspace did not report a usable App height: {}",
+            bridge.size_height
+        );
+        ensure!(
+            bridge.last_query.get("publication_id").and_then(Value::as_str)
+                == Some("publication-0198-map-workspace"),
+            "Map workspace did not query the immutable publication pin: {}",
+            bridge.last_query
+        );
+        ensure!(
+            bridge.last_query.get("limit").and_then(Value::as_u64) == Some(1_000),
+            "Map workspace viewport query must use the bounded 1,000-feature page: {}",
+            bridge.last_query
+        );
+        let bbox = bridge
+            .last_query
+            .get("bbox")
+            .context("Map workspace viewport query omitted bbox")?;
+        for coordinate in ["west", "south", "east", "north"] {
+            ensure!(
+                bbox.get(coordinate).and_then(Value::as_f64).is_some_and(f64::is_finite),
+                "Map workspace viewport query had an invalid {coordinate} bound: {bbox}"
+            );
+        }
+
+        // GeoJSON source updates are worker-driven. Give MapLibre enough time
+        // to place and paint the returned geometries before capture.
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        cdp.assert_no_software_renderer_events()?;
+        let screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        let render = analyze_map_workspace_render(screenshot_path)?;
+        Ok((hardware, bridge, render, screenshot_sha256))
+    }
+    .await;
+    let acceptance = match acceptance {
+        Ok(evidence) => Ok(evidence),
+        Err(error) => {
+            let diagnostics = cdp.stream_diagnostics(&session_id).await?;
+            Err(error.context(diagnostics))
+        }
+    };
+    let close = close_target(&mut cdp, &target_id).await;
+    server.abort();
+    let (hardware, bridge, render, screenshot_sha256) = acceptance?;
+    close?;
+    Ok(MapWorkspaceCaptureEvidence {
+        schema: "veoveo.io/map-workspace-capture-evidence/v1",
+        captured_at: chrono::Utc::now(),
+        page_url,
+        screenshot_path: screenshot_path.display().to_string(),
+        screenshot_sha256,
+        hardware,
+        bridge,
+        render,
+    })
+}
+
+fn analyze_map_workspace_render(screenshot_path: &Path) -> Result<MapWorkspaceRenderEvidence> {
+    let image = image::open(screenshot_path)
+        .with_context(|| {
+            format!(
+                "decoding Map workspace screenshot {}",
+                screenshot_path.display()
+            )
+        })?
+        .to_rgb8();
+    let (width, height) = image.dimensions();
+    ensure!(
+        width >= 1_280 && height >= 720,
+        "Map workspace screenshot is below the acceptance viewport: {width}x{height}"
+    );
+    let left = width * 35 / 100;
+    let right = width * 75 / 100;
+    let top = height * 20 / 100;
+    let bottom = height * 60 / 100;
+    let mut feature_colored_pixels = 0_u64;
+    for y in top..bottom {
+        for x in left..right {
+            let [red, green, blue] = image.get_pixel(x, y).0;
+            let minimum = red.min(green).min(blue);
+            let maximum = red.max(green).max(blue);
+            if red < 210 && maximum.saturating_sub(minimum) > 20 {
+                feature_colored_pixels += 1;
+            }
+        }
+    }
+    ensure!(
+        feature_colored_pixels >= 500,
+        "Map workspace screenshot did not contain the expected rendered feature colors in the central map viewport ({feature_colored_pixels} qualifying pixels)"
+    );
+    Ok(MapWorkspaceRenderEvidence {
+        screenshot_width: width,
+        screenshot_height: height,
+        feature_colored_pixels,
+    })
+}
+
+async fn serve_map_workspace_acceptance(
+    app_html: Vec<u8>,
+) -> Result<(String, tokio::task::JoinHandle<Result<()>>)> {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+    let address = listener.local_addr()?;
+    let harness = Arc::<[u8]>::from(map_workspace_acceptance_harness().into_bytes());
+    let app_html = Arc::<[u8]>::from(app_html);
+    let server = tokio::spawn(async move {
+        loop {
+            let (mut stream, _) = listener.accept().await?;
+            let mut request = [0_u8; 8_192];
+            let count = stream.read(&mut request).await?;
+            if count == 0 {
+                continue;
+            }
+            let target = std::str::from_utf8(&request[..count])?
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().nth(1))
+                .unwrap_or("/");
+            let (status, content_type, csp, body): (&str, &str, Option<&str>, &[u8]) = if target
+                .starts_with("/app")
+            {
+                (
+                    "200 OK",
+                    "text/html; charset=utf-8",
+                    Some(
+                        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; \
+                             img-src data: blob:; media-src blob:; connect-src data:; worker-src blob:; \
+                             frame-ancestors 'self'; object-src 'none'; base-uri 'none'",
+                    ),
+                    &app_html,
+                )
+            } else if target == "/" || target.starts_with("/?") {
+                ("200 OK", "text/html; charset=utf-8", None, &harness)
+            } else {
+                ("204 No Content", "text/plain", None, &[])
+            };
+            let mut headers = format!(
+                "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n",
+                body.len()
+            );
+            if let Some(csp) = csp {
+                headers.push_str("Content-Security-Policy: ");
+                headers.push_str(csp);
+                headers.push_str("\r\n");
+            }
+            headers.push_str("\r\n");
+            stream.write_all(headers.as_bytes()).await?;
+            stream.write_all(body).await?;
+            stream.shutdown().await?;
+        }
+    });
+    Ok((format!("http://{address}/"), server))
+}
+
+fn map_workspace_acceptance_harness() -> String {
+    let resources = serde_json::json!({
+        "map://workspace": {
+            "administration": true,
+            "feature_read": true,
+            "feature_write": true,
+            "feature_publish": true
+        },
+        "map://feature-layers": [{
+            "layer_id": "layer-0198-map-workspace",
+            "title": "San Salvador operations",
+            "content_class": "operational",
+            "schema": {"version": 1},
+            "revision": 3
+        }],
+        "map://publications": [{
+            "publication_id": "publication-0198-map-workspace",
+            "layer_id": "layer-0198-map-workspace",
+            "layer_revision": 3,
+            "schema_version": 1,
+            "style_revision_id": "style-revision-0198-map-workspace",
+            "title": "Operations publication"
+        }],
+        "map://compositions": [{
+            "composition_id": "composition-0198-map-workspace",
+            "title": "San Salvador operational picture",
+            "current": {
+                "revision": 2,
+                "layers": [{
+                    "layer_id": "layer-0198-map-workspace",
+                    "publication_id": "publication-0198-map-workspace",
+                    "style_revision_id": "style-revision-0198-map-workspace",
+                    "visible": true,
+                    "opacity": 1.0
+                }],
+                "view": {
+                    "center": {"longitude_deg": -89.2182, "latitude_deg": 13.6929},
+                    "zoom": 12.5,
+                    "bearing_deg": 0.0,
+                    "pitch_deg": 0.0
+                }
+            }
+        }],
+        "map://feature-style/style-revision-0198-map-workspace": {
+            "style_revision_id": "style-revision-0198-map-workspace",
+            "layer_id": "layer-0198-map-workspace",
+            "version": 1,
+            "style": {"rules": [
+                {"geometry_type": "Polygon", "fill_color": "#287e8e", "fill_opacity": 0.32, "line_color": "#164d59", "line_width_px": 2.0},
+                {"geometry_type": "LineString", "line_color": "#b8683b", "line_width_px": 4.0},
+                {"geometry_type": "Point", "circle_color": "#b34f68", "circle_radius_px": 7.0}
+            ]}
+        },
+        "map://sources": [],
+        "map://datasets": {},
+        "map://active-releases": [],
+        "map://acquisitions": [],
+        "map://mobility-profiles": []
+    });
+    let features = serde_json::json!([
+        {
+            "type": "Feature",
+            "id": "feature-0198-command",
+            "geometry": {"type": "Point", "coordinates": [-89.2182, 13.6929]},
+            "properties": {"role": "command"},
+            "featureType": "command_post",
+            "layer_id": "layer-0198-map-workspace",
+            "title": "Command post"
+        },
+        {
+            "type": "Feature",
+            "id": "feature-0198-route",
+            "geometry": {"type": "LineString", "coordinates": [[-89.229, 13.688], [-89.2182, 13.6929], [-89.207, 13.699]]},
+            "properties": {"role": "supply_route"},
+            "featureType": "route",
+            "layer_id": "layer-0198-map-workspace",
+            "title": "Supply route"
+        },
+        {
+            "type": "Feature",
+            "id": "feature-0198-sector",
+            "geometry": {"type": "Polygon", "coordinates": [[[-89.225, 13.688], [-89.211, 13.688], [-89.211, 13.699], [-89.225, 13.699], [-89.225, 13.688]]]},
+            "properties": {"role": "operating_sector"},
+            "featureType": "sector",
+            "layer_id": "layer-0198-map-workspace",
+            "title": "Operating sector"
+        }
+    ]);
+    format!(
+        r#"<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Map workspace acceptance host</title>
+<style>html,body{{margin:0;width:100%;height:100%;overflow:hidden;background:#d8d5cd}}iframe{{display:block;width:100%;height:100%;border:0}}</style>
+<script>
+const resources={resources};
+const features={features};
+window.__mapWorkspaceEvidence={{initialized:false,queryCalls:0,queryResponses:0,sizeHeight:0,lastQuery:null,errors:[]}};
+addEventListener("error",event=>window.__mapWorkspaceEvidence.errors.push(String(event.message||event.error||"host error")));
+addEventListener("unhandledrejection",event=>window.__mapWorkspaceEvidence.errors.push(String(event.reason||"host rejection")));
+addEventListener("message",event=>{{
+  const frame=document.getElementById("app");
+  if(!frame||event.source!==frame.contentWindow) return;
+  const message=event.data;
+  if(!message||message.jsonrpc!=="2.0") return;
+  const reply=(result)=>event.source.postMessage({{jsonrpc:"2.0",id:message.id,result}},"*");
+  const fail=(detail)=>{{window.__mapWorkspaceEvidence.errors.push(detail);event.source.postMessage({{jsonrpc:"2.0",id:message.id,error:{{code:-32601,message:detail}}}},"*");}};
+  if(message.method==="ui/initialize") return reply({{protocolVersion:"2026-01-26",hostContext:{{theme:"light"}}}});
+  if(message.method==="ui/notifications/initialized"){{window.__mapWorkspaceEvidence.initialized=true;return;}}
+  if(message.method==="ui/notifications/size-changed"){{window.__mapWorkspaceEvidence.sizeHeight=Number(message.params?.height||0);return;}}
+  if(message.method==="resources/read"){{
+    const uri=message.params?.uri;
+    if(!Object.hasOwn(resources,uri)) return fail(`unexpected resource ${{uri}}`);
+    return reply({{contents:[{{uri,mimeType:"application/json",text:JSON.stringify(resources[uri])}}]}});
+  }}
+  if(message.method==="tools/call"){{
+    const name=message.params?.name;
+    if(name!=="query_features") return fail(`unexpected tool ${{name}}`);
+    const args=message.params?.arguments||{{}};
+    window.__mapWorkspaceEvidence.queryCalls+=1;
+    window.__mapWorkspaceEvidence.lastQuery=args;
+    window.__mapWorkspaceEvidence.queryResponses+=1;
+    return reply({{structuredContent:{{layer_id:"layer-0198-map-workspace",features,next_cursor:null,projection_sequence:3}}}});
+  }}
+  if(message.method==="subscriptions/listen") return reply({{}});
+  if(message.id!==undefined) return fail(`unexpected request ${{message.method}}`);
+}});
+</script></head><body><iframe id="app" title="Map workspace" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/app"></iframe></body></html>"#,
+        resources = resources,
+        features = features,
+    )
 }
 
 async fn open_headed_target(cdp_base: &str, page_url: &str) -> Result<(Cdp, String, String)> {

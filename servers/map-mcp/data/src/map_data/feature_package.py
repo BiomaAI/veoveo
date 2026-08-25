@@ -25,8 +25,8 @@ MAX_FIELDS_PER_TABLE = 512
 MAX_TOTAL_FIELDS = 4_096
 MAX_METADATA_CHARS = 16_384
 RS = b"\x1e"
-CORE_CONFORMANCE = "[http://www.opengis.net/spec/json-fg-1/0.2/conf/core]"
-TYPES_CONFORMANCE = "[http://www.opengis.net/spec/json-fg-1/0.2/conf/types-schemas]"
+CORE_CONFORMANCE = "http://www.opengis.net/spec/json-fg-1/1.0/conf/core"
+TYPES_CONFORMANCE = "http://www.opengis.net/spec/json-fg-1/1.0/conf/types-schemas"
 PROPERTY_PREFIX = "property:"
 RESERVED_FIELDS = (
     "veoveo_id",
@@ -248,10 +248,10 @@ def _wgs84_extent(layer: Any) -> dict[str, float] | None:
     if minimum_x < -180 or maximum_x > 180 or minimum_y < -90 or maximum_y > 90:
         return None
     return {
-        "min_lon": minimum_x,
-        "min_lat": minimum_y,
-        "max_lon": maximum_x,
-        "max_lat": maximum_y,
+        "west": minimum_x,
+        "south": minimum_y,
+        "east": maximum_x,
+        "north": maximum_y,
     }
 
 

@@ -132,11 +132,12 @@ pub(crate) async fn map_mcp(
         "prompt `prepare_route_request`",
         "template: map://dataset/{dataset_id}",
         "template: map://acquisition/{acquisition_id}",
+        "template: map://feature-style/{style_revision_id}",
     ] {
         contains(&info, expected)?;
     }
-    // The apps contract: extension declared, admin view listed and readable,
-    // admin tools linked to it.
+    // The Apps contract: one permission-aware workspace is listed, readable,
+    // self-contained, and linked from its tools.
     run_map_mcp(conformance, &mcp_url, ["apps-check".into()])?;
     assert_direct_mcp_denied(
         conformance,
@@ -290,17 +291,262 @@ pub(crate) async fn map_mcp(
     )
     .await?;
     let maritime_route_id = assert_governed_graph_workflow(conformance, &mcp_url).await?;
+    let geopackage = assert_geopackage_round_trip(conformance, &mcp_url)?;
 
     cleanup.remove_on_drop();
     println!(
-        "Map MCP smoke ok: activated authority {}, OSM {}, and network {}; planned road {} and governed maritime {}",
+        "Map MCP smoke ok: activated authority {}, OSM {}, and network {}; planned road {} and governed maritime {}; exported GeoPackage product {} and imported it into {}",
         authority_release.release_id,
         osm_release.release_id,
         network_release.release_id,
         road_route_id,
         maritime_route_id,
+        geopackage.product_id,
+        geopackage.imported_layer_id,
     );
     Ok(())
+}
+
+struct GeoPackageRoundTrip {
+    product_id: String,
+    imported_layer_id: String,
+}
+
+fn assert_geopackage_round_trip(conformance: &Path, mcp_url: &str) -> Result<GeoPackageRoundTrip> {
+    let schema = serde_json::json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+            "active": {"type": "boolean"},
+            "callsign": {"type": "string"},
+            "priority": {"type": "integer"}
+        },
+        "required": ["active", "callsign", "priority"],
+        "additionalProperties": false
+    });
+    let source_layer = structured_output(&call_map_tool(
+        conformance,
+        mcp_url,
+        "create_feature_layer",
+        &serde_json::json!({
+            "title": "GeoPackage smoke source",
+            "content_class": "named_locations",
+            "property_schema": schema
+        }),
+    )?)?;
+    let source_layer_id = required_string(&source_layer, "/layer_id", "source layer id")?;
+    if source_layer.get("revision").and_then(Value::as_u64) != Some(0) {
+        bail!("new GeoPackage smoke source layer had an unexpected revision: {source_layer}");
+    }
+
+    let committed = structured_output(&call_map_tool(
+        conformance,
+        mcp_url,
+        "commit_feature_changes",
+        &serde_json::json!({
+            "layer_id": source_layer_id,
+            "expected_layer_revision": 0,
+            "idempotency_key": format!("map-smoke-geopackage-source-{}", uuid::Uuid::now_v7()),
+            "mutations": [{
+                "action": "create",
+                "feature": {
+                    "geometry": {"type": "Point", "coordinates": [-89.215, 13.695]},
+                    "properties": {
+                        "active": true,
+                        "callsign": "ALPHA-7",
+                        "priority": 4
+                    },
+                    "semantic_type": "CommandPost",
+                    "time": {"interval": ["2026-01-01T00:00:00Z", "2027-01-01T00:00:00Z"]},
+                    "title": "Alpha command post"
+                }
+            }]
+        }),
+    )?)?;
+    if committed
+        .pointer("/changeset/resulting_layer_revision")
+        .and_then(Value::as_u64)
+        != Some(1)
+        || committed
+            .pointer("/features/0/properties/callsign")
+            .and_then(Value::as_str)
+            != Some("ALPHA-7")
+    {
+        bail!("GeoPackage smoke source commit was not preserved: {committed}");
+    }
+    let source_feature_id = required_string(&committed, "/features/0/id", "source feature id")?;
+
+    let publication = structured_output(&call_map_tool(
+        conformance,
+        mcp_url,
+        "publish_feature_layer",
+        &serde_json::json!({
+            "layer_id": source_layer_id,
+            "expected_layer_revision": 1,
+            "title": "GeoPackage smoke publication"
+        }),
+    )?)?;
+    let publication_id = required_string(&publication, "/publication_id", "publication id")?;
+
+    let exported = structured_output(&call_map_task(
+        conformance,
+        mcp_url,
+        "export_feature_layer",
+        &serde_json::json!({
+            "layer_id": source_layer_id,
+            "publication_id": publication_id,
+            "format": {"format": "geo_package", "table": "published places"}
+        }),
+    )?)?;
+    if exported.pointer("/product/format").and_then(Value::as_str) != Some("geo_package")
+        || exported
+            .pointer("/product/feature_count")
+            .and_then(Value::as_u64)
+            != Some(1)
+        || exported
+            .pointer("/product/mime_type")
+            .and_then(Value::as_str)
+            != Some("application/geopackage+sqlite3")
+    {
+        bail!("GeoPackage export returned an invalid product: {exported}");
+    }
+    let product_id = required_string(&exported, "/product/product_id", "GeoPackage product id")?;
+    let artifact_uri = required_string(
+        &exported,
+        "/product/artifact_uri",
+        "GeoPackage artifact URI",
+    )?;
+    let artifact_id = parse_artifact_plane_uri(&artifact_uri)
+        .with_context(|| {
+            format!("GeoPackage product returned an invalid artifact URI: {artifact_uri}")
+        })?
+        .to_string();
+
+    let inspected = structured_output(&call_map_task(
+        conformance,
+        mcp_url,
+        "inspect_geopackage",
+        &serde_json::json!({"source_artifact_id": artifact_id}),
+    )?)?;
+    let table = inspected
+        .pointer("/manifest/feature_tables/0")
+        .context("GeoPackage inspection omitted the exported feature table")?;
+    if inspected
+        .pointer("/manifest/version")
+        .and_then(Value::as_str)
+        != Some("1.4")
+        || inspected
+            .pointer("/manifest/feature_tables")
+            .and_then(Value::as_array)
+            .is_none_or(|tables| tables.len() != 1)
+        || table.get("table").and_then(Value::as_str) != Some("published places")
+        || table.get("feature_count").and_then(Value::as_u64) != Some(1)
+        || table.get("has_spatial_index").and_then(Value::as_bool) != Some(true)
+        || inspected
+            .pointer("/manifest/findings")
+            .and_then(Value::as_array)
+            .is_none_or(|findings| {
+                findings
+                    .iter()
+                    .any(|finding| finding.get("level").and_then(Value::as_str) == Some("error"))
+            })
+    {
+        bail!("exported GeoPackage failed its manifest assertions: {inspected}");
+    }
+
+    let imported_layer = structured_output(&call_map_tool(
+        conformance,
+        mcp_url,
+        "create_feature_layer",
+        &serde_json::json!({
+            "title": "GeoPackage smoke import",
+            "content_class": "named_locations",
+            "property_schema": schema
+        }),
+    )?)?;
+    let imported_layer_id = required_string(&imported_layer, "/layer_id", "import layer id")?;
+    let imported = structured_output(&call_map_task(
+        conformance,
+        mcp_url,
+        "import_feature_layer",
+        &serde_json::json!({
+            "layer_id": imported_layer_id,
+            "expected_layer_revision": 0,
+            "source_artifact_id": artifact_id,
+            "source": {
+                "format": "geo_package",
+                "table": "published places",
+                "identity_column": "veoveo_id",
+                "semantic_type_column": "veoveo_feature_type",
+                "default_semantic_type": "ImportedFeature",
+                "title_column": "veoveo_title",
+                "valid_from_column": "veoveo_valid_from",
+                "valid_until_column": "veoveo_valid_until"
+            },
+            "idempotency_key": format!("map-smoke-geopackage-import-{}", uuid::Uuid::now_v7())
+        }),
+    )?)?;
+    if imported
+        .get("imported_feature_count")
+        .and_then(Value::as_u64)
+        != Some(1)
+        || imported
+            .pointer("/changeset/resulting_layer_revision")
+            .and_then(Value::as_u64)
+            != Some(1)
+    {
+        bail!("GeoPackage import did not commit exactly one feature: {imported}");
+    }
+
+    let queried = structured_output(&call_map_tool(
+        conformance,
+        mcp_url,
+        "query_features",
+        &serde_json::json!({"layer_id": imported_layer_id, "limit": 10}),
+    )?)?;
+    let feature = queried
+        .pointer("/features/0")
+        .context("GeoPackage round trip query omitted the imported feature")?;
+    if queried
+        .get("features")
+        .and_then(Value::as_array)
+        .is_none_or(|features| features.len() != 1)
+        || feature.get("id").and_then(Value::as_str) != Some(source_feature_id.as_str())
+        || feature.get("featureType").and_then(Value::as_str) != Some("CommandPost")
+        || feature.get("title").and_then(Value::as_str) != Some("Alpha command post")
+        || feature
+            .pointer("/properties/callsign")
+            .and_then(Value::as_str)
+            != Some("ALPHA-7")
+        || feature
+            .pointer("/properties/priority")
+            .and_then(Value::as_i64)
+            != Some(4)
+        || feature
+            .pointer("/properties/active")
+            .and_then(Value::as_bool)
+            != Some(true)
+        || feature.pointer("/geometry/type").and_then(Value::as_str) != Some("Point")
+        || feature.pointer("/time/interval/0").and_then(Value::as_str)
+            != Some("2026-01-01T00:00:00Z")
+        || feature.pointer("/time/interval/1").and_then(Value::as_str)
+            != Some("2027-01-01T00:00:00Z")
+    {
+        bail!("GeoPackage round trip changed the authored feature: {queried}");
+    }
+
+    Ok(GeoPackageRoundTrip {
+        product_id,
+        imported_layer_id,
+    })
+}
+
+fn required_string(value: &Value, pointer: &str, field: &str) -> Result<String> {
+    value
+        .pointer(pointer)
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned)
+        .with_context(|| format!("{field} was missing from {value}"))
 }
 
 #[derive(Clone, Copy)]
@@ -895,6 +1141,12 @@ fn run_map_mcp(
         "operator:use".into(),
         "--internal-scope".into(),
         "map:admin".into(),
+        "--internal-scope".into(),
+        "map:feature:read".into(),
+        "--internal-scope".into(),
+        "map:feature:write".into(),
+        "--internal-scope".into(),
+        "map:feature:publish".into(),
         "--internal-scope".into(),
         "map:dataset:read".into(),
         "--internal-scope".into(),

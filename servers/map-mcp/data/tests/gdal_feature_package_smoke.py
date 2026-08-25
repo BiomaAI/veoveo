@@ -85,6 +85,10 @@ def main() -> None:
         record = Path(decoded["path"]).read_bytes()
         feature = json.loads(record[1:-1])
         assert feature["id"] == "place-1"
+        assert feature["conformsTo"] == [
+            "http://www.opengis.net/spec/json-fg-1/1.0/conf/core",
+            "http://www.opengis.net/spec/json-fg-1/1.0/conf/types-schemas",
+        ]
         assert feature["featureType"] == "NamedPlace"
         assert feature["title"] == "Origin"
         assert feature["geometry"] == {"type": "Point", "coordinates": [0.0, 0.0]}
@@ -105,6 +109,12 @@ def main() -> None:
         assert round_trip["table"] == "published places"
         assert round_trip["feature_count"] == 1
         assert round_trip["has_spatial_index"] is True
+        assert round_trip["extent_wgs84"] == {
+            "west": 0.0,
+            "south": 0.0,
+            "east": 0.0,
+            "north": 0.0,
+        }
         print("GeoPackage inspect/decode/encode round trip passed")
 
 

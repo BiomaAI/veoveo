@@ -9,7 +9,7 @@ work with coordinates, apply transport restrictions, calculate routes, build
 matrices, publish cuOpt-ready travel models, inspect reachable areas, and
 author governed feature layers. Source administration runs through the same
 MCP surface: scoped tools for mutations, `map://` resources for reads, and one
-permission-aware MCP App that hosts render
+permission-aware MCP App that renders immutable compositions
 (see `mcp/apps-extension/DESIGN.md`).
 
 ## Status
@@ -412,12 +412,15 @@ Data sections retain the canonical authoring and administration workflows.
 
 The Map section renders an immutable composition with exact publication and
 style-revision pins. MapLibre GL JS 6.6.0 is bundled into the self-contained App
-with its module worker; the App fetches no basemap, script, style, or feature
+with a classic worker emitted from the same pinned source. The opaque-origin
+sandbox admits the worker source through its existing `connect-src data:` and
+`worker-src blob:` boundaries. The App fetches no basemap, script, style, or feature
 bytes outside MCP. Each enabled composition layer issues R-tree-backed,
 viewport-bounded `query_features` calls in pages of 1,000 and stops at 5,000
 features per layer and viewport. A visible cap is reported instead of silently
-dropping the condition. Composition subscriptions wake the App to reread
-canonical state.
+dropping the condition. The UI reports a successful refresh only after MapLibre
+reaches an idle paint with returned geometry visible. Composition subscriptions
+wake the App to reread canonical state.
 
 The map fails closed unless WebGL2 creation succeeds with the major-performance
 caveat check, the debug renderer extension identifies the adapter, and the
@@ -1243,6 +1246,10 @@ The implementation is checked at several boundaries:
 - Map workspace contract tests verify one permission-aware App resource, exact
   MCP bridge operations, immutable publication queries, subscription wiring,
   the embedded MapLibre pin, and fail-closed hardware WebGL2 checks;
+- the Rust Map workspace browser smoke serves the exact generated App under the
+  Console's opaque-origin sandbox and offline CSP. Headed Chrome must prove an
+  NVIDIA WebGL adapter before the App completes a bounded publication-pinned
+  viewport query and emits screenshot evidence;
 - the container build verifies the pinned Spatial extension and packages GDAL,
   Osmium, Valhalla, and the Python application;
 - the Rust Map smoke launches that image with a real SurrealDB 3.2 catalog and
@@ -1270,6 +1277,7 @@ npm --prefix servers/map-mcp/app run build
 npm --prefix apps/console/web run build
 cargo xtask image build --target map-mcp
 cargo xtask smoke map-mcp
+cargo xtask smoke map-workspace-browser-verify
 ```
 
 The risk-based suite targets representative acquisition, land routing,

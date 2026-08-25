@@ -457,7 +457,8 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `examples/bioma/uav-sim-values.yaml` | reference authoritative camera, product, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned authoritative UAV cameras and products, real authenticated Console checkpoints, governed Rerun playback, and revision-qualified evidence |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | headed authenticated Chrome attachment, hardware WebGPU-or-WebGL enforcement, dedicated simultaneous-viewer windows, shared Console/standalone-App boundary checks, Console live-view interaction, and screenshots |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | shared headed Chrome attachment, hardware WebGPU-or-WebGL enforcement, opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
+| `testing/browser-smoke/src/main.rs` | focused headed-browser commands and versioned evidence manifests for the Map workspace and UAV visual workflows |
 | `testing/browser-smoke/src/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
 

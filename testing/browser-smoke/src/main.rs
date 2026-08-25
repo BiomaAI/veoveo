@@ -19,10 +19,10 @@ mod restart;
 use browser::{
     ConsoleAgentInstructionEvidence, ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence,
     ConsoleRecordingArchiveCaptureEvidence, ConsoleRecordingCaptureEvidence,
-    capture_console_live_app, capture_console_live_app_five_user_grid,
+    MapWorkspaceCaptureEvidence, capture_console_live_app, capture_console_live_app_five_user_grid,
     capture_console_live_app_grid, capture_console_live_app_pair, capture_console_recording,
-    capture_console_recording_archive, preflight_console_live_app, preflight_standalone_live_app,
-    send_console_uav_agent_instruction,
+    capture_console_recording_archive, capture_map_workspace_app, preflight_console_live_app,
+    preflight_standalone_live_app, send_console_uav_agent_instruction,
 };
 use restart::{RestartVerification, verify_live_view_restarts};
 
@@ -89,6 +89,17 @@ struct Args {
 // browser binary; the shared prefix is part of the CLI rather than Rust type noise.
 #[allow(clippy::enum_variant_names)]
 enum SmokeCommand {
+    /// Render the generated Map workspace App with a hardware GPU and bounded fixture bridge.
+    MapWorkspaceBrowserVerify {
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value = "servers/map-mcp/assets/workspace-app.html")]
+        app_html: PathBuf,
+        #[arg(long, default_value = "output/acceptance/map-workspace")]
+        evidence_root: PathBuf,
+        #[arg(long, default_value_t = 60)]
+        timeout_seconds: u64,
+    },
     /// Verify the Console and standalone UAV App hosts without opening live products.
     UavAppHostsBrowserVerify {
         #[arg(long)]
@@ -254,6 +265,16 @@ struct AgentInstructionBrowserAcceptanceEvidence {
     instruction: ConsoleAgentInstructionEvidence,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MapWorkspaceBrowserAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: String,
+    run_id: String,
+    workspace: MapWorkspaceCaptureEvidence,
+}
+
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SourceTimelineSample {
@@ -331,6 +352,20 @@ impl OperatorClient<'_> {
 async fn main() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Args::parse().command {
+        SmokeCommand::MapWorkspaceBrowserVerify {
+            chrome_cdp_url,
+            app_html,
+            evidence_root,
+            timeout_seconds,
+        } => {
+            verify_map_workspace(
+                &chrome_cdp_url,
+                &app_html,
+                &evidence_root,
+                Duration::from_secs(timeout_seconds),
+            )
+            .await
+        }
         SmokeCommand::UavAppHostsBrowserVerify {
             public_base_url,
             chrome_cdp_url,
@@ -430,6 +465,45 @@ async fn main() -> Result<()> {
             .await
         }
     }
+}
+
+async fn verify_map_workspace(
+    chrome_cdp_url: &str,
+    app_html: &Path,
+    evidence_root: &Path,
+    timeout: Duration,
+) -> Result<()> {
+    let source_revision = git_revision()?;
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&source_revision).join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating Map workspace browser evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let workspace = capture_map_workspace_app(
+        chrome_cdp_url,
+        app_html,
+        &evidence_directory.join("map-workspace.png"),
+        timeout,
+    )
+    .await?;
+    let evidence = MapWorkspaceBrowserAcceptanceEvidence {
+        schema: "veoveo.io/map-workspace-browser-evidence/v1",
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        workspace,
+    };
+    let manifest = evidence_directory.join("evidence.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
+        .with_context(|| format!("writing Map workspace evidence {}", manifest.display()))?;
+    println!(
+        "Map workspace rendered through hardware WebGL2 and completed a bounded viewport query. Evidence: {}",
+        manifest.display()
+    );
+    Ok(())
 }
 
 async fn verify_uav_agent_instruction(

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use surrealdb::types::{Array, RecordId, SurrealValue};
 
+use crate::store::primary_transaction_error;
 use crate::{
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, MapFeatureChangeSetRecord,
     MapFeatureHeadRecord, MapFeatureLayerRecord, MapFeatureRevisionRecord,
@@ -776,7 +777,10 @@ impl PlatformStore {
             .bind(("mutations", mutations))
             .bind(("event", event))
             .await
-            .and_then(|response| response.check());
+            .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
+                Some(error) => Err(error),
+                None => Ok(()),
+            });
         if let Err(error) = result {
             if let Some(existing) = self
                 .map_feature_changeset(

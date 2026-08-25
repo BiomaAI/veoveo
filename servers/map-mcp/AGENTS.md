@@ -9,8 +9,8 @@ Veoveo's Earth geography and logistics routing domain: places, facilities,
 borders, coordinates, transport restrictions, routes, matrices, reachable
 areas, cuOpt-ready travel models, governed source acquisition with immutable
 release activation, and Work Context owned feature authoring. Administration
-runs through the same typed MCP surface, including the admin and editor MCP
-Apps.
+runs through the same typed MCP surface and its single permission-aware Map
+workspace App.
 
 ## Invariants
 
@@ -64,6 +64,10 @@ Apps.
 - Browser acceptance for the workspace map requires headed Chrome and a proven
   hardware WebGL2 renderer. Static HTML tests or software graphics are not
   visual acceptance.
+- `cargo xtask smoke map-workspace-browser-verify` serves the exact generated
+  App under the Console's opaque-origin sandbox and offline CSP, completes a
+  bounded immutable-publication viewport query, and records GPU and screenshot
+  evidence.
 
 ## Contract Compliance
 
