@@ -62,16 +62,22 @@ pub(crate) struct ConsoleMapWorkspaceCaptureEvidence {
     schema: &'static str,
     captured_at: chrono::DateTime<chrono::Utc>,
     page_url: String,
-    map_screenshot_path: String,
-    map_screenshot_sha256: String,
-    layers_screenshot_path: String,
-    layers_screenshot_sha256: String,
-    data_screenshot_path: String,
-    data_screenshot_sha256: String,
+    workspace_screenshot_path: String,
+    workspace_screenshot_sha256: String,
+    source_screenshot_path: String,
+    source_screenshot_sha256: String,
+    feature_screenshot_path: String,
+    feature_screenshot_sha256: String,
+    guided_screenshot_path: String,
+    guided_screenshot_sha256: String,
+    management_screenshot_path: String,
+    management_screenshot_sha256: String,
     hardware: HardwareIdentity,
-    map: Value,
-    layers: Value,
-    data: Value,
+    workspace: Value,
+    source: Value,
+    feature: Value,
+    guided: Value,
+    management: Value,
     render: MapWorkspaceRenderEvidence,
 }
 
@@ -82,8 +88,12 @@ struct MapWorkspaceBridgeEvidence {
     initialized: bool,
     query_calls: u64,
     query_responses: u64,
+    authored_query_calls: u64,
+    source_query_calls: u64,
     size_height: f64,
     last_query: Value,
+    last_authored_query: Value,
+    last_source_query: Value,
     errors: Vec<String>,
 }
 
@@ -1772,8 +1782,8 @@ async fn sample_rerun_responsiveness(
 }
 
 /// Exercise the exact generated Map MCP App in the same opaque-origin sandbox
-/// and offline CSP used by Console. The local parent implements only the MCP
-/// App bridge calls needed to render one immutable composition.
+/// and explicit tile-origin CSP used by Console. The local parent implements
+/// only the MCP App bridge calls needed to render one immutable composition.
 #[allow(dead_code, reason = "shared by the focused browser-smoke binary")]
 pub(crate) async fn capture_map_workspace_app(
     cdp_base: &str,
@@ -1818,7 +1828,11 @@ pub(crate) async fn capture_map_workspace_app(
                 "Map workspace bridge failed: {:?}",
                 bridge.errors
             );
-            if bridge.initialized && bridge.query_calls > 0 && bridge.query_responses > 0 {
+            if bridge.initialized
+                && bridge.authored_query_calls > 0
+                && bridge.source_query_calls > 0
+                && bridge.query_responses >= 2
+            {
                 break bridge;
             }
             ensure!(
@@ -1833,18 +1847,25 @@ pub(crate) async fn capture_map_workspace_app(
             bridge.size_height
         );
         ensure!(
-            bridge.last_query.get("publication_id").and_then(Value::as_str)
+            bridge
+                .last_authored_query
+                .get("publication_id")
+                .and_then(Value::as_str)
                 == Some("publication-0198-map-workspace"),
             "Map workspace did not query the immutable publication pin: {}",
-            bridge.last_query
+            bridge.last_authored_query
         );
         ensure!(
-            bridge.last_query.get("limit").and_then(Value::as_u64) == Some(1_000),
+            bridge
+                .last_authored_query
+                .get("limit")
+                .and_then(Value::as_u64)
+                == Some(1_000),
             "Map workspace viewport query must use the bounded 1,000-feature page: {}",
-            bridge.last_query
+            bridge.last_authored_query
         );
         let bbox = bridge
-            .last_query
+            .last_authored_query
             .get("bbox")
             .context("Map workspace viewport query omitted bbox")?;
         for coordinate in ["west", "south", "east", "north"] {
@@ -1853,6 +1874,21 @@ pub(crate) async fn capture_map_workspace_app(
                 "Map workspace viewport query had an invalid {coordinate} bound: {bbox}"
             );
         }
+        ensure!(
+            bridge
+                .last_source_query
+                .get("limit")
+                .and_then(Value::as_u64)
+                == Some(500),
+            "Map workspace source preview must use the bounded 500-feature page: {}",
+            bridge.last_source_query
+        );
+        ensure!(
+            bridge.last_source_query.pointer("/spatial/kind").and_then(Value::as_str)
+                == Some("bounding_box"),
+            "Map workspace source preview omitted its indexed bounding-box query: {}",
+            bridge.last_source_query
+        );
 
         // GeoJSON source updates are worker-driven. Give MapLibre enough time
         // to place and paint the returned geometries before capture.
@@ -1877,7 +1913,7 @@ pub(crate) async fn capture_map_workspace_app(
     let (hardware, bridge, render, screenshot_sha256) = acceptance?;
     close?;
     Ok(MapWorkspaceCaptureEvidence {
-        schema: "veoveo.io/map-workspace-capture-evidence/v1",
+        schema: "veoveo.io/map-workspace-capture-evidence/v2",
         captured_at: chrono::Utc::now(),
         page_url,
         screenshot_path: screenshot_path.display().to_string(),
@@ -1943,302 +1979,449 @@ async fn capture_console_map_workspace_app_inner(
         let composition = serde_json::to_string(expected_composition_title)?;
         let layer = serde_json::to_string(expected_layer_title)?;
         let deadline = tokio::time::Instant::now() + timeout;
-        loop {
-            let selected: bool = evaluate_console_app(
-                &mut cdp,
-                &target_id,
-                &session_id,
-                "map",
-                &format!(
-                    r#"(() => {{
-                      document.querySelector('[data-view="map-view"]')?.click();
-                      const select=document.getElementById('composition-select');
-                      const option=[...(select?.options ?? [])].find(option=>option.textContent?.includes({composition}));
-                      if(!option) return false;
-                      if(select.value!==option.value){{select.value=option.value;select.dispatchEvent(new Event('change',{{bubbles:true}}));}}
-                      return true;
-                    }})()"#
-                ),
-                false,
-            )
-            .await?;
-            if selected {
-                break;
-            }
-            ensure!(
-                tokio::time::Instant::now() < deadline,
-                "live Map workspace did not list the expected composition"
-            );
-            tokio::time::sleep(Duration::from_millis(250)).await;
-        }
-        let map_state_script = || {
+        let workspace_script = || {
             format!(
                 r#"(() => {{
                   const select=document.getElementById('composition-select');
-                  const option=[...(select?.options ?? [])].find(option=>option.textContent?.includes({composition}));
+                  const option=[...(select?.options ?? [])].find(item=>item.textContent?.includes({composition}));
+                  if(option && select.value!==option.value){{select.value=option.value;select.dispatchEvent(new Event('change',{{bubbles:true}}));}}
+                  const layerRow=[...document.querySelectorAll('#authored-list .layer-row')].find(item=>item.textContent?.includes({layer}));
+                  if(layerRow && !layerRow.classList.contains('selected')) layerRow.click();
                   const canvas=document.querySelector('#map canvas');
                   const gl=canvas?.getContext('webgl2');
                   const debug=gl?.getExtension('WEBGL_debug_renderer_info');
-                  const publicationRows=document.querySelectorAll('#map-layers .layer-row');
+                  const mapRect=document.querySelector('.map-stage')?.getBoundingClientRect();
                   return {{
                     compositionFound:Boolean(option),selectedTitle:option?.textContent?.trim() ?? '',
-                    status:document.getElementById('status')?.textContent?.trim() ?? '',
+                    layerFound:Boolean(layerRow),layerTitle:layerRow?.textContent?.trim() ?? '',
+                    status:document.getElementById('status-message')?.textContent?.trim() ?? '',
                     gpuBadge:document.getElementById('gpu-badge')?.textContent?.trim() ?? '',
                     mapFailureHidden:Boolean(document.getElementById('map-failure')?.hidden),
-                    mapFailure:document.getElementById('map-failure')?.textContent?.trim() ?? '',
-                    mapTotal:document.getElementById('map-total')?.textContent?.trim() ?? '',
                     canvasWidth:canvas?.width ?? 0,canvasHeight:canvas?.height ?? 0,
+                    mapWidth:mapRect?.width ?? 0,mapHeight:mapRect?.height ?? 0,
                     webglRenderer:debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : '',
-                    publicationRows:publicationRows.length,
+                    authoredRows:document.querySelectorAll('#authored-list .layer-row').length,
+                    sourceRows:document.querySelectorAll('#source-layer-list .layer-row').length,
+                    previewRows:document.querySelectorAll('#preview-rows tr').length,
+                    previewText:document.getElementById('preview-rows')?.textContent?.trim() ?? '',
+                    renderedFeatureCount:Number(document.getElementById('map')?.dataset.renderedFeatureCount ?? 0),
+                    attribution:document.querySelector('.maplibregl-ctrl-attrib')?.textContent?.trim() ?? '',
                     viewerInteracted:document.documentElement.dataset.veoveoAcceptanceMapInteracted === 'true'
                   }};
                 }})()"#
             )
         };
-        let map_ready = |state: &Value| {
-            state.get("compositionFound").and_then(Value::as_bool) == Some(true)
-                && state.get("mapFailureHidden").and_then(Value::as_bool) == Some(true)
-                && state.get("canvasWidth").and_then(Value::as_u64).unwrap_or(0) >= 800
-                && state.get("canvasHeight").and_then(Value::as_u64).unwrap_or(0) >= 500
-                && state
+        let workspace_ready = |value: &Value| {
+            value.get("compositionFound").and_then(Value::as_bool) == Some(true)
+                && value.get("layerFound").and_then(Value::as_bool) == Some(true)
+                && value.get("mapFailureHidden").and_then(Value::as_bool) == Some(true)
+                && value.get("canvasWidth").and_then(Value::as_u64).unwrap_or(0) >= 600
+                && value.get("canvasHeight").and_then(Value::as_u64).unwrap_or(0) >= 360
+                && value.get("mapWidth").and_then(Value::as_f64).unwrap_or(0.0) >= 600.0
+                && value.get("mapHeight").and_then(Value::as_f64).unwrap_or(0.0) >= 360.0
+                && value
                     .get("webglRenderer")
                     .and_then(Value::as_str)
                     .is_some_and(|renderer| {
                         renderer.to_ascii_lowercase().contains("nvidia")
                             && !software_renderer(&renderer.to_ascii_lowercase())
                     })
-                && state
-                    .get("publicationRows")
+                && value.get("previewRows").and_then(Value::as_u64).unwrap_or(0) > 0
+                && value
+                    .get("previewText")
+                    .and_then(Value::as_str)
+                    .is_some_and(|text| text.contains("ALPHA-7"))
+                && value
+                    .get("renderedFeatureCount")
                     .and_then(Value::as_u64)
-                    .is_some_and(|rows| rows > 0)
-        };
-        let initial_map = loop {
-            let state: Value = evaluate_console_app(
-                &mut cdp,
-                &target_id,
-                &session_id,
-                "map",
-                &map_state_script(),
-                false,
-            )
-            .await?;
-            if map_ready(&state)
-                && state
-                    .get("mapTotal")
-                    .and_then(Value::as_str)
-                    .is_some_and(|total| total != "0 feature(s)" && total.ends_with(" feature(s)"))
-                && state
+                    .unwrap_or(0)
+                    > 0
+                && value
                     .get("status")
                     .and_then(Value::as_str)
-                    .is_some_and(|status| status.starts_with("Rendered "))
-            {
-                break state;
-            }
-            ensure!(
-                tokio::time::Instant::now() < deadline,
-                "live Map workspace did not render the expected composition: {state}"
-            );
-            tokio::time::sleep(Duration::from_millis(250)).await;
+                    .is_some_and(|status| status.contains("visible across"))
+                && !value
+                    .get("attribution")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .is_empty()
         };
-        let expected_map_total = initial_map
-            .get("mapTotal")
-            .and_then(Value::as_str)
-            .context("rendered Map workspace omitted its feature total")?
-            .to_owned();
-        let hidden: bool = evaluate_console_app(
-            &mut cdp,
-            &target_id,
-            &session_id,
-            "map",
-            r#"(() => {
-              document.getElementById('fit-composition')?.click();
-              const visibility=document.querySelector('#map-layers .layer-row input[type="checkbox"]');
-              if(!visibility?.checked) return false;
-              visibility.click();
-              document.getElementById('reload-map')?.click();
-              return !visibility.checked;
-            })()"#,
-            false,
-        )
-        .await?;
-        ensure!(hidden, "live Map workspace did not hide its publication layer");
         loop {
-            let state: Value = evaluate_console_app(
+            let value: Value = evaluate_console_app(
                 &mut cdp,
                 &target_id,
                 &session_id,
                 "map",
-                &map_state_script(),
+                &workspace_script(),
                 false,
             )
             .await?;
-            if map_ready(&state)
-                && state.get("mapTotal").and_then(Value::as_str) == Some("0 feature(s)")
-                && state
-                    .get("status")
-                    .and_then(Value::as_str)
-                    .is_some_and(|status| status.starts_with("Rendered "))
-            {
+            if workspace_ready(&value) {
                 break;
             }
             ensure!(
                 tokio::time::Instant::now() < deadline,
-                "live Map workspace did not hide its publication features: {state}"
+                "live unified Map workspace did not render its composition, basemap, and synchronized preview: {value}"
             );
             tokio::time::sleep(Duration::from_millis(250)).await;
-        }
-        let shown: bool = evaluate_console_app(
+        };
+        let toggled: bool = evaluate_console_app(
             &mut cdp,
             &target_id,
             &session_id,
             "map",
-            r#"(() => {
-              const visibility=document.querySelector('#map-layers .layer-row input[type="checkbox"]');
-              if(visibility?.checked) return false;
-              visibility.click();
-              document.getElementById('reload-map')?.click();
-              document.documentElement.dataset.veoveoAcceptanceMapInteracted='true';
-              return visibility.checked;
-            })()"#,
+            &format!(
+                r#"(() => {{
+                  const row=[...document.querySelectorAll('#authored-list .layer-row')].find(item=>item.textContent?.includes({layer}));
+                  const visibility=row?.querySelector('input[type="checkbox"]');
+                  if(!visibility?.checked) return false;
+                  visibility.click();
+                  if(visibility.checked) return false;
+                  visibility.click();
+                  document.documentElement.dataset.veoveoAcceptanceMapInteracted='true';
+                  return visibility.checked;
+                }})()"#
+            ),
             false,
         )
         .await?;
-        ensure!(shown, "live Map workspace did not restore its publication layer");
-        let map = loop {
-            let state: Value = evaluate_console_app(
+        ensure!(toggled, "live unified Map workspace did not hide and restore its authored layer");
+        let workspace = loop {
+            let value = evaluate_console_app(
                 &mut cdp,
                 &target_id,
                 &session_id,
                 "map",
-                &map_state_script(),
+                &workspace_script(),
                 false,
             )
             .await?;
-            if map_ready(&state)
-                && state.get("viewerInteracted").and_then(Value::as_bool) == Some(true)
-                && state.get("mapTotal").and_then(Value::as_str)
-                    == Some(expected_map_total.as_str())
-                && state
-                    .get("status")
-                    .and_then(Value::as_str)
-                    .is_some_and(|status| status.starts_with("Rendered "))
+            if workspace_ready(&value)
+                && value.get("viewerInteracted").and_then(Value::as_bool) == Some(true)
             {
-                break state;
+                break value;
             }
             ensure!(
                 tokio::time::Instant::now() < deadline,
-                "live Map workspace did not restore its publication features: {state}"
+                "live unified Map workspace did not recover after the visibility interaction: {value}"
             );
             tokio::time::sleep(Duration::from_millis(250)).await;
         };
         cdp.assert_no_software_renderer_events()?;
-        let map_screenshot = screenshot_directory.join("map.png");
-        let map_screenshot_sha256 =
-            capture_screenshot(&mut cdp, &session_id, &map_screenshot).await?;
-        let render = analyze_map_workspace_render(&map_screenshot)?;
+        let workspace_screenshot = screenshot_directory.join("workspace.png");
+        let workspace_screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, &workspace_screenshot).await?;
+        let render = analyze_map_workspace_render(&workspace_screenshot)?;
 
-        let layers = loop {
-            let state: Value = evaluate_console_app(
-                &mut cdp,
-                &target_id,
-                &session_id,
-                "map",
-                &format!(
-                    r#"(() => {{
-                      document.querySelector('[data-view="layers-view"]')?.click();
-                      const select=document.getElementById('layer-select');
-                      const option=[...(select?.options ?? [])].find(option=>option.textContent?.includes({layer}));
-                      if(option && select.value!==option.value){{select.value=option.value;select.dispatchEvent(new Event('change',{{bubbles:true}}));}}
-                      document.getElementById('query-layer')?.click();
-                      return {{
-                        layerFound:Boolean(option),selectedTitle:option?.textContent?.trim() ?? '',
-                        viewHidden:Boolean(document.getElementById('layers-view')?.hidden),
-                        permissionHidden:Boolean(document.getElementById('layers-permission')?.hidden),
-                        layerDetail:document.getElementById('layer-detail')?.textContent?.trim() ?? '',
-                        featureOutput:document.getElementById('features-output')?.textContent?.trim() ?? '',
-                        publicationCount:document.getElementById('publication-count')?.textContent?.trim() ?? ''
-                      }};
-                    }})()"#
-                ),
-                false,
-            )
-            .await?;
-            if state.get("layerFound").and_then(Value::as_bool) == Some(true)
-                && state.get("viewHidden").and_then(Value::as_bool) == Some(false)
-                && state.get("permissionHidden").and_then(Value::as_bool) == Some(true)
-                && state
-                    .get("featureOutput")
-                    .and_then(Value::as_str)
-                    .is_some_and(|output| output.contains("ALPHA-7"))
-            {
-                break state;
-            }
-            ensure!(
-                tokio::time::Instant::now() < deadline,
-                "live Map workspace Layers tab did not query the expected layer: {state}"
-            );
-            tokio::time::sleep(Duration::from_millis(250)).await;
-        };
-        let layers_screenshot = screenshot_directory.join("layers.png");
-        let layers_screenshot_sha256 =
-            capture_screenshot(&mut cdp, &session_id, &layers_screenshot).await?;
-
-        let data = loop {
-            let state: Value = evaluate_console_app(
+        let source = loop {
+            let value: Value = evaluate_console_app(
                 &mut cdp,
                 &target_id,
                 &session_id,
                 "map",
                 r#"(() => {
-                  document.querySelector('[data-view="data-view"]')?.click();
+                  const row=document.querySelector('#source-layer-list .layer-row');
+                  if(row && !row.classList.contains('selected')) row.click();
+                  const zoom=[...document.querySelectorAll('#inspector-body button')]
+                    .find(item=>item.textContent?.trim()==='Zoom to data');
+                  if(zoom && document.documentElement.dataset.veoveoAcceptanceSourceZoomed!=='true'){
+                    zoom.click();
+                    document.documentElement.dataset.veoveoAcceptanceSourceZoomed='true';
+                  }
+                  const mapRect=document.querySelector('.map-stage')?.getBoundingClientRect();
                   return {
-                    viewHidden:Boolean(document.getElementById('data-view')?.hidden),
-                    permissionHidden:Boolean(document.getElementById('data-permission')?.hidden),
-                    workspaceHidden:Boolean(document.getElementById('data-workspace')?.hidden),
-                    headings:[...document.querySelectorAll('#data-view h2')].map(node=>node.textContent?.trim() ?? ''),
-                    sourceCount:document.getElementById('source-count')?.textContent?.trim() ?? '',
-                    releaseCount:document.getElementById('release-count')?.textContent?.trim() ?? '',
-                    profileCount:document.getElementById('profile-count')?.textContent?.trim() ?? ''
+                    rowFound:Boolean(row),rowSelected:Boolean(row?.classList.contains('selected')),
+                    layerTitle:row?.textContent?.trim() ?? '',
+                    inspectorTitle:document.getElementById('inspector-title')?.textContent?.trim() ?? '',
+                    inspectorText:document.getElementById('inspector-body')?.textContent?.trim() ?? '',
+                    previewRows:document.querySelectorAll('#preview-rows tr').length,
+                    previewText:document.getElementById('preview-rows')?.textContent?.trim() ?? '',
+                    mapWidth:mapRect?.width ?? 0,mapHeight:mapRect?.height ?? 0,
+                    renderedFeatureCount:Number(document.getElementById('map')?.dataset.renderedFeatureCount ?? 0)
                   };
                 })()"#,
                 false,
             )
             .await?;
-            if state.get("viewHidden").and_then(Value::as_bool) == Some(false)
-                && state.get("permissionHidden").and_then(Value::as_bool) == Some(true)
-                && state.get("workspaceHidden").and_then(Value::as_bool) == Some(false)
-                && state
-                    .get("headings")
-                    .and_then(Value::as_array)
-                    .is_some_and(|headings| headings.len() == 4)
+            if value.get("rowFound").and_then(Value::as_bool) == Some(true)
+                && value.get("rowSelected").and_then(Value::as_bool) == Some(true)
+                && value.get("inspectorTitle").and_then(Value::as_str) == Some("Source release")
+                && value
+                    .get("inspectorText")
+                    .and_then(Value::as_str)
+                    .is_some_and(|text| text.contains("Active governed release"))
+                && value.get("previewRows").and_then(Value::as_u64).unwrap_or(0) > 0
+                && !value
+                    .get("previewText")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .is_empty()
+                && value.get("mapWidth").and_then(Value::as_f64).unwrap_or(0.0) >= 600.0
+                && value.get("mapHeight").and_then(Value::as_f64).unwrap_or(0.0) >= 360.0
+                && value
+                    .get("renderedFeatureCount")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0)
+                    > 0
             {
-                break state;
+                break value;
             }
             ensure!(
                 tokio::time::Instant::now() < deadline,
-                "live Map workspace Data tab did not expose the admin data surfaces: {state}"
+                "live unified Map workspace did not render and preview an active source release: {value}"
             );
             tokio::time::sleep(Duration::from_millis(250)).await;
         };
-        let data_screenshot = screenshot_directory.join("data.png");
-        let data_screenshot_sha256 =
-            capture_screenshot(&mut cdp, &session_id, &data_screenshot).await?;
+        let source_screenshot = screenshot_directory.join("source-release.png");
+        let source_screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, &source_screenshot).await?;
+
+        let feature = loop {
+            let value: Value = evaluate_console_app(
+                &mut cdp,
+                &target_id,
+                &session_id,
+                "map",
+                &format!(r#"(() => {{
+                  const layer=[...document.querySelectorAll('#authored-list .layer-row')]
+                    .find(item=>item.textContent?.includes({layer}));
+                  if(layer && !layer.classList.contains('selected')) layer.click();
+                  const row=[...document.querySelectorAll('#preview-rows tr')].find(item=>item.textContent?.includes('ALPHA-7'));
+                  if(row && !row.classList.contains('selected')) row.click();
+                  const mapRect=document.querySelector('.map-stage')?.getBoundingClientRect();
+                  return {{
+                    layerFound:Boolean(layer),rowFound:Boolean(row),rowSelected:Boolean(row?.classList.contains('selected')),
+                    inspectorTitle:document.getElementById('inspector-title')?.textContent?.trim() ?? '',
+                    inspectorText:document.getElementById('inspector-body')?.textContent?.trim() ?? '',
+                    mapWidth:mapRect?.width ?? 0,mapHeight:mapRect?.height ?? 0,
+                    previewVisible:Boolean(document.querySelector('.preview-body')?.getBoundingClientRect().height)
+                  }};
+                }})()"#),
+                false,
+            )
+            .await?;
+            if value.get("layerFound").and_then(Value::as_bool) == Some(true)
+                && value.get("rowFound").and_then(Value::as_bool) == Some(true)
+                && value.get("rowSelected").and_then(Value::as_bool) == Some(true)
+                && value.get("inspectorTitle").and_then(Value::as_str) == Some("Feature")
+                && value
+                    .get("inspectorText")
+                    .and_then(Value::as_str)
+                    .is_some_and(|text| text.contains("ALPHA-7"))
+                && value.get("mapWidth").and_then(Value::as_f64).unwrap_or(0.0) >= 600.0
+                && value.get("previewVisible").and_then(Value::as_bool) == Some(true)
+            {
+                break value;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "live unified Map workspace did not synchronize table selection with its feature inspector: {value}"
+            );
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        };
+        let feature_screenshot = screenshot_directory.join("feature-inspector.png");
+        let feature_screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, &feature_screenshot).await?;
+
+        let guided: Value = evaluate_console_app(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "map",
+            r#"(() => {
+              const mapSizes=[];
+              const rememberMap=()=>{
+                const bounds=document.querySelector('.map-stage')?.getBoundingClientRect();
+                mapSizes.push({width:bounds?.width ?? 0,height:bounds?.height ?? 0});
+              };
+              const choose=(action)=>{
+                const button=document.querySelector(`#inspector-body [data-action="${action}"]`);
+                button?.click();
+                rememberMap();
+                return Boolean(button);
+              };
+              document.getElementById('add-data')?.click();
+              rememberMap();
+              const pickerText=[...document.querySelectorAll('#inspector-body .choice:not([hidden]) strong')]
+                .map(item=>item.textContent?.trim());
+              const picker=pickerText.includes('New layer') && pickerText.includes('Draw feature')
+                && pickerText.includes('Import artifact') && pickerText.includes('Acquire source');
+
+              const createOpened=choose('create-layer');
+              const create=Boolean(document.getElementById('new-layer-title')
+                && document.getElementById('new-layer-description')
+                && document.getElementById('new-layer-class'));
+              const createAdvancedClosed=Boolean(document.querySelector('#create-layer-form details:not([open])'));
+
+              choose('picker');
+              const drawOpened=choose('add-feature');
+              const draw=Boolean(document.getElementById('feature-layer')
+                && document.querySelectorAll('#add-feature-form [data-draw]').length===3
+                && document.getElementById('feature-title')
+                && document.getElementById('feature-semantic-type')
+                && document.getElementById('property-rows'));
+              const drawAdvancedClosed=Boolean(document.querySelector('#add-feature-form details:not([open])'));
+
+              choose('picker');
+              const importOpened=choose('import-artifact');
+              const format=document.getElementById('import-format');
+              const formats=[...(format?.options ?? [])].map(option=>option.value);
+              const importFormats=formats.includes('geo_json_feature_collection')
+                && formats.includes('geo_json_text_sequence') && formats.includes('geo_package');
+              if(format){format.value='geo_package';format.dispatchEvent(new Event('change',{bubbles:true}));}
+              const geopackage=Boolean(document.getElementById('inspect-geopackage')
+                && !document.getElementById('geopackage-fields')?.hidden
+                && document.getElementById('geopackage-table')
+                && document.getElementById('geopackage-identity'));
+              const authorizedArtifactCopy=document.getElementById('inspector-body')?.textContent
+                ?.includes('artifact already authorized in this Work Context') ?? false;
+
+              choose('picker');
+              const acquireOpened=choose('acquire-source');
+              const acquire=Boolean(document.getElementById('acquire-source')
+                && document.getElementById('draw-coverage')
+                && document.getElementById('bbox-west')
+                && document.getElementById('bbox-north'));
+              const acquireAdvancedClosed=Boolean(document.querySelector('#acquire-source-form details:not([open])'));
+
+              document.getElementById('save-view')?.click();
+              rememberMap();
+              const save=Boolean(document.getElementById('save-view-title')
+                && document.getElementById('save-view-summary'));
+
+              document.getElementById('add-data')?.click();
+              choose('import-artifact');
+              const finalFormat=document.getElementById('import-format');
+              if(finalFormat){finalFormat.value='geo_package';finalFormat.dispatchEvent(new Event('change',{bubbles:true}));}
+              rememberMap();
+              return {
+                picker,createOpened,create,createAdvancedClosed,
+                drawOpened,draw,drawAdvancedClosed,
+                importOpened,importFormats,geopackage,authorizedArtifactCopy,
+                acquireOpened,acquire,acquireAdvancedClosed,save,
+                finalTitle:document.getElementById('inspector-title')?.textContent?.trim() ?? '',
+                finalText:document.getElementById('inspector-body')?.textContent?.trim() ?? '',
+                minimumMapWidth:Math.min(...mapSizes.map(size=>size.width)),
+                minimumMapHeight:Math.min(...mapSizes.map(size=>size.height))
+              };
+            })()"#,
+            false,
+        )
+        .await?;
+        for field in [
+            "picker",
+            "createOpened",
+            "create",
+            "createAdvancedClosed",
+            "drawOpened",
+            "draw",
+            "drawAdvancedClosed",
+            "importOpened",
+            "importFormats",
+            "geopackage",
+            "authorizedArtifactCopy",
+            "acquireOpened",
+            "acquire",
+            "acquireAdvancedClosed",
+            "save",
+        ] {
+            ensure!(
+                guided.get(field).and_then(Value::as_bool) == Some(true),
+                "live unified Map workspace guided workflow `{field}` failed: {guided}"
+            );
+        }
+        ensure!(
+            guided.get("finalTitle").and_then(Value::as_str) == Some("Import artifact")
+                && guided
+                    .get("finalText")
+                    .and_then(Value::as_str)
+                    .is_some_and(|text| {
+                        text.contains("GeoJSON FeatureCollection")
+                            && text.contains("GeoJSON Text Sequence")
+                            && text.contains("GeoPackage")
+                            && text.contains("Inspect GeoPackage")
+                    })
+                && guided
+                    .get("minimumMapWidth")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0)
+                    >= 600.0
+                && guided
+                    .get("minimumMapHeight")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0)
+                    >= 360.0,
+            "live unified Map workspace did not retain its map through every guided workflow: {guided}"
+        );
+        let guided_screenshot = screenshot_directory.join("guided-geopackage-import.png");
+        let guided_screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, &guided_screenshot).await?;
+
+        let management = loop {
+            let value: Value = evaluate_console_app(
+                &mut cdp,
+                &target_id,
+                &session_id,
+                "map",
+                r#"(() => {
+                  document.getElementById('add-data')?.click();
+                  const disclosure=document.querySelector('#inspector-body details[data-admin]');
+                  if(disclosure) disclosure.open=true;
+                  document.querySelector('#inspector-body [data-action="manage-data"]')?.click();
+                  const mapRect=document.querySelector('.map-stage')?.getBoundingClientRect();
+                  return {
+                    inspectorTitle:document.getElementById('inspector-title')?.textContent?.trim() ?? '',
+                    inspectorText:document.getElementById('inspector-body')?.textContent?.trim() ?? '',
+                    mapWidth:mapRect?.width ?? 0,mapHeight:mapRect?.height ?? 0,
+                    catalogVisible:Boolean(document.querySelector('.catalog')?.getBoundingClientRect().width),
+                    acquisitionRecords:document.querySelectorAll('#manage-acquisitions .record').length,
+                    releaseRecords:document.querySelectorAll('#manage-releases .record').length
+                  };
+                })()"#,
+                false,
+            )
+            .await?;
+            if value.get("inspectorTitle").and_then(Value::as_str) == Some("Governed data")
+                && value
+                    .get("inspectorText")
+                    .and_then(Value::as_str)
+                    .is_some_and(|text| text.contains("Acquisitions and releases"))
+                && value.get("mapWidth").and_then(Value::as_f64).unwrap_or(0.0) >= 600.0
+                && value.get("catalogVisible").and_then(Value::as_bool) == Some(true)
+            {
+                break value;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "live unified Map workspace did not retain the map and catalog while opening governed data management: {value}"
+            );
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        };
+        let management_screenshot = screenshot_directory.join("governed-data.png");
+        let management_screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, &management_screenshot).await?;
         cdp.assert_no_software_renderer_events()?;
 
         Ok(ConsoleMapWorkspaceCaptureEvidence {
-            schema: "veoveo.io/console-map-workspace-capture-evidence/v1",
+            schema: "veoveo.io/console-map-workspace-capture-evidence/v3",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
-            map_screenshot_path: map_screenshot.display().to_string(),
-            map_screenshot_sha256,
-            layers_screenshot_path: layers_screenshot.display().to_string(),
-            layers_screenshot_sha256,
-            data_screenshot_path: data_screenshot.display().to_string(),
-            data_screenshot_sha256,
+            workspace_screenshot_path: workspace_screenshot.display().to_string(),
+            workspace_screenshot_sha256,
+            source_screenshot_path: source_screenshot.display().to_string(),
+            source_screenshot_sha256,
+            feature_screenshot_path: feature_screenshot.display().to_string(),
+            feature_screenshot_sha256,
+            guided_screenshot_path: guided_screenshot.display().to_string(),
+            guided_screenshot_sha256,
+            management_screenshot_path: management_screenshot.display().to_string(),
+            management_screenshot_sha256,
             hardware,
-            map,
-            layers,
-            data,
+            workspace,
+            source,
+            feature,
+            guided,
+            management,
             render,
         })
     }
@@ -2304,8 +2487,16 @@ async fn serve_map_workspace_acceptance(
 
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
     let address = listener.local_addr()?;
-    let harness = Arc::<[u8]>::from(map_workspace_acceptance_harness().into_bytes());
+    let harness = Arc::<[u8]>::from(map_workspace_acceptance_harness(address).into_bytes());
     let app_html = Arc::<[u8]>::from(app_html);
+    let tile = Arc::<[u8]>::from(STANDARD.decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    )?);
+    let app_csp = format!(
+        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; \
+         img-src data: blob: http://{address}; media-src blob:; connect-src data: http://{address}; \
+         worker-src blob:; frame-ancestors 'self'; object-src 'none'; base-uri 'none'"
+    );
     let server = tokio::spawn(async move {
         loop {
             let (mut stream, _) = listener.accept().await?;
@@ -2319,26 +2510,23 @@ async fn serve_map_workspace_acceptance(
                 .next()
                 .and_then(|line| line.split_whitespace().nth(1))
                 .unwrap_or("/");
-            let (status, content_type, csp, body): (&str, &str, Option<&str>, &[u8]) = if target
-                .starts_with("/app")
-            {
-                (
-                    "200 OK",
-                    "text/html; charset=utf-8",
-                    Some(
-                        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; \
-                             img-src data: blob:; media-src blob:; connect-src data:; worker-src blob:; \
-                             frame-ancestors 'self'; object-src 'none'; base-uri 'none'",
-                    ),
-                    &app_html,
-                )
-            } else if target == "/" || target.starts_with("/?") {
-                ("200 OK", "text/html; charset=utf-8", None, &harness)
-            } else {
-                ("204 No Content", "text/plain", None, &[])
-            };
+            let (status, content_type, csp, body): (&str, &str, Option<&str>, &[u8]) =
+                if target.starts_with("/app") {
+                    (
+                        "200 OK",
+                        "text/html; charset=utf-8",
+                        Some(app_csp.as_str()),
+                        &app_html,
+                    )
+                } else if target.starts_with("/tiles/") {
+                    ("200 OK", "image/png", None, &tile)
+                } else if target == "/" || target.starts_with("/?") {
+                    ("200 OK", "text/html; charset=utf-8", None, &harness)
+                } else {
+                    ("204 No Content", "text/plain", None, &[])
+                };
             let mut headers = format!(
-                "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n",
+                "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n",
                 body.len()
             );
             if let Some(csp) = csp {
@@ -2356,13 +2544,23 @@ async fn serve_map_workspace_acceptance(
 }
 
 #[allow(dead_code, reason = "shared by the focused browser-smoke binary")]
-fn map_workspace_acceptance_harness() -> String {
+fn map_workspace_acceptance_harness(address: std::net::SocketAddr) -> String {
     let resources = serde_json::json!({
         "map://workspace": {
             "administration": true,
+            "dataset_read": true,
             "feature_read": true,
             "feature_write": true,
-            "feature_publish": true
+            "feature_publish": true,
+            "basemap": {
+                "id": "acceptance_basemap",
+                "title": "Acceptance basemap",
+                "tile_url_template": format!("http://{address}/tiles/{{z}}/{{x}}/{{y}}.png"),
+                "attribution": "Veoveo acceptance basemap",
+                "minimum_zoom": 0,
+                "maximum_zoom": 19,
+                "tile_size": 256
+            }
         },
         "map://feature-layers": [{
             "layer_id": "layer-0198-map-workspace",
@@ -2409,9 +2607,32 @@ fn map_workspace_acceptance_harness() -> String {
                 {"geometry_type": "Point", "circle_color": "#b34f68", "circle_radius_px": 7.0}
             ]}
         },
-        "map://sources": [],
-        "map://datasets": {},
-        "map://active-releases": [],
+        "map://sources": [{
+            "source_id": "source-0198-map-workspace",
+            "dataset_id": "dataset-0198-map-workspace",
+            "name": "San Salvador reference source",
+            "enabled": true,
+            "adapter_kind": "authority_vector",
+            "record_version": 1
+        }],
+        "map://datasets": {
+            "dataset-0198-map-workspace": [{
+                "release_id": "release-0198-map-workspace",
+                "dataset_id": "dataset-0198-map-workspace",
+                "source_id": "source-0198-map-workspace",
+                "version_label": "acceptance-2026-08",
+                "coverage": {"west": -89.24, "south": 13.67, "east": -89.19, "north": 13.72},
+                "license": {"attribution": "Veoveo acceptance source"},
+                "state": "active",
+                "record_version": 1,
+                "updated_at": "2026-08-25T00:00:00Z"
+            }]
+        },
+        "map://active-releases": [{
+            "dataset_id": "dataset-0198-map-workspace",
+            "release_id": "release-0198-map-workspace",
+            "record_version": 1
+        }],
         "map://acquisitions": [],
         "map://mobility-profiles": []
     });
@@ -2444,6 +2665,18 @@ fn map_workspace_acceptance_harness() -> String {
             "title": "Operating sector"
         }
     ]);
+    let source_features = serde_json::json!([{
+        "feature": {
+            "feature_id": "source-feature-0198-reference",
+            "source_id": "source-0198-map-workspace",
+            "release_id": "release-0198-map-workspace",
+            "source_element_type": "feature",
+            "source_element_id": "reference-zone",
+            "representation": "polygon",
+            "geometry": {"type": "Polygon", "coordinates": [[[-89.232, 13.682], [-89.195, 13.682], [-89.195, 13.708], [-89.232, 13.708], [-89.232, 13.682]]]},
+            "normalized_tags": {"name": "Reference coverage"}
+        }
+    }]);
     format!(
         r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2452,7 +2685,8 @@ fn map_workspace_acceptance_harness() -> String {
 <script>
 const resources={resources};
 const features={features};
-window.__mapWorkspaceEvidence={{initialized:false,queryCalls:0,queryResponses:0,sizeHeight:0,lastQuery:null,errors:[]}};
+const sourceFeatures={source_features};
+window.__mapWorkspaceEvidence={{initialized:false,queryCalls:0,queryResponses:0,authoredQueryCalls:0,sourceQueryCalls:0,sizeHeight:0,lastQuery:null,lastAuthoredQuery:null,lastSourceQuery:null,errors:[]}};
 addEventListener("error",event=>window.__mapWorkspaceEvidence.errors.push(String(event.message||event.error||"host error")));
 addEventListener("unhandledrejection",event=>window.__mapWorkspaceEvidence.errors.push(String(event.reason||"host rejection")));
 addEventListener("message",event=>{{
@@ -2472,12 +2706,22 @@ addEventListener("message",event=>{{
   }}
   if(message.method==="tools/call"){{
     const name=message.params?.name;
-    if(name!=="query_features") return fail(`unexpected tool ${{name}}`);
     const args=message.params?.arguments||{{}};
     window.__mapWorkspaceEvidence.queryCalls+=1;
     window.__mapWorkspaceEvidence.lastQuery=args;
-    window.__mapWorkspaceEvidence.queryResponses+=1;
-    return reply({{structuredContent:{{layer_id:"layer-0198-map-workspace",features,next_cursor:null,projection_sequence:3}}}});
+    if(name==="query_features"){{
+      window.__mapWorkspaceEvidence.authoredQueryCalls+=1;
+      window.__mapWorkspaceEvidence.lastAuthoredQuery=args;
+      window.__mapWorkspaceEvidence.queryResponses+=1;
+      return reply({{structuredContent:{{layer_id:"layer-0198-map-workspace",features,next_cursor:null,projection_sequence:3}}}});
+    }}
+    if(name==="query_source_features"){{
+      window.__mapWorkspaceEvidence.sourceQueryCalls+=1;
+      window.__mapWorkspaceEvidence.lastSourceQuery=args;
+      window.__mapWorkspaceEvidence.queryResponses+=1;
+      return reply({{structuredContent:{{release_id:"release-0198-map-workspace",features:sourceFeatures,next_cursor:null,query_digest_sha256:"acceptance"}}}});
+    }}
+    return fail(`unexpected tool ${{name}}`);
   }}
   if(message.method==="subscriptions/listen") return reply({{}});
   if(message.id!==undefined) return fail(`unexpected request ${{message.method}}`);
@@ -2485,6 +2729,7 @@ addEventListener("message",event=>{{
 </script></head><body><iframe id="app" title="Map workspace" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/app"></iframe></body></html>"#,
         resources = resources,
         features = features,
+        source_features = source_features,
     )
 }
 

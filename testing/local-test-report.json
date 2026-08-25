@@ -1,19 +1,101 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d1fac94fc1756fd34e5a78c79e987b484840b6512a3109601a607dafe7cf3f48",
-  "updatedAt": "2026-08-25T17:35:17Z",
+  "buildDigest": "sha256:b1306bca19b563d6f4d589f995febd0088f5296620f58bd0221f13b8e208333e",
+  "updatedAt": "2026-08-25T18:46:45Z",
   "checks": [
     {
-      "name": "bioma-helm-image-lock",
+      "name": "map-browser-smoke-check",
+      "command": [
+        "cargo",
+        "check",
+        "-p",
+        "veoveo-browser-smoke",
+        "--bin",
+        "browser-smoke"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T18:45:31Z",
+      "durationSeconds": 0.376674248,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T18:45:50Z",
+      "durationSeconds": 2.008028049,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-mcp-full-spatial",
+      "command": [
+        "env",
+        "VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION=/home/rozgo/BiomaAI/veoveo/target/smoke-assets/duckdb/v1.5.5/linux_amd64/spatial.duckdb_extension",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-map-mcp",
+        "--no-fail-fast"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T18:46:45Z",
+      "durationSeconds": 11.749222102,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-smoke-harness-check",
+      "command": [
+        "cargo",
+        "check",
+        "-p",
+        "veoveo-smoke",
+        "--bin",
+        "smoke"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T18:45:32Z",
+      "durationSeconds": 0.627532523,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-workspace-app-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "servers/map-mcp/app",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-25T18:45:25Z",
+      "durationSeconds": 0.400775418,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-workspace-headed-gpu",
       "command": [
         "cargo",
         "xtask",
         "smoke",
-        "helm-config"
+        "map-workspace-browser-verify",
+        "--chrome-cdp-url",
+        "http://127.0.0.1:9222",
+        "--app-html",
+        "servers/map-mcp/assets/workspace-app.html",
+        "--evidence-root",
+        "output/acceptance/map-workspace-redesign",
+        "--timeout-seconds",
+        "60"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T17:35:17Z",
-      "durationSeconds": 4.771172397,
+      "finishedAt": "2026-08-25T18:45:43Z",
+      "durationSeconds": 5.475733771,
       "detail": "completed successfully"
     }
   ]
