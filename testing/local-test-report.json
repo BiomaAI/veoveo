@@ -1,47 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:3f76ed6269caae9fbb30fe02af550e35fabc101264d42757992f7494a89c63fc",
-  "updatedAt": "2026-08-25T17:34:10Z",
+  "buildDigest": "sha256:d1fac94fc1756fd34e5a78c79e987b484840b6512a3109601a607dafe7cf3f48",
+  "updatedAt": "2026-08-25T17:35:17Z",
   "checks": [
     {
-      "name": "console-build",
+      "name": "bioma-helm-image-lock",
       "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T17:34:10Z",
-      "durationSeconds": 4.316350831,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T17:34:00Z",
-      "durationSeconds": 3.037914714,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-tests",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T17:33:50Z",
-      "durationSeconds": 0.323042518,
+      "finishedAt": "2026-08-25T17:35:17Z",
+      "durationSeconds": 4.771172397,
       "detail": "completed successfully"
     }
   ]
