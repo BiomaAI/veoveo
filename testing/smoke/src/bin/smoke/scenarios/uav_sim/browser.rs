@@ -2168,14 +2168,17 @@ async fn capture_console_map_workspace_app_inner(
             "map",
             &format!(
                 r#"(() => {{
-                  const row=[...document.querySelectorAll('#authored-list .layer-row')].find(item=>item.textContent?.includes({layer}));
-                  const visibility=row?.querySelector('input[type="checkbox"]');
+                  const findVisibility=()=>[...document.querySelectorAll('#authored-list .layer-row')]
+                    .find(item=>item.textContent?.includes({layer}))?.querySelector('input[type="checkbox"]');
+                  const visibility=findVisibility();
                   if(!visibility?.checked) return false;
                   visibility.click();
-                  if(visibility.checked) return false;
-                  visibility.click();
+                  const hiddenVisibility=findVisibility();
+                  if(!hiddenVisibility || hiddenVisibility.checked) return false;
+                  hiddenVisibility.click();
+                  const restoredVisibility=findVisibility();
                   document.documentElement.dataset.veoveoAcceptanceMapInteracted='true';
-                  return visibility.checked;
+                  return Boolean(restoredVisibility?.checked);
                 }})()"#
             ),
             false,
@@ -2282,6 +2285,10 @@ async fn capture_console_map_workspace_app_inner(
                   const layer=[...document.querySelectorAll('#authored-list .layer-row')]
                     .find(item=>item.textContent?.includes({layer}));
                   if(layer && !layer.classList.contains('selected')) layer.click();
+                  if(layer && document.documentElement.dataset.veoveoAcceptanceAuthoredReset!=='true'){{
+                    document.getElementById('reset-view')?.click();
+                    document.documentElement.dataset.veoveoAcceptanceAuthoredReset='true';
+                  }}
                   const row=[...document.querySelectorAll('#preview-rows tr')].find(item=>item.textContent?.includes('ALPHA-7'));
                   if(row && !row.classList.contains('selected')) row.click();
                   const mapRect=document.querySelector('.map-stage')?.getBoundingClientRect();
