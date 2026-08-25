@@ -49,7 +49,7 @@ use super::{
         AdminState, AppState, ArtifactDownloadState, DynamicMcpState, GatewayRetentionPolicy,
         ProfileAuthState, ProfileMcpService, Readiness, RecordingIngestGatewayState,
         RecordingPlaybackState, build_http_client, current_catalog, profile_id_from_gateway_path,
-        run_gateway_retention_gc, spawn_gateway_retention_gc_loop, spawn_refresh_delivery_gc_loop,
+        spawn_gateway_retention_gc_loop, spawn_refresh_delivery_gc_loop,
     },
 };
 
@@ -84,7 +84,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     let gateway_state =
         veoveo_mcp_gateway::GatewayState::new(control_store.platform_store().clone());
     let agent_control = AgentControl::new(control_store.platform_store().clone())?;
-    run_gateway_retention_gc(&gateway_state, retention).await?;
     spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
     spawn_refresh_delivery_gc_loop(gateway_state.clone());
     let initial_catalog = load_initial_catalog(&control_store).await?;

@@ -1,39 +1,20 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:5c0acb18f4e0d6fa6a39ec2f306ee6183226118d45b9feefa3758bb5543a5195",
-  "updatedAt": "2026-08-25T03:46:55Z",
+  "buildDigest": "sha256:fb86fb68058489ae5aeb840f80aedec8d949f52318bcfac4c52f6fcd42c1e0f4",
+  "updatedAt": "2026-08-25T03:54:21Z",
   "checks": [
     {
-      "name": "bioma-gateway-control-plane",
+      "name": "gateway-startup-retention",
       "command": [
         "cargo",
-        "run",
+        "test",
         "--locked",
-        "--package",
-        "veoveo-mcp-gateway",
-        "--bin",
-        "gateway",
-        "--",
-        "validate",
-        "--control-plane",
-        "examples/bioma/gateway.json"
+        "-p",
+        "veoveo-mcp-gateway"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-25T03:46:55Z",
-      "durationSeconds": 19.478681859,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "bioma-helm-image-lock",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-25T03:46:30Z",
-      "durationSeconds": 13.465362901,
+      "finishedAt": "2026-08-25T03:54:21Z",
+      "durationSeconds": 17.386360284,
       "detail": "completed successfully"
     }
   ]
