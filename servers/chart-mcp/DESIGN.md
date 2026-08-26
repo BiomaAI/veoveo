@@ -14,7 +14,7 @@ official TypeScript server and Node packages are pinned to `2.0.0`.
 
 ## Packaging Contract
 
-- The Dockerfile pins the upstream version (`flint-chart-mcp@0.5.0`) and the
+- The Dockerfile pins the upstream version (`flint-chart-mcp@0.5.1`) and the
   Node base image; upgrades are explicit digest and version changes reviewed
   like any dependency bump.
 - The container runs as an unprivileged system user with a fixed uid and
@@ -31,6 +31,8 @@ official TypeScript server and Node packages are pinned to `2.0.0`.
 
 ## Upstream Surface
 
-Chart validation, compilation, static rendering, and the interactive chart
-MCP App use the upstream domain and render exports. `flint-v2.mjs` owns only
-their final-protocol registration and schemas.
+Chart validation, compilation, and static rendering use the upstream domain
+and render exports. The direct-launch `ui://charts/composer.html` App owns a
+session-local authoring draft, validates and compiles through canonical tools,
+and renders through the same upstream backend. `flint-v2.mjs` owns their
+final-protocol registration and schemas.

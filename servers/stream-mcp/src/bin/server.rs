@@ -326,7 +326,7 @@ impl ServerHandler for StreamMcp {
         let identity = internal_identity(&context)?;
         let mut resources = vec![
             app_resource(uris::LIVE_APP_URI, "stream-live-app")
-                .with_title("Stream")
+                .with_title("Live Monitor")
                 .with_description("Live encoded video and typed Stream pipeline overlays."),
             Resource::new(uris::DOCS_URI, "stream docs")
                 .with_title("Server documents")

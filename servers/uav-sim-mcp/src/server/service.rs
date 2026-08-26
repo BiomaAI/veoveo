@@ -85,7 +85,7 @@ fn live_app_resource(connect_origin: &str, agent_message_targets: &[String]) -> 
             ..Default::default()
         },
     )
-    .with_title("UAV live cameras")
+    .with_title("Live Cameras")
     .with_description(
         "Authoritative simulator cameras tiled into one native NVIDIA NVENC product shared across viewers.",
     )

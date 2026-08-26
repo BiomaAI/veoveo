@@ -22,7 +22,7 @@ const PACKAGE_ROOT = dirname(fileURLToPath(import.meta.url));
 const VERSION = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")).version;
 const APP_EXTENSION = "io.modelcontextprotocol/ui";
 const APP_MIME_TYPE = "text/html;profile=mcp-app";
-const CHART_VIEW_URI = "ui://flint-chart/chart-view.html";
+const CHART_VIEW_URI = "ui://charts/composer.html";
 const AGENT_SKILL_URI = "flint://agent-skill";
 const THEME_SKILL_URI = "flint://theme-skill";
 const SUPPORTED_BACKENDS = ["vegalite", "echarts", "chartjs"];
@@ -206,7 +206,7 @@ export function createServer({ disableFileReference = false } = {}) {
     { name: "charts", version: VERSION },
     {
       instructions:
-        "Compile, validate, and render Flint chart specifications. Prefer create_chart_view when the client supports MCP Apps.",
+        "Compile, validate, and render Flint chart specifications. The Composer MCP App can author a chart directly or accept create_chart_view input.",
       capabilities: { extensions: { [APP_EXTENSION]: {} } },
       cacheHints: {
         "server/discover": { ttlMs: 30000, scope: "private" },
@@ -224,6 +224,7 @@ export function createServer({ disableFileReference = false } = {}) {
     {
       title: "Render chart",
       description: "Render a Flint chart to PNG or SVG.",
+      _meta: { ui: { resourceUri: CHART_VIEW_URI } },
       inputSchema: inputSchema.extend({
         backend,
         format: z.enum(["png", "svg"]).optional(),
@@ -258,6 +259,7 @@ export function createServer({ disableFileReference = false } = {}) {
     {
       title: "Compile chart spec",
       description: "Compile a Flint chart to a backend-native specification.",
+      _meta: { ui: { resourceUri: CHART_VIEW_URI } },
       inputSchema: inputSchema.extend({ backend }),
     },
     async (args) => {
@@ -273,6 +275,7 @@ export function createServer({ disableFileReference = false } = {}) {
     {
       title: "Validate chart spec",
       description: "Validate a Flint chart without rendering it.",
+      _meta: { ui: { resourceUri: CHART_VIEW_URI } },
       inputSchema: inputSchema.extend({ backend }),
     },
     async (args) => jsonResult(validate(assemblyInput(args), args.backend, dataOptions)),
@@ -282,6 +285,7 @@ export function createServer({ disableFileReference = false } = {}) {
     {
       title: "List chart types",
       description: "List chart templates and their channels.",
+      _meta: { ui: { resourceUri: CHART_VIEW_URI } },
       inputSchema: z.object({ backend: backend.optional() }),
     },
     async (args) => jsonResult(listChartTypes(args.backend)),
@@ -291,6 +295,7 @@ export function createServer({ disableFileReference = false } = {}) {
     {
       title: "List themes",
       description: "List Flint visual theme presets.",
+      _meta: { ui: { resourceUri: CHART_VIEW_URI } },
       inputSchema: z.object({ id: z.string().optional() }),
     },
     async (args) => {
@@ -304,8 +309,8 @@ export function createServer({ disableFileReference = false } = {}) {
   server.registerTool(
     "create_chart_view",
     {
-      title: "Create interactive chart view",
-      description: "Open an interactive MCP App chart view.",
+      title: "Open Chart Composer",
+      description: "Open the Chart Composer with a supplied Flint chart input.",
       inputSchema,
       _meta: { ui: { resourceUri: CHART_VIEW_URI } },
     },
@@ -317,7 +322,7 @@ export function createServer({ disableFileReference = false } = {}) {
           content: [{
             type: "text",
             text: summary.valid
-              ? `Interactive chart view ready: ${summary.chartType}`
+              ? `Chart Composer ready: ${summary.chartType}`
               : `Chart spec has errors: ${summary.errors.map((error) => error.message).join("; ")}`,
           }],
           structuredContent: { input },
@@ -331,11 +336,11 @@ export function createServer({ disableFileReference = false } = {}) {
 
   registerResource(
     server,
-    "chart-view",
+    "composer",
     CHART_VIEW_URI,
-    "Interactive chart view",
+    "Composer",
     APP_MIME_TYPE,
-    themedApp(asset("flint-app.html")),
+    themedApp(asset("composer.html")),
     { ui: { permissions: { clipboardWrite: {} } } },
   );
   registerResource(
