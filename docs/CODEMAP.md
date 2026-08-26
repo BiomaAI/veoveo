@@ -36,6 +36,7 @@ authorize implementation:
 | [`HARNESS_MEDIATED_MODEL_POST_TRAINING.md`](HARNESS_MEDIATED_MODEL_POST_TRAINING.md) | exact-call trajectories through the deployed harness, rollout-level post-training semantics, governed evaluation, and candidate-model admission boundaries |
 | [`FACTORY_ISOLATION.md`](FACTORY_ISOLATION.md) | harness-neutral software-factory product plan: developer specification and deployment journey, staged author/verifier/broker architecture, OpenShell isolation, typed contracts, implementation sequence, trial acceptance, and adoption path |
 | [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
+| [`ARTIFACT_PREVIEW_AND_APP_HANDOFF.md`](ARTIFACT_PREVIEW_AND_APP_HANDOFF.md) | artifact catalog, preview dispatch, producer and external-App registration paths, governed App handoff constraints, handler models, and open design questions |
 
 Implementation plans describe future hard cuts. A plan's status line records whether
 its execution is approved. Existing contracts remain authoritative until each planned
