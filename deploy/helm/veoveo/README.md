@@ -2,7 +2,7 @@
 
 This chart installs one autonomous enterprise Veoveo instance. Tenant ids are
 internal isolation boundaries; the chart has no connection to a vendor control
-plane. The platform store is exactly one SurrealDB 3.2.3 process backed by a
+plane. The platform store is exactly one SurrealDB 3.2.4 process backed by a
 RocksDB PVC. Database HA is out of scope. Back up the SurrealDB and object-store
 volumes according to the installation recovery objectives.
 

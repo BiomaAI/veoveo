@@ -424,7 +424,7 @@
 <text x="66.0" y="1686" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">SurrealDB platform database</tspan>
 </text>
-<text x="373.0" y="1661" class="tiny" text-anchor="end">SurrealDB 3.2.3</text>
+<text x="373.0" y="1661" class="tiny" text-anchor="end">SurrealDB 3.2.4</text>
 <rect x="403.0" y="1640" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="403.0" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="419.0" y="1661" class="node-id" text-anchor="start">VV-CMP-039</text>

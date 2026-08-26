@@ -366,7 +366,7 @@ async fn spawn_surreal_platform() -> Result<PlatformStoreSmoke> {
             container_name.into(),
             "-p".into(),
             format!("127.0.0.1:{host_port}:8000").into(),
-            "surrealdb/surrealdb:v3.2.3".into(),
+            "surrealdb/surrealdb:v3.2.4".into(),
             "start".into(),
             "--log".into(),
             "warn".into(),

@@ -3,8 +3,8 @@
   "bundle_version": "0.1.0",
   "external_images": [
     {
-      "ref": "surrealdb/surrealdb:v3.2.3",
-      "source": "surrealdb/surrealdb@sha256:2006fe3f88f6f240c6463460021b4a14ffe102aea376284428f850045b7b382e"
+      "ref": "surrealdb/surrealdb:v3.2.4",
+      "source": "surrealdb/surrealdb@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843"
     },
     {
       "ref": "rustfs/rustfs:1.0.0-beta.8",

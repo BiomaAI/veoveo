@@ -242,7 +242,7 @@
               "type": "object",
               "properties": {
                 "tag": {
-                  "const": "v3.2.3"
+                  "const": "v3.2.4"
                 }
               }
             }
