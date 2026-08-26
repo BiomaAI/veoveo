@@ -1,23 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:44b94cf255e3699c4c2d6e0e8ce2d2780f4db9fe0d3d70cad372d3bacfc2ac1d",
-  "updatedAt": "2026-08-26T03:41:10Z",
+  "buildDigest": "sha256:21f3c21a27078985c055f59449c3e9e59affe823e260dd9cfbeea1efd50eaad2",
+  "updatedAt": "2026-08-26T04:06:40Z",
   "checks": [
     {
-      "name": "bioma-config-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-bioma-acceptance"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T03:39:16Z",
-      "durationSeconds": 0.613522092,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-build",
+      "name": "rerun-console-build",
       "command": [
         "npm",
         "--prefix",
@@ -26,26 +13,12 @@
         "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T03:41:10Z",
-      "durationSeconds": 5.505882151,
+      "finishedAt": "2026-08-26T04:06:40Z",
+      "durationSeconds": 4.778869968,
       "detail": "completed successfully"
     },
     {
-      "name": "console-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T03:40:37Z",
-      "durationSeconds": 3.958299845,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-tests",
+      "name": "rerun-console-tests",
       "command": [
         "npm",
         "--prefix",
@@ -53,67 +26,37 @@
         "test"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T03:40:29Z",
-      "durationSeconds": 0.842606065,
+      "finishedAt": "2026-08-26T04:06:27Z",
+      "durationSeconds": 0.366821055,
       "detail": "completed successfully"
     },
     {
-      "name": "datasheet-app-tests",
-      "command": [
-        "uv",
-        "run",
-        "--project",
-        "templates/python-mcp",
-        "pytest",
-        "-q",
-        "templates/python-mcp/tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T03:40:14Z",
-      "durationSeconds": 2.053760913,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "mcp-app-tests",
+      "name": "rerun-rust-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-mcp-apps-extension",
+        "veoveo-agent-kernel",
         "-p",
-        "veoveo-artifact-mcp",
+        "veoveo-recording-forwarder",
         "-p",
-        "veoveo-recording-mcp",
+        "veoveo-recording-hub",
         "-p",
-        "veoveo-optimization-mcp",
+        "veoveo-rrd",
         "-p",
         "veoveo-reason-mcp",
         "-p",
-        "veoveo-media-mcp",
+        "veoveo-recording-mcp",
         "-p",
-        "veoveo-duckdb-mcp",
+        "veoveo-stream-mcp",
         "-p",
-        "veoveo-frames-mcp",
+        "veoveo-timeseries-mcp",
         "-p",
-        "veoveo-time-mcp",
-        "--lib"
+        "veoveo-sumo-mcp"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T03:40:07Z",
-      "durationSeconds": 1.131825285,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rust-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T03:39:59Z",
-      "durationSeconds": 2.125843474,
+      "finishedAt": "2026-08-26T04:05:49Z",
+      "durationSeconds": 357.87776966,
       "detail": "completed successfully"
     }
   ]

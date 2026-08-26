@@ -46,8 +46,8 @@
       "source": "https://docs.px4.io/main/en/test_and_ci/docker"
     },
     "rerun": {
-      "version": "0.36.0",
-      "source": "https://github.com/rerun-io/rerun/releases/tag/0.36.0"
+      "version": "0.36.2",
+      "source": "https://github.com/rerun-io/rerun/releases/tag/0.36.2"
     },
     "nvidia_gpu_operator": {
       "version": "26.3.3",
@@ -68,7 +68,7 @@
       "pyarrow": "25.0.0",
       "pymavlink": "2.4.49",
       "pyyaml": "6.0.3",
-      "rerun_sdk": "0.36.0",
+      "rerun_sdk": "0.36.2",
       "yarl": "1.24.2",
       "simulation_runtime_provided": [
         "numpy",

@@ -21,7 +21,7 @@ over encoded sensor streams and governed recordings.
 | [RTP 2.0](https://www.rfc-editor.org/rfc/rfc3550) and [RTP payload format for H.264](https://www.rfc-editor.org/rfc/rfc6184) | Live ingress accepts one admitted RTP/H.264 UDP endpoint with a dynamic payload type and a 90 kHz clock. |
 | H.264/AVC Annex B and RFC 6381 | Encoded access units use Annex B byte-stream alignment. Each live pipeline declares the exact `avc1.PPCCLL` decoder profile exposed to its App. |
 | [WebCodecs](https://www.w3.org/TR/webcodecs/) and Media Capabilities | The App decodes the existing H.264 access units with `VideoDecoder`; Media Capabilities must report the exact stream as supported and smooth. The App identifies whether the browser reports power-efficient or software H.264 decode. |
-| [Rerun 0.36.0](https://rerun.io/docs/) RRD and `VideoStream` | Recording replay consumes authorized H.264 `VideoStream` ranges. Derived detections are published as typed JSON and immutable RRD annotations. |
+| [Rerun 0.36.2](https://rerun.io/docs/) RRD and `VideoStream` | Recording replay consumes authorized H.264 `VideoStream` ranges. Derived detections are published as typed JSON and immutable RRD annotations. |
 
 ## Ownership Boundary
 
