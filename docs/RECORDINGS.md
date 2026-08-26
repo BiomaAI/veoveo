@@ -4,9 +4,9 @@
 
 | Standard or protocol | Recording profile |
 |---|---|
-| Rerun 0.36.0 gRPC and RRD | Producer-local ingestion and immutable `object-store`-optimized shards with footer manifests. |
+| Rerun 0.36.2 gRPC and RRD | Producer-local ingestion and immutable `object-store`-optimized shards with footer manifests. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Recording-scoped read subset over HTTP/2 and gRPC-Web. Veoveo does not expose a general Rerun catalog or mutation surface. |
-| Rerun 0.36.0 WebViewer `LogChannel` | Console opens one incremental channel with `WebViewer.open_channel` and sends complete RRD arrays with `LogChannel.send_rrd`. |
+| Rerun 0.36.2 WebViewer `LogChannel` | Console opens one incremental channel with `WebViewer.open_channel` and sends complete RRD arrays with `LogChannel.send_rrd`. |
 | Fetch Standard and Veoveo framed RRD stream v2 | One authenticated same-origin GET carries unsigned four-byte big-endian lengths followed by complete RRD payloads. The exact media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`. The required start header distinguishes an empty-channel bootstrap from a current-head resume on an existing Rerun channel. |
 | Veoveo recording ingest `2026-08-06` | Authenticated protobuf batches and distinct producer Blueprint publications preserve native Rerun store identities, order, idempotency, decoder-reentrant rollover, and policy-scoped single-recording replacement. |
 | Veoveo recording playback `v8` | `veoveo.io/recording-playback/v8` binds one producer Blueprint, one lazy archive dataset, one optional recording-scoped `rerun_rrd_channel_v2` live source, catalog revision, and scoped session. Console selects exactly one recording receiver at a time. |
@@ -32,7 +32,7 @@ cannot begin a shard. The forwarder closes its pending batch before every video 
 Hub identifies decoder-reentrant samples from their encoded bytes, preserving eligible
 rollover boundaries when telemetry and camera messages share one stream.
 
-Freeze runs one materialization pass with Rerun 0.36.0's `object-store`
+Freeze runs one materialization pass with Rerun 0.36.2's `object-store`
 optimization profile. It compacts the one-row ingest chunks into chunks capped
 at 2 MiB or 65,536 sorted rows, separates thick image/video columns from thin
 telemetry, rebatches video chunks on GoP boundaries, repairs keyframe metadata,
