@@ -70,8 +70,10 @@ objectStore:
   rustfs:
     image:
       repository: rustfs/rustfs
-      tag: 1.0.0-beta.8
-      digest: ""
+      # RustFS has not published a stable release. This is the latest published
+      # non-preview release candidate and is pinned by its OCI index digest.
+      tag: 1.0.0-rc.3
+      digest: sha256:800cf3f352a0a27e3275ca854a51f0027975d7acc7a0d52089a35bcc9fcbf0b5
     bucket: artifact-plane
     persistence:
       size: 50Gi

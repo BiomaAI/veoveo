@@ -251,7 +251,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     contains(gateway_deployment, "failureThreshold: 24")?;
     for expected in [
         "image: surrealdb/surrealdb:v3.2.4",
-        "image: rustfs/rustfs:1.0.0-beta.8",
+        "image: rustfs/rustfs@sha256:800cf3f352a0a27e3275ca854a51f0027975d7acc7a0d52089a35bcc9fcbf0b5",
         "image: amazon/aws-cli:2.35.23",
         "name: mcp-gateway",
         "name: artifact-service",
