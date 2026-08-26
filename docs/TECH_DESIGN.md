@@ -202,7 +202,7 @@ to the frame.
 
 ## Durable Platform Store
 
-SurrealDB `3.2.3` is the only platform coordination store; the Rust client pins the
+SurrealDB `3.2.4` is the only platform coordination store; the Rust client pins the
 compatible `3.2.4` release. The canonical release uses
 one RocksDB-backed node. Installation bootstrap connects at root scope, applies ordered
 migrations, creates or rotates the database runtime user, and publishes the initial

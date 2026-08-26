@@ -1,62 +1,32 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:21f3c21a27078985c055f59449c3e9e59affe823e260dd9cfbeea1efd50eaad2",
-  "updatedAt": "2026-08-26T04:06:40Z",
+  "buildDigest": "sha256:50e51b9260b9970a1eb3e2db6706dc18716528f1a394e30d75bfec3509adac73",
+  "updatedAt": "2026-08-26T04:37:44Z",
   "checks": [
     {
-      "name": "rerun-console-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T04:06:40Z",
-      "durationSeconds": 4.778869968,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rerun-console-tests",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T04:06:27Z",
-      "durationSeconds": 0.366821055,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rerun-rust-tests",
+      "name": "surrealdb-324",
       "command": [
         "cargo",
-        "test",
-        "-p",
-        "veoveo-agent-kernel",
-        "-p",
-        "veoveo-recording-forwarder",
-        "-p",
-        "veoveo-recording-hub",
-        "-p",
-        "veoveo-rrd",
-        "-p",
-        "veoveo-reason-mcp",
-        "-p",
-        "veoveo-recording-mcp",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-timeseries-mcp",
-        "-p",
-        "veoveo-sumo-mcp"
+        "xtask",
+        "smoke",
+        "surreal-integration"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T04:05:49Z",
-      "durationSeconds": 357.87776966,
+      "finishedAt": "2026-08-26T04:37:44Z",
+      "durationSeconds": 113.10135871,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "surrealdb-helm",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T04:35:29Z",
+      "durationSeconds": 5.997127492,
       "detail": "completed successfully"
     }
   ]
