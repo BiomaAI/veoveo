@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, future::Future, path::Path, sync::Arc};
+use std::{
+    collections::{BTreeSet, VecDeque},
+    future::Future,
+    path::Path,
+    sync::Arc,
+};
 
 #[cfg(test)]
 use anyhow::anyhow;
@@ -28,6 +33,82 @@ const MAXIMUM_SOURCE_TO_RENDER_P95_MS: f64 = 85.0;
 const MAXIMUM_MOTION_TO_PHOTON_P95_MS: f64 = 250.0;
 const MINIMUM_MEAN_LUMA: f64 = 25.0;
 const MAXIMUM_MEAN_LUMA: f64 = 225.0;
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+pub(crate) struct ConsoleAppExpectation {
+    pub(crate) server: &'static str,
+    pub(crate) resource_uri: &'static str,
+    pub(crate) marker: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+pub(crate) struct ConsoleAppsCatalogEvidence {
+    schema: &'static str,
+    captured_at: chrono::DateTime<chrono::Utc>,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    apps: Vec<ConsoleAppCatalogEntry>,
+    server_groups: Vec<String>,
+    rendered_apps: Vec<RenderedConsoleAppEvidence>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+struct ConsoleAppCatalogEntry {
+    server: String,
+    resource_uri: String,
+    standalone_path: String,
+    name: String,
+    title: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+struct ConsoleAppCatalogDegradation {
+    server: String,
+    surface: String,
+    code: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+struct ConsoleAppCatalogProbe {
+    status: u16,
+    apps: Vec<ConsoleAppCatalogEntry>,
+    degradations: Vec<ConsoleAppCatalogDegradation>,
+    server_groups: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+struct ConsoleAppRenderState {
+    title: String,
+    heading: String,
+    status: String,
+    body: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+struct RenderedConsoleAppEvidence {
+    server: String,
+    resource_uri: String,
+    page_url: String,
+    screenshot_path: String,
+    screenshot_sha256: String,
+    hardware: HardwareIdentity,
+    render: ConsoleAppRenderState,
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -496,6 +577,29 @@ pub(crate) async fn preflight_standalone_live_app(
     .with_context(|| format!("standalone UAV App preflight exceeded {timeout:?}"))?
 }
 
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+pub(crate) async fn capture_console_apps_catalog(
+    cdp_base: &str,
+    public_base_url: &str,
+    expectations: &[ConsoleAppExpectation],
+    evidence_directory: &Path,
+    timeout: Duration,
+) -> Result<ConsoleAppsCatalogEvidence> {
+    let page_url = console_acceptance_url(public_base_url, "/apps");
+    tokio::time::timeout(
+        timeout,
+        capture_console_apps_catalog_inner(
+            cdp_base,
+            public_base_url,
+            &page_url,
+            expectations,
+            evidence_directory,
+        ),
+    )
+    .await
+    .with_context(|| format!("Console Apps catalog acceptance exceeded {timeout:?}"))?
+}
+
 pub(crate) async fn capture_console_recording(
     cdp_base: &str,
     public_base_url: &str,
@@ -640,6 +744,230 @@ async fn preflight_standalone_live_app_inner(cdp_base: &str, page_url: &str) -> 
     acceptance?;
     close?;
     Ok(())
+}
+
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+async fn capture_console_apps_catalog_inner(
+    cdp_base: &str,
+    public_base_url: &str,
+    page_url: &str,
+    expectations: &[ConsoleAppExpectation],
+    evidence_directory: &Path,
+) -> Result<ConsoleAppsCatalogEvidence> {
+    ensure!(
+        !expectations.is_empty(),
+        "Console Apps acceptance requires at least one expected App"
+    );
+    let expected_servers = expectations
+        .iter()
+        .map(|expectation| expectation.server)
+        .collect::<BTreeSet<_>>();
+    let expected_uris = expectations
+        .iter()
+        .map(|expectation| expectation.resource_uri)
+        .collect::<BTreeSet<_>>();
+    ensure!(
+        expected_uris.len() == expectations.len(),
+        "Console Apps acceptance contains duplicate resource URIs"
+    );
+
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    let catalog_acceptance: Result<_> = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(90);
+        let probe = loop {
+            let probe: ConsoleAppCatalogProbe = cdp
+                .evaluate(
+                    &session_id,
+                    r#"(async () => {
+                      const response=await fetch("/console/api/apps",{credentials:"same-origin",headers:{Accept:"application/json"}});
+                      let catalog={apps:[],degradations:[]};
+                      try{catalog=await response.json()}catch{}
+                      return {
+                        status:response.status,
+                        apps:(catalog.apps||[]).map(app=>({
+                          server:app.server,
+                          resourceUri:app.resourceUri,
+                          standalonePath:app.standalonePath,
+                          name:app.name,
+                          title:app.title??null
+                        })),
+                        degradations:catalog.degradations||[],
+                        serverGroups:[...document.querySelectorAll(".app-catalog-group .mono")]
+                          .map(node=>(node.textContent||"").trim()).filter(Boolean)
+                      };
+                    })()"#,
+                    true,
+                )
+                .await?;
+            let discovered = probe
+                .apps
+                .iter()
+                .map(|app| app.resource_uri.as_str())
+                .collect::<BTreeSet<_>>();
+            let groups = probe
+                .server_groups
+                .iter()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>();
+            if probe.status == 200
+                && probe.degradations.is_empty()
+                && expected_uris.is_subset(&discovered)
+                && expected_servers.is_subset(&groups)
+            {
+                break probe;
+            }
+            ensure!(
+                tokio::time::Instant::now() < deadline,
+                "Console did not project the complete grouped App catalog: HTTP {}, Apps {:?}, groups {:?}, degradations {:?}",
+                probe.status,
+                discovered,
+                groups,
+                probe
+                    .degradations
+                    .iter()
+                    .map(|failure| format!("{}/{}/{}", failure.server, failure.surface, failure.code))
+                    .collect::<Vec<_>>()
+            );
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        };
+
+        for expectation in expectations {
+            let expected_path = format!(
+                "/apps/{}",
+                expectation
+                    .resource_uri
+                    .strip_prefix("ui://")
+                    .context("expected Console App URI must use ui://")?
+            );
+            let app = probe
+                .apps
+                .iter()
+                .find(|app| app.resource_uri == expectation.resource_uri)
+                .expect("complete expected catalog set");
+            ensure!(
+                app.server == expectation.server && app.standalone_path == expected_path,
+                "Console App {} has inconsistent identity or standalone path: {:?}",
+                expectation.resource_uri,
+                app
+            );
+        }
+
+        let screenshot_path = evidence_directory.join("catalog.png");
+        let screenshot_sha256 =
+            capture_screenshot(&mut cdp, &session_id, &screenshot_path).await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok((hardware, probe, screenshot_path, screenshot_sha256))
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    let (hardware, probe, screenshot_path, screenshot_sha256) = catalog_acceptance?;
+    close?;
+
+    let mut rendered_apps = Vec::with_capacity(expectations.len());
+    for expectation in expectations {
+        rendered_apps.push(
+            capture_one_console_app(cdp_base, public_base_url, expectation, evidence_directory)
+                .await
+                .with_context(|| {
+                    format!("rendering {} through Console", expectation.resource_uri)
+                })?,
+        );
+    }
+
+    Ok(ConsoleAppsCatalogEvidence {
+        schema: "veoveo.io/console-apps-browser-evidence/v1",
+        captured_at: chrono::Utc::now(),
+        page_url: page_url.to_owned(),
+        screenshot_path: screenshot_path.display().to_string(),
+        screenshot_sha256,
+        hardware,
+        apps: probe.apps,
+        server_groups: probe.server_groups,
+        rendered_apps,
+    })
+}
+
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+async fn capture_one_console_app(
+    cdp_base: &str,
+    public_base_url: &str,
+    expectation: &ConsoleAppExpectation,
+    evidence_directory: &Path,
+) -> Result<RenderedConsoleAppEvidence> {
+    let route = format!(
+        "/apps/{}",
+        expectation
+            .resource_uri
+            .strip_prefix("ui://")
+            .context("expected Console App URI must use ui://")?
+    );
+    let page_url = console_acceptance_url(public_base_url, &route);
+    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, &page_url).await?;
+    let acceptance: Result<_> = async {
+        wait_for_document(&mut cdp, &session_id).await?;
+        assert_page_visible(&mut cdp, &session_id).await?;
+        let hardware: HardwareIdentity =
+            cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
+        hardware.validate()?;
+        wait_for_console_app_body(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expectation.server,
+            expectation.marker,
+        )
+        .await?;
+        let render: ConsoleAppRenderState = evaluate_console_app(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            expectation.server,
+            r#"({
+              title:document.title||"",
+              heading:document.querySelector("h1")?.textContent?.trim()||"",
+              status:document.getElementById("status")?.textContent?.trim()||"",
+              body:document.body?.innerText||""
+            })"#,
+            false,
+        )
+        .await?;
+        let status = render.status.to_ascii_lowercase();
+        ensure!(
+            render.heading.contains(expectation.marker)
+                && !status.contains("unavailable")
+                && !status.contains("failed"),
+            "Console App {} did not initialize a healthy expected surface: {:?}",
+            expectation.resource_uri,
+            render
+        );
+        let screenshot_name = expectation
+            .resource_uri
+            .trim_start_matches("ui://")
+            .replace(['/', '.'], "-");
+        let screenshot_path = evidence_directory.join(format!("{screenshot_name}.png"));
+        let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, &screenshot_path).await?;
+        cdp.assert_no_software_renderer_events()?;
+        Ok((hardware, render, screenshot_path, screenshot_sha256))
+    }
+    .await;
+    let close = close_target(&mut cdp, &target_id).await;
+    let (hardware, render, screenshot_path, screenshot_sha256) = acceptance?;
+    close?;
+    Ok(RenderedConsoleAppEvidence {
+        server: expectation.server.to_owned(),
+        resource_uri: expectation.resource_uri.to_owned(),
+        page_url,
+        screenshot_path: screenshot_path.display().to_string(),
+        screenshot_sha256,
+        hardware,
+        render,
+    })
 }
 
 async fn wait_for_console_app_body(

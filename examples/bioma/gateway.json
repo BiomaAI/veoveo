@@ -1319,7 +1319,8 @@
       ],
       "required_scopes": [
         "operator:use",
-        "admin:manage"
+        "admin:manage",
+        "time:read"
       ],
       "servers": [
         {
@@ -1899,7 +1900,8 @@
             "run"
           ],
           "resource_schemes": [
-            "media"
+            "media",
+            "ui"
           ],
           "prompts": [
             "media-model-select",
@@ -1950,7 +1952,8 @@
             "run"
           ],
           "resource_schemes": [
-            "media"
+            "media",
+            "ui"
           ],
           "prompts": [
             "media-model-select",
@@ -1998,7 +2001,8 @@
             "run"
           ],
           "resource_schemes": [
-            "media"
+            "media",
+            "ui"
           ],
           "prompts": [
             "media-model-select",
@@ -2049,7 +2053,8 @@
             "run"
           ],
           "resource_schemes": [
-            "media"
+            "media",
+            "ui"
           ],
           "prompts": [
             "media-model-select",
@@ -2095,7 +2100,8 @@
             "set_release_state"
           ],
           "resource_schemes": [
-            "artifact"
+            "artifact",
+            "ui"
           ],
           "prompts": [
             "artifact-access-review",
@@ -2142,7 +2148,8 @@
             "set_release_state"
           ],
           "resource_schemes": [
-            "artifact"
+            "artifact",
+            "ui"
           ],
           "prompts": [
             "artifact-access-review",
@@ -2186,7 +2193,8 @@
             "set_release_state"
           ],
           "resource_schemes": [
-            "artifact"
+            "artifact",
+            "ui"
           ],
           "prompts": [
             "artifact-access-review",
@@ -2233,7 +2241,8 @@
             "set_release_state"
           ],
           "resource_schemes": [
-            "artifact"
+            "artifact",
+            "ui"
           ],
           "prompts": [
             "artifact-access-review",
@@ -2747,7 +2756,8 @@
             "verify_solution"
           ],
           "resource_schemes": [
-            "optimization"
+            "optimization",
+            "ui"
           ],
           "prompts": [
             "formulate_routing_problem",
@@ -2798,7 +2808,8 @@
             "verify_solution"
           ],
           "resource_schemes": [
-            "optimization"
+            "optimization",
+            "ui"
           ],
           "prompts": [
             "formulate_routing_problem",
@@ -2846,7 +2857,8 @@
             "verify_solution"
           ],
           "resource_schemes": [
-            "optimization"
+            "optimization",
+            "ui"
           ],
           "prompts": [
             "formulate_routing_problem",
@@ -2897,7 +2909,8 @@
             "verify_solution"
           ],
           "resource_schemes": [
-            "optimization"
+            "optimization",
+            "ui"
           ],
           "prompts": [
             "formulate_routing_problem",
@@ -2944,7 +2957,8 @@
             "publish_world"
           ],
           "resource_schemes": [
-            "frames"
+            "frames",
+            "ui"
           ],
           "prompts": [
             "frames-frame-audit",
@@ -2994,7 +3008,8 @@
             "publish_world"
           ],
           "resource_schemes": [
-            "frames"
+            "frames",
+            "ui"
           ],
           "prompts": [
             "frames-frame-audit",
@@ -3041,7 +3056,8 @@
             "publish_world"
           ],
           "resource_schemes": [
-            "frames"
+            "frames",
+            "ui"
           ],
           "prompts": [
             "frames-frame-audit",
@@ -3091,7 +3107,8 @@
             "publish_world"
           ],
           "resource_schemes": [
-            "frames"
+            "frames",
+            "ui"
           ],
           "prompts": [
             "frames-frame-audit",
@@ -3832,7 +3849,8 @@
             "export"
           ],
           "resource_schemes": [
-            "duckdb"
+            "duckdb",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"
@@ -3874,7 +3892,8 @@
             "export"
           ],
           "resource_schemes": [
-            "duckdb"
+            "duckdb",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"
@@ -3913,7 +3932,8 @@
             "export"
           ],
           "resource_schemes": [
-            "duckdb"
+            "duckdb",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"
@@ -3955,7 +3975,8 @@
             "export"
           ],
           "resource_schemes": [
-            "duckdb"
+            "duckdb",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"
@@ -3990,7 +4011,8 @@
             "query_recording"
           ],
           "resource_schemes": [
-            "recording"
+            "recording",
+            "ui"
           ],
           "prompts": [
             "recording-inspect",
@@ -4032,7 +4054,8 @@
             "query_recording"
           ],
           "resource_schemes": [
-            "recording"
+            "recording",
+            "ui"
           ],
           "prompts": [
             "recording-inspect",
@@ -4072,7 +4095,8 @@
             "seal_recording"
           ],
           "resource_schemes": [
-            "recording"
+            "recording",
+            "ui"
           ],
           "prompts": [
             "recording-inspect",
@@ -4220,7 +4244,8 @@
             "analyze_recording"
           ],
           "resource_schemes": [
-            "reason"
+            "reason",
+            "ui"
           ],
           "prompts": [
             "reason-analyze-recording",
@@ -4268,11 +4293,111 @@
             "analyze_recording"
           ],
           "resource_schemes": [
-            "reason"
+            "reason",
+            "ui"
           ],
           "prompts": [
             "reason-analyze-recording",
             "reason-answer-question"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service",
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_datasheet_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "datasheet"
+          ],
+          "tools": [
+            "column_stats",
+            "preview_dataset",
+            "profile_dataset"
+          ],
+          "resource_schemes": [
+            "datasheet",
+            "ui"
+          ],
+          "prompts": [
+            "datasheet-profile-dataset",
+            "datasheet-report-review"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "operator",
+            "administrator"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_service_datasheet_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "datasheet"
+          ],
+          "tools": [
+            "column_stats",
+            "preview_dataset",
+            "profile_dataset"
+          ],
+          "resource_schemes": [
+            "datasheet",
+            "ui"
+          ],
+          "prompts": [
+            "datasheet-profile-dataset",
+            "datasheet-report-review"
           ],
           "principal_ids": [
             "https://veoveo.bioma.ai/oauth#operator-service",
@@ -4588,7 +4713,8 @@
             "seal_recording"
           ],
           "resource_schemes": [
-            "recording"
+            "recording",
+            "ui"
           ],
           "prompts": [
             "recording-inspect",

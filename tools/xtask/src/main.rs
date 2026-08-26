@@ -8,7 +8,7 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use crate::{
-    commands::{builder, doctor, enforce, image, release, smoke, test_report},
+    commands::{builder, doctor, enforce, image, release, release_preflight, smoke, test_report},
     context::RepositoryContext,
 };
 
@@ -103,6 +103,8 @@ enum ImageCommand {
 
 #[derive(Debug, Subcommand)]
 enum ReleaseCommand {
+    /// Check host and optional Kubernetes headroom before an expensive release.
+    Preflight(ReleasePreflightArgs),
     /// Publish images from one exact committed revision.
     Images(ReleaseImagesArgs),
     /// Build, verify, and optionally publish the Python SDK.
@@ -113,6 +115,22 @@ enum ReleaseCommand {
     SimulationRuntime(ReleaseSimulationRuntimeArgs),
     /// Generate one compatibility release from immutable publication evidence.
     Compatibility(ReleaseCompatibilityArgs),
+}
+
+#[derive(Debug, Args)]
+struct ReleasePreflightArgs {
+    /// Estimated peak additional disk use for the planned build.
+    #[arg(long, default_value_t = 320)]
+    expected_growth_gib: u64,
+    /// Free filesystem percentage retained after the estimated build growth.
+    #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u8).range(1..=99))]
+    reserve_free_percent: u8,
+    /// Kubernetes node whose Ready and DiskPressure conditions must be healthy.
+    #[arg(long)]
+    kubernetes_node: Option<String>,
+    /// Namespace inspected for historical Evicted pod objects.
+    #[arg(long, default_value = "veoveo", requires = "kubernetes_node")]
+    namespace: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -397,6 +415,7 @@ fn main() -> Result<()> {
             }
         },
         Command::Release { command } => match command {
+            ReleaseCommand::Preflight(args) => release_preflight::run(&repository, &args),
             ReleaseCommand::Images(args) => release::images(&repository, &args),
             ReleaseCommand::PythonSdk(args) => release::python_sdk(&repository, &args),
             ReleaseCommand::HelmCharts(args) => release::helm_charts(&repository, &args),

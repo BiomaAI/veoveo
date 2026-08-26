@@ -1,21 +1,89 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:840145bea494bca160eaf45400d1b23c716e982bffc123885080892b47d7789f",
-  "updatedAt": "2026-08-26T20:18:42Z",
+  "buildDigest": "sha256:4f818d84af2577eca8d17900d2b491109dd420a1591f660bda7c50efb0f3082e",
+  "updatedAt": "2026-08-26T21:24:01Z",
   "checks": [
+    {
+      "name": "bioma-acceptance",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-bioma-acceptance"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T21:23:58Z",
+      "durationSeconds": 0.645594193,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "gateway-app-policy",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--test",
+        "exposure_probe"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T21:23:56Z",
+      "durationSeconds": 0.614508775,
+      "detail": "completed successfully"
+    },
     {
       "name": "helm-config",
       "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
         "cargo",
         "xtask",
         "smoke",
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T20:18:42Z",
-      "durationSeconds": 29.349322136,
+      "finishedAt": "2026-08-26T21:22:07Z",
+      "durationSeconds": 17.026369004,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "release-guard-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-browser-smoke",
+        "-p",
+        "veoveo-smoke",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T21:23:49Z",
+      "durationSeconds": 95.479443197,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "release-tooling-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-browser-smoke"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T21:24:01Z",
+      "durationSeconds": 2.775893192,
       "detail": "completed successfully"
     }
   ]

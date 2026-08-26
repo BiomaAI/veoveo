@@ -174,6 +174,11 @@ fn execute(
     command
         .args(arguments)
         .current_dir(root)
+        .env(
+            "CARGO_BUILD_JOBS",
+            env::var_os("CARGO_BUILD_JOBS")
+                .unwrap_or_else(|| process::DEFAULT_CARGO_BUILD_JOBS.into()),
+        )
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
