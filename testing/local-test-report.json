@@ -1,78 +1,8 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d1f665662b651c4c8a14eba6f9e4f0cb3586070d41373d30e45306b04e351021",
-  "updatedAt": "2026-08-26T17:11:58Z",
+  "buildDigest": "sha256:840145bea494bca160eaf45400d1b23c716e982bffc123885080892b47d7789f",
+  "updatedAt": "2026-08-26T20:18:42Z",
   "checks": [
-    {
-      "name": "console-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:02:07Z",
-      "durationSeconds": 5.260800144,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:01:51Z",
-      "durationSeconds": 4.2745791969999996,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-tests",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:01:55Z",
-      "durationSeconds": 0.359526347,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "cuopt-gpu",
-      "command": [
-        "bash",
-        "-lc",
-        "set -euo pipefail\ncontainer_name=veoveo-cuopt-2608-test\nif docker ps -a --filter \"name=^/${container_name}$\" --format \"{{.ID}}\" | grep -q .; then\n  echo \"refusing to replace existing container ${container_name}\" >&2\n  exit 1\nfi\ntest_dir=$(mktemp -d /tmp/veoveo-cuopt-2608-test.XXXXXX)\ncase \"${test_dir}\" in /tmp/veoveo-cuopt-2608-test.*) ;; *) echo \"unexpected temp directory ${test_dir}\" >&2; exit 1 ;; esac\ncleanup() {\n  docker stop --timeout 10 \"${container_name}\" >/dev/null 2>&1 || true\n  if [ -d \"${test_dir}\" ] && [ ! -L \"${test_dir}\" ]; then find \"${test_dir}\" -xdev -depth -delete; fi\n}\ntrap cleanup EXIT\ndocker run --detach --rm --name \"${container_name}\" --gpus device=0 --user \"$(id -u):$(id -g)\" --volume \"${test_dir}:/run/veoveo-cuopt\" veoveo/cuopt-executor:0.1.0 >/dev/null\nfor _ in $(seq 1 180); do\n  if [ -S \"${test_dir}/executor.sock\" ]; then break; fi\n  if ! docker ps --filter \"name=^/${container_name}$\" --format \"{{.ID}}\" | grep -q .; then docker logs \"${container_name}\" >&2 || true; exit 1; fi\n  sleep 1\ndone\nif [ ! -S \"${test_dir}/executor.sock\" ]; then docker logs \"${container_name}\" >&2 || true; exit 1; fi\nVEOVEO_CUOPT_TEST_SOCKET=\"${test_dir}/executor.sock\" cargo test -p veoveo-optimization-mcp --test cuopt_gpu -- --ignored --nocapture\n"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:10:55Z",
-      "durationSeconds": 15.914421375,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "cuopt-python-tests",
-      "command": [
-        "env",
-        "PYTHONPATH=servers/optimization-mcp/executor",
-        "python",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "servers/optimization-mcp/executor/tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:11:58Z",
-      "durationSeconds": 0.171781295,
-      "detail": "completed successfully"
-    },
     {
       "name": "helm-config",
       "command": [
@@ -84,81 +14,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T17:02:18Z",
-      "durationSeconds": 5.815751361,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "python-enforce",
-      "command": [
-        "cargo",
-        "xtask",
-        "enforce",
-        "python"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:01:26Z",
-      "durationSeconds": 12.548535897,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rerun-hub-image",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "build",
-        "--target",
-        "recording-hub"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:05:05Z",
-      "durationSeconds": 18.981001277,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rerun-legacy-image",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "build",
-        "--target",
-        "mcp-legacy-bridge"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:04:42Z",
-      "durationSeconds": 18.493652175,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rerun-stdio-image",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "build",
-        "--target",
-        "mcp-stdio-bridge"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:04:17Z",
-      "durationSeconds": 20.444190198,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rust-enforce",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "xtask",
-        "enforce",
-        "rust"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T17:00:46Z",
-      "durationSeconds": 611.856555751,
+      "finishedAt": "2026-08-26T20:18:42Z",
+      "durationSeconds": 29.349322136,
       "detail": "completed successfully"
     }
   ]
