@@ -148,7 +148,9 @@ run because a retry does not erase the cost or the cause.
       policy decision for each projected resource, prompt, and tool.
 - [ ] For MCP Apps, require the signed-in `/console/api/apps` catalog with no degradations,
       the expected `ui://` resource set, server-grouped navigation, and every App rendered
-      by `cargo xtask smoke console-apps-browser-verify`.
+      by `cargo xtask smoke console-apps-browser-verify`. Each capture must complete a host
+      bridge round-trip and reach the App's declared settled state; a loaded document or a
+      transient `connecting`, `reading`, `rendering`, or `discovering` label is not evidence.
 - [ ] Reconcile Flux to the complete commit, require exact source and applied revisions,
       require every Helm inventory and Deployment to become Ready, and retain any failed
       convergence record.
@@ -433,6 +435,7 @@ useful when a similar boundary regresses:
 | A host failure left Chrome profile singleton links after the browser process disappeared | the canonical headed profile could not restart until the stale socket, cookie, and lock identities were distinguished from a live browser | verify that no profile process or DevTools listener owns the singleton identities before removing them; never delete the profile or its session state |
 | Chrome exposed software WebGPU and hardware NVIDIA WebGL in the same headed session | a single pass/fail GPU label would either accept SwiftShader as hardware or reject a valid RTX 4090 WebGL path | probe and record both APIs, reject every software renderer as hardware evidence, and pass only when at least one API is hardware-backed NVIDIA |
 | The UAV App host preflight passed while nine new Console Apps were absent | the focused command proved only the existing UAV Console and standalone frames; it never inspected the complete signed-in catalog | add `console-apps-browser-verify` to require the expected `ui://` set, deterministic server groups, zero catalog degradations, and one headed render per App |
+| The complete Console App browser pass captured several frames while their Apps still reported `connecting`, `reading`, `rendering`, or `discovering` | the first run produced 17 screenshots and appeared green, but its manifest showed that document readiness had been mistaken for App initialization | make every expected App declare its settled status, require a successful host display-mode bridge round-trip, reject visible error surfaces, and require output selectors for rendered Charts, Map, and View workspaces before screenshot evidence is accepted |
 | Direct server App conformance passed while gateway policy removed every new `ui://` resource | each server returned valid App resources in-cluster, but new policy rules admitted only the domain scheme; Datasheet had no policy rules | test `GatewayCatalog::decide` for every first-party App URI under every Console profile and keep `ui` in the canonical resource-scheme policy |
 | A long GitOps convergence attempt wrote failed evidence before a warm retry passed in 11.3 s | the first 1,200-second window captured real pull and rollout delay; treating the retry as the only result would hide the release cost | retain create-only failed and passing convergence evidence and attribute source fetch, apply, image pull, rollout, and readiness independently |
 | Historical Evicted pod objects made the namespace look unhealthy after live workloads recovered | current Deployments were Ready while old failed pod rows remained visible in broad pod listings | make the preflight count historical evictions as a cleanup hint and remove only controller-superseded failed objects after acceptance |

@@ -1,66 +1,38 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:27ba2c26492c012c9824128b8c85f611c5673f0b872f50f8a1da04ba5d587c18",
-  "updatedAt": "2026-08-26T21:37:01Z",
+  "buildDigest": "sha256:494685171dbd1647a72c99283aea9cab46b90de978bd37455a13a6312fb73d67",
+  "updatedAt": "2026-08-26T21:48:41Z",
   "checks": [
     {
-      "name": "affected-planner-clippy",
+      "name": "console-apps-browser-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-xtask",
+        "veoveo-browser-smoke",
         "--tests",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T21:36:53Z",
-      "durationSeconds": 27.942509114,
+      "finishedAt": "2026-08-26T21:48:41Z",
+      "durationSeconds": 9.839554667,
       "detail": "completed successfully"
     },
     {
-      "name": "affected-planner-tests",
+      "name": "console-apps-browser-tests",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-xtask",
-        "commands::image::affected::tests"
+        "veoveo-browser-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T21:36:25Z",
-      "durationSeconds": 0.482353442,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "bioma-acceptance",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-bioma-acceptance"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T21:37:01Z",
-      "durationSeconds": 0.648724546,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "helm-config",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T21:36:59Z",
-      "durationSeconds": 5.110268684,
+      "finishedAt": "2026-08-26T21:48:24Z",
+      "durationSeconds": 1.610192034,
       "detail": "completed successfully"
     }
   ]
