@@ -25,6 +25,7 @@ component:
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
 | [`DEVELOPMENT_ITERATION.md`](DEVELOPMENT_ITERATION.md) | affected-target staging, digest-locked development rollout, focused acceptance, runtime pressure diagnostics, and iteration budgets |
 | [`CONTINUOUS_INTEGRATION.md`](CONTINUOUS_INTEGRATION.md) | temporary host-local test reporting, informational GitHub presentation, and the future full GPU CI architecture |
+| [`MCP_APPS_LIVE_AUDIT.md`](MCP_APPS_LIVE_AUDIT.md) | non-normative live investigation register for MCP App usefulness, Console behavior, authorization, and cluster evidence |
 | [`connectors/README.md`](connectors/README.md) | third-party MCP connector catalog, recipe contract, and governed upstream path |
 
 Exploratory documents preserve open design work. They are not normative and do not
