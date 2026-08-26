@@ -355,7 +355,7 @@ impl ServerHandler for ViewMcp {
         if identity_has_scope(&identity, "view:capture") {
             resources.push(
                 veoveo_mcp_apps_extension::app_resource(uris::PREVIEW_APP_URI, "view-preview-app")
-                    .with_title("3D view preview")
+                    .with_title("Preview")
                     .with_description(
                         "Interactive MCP App that composes camera poses over configured 3D \
                          Tiles layers, previews the scene in-browser, and drives the real \

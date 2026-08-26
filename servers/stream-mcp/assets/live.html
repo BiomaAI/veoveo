@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stream</title>
+<title>Live Monitor</title>
 <style>
 :root{color-scheme:dark;--bg:#101012;--panel:#161618;--panel2:#1b1b1e;--ink:#eae6dc;--muted:#918c82;--cyan:#c2a15c;--green:#74a184;--amber:#bd8443;--red:#c96f67;--line:#2b2a2d;--hover:#5a564e;--mono:"SFMono-Regular",Consolas,"Liberation Mono",ui-monospace,monospace}
 :root[data-theme="light"]{color-scheme:light;--bg:#f6f4ef;--panel:#fffdf8;--panel2:#f6f3ec;--ink:#201e1a;--muted:#6f6a5f;--cyan:#8a6d2f;--green:#3f7354;--amber:#8a6430;--red:#96423b;--line:#ddd8cc;--hover:#c7c0af}
@@ -17,7 +17,7 @@ header{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1
 </head>
 <body>
 <div id="app">
-  <header><h1>Stream</h1><span id="status" class="chip">discovering</span><span id="decode" class="chip">H.264 decode —</span><span class="spacer"></span><span id="freshness" class="chip">frame age —</span></header>
+  <header><h1>Live Monitor</h1><span id="status" class="chip">discovering</span><span id="decode" class="chip">H.264 decode —</span><span class="spacer"></span><span id="freshness" class="chip">frame age —</span></header>
   <section id="controls"><select id="pipeline" aria-label="Pipeline"></select><select id="sessions" aria-label="Live stream session"></select><button id="start" type="button">Start live session</button><button id="stop" type="button" disabled>Stop</button></section>
   <main id="stage"><canvas id="video"></canvas><canvas id="overlay"></canvas><div id="empty">Start or select a live Stream session.</div><div class="hud"><span id="session">no session</span><span id="ingress">ingress —</span><span id="recording">recording route off</span></div></main>
   <section id="detections"><div class="metric"><b id="frames">0</b><span>processed frames</span></div><div class="metric"><b id="objects">0</b><span>latest detections</span></div><div class="metric"><b id="dropped">0</b><span>dropped result frames</span></div></section>

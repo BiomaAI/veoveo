@@ -1529,7 +1529,7 @@ mod tests {
     fn standalone_descriptor_requires_an_exact_authorized_catalog_resource() {
         let resource =
             veoveo_mcp_apps_extension::app_resource("ui://map/workspace.html", "map-workspace")
-                .with_title("Map workspace");
+                .with_title("Workspace");
         let catalog = McpAppCatalog::for_test(vec![resource], Vec::new());
         let descriptor = authorized_app_descriptor(&catalog, "ui://map/workspace.html")
             .expect("cataloged route is authorized");

@@ -1856,7 +1856,7 @@ fn discoverable_resources(
                     prefers_border: None,
                 },
             )
-            .with_title("Map workspace")
+            .with_title("Workspace")
             .with_description(
                 "Permission-aware Map MCP workspace for map viewing, governed feature layers, compositions, sources, acquisitions, releases, and mobility profiles.",
             )

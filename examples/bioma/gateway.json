@@ -681,7 +681,8 @@
         "prompts": true,
         "completions": false,
         "tasks": false,
-        "resources_list_changed": false
+        "resources_list_changed": false,
+        "apps": true
       },
       "resource_projection": "server_owned",
       "tools": [
@@ -689,6 +690,7 @@
         "compile_chart",
         "validate_chart",
         "list_chart_types",
+        "list_themes",
         "create_chart_view"
       ],
       "prompts": [
@@ -1155,6 +1157,7 @@
               "compile_chart",
               "validate_chart",
               "list_chart_types",
+              "list_themes",
               "create_chart_view"
             ]
           },
@@ -1628,6 +1631,7 @@
               "compile_chart",
               "validate_chart",
               "list_chart_types",
+              "list_themes",
               "create_chart_view"
             ]
           },
@@ -2323,6 +2327,7 @@
             "compile_chart",
             "validate_chart",
             "list_chart_types",
+            "list_themes",
             "create_chart_view"
           ],
           "resource_schemes": [
@@ -2365,6 +2370,7 @@
             "compile_chart",
             "validate_chart",
             "list_chart_types",
+            "list_themes",
             "create_chart_view"
           ],
           "resource_schemes": [
@@ -2404,6 +2410,7 @@
             "compile_chart",
             "validate_chart",
             "list_chart_types",
+            "list_themes",
             "create_chart_view"
           ],
           "resource_schemes": [
@@ -2446,6 +2453,7 @@
             "compile_chart",
             "validate_chart",
             "list_chart_types",
+            "list_themes",
             "create_chart_view"
           ],
           "resource_schemes": [

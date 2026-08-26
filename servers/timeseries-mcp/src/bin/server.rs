@@ -336,7 +336,7 @@ impl ServerHandler for TimeseriesMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let mut resources = vec![
             veoveo_mcp_apps_extension::app_resource(uris::FORECAST_APP_URI, "forecast-app")
-                .with_title("Timeseries forecast view")
+                .with_title("Forecasts")
                 .with_description(
                     "Interactive MCP App rendering forecast previews and re-running the \
                      forecast tool.",

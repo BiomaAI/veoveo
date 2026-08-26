@@ -1,47 +1,69 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:e8c8b37f2f7b3fb56af23a6de5fbe5f9b946bb5f4f4ab8d229f1ef4025b7a884",
-  "updatedAt": "2026-08-26T02:01:54Z",
+  "buildDigest": "sha256:bfffbf7fb1eca2f49706cbdbd316372ae6ce518cb8c60e81394074b55ba1853d",
+  "updatedAt": "2026-08-26T02:24:04Z",
   "checks": [
     {
-      "name": "console-app-navigation",
+      "name": "app-contract-rust-check",
       "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
+        "cargo",
+        "check",
+        "-p",
+        "veoveo-map-mcp",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-timeseries-mcp",
+        "-p",
+        "veoveo-uav-sim-mcp",
+        "-p",
+        "veoveo-view-mcp",
+        "-p",
+        "veoveo-console-bff"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T02:01:45Z",
-      "durationSeconds": 0.322431272,
+      "finishedAt": "2026-08-26T02:24:03Z",
+      "durationSeconds": 0.694006451,
       "detail": "completed successfully"
     },
     {
-      "name": "console-web-build",
+      "name": "chart-composer-tests",
       "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
+        "node",
+        "--test",
+        "servers/chart-mcp/*.test.mjs"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T02:01:54Z",
-      "durationSeconds": 4.053104993,
+      "finishedAt": "2026-08-26T02:24:04Z",
+      "durationSeconds": 0.079645929,
       "detail": "completed successfully"
     },
     {
-      "name": "console-web-lint",
+      "name": "chart-image-build",
       "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
+        "cargo",
+        "xtask",
+        "image",
+        "build",
+        "--target",
+        "chart-mcp"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T02:01:49Z",
-      "durationSeconds": 2.916785806,
+      "finishedAt": "2026-08-26T02:23:10Z",
+      "durationSeconds": 49.591751011,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "rust-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T02:22:14Z",
+      "durationSeconds": 1.953965637,
       "detail": "completed successfully"
     }
   ]

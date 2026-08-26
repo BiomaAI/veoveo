@@ -564,14 +564,8 @@ async fn preflight_console_live_app_inner(cdp_base: &str, page_url: &str) -> Res
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
-        wait_for_console_app_body(
-            &mut cdp,
-            &target_id,
-            &session_id,
-            "uav-sim",
-            "UAV live cameras",
-        )
-        .await?;
+        wait_for_console_app_body(&mut cdp, &target_id, &session_id, "uav-sim", "Live Cameras")
+            .await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(())
     }
@@ -595,7 +589,7 @@ async fn preflight_standalone_live_app_inner(cdp_base: &str, page_url: &str) -> 
             &target_id,
             &session_id,
             "uav-sim",
-            "UAV live cameras",
+            "Live Cameras",
         )
         .await?;
         let host: Value = cdp
@@ -623,12 +617,12 @@ async fn preflight_standalone_live_app_inner(cdp_base: &str, page_url: &str) -> 
                 && host
                     .get("title")
                     .and_then(Value::as_str)
-                    .is_some_and(|title| title.contains("UAV live cameras"))
+                    .is_some_and(|title| title.contains("Live Cameras"))
                 && host.get("returnHref").and_then(Value::as_str) == Some("/console/#/apps")
                 && host
                     .get("frameTitle")
                     .and_then(Value::as_str)
-                    .is_some_and(|title| title.contains("UAV live cameras"))
+                    .is_some_and(|title| title.contains("Live Cameras"))
                 && host.get("sandbox").and_then(Value::as_str) == Some("allow-scripts")
                 && host.get("referrerPolicy").and_then(Value::as_str) == Some("no-referrer")
                 && host.get("frameStatus").and_then(Value::as_u64) == Some(200)
@@ -710,7 +704,7 @@ async fn send_console_uav_agent_instruction_inner(
             &target_id,
             &session_id,
             "uav-sim",
-            "UAV live cameras",
+            "Live Cameras",
         )
         .await?;
 
@@ -948,11 +942,11 @@ async fn capture_console_live_app_inner(
                 && snapshot
                     .get("appFrameTitle")
                     .and_then(Value::as_str)
-                    .is_some_and(|title| title.contains("UAV live cameras"))
+                    .is_some_and(|title| title.contains("Live Cameras"))
                 && snapshot
                     .get("bodyText")
                     .and_then(Value::as_str)
-                    .is_some_and(|body| body.contains("UAV live cameras")),
+                    .is_some_and(|body| body.contains("Live Cameras")),
             "real Console did not load its snapshot, App catalog, and UAV live view frame: \
              {snapshot}"
         );
@@ -1239,11 +1233,11 @@ async fn capture_console_stream_app_inner(
                 && console
                     .get("appFrameTitle")
                     .and_then(Value::as_str)
-                    .is_some_and(|title| title.contains("Stream"))
+                    .is_some_and(|title| title.contains("Live Monitor"))
                 && console
                     .get("bodyText")
                     .and_then(Value::as_str)
-                    .is_some_and(|body| body.contains("Stream")),
+                    .is_some_and(|body| body.contains("Live Monitor")),
             "real Console did not load its snapshot, App catalog, and Stream frame: {console}"
         );
         let screenshot_sha256 =
@@ -2068,7 +2062,7 @@ async fn capture_console_map_workspace_app_inner(
             &target_id,
             &session_id,
             "map",
-            "Map workspace",
+            "Workspace",
         )
         .await?;
 
@@ -2843,7 +2837,7 @@ addEventListener("message",event=>{{
   if(message.method==="subscriptions/listen") return reply({{}});
   if(message.id!==undefined) return fail(`unexpected request ${{message.method}}`);
 }});
-</script></head><body><iframe id="app" class="app-frame" title="Map workspace" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/console/api/apps/frame?uri=ui%3A%2F%2Fmap%2Fworkspace.html"></iframe></body></html>"#,
+</script></head><body><iframe id="app" class="app-frame" title="Workspace" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/console/api/apps/frame?uri=ui%3A%2F%2Fmap%2Fworkspace.html"></iframe></body></html>"#,
         resources = resources,
         features = features,
         source_features = source_features,
@@ -5020,14 +5014,14 @@ mod tests {
     fn console_app_body_must_finish_after_the_transient_empty_document() {
         assert!(!console_app_body_ready(
             &serde_json::json!({"readyState": "complete", "body": ""}),
-            "UAV live cameras"
+            "Live Cameras"
         ));
         assert!(console_app_body_ready(
             &serde_json::json!({
                 "readyState": "complete",
-                "body": "UAV live cameras\nNVIDIA NVENC · H.264"
+                "body": "Live Cameras\nNVIDIA NVENC · H.264"
             }),
-            "UAV live cameras"
+            "Live Cameras"
         ));
     }
 
