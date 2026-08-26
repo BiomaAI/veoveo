@@ -3326,6 +3326,7 @@ async fn open_headed_target_in_window(
         Some(&session_id),
     )
     .await?;
+    wait_for_requested_document(&mut cdp, &session_id, page_url).await?;
     Ok((cdp, target_id, session_id))
 }
 
@@ -4669,6 +4670,39 @@ async fn wait_for_document(cdp: &mut Cdp, session_id: &str) -> Result<()> {
     }
 }
 
+async fn wait_for_requested_document(
+    cdp: &mut Cdp,
+    session_id: &str,
+    requested_url: &str,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        let document = cdp
+            .evaluate(
+                session_id,
+                r#"({href:location.href,readyState:document.readyState})"#,
+                false,
+            )
+            .await?;
+        if document_is_ready_at(&document, requested_url) {
+            return Ok(());
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "headed browser target did not load requested URL {requested_url:?}: {document}"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+fn document_is_ready_at(document: &Value, requested_url: &str) -> bool {
+    document.get("href").and_then(Value::as_str) == Some(requested_url)
+        && document
+            .get("readyState")
+            .and_then(Value::as_str)
+            .is_some_and(|state| state == "complete" || state == "interactive")
+}
+
 struct Cdp {
     socket: WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
     next_id: u64,
@@ -5438,6 +5472,19 @@ mod tests {
         assert_eq!(page.path(), "/console/");
         assert_eq!(page.fragment(), Some("/apps/uav-sim/live.html"));
         assert!(uuid::Uuid::parse_str(&nonce).is_ok());
+    }
+
+    #[test]
+    fn requested_document_readiness_rejects_the_initial_about_blank_target() {
+        let requested = "https://installation.example/console/#/apps";
+        assert!(!document_is_ready_at(
+            &serde_json::json!({"href": "about:blank", "readyState": "complete"}),
+            requested
+        ));
+        assert!(document_is_ready_at(
+            &serde_json::json!({"href": requested, "readyState": "interactive"}),
+            requested
+        ));
     }
 
     #[test]

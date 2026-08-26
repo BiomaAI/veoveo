@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:494685171dbd1647a72c99283aea9cab46b90de978bd37455a13a6312fb73d67",
-  "updatedAt": "2026-08-26T21:48:41Z",
+  "buildDigest": "sha256:c6283a47550b771091d318bd3b31d3aaf46718eba41c7d4786c69e4239437866",
+  "updatedAt": "2026-08-26T21:54:26Z",
   "checks": [
     {
       "name": "console-apps-browser-clippy",
@@ -17,8 +17,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T21:48:41Z",
-      "durationSeconds": 9.839554667,
+      "finishedAt": "2026-08-26T21:54:26Z",
+      "durationSeconds": 2.374018361,
       "detail": "completed successfully"
     },
     {
@@ -31,8 +31,8 @@
         "veoveo-browser-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T21:48:24Z",
-      "durationSeconds": 1.610192034,
+      "finishedAt": "2026-08-26T21:54:06Z",
+      "durationSeconds": 2.304047148,
       "detail": "completed successfully"
     }
   ]
