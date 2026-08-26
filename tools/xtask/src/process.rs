@@ -7,6 +7,8 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 
+pub(crate) const DEFAULT_CARGO_BUILD_JOBS: &str = "4";
+
 pub(crate) fn output(
     program: &str,
     args: impl IntoIterator<Item = impl AsRef<OsStr>>,
@@ -88,6 +90,10 @@ pub(crate) fn cargo_status_with_env(
     let mut command = Command::new("cargo");
     command
         .args(args)
+        .env(
+            "CARGO_BUILD_JOBS",
+            env::var_os("CARGO_BUILD_JOBS").unwrap_or_else(|| DEFAULT_CARGO_BUILD_JOBS.into()),
+        )
         .envs(environment.iter().copied())
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
@@ -141,11 +147,12 @@ fn is_cargo_package_environment(key: &OsStr) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_cargo_package_environment;
+    use super::{DEFAULT_CARGO_BUILD_JOBS, is_cargo_package_environment};
     use std::ffi::OsStr;
 
     #[test]
     fn nested_cargo_drops_parent_package_scope_but_keeps_user_configuration() {
+        assert_eq!(DEFAULT_CARGO_BUILD_JOBS, "4");
         for key in [
             "CARGO_MANIFEST_DIR",
             "CARGO_PKG_NAME",

@@ -13,6 +13,7 @@
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
 | `veoveo.io/gitops-convergence-evidence/v2` | repository-owned exact Flux source revision, root apply, Helm inventory, rollout, and readiness evidence |
+| `veoveo.io/console-apps-browser-acceptance/v1` | composed signed-in Console App catalog, server grouping, per-App headed render, and hardware adapter evidence |
 | `veoveo.io/uav-live-view-browser-evidence/v8` | focused authoritative-camera pixels, event-derived source-to-render and motion-to-photon p95, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
 | `veoveo.io/uav-recording-browser-evidence/v2` | source-clock and camera-pane evidence for one live governed recording |
 
@@ -110,6 +111,53 @@ The command requests reconciliation, then consumes Kubernetes watch events. It d
 not sleep between status reads. Source fetch, desired-state apply, Helm release,
 Deployment rollout, and readiness retain separate elapsed times. A timeout writes
 failed evidence for the exact phase that did not converge.
+
+## Release Readiness Checklist
+
+Run the resource preflight before any release expected to compile several Rust image
+families or retain a large BuildKit export. The default 320 GiB growth allowance covers
+the observed 294.57 GB managed-worker peak, while the 20 percent filesystem reserve
+keeps the host below the kubelet image-GC boundary with room for ordinary runtime writes.
+
+```bash
+cargo xtask release preflight \
+  --expected-growth-gib 320 \
+  --kubernetes-node <node-name> \
+  --namespace <workload-namespace>
+```
+
+The command fails when projected growth would consume the reserve, or when the selected
+node is not Ready or reports disk pressure. It reports managed BuildKit usage through
+`buildctl`; Docker's aggregate build-cache summary is not evidence for this worker.
+
+Complete these checkpoints in order. Preserve failed evidence beside the later passing
+run because a retry does not erase the cost or the cause.
+
+- [ ] Start from a clean commit and resolve the complete source revision from Git.
+- [ ] Run `cargo xtask image affected --since <accepted-revision>` and publish only its
+      image, chart, SDK, or compatibility closure.
+- [ ] Run package and contract checks through `cargo xtask test-report run`; inspect the
+      committed green report before publication.
+- [ ] Verify the host budget, managed BuildKit cache, node Ready condition, disk pressure,
+      and retained Evicted pod inventory with `cargo xtask release preflight`.
+- [ ] Confirm that the host push registry and cluster pull registry are reachable through
+      their declared transports before starting a solve.
+- [ ] Keep registry artifacts, persistent volumes, rollback images, and the warm builder.
+      Reclaim only superseded material or rebuildable cache selected by exact identity.
+- [ ] Run direct MCP conformance for every changed server, then test the composed gateway
+      policy decision for each projected resource, prompt, and tool.
+- [ ] For MCP Apps, require the signed-in `/console/api/apps` catalog with no degradations,
+      the expected `ui://` resource set, server-grouped navigation, and every App rendered
+      by `cargo xtask smoke console-apps-browser-verify`.
+- [ ] Reconcile Flux to the complete commit, require exact source and applied revisions,
+      require every Helm inventory and Deployment to become Ready, and retain any failed
+      convergence record.
+- [ ] Before visual evidence, attach to headed Chrome and probe WebGPU and WebGL separately.
+      At least one must name hardware NVIDIA; record software WebGPU even when WebGL passes.
+- [ ] Remove only stale acceptance targets, verified-unowned Chrome singleton links,
+      temporary pod binaries, and controller-superseded failed pods after acceptance.
+- [ ] Repeat the host and node preflight after publication. Do not end a release with the
+      node near eviction pressure.
 
 ## Acceptance Checkpoints
 
@@ -378,6 +426,17 @@ useful when a similar boundary regresses:
 | A fixed physics-step partition made simulation speed depend on RTX viewer cadence | dual native viewer acceptance delivered steady 1280×720 NVENC streams but ended at 0.8956 real-time factor because every render always advanced only three or four physics steps | derive due fixed steps from elapsed monotonic time, retain bounded physics debt, and coalesce missed visual deadlines into one render of the newest authoritative state without weakening the simulation real-time-factor gate |
 | A producer-authored video keyframe column interacted with separately compacted live batches in Rerun 0.35 | focused governed-live verification reached the authenticated viewer in about 16 s, then its video cache panicked while indexing a physical chunk whose sparse `VideoStream:sample` offsets had fewer entries than rows | follow the pinned SDK's sample-only producer profile, derive sync samples from H.264 bytes, omit keyframe columns from the internal live projection, and retain canonical derived markers only in archive materialization |
 | Archive acceptance reused a live changing-camera color and edge threshold for one static decoded frame | 24.36 s opened the complete lazy archive and rendered a real dark rooftop camera image before rejecting its low chroma and zero quantized-edge score | require dimensions, color diversity, bounded dominance, and luminance variance for a static archive frame; retain changed-pixel and stronger detail gates for advancing live playback |
+| Host Cargo used the machine's 32 logical CPUs during a broad release check | concurrent Rust compilers and linkers consumed about 62 GiB on a host without swap, the host stopped responding, and Kubernetes evicted workloads | default Cargo subprocesses launched by xtask and the evidence recorder to four jobs; keep an explicit `CARGO_BUILD_JOBS` override for measured hosts |
+| The managed BuildKit worker grew outside Docker's aggregate build-cache accounting | `buildctl du` reported 294.57 GB while `docker system df` reported zero build cache; the root filesystem crossed the kubelet image-GC threshold and pods were evicted | make `cargo xtask release preflight` inspect the managed worker directly and reject projected growth that would consume the retained filesystem reserve |
+| Kubernetes had to pull a garbage-collected SurrealDB dependency during recovery | the public image pull took 4 min 5 s while dependent services remained unavailable and rollout diagnosis was delayed | inventory immutable cluster dependencies before mutation and retain or pre-pull any dependency whose absence would block recovery |
+| Helm rollback diagnosis treated controller-owned terminating pods as interchangeable leftovers | five pods remained terminating while their ReplicaSets and Deployments were still converging, which obscured the current owner and delayed safe intervention | report deletion timestamp, owner, current ReplicaSet, desired revision, and readiness before deleting anything; remove only controller-superseded objects |
+| A host failure left Chrome profile singleton links after the browser process disappeared | the canonical headed profile could not restart until the stale socket, cookie, and lock identities were distinguished from a live browser | verify that no profile process or DevTools listener owns the singleton identities before removing them; never delete the profile or its session state |
+| Chrome exposed software WebGPU and hardware NVIDIA WebGL in the same headed session | a single pass/fail GPU label would either accept SwiftShader as hardware or reject a valid RTX 4090 WebGL path | probe and record both APIs, reject every software renderer as hardware evidence, and pass only when at least one API is hardware-backed NVIDIA |
+| The UAV App host preflight passed while nine new Console Apps were absent | the focused command proved only the existing UAV Console and standalone frames; it never inspected the complete signed-in catalog | add `console-apps-browser-verify` to require the expected `ui://` set, deterministic server groups, zero catalog degradations, and one headed render per App |
+| Direct server App conformance passed while gateway policy removed every new `ui://` resource | each server returned valid App resources in-cluster, but new policy rules admitted only the domain scheme; Datasheet had no policy rules | test `GatewayCatalog::decide` for every first-party App URI under every Console profile and keep `ui` in the canonical resource-scheme policy |
+| A long GitOps convergence attempt wrote failed evidence before a warm retry passed in 11.3 s | the first 1,200-second window captured real pull and rollout delay; treating the retry as the only result would hide the release cost | retain create-only failed and passing convergence evidence and attribute source fetch, apply, image pull, rollout, and readiness independently |
+| Historical Evicted pod objects made the namespace look unhealthy after live workloads recovered | current Deployments were Ready while old failed pod rows remained visible in broad pod listings | make the preflight count historical evictions as a cleanup hint and remove only controller-superseded failed objects after acceptance |
+| Direct MCP conformance was used as a proxy for composed Console availability | server contracts were healthy, yet policy projection yielded a seven-App catalog instead of the expected release surface | treat server conformance and signed-in gateway composition as separate mandatory checkpoints; neither substitutes for the other |
 
 ## Qualification
 

@@ -17,9 +17,10 @@ mod browser;
 mod restart;
 
 use browser::{
-    ConsoleAgentInstructionEvidence, ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence,
-    ConsoleMapWorkspaceCaptureEvidence, ConsoleRecordingArchiveCaptureEvidence,
-    ConsoleRecordingCaptureEvidence, MapWorkspaceCaptureEvidence, capture_console_live_app,
+    ConsoleAgentInstructionEvidence, ConsoleAppExpectation, ConsoleAppsCatalogEvidence,
+    ConsoleLiveCaptureEvidence, ConsoleLiveGridEvidence, ConsoleMapWorkspaceCaptureEvidence,
+    ConsoleRecordingArchiveCaptureEvidence, ConsoleRecordingCaptureEvidence,
+    MapWorkspaceCaptureEvidence, capture_console_apps_catalog, capture_console_live_app,
     capture_console_live_app_five_user_grid, capture_console_live_app_grid,
     capture_console_live_app_pair, capture_console_map_workspace_app, capture_console_recording,
     capture_console_recording_archive, capture_map_workspace_app, preflight_console_live_app,
@@ -41,6 +42,88 @@ const QUALIFIED_CAMERA_IDS: [&str; 5] = [
 const FOCUSED_UAV_APP_HOST_PREFLIGHTS: [FocusedUavAppHostPreflight; 2] = [
     FocusedUavAppHostPreflight::Console,
     FocusedUavAppHostPreflight::Standalone,
+];
+const FIRST_PARTY_CONSOLE_APPS: [ConsoleAppExpectation; 16] = [
+    ConsoleAppExpectation {
+        server: "artifact",
+        resource_uri: "ui://artifact/library.html",
+        marker: "Library",
+    },
+    ConsoleAppExpectation {
+        server: "recording",
+        resource_uri: "ui://recording/explorer.html",
+        marker: "Explorer",
+    },
+    ConsoleAppExpectation {
+        server: "optimization",
+        resource_uri: "ui://optimization/routes.html",
+        marker: "Routes",
+    },
+    ConsoleAppExpectation {
+        server: "optimization",
+        resource_uri: "ui://optimization/models.html",
+        marker: "Models",
+    },
+    ConsoleAppExpectation {
+        server: "reason",
+        resource_uri: "ui://reason/analyses.html",
+        marker: "Analyses",
+    },
+    ConsoleAppExpectation {
+        server: "media",
+        resource_uri: "ui://media/studio.html",
+        marker: "Studio",
+    },
+    ConsoleAppExpectation {
+        server: "duckdb",
+        resource_uri: "ui://duckdb/workbench.html",
+        marker: "Workbench",
+    },
+    ConsoleAppExpectation {
+        server: "datasheet",
+        resource_uri: "ui://datasheet/workbench.html",
+        marker: "Workbench",
+    },
+    ConsoleAppExpectation {
+        server: "frames",
+        resource_uri: "ui://frames/workspace.html",
+        marker: "Workspace",
+    },
+    ConsoleAppExpectation {
+        server: "time",
+        resource_uri: "ui://time/timeline.html",
+        marker: "Timeline",
+    },
+    ConsoleAppExpectation {
+        server: "charts",
+        resource_uri: "ui://charts/composer.html",
+        marker: "Composer",
+    },
+    ConsoleAppExpectation {
+        server: "map",
+        resource_uri: "ui://map/workspace.html",
+        marker: "Workspace",
+    },
+    ConsoleAppExpectation {
+        server: "stream",
+        resource_uri: "ui://stream/live.html",
+        marker: "Live Monitor",
+    },
+    ConsoleAppExpectation {
+        server: "timeseries",
+        resource_uri: "ui://timeseries/forecast.html",
+        marker: "Forecasts",
+    },
+    ConsoleAppExpectation {
+        server: "uav-sim",
+        resource_uri: "ui://uav-sim/live.html",
+        marker: "Live Cameras",
+    },
+    ConsoleAppExpectation {
+        server: "view",
+        resource_uri: "ui://view/preview.html",
+        marker: "Preview",
+    },
 ];
 const OPERATOR_PROFILE_SCOPES: &[&str] = &[
     "operator:use",
@@ -123,6 +206,17 @@ enum SmokeCommand {
         #[arg(long, default_value = "http://127.0.0.1:9222")]
         chrome_cdp_url: String,
         #[arg(long, default_value_t = 180)]
+        timeout_seconds: u64,
+    },
+    /// Verify the complete grouped first-party App catalog and render every expected App.
+    ConsoleAppsBrowserVerify {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value = "output/acceptance/console-apps")]
+        evidence_root: PathBuf,
+        #[arg(long, default_value_t = 300)]
         timeout_seconds: u64,
     },
     /// Repeat headed Console acceptance without restarting or commanding the simulation.
@@ -301,6 +395,16 @@ struct MapWorkspaceLiveBrowserAcceptanceEvidence {
     workspace: ConsoleMapWorkspaceCaptureEvidence,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConsoleAppsBrowserAcceptanceEvidence {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: String,
+    run_id: String,
+    catalog: ConsoleAppsCatalogEvidence,
+}
+
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SourceTimelineSample {
@@ -418,6 +522,20 @@ async fn main() -> Result<()> {
             verify_uav_app_hosts(
                 &public_base_url,
                 &chrome_cdp_url,
+                Duration::from_secs(timeout_seconds),
+            )
+            .await
+        }
+        SmokeCommand::ConsoleAppsBrowserVerify {
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+            timeout_seconds,
+        } => {
+            verify_console_apps(
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
                 Duration::from_secs(timeout_seconds),
             )
             .await
@@ -545,6 +663,52 @@ async fn verify_map_workspace(
         .with_context(|| format!("writing Map workspace evidence {}", manifest.display()))?;
     println!(
         "Map workspace rendered its persistent hardware WebGL2 map and completed bounded authored and source-release viewport queries. Evidence: {}",
+        manifest.display()
+    );
+    Ok(())
+}
+
+async fn verify_console_apps(
+    public_base_url: &str,
+    chrome_cdp_url: &str,
+    evidence_root: &Path,
+    timeout: Duration,
+) -> Result<()> {
+    let public_base_url = public_base_url.trim_end_matches('/');
+    ensure!(
+        url::Url::parse(public_base_url)?.scheme() == "https",
+        "Console Apps acceptance requires public HTTPS"
+    );
+    let source_revision = git_revision()?;
+    let run_id = uuid::Uuid::now_v7().to_string();
+    let evidence_directory = evidence_root.join(&source_revision).join(&run_id);
+    fs::create_dir_all(&evidence_directory).with_context(|| {
+        format!(
+            "creating Console Apps browser evidence directory {}",
+            evidence_directory.display()
+        )
+    })?;
+    let catalog = capture_console_apps_catalog(
+        chrome_cdp_url,
+        public_base_url,
+        &FIRST_PARTY_CONSOLE_APPS,
+        &evidence_directory,
+        timeout,
+    )
+    .await?;
+    let evidence = ConsoleAppsBrowserAcceptanceEvidence {
+        schema: "veoveo.io/console-apps-browser-acceptance/v1",
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        catalog,
+    };
+    let manifest = evidence_directory.join("evidence.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&evidence)?)
+        .with_context(|| format!("writing Console Apps evidence {}", manifest.display()))?;
+    println!(
+        "Console projected the complete grouped first-party App catalog and rendered all {} expected Apps through headed hardware graphics. Evidence: {}",
+        FIRST_PARTY_CONSOLE_APPS.len(),
         manifest.display()
     );
     Ok(())
@@ -1392,6 +1556,21 @@ mod tests {
     #[test]
     fn focused_uav_acceptance_preflights_both_app_hosts() {
         assert_eq!(focused_uav_app_host_preflights(), ["console", "standalone"]);
+    }
+
+    #[test]
+    fn composed_console_acceptance_covers_the_complete_first_party_catalog() {
+        assert_eq!(FIRST_PARTY_CONSOLE_APPS.len(), 16);
+        assert!(
+            FIRST_PARTY_CONSOLE_APPS
+                .iter()
+                .any(|app| app.resource_uri == "ui://charts/composer.html")
+        );
+        assert!(
+            FIRST_PARTY_CONSOLE_APPS
+                .iter()
+                .any(|app| app.resource_uri == "ui://datasheet/workbench.html")
+        );
     }
 
     #[test]

@@ -8,6 +8,7 @@ pub(crate) mod image_manifest;
 pub(crate) mod python;
 pub(crate) mod registry;
 pub(crate) mod release;
+pub(crate) mod release_preflight;
 pub(crate) mod simulation;
 pub(crate) mod smoke;
 pub(crate) mod source;
