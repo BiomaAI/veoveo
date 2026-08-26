@@ -1,60 +1,164 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:f09dd0023624a704932611363612a97391b8d66bc5debc2d22ec5edafdfc5242",
-  "updatedAt": "2026-08-26T06:20:29Z",
+  "buildDigest": "sha256:d1f665662b651c4c8a14eba6f9e4f0cb3586070d41373d30e45306b04e351021",
+  "updatedAt": "2026-08-26T17:11:58Z",
   "checks": [
     {
-      "name": "rustfs-artifact-service",
+      "name": "console-build",
       "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-artifact-service",
-        "--all-targets"
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T06:18:18Z",
-      "durationSeconds": 5.974624098,
+      "finishedAt": "2026-08-26T17:02:07Z",
+      "durationSeconds": 5.260800144,
       "detail": "completed successfully"
     },
     {
-      "name": "rustfs-helm",
+      "name": "console-lint",
       "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T17:01:51Z",
+      "durationSeconds": 4.2745791969999996,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-tests",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "test"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T17:01:55Z",
+      "durationSeconds": 0.359526347,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "cuopt-gpu",
+      "command": [
+        "bash",
+        "-lc",
+        "set -euo pipefail\ncontainer_name=veoveo-cuopt-2608-test\nif docker ps -a --filter \"name=^/${container_name}$\" --format \"{{.ID}}\" | grep -q .; then\n  echo \"refusing to replace existing container ${container_name}\" >&2\n  exit 1\nfi\ntest_dir=$(mktemp -d /tmp/veoveo-cuopt-2608-test.XXXXXX)\ncase \"${test_dir}\" in /tmp/veoveo-cuopt-2608-test.*) ;; *) echo \"unexpected temp directory ${test_dir}\" >&2; exit 1 ;; esac\ncleanup() {\n  docker stop --timeout 10 \"${container_name}\" >/dev/null 2>&1 || true\n  if [ -d \"${test_dir}\" ] && [ ! -L \"${test_dir}\" ]; then find \"${test_dir}\" -xdev -depth -delete; fi\n}\ntrap cleanup EXIT\ndocker run --detach --rm --name \"${container_name}\" --gpus device=0 --user \"$(id -u):$(id -g)\" --volume \"${test_dir}:/run/veoveo-cuopt\" veoveo/cuopt-executor:0.1.0 >/dev/null\nfor _ in $(seq 1 180); do\n  if [ -S \"${test_dir}/executor.sock\" ]; then break; fi\n  if ! docker ps --filter \"name=^/${container_name}$\" --format \"{{.ID}}\" | grep -q .; then docker logs \"${container_name}\" >&2 || true; exit 1; fi\n  sleep 1\ndone\nif [ ! -S \"${test_dir}/executor.sock\" ]; then docker logs \"${container_name}\" >&2 || true; exit 1; fi\nVEOVEO_CUOPT_TEST_SOCKET=\"${test_dir}/executor.sock\" cargo test -p veoveo-optimization-mcp --test cuopt_gpu -- --ignored --nocapture\n"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T17:10:55Z",
+      "durationSeconds": 15.914421375,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "cuopt-python-tests",
+      "command": [
+        "env",
+        "PYTHONPATH=servers/optimization-mcp/executor",
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "servers/optimization-mcp/executor/tests"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T17:11:58Z",
+      "durationSeconds": 0.171781295,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "helm-config",
+      "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
         "cargo",
         "xtask",
         "smoke",
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T06:18:24Z",
-      "durationSeconds": 4.567324024,
+      "finishedAt": "2026-08-26T17:02:18Z",
+      "durationSeconds": 5.815751361,
       "detail": "completed successfully"
     },
     {
-      "name": "rustfs-offline-contract",
+      "name": "python-enforce",
       "command": [
         "cargo",
-        "test",
-        "-p",
-        "veoveo-smoke",
-        "--test",
-        "offline_contract"
+        "xtask",
+        "enforce",
+        "python"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T06:20:29Z",
-      "durationSeconds": 124.354040054,
+      "finishedAt": "2026-08-26T17:01:26Z",
+      "durationSeconds": 12.548535897,
       "detail": "completed successfully"
     },
     {
-      "name": "rustfs-upgrade",
+      "name": "rerun-hub-image",
       "command": [
-        "bash",
-        "-lc",
-        "set -euo pipefail\ncontainer_name=veoveo-rustfs-upgrade-test\ncleanup_image=rustfs/rustfs@sha256:800cf3f352a0a27e3275ca854a51f0027975d7acc7a0d52089a35bcc9fcbf0b5\nif docker ps -a --filter \"name=^/${container_name}$\" --format \"{{.ID}}\" | grep -q .; then\n  echo \"refusing to replace existing container ${container_name}\" >&2\n  exit 1\nfi\nif ss -ltn \"sport = :19000\" | tail -n +2 | grep -q .; then\n  echo \"TCP port 19000 is already in use\" >&2\n  exit 1\nfi\ntest_dir=$(mktemp -d /tmp/veoveo-rustfs-upgrade.XXXXXX)\ncase \"${test_dir}\" in /tmp/veoveo-rustfs-upgrade.*) ;; *) echo \"unexpected temp directory ${test_dir}\" >&2; exit 1 ;; esac\nmkdir \"${test_dir}/data\" \"${test_dir}/logs\"\nchmod 0777 \"${test_dir}/data\" \"${test_dir}/logs\"\ncleanup() {\n  docker stop --time 10 \"${container_name}\" >/dev/null 2>&1 || true\n  docker rm \"${container_name}\" >/dev/null 2>&1 || true\n  if [ -d \"${test_dir}\" ] && [ ! -L \"${test_dir}\" ]; then\n    if docker run --rm --user 0 --entrypoint find --volume \"${test_dir}:/inspect:ro\" \"${cleanup_image}\" /inspect -xdev -type l -print | grep -q .; then\n      echo \"refusing to delete RustFS test directory containing symlinks\" >&2\n      return 1\n    fi\n    docker run --rm --user 0 --entrypoint find --volume \"${test_dir}:/cleanup\" \"${cleanup_image}\" /cleanup -mindepth 1 -xdev -depth -delete\n    rmdir \"${test_dir}\"\n  fi\n}\ntrap cleanup EXIT\nstart_rustfs() {\n  image_ref=$1\n  docker run --detach --rm --name \"${container_name}\" \\\n    --publish 127.0.0.1:19000:9000 \\\n    --env RUSTFS_ACCESS_KEY=veoveo-upgrade \\\n    --env RUSTFS_SECRET_KEY=veoveo-upgrade-secret-not-default \\\n    --env RUSTFS_CONSOLE_ENABLE=false \\\n    --volume \"${test_dir}/data:/data\" \\\n    --volume \"${test_dir}/logs:/logs\" \\\n    \"${image_ref}\" /data >/dev/null\n  for _ in $(seq 1 180); do\n    if curl --silent --fail http://127.0.0.1:19000/health >/dev/null; then return; fi\n    if ! docker ps --filter \"name=^/${container_name}$\" --format \"{{.ID}}\" | grep -q .; then docker logs \"${container_name}\" >&2 || true; exit 1; fi\n    sleep 1\n  done\n  docker logs \"${container_name}\" >&2 || true\n  exit 1\n}\nstop_rustfs() {\n  docker stop --time 30 \"${container_name}\" >/dev/null\n}\nstart_rustfs rustfs/rustfs@sha256:fa19210ac4697c79d7ccca1ec9b0eb91aebacc6691991ffb14014bb3c67e6cc3\ndocker run --rm --network host \\\n  --env AWS_ACCESS_KEY_ID=veoveo-upgrade \\\n  --env AWS_SECRET_ACCESS_KEY=veoveo-upgrade-secret-not-default \\\n  --env AWS_DEFAULT_REGION=us-east-1 \\\n  amazon/aws-cli@sha256:0425835c7c9e33a747dfd499dcd3603ec802662f7f7ded42d8fc81ce7b712bf9 \\\n  --endpoint-url http://127.0.0.1:19000 s3api create-bucket --bucket veoveo-upgrade >/dev/null\nVEOVEO_RUSTFS_TEST_ENDPOINT=http://127.0.0.1:19000 \\\nVEOVEO_RUSTFS_TEST_BUCKET=veoveo-upgrade \\\nVEOVEO_RUSTFS_TEST_ACCESS_KEY=veoveo-upgrade \\\nVEOVEO_RUSTFS_TEST_SECRET_KEY=veoveo-upgrade-secret-not-default \\\nVEOVEO_RUSTFS_TEST_PHASE=write \\\n  cargo test -p veoveo-artifact-service --test rustfs_integration \\\n    multipart_range_and_restart_persistence -- --ignored --exact --nocapture\nstop_rustfs\nstart_rustfs rustfs/rustfs@sha256:800cf3f352a0a27e3275ca854a51f0027975d7acc7a0d52089a35bcc9fcbf0b5\nVEOVEO_RUSTFS_TEST_ENDPOINT=http://127.0.0.1:19000 \\\nVEOVEO_RUSTFS_TEST_BUCKET=veoveo-upgrade \\\nVEOVEO_RUSTFS_TEST_ACCESS_KEY=veoveo-upgrade \\\nVEOVEO_RUSTFS_TEST_SECRET_KEY=veoveo-upgrade-secret-not-default \\\nVEOVEO_RUSTFS_TEST_PHASE=verify \\\n  cargo test -p veoveo-artifact-service --test rustfs_integration \\\n    multipart_range_and_restart_persistence -- --ignored --exact --nocapture\nstop_rustfs\n"
+        "cargo",
+        "xtask",
+        "image",
+        "build",
+        "--target",
+        "recording-hub"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T06:14:38Z",
-      "durationSeconds": 6.312809647,
+      "finishedAt": "2026-08-26T17:05:05Z",
+      "durationSeconds": 18.981001277,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "rerun-legacy-image",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "build",
+        "--target",
+        "mcp-legacy-bridge"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T17:04:42Z",
+      "durationSeconds": 18.493652175,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "rerun-stdio-image",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "build",
+        "--target",
+        "mcp-stdio-bridge"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T17:04:17Z",
+      "durationSeconds": 20.444190198,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "rust-enforce",
+      "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
+        "cargo",
+        "xtask",
+        "enforce",
+        "rust"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T17:00:46Z",
+      "durationSeconds": 611.856555751,
       "detail": "completed successfully"
     }
   ]

@@ -57,7 +57,7 @@ RUN patch --directory=/src/cesium-package --strip=1 < /tmp/cesium.patch \
 
 FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS uav-overlay
 
-ARG RERUN_SDK_VERSION=0.36.2
+ARG RERUN_SDK_VERSION=0.36.3
 ARG AIOHAPPYEYEBALLS_VERSION=2.7.1
 ARG AIOHTTP_VERSION=3.14.1
 ARG AIOSIGNAL_VERSION=1.4.0
@@ -105,7 +105,7 @@ RUN /isaac-sim/python.sh -m pip install \
 COPY --from=uav-upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
 RUN PYTHONPATH=/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python \
     /isaac-sim/python.sh -c \
-      'import rerun; assert rerun.__version__ == "0.36.2"'
+      'import rerun; assert rerun.__version__ == "0.36.3"'
 
 ENV MAVLINK20=1 \
     PYTHONPATH=/opt/veoveo/uav-sim:/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python:/opt/veoveo/simulation-overlay:${PYTHONPATH} \

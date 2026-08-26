@@ -82,7 +82,7 @@ hmac = "0.13.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
 hifitime = { version = "4.3.1", default-features = false, features = ["std"] }
 h264-reader = "0.8.0"
-jsonschema = "=0.49.9"
+jsonschema = "=0.51.0"
 jiff = { version = "0.2.35", features = ["tz-system"] }
 jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 memmap2 = "=0.9.11"
@@ -107,26 +107,26 @@ reqwest = { version = "0.13.4", default-features = false }
 # governed resource reads, and request-boundary preflight not yet released upstream.
 rig = { git = "https://github.com/rozgo/rig.git", rev = "eefffb118579cd4b1a48f8d7cd9bd04354b57634", features = ["rmcp"] }
 prost = "=0.14.4"
-re_dataframe = "=0.36.2"
-re_chunk = "=0.36.2"
-re_chunk_store = "=0.36.2"
-re_entity_db = "=0.36.2"
+re_dataframe = "=0.36.3"
+re_chunk = "=0.36.3"
+re_chunk_store = "=0.36.3"
+re_entity_db = "=0.36.3"
 rcgen = "0.14.9"
-re_sdk = "=0.36.2"
-re_sdk_types = "=0.36.2"
-re_types_core = "=0.36.2"
-re_byte_size = "=0.36.2"
-re_grpc_server = "=0.36.2"
-re_grpc_client = "=0.36.2"
-re_log_channel = "=0.36.2"
-re_log_encoding = { version = "=0.36.2", features = ["encoder", "decoder"] }
-re_log_types = "=0.36.2"
-re_auth = "=0.36.2"
-re_protos = "=0.36.2"
-re_server = "=0.36.2"
-re_tuid = "=0.36.2"
-re_uri = "=0.36.2"
-re_build_info = "=0.36.2"
+re_sdk = "=0.36.3"
+re_sdk_types = "=0.36.3"
+re_types_core = "=0.36.3"
+re_byte_size = "=0.36.3"
+re_grpc_server = "=0.36.3"
+re_grpc_client = "=0.36.3"
+re_log_channel = "=0.36.3"
+re_log_encoding = { version = "=0.36.3", features = ["encoder", "decoder"] }
+re_log_types = "=0.36.3"
+re_auth = "=0.36.3"
+re_protos = "=0.36.3"
+re_server = "=0.36.3"
+re_tuid = "=0.36.3"
+re_uri = "=0.36.3"
+re_build_info = "=0.36.3"
 rmcp = { version = "=3.1.4", git = "https://github.com/rozgo/rust-sdk", rev = "bcbc5afc3ba93d40e5449f7217fa08842ca7dd63" }
 rstar = "0.13.0"
 rustls = { version = "0.23.43", default-features = false, features = ["ring", "std", "tls12"] }
