@@ -176,6 +176,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sidebar nav button.nav-active { color: var(--sidebar-text-strong); background: var(--sidebar-active); box-shadow: inset 3px 0 var(--accent); }
 .sidebar nav button.nav-app { padding-left: 26px; min-height: 34px; font-size: var(--text-xs); }
 .sidebar nav button.nav-app img { border-radius: 0; }
+.nav-app-group { margin: 1px 0 3px; }
+.nav-app-group summary {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px 6px 15px;
+  color: var(--sidebar-muted);
+  cursor: pointer;
+  list-style: none;
+  font: 550 var(--text-2xs)/16px var(--mono);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.nav-app-group summary::-webkit-details-marker { display: none; }
+.nav-app-group summary:hover,
+.nav-app-group summary.nav-app-server-active { color: var(--sidebar-text-strong); background: var(--sidebar-hover); }
+.nav-app-chevron { flex: 0 0 auto; transition: transform 120ms ease; }
+.nav-app-group[open] .nav-app-chevron { transform: rotate(90deg); }
+.nav-app-unavailable { margin-left: auto; color: var(--amber); font-size: 9px; }
 .sidebar-foot { display: flex; gap: 9px; align-items: center; min-height: 62px; padding: 11px 15px; border-top: 1px solid var(--border); }
 .sidebar-foot strong, .sidebar-foot span { display: block; }
 .sidebar-foot strong { font-size: var(--text-xs); line-height: 17px; }
@@ -591,7 +611,14 @@ a.button { text-decoration: none; }
   border: 0;
   border-radius: 0;
 }
-.app-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 12px; }
+.app-catalog-groups { display: grid; gap: 14px; padding: 12px; }
+.app-catalog-group { border: 1px solid var(--border); background: var(--surface-soft); }
+.app-catalog-group > header { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.app-catalog-group > header strong,
+.app-catalog-group > header span { display: block; }
+.app-catalog-group > header strong { font-size: var(--text-sm); }
+.app-catalog-group > header .mono { margin-top: 2px; font-size: var(--text-2xs); }
+.app-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 10px; }
 .app-card {
   display: flex;
   flex-direction: column;
