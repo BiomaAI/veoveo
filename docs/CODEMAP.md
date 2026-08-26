@@ -46,6 +46,7 @@ change lands:
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | test-driven agent resource continuity and correction, owner-supplied Secret closure, standalone MCP Apps, canonical domain resource handoff, compiler-ready provenance, spatial correctness, and optional or evidence-gated deployment, model, GPU, and private-build work |
+| [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | hosted weather domain server, hosted tabular prediction server over governed tables, and adoption of the MCP skills extension as a contract crate with profile-scoped projection |
 
 MCP designs live with the crate whose public contract they specify:
 
