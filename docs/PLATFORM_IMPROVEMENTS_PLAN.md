@@ -1257,15 +1257,18 @@ ergonomic milestone.
 
 ## Current Cycle: Requests 014–023
 
-Status: approved architecture and implementation plan. Implementation has not started.
-Existing component designs remain normative until each phase lands and deletes the surface it
-replaces.
+Status: approved architecture and implementation plan. Implementation has not started. Phase 1
+may begin after its focused resolver contract is recorded. Decisions needed only by later phases
+do not block unrelated work. Existing component designs remain normative until each phase lands
+and deletes the surface it replaces.
 
-Baseline: Veoveo main `6edf9d6b08886a3503067daa7803098d5ea7bc12` on 2026-08-26. The
-input is the downstream review package `veoveo-platform-improvements-2026-08-26`, which
-reviewed `2e77072ac7c0b88b5eba6336381f621a87171974`. Its ten requests are numbered
-`014` through `023`. Its four patches demonstrate behavior against an older integration
-snapshot and are not a merge series.
+Planning baseline: Veoveo main `6edf9d6b08886a3503067daa7803098d5ea7bc12` on 2026-08-26.
+The implementation review was refreshed at `e1d72227dc681363e47bef5f06e26e5caa738cfd` on the
+same date. The input is the downstream review package
+`veoveo-platform-improvements-2026-08-26`, which reviewed
+`2e77072ac7c0b88b5eba6336381f621a87171974`. Its ten requests are numbered `014` through `023`.
+Its four patches demonstrate behavior against an older integration snapshot and are not a merge
+series.
 
 This plan accepts the downstream outcomes where they strengthen exact App resolution,
 recording use, artifact admission, release visibility, diagnostics, external simulation
@@ -1349,7 +1352,8 @@ qualified shared-device deployment.
 - Revised names, schemas, methods, routes, manifest versions, and query shapes are hard cuts. No
   aliases, compatibility readers, dual writes, or hidden fallback paths remain after a phase.
 - Gateway policy remains the authorization authority. Console may cache one successful resolution
-  only inside the authenticated MCP session and active policy revision.
+  only inside the authenticated browser or OAuth authority scope and active control and policy
+  revisions. MCP transport identity is not a session authority.
 - Exact resolution cannot grant a tool, resource family, subscription, upload profile, or agent
   target that broad authorized discovery would withhold.
 - Unknown or unauthorized App state never reveals whether hidden resources exist.
@@ -1370,8 +1374,9 @@ qualified shared-device deployment.
   and software rasterizers are rejected.
 - Known shapes use typed Rust, Python, and TypeScript models with closed enums. Raw JSON remains at
   genuinely open provider or Kubernetes decode boundaries only.
-- Every growing list has an explicit bound and stable cursor. Every potentially large byte path is
-  streaming or bounded task-local materialization.
+- Every growing list has an explicit bound. Paged surfaces have a stable cursor; deliberately
+  closed snapshots reject overflow. Every potentially large byte path is streaming or bounded
+  task-local materialization.
 - Helm and the installation reconciliation controller retain mutation ownership. Smoke code
   verifies declared lifecycle and never becomes a parallel installer.
 
@@ -1391,9 +1396,18 @@ The recording cut is one release even though implementation uses several commits
 new catalogs, and old playback cannot be independently activated. App resolution may ship before
 recording if it passes its own complete host acceptance.
 
-### Phase 0: Contract Locks And Red Tests
+### Phase 0: Contract Locks And Focused Red Evidence
 
 Phase 0 records the decisions in owning design documents before production code changes.
+
+Only the exact resolver contract blocks Phase 1. Before its production code begins, the owning
+design records one typed operation, its request and response, typed errors, transport projection,
+and focused limits. It reuses existing MCP limits and notification machinery where they fit. It
+does not create a general resolver protocol, cache framework, or discovery service.
+
+The recording retention choice and its focused publication and Arrow-delivery contracts block
+only Phase 2 activation. Live-view qualification, GPU evidence, provider capability inventory,
+and deployment ownership remain gates for their own phases.
 
 #### Required design updates
 
@@ -1412,7 +1426,7 @@ Phase 0 records the decisions in owning design documents before production code 
 `docs/CODEMAP.md` changes in the same implementation commits when a new SDK package, catalog
 module, or conformance component is placed.
 
-#### Required failing tests
+#### Required red evidence
 
 - exact App load fails when the existing broad catalog waits on an unrelated server;
 - App bridge rejects `resources/list` because the host advertises but does not implement it;
@@ -1431,7 +1445,9 @@ module, or conformance component is placed.
   release or cannot demonstrate zero writes.
 
 Tests remain focused at their owning boundary. Linux deployment, GPU, and headed-browser failures
-are recorded only in the applicable remote acceptance environment.
+are recorded only in the applicable remote acceptance environment. Expected failures may be
+captured locally to prove the missing behavior, but commits and `testing/local-test-report.json`
+remain green. A focused regression test lands with the implementation that makes it pass.
 
 ### Phase 1: Exact App Authority And Recovering Hosts
 
@@ -1462,11 +1478,14 @@ The projected App resource may carry repository-owned exact-resolution metadata 
 but the Gateway library result is the authority. A BFF-only `/console/api/apps/resolve` route is a
 same-origin projection, not a new authorization service.
 
-Successful resolutions use single-flight caching keyed by authenticated MCP session, control
-revision, policy revision, actor authority fingerprint, owner server, and exact App URI. Failures
-are not retained. Relevant `resources/list_changed`, `tools/list_changed`, policy activation, or
-session replacement invalidates the entry. A broad App-catalog refresh cannot invalidate an
-unrelated exact resolution unless the control or policy revision changes.
+Successful resolutions use single-flight caching keyed by authenticated browser or OAuth
+authority scope, control revision, policy revision, actor authority fingerprint, owner server,
+and exact App URI. The entry uses the existing bounded MCP cache lifetime. Failures are not
+retained. Relevant owner `resources/list_changed`, `tools/list_changed`, exact subscribed resource
+updates, policy or control activation, owner replacement, or authority-scope replacement
+invalidates the entry. A broad App-catalog refresh cannot invalidate an unrelated exact
+resolution unless one of those inputs changes. This is a focused cache beside the resolver, not a
+repository-wide cache subsystem.
 
 #### Required consumers
 
@@ -1487,7 +1506,10 @@ UX. It is never a prerequisite for a known App route.
 #### App-scoped `resources/list`
 
 The host answers standard bridge `resources/list` with one finite, cursor-free view of the
-already resolved closure. It does not call broad Gateway discovery again.
+already resolved closure. The owning contract sets fixed limits for declared dependencies,
+families, concrete resources, total bytes, and resolution duration and returns one typed overflow
+outcome. It reuses existing repository limits where suitable. It does not call broad Gateway
+discovery again.
 
 Each family record contains:
 
@@ -1552,6 +1574,10 @@ web client. Retain `app_catalog()` only for gallery listing and gallery change e
 This phase replaces `RECORDING-PROJECTION-016` and the current archive architecture. It is one
 activation boundary even when implementation is divided into reviewable commits.
 
+Before activation, the installation owner records one retention choice: run the offline migration
+or explicitly discard recordings made under the old architecture. The implementation supports
+only that selected cutover. This choice does not block Phase 1 or other independent work.
+
 #### Canonical Rerun object model
 
 The new identity hierarchy is:
@@ -1582,7 +1608,7 @@ or an explicit offline migration.
 #### Durable byte and manifest authority
 
 The active writer retains task-local or pod-local persistent storage while a segment is open.
-Every freeze performs the following transaction protocol:
+Every freeze performs the following retry-safe publication protocol:
 
 1. Complete Rerun object-store optimization, footer generation, Store ID normalization, H.264
    GOP validation, and SHA-256 calculation in a staging file.
@@ -1590,8 +1616,14 @@ Every freeze performs the following transaction protocol:
 3. Verify the stored byte length and digest.
 4. Commit the object identity, layer name, recording, dataset, ordinal, time bounds, Rerun version,
    schema digest, and artifact occurrence in SurrealDB.
-5. Announce the catalog revision only after the durable transaction commits.
+5. Announce the catalog revision only after the SurrealDB occurrence commits.
 6. Remove the local frozen source after retention of the staging recovery window.
+
+The digest and immutable layer identity determine the object key, and the database enforces one
+occurrence for that layer revision. Retrying any step converges on those identities. A bounded
+cleanup pass removes published objects that never acquired a committed occurrence after the
+staging recovery window. This is recovery for one known cross-store boundary, not a distributed
+transaction or general workflow framework.
 
 Historical reads resolve internal object-store coordinates from the durable artifact occurrence.
 Signed public URLs are never persisted in the catalog. Production Redap registration uses an
@@ -1612,6 +1644,10 @@ The properties layer contains only metadata safe for a caller already admitted t
 - source and manifest revisions;
 - immutable manifest digest;
 - non-secret model, runtime, scenario, or environment revision when the producer declares it.
+
+The properties layer is emitted when the recording seals and is never updated. Mutable pre-seal
+lifecycle state remains in SurrealDB. A later governed correction creates a new explicitly
+revisioned layer instead of rewriting the sealed properties layer.
 
 Principal identity, group membership, policy rules, credentials, filesystem paths, private object
 coordinates, and internal failure text never enter RRD properties. Classification and labels
@@ -1692,9 +1728,20 @@ verifies equal column lengths and finite constrained numeric values, computes th
 streams the completed file. Cancellation removes scratch state. Repeated requests against the
 same immutable manifest and query revision produce identical bytes and digest.
 
+The service also reserves scratch bytes before work begins and enforces fixed per-pod aggregate
+scratch and concurrent-projection limits with installation disk headroom. Startup removes expired
+scratch files. These limits protect the existing projection path; they do not introduce a general
+storage quota service.
+
 The result metadata contains recording, dataset, manifest, query, timeline, units, coordinate
 frame references, sample grid, omitted-sample counts, Arrow schema digest, byte length, and
 payload digest. It contains no cookie, Gateway bearer, Redap token, object URL, or filesystem path.
+
+The exact App host redeems the projection through one typed, same-origin BFF streaming path and
+delivers the response through a host-mediated streaming bridge. The frame receives neither the
+internal route nor its authorization material, and no layer materializes the response as one
+`ArrayBuffer`. Phase 2 records the qualified browser primitive in the owning design; it does not
+create a general-purpose transport subsystem.
 
 #### Live and archive relationship
 
@@ -1746,10 +1793,11 @@ Delete:
 - stale claims that a separately deployed OSS `rerun server` serves Hub files;
 - any bespoke little-endian numeric projection considered during implementation.
 
-If existing recordings must survive, provide one offline migration command. It rewrites Store IDs,
-generates properties, publishes immutable objects, commits the new manifest, and verifies the new
-Redap segment before activation. Runtime code never reads both architectures. If retention is not
-required, the installation discards old recordings explicitly.
+When the recorded retention choice requires preservation, one offline migration command rewrites
+Store IDs, generates properties, publishes immutable objects, commits the new manifest, and
+verifies the new Redap segment before activation. Otherwise the installation explicitly discards
+old recordings. Runtime code never reads both architectures, and one installation cannot activate
+both cutover choices.
 
 #### Acceptance
 
@@ -1916,6 +1964,11 @@ mirror, or physics state. External implementations retain their own GPU qualific
 No initial phase changes `servers/uav-sim-mcp/src/server/live_view.rs`, simulator camera products,
 NVENC behavior, WebSocket framing, or qualified camera layouts.
 
+Schema, SDK, fixture, and generic-harness work may proceed before a qualified external GPU
+implementation is available. The external five-user hardware claim closes only after an owner
+names that implementation and it passes the existing gate. The contract-only fixture is not
+visual or GPU acceptance evidence.
+
 ### Phase 6: Accelerator Memory And Reasoning Admission
 
 #### Qualified accelerator memory
@@ -1950,6 +2003,11 @@ Admission runs during pure deployment-profile compilation before Helm rendering 
 mutation. NVML measurements after startup become drift evidence. They may fail acceptance or
 require requalification, but they cannot admit an otherwise unsafe profile.
 
+The owning workload records peak bytes from its existing qualified hardware scenario, including
+the declared replica concurrency and a fixed safety margin. The image, model, runtime, CUDA, and
+device tuple identifies that evidence. Phase 6 may refine the scenario when a workload needs it;
+the platform does not add a general benchmark authority or infer a maximum from an unbounded run.
+
 Tests cover overflow, missing values, persistent greater than peak, insufficient headroom,
 replica multiplication, capacity-source mismatch, evidence invalidation, and a safe exact fit.
 Linux acceptance proves that an unsafe group creates no Pod or Helm mutation.
@@ -1982,7 +2040,8 @@ as `provider_default`, `disabled`, or the named admitted effort without exposing
 or provider request bodies.
 
 Implementation starts only after an owner supplies the provider/model capability inventory. It
-must not guess current provider behavior from model names.
+must not guess current provider behavior from model names. Missing reasoning inventory blocks only
+reasoning work; it does not block GPU admission or earlier phases.
 
 ### Phase 7: Component-Scoped Deployment Hard Cut
 
@@ -2027,6 +2086,10 @@ Preflight rejects:
 After preflight, orchestration invokes Helm only for selected releases and applies only selected
 raw manifests. It does not render or apply an unselected release as a side effect. Managed fields
 may verify the expected manager and report drift. They do not authorize taking ownership.
+
+This orchestration remains the disposable deployment-profile path. Enterprise installations use
+the declared GitOps and reconciliation boundary; component selection does not create a second
+imperative enterprise installer.
 
 The receipt records selected components, expanded dependencies, source revisions, rendered object
 digests, mutation verbs, and zero-write evidence for unselected objects. It contains no Secret
@@ -2095,7 +2158,7 @@ plan replaces the proposed generic binary format with the Rerun-native hard cut 
 
 Commits stay small and coherent even though activation is a hard cut.
 
-1. Add Phase 0 contract types, design updates, schemas, and failing focused tests.
+1. Add Phase 0 contract types, design updates, and schemas while keeping the repository green.
 2. Implement Gateway exact App resolution and its policy/cache tests.
 3. Migrate BFF and both hosts, add scoped resource listing and recovery, then delete direct broad
    catalog use.
@@ -2115,9 +2178,10 @@ Commits stay small and coherent even though activation is a hard cut.
 14. Run integrated Linux acceptance, update current architecture documents, and close the plan's
     implementation record.
 
-No commit enables a new route before its authorization, bounds, and red tests are present. No
-commit removes an old recording path before all in-repository consumers compile against the new
-contract. The activation commit contains the final configuration and deletion together.
+No commit enables a new route before its authorization, bounds, and focused regression tests are
+present and green. Focused tests land with the implementation that satisfies them. No commit
+removes an old recording path before all in-repository consumers compile against the new contract.
+The activation commit contains the final configuration and deletion together.
 
 ### Documentation And Generated Artifact Closure
 
