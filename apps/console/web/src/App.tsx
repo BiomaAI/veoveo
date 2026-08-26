@@ -1,9 +1,10 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Archive,
   Bot,
   Boxes,
+  ChevronRight,
   FileStack,
   Gauge,
   KeyRound,
@@ -37,6 +38,7 @@ import { TaskDrawer } from "./drawers/TaskDrawer";
 import type { AppDescriptor, ArtifactSummary, TaskSummary } from "./types";
 import { consoleThemes, useTheme, type ConsoleTheme } from "./theme";
 import { isFullBleedApp } from "./appPresentation";
+import { groupAppsByServer, namespacedAppTitle } from "./apps/catalogPresentation";
 
 // Platform-plane views only. Domain servers contribute their own entries
 // through the MCP app catalog — never add a domain page here.
@@ -52,6 +54,17 @@ const navItems = [
   { id: "audit", label: "Audit", icon: KeyRound },
   { id: "cluster", label: "Cluster", icon: Boxes }
 ] as const;
+
+const OPEN_APP_SERVERS_KEY = "veoveo.console.open-app-servers";
+
+function storedOpenAppServers(): Set<string> {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(OPEN_APP_SERVERS_KEY) ?? "[]");
+    return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
 
 type ViewId = (typeof navItems)[number]["id"];
 
@@ -89,6 +102,15 @@ export function App() {
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | undefined>(initial.recordingId);
   const [signOutError, setSignOutError] = useState<string>();
   const [signingOut, setSigningOut] = useState(false);
+  const [openAppServers, setOpenAppServers] = useState(storedOpenAppServers);
+  const apps = useMemo(() => appsCatalog?.apps ?? [], [appsCatalog?.apps]);
+  const appGroups = useMemo(
+    () => groupAppsByServer(apps, appsCatalog?.degradations ?? []),
+    [apps, appsCatalog?.degradations],
+  );
+  const selectedApp = selectedAppUri
+    ? apps.find((app) => app.resourceUri === selectedAppUri)
+    : undefined;
 
   const navigate = useCallback((next: ViewId, recordingId?: string) => {
     setView(next);
@@ -124,6 +146,10 @@ export function App() {
       if (icon) icon.href = logoSource(installation.logo);
     }
   }, [installation]);
+
+  useEffect(() => {
+    window.localStorage.setItem(OPEN_APP_SERVERS_KEY, JSON.stringify([...openAppServers].sort()));
+  }, [openAppServers]);
 
   const signOut = async () => {
     setSigningOut(true);
@@ -164,13 +190,9 @@ export function App() {
     );
   }
 
-  const apps = appsCatalog?.apps ?? [];
-  const selectedApp = selectedAppUri
-    ? apps.find((app) => app.resourceUri === selectedAppUri)
-    : undefined;
   const title =
     view === "apps" && selectedApp
-      ? selectedApp.title ?? selectedApp.name
+      ? namespacedAppTitle(selectedApp)
       : navItems.find((item) => item.id === view)?.label ?? "Overview";
   const currentArtifact = selectedArtifact && snapshot.artifacts.find((item) => item.id === selectedArtifact.id);
   const currentTask = selectedTask && snapshot.tasks.find((item) => item.id === selectedTask.id);
@@ -204,19 +226,41 @@ export function App() {
                 <span>{label}</span>
               </button>
               {id === "apps" &&
-                apps.map((app) => (
-                  <button
-                    key={app.resourceUri}
-                    className={`nav-app ${view === "apps" && selectedApp?.resourceUri === app.resourceUri ? "nav-active" : ""}`}
-                    onClick={() => navigateApp(app)}
+                appGroups.map((group) => (
+                  <details
+                    key={group.server}
+                    className="nav-app-group"
+                    open={openAppServers.has(group.server) || selectedApp?.server === group.server}
+                    onToggle={(event) => {
+                      const open = event.currentTarget.open;
+                      setOpenAppServers((current) => {
+                        const next = new Set(current);
+                        if (open) next.add(group.server);
+                        else next.delete(group.server);
+                        return next;
+                      });
+                    }}
                   >
-                    {app.icons?.[0] ? (
-                      <img src={app.icons[0]} alt="" width={17} height={17} />
-                    ) : (
-                      <LayoutGrid size={17} />
-                    )}
-                    <span>{app.title ?? app.name}</span>
-                  </button>
+                    <summary className={selectedApp?.server === group.server ? "nav-app-server-active" : ""}>
+                      <ChevronRight size={14} className="nav-app-chevron" />
+                      <span>{group.title}</span>
+                      {group.unavailable && <span className="nav-app-unavailable">Unavailable</span>}
+                    </summary>
+                    {group.apps.map((app) => (
+                      <button
+                        key={app.resourceUri}
+                        className={`nav-app ${view === "apps" && selectedApp?.resourceUri === app.resourceUri ? "nav-active" : ""}`}
+                        onClick={() => navigateApp(app)}
+                      >
+                        {app.icons?.[0] ? (
+                          <img src={app.icons[0]} alt="" width={17} height={17} />
+                        ) : (
+                          <LayoutGrid size={17} />
+                        )}
+                        <span>{app.title ?? app.name}</span>
+                      </button>
+                    ))}
+                  </details>
                 ))}
             </Fragment>
           ))}
