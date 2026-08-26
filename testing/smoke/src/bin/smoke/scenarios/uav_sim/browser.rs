@@ -40,6 +40,16 @@ pub(crate) struct ConsoleAppExpectation {
     pub(crate) server: &'static str,
     pub(crate) resource_uri: &'static str,
     pub(crate) marker: &'static str,
+    pub(crate) settled_state: ConsoleAppSettledState,
+    pub(crate) required_selector: Option<&'static str>,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code, reason = "used by the focused browser-smoke binary")]
+pub(crate) enum ConsoleAppSettledState {
+    Exact(&'static [&'static str]),
+    Prefix(&'static [&'static str]),
+    MapViewport,
 }
 
 #[derive(Debug, Serialize)]
@@ -95,6 +105,10 @@ struct ConsoleAppRenderState {
     heading: String,
     status: String,
     body: String,
+    host_display_mode: String,
+    host_bridge_error: String,
+    visible_errors: Vec<String>,
+    required_selector_found: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -923,29 +937,8 @@ async fn capture_one_console_app(
             expectation.marker,
         )
         .await?;
-        let render: ConsoleAppRenderState = evaluate_console_app(
-            &mut cdp,
-            &target_id,
-            &session_id,
-            expectation.server,
-            r#"({
-              title:document.title||"",
-              heading:document.querySelector("h1")?.textContent?.trim()||"",
-              status:document.getElementById("status")?.textContent?.trim()||"",
-              body:document.body?.innerText||""
-            })"#,
-            false,
-        )
-        .await?;
-        let status = render.status.to_ascii_lowercase();
-        ensure!(
-            render.heading.contains(expectation.marker)
-                && !status.contains("unavailable")
-                && !status.contains("failed"),
-            "Console App {} did not initialize a healthy expected surface: {:?}",
-            expectation.resource_uri,
-            render
-        );
+        let render =
+            wait_for_console_app_settled(&mut cdp, &target_id, &session_id, expectation).await?;
         let screenshot_name = expectation
             .resource_uri
             .trim_start_matches("ui://")
@@ -968,6 +961,114 @@ async fn capture_one_console_app(
         hardware,
         render,
     })
+}
+
+async fn wait_for_console_app_settled(
+    cdp: &mut Cdp,
+    parent_target_id: &str,
+    session_id: &str,
+    expectation: &ConsoleAppExpectation,
+) -> Result<ConsoleAppRenderState> {
+    let required_selector = serde_json::to_string(expectation.required_selector.unwrap_or(""))?;
+    let expression = format!(
+        r#"(async () => {{
+          const visible = node => {{
+            if (!node || !node.textContent?.trim()) return false;
+            const style = getComputedStyle(node);
+            return !node.hidden && style.display !== "none" && style.visibility !== "hidden"
+              && node.getClientRects().length > 0;
+          }};
+          const requestId = `veoveo-acceptance-${{crypto.randomUUID()}}`;
+          let hostDisplayMode = "";
+          let hostBridgeError = "";
+          try {{
+            hostDisplayMode = await new Promise((resolve, reject) => {{
+              const timer = setTimeout(() => {{
+                removeEventListener("message", receive);
+                reject(new Error("host bridge display-mode probe timed out"));
+              }}, 2000);
+              const receive = event => {{
+                const message = event.data;
+                if (event.source !== parent || !message || message.id !== requestId) return;
+                clearTimeout(timer);
+                removeEventListener("message", receive);
+                if (message.error) reject(new Error(message.error.message || "host bridge rejected probe"));
+                else resolve(message.result?.mode || "");
+              }};
+              addEventListener("message", receive);
+              parent.postMessage({{
+                jsonrpc:"2.0",
+                id:requestId,
+                method:"ui/request-display-mode",
+                params:{{mode:"inline"}}
+              }}, "*");
+            }});
+          }} catch (error) {{
+            hostBridgeError = error instanceof Error ? error.message : String(error);
+          }}
+          const requiredSelector = {required_selector};
+          return {{
+            title:document.title||"",
+            heading:document.querySelector("h1")?.textContent?.trim()||"",
+            status:document.getElementById("status")?.textContent?.trim()||"",
+            body:document.body?.innerText||"",
+            hostDisplayMode,
+            hostBridgeError,
+            visibleErrors:[...document.querySelectorAll('[id*="error" i]')]
+              .filter(visible).map(node=>node.textContent.trim()),
+            requiredSelectorFound:!requiredSelector || Boolean(document.querySelector(requiredSelector))
+          }};
+        }})()"#
+    );
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        let render: ConsoleAppRenderState = evaluate_console_app(
+            cdp,
+            parent_target_id,
+            session_id,
+            expectation.server,
+            &expression,
+            true,
+        )
+        .await?;
+        if console_app_has_settled(expectation, &render) {
+            return Ok(render);
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Console App {} did not reach its declared settled state: {:?}",
+            expectation.resource_uri,
+            render
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+fn console_app_has_settled(
+    expectation: &ConsoleAppExpectation,
+    render: &ConsoleAppRenderState,
+) -> bool {
+    if !render.heading.contains(expectation.marker)
+        || render.host_display_mode != "inline"
+        || !render.host_bridge_error.is_empty()
+        || !render.visible_errors.is_empty()
+        || !render.required_selector_found
+    {
+        return false;
+    }
+    let status = render.status.trim();
+    match expectation.settled_state {
+        ConsoleAppSettledState::Exact(values) => values.contains(&status),
+        ConsoleAppSettledState::Prefix(values) => {
+            values.iter().any(|prefix| status.starts_with(prefix))
+        }
+        ConsoleAppSettledState::MapViewport => {
+            status == "No layers are visible. Enable a layer in the catalog."
+                || status.split_once(" feature").is_some_and(|(count, rest)| {
+                    count.parse::<u64>().is_ok() && rest.contains(" visible across ")
+                })
+        }
+    }
 }
 
 async fn wait_for_console_app_body(
@@ -5228,6 +5329,19 @@ const RERUN_LIVE_FOLLOW_STATE: &str = r#"(() => {
 mod tests {
     use super::*;
 
+    fn console_app_render(status: &str) -> ConsoleAppRenderState {
+        ConsoleAppRenderState {
+            title: "Workbench".to_owned(),
+            heading: "Workbench".to_owned(),
+            status: status.to_owned(),
+            body: "Workbench".to_owned(),
+            host_display_mode: "inline".to_owned(),
+            host_bridge_error: String::new(),
+            visible_errors: Vec::new(),
+            required_selector_found: true,
+        }
+    }
+
     fn rerun_follow_state(timeline_ready: bool) -> RerunLiveFollowState {
         RerunLiveFollowState {
             document_epoch_ms: 1.0,
@@ -5350,6 +5464,53 @@ mod tests {
                 "body": "Live Cameras\nNVIDIA NVENC · H.264"
             }),
             "Live Cameras"
+        ));
+    }
+
+    #[test]
+    fn console_app_acceptance_rejects_transient_and_visible_error_states() {
+        let expectation = ConsoleAppExpectation {
+            server: "duckdb",
+            resource_uri: "ui://duckdb/workbench.html",
+            marker: "Workbench",
+            settled_state: ConsoleAppSettledState::Exact(&["ready"]),
+            required_selector: None,
+        };
+        assert!(!console_app_has_settled(
+            &expectation,
+            &console_app_render("reading")
+        ));
+        let mut errored = console_app_render("ready");
+        errored.visible_errors.push("resource failed".to_owned());
+        assert!(!console_app_has_settled(&expectation, &errored));
+        assert!(console_app_has_settled(
+            &expectation,
+            &console_app_render("ready")
+        ));
+    }
+
+    #[test]
+    fn console_map_acceptance_requires_a_completed_viewport_status() {
+        let expectation = ConsoleAppExpectation {
+            server: "map",
+            resource_uri: "ui://map/workspace.html",
+            marker: "Workspace",
+            settled_state: ConsoleAppSettledState::MapViewport,
+            required_selector: Some(".maplibregl-canvas"),
+        };
+        assert!(!console_app_has_settled(
+            &expectation,
+            &ConsoleAppRenderState {
+                heading: "Workspace".to_owned(),
+                ..console_app_render("Map resources loaded.")
+            }
+        ));
+        assert!(console_app_has_settled(
+            &expectation,
+            &ConsoleAppRenderState {
+                heading: "Workspace".to_owned(),
+                ..console_app_render("0 features visible across 2 layers.")
+            }
         ));
     }
 
