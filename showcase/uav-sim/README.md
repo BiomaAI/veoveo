@@ -18,7 +18,7 @@ publishes their NVIDIA NVENC products to the governed live-view App.
 | WebSocket and H.264 | One continuous tiled NVIDIA NVENC atlas for every operator camera, delivered as Annex B H.264 access units to every authenticated browser. |
 | Native sensor video | `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`, packaged by Isaac Sim `6.0.1`, for CUDA-AOV-to-NVENC H.264 output. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
-| Rerun RRD | Version `0.36.2` telemetry, leader-camera video, and producer Blueprint publication. |
+| Rerun RRD | Version `0.36.3` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, low-latency RTX rendering, and server-side video encoding. |
 | MAVLink 2 | Pod-local PX4 `1.17.0` command, telemetry, actuator, and HIL sensor integration. |
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` and its pinned Cesium Native revision stream photorealistic terrain and buildings. A repository-owned internal event extension reports redacted load lifecycle state. |

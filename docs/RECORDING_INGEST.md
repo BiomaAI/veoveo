@@ -11,7 +11,7 @@ and uploads versioned protobuf envelopes to `/ingest/recordings/v1`.
 |---|---|
 | OAuth 2.0 client credentials and `private_key_jwt` | machine producer authentication at the installation gateway |
 | Protocol Buffers | versioned Recording ingest envelopes with the repository-owned media type |
-| Rerun RRD 0.36.2 | complete bounded recording and Blueprint store payloads |
+| Rerun RRD 0.36.3 | complete bounded recording and Blueprint store payloads |
 | SHA-256 | immutable batch and Blueprint content identity |
 | `veoveo.io/recording-ingest-diagnostics/v1` | aggregate authenticated-ingest process counters without tenant or stream identity |
 
@@ -23,7 +23,7 @@ Network location never changes producer authority.
 ## Protocol
 
 `platform/recordings/protocol` owns version `2026-08-06` of the wire schema and media
-type. A batch declares its monotonic sequence, exact Rerun 0.36.2 RRD encoding release,
+type. A batch declares its monotonic sequence, exact Rerun 0.36.3 RRD encoding release,
 message count, payload bytes, and SHA-256 digest. Stream creation is idempotent under the
 producer's `source_stream_id`.
 Repeating an accepted sequence with the same digest succeeds without another append.

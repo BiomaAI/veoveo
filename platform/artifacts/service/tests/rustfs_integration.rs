@@ -54,18 +54,30 @@ async fn multipart_range_and_restart_persistence() {
                 .await
                 .expect("upload RustFS multipart part");
         }
-        writer.finish().await.expect("complete RustFS multipart upload");
+        writer
+            .finish()
+            .await
+            .expect("complete RustFS multipart upload");
     } else if phase != "verify" {
         panic!("VEOVEO_RUSTFS_TEST_PHASE must be `write` or `verify`, got `{phase}`");
     }
 
-    let metadata = store.head(&path).await.expect("head persisted RustFS object");
+    let metadata = store
+        .head(&path)
+        .await
+        .expect("head persisted RustFS object");
     assert_eq!(metadata.size, OBJECT_BYTES as u64);
     let range = store
-        .get_range(&path, RANGE_START as u64..(RANGE_START + RANGE_BYTES) as u64)
+        .get_range(
+            &path,
+            RANGE_START as u64..(RANGE_START + RANGE_BYTES) as u64,
+        )
         .await
         .expect("read persisted RustFS object range");
-    assert_eq!(range.as_ref(), &expected[RANGE_START..RANGE_START + RANGE_BYTES]);
+    assert_eq!(
+        range.as_ref(),
+        &expected[RANGE_START..RANGE_START + RANGE_BYTES]
+    );
     let actual = store
         .get(&path)
         .await
@@ -76,6 +88,9 @@ async fn multipart_range_and_restart_persistence() {
     assert_eq!(actual.as_ref(), expected.as_slice());
 
     if phase == "verify" {
-        store.delete(&path).await.expect("delete RustFS acceptance object");
+        store
+            .delete(&path)
+            .await
+            .expect("delete RustFS acceptance object");
     }
 }

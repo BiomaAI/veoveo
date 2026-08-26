@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
-FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS duckdb-spatial
+FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS duckdb-spatial
 ARG TARGETARCH
 ARG DUCKDB_VERSION=1.5.5
 RUN apt-get update \
@@ -18,7 +18,7 @@ RUN set -eux; \
     gzip -dc /tmp/spatial.duckdb_extension.gz > /out/extensions/spatial.duckdb_extension; \
     chmod 0444 /out/extensions/spatial.duckdb_extension
 
-FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd
+FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 \
