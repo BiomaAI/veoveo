@@ -7,8 +7,8 @@
       "source": "surrealdb/surrealdb@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843"
     },
     {
-      "ref": "rustfs/rustfs:1.0.0-beta.8",
-      "source": "rustfs/rustfs@sha256:fa19210ac4697c79d7ccca1ec9b0eb91aebacc6691991ffb14014bb3c67e6cc3"
+      "ref": "rustfs/rustfs:1.0.0-rc.3",
+      "source": "rustfs/rustfs@sha256:800cf3f352a0a27e3275ca854a51f0027975d7acc7a0d52089a35bcc9fcbf0b5"
     },
     {
       "ref": "amazon/aws-cli:2.35.23",
