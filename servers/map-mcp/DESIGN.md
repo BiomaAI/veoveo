@@ -49,7 +49,7 @@ the `map://` scheme.
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
-| [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | Bounded vector-table inspection, selected-table import, and one-table export. Raster tiles, related tables, and non-linear or measured geometry are outside this profile. GDAL 3.13.2 performs full conformance validation and controlled conversion. |
+| [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | Bounded vector-table inspection, selected-table import, and one-table export. Raster tiles, related tables, and non-linear or measured geometry are outside this profile. GDAL 3.13.3 performs full conformance validation and controlled conversion. |
 | OGC CQL2 1.0 | Bounded Basic CQL2-JSON predicates over top-level authored properties. Arbitrary CQL2 and spatial predicates are not claimed. |
 | GeoParquet 1.0.0 | WKB primary geometry and verified `geo` metadata for immutable analytical products. |
 | OGC Cloud Optimized GeoTIFF 1.0 and GeoTIFF 1.1 | Environmental sources normalize to immutable COG products with explicit CRS, affine transform, extent, resolution, bands, units, nodata values, value interpretation, checksum, license, and attribution. |
@@ -362,7 +362,7 @@ silently change an existing layer or product contract.
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/json-schema-core) | local property schemas; remote references are rejected |
 | [OGC CQL2 1.0, OGC 21-065r2](https://docs.ogc.org/is/21-065r2/21-065r2.html) | bounded Basic CQL2-JSON equality, ordering, null, boolean, and logical predicates over top-level properties |
 | [GeoJSON Text Sequences, RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | record-separator and LF-framed import/export |
-| [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | full validation and bounded vector-table inspection through pinned GDAL 3.13.2; explicit table and metadata-column mappings on import; one two-dimensional WGS84 vector table with an R-tree on export |
+| [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | full validation and bounded vector-table inspection through pinned GDAL 3.13.3; explicit table and metadata-column mappings on import; one two-dimensional WGS84 vector table with an R-tree on export |
 | [GeoParquet 1.0.0](https://github.com/opengeospatial/geoparquet/blob/v1.0.0/format-specs/geoparquet.md) | WKB primary geometry and GeoParquet metadata emitted by pinned DuckDB Spatial |
 | [Mapbox Vector Tile Specification 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | requested XYZ tiles with canonical feature identity retained as an attribute |
 | [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) and MapLibre GL JS 6.6.0 | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections; self-contained WebGL2 workspace viewing |
@@ -665,7 +665,7 @@ contours, polygonization, skeletonization, and line derivation. A controlled
 GDAL helper reads only the already-authorized staged source and writes into
 the task directory. The task publishes one governed artifact and records the
 source checksum, CRS and affine transform, every operation parameter, the
-exact `gdal-3.13.2-veoveo-raster-v1` algorithm revision, output digest,
+exact `gdal-3.13.3-veoveo-raster-v1` algorithm revision, output digest,
 output CRS and affine transform where applicable, principal, and Work
 Context. Sampling and raster products preserve their declared CRS. GeoJSON
 derivations are transformed to WGS84 before publication.

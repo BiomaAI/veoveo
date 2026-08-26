@@ -20,7 +20,7 @@ RUN set -eux; \
 
 FROM ghcr.io/valhalla/valhalla:3.8.3@sha256:70b45295d81035e3562e1bbf996a28d5fc55e1ccc5d7e3fff9f297d3b1a1359f AS valhalla-runtime
 
-FROM ghcr.io/osgeo/gdal:ubuntu-full-3.13.2@sha256:de280a240ef4309e6fb64b943e0472e6098099b813a6b9ff0e182bc6976a3fdb
+FROM ghcr.io/osgeo/gdal:ubuntu-full-3.13.3@sha256:a1d85cd27aeb14a7644cb78e9286cddebb7e1eb4c82caaa987fc9226941e71a2
 
 ARG GTFS_VALIDATOR_VERSION=8.0.1
 ARG GTFS_VALIDATOR_SHA256=19293ddd9b6f954f216d4f12054bd8a3232921751c4484339e339764a91000e2

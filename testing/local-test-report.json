@@ -1,32 +1,49 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:50e51b9260b9970a1eb3e2db6706dc18716528f1a394e30d75bfec3509adac73",
-  "updatedAt": "2026-08-26T04:37:44Z",
+  "buildDigest": "sha256:00a81d2e3c328589ed51557f1f46b7b53aebe357815426f1062a82df31a37eb4",
+  "updatedAt": "2026-08-26T04:55:45Z",
   "checks": [
     {
-      "name": "surrealdb-324",
+      "name": "gdal-map-image",
       "command": [
         "cargo",
         "xtask",
-        "smoke",
-        "surreal-integration"
+        "image",
+        "build",
+        "--target",
+        "map-mcp"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T04:37:44Z",
-      "durationSeconds": 113.10135871,
+      "finishedAt": "2026-08-26T04:48:02Z",
+      "durationSeconds": 327.825719224,
       "detail": "completed successfully"
     },
     {
-      "name": "surrealdb-helm",
+      "name": "gdal-map-smoke",
       "command": [
         "cargo",
         "xtask",
         "smoke",
-        "helm-config"
+        "map-mcp",
+        "--map-image",
+        "veoveo/map-mcp:0.1.0"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T04:35:29Z",
-      "durationSeconds": 5.997127492,
+      "finishedAt": "2026-08-26T04:52:35Z",
+      "durationSeconds": 241.827106377,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "gdal-map-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-map-mcp"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T04:55:45Z",
+      "durationSeconds": 171.737329587,
       "detail": "completed successfully"
     }
   ]
