@@ -6,6 +6,7 @@ pub const CONTRACT_URI: &str = "recording://contract";
 pub const DOC_TEMPLATE: &str = "recording://docs/{doc_id}";
 
 pub const CATALOG_URI: &str = "recording://catalog";
+pub const EXPLORER_APP_URI: &str = "ui://recording/explorer.html";
 pub const RECORDING_TEMPLATE: &str = "recording://recordings/{recording_id}";
 pub const SEGMENTS_TEMPLATE: &str = "recording://recordings/{recording_id}/segments";
 

@@ -360,6 +360,7 @@ impl ServerHandler for MediaMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
         caps.extensions.get_or_insert_default().insert(
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
@@ -440,6 +441,19 @@ impl ServerHandler for MediaMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|a, b| a.name.cmp(&b.name));
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                veoveo_mcp_apps_extension::link_tool_to_app(
+                    tool,
+                    uris::STUDIO_APP_URI,
+                    &[
+                        veoveo_mcp_apps_extension::UiVisibility::Model,
+                        veoveo_mcp_apps_extension::UiVisibility::App,
+                    ],
+                )
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -497,6 +511,11 @@ impl ServerHandler for MediaMcp {
         let identity = internal_identity(&context)?;
         let mut resources = well_known_resources();
         resources.extend([
+            veoveo_mcp_apps_extension::app_resource(uris::STUDIO_APP_URI, "studio")
+                .with_title("Studio")
+                .with_description(
+                    "Generate media through governed provider models and inspect outputs.",
+                ),
             Resource::new(uris::MODELS_URI, "models")
                 .with_title("Media model catalog")
                 .with_description(
@@ -617,6 +636,51 @@ impl ServerHandler for MediaMcp {
                     .map_err(|e| McpError::internal_error(e.to_string(), None))?;
                 return Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(text, uri).with_mime_type("application/json"),
+                ]));
+            }
+            if uri == uris::STUDIO_APP_URI {
+                let html = veoveo_mcp_apps_extension::workbench_app_html(
+                    &veoveo_mcp_apps_extension::WorkbenchApp {
+                        app_id: "media-studio",
+                        title: "Studio",
+                        subtitle: "Choose a governed model, submit generation work, and inspect usage",
+                        empty_message: "No media models are available.",
+                        resources: &[
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Model catalog",
+                                uri: uris::MODELS_URI,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Usage ledger",
+                                uri: uris::USAGE_ROOT_URI,
+                            },
+                        ],
+                        tools: &[
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Search models",
+                                name: "models",
+                                arguments_json: r#"{"query":"","limit":20}"#,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Inspect model schema",
+                                name: "model_schema",
+                                arguments_json: r#"{"model":""}"#,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Generate media",
+                                name: "run",
+                                arguments_json: r#"{"model":"","input":{}}"#,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Inspect artifact",
+                                name: "artifact",
+                                arguments_json: r#"{"artifact_uri":"media://artifact/"}"#,
+                            },
+                        ],
+                    },
+                );
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
                 ]));
             }
             let text = if uri == uris::MODELS_URI {

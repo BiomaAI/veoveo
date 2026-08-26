@@ -310,6 +310,7 @@ impl ServerHandler for TimeMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
         capabilities.extensions.get_or_insert_default().insert(
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
@@ -380,6 +381,19 @@ impl ServerHandler for TimeMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                veoveo_mcp_apps_extension::link_tool_to_app(
+                    tool,
+                    uris::TIMELINE_APP_URI,
+                    &[
+                        veoveo_mcp_apps_extension::UiVisibility::Model,
+                        veoveo_mcp_apps_extension::UiVisibility::App,
+                    ],
+                )
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -399,6 +413,13 @@ impl ServerHandler for TimeMcp {
         let identity = require_scope(&context, "time:read")?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let mut resources = root_resources();
+        resources.push(
+            veoveo_mcp_apps_extension::app_resource(uris::TIMELINE_APP_URI, "timeline")
+                .with_title("Timeline")
+                .with_description(
+                    "Authoritative time, operational calendars, epochs, and temporal events.",
+                ),
+        );
         for calendar in self
             .state
             .catalog
@@ -494,6 +515,68 @@ impl ServerHandler for TimeMcp {
         }
         if uri == uris::CONTRACT_URI {
             return json_resource(uri, SERVER_DOCS.contract_declaration());
+        }
+        if uri == uris::TIMELINE_APP_URI {
+            let html = veoveo_mcp_apps_extension::workbench_app_html(
+                &veoveo_mcp_apps_extension::WorkbenchApp {
+                    app_id: "time-timeline",
+                    title: "Timeline",
+                    subtitle: "Resolve authoritative time and manage operational temporal state",
+                    empty_message: "No temporal resources are visible to this identity.",
+                    resources: &[
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Current time",
+                            uri: uris::CLOCK_CURRENT_URI,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Clock quality",
+                            uri: uris::CLOCK_QUALITY_URI,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Calendars",
+                            uri: uris::CALENDARS_URI,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Mission epochs",
+                            uri: uris::EPOCHS_URI,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Events",
+                            uri: uris::EVENTS_URI,
+                        },
+                    ],
+                    tools: &[
+                        veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Resolve time",
+                            name: "resolve_time",
+                            arguments_json: "{}",
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Convert time",
+                            name: "convert_time",
+                            arguments_json: "{}",
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Evaluate windows",
+                            name: "evaluate_windows",
+                            arguments_json: "{}",
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Assess clock",
+                            name: "assess_clock",
+                            arguments_json: "{}",
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Create event",
+                            name: "create_temporal_event",
+                            arguments_json: "{}",
+                        },
+                    ],
+                },
+            );
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(uri, &html),
+            ]));
         }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let engine = self.state.engine(&scope).await.map_err(internal)?;

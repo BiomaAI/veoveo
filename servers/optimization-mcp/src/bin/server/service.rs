@@ -54,6 +54,8 @@ use super::{
 
 const LIST_PAGE_SIZE: usize = 100;
 const SERVER_SLUG: &str = "optimization";
+const ROUTES_APP_TOOLS: &[&str] = &["optimize_route_scenarios", "optimize_routes"];
+const MODELS_APP_TOOLS: &[&str] = &["solve_convex", "solve_milp", "verify_solution"];
 
 pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!("optimization"));
@@ -169,6 +171,7 @@ impl ServerHandler for OptimizationMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
         capabilities.extensions.get_or_insert_default().insert(
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
@@ -248,6 +251,30 @@ impl ServerHandler for OptimizationMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                let app = if ROUTES_APP_TOOLS.contains(&tool.name.as_ref()) {
+                    Some(uris::ROUTES_APP_URI)
+                } else if MODELS_APP_TOOLS.contains(&tool.name.as_ref()) {
+                    Some(uris::MODELS_APP_URI)
+                } else {
+                    None
+                };
+                if let Some(app) = app {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        app,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else {
+                    tool
+                }
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -265,6 +292,14 @@ impl ServerHandler for OptimizationMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let mut resources = well_known_resources();
+        resources.extend([
+            veoveo_mcp_apps_extension::app_resource(uris::ROUTES_APP_URI, "routes")
+                .with_title("Routes")
+                .with_description("GPU routing problems, runs, solutions, and verification."),
+            veoveo_mcp_apps_extension::app_resource(uris::MODELS_APP_URI, "models")
+                .with_title("Models")
+                .with_description("GPU convex and mixed-integer models, runs, and solutions."),
+        ]);
         resources.extend(root_resources());
         resources.push(json_descriptor(
             uris::CAPABILITIES_URI,
@@ -332,6 +367,95 @@ impl ServerHandler for OptimizationMcp {
             }
             if uri == uris::CONTRACT_URI {
                 return json_resource(uri, &ContractDeclaration::from_docs(&SERVER_DOCS));
+            }
+            if uri == uris::ROUTES_APP_URI || uri == uris::MODELS_APP_URI {
+                let routes = uri == uris::ROUTES_APP_URI;
+                let (app_id, title, subtitle, tools) = if routes {
+                    (
+                        "optimization-routes",
+                        "Routes",
+                        "Submit GPU route plans and inspect independently verified solutions",
+                        vec![
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Optimize routes",
+                                name: "optimize_routes",
+                                arguments_json: "{}",
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Compare route scenarios",
+                                name: "optimize_route_scenarios",
+                                arguments_json: "{}",
+                            },
+                        ],
+                    )
+                } else {
+                    (
+                        "optimization-models",
+                        "Models",
+                        "Solve GPU mathematical models and inspect verification evidence",
+                        vec![
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Solve convex model",
+                                name: "solve_convex",
+                                arguments_json: "{}",
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Solve mixed-integer model",
+                                name: "solve_milp",
+                                arguments_json: "{}",
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Verify solution",
+                                name: "verify_solution",
+                                arguments_json: r#"{"solution_uri":""}"#,
+                            },
+                        ],
+                    )
+                };
+                let resources = if routes {
+                    vec![
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Capabilities",
+                            uri: uris::CAPABILITIES_URI,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Route runs",
+                            uri: uris::RUNS_URI,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Route solutions",
+                            uri: uris::SOLUTIONS_URI,
+                        },
+                    ]
+                } else {
+                    vec![
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Solver profiles",
+                            uri: uris::PROFILES_URI,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Problems",
+                            uri: uris::PROBLEMS_URI,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Solutions",
+                            uri: uris::SOLUTIONS_URI,
+                        },
+                    ]
+                };
+                let html = veoveo_mcp_apps_extension::workbench_app_html(
+                    &veoveo_mcp_apps_extension::WorkbenchApp {
+                        app_id,
+                        title,
+                        subtitle,
+                        empty_message: "No optimization runs are visible to this identity.",
+                        resources: &resources,
+                        tools: &tools,
+                    },
+                );
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
+                ]));
             }
             if uri == uris::CAPABILITIES_URI {
                 return json_resource(uri, &capabilities(&self.state));

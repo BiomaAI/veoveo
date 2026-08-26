@@ -1,56 +1,106 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:bfffbf7fb1eca2f49706cbdbd316372ae6ce518cb8c60e81394074b55ba1853d",
-  "updatedAt": "2026-08-26T02:24:04Z",
+  "buildDigest": "sha256:44b94cf255e3699c4c2d6e0e8ce2d2780f4db9fe0d3d70cad372d3bacfc2ac1d",
+  "updatedAt": "2026-08-26T03:41:10Z",
   "checks": [
     {
-      "name": "app-contract-rust-check",
+      "name": "bioma-config-tests",
       "command": [
         "cargo",
-        "check",
+        "test",
         "-p",
-        "veoveo-map-mcp",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-timeseries-mcp",
-        "-p",
-        "veoveo-uav-sim-mcp",
-        "-p",
-        "veoveo-view-mcp",
-        "-p",
-        "veoveo-console-bff"
+        "veoveo-bioma-acceptance"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T02:24:03Z",
-      "durationSeconds": 0.694006451,
+      "finishedAt": "2026-08-26T03:39:16Z",
+      "durationSeconds": 0.613522092,
       "detail": "completed successfully"
     },
     {
-      "name": "chart-composer-tests",
+      "name": "console-build",
       "command": [
-        "node",
-        "--test",
-        "servers/chart-mcp/*.test.mjs"
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T02:24:04Z",
-      "durationSeconds": 0.079645929,
+      "finishedAt": "2026-08-26T03:41:10Z",
+      "durationSeconds": 5.505882151,
       "detail": "completed successfully"
     },
     {
-      "name": "chart-image-build",
+      "name": "console-lint",
       "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "build",
-        "--target",
-        "chart-mcp"
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T02:23:10Z",
-      "durationSeconds": 49.591751011,
+      "finishedAt": "2026-08-26T03:40:37Z",
+      "durationSeconds": 3.958299845,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-tests",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "test"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T03:40:29Z",
+      "durationSeconds": 0.842606065,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "datasheet-app-tests",
+      "command": [
+        "uv",
+        "run",
+        "--project",
+        "templates/python-mcp",
+        "pytest",
+        "-q",
+        "templates/python-mcp/tests"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T03:40:14Z",
+      "durationSeconds": 2.053760913,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "mcp-app-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-apps-extension",
+        "-p",
+        "veoveo-artifact-mcp",
+        "-p",
+        "veoveo-recording-mcp",
+        "-p",
+        "veoveo-optimization-mcp",
+        "-p",
+        "veoveo-reason-mcp",
+        "-p",
+        "veoveo-media-mcp",
+        "-p",
+        "veoveo-duckdb-mcp",
+        "-p",
+        "veoveo-frames-mcp",
+        "-p",
+        "veoveo-time-mcp",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T03:40:07Z",
+      "durationSeconds": 1.131825285,
       "detail": "completed successfully"
     },
     {
@@ -62,8 +112,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T02:22:14Z",
-      "durationSeconds": 1.953965637,
+      "finishedAt": "2026-08-26T03:39:59Z",
+      "durationSeconds": 2.125843474,
       "detail": "completed successfully"
     }
   ]

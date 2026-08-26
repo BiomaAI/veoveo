@@ -67,7 +67,8 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true
+        "resources_list_changed": true,
+        "apps": true
       },
       "tools": [
         "artifact",
@@ -99,7 +100,8 @@
           "purpose": "provider_fetchable_files"
         }
       ],
-      "metadata": {}
+      "metadata": {},
+      "resource_projection": "server_owned"
     },
     {
       "slug": "uav-sim",
@@ -219,7 +221,8 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true
+        "resources_list_changed": true,
+        "apps": true
       },
       "tools": [
         "analyze_recording"
@@ -231,7 +234,8 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {}
+      "metadata": {},
+      "resource_projection": "server_owned"
     },
     {
       "slug": "timeseries",
@@ -285,7 +289,8 @@
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "resources_list_changed": false
+        "resources_list_changed": false,
+        "apps": true
       },
       "tools": [
         "query",
@@ -296,7 +301,8 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {}
+      "metadata": {},
+      "resource_projection": "server_owned"
     },
     {
       "slug": "optimization",
@@ -317,7 +323,8 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true
+        "resources_list_changed": true,
+        "apps": true
       },
       "tools": [
         "optimize_routes",
@@ -363,7 +370,8 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false
+        "resources_list_changed": false,
+        "apps": true
       },
       "tools": [
         "batch_transform",
@@ -381,7 +389,8 @@
       ],
       "metadata": {
         "contract_revision": 3
-      }
+      },
+      "resource_projection": "server_owned"
     },
     {
       "slug": "map",
@@ -522,7 +531,8 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true
+        "resources_list_changed": true,
+        "apps": true
       },
       "tools": [
         "assess_clock",
@@ -544,7 +554,8 @@
       ],
       "metadata": {
         "contract_revision": 3
-      }
+      },
+      "resource_projection": "server_owned"
     },
     {
       "slug": "datasheet",
@@ -565,7 +576,8 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false
+        "resources_list_changed": false,
+        "apps": true
       },
       "tools": [
         "column_stats",
@@ -579,7 +591,8 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {}
+      "metadata": {},
+      "resource_projection": "server_owned"
     },
     {
       "slug": "artifact",
@@ -600,7 +613,8 @@
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "resources_list_changed": true
+        "resources_list_changed": true,
+        "apps": true
       },
       "tools": [
         "create_share_link",
@@ -617,7 +631,8 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {}
+      "metadata": {},
+      "resource_projection": "server_owned"
     },
     {
       "slug": "recording",
@@ -638,7 +653,8 @@
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "resources_list_changed": true
+        "resources_list_changed": true,
+        "apps": true
       },
       "tools": [
         "query_recording",
@@ -660,7 +676,8 @@
       ],
       "metadata": {
         "raw_ingest": "internal_only"
-      }
+      },
+      "resource_projection": "server_owned"
     },
     {
       "slug": "charts",
@@ -774,6 +791,10 @@
               {
                 "kind": "scheme",
                 "scheme": "media"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://media/"
               }
             ]
           },
@@ -850,6 +871,10 @@
               {
                 "kind": "scheme",
                 "scheme": "reason"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://reason/"
               }
             ]
           },
@@ -903,6 +928,10 @@
               {
                 "kind": "scheme",
                 "scheme": "duckdb"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://duckdb/"
               }
             ]
           },
@@ -930,6 +959,10 @@
               {
                 "kind": "scheme",
                 "scheme": "optimization"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://optimization/"
               }
             ]
           },
@@ -956,6 +989,10 @@
               {
                 "kind": "scheme",
                 "scheme": "frames"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://frames/"
               }
             ]
           },
@@ -1059,6 +1096,10 @@
               {
                 "kind": "scheme",
                 "scheme": "time"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://time/"
               }
             ]
           },
@@ -1084,6 +1125,10 @@
               {
                 "kind": "scheme",
                 "scheme": "datasheet"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://datasheet/"
               }
             ]
           },
@@ -1112,6 +1157,10 @@
               {
                 "kind": "scheme",
                 "scheme": "artifact"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://artifact/"
               }
             ]
           },
@@ -1135,6 +1184,10 @@
               {
                 "kind": "scheme",
                 "scheme": "recording"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://recording/"
               }
             ]
           },
@@ -1360,6 +1413,10 @@
               {
                 "kind": "scheme",
                 "scheme": "reason"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://reason/"
               }
             ]
           },
@@ -1386,6 +1443,10 @@
               {
                 "kind": "scheme",
                 "scheme": "media"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://media/"
               }
             ]
           },
@@ -1439,6 +1500,10 @@
               {
                 "kind": "scheme",
                 "scheme": "duckdb"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://duckdb/"
               }
             ]
           },
@@ -1466,6 +1531,10 @@
               {
                 "kind": "scheme",
                 "scheme": "optimization"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://optimization/"
               }
             ]
           },
@@ -1492,6 +1561,10 @@
               {
                 "kind": "scheme",
                 "scheme": "frames"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://frames/"
               }
             ]
           },
@@ -1536,6 +1609,10 @@
               {
                 "kind": "scheme",
                 "scheme": "time"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://time/"
               }
             ]
           },
@@ -1561,6 +1638,10 @@
               {
                 "kind": "scheme",
                 "scheme": "datasheet"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://datasheet/"
               }
             ]
           },
@@ -1589,6 +1670,10 @@
               {
                 "kind": "scheme",
                 "scheme": "artifact"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://artifact/"
               }
             ]
           },
@@ -1613,6 +1698,10 @@
               {
                 "kind": "scheme",
                 "scheme": "recording"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://recording/"
               }
             ]
           },

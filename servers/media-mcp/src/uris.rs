@@ -9,6 +9,7 @@
 use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
 
 pub const MODELS_URI: &str = "media://models";
+pub const STUDIO_APP_URI: &str = "ui://media/studio.html";
 pub const MODEL_TEMPLATE: &str = "media://model/{model_id}";
 pub const PREDICTION_TEMPLATE: &str = "media://prediction/{id}";
 pub const ARTIFACT_TEMPLATE: &str = "media://artifact/{artifact_id}";

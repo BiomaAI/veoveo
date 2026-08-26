@@ -320,6 +320,7 @@ impl ServerHandler for FramesMcp {
             .enable_resources()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
         caps.extensions.get_or_insert_default().insert(
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
@@ -408,6 +409,19 @@ impl ServerHandler for FramesMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                veoveo_mcp_apps_extension::link_tool_to_app(
+                    tool,
+                    uris::WORKSPACE_APP_URI,
+                    &[
+                        veoveo_mcp_apps_extension::UiVisibility::Model,
+                        veoveo_mcp_apps_extension::UiVisibility::App,
+                    ],
+                )
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -428,6 +442,9 @@ impl ServerHandler for FramesMcp {
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
         let mut resources = well_known_resources();
         resources.extend([
+            veoveo_mcp_apps_extension::app_resource(uris::WORKSPACE_APP_URI, "workspace")
+                .with_title("Workspace")
+                .with_description("Author frame worlds and run bounded coordinate transforms."),
             Resource::new(uris::WORLDS_URI, "worlds")
                 .with_title("Frame worlds")
                 .with_description("Visible authored frame worlds and their current revisions.")
@@ -565,6 +582,51 @@ impl ServerHandler for FramesMcp {
             }
             if uri == uris::CONTRACT_URI {
                 return json_resource(uri, SERVER_DOCS.contract_declaration());
+            }
+            if uri == uris::WORKSPACE_APP_URI {
+                let html = veoveo_mcp_apps_extension::workbench_app_html(
+                    &veoveo_mcp_apps_extension::WorkbenchApp {
+                        app_id: "frames-workspace",
+                        title: "Workspace",
+                        subtitle: "Author immutable frame worlds and perform governed transforms",
+                        empty_message: "No frame worlds are visible to this identity.",
+                        resources: &[
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Frame worlds",
+                                uri: uris::WORLDS_URI,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Usage",
+                                uri: uris::USAGE_ROOT_URI,
+                            },
+                        ],
+                        tools: &[
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Convert frame",
+                                name: "convert_frame",
+                                arguments_json: "{}",
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Create world",
+                                name: "create_world",
+                                arguments_json: "{}",
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Publish world",
+                                name: "publish_world",
+                                arguments_json: "{}",
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Batch transform",
+                                name: "batch_transform",
+                                arguments_json: "{}",
+                            },
+                        ],
+                    },
+                );
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
+                ]));
             }
             let scope = frame_scope_from_identity(&self.state, &identity).await?;
             if uri == uris::WORLDS_URI {

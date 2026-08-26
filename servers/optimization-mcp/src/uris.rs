@@ -3,6 +3,8 @@ use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
 use crate::domain::{ProblemId, RunId, SolutionId, SolverProfileId};
 
 pub const CAPABILITIES_URI: &str = "optimization://capabilities";
+pub const ROUTES_APP_URI: &str = "ui://optimization/routes.html";
+pub const MODELS_APP_URI: &str = "ui://optimization/models.html";
 pub const PROFILES_URI: &str = "optimization://profiles";
 pub const PROFILE_TEMPLATE: &str = "optimization://profile/{profile_id}";
 pub const PROBLEMS_URI: &str = "optimization://problems";

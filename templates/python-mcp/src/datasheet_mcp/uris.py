@@ -4,6 +4,7 @@ from __future__ import annotations
 
 SCHEME = "datasheet"
 REPORTS_URI = "datasheet://reports"
+WORKBENCH_APP_URI = "ui://datasheet/workbench.html"
 USAGE_ROOT_URI = "datasheet://usage"
 USAGE_TASK_TEMPLATE = "datasheet://usage/task/{task_id}"
 ARTIFACT_TEMPLATE = "datasheet://artifact/{artifact_id}"

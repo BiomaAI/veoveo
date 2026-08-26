@@ -9,6 +9,7 @@ use veoveo_mcp_contract::{
 };
 
 pub const INDEX_URI: &str = "artifact://index";
+pub const LIBRARY_APP_URI: &str = "ui://artifact/library.html";
 pub const ARTIFACT_TEMPLATE: &str = "artifact://{artifact_id}";
 pub const METADATA_TEMPLATE: &str = "artifact://metadata/{artifact_id}";
 pub const GRANTS_TEMPLATE: &str = "artifact://grants/{artifact_id}";

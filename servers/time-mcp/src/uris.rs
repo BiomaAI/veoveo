@@ -5,6 +5,7 @@ pub const DOCS_URI: &str = "time://docs";
 pub const CONTRACT_URI: &str = "time://contract";
 
 pub const CLOCK_CURRENT_URI: &str = "time://clock/current";
+pub const TIMELINE_APP_URI: &str = "ui://time/timeline.html";
 pub const CLOCK_QUALITY_URI: &str = "time://clock/quality";
 pub const AUTHORITIES_CURRENT_URI: &str = "time://authorities/current";
 pub const CALENDARS_URI: &str = "time://calendars";

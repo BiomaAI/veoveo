@@ -1,6 +1,7 @@
 use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
 
 pub const DBS_ROOT_URI: &str = "duckdb://dbs";
+pub const WORKBENCH_APP_URI: &str = "ui://duckdb/workbench.html";
 pub const DB_TEMPLATE: &str = "duckdb://db/{db_id}";
 pub const ARTIFACT_TEMPLATE: &str = "duckdb://artifact/{artifact_id}";
 pub const USAGE_ROOT_URI: &str = "duckdb://usage";
