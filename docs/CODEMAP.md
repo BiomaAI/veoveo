@@ -45,8 +45,7 @@ change lands:
 |---|---|
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
-| [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | test-driven agent resource continuity and correction, owner-supplied Secret closure, standalone MCP Apps, canonical domain resource handoff, compiler-ready provenance, spatial correctness, and optional or evidence-gated deployment, model, GPU, and private-build work |
-| [`PLATFORM_IMPROVEMENTS_014_023_PLAN.md`](PLATFORM_IMPROVEMENTS_014_023_PLAN.md) | exact App authority and recovery, governed streaming uploads, a complete Rerun-native Recording catalog hard cut, extension release and trace projection, non-disruptive external live-view packaging, qualified GPU memory and reasoning admission, and component-scoped deployment ownership |
+| [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | canonical multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work from `001`–`013`; current exact App authority, governed upload, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work from `014`–`023` |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | hosted weather domain server, hosted tabular prediction server over governed tables, and adoption of the MCP skills extension as a contract crate with profile-scoped projection |
 
 MCP designs live with the crate whose public contract they specify:
