@@ -21,7 +21,7 @@ pub const MAX_SOURCE_GEOMETRY_PARTS: usize = 4_096;
 pub const MAX_RASTER_WINDOW_PIXELS: u64 = 16_777_216;
 pub const MAX_RASTER_SAMPLE_POSITIONS: usize = 10_000;
 pub const MAX_RASTER_FULL_DERIVATION_PIXELS: u64 = 4_194_304;
-pub const RASTER_DERIVATION_ALGORITHM_REVISION: &str = "gdal-3.13.2-veoveo-raster-v1";
+pub const RASTER_DERIVATION_ALGORITHM_REVISION: &str = "gdal-3.13.3-veoveo-raster-v1";
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,

@@ -482,7 +482,7 @@
 <text x="772.0" y="1778" class="body" text-anchor="start">
 <tspan x="772.0" dy="0">Map processing and routing toolchain</tspan>
 </text>
-<text x="1079.0" y="1753" class="tiny" text-anchor="end">Valhalla 3.8.3 GDAL 3.13.2 and GTFS Validator 8.0.1</text>
+<text x="1079.0" y="1753" class="tiny" text-anchor="end">Valhalla 3.8.3 GDAL 3.13.3 and GTFS Validator 8.0.1</text>
 <rect x="1109.0" y="1732" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1109.0" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="1125.0" y="1753" class="node-id" text-anchor="start">VV-CMP-047</text>
