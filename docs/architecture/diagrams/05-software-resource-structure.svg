@@ -510,7 +510,7 @@
 <text x="66.0" y="1870" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">NVIDIA cuOpt and CUDA runtime</tspan>
 </text>
-<text x="373.0" y="1845" class="tiny" text-anchor="end">NVIDIA cuOpt 26.06 and CUDA 13.2</text>
+<text x="373.0" y="1845" class="tiny" text-anchor="end">NVIDIA cuOpt 26.08 and CUDA 13.3</text>
 <rect x="28" y="2065" width="2144" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="2086" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
 <text x="2170" y="2086" class="tiny" text-anchor="end">Revision 2026-08-21 | VV-VIEW-05</text>

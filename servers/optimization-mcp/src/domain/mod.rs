@@ -21,9 +21,9 @@ pub const CONVEX_PROBLEM_VERSION: &str = "veoveo.io/convex-problem/v1";
 pub const MILP_PROBLEM_VERSION: &str = "veoveo.io/milp-problem/v1";
 pub const TRAVEL_MODEL_ARTIFACT_VERSION: &str = "veoveo.io/travel-model-artifact/v1";
 pub const EXECUTOR_PROTOCOL_VERSION: &str = "veoveo.io/cuopt-executor/v1";
-pub const CUOPT_STABLE_VERSION: &str = "26.06";
+pub const CUOPT_STABLE_VERSION: &str = "26.08";
 pub const CUOPT_CONTAINER_DIGEST: &str =
-    "sha256:0faac7182b32f5be747e30f081427e80e8dfeccd8f49613814d3d217167fe1ad";
+    "sha256:81441d50797ffaf6352552d94bd14560c53df28370bd0c9bf413fd7eeebbf178";
 
 pub const MAX_INLINE_MATRIX_CELLS: usize = 16_384;
 pub const MAX_INLINE_MODEL_NONZEROS: usize = 16_384;

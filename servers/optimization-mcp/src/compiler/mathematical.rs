@@ -238,7 +238,7 @@ fn compile_quadratic_constraint(
 
     match (constraint.bounds.lower, constraint.bounds.upper) {
         (Some(lower), Some(upper)) if lower == upper => Err(CompileError::InvalidProblem(format!(
-            "quadratic equality constraint {} is not supported by cuOpt 26.06",
+            "quadratic equality constraint {} is not supported by cuOpt 26.08",
             constraint.constraint_id
         ))),
         (Some(lower), Some(upper)) => Ok(vec![

@@ -156,7 +156,7 @@ mod tests {
                 result: ExecutorResult::Health {
                     health: ExecutorHealth {
                         ready: true,
-                        cuopt_version: "26.06".to_owned(),
+                        cuopt_version: "26.08".to_owned(),
                         cuda_runtime_version: "13.2".to_owned(),
                         gpu_name: "test-gpu".to_owned(),
                         gpu_uuid: "GPU-test".to_owned(),

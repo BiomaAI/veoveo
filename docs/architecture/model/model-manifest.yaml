@@ -53,9 +53,9 @@ standards:
     namespace: http://www.omg.org/spec/UML/20161101
   optimization_runtime:
     name: NVIDIA cuOpt
-    version: "26.06"
-    cuda_version: "13.2"
-    container_digest: sha256:0faac7182b32f5be747e30f081427e80e8dfeccd8f49613814d3d217167fe1ad
+    version: "26.08"
+    cuda_version: "13.3"
+    container_digest: sha256:81441d50797ffaf6352552d94bd14560c53df28370bd0c9bf413fd7eeebbf178
     profile: routing Solve and BatchSolve; continuous LP QP QCQP and SOCP; linear MILP
   optimization_executor_protocol:
     name: veoveo.io/cuopt-executor/v1

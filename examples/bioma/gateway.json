@@ -343,7 +343,7 @@
       ],
       "metadata": {
         "contract_revision": 3,
-        "engine": "nvidia-cuopt-26.06"
+        "engine": "nvidia-cuopt-26.08"
       },
       "resource_projection": "server_owned",
       "referenced_resource_schemes": [

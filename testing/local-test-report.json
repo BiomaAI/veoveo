@@ -1,49 +1,77 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:00a81d2e3c328589ed51557f1f46b7b53aebe357815426f1062a82df31a37eb4",
-  "updatedAt": "2026-08-26T04:55:45Z",
+  "buildDigest": "sha256:00b36a05e6f704b6e692f61f4b0b0832372e60861e0e7da50b6d951af5a4eb78",
+  "updatedAt": "2026-08-26T05:32:22Z",
   "checks": [
     {
-      "name": "gdal-map-image",
+      "name": "cuopt-gpu",
+      "command": [
+        "bash",
+        "-lc",
+        "set -euo pipefail\ncontainer_name=veoveo-cuopt-2608-test\nif docker ps -a --filter \"name=^/${container_name}$\" --format \"{{.ID}}\" | grep -q .; then\n  echo \"refusing to replace existing container ${container_name}\" >&2\n  exit 1\nfi\ntest_dir=$(mktemp -d /tmp/veoveo-cuopt-2608-test.XXXXXX)\ncase \"${test_dir}\" in /tmp/veoveo-cuopt-2608-test.*) ;; *) echo \"unexpected temp directory ${test_dir}\" >&2; exit 1 ;; esac\ncleanup() {\n  docker stop --time 10 \"${container_name}\" >/dev/null 2>&1 || true\n  if [ -d \"${test_dir}\" ] && [ ! -L \"${test_dir}\" ]; then find \"${test_dir}\" -xdev -depth -delete; fi\n}\ntrap cleanup EXIT\ndocker run --detach --rm --name \"${container_name}\" --gpus device=0 --user \"$(id -u):$(id -g)\" --volume \"${test_dir}:/run/veoveo-cuopt\" veoveo/cuopt-executor:0.1.0 >/dev/null\nfor _ in $(seq 1 180); do\n  if [ -S \"${test_dir}/executor.sock\" ]; then break; fi\n  if ! docker ps --filter \"name=^/${container_name}$\" --format \"{{.ID}}\" | grep -q .; then docker logs \"${container_name}\" >&2 || true; exit 1; fi\n  sleep 1\ndone\nif [ ! -S \"${test_dir}/executor.sock\" ]; then docker logs \"${container_name}\" >&2 || true; exit 1; fi\nVEOVEO_CUOPT_TEST_SOCKET=\"${test_dir}/executor.sock\" cargo test -p veoveo-optimization-mcp --test cuopt_gpu -- --ignored --nocapture\n"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T05:32:01Z",
+      "durationSeconds": 17.570388005,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "cuopt-helm",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T05:32:22Z",
+      "durationSeconds": 5.335160713,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "cuopt-image",
       "command": [
         "cargo",
         "xtask",
         "image",
         "build",
         "--target",
-        "map-mcp"
+        "cuopt-executor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T04:48:02Z",
-      "durationSeconds": 327.825719224,
+      "finishedAt": "2026-08-26T05:30:41Z",
+      "durationSeconds": 44.426351629,
       "detail": "completed successfully"
     },
     {
-      "name": "gdal-map-smoke",
+      "name": "cuopt-python-tests",
       "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "map-mcp",
-        "--map-image",
-        "veoveo/map-mcp:0.1.0"
+        "env",
+        "PYTHONPATH=servers/optimization-mcp/executor",
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "servers/optimization-mcp/executor/tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T04:52:35Z",
-      "durationSeconds": 241.827106377,
+      "finishedAt": "2026-08-26T05:32:12Z",
+      "durationSeconds": 0.119261856,
       "detail": "completed successfully"
     },
     {
-      "name": "gdal-map-tests",
+      "name": "cuopt-rust-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-map-mcp"
+        "veoveo-optimization-mcp",
+        "--all-targets"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T04:55:45Z",
-      "durationSeconds": 171.737329587,
+      "finishedAt": "2026-08-26T05:32:16Z",
+      "durationSeconds": 3.010612917,
       "detail": "completed successfully"
     }
   ]
