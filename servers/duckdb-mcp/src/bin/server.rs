@@ -279,6 +279,7 @@ impl ServerHandler for DuckdbMcp {
             .enable_tools()
             .enable_resources()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
         caps.extensions.get_or_insert_default().insert(
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
@@ -369,6 +370,19 @@ impl ServerHandler for DuckdbMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                veoveo_mcp_apps_extension::link_tool_to_app(
+                    tool,
+                    uris::WORKBENCH_APP_URI,
+                    &[
+                        veoveo_mcp_apps_extension::UiVisibility::Model,
+                        veoveo_mcp_apps_extension::UiVisibility::App,
+                    ],
+                )
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -388,6 +402,9 @@ impl ServerHandler for DuckdbMcp {
         let identity = internal_identity(&context)?;
         let mut resources = well_known_resources();
         resources.extend([
+            veoveo_mcp_apps_extension::app_resource(uris::WORKBENCH_APP_URI, "workbench")
+                .with_title("Workbench")
+                .with_description("Owner-scoped analytical SQL, ingestion, and export."),
             Resource::new(uris::DBS_ROOT_URI, "dbs")
                 .with_title("DuckDB databases")
                 .with_description("Databases visible to the caller.")
@@ -503,6 +520,51 @@ impl ServerHandler for DuckdbMcp {
                         uri,
                     )
                     .with_mime_type("application/json"),
+                ]));
+            }
+            if uri == uris::WORKBENCH_APP_URI {
+                let html = veoveo_mcp_apps_extension::workbench_app_html(
+                    &veoveo_mcp_apps_extension::WorkbenchApp {
+                        app_id: "duckdb-workbench",
+                        title: "Workbench",
+                        subtitle: "Run owner-scoped analytical SQL and govern data movement",
+                        empty_message: "No DuckDB databases are visible to this identity.",
+                        resources: &[
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Databases",
+                                uri: uris::DBS_ROOT_URI,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Usage",
+                                uri: uris::USAGE_ROOT_URI,
+                            },
+                        ],
+                        tools: &[
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Query",
+                                name: "query",
+                                arguments_json: r#"{"db_id":"","sql":"SELECT 1 AS value"}"#,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Execute",
+                                name: "execute",
+                                arguments_json: r#"{"db_id":"","sql":"CREATE TABLE example(value INTEGER)","create_if_missing":true}"#,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Ingest",
+                                name: "ingest",
+                                arguments_json: "{}",
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Export",
+                                name: "export",
+                                arguments_json: "{}",
+                            },
+                        ],
+                    },
+                );
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
                 ]));
             }
             if uri == uris::DBS_ROOT_URI {

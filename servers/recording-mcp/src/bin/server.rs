@@ -70,6 +70,7 @@ use state::AppState;
 
 const SERVER_SLUG: &str = "recording";
 const LIST_PAGE_SIZE: usize = 100;
+const EXPLORER_TOOLS: &[&str] = &["query_recording", "seal_recording"];
 
 #[derive(Clone)]
 struct RecordingMcp {
@@ -160,7 +161,7 @@ impl ServerHandler for RecordingMcp {
     }
 
     fn get_info(&self) -> ServerInfo {
-        let capabilities = ServerCapabilities::builder()
+        let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
             .enable_resources()
@@ -168,6 +169,7 @@ impl ServerHandler for RecordingMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
@@ -185,6 +187,23 @@ impl ServerHandler for RecordingMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                if EXPLORER_TOOLS.contains(&tool.name.as_ref()) {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        uris::EXPLORER_APP_URI,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else {
+                    tool
+                }
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -203,6 +222,11 @@ impl ServerHandler for RecordingMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let identity = identity(&context)?;
         let mut resources = vec![
+            veoveo_mcp_apps_extension::app_resource(uris::EXPLORER_APP_URI, "explorer")
+                .with_title("Explorer")
+                .with_description(
+                    "Governed recording catalog, lifecycle, and bounded timeline queries.",
+                ),
             Resource::new(uris::DOCS_URI, "recording docs")
                 .with_title("Server documents")
                 .with_description("Index of the crate documents embedded at build time.")
@@ -318,6 +342,35 @@ impl ServerHandler for RecordingMcp {
             }
             if uri == uris::CONTRACT_URI {
                 return json_resource(uri, SERVER_DOCS.contract_declaration());
+            }
+            if uri == uris::EXPLORER_APP_URI {
+                let html = veoveo_mcp_apps_extension::workbench_app_html(
+                    &veoveo_mcp_apps_extension::WorkbenchApp {
+                        app_id: "recording-explorer",
+                        title: "Explorer",
+                        subtitle: "Browse governed recordings and inspect bounded timeline data",
+                        empty_message: "No recordings are visible to this identity.",
+                        resources: &[veoveo_mcp_apps_extension::WorkbenchResource {
+                            label: "Recording catalog",
+                            uri: uris::CATALOG_URI,
+                        }],
+                        tools: &[
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Query recording",
+                                name: "query_recording",
+                                arguments_json: r#"{"recording_id":"","entities":"/**","timeline":"tick","max_rows":100}"#,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchTool {
+                                label: "Seal recording",
+                                name: "seal_recording",
+                                arguments_json: r#"{"recording_id":""}"#,
+                            },
+                        ],
+                    },
+                );
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
+                ]));
             }
             if uri == uris::CATALOG_URI {
                 return json_resource(

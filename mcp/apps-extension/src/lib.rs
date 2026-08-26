@@ -8,7 +8,9 @@
 mod client;
 mod models;
 mod server;
+mod workbench;
 
 pub use client::*;
 pub use models::*;
 pub use server::*;
+pub use workbench::*;

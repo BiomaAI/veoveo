@@ -37,6 +37,7 @@ re_sdk_types.workspace = true
 re_log_types.workspace = true
 
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
+veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store.workspace = true
 veoveo-recording-mcp = { path = "../recording-mcp" }

@@ -9,6 +9,7 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP for discovery, bounded queries, resources, templates, subscriptions, notifications, and artifact publication. |
+| MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://recording/explorer.html` Explorer projects the governed catalog and recording operations through MCP resources and tools. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Recording query, manifest, subscription, and structured-result contracts. |
 | [Rerun 0.36.0](https://rerun.io/docs/) RRD and Rerun Data Protocol | Immutable frozen and sealed shards are layers of one recording-scoped dataset segment. The public service implements the viewer's read subset of the `rerun.cloud.v1alpha1.RerunCloudService` protocol over HTTP/2 or gRPC-Web. It does not claim the catalog, mutation, table, task, or maintenance profiles. |
 | Rerun 0.36.0 WebViewer `LogChannel` | Live playback uses the public `WebViewer.open_channel` and `LogChannel.send_rrd` API. Each send contains one complete independently decodable RRD byte array, as required by the pinned JavaScript SDK. |

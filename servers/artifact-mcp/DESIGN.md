@@ -12,6 +12,8 @@ state, shares, policy, and audit.
 Model Context Protocol over JSON-RPC 2.0 and Streamable HTTP; JSON Schema
 2020-12 tool contracts; platform artifact identities per
 [`docs/WORK_CONTEXT_GOVERNANCE.md`](../../docs/WORK_CONTEXT_GOVERNANCE.md).
+MCP Apps uses SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26`; the
+server-owned `ui://artifact/library.html` resource is the canonical Library UI.
 Artifact bytes use HTTP GET, HEAD, and single byte-range semantics through the
 installation origin. The private S3-compatible API is not an MCP or client
 contract.
@@ -23,6 +25,7 @@ The server owns the `artifact://` scheme:
 | Surface | Identity |
 |---|---|
 | index resource | `artifact://index` |
+| Library App | `ui://artifact/library.html` |
 | occurrence template | `artifact://{artifact_id}` |
 | metadata template | `artifact://metadata/{artifact_id}` |
 | grants template | `artifact://grants/{artifact_id}` |

@@ -26,6 +26,7 @@ inference service, and no agent framework.
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with task-only reasoning, resources and templates, typed structured results, notifications, and usage records. |
+| MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://reason/analyses.html` application exposes pipelines, models, durable analyses, and results. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, reasoning request, model and pipeline catalog, event, grounding, provenance, and artifact contracts. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; every reasoning invocation is a durable, cancellable task whose terminal payload is returned by `tasks/get`. |
 | [Rerun 0.36.0](https://rerun.io/docs/) RRD and `VideoStream` | Frozen or sealed sources and task-start snapshots of complete acknowledged ingest parts preserve exact time; derived semantic events are published as RRD annotations. |

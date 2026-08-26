@@ -159,6 +159,7 @@ impl ServerHandler for ReasonMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
         capabilities.extensions.get_or_insert_default().insert(
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
@@ -232,6 +233,19 @@ impl ServerHandler for ReasonMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                veoveo_mcp_apps_extension::link_tool_to_app(
+                    tool,
+                    uris::ANALYSES_APP_URI,
+                    &[
+                        veoveo_mcp_apps_extension::UiVisibility::Model,
+                        veoveo_mcp_apps_extension::UiVisibility::App,
+                    ],
+                )
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -250,6 +264,9 @@ impl ServerHandler for ReasonMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let identity = internal_identity(&context)?;
         let mut resources = vec![
+            veoveo_mcp_apps_extension::app_resource(uris::ANALYSES_APP_URI, "analyses")
+                .with_title("Analyses")
+                .with_description("Governed video reasoning pipelines, models, runs, and results."),
             Resource::new(uris::DOCS_URI, "reason docs")
                 .with_title("Server documents")
                 .with_description("Index of the crate documents embedded at build time.")
@@ -383,6 +400,38 @@ impl ServerHandler for ReasonMcp {
             }
             if uri == uris::CONTRACT_URI {
                 return json_resource(uri, SERVER_DOCS.contract_declaration());
+            }
+            if uri == uris::ANALYSES_APP_URI {
+                let html = veoveo_mcp_apps_extension::workbench_app_html(
+                    &veoveo_mcp_apps_extension::WorkbenchApp {
+                        app_id: "reason-analyses",
+                        title: "Analyses",
+                        subtitle: "Reason over governed recording ranges and inspect model-grounded results",
+                        empty_message: "No reasoning analyses are visible to this identity.",
+                        resources: &[
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Analyses",
+                                uri: uris::ANALYSES_URI,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Pipelines",
+                                uri: uris::PIPELINES_URI,
+                            },
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Models",
+                                uri: uris::MODELS_URI,
+                            },
+                        ],
+                        tools: &[veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Analyze recording",
+                            name: "analyze_recording",
+                            arguments_json: "{}",
+                        }],
+                    },
+                );
+                return Ok(ReadResourceResult::new(vec![
+                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
+                ]));
             }
             if uri == uris::PIPELINES_URI {
                 return json_resource(uri, &self.state.catalog.pipeline_views());

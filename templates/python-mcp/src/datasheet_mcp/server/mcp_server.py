@@ -23,6 +23,7 @@ from veoveo_mcp.schema import mcp_input_schema
 from veoveo_mcp.tasks import parse_task_id
 
 from .. import engine, prompts, uris
+from ..app import APP_HTML
 from ..docs import CONTRACT_DECLARATION, SERVER_DOCS
 from ..contract import (
     ColumnStatsOutput,
@@ -75,55 +76,61 @@ def build_mcp_server(state: AppState) -> Server:
     async def list_tools(
         _ctx: Context, _params: types.PaginatedRequestParams | None
     ) -> types.ListToolsResult:
-        return types.ListToolsResult(
-            tools=[
-                types.Tool(
-                    name="preview_dataset",
-                    title="Preview dataset",
-                    description=(
-                        "Read the schema and a small sample of a CSV or Parquet "
-                        "dataset from an artifact URI or inline CSV."
-                    ),
-                    input_schema=mcp_input_schema(PreviewDatasetRequest),
-                    output_schema=PreviewDatasetOutput.model_json_schema(),
-                    annotations=types.ToolAnnotations(
-                        read_only_hint=True,
-                        destructive_hint=False,
-                        idempotent_hint=True,
-                        open_world_hint=False,
-                    ),
+        tools = [
+            types.Tool(
+                name="preview_dataset",
+                title="Preview dataset",
+                description=(
+                    "Read the schema and a small sample of a CSV or Parquet "
+                    "dataset from an artifact URI or inline CSV."
                 ),
-                types.Tool(
-                    name="column_stats",
-                    title="Column statistics",
-                    description="Compute summary statistics for one dataset column.",
-                    input_schema=mcp_input_schema(ColumnStatsRequest),
-                    output_schema=ColumnStatsOutput.model_json_schema(),
-                    annotations=types.ToolAnnotations(
-                        read_only_hint=True,
-                        destructive_hint=False,
-                        idempotent_hint=True,
-                        open_world_hint=False,
-                    ),
+                input_schema=mcp_input_schema(PreviewDatasetRequest),
+                output_schema=PreviewDatasetOutput.model_json_schema(),
+                annotations=types.ToolAnnotations(
+                    read_only_hint=True,
+                    destructive_hint=False,
+                    idempotent_hint=True,
+                    open_world_hint=False,
                 ),
-                types.Tool(
-                    name="profile_dataset",
-                    title="Profile dataset",
-                    description=(
-                        "Run a full dataset profile as an MCP task and optionally "
-                        "store the JSON report through the shared artifact plane."
-                    ),
-                    input_schema=mcp_input_schema(ProfileDatasetRequest),
-                    output_schema=ProfileDatasetOutput.model_json_schema(),
-                    annotations=types.ToolAnnotations(
-                        read_only_hint=False,
-                        destructive_hint=False,
-                        idempotent_hint=False,
-                        open_world_hint=False,
-                    ),
+            ),
+            types.Tool(
+                name="column_stats",
+                title="Column statistics",
+                description="Compute summary statistics for one dataset column.",
+                input_schema=mcp_input_schema(ColumnStatsRequest),
+                output_schema=ColumnStatsOutput.model_json_schema(),
+                annotations=types.ToolAnnotations(
+                    read_only_hint=True,
+                    destructive_hint=False,
+                    idempotent_hint=True,
+                    open_world_hint=False,
                 ),
-            ]
-        )
+            ),
+            types.Tool(
+                name="profile_dataset",
+                title="Profile dataset",
+                description=(
+                    "Run a full dataset profile as an MCP task and optionally "
+                    "store the JSON report through the shared artifact plane."
+                ),
+                input_schema=mcp_input_schema(ProfileDatasetRequest),
+                output_schema=ProfileDatasetOutput.model_json_schema(),
+                annotations=types.ToolAnnotations(
+                    read_only_hint=False,
+                    destructive_hint=False,
+                    idempotent_hint=False,
+                    open_world_hint=False,
+                ),
+            ),
+        ]
+        for tool in tools:
+            tool.meta = {
+                "ui": {
+                    "resourceUri": uris.WORKBENCH_APP_URI,
+                    "visibility": ["model", "app"],
+                }
+            }
+        return types.ListToolsResult(tools=tools)
 
     async def call_tool(
         ctx: Context, params: types.CallToolRequestParams
@@ -157,6 +164,14 @@ def build_mcp_server(state: AppState) -> Server:
     ) -> types.ListResourcesResult:
         identity = identity_from_scope(request_scope(ctx))
         resources = [
+            types.Resource(
+                uri=uris.WORKBENCH_APP_URI,
+                name="workbench",
+                title="Workbench",
+                description="Preview, inspect, and profile governed tabular data.",
+                mime_type="text/html;profile=mcp-app",
+                meta={"ui": {}},
+            ),
             types.Resource(
                 uri=uris.REPORTS_URI,
                 name="reports",
@@ -257,6 +272,16 @@ def build_mcp_server(state: AppState) -> Server:
             return _json_result(text, SERVER_DOCS.index_wire())
         if text == uris.CONTRACT_URI:
             return _json_result(text, CONTRACT_DECLARATION.wire())
+        if text == uris.WORKBENCH_APP_URI:
+            return types.ReadResourceResult(
+                contents=[
+                    types.TextResourceContents(
+                        uri=text,
+                        text=APP_HTML,
+                        mime_type="text/html;profile=mcp-app",
+                    )
+                ]
+            )
         doc_id = uris.parse_doc_uri(text)
         if doc_id is not None:
             doc = SERVER_DOCS.doc(doc_id)
@@ -367,7 +392,7 @@ def build_mcp_server(state: AppState) -> Server:
         except ValueError as error:
             raise _invalid(str(error)) from error
 
-    return Server(
+    server = Server(
         "datasheet",
         version="0.1.0",
         instructions=INSTRUCTIONS,
@@ -389,6 +414,10 @@ def build_mcp_server(state: AppState) -> Server:
         on_get_prompt=get_prompt,
         on_ping=None,
     )
+    server.extensions["io.modelcontextprotocol/ui"] = {
+        "mimeTypes": ["text/html;profile=mcp-app"]
+    }
+    return server
 
 
 def _structured_result(text: str, output: Any) -> types.CallToolResult:

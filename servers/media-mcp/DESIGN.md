@@ -32,3 +32,5 @@ Model Context Protocol over JSON-RPC 2.0 and Streamable HTTP; JSON Schema
 2020-12 tool contracts; official Tasks per
 official MCP Tasks `2026-07-28`; provider webhook
 completion as documented in the crate.
+MCP Apps uses SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26`; the
+server-owned `ui://media/studio.html` resource is the canonical Studio UI.

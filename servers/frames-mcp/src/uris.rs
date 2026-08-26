@@ -3,6 +3,7 @@ use veoveo_mcp_contract::{
 };
 
 pub const WORLDS_URI: &str = "frames://worlds";
+pub const WORKSPACE_APP_URI: &str = "ui://frames/workspace.html";
 pub const WORLD_TEMPLATE: &str = "frames://world/{world_id}";
 pub const WORLD_REVISION_TEMPLATE: &str = "frames://world/{world_id}/revision/{revision_id}";
 pub const WORLD_FRAME_TEMPLATE: &str =

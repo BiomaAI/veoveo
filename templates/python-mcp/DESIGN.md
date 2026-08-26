@@ -12,6 +12,7 @@ revision 3, has a running Python reference implementation here.
 | Model Context Protocol `2026-07-28` | Stateless Streamable HTTP under `/datasheet/mcp`, mandatory Discover, per-request capabilities, JSON terminal responses, and request-scoped subscription streams |
 | JSON Schema 2020-12 | Complete bounded tool input schemas produced by `veoveo_mcp.schema.mcp_input_schema`, including same-document references and composition |
 | Tasks extension, SEP-2663 | Server-directed `tools/call`, `tasks/get`, `tasks/update`, `tasks/cancel`, and optional `notifications/tasks` through `subscriptions/listen` |
+| MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://datasheet/workbench.html` Workbench previews and profiles inline CSV or governed artifacts. |
 | CSV and Apache Parquet | Dataset inputs resolved from shared-plane artifacts or bounded inline CSV |
 | `datasheet://` URI scheme | Canonical resource identities for reports, usage, artifacts, and documents |
 

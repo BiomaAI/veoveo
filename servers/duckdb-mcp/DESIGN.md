@@ -66,6 +66,7 @@ duckdb__export
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, structured content, notifications, and usage resources. |
+| MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://duckdb/workbench.html` Workbench exposes owner-scoped databases, SQL, ingestion, exports, and usage. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Canonical tool inputs and structured results. Open-ended DuckDB values remain JSON only where the SQL type system is genuinely dynamic. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; query, mutation, ingest, and export select a declared direct or durable execution mode. |
 | DuckDB SQL | The pinned DuckDB dialect is accepted inside the hardened database boundary. Veoveo does not claim a narrower ISO SQL subset or translate SQL through another query language. |

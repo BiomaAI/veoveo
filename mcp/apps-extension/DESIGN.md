@@ -66,6 +66,14 @@ A server shipping a view (see `servers/timeseries-mcp` and
    scope (e.g. `map:admin`) exactly like any other scoped tool; resources
   carry the scope their data warrants.
 
+Servers whose operator surface is primarily structured resource inspection and
+typed tool invocation may render `WorkbenchApp` from this crate. The server still
+owns every title, resource URI, tool name, and starter argument. The shared shell
+only implements the MCP Apps bridge, task observation, resource subscriptions,
+theme projection, and generic JSON presentation; it has no domain catalog and no
+authority of its own. A purpose-built App remains appropriate when the domain
+requires maps, charts, video, spatial interaction, or another specialized visual.
+
 ## Host obligations
 
 The hosting core (gateway + console BFF + console web) stays fully generic:

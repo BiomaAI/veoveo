@@ -8,6 +8,7 @@ pub const CONTRACT_URI: &str = "reason://contract";
 pub const DOC_TEMPLATE: &str = "reason://docs/{doc_id}";
 
 pub const PIPELINES_URI: &str = "reason://pipelines";
+pub const ANALYSES_APP_URI: &str = "ui://reason/analyses.html";
 pub const PIPELINE_TEMPLATE: &str = "reason://pipeline/{pipeline_id}";
 pub const MODELS_URI: &str = "reason://models";
 pub const MODEL_TEMPLATE: &str = "reason://model/{model_id}";

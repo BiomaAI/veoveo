@@ -25,7 +25,7 @@ use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_mcp::{
     ARTIFACT_TEMPLATE, ArtifactGrantsOutput, ArtifactMetadataOutput, ArtifactMutationOutput,
     ArtifactReference, ArtifactShareOutput, CONTRACT_URI, CreateArtifactShareRequest, DOC_TEMPLATE,
-    DOCS_URI, GRANTS_TEMPLATE, GrantArtifactRequest, INDEX_URI, METADATA_TEMPLATE,
+    DOCS_URI, GRANTS_TEMPLATE, GrantArtifactRequest, INDEX_URI, LIBRARY_APP_URI, METADATA_TEMPLATE,
     RevokeArtifactGrantRequest, RevokeArtifactShareRequest, SetArtifactReleaseRequest, doc_uri,
     parse_doc_uri, parse_grants_uri, parse_metadata_uri,
 };
@@ -42,6 +42,14 @@ use super::{
 };
 
 const LIST_PAGE_SIZE: usize = 100;
+const LIBRARY_TOOLS: &[&str] = &[
+    "create_share_link",
+    "grant_access",
+    "metadata",
+    "revoke_access",
+    "revoke_share_link",
+    "set_release_state",
+];
 
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `artifact://docs`, `artifact://docs/{doc_id}`,
@@ -285,7 +293,7 @@ impl ServerHandler for ArtifactMcp {
 
     fn get_info(&self) -> ServerInfo {
         let mut info = ServerInfo::default();
-        info.capabilities = ServerCapabilities::builder()
+        let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
             .enable_resources()
@@ -293,6 +301,8 @@ impl ServerHandler for ArtifactMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
+        info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("artifact", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
             "Artifact discovery and sharing. Canonical artifact://{artifact_id} resources are immutable occurrence identities. Named user/group grants provide authorized sharing; expiring anyone-with-link bearers require an explicit releasable state."
@@ -308,6 +318,23 @@ impl ServerHandler for ArtifactMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                if LIBRARY_TOOLS.contains(&tool.name.as_ref()) {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        LIBRARY_APP_URI,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else {
+                    tool
+                }
+            })
+            .collect();
         let page = static_page(tools, request.as_ref())?;
         let mut result = ListToolsResult::with_all_items(page.items)
             .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
@@ -437,6 +464,43 @@ impl ServerHandler for ArtifactMcp {
         }
         if uri == CONTRACT_URI {
             return json_resource(uri, SERVER_DOCS.contract_declaration());
+        }
+        if uri == LIBRARY_APP_URI {
+            let html = veoveo_mcp_apps_extension::workbench_app_html(
+                &veoveo_mcp_apps_extension::WorkbenchApp {
+                    app_id: "artifact-library",
+                    title: "Library",
+                    subtitle: "Discover, inspect, release, and share governed artifacts",
+                    empty_message: "No artifacts are visible to this identity.",
+                    resources: &[veoveo_mcp_apps_extension::WorkbenchResource {
+                        label: "Artifact index",
+                        uri: INDEX_URI,
+                    }],
+                    tools: &[
+                        veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Inspect metadata",
+                            name: "metadata",
+                            arguments_json: r#"{"artifact_id":""}"#,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Set release state",
+                            name: "set_release_state",
+                            arguments_json: r#"{"artifact_id":"","release_state":"releasable"}"#,
+                        },
+                        veoveo_mcp_apps_extension::WorkbenchTool {
+                            label: "Create share link",
+                            name: "create_share_link",
+                            arguments_json: r#"{"artifact_id":""}"#,
+                        },
+                    ],
+                },
+            );
+            return Ok(
+                private_resource(vec![veoveo_mcp_apps_extension::app_html_contents(
+                    uri, &html,
+                )])
+                .into(),
+            );
         }
         if uri == INDEX_URI {
             let mut page = self
@@ -673,6 +737,9 @@ impl ServerHandler for ArtifactMcp {
 /// `list_resources` page serves these for every authenticated identity.
 fn well_known_resources() -> Vec<Resource> {
     let mut resources = vec![
+        veoveo_mcp_apps_extension::app_resource(LIBRARY_APP_URI, "library")
+            .with_title("Library")
+            .with_description("Governed artifact discovery, inspection, release, and sharing."),
         Resource::new(DOCS_URI, "artifact-docs")
             .with_title("Server documents")
             .with_description("Index of the crate documents embedded at build time.")

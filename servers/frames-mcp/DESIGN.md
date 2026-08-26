@@ -20,6 +20,8 @@ port        8793
 Frames implements Model Context Protocol `2026-07-28` under Veoveo hosted MCP
 contract revision 3. Resource and tool payloads use JSON. Geodetic positions
 use WGS84, while ECEF positions use the EPSG:4978 coordinate reference system.
+MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` defines the
+server-owned `ui://frames/workspace.html` Workspace application.
 Published revision integrity uses SHA-256 with the repository-owned canonical
 `sha256:` plus 64 lowercase hexadecimal representation. Frame-world and
 operation resources are Veoveo extensions rather than external protocols.
