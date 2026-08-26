@@ -36,8 +36,9 @@ retain the `optimization://` scheme.
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server owns separate `ui://optimization/routes.html` and `ui://optimization/models.html` applications over the same canonical resources and task-required tools. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; all five tools require durable task invocation. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Self-contained schemas generated from strong Rust request and response types through the shared MCP contract machinery. |
-| [NVIDIA cuOpt](https://github.com/NVIDIA/cuOpt) | Stable release `26.06`, running from `nvidia/cuopt:26.6.0-cuda13.2-py3.14` at manifest-list digest `sha256:0faac7182b32f5be747e30f081427e80e8dfeccd8f49613814d3d217167fe1ad`. |
-| CUDA | CUDA 13.2 runtime supplied by the pinned cuOpt image. A hardware NVIDIA GPU is mandatory. |
+| [NVIDIA cuOpt](https://github.com/NVIDIA/cuOpt) | Stable release `26.08`, running from `nvidia/cuopt:26.8.0-cuda13.3-py3.14` at Linux amd64 manifest digest `sha256:81441d50797ffaf6352552d94bd14560c53df28370bd0c9bf413fd7eeebbf178`. |
+| CUDA | CUDA 13.3 runtime supplied by the pinned cuOpt image. A hardware NVIDIA GPU is mandatory. |
+| GNU OpenMP runtime | Ubuntu Jammy `libgomp1` `12.3.0-1ubuntu1~22.04.3` satisfies the cuDSS `libcudss_mtlayer_gomp.so.0` runtime dependency omitted by the cuOpt 26.08 image. The executor image build verifies that the threading layer has no unresolved shared libraries. |
 | `veoveo.io/optimization/v1` | Repository-owned Optimization resource and result profile. |
 | `veoveo.io/routing-problem/v1` | Repository-owned routing problem profile for service or pickup-delivery orders. |
 | `veoveo.io/convex-problem/v1` | Repository-owned continuous LP, QP, QCQP, and quadratic SOCP representation. |
@@ -92,8 +93,8 @@ optimization-mcp control container
   | private length-prefixed JSON over shared Unix socket
   v
 cuOpt executor sidecar
-  |-- NVIDIA cuOpt 26.06
-  |-- CUDA 13.2 and RMM device pool
+  |-- NVIDIA cuOpt 26.08
+  |-- CUDA 13.3 and RMM device pool
   `-- one required NVIDIA GPU
 ```
 
@@ -211,7 +212,7 @@ The formulator remains responsible for the declared convexity. cuOpt
 termination and the independent feasibility report do not constitute a proof
 of global optimality for a misdeclared non-convex model.
 
-Quadratic equality constraints are outside the cuOpt 26.06 profile. A
+Quadratic equality constraints are outside the cuOpt 26.08 profile. A
 two-sided quadratic inequality is compiled into separate lower and upper
 constraints.
 
@@ -238,7 +239,7 @@ MILP requests may also tighten the relative or absolute gap.
 | `thorough` | 3,600 s | 300 s | 300 s | 300 s | `1e-8` | `0.001` |
 
 Linear programs use PDLP with presolve. QP, QCQP, and SOCP forms use cuOpt's
-barrier method because cuOpt 26.06 requires barrier for quadratic objectives
+barrier method because cuOpt 26.08 requires barrier for quadratic objectives
 and constraints. MILP uses presolve and an integrality tolerance of `1e-5`.
 Balanced and thorough retain MILP incumbents by default. The profile resource
 is the authority; this table documents the current compiled values.
@@ -491,6 +492,6 @@ Contract revision: 3.
 
 All mandatory checks C01 through C31 are met. There are no compatibility
 projections, so C06 is satisfied by the single canonical surface. The gateway
-registration states revision 3 and the cuOpt 26.06 engine. Documentation and
+registration states revision 3 and the cuOpt 26.08 engine. Documentation and
 contract resources are embedded at build time and served through MCP and the
 canonical administrative mount.

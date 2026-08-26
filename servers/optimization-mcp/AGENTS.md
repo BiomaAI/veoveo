@@ -20,7 +20,7 @@ run, solution, and evidence resources.
   MCP Task API.
 - Problem, run, and solution IDs are disjoint. Canonical JSON and recorded
   SHA-256 digests define immutable decision evidence.
-- NVIDIA cuOpt 26.06 in the pinned CUDA 13.2 image is the only execution
+- NVIDIA cuOpt 26.08 in the pinned CUDA 13.3 image is the only execution
   engine. Missing or unhealthy GPU access fails closed. Never add a CPU solver
   or optional GPU mode.
 - The Rust container owns the MCP contract, compilation, identity, tasks,

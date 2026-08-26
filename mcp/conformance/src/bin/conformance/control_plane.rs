@@ -234,7 +234,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
     optimization["prompts"] = serde_json::json!(OPTIMIZATION_PROMPTS);
     optimization["metadata"] = serde_json::json!({
         "contract_revision": 2,
-        "engine": "nvidia-cuopt-26.06"
+        "engine": "nvidia-cuopt-26.08"
     });
     optimization["resource_projection"] = serde_json::json!("server_owned");
     // The Pilot fixture exercises an inline MILP and intentionally registers no

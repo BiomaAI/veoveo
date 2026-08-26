@@ -225,7 +225,7 @@ async fn solves_every_public_family_on_the_gpu() {
         panic!("executor returned a non-health response");
     };
     assert!(health.ready);
-    assert!(health.cuopt_version.starts_with("26.06"));
+    assert!(health.cuopt_version.starts_with("26.08"));
     assert!(!health.gpu_uuid.is_empty());
 
     let routing = veoveo_optimization_mcp::executor::ExecutorRequest::new(
@@ -291,7 +291,7 @@ async fn solves_every_public_family_on_the_gpu() {
         let response = client
             .execute(&request, CancellationToken::new())
             .await
-            .unwrap();
+            .unwrap_or_else(|error| panic!("{label} executor request failed: {error:?}"));
         let ExecutorResult::Model { solution } = response.result else {
             panic!("{label} executor returned a non-model response");
         };

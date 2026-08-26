@@ -275,7 +275,7 @@ impl RoutingProblem {
             .any(|order| matches!(order.order, RouteOrderKind::PickupDelivery { .. }));
         if has_service_orders && has_pickup_delivery_orders {
             return Err(OptimizationContractError::InvalidProblem(
-                "cuOpt 26.06 routing does not support mixing service and pickup-delivery orders"
+                "cuOpt 26.08 routing does not support mixing service and pickup-delivery orders"
                     .to_owned(),
             ));
         }
