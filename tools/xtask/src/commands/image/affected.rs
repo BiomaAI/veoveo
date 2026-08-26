@@ -338,12 +338,23 @@ fn changed_workspace_packages(
         let relative = normalize_path(relative);
         if changed_paths
             .iter()
-            .any(|path| path_matches_input(path, &relative))
+            .any(|path| package_runtime_path_changed(path, &relative))
         {
             changed.insert(package.id.clone());
         }
     }
     Ok(changed)
+}
+
+fn package_runtime_path_changed(changed: &str, package_root: &str) -> bool {
+    if !path_matches_input(changed, package_root) {
+        return false;
+    }
+    let relative = changed
+        .strip_prefix(package_root)
+        .and_then(|path| path.strip_prefix('/'))
+        .unwrap_or(changed);
+    relative != "tests" && !relative.starts_with("tests/")
 }
 
 fn dependent_package_closure(metadata: &Metadata, changed: &BTreeSet<String>) -> BTreeSet<String> {
@@ -630,6 +641,22 @@ mod tests {
             consumer_closure(&definition, BTreeSet::from(["base".to_owned()])),
             BTreeSet::from(["base".to_owned(), "overlay".to_owned()])
         );
+    }
+
+    #[test]
+    fn cargo_integration_tests_do_not_select_runtime_images() {
+        assert!(!package_runtime_path_changed(
+            "platform/gateway/tests/exposure_probe.rs",
+            "platform/gateway"
+        ));
+        assert!(package_runtime_path_changed(
+            "platform/gateway/src/policy.rs",
+            "platform/gateway"
+        ));
+        assert!(package_runtime_path_changed(
+            "platform/gateway/Cargo.toml",
+            "platform/gateway"
+        ));
     }
 
     #[test]

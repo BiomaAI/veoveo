@@ -1,8 +1,41 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4f818d84af2577eca8d17900d2b491109dd420a1591f660bda7c50efb0f3082e",
-  "updatedAt": "2026-08-26T21:24:01Z",
+  "buildDigest": "sha256:27ba2c26492c012c9824128b8c85f611c5673f0b872f50f8a1da04ba5d587c18",
+  "updatedAt": "2026-08-26T21:37:01Z",
   "checks": [
+    {
+      "name": "affected-planner-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "veoveo-xtask",
+        "--tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T21:36:53Z",
+      "durationSeconds": 27.942509114,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "affected-planner-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-xtask",
+        "commands::image::affected::tests"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-26T21:36:25Z",
+      "durationSeconds": 0.482353442,
+      "detail": "completed successfully"
+    },
     {
       "name": "bioma-acceptance",
       "command": [
@@ -13,24 +46,8 @@
         "veoveo-bioma-acceptance"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T21:23:58Z",
-      "durationSeconds": 0.645594193,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "gateway-app-policy",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--test",
-        "exposure_probe"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T21:23:56Z",
-      "durationSeconds": 0.614508775,
+      "finishedAt": "2026-08-26T21:37:01Z",
+      "durationSeconds": 0.648724546,
       "detail": "completed successfully"
     },
     {
@@ -42,48 +59,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T21:22:07Z",
-      "durationSeconds": 17.026369004,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "release-guard-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "-p",
-        "veoveo-xtask",
-        "-p",
-        "veoveo-browser-smoke",
-        "-p",
-        "veoveo-smoke",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--tests",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T21:23:49Z",
-      "durationSeconds": 95.479443197,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "release-tooling-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-xtask",
-        "-p",
-        "veoveo-browser-smoke"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T21:24:01Z",
-      "durationSeconds": 2.775893192,
+      "finishedAt": "2026-08-26T21:36:59Z",
+      "durationSeconds": 5.110268684,
       "detail": "completed successfully"
     }
   ]
