@@ -41,7 +41,9 @@ idempotent seal path validates its application, Blueprint identity, message coun
 length, and digest, publishes an occurrence reserved from the durable Blueprint record,
 stages that occurrence before manifest publication, and removes the spool copy. Sealed
 playback materializes the Blueprint from Artifact storage and never treats the removed
-spool path as archive authority.
+spool path as archive authority. Seal also removes the recording-scoped static context
+after the durable state transition. An idempotent seal retry repeats that cleanup, which
+prevents live-only context from accumulating after a successful seal.
 
 ## Layer Cache
 
