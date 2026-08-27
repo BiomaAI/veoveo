@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ab0d2376a69f2d3fd06dbb8d2aaf69400632cea5eaee3c2637cb1a0bf01e5b7e",
-  "updatedAt": "2026-08-27T07:15:01Z",
+  "buildDigest": "sha256:58f9712e9595cdbeb49f4db7f4fc0b8d34bc65e7d47b41ed619b74a6fbdae9cb",
+  "updatedAt": "2026-08-27T07:18:34Z",
   "checks": [
     {
       "name": "console-web",
@@ -13,8 +13,8 @@
         "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:14:32Z",
-      "durationSeconds": 3.806334592,
+      "finishedAt": "2026-08-27T07:17:57Z",
+      "durationSeconds": 4.526128904,
       "detail": "completed successfully"
     },
     {
@@ -27,8 +27,8 @@
         "lint"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:14:50Z",
-      "durationSeconds": 2.87916607,
+      "finishedAt": "2026-08-27T07:18:17Z",
+      "durationSeconds": 2.842312578,
       "detail": "completed successfully"
     },
     {
@@ -41,8 +41,8 @@
         "test"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:14:42Z",
-      "durationSeconds": 0.303539585,
+      "finishedAt": "2026-08-27T07:18:05Z",
+      "durationSeconds": 0.329689143,
       "detail": "completed successfully"
     },
     {
@@ -56,8 +56,22 @@
         "veoveo-browser-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:15:01Z",
-      "durationSeconds": 0.448615695,
+      "finishedAt": "2026-08-27T07:18:27Z",
+      "durationSeconds": 0.432565394,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-release-doctor",
+      "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
+        "cargo",
+        "xtask",
+        "doctor"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T07:18:34Z",
+      "durationSeconds": 1.880500031,
       "detail": "completed successfully"
     }
   ]
