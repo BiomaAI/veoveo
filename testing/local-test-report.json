@@ -1,83 +1,34 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:054acb74be112ad8f1b216d8e673836f2ff636e8b1348d13fa370ee9290cf7a0",
-  "updatedAt": "2026-08-27T07:49:46Z",
+  "buildDigest": "sha256:91b1203d6e6cd474c3733342355974ff250a43c0c134bdbbb191e870c693582d",
+  "updatedAt": "2026-08-27T16:07:34Z",
   "checks": [
     {
-      "name": "bioma-image-lock",
+      "name": "recording-mcp-live-cache-bound",
       "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-deployment-smoke"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T07:49:41Z",
-      "durationSeconds": 0.406275486,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-browser-smoke",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-browser-smoke"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T07:49:31Z",
-      "durationSeconds": 0.441874289,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-mcp",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-recording-mcp"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T07:49:27Z",
-      "durationSeconds": 1.026906793,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-redap",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
         "cargo",
         "test",
         "-p",
         "veoveo-recording-mcp",
+        "--all-targets",
         "--features",
-        "redap-conformance",
-        "official_read_profile"
+        "redap-conformance"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:49:19Z",
-      "durationSeconds": 21.130294415,
+      "finishedAt": "2026-08-27T16:07:11Z",
+      "durationSeconds": 10.941387764,
       "detail": "completed successfully"
     },
     {
       "name": "recording-release-doctor",
       "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
         "cargo",
         "xtask",
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:49:46Z",
-      "durationSeconds": 1.873707021,
+      "finishedAt": "2026-08-27T16:07:34Z",
+      "durationSeconds": 2.084263591,
       "detail": "completed successfully"
     }
   ]
