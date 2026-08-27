@@ -1,18 +1,24 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c3b3e8ccd22354f0495e9a839b5b1e34a8ab43297b02cfdccc00ee199122a038",
-  "updatedAt": "2026-08-27T04:48:12Z",
+  "buildDigest": "sha256:927c75890ad5810aac326c7c8e14099ffaa9b00f48545b082a2606486e390954",
+  "updatedAt": "2026-08-27T05:01:05Z",
   "checks": [
     {
-      "name": "recording-uav-closure",
+      "name": "recording-playback",
       "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
         "cargo",
-        "xtask",
-        "doctor"
+        "test",
+        "-p",
+        "veoveo-recording-mcp",
+        "--features",
+        "redap",
+        "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T04:48:12Z",
-      "durationSeconds": 1.8575849770000001,
+      "finishedAt": "2026-08-27T05:01:05Z",
+      "durationSeconds": 7.056329273,
       "detail": "completed successfully"
     }
   ]
