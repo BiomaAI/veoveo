@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:32e0e54fe1c4b89d8f161fb66df84cdb5921abe871157b092bfef9897755a554",
-  "updatedAt": "2026-08-27T06:59:55Z",
+  "buildDigest": "sha256:ec402f7c753430a65e3144158b21d366f4820b5b1dfce886ba6b14b4ede7c0ca",
+  "updatedAt": "2026-08-27T07:03:03Z",
   "checks": [
     {
       "name": "helm-config",
@@ -14,8 +14,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T06:59:26Z",
-      "durationSeconds": 4.850464605,
+      "finishedAt": "2026-08-27T07:02:39Z",
+      "durationSeconds": 13.621918854,
       "detail": "completed successfully"
     },
     {
@@ -31,8 +31,8 @@
         "redap"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T06:59:38Z",
-      "durationSeconds": 0.970064035,
+      "finishedAt": "2026-08-27T07:02:48Z",
+      "durationSeconds": 1.202509933,
       "detail": "completed successfully"
     },
     {
@@ -45,8 +45,8 @@
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T06:59:55Z",
-      "durationSeconds": 1.827389094,
+      "finishedAt": "2026-08-27T07:03:03Z",
+      "durationSeconds": 1.9075334750000001,
       "detail": "completed successfully"
     }
   ]

@@ -257,7 +257,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     contains(gateway_deployment, "failureThreshold: 24")?;
     contains(
         recording_deployment,
-        "- name: recordings\n              mountPath: /recordings\n            - name: recording-mcp-tmp",
+        "- name: recordings\n              mountPath: /recordings\n              readOnly: false\n            - name: recording-mcp-tmp",
     )
     .context("Recording MCP must remove Artifact-backed Blueprint staging files")?;
     for expected in [
