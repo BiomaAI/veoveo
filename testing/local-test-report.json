@@ -1,8 +1,23 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:9a367959bb5bfacc64153a69958e527a38ab22b23c64a8dc9c09ead109d571c9",
-  "updatedAt": "2026-08-27T06:49:03Z",
+  "buildDigest": "sha256:4a90b696a51281b4a6f62ac5de73aff2ebf0061c82199d11b2e8d819c6a80298",
+  "updatedAt": "2026-08-27T06:54:37Z",
   "checks": [
+    {
+      "name": "helm-config",
+      "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T06:53:50Z",
+      "durationSeconds": 27.677173675,
+      "detail": "completed successfully"
+    },
     {
       "name": "recording-playback",
       "command": [
@@ -16,8 +31,8 @@
         "redap"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T06:49:03Z",
-      "durationSeconds": 1.263777332,
+      "finishedAt": "2026-08-27T06:54:05Z",
+      "durationSeconds": 0.99771322,
       "detail": "completed successfully"
     },
     {
@@ -30,8 +45,8 @@
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T06:48:46Z",
-      "durationSeconds": 1.894506287,
+      "finishedAt": "2026-08-27T06:54:37Z",
+      "durationSeconds": 1.885579595,
       "detail": "completed successfully"
     }
   ]

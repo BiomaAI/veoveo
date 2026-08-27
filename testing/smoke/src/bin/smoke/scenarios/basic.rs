@@ -245,10 +245,21 @@ pub(crate) async fn helm_config() -> Result<()> {
             document.contains("kind: Service") && document.contains("name: mcp-gateway\n")
         })
         .context("finding rendered mcp-gateway service")?;
+    let recording_deployment = platform
+        .split("\n---\n")
+        .find(|document| {
+            document.contains("kind: Deployment") && document.contains("name: recording\n")
+        })
+        .context("finding rendered recording deployment")?;
     contains(gateway_service, "sessionAffinity: ClientIP")?;
     contains(gateway_service, "timeoutSeconds: 10800")?;
     contains(gateway_deployment, "startupProbe:")?;
     contains(gateway_deployment, "failureThreshold: 24")?;
+    contains(
+        recording_deployment,
+        "- name: recordings\n              mountPath: /recordings\n            - name: recording-mcp-tmp",
+    )
+    .context("Recording MCP must remove Artifact-backed Blueprint staging files")?;
     for expected in [
         "image: surrealdb/surrealdb:v3.2.4",
         "image: rustfs/rustfs@sha256:800cf3f352a0a27e3275ca854a51f0027975d7acc7a0d52089a35bcc9fcbf0b5",
