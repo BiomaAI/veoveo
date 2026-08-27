@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2daa4333a7e4cc190e4fac8d2fac65cb09e7366aeb6aaaef0a0577260da2fabe",
-  "updatedAt": "2026-08-27T05:54:22Z",
+  "buildDigest": "sha256:9a367959bb5bfacc64153a69958e527a38ab22b23c64a8dc9c09ead109d571c9",
+  "updatedAt": "2026-08-27T06:49:03Z",
   "checks": [
     {
       "name": "recording-playback",
@@ -16,8 +16,22 @@
         "redap"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T05:54:22Z",
-      "durationSeconds": 8.058384665,
+      "finishedAt": "2026-08-27T06:49:03Z",
+      "durationSeconds": 1.263777332,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-release-doctor",
+      "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
+        "cargo",
+        "xtask",
+        "doctor"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T06:48:46Z",
+      "durationSeconds": 1.894506287,
       "detail": "completed successfully"
     }
   ]
