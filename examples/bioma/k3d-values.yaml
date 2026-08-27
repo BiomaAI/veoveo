@@ -9,11 +9,12 @@ artifactService:
   replicas: 1
 recording:
   tenantKey: bioma
-  # local-path does not enforce PVC capacity. Keep the Hub's actual-filesystem
-  # floor above the node reserve used by release preflight and kubelet image GC.
+  # local-path does not enforce PVC capacity or support expansion. Keep the
+  # existing nominal request and enforce the release/kubelet reserve through
+  # the Hub's actual-filesystem floor.
   spoolMinimumFreeBytes: 214748364800
   persistence:
-    size: 256Gi
+    size: 20Gi
 stream:
   liveInput:
     width: 640

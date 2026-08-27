@@ -215,6 +215,8 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
   Hub storage diagnostics and actual mounted usage with node free space before activation;
   the kubelet cannot protect its image filesystem from an unbounded backing directory.
   Set `spoolMinimumFreeBytes` at or above the installation's retained node reserve.
+  Do not use a larger request as a substitute, and do not attempt in-place growth when
+  the selected StorageClass does not advertise volume expansion.
 - Delete a large pre-cut SurrealDB row set through bounded record-ID batches. An
   unbounded delete on a changefeed table can retain the complete transaction in database
   memory, and disconnecting the CLI does not guarantee server-side cancellation.
