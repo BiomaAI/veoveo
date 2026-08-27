@@ -332,7 +332,9 @@ impl PlaybackManager {
         .to_string();
         Ok(PlaybackArchive {
             uri,
-            dataset_id: catalog.dataset_id.to_string(),
+            // Rerun displays `EntryId` as mixed-case TUID hex. The public catalog
+            // contract keeps the durable UUIDv7 identity instead.
+            dataset_id: plan.dataset_id.to_string(),
             recording_segment_id: plan.recording_id.to_string(),
             catalog_revision: catalog.revision.clone(),
             rrd_version: "0.36.3".to_owned(),
@@ -824,18 +826,23 @@ mod tests {
     }
 
     #[test]
-    fn durable_dataset_uuid_is_the_rerun_dataset_entry_id() {
+    fn durable_dataset_uuid_bytes_back_the_rerun_dataset_entry_id() {
         let dataset_id = RecordingDatasetId::new();
         let entry_id = playback_dataset_id(dataset_id).unwrap();
-        assert_eq!(entry_id.to_string(), dataset_id.to_string());
+        let dataset_uuid = uuid::Uuid::parse_str(&dataset_id.to_string()).unwrap();
+        assert_eq!(entry_id.id.as_bytes(), *dataset_uuid.as_bytes());
+        assert_ne!(entry_id.to_string(), dataset_id.to_string());
     }
 
     #[test]
-    fn playback_store_uses_dataset_and_recording_uuids() {
+    fn playback_store_uses_rerun_dataset_entry_and_catalog_recording_uuid() {
         let dataset_id = RecordingDatasetId::new();
         let recording_id = RecordingId::new();
         let store_id = playback_store_id(dataset_id, recording_id).unwrap();
-        assert_eq!(store_id.application_id().as_str(), dataset_id.to_string());
+        assert_eq!(
+            store_id.application_id().as_str(),
+            playback_dataset_id(dataset_id).unwrap().to_string()
+        );
         assert_eq!(store_id.recording_id().as_str(), recording_id.to_string());
     }
 }
