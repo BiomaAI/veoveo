@@ -1,21 +1,21 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:5ad22987ddb03ff8070fc3cf7fa57695706a4de53ef54c6b3964db5e06881d7e",
-  "updatedAt": "2026-08-27T07:34:33Z",
+  "buildDigest": "sha256:b153b560d752250cf1ff212afc6b5d02fa4bc1245a80d98afc4376bb8c5fe142",
+  "updatedAt": "2026-08-27T07:40:56Z",
   "checks": [
     {
-      "name": "bioma-image-lock",
+      "name": "recording-mcp",
       "command": [
         "env",
         "CARGO_BUILD_JOBS=4",
         "cargo",
         "test",
         "-p",
-        "veoveo-deployment-smoke"
+        "veoveo-recording-mcp"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:34:26Z",
-      "durationSeconds": 0.392842406,
+      "finishedAt": "2026-08-27T07:40:49Z",
+      "durationSeconds": 4.465133263,
       "detail": "completed successfully"
     },
     {
@@ -28,8 +28,8 @@
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:34:33Z",
-      "durationSeconds": 1.8546792189999999,
+      "finishedAt": "2026-08-27T07:40:56Z",
+      "durationSeconds": 1.896093343,
       "detail": "completed successfully"
     }
   ]

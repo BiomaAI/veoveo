@@ -15,8 +15,8 @@ use veoveo_platform_store::{
     RecordingReadGrantRecord, RecordingRecord, RecordingSeal, RecordingState,
 };
 use veoveo_recording_hub::{
-    GatewayLayerPublisher, ingest_recording_static_context_path, ingest_segment_parts_directory,
-    invocation_authority_record, live_segment_byte_len,
+    GatewayLayerPublisher, ingest_segment_parts_directory, invocation_authority_record,
+    live_segment_byte_len,
 };
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
 
@@ -567,11 +567,16 @@ impl RecordingService {
             anyhow::bail!("recording not found");
         };
         if recording.state == RecordingState::Sealed {
-            let layers = self
+            let dataset_id = RecordingDatasetId::from_uuid(record_uuid(
+                &recording.dataset,
+                "recording_dataset",
+            )?);
+            let dataset = self
                 .store
-                .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
-                .await?;
-            self.remove_recording_static_context(recording_id, &layers)?;
+                .recording_dataset(platform_identity.tenant_id, dataset_id)
+                .await?
+                .context("sealed recording dataset is missing")?;
+            self.remove_recording_static_context(recording_id, &dataset.dataset_key)?;
             return self.sealed_output(&platform_identity, recording).await;
         }
         ensure!(
@@ -692,7 +697,7 @@ impl RecordingService {
                 sealed_at,
             })
             .await?;
-        self.remove_recording_static_context(recording_id, &layers)?;
+        self.remove_recording_static_context(recording_id, &dataset.dataset_key)?;
         Ok(SealRecordingOutput {
             recording_id: recording_id.to_string(),
             manifest_artifact_uri: artifact_uri(manifest_artifact_id),
@@ -1123,26 +1128,10 @@ impl RecordingService {
     fn remove_recording_static_context(
         &self,
         recording_id: RecordingId,
-        layers: &[RecordingLayerRecord],
+        dataset_key: &str,
     ) -> Result<()> {
-        let mut paths = BTreeSet::new();
-        for layer in layers
-            .iter()
-            .filter(|layer| layer.kind == RecordingLayerKind::Capture)
-        {
-            let Some(relative) = layer.staging_path.as_deref() else {
-                continue;
-            };
-            paths.insert(recording_static_context_path(
-                &self.spool_root,
-                relative,
-                recording_id,
-            )?);
-        }
-        for path in paths {
-            self.remove_spool_file(&path)?;
-        }
-        Ok(())
+        let path = recording_static_context_path(&self.spool_root, dataset_key, recording_id)?;
+        self.remove_spool_file(&path)
     }
 
     fn remove_spool_file(&self, path: &Path) -> Result<()> {
@@ -1209,16 +1198,11 @@ fn confined_layer_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
 
 fn recording_static_context_path(
     spool_root: &Path,
-    capture_relative: &str,
+    dataset_key: &str,
     recording_id: RecordingId,
 ) -> Result<PathBuf> {
-    let capture_path = confined_layer_path(spool_root, capture_relative)?;
-    let context_path = ingest_recording_static_context_path(&capture_path, recording_id)?;
-    ensure!(
-        context_path.starts_with(spool_root),
-        "recording static context escapes the configured spool root"
-    );
-    Ok(context_path)
+    let dataset_path = confined_layer_path(spool_root, dataset_key)?;
+    Ok(dataset_path.join(format!(".recording-{recording_id}.static-context")))
 }
 
 fn visible(recording: &RecordingRecord, identity: &GatewayInternalIdentity) -> bool {
@@ -1480,11 +1464,9 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let root = directory.path().canonicalize().unwrap();
         let recording_id = RecordingId::new();
-        let stream_id = uuid::Uuid::now_v7();
-        let relative = format!("recordings/2026-08-27/source.ingest-{stream_id}-s0.rrd");
 
         assert_eq!(
-            recording_static_context_path(&root, &relative, recording_id).unwrap(),
+            recording_static_context_path(&root, "recordings", recording_id).unwrap(),
             root.join("recordings")
                 .join(format!(".recording-{recording_id}.static-context"))
         );
