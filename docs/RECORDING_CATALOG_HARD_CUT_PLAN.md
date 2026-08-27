@@ -1,8 +1,8 @@
 # Recording Catalog Hard Cut Implementation Plan
 
-Status: implementation complete for platform request `016`. Disposable-development
-activation and headed hardware-GPU acceptance remain before closure. The landed code is
-the only supported recording contract after activation.
+Status: complete. Platform request `016` is activated in the disposable Bioma
+installation and accepted through live and sealed Rerun playback on hardware-backed
+graphics. The landed contract is the only supported recording architecture.
 
 This plan extracts the Recording Catalog Hard Cut from
 [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md). It is deliberately
@@ -582,6 +582,44 @@ Before schema activation, rollback is an ordinary code rollback. After activatio
 supported recovery is either roll forward to a corrected hard-cut build or restore the
 complete pre-cut installation snapshot and old build together. A mixed v8/v9 deployment
 is not supported.
+
+## Completion Record
+
+The disposable-data cut was activated on 2026-08-27. Runtime closure is recorded at
+Git revision `ad54be9ad39ae0a1cdb535c4c027eec7eb8c11d5`; the implementation began with
+`b5f5a006` and remained a hard cut throughout activation.
+
+| Contract fact | Accepted result |
+|---|---|
+| Durable dataset | `01a0417d-c5bc-7731-8b10-b768f5754b76` contains independently governed recording segments. |
+| Sealed segment | `01a0417d-c5c4-7ba2-938d-65c218672137` has seven capture layers plus one properties layer, all committed as Artifact occurrences. |
+| Live replacement | `01a041bb-5fe9-7963-b8ba-1fb12e37cf9c` continued ingest under simulator pod generation `9c89c130-4175-48df-92f0-dfb5c0ed54de` while the prior generation remained sealed. |
+| Manifest and Blueprint | Playback uses `veoveo.io/recording-playback/v9`. The sealed Blueprint is Artifact occurrence `01a0417d-c5e0-7870-9982-cde82d8c98c2`; no manifest v8 reader or local archive fallback remains. |
+| Bounded Arrow projection | Projection `01a041b9-827b-7392-ac49-be2143ff6482` returned four rows and 476,680 bytes. Its payload SHA-256 is `f46fff7ab78a5929d5749fa2bceb5fa92280b0ea4c4f3d81f9dda6e571ee4e6b`; its Arrow schema SHA-256 is `1b4199cff35abf3326969cd0bcba809da8bc44aefcfba64e37d343b86aba0500`. Public redemption matched the declared length, media type, and digest. |
+| Cache-loss recovery | All nine derived cache files were deleted, Recording MCP restarted, and sealed playback reconstructed 883,683,240 bytes from Artifact occurrences. The Hub Blueprint staging copy and sealed recording static context were absent afterward. |
+
+Headed live evidence is at
+`output/acceptance/uav-recording-browser/746d291f915df0385923f197ec47f36ef0f46c26/01a041ab-e8f8-7843-a829-c0912f848699/evidence.json`.
+It observed 120 seconds of advancing live Rerun state and a changed aerial camera frame.
+The cache-loss archive replay is at
+`output/acceptance/uav-recording-archive-browser/3c6d6c97104b242839a9426c704701472b8c5f7d/01a04218-598d-7883-a77f-d6aea77688ca/evidence.json`.
+Final deployed archive evidence is at
+`output/acceptance/uav-recording-archive-browser/ad54be9ad39ae0a1cdb535c4c027eec7eb8c11d5/01a0422f-d5da-7380-9a6f-42cb7b967baf/evidence.json`.
+
+The final archive capture used headed Chrome 151. WebGPU exposed SwiftShader and was
+rejected as hardware evidence. WebGL reported NVIDIA GeForce RTX 4090 through ANGLE and
+rendered the fleet, detailed leader camera, OpenStreetMap, and latest
+`simulation_time` frame. Redap returned every required successful read path with zero
+failed playback requests. The image contained 470 quantized colors; the camera pane
+contained 153, which guards against blank or uniform playback.
+
+The final 40 GiB release preflight found 479 GiB free and projected 73 GiB of margin
+above the retained filesystem reserve. The post-build zero-growth check found 478 GiB
+free and 111 GiB above that reserve. The Kubernetes node reported `Ready=True` and
+`DiskPressure=False`. Recording, Reason, Stream, Console, and simulator workloads were
+Ready with no current failed or evicted pod. Recording cache readiness returned HTTP
+200, projection scratch was empty, and the rebuilt layer cache retained exactly nine
+files.
 
 ## Completion Criteria
 
