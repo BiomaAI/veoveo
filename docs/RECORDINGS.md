@@ -77,17 +77,20 @@ Hub recovery resumes from the durable layer state and exact occurrence identity.
 does not list a bucket or infer publication from a filename. Local paths are staging
 coordinates only. Artifact storage becomes authoritative when the layer commit lands.
 
-Sealing emits the deterministic properties layer through the same publication path and
-publishes a manifest occurrence after every capture layer is committed. A producer
-Blueprint wins when present. The dataset default is otherwise eligible.
+Sealing emits the deterministic properties layer through the same publication path. A
+producer Blueprint is validated, published under the occurrence UUID reserved by its
+durable catalog record, and removed from Hub staging before the v9 manifest occurrence
+is published. A retry resumes from the staged occurrence. A producer Blueprint wins
+when present. The dataset default is otherwise eligible.
 
 ## Governed Catalogs
 
 Recording MCP materializes admitted Artifact occurrences into a verified bounded cache.
-A download first enters a partial file, then passes length, digest, RRD footer, dataset
-ID, and recording ID checks before atomic rename. Cache keys bind the occurrence and
-digest. Active virtual catalogs pin their files, and least-recently-used eviction removes
-only unpinned entries.
+A download first enters a partial file, then passes length, digest, and RRD identity
+checks before atomic rename. Archive layers bind the dataset and recording IDs.
+Blueprints bind the producer application ID, Blueprint ID, and message count. Cache keys
+bind the occurrence and digest. Active virtual catalogs and Blueprint responses pin
+their files, and least-recently-used eviction removes only unpinned entries.
 
 A virtual catalog key contains tenant, dataset ID, policy revision, the digest of the
 admitted recording set, and grant class. The Rerun handler receives only those layers.
@@ -223,6 +226,12 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
 - Parse every mounted publisher PEM before rollout. A Secret object with the expected key
   name but a zero-byte value passes Kubernetes shape checks and fails both publishers at
   startup with `InvalidKeyFormat`.
+- Obtain a recording-seal admin token from the admin profile's protected-resource
+  metadata. The deployed profile requires `operator:use admin:manage time:read`; a
+  narrower hand-written scope list fails discovery before the tool call.
+- Seal only after every capture layer is committed. When a producer Blueprint exists,
+  require its Artifact URI in the seal result and require archive playback to survive
+  removal of both the Hub staging copy and the complete Recording MCP cache.
 - After rollout, confirm `Ready=True`, `DiskPressure=False`, no new `Evicted` recording
   pods, zero leaked scratch, and healthy storage diagnostics.
 - Before browser automation, prove the headed browser has hardware WebGPU or WebGL and

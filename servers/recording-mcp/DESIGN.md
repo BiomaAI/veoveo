@@ -22,9 +22,9 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 ## Durable Authority
 
 SurrealDB records durable recording datasets, recordings, immutable layer manifests,
-read grants, and projection receipts. Artifact occurrences are authoritative for every
-committed RRD layer. Hub-local files and the Recording MCP cache are recoverable staging
-or derived state.
+producer Blueprints, read grants, and projection receipts. Artifact occurrences are
+authoritative for every committed RRD layer and sealed producer Blueprint. Hub-local
+files and the Recording MCP cache are recoverable staging or derived state.
 
 One dataset may admit many recording segments. The producer recording key remains source
 metadata. Every layer is decoded and verified against the dataset and recording Store ID
@@ -36,13 +36,22 @@ require a fresh Artifact-read caller. Writing layers may use the confined Hub sp
 the live receiver only. A missing credential never falls back to an old local archive
 path.
 
+A producer Blueprint remains confined staging while its recording is live. The
+idempotent seal path validates its application, Blueprint identity, message count,
+length, and digest, publishes an occurrence reserved from the durable Blueprint record,
+stages that occurrence before manifest publication, and removes the spool copy. Sealed
+playback materializes the Blueprint from Artifact storage and never treats the removed
+spool path as archive authority.
+
 ## Layer Cache
 
 `layer_cache.rs` owns Artifact-to-PVC materialization. It reserves capacity before the
 download, uses a partial file, verifies length and SHA-256, checks the canonical RRD Store
-ID, and atomically installs the result. The cache key includes occurrence UUID and digest.
-Pinned entries cannot be evicted. Least-recently-used unpinned entries are removed until
-both the managed ceiling and physical free-space floor are safe.
+ID, and atomically installs the result. Capture and properties layers bind the durable
+dataset and recording UUIDs. Blueprints bind the application ID, Blueprint ID, and exact
+message count. The cache key includes occurrence UUID and digest. Pinned entries cannot
+be evicted. Least-recently-used unpinned entries are removed until both the managed
+ceiling and physical free-space floor are safe.
 
 Startup removes partial and unrecognized files. A complete cache deletion changes no
 durable identity and loses no recording. `/readyz` fails when the cache or projection
