@@ -190,6 +190,9 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
 
 - Decide retention before schema activation. The supported development cut discards old
   recording rows, spool bytes, cache bytes, and associated disposable object data.
+- Suspend the owning GitOps reconciliation before scaling Hub and producer Deployments
+  to zero. Confirm the desired and current replica counts remain zero; a manual scale
+  alone can be corrected while the database reset is still running.
 - Update the Store migration, Rust strong types, Hub, Recording MCP, Gateway, Console,
   smoke fixtures, Helm schema, examples, and both recording design documents together.
 - Search active contracts for obsolete manifest versions, query tool names, Hub query
@@ -208,6 +211,12 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
   deadline, and spool budgets and scans normative recording contracts for old surfaces.
 - Run `cargo xtask release preflight` with the expected build growth and Kubernetes node.
   Do not start the image build when the retained host reserve would be crossed.
+- Treat a local-path PVC size as a scheduling request, not a filesystem quota. Compare
+  Hub storage diagnostics and actual mounted usage with node free space before activation;
+  the kubelet cannot protect its image filesystem from an unbounded backing directory.
+- Delete a large pre-cut SurrealDB row set through bounded record-ID batches. An
+  unbounded delete on a changefeed table can retain the complete transaction in database
+  memory, and disconnecting the CLI does not guarantee server-side cancellation.
 - After rollout, confirm `Ready=True`, `DiskPressure=False`, no new `Evicted` recording
   pods, zero leaked scratch, and healthy storage diagnostics.
 - Before browser automation, prove the headed browser has hardware WebGPU or WebGL and
@@ -217,10 +226,11 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
 ## Activation And Recovery
 
 Development activation discards pre-cut recording data. Stop producers, drain accepted
-batches, remove the approved recording rows and disposable recording object data, clear
-the spool and catalog cache, then apply migration `0046_recording_catalog_hard_cut` and
-deploy Gateway, Artifact service, Hub, Recording MCP, Console, and their Helm contract as
-one compatible release.
+batches, and suspend their owning GitOps reconciliation. Remove the approved recording
+rows and disposable recording object data, clear the spool and catalog cache, then apply
+migration `0046_recording_catalog_hard_cut` and deploy Gateway, Artifact service, Hub,
+Recording MCP, Console, and their Helm contract as one compatible release. Resume
+reconciliation only after the compatible desired state is available.
 
 Before the migration, rollback is an ordinary code rollback. After activation, recovery
 is roll-forward or restoration of the complete old database, object data, and workload

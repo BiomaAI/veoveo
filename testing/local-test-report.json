@@ -1,50 +1,8 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:aa668824f7759939ed400f28aab7ec163f8a9d1c655606801738fd2d8f5a6c87",
-  "updatedAt": "2026-08-27T03:57:32Z",
+  "buildDigest": "sha256:a1bcda4bd29967bbaf6f3d2e75194d75b5bc138942cd3f478fcbd76e8b827e0b",
+  "updatedAt": "2026-08-27T04:27:52Z",
   "checks": [
-    {
-      "name": "artifact-plane",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-artifact-service"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:57:27Z",
-      "durationSeconds": 1.7854457350000001,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-web",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:56:23Z",
-      "durationSeconds": 1.77796273,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-web-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:56:36Z",
-      "durationSeconds": 8.776369057,
-      "detail": "completed successfully"
-    },
     {
       "name": "recording-doctor",
       "command": [
@@ -57,158 +15,21 @@
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T03:56:54Z",
-      "durationSeconds": 2.591616353,
+      "finishedAt": "2026-08-27T04:26:58Z",
+      "durationSeconds": 1.8245136,
       "detail": "completed successfully"
     },
     {
-      "name": "recording-gateway-console",
+      "name": "recording-helm-config",
       "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
         "cargo",
-        "test",
-        "-p",
-        "veoveo-mcp-gateway",
-        "-p",
-        "veoveo-console-bff"
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T03:56:08Z",
-      "durationSeconds": 182.264035784,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-helm-lint",
-      "command": [
-        "helm",
-        "lint",
-        "deploy/helm/veoveo"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:56:49Z",
-      "durationSeconds": 0.600881376,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-helm-render",
-      "command": [
-        "helm",
-        "template",
-        "veoveo",
-        "deploy/helm/veoveo",
-        "--show-only",
-        "templates/recording.yaml"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:56:50Z",
-      "durationSeconds": 0.084680116,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-hub",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-recording-hub"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:57:32Z",
-      "durationSeconds": 3.542060626,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-mcp",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-recording-mcp",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:52:24Z",
-      "durationSeconds": 5.138438248,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-redap-profile",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-recording-mcp",
-        "--features",
-        "redap-conformance",
-        "official_read_profile",
-        "--",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:52:54Z",
-      "durationSeconds": 22.573764309,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-rrd",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-rrd"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:57:25Z",
-      "durationSeconds": 1.173080392,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-store-catalog",
-      "command": [
-        "env",
-        "VEOVEO_SURREAL_INTEGRATION=1",
-        "VEOVEO_SURREAL_ENDPOINT=ws://127.0.0.1:8000",
-        "VEOVEO_SURREAL_NAMESPACE=veoveo-recording-hard-cut",
-        "VEOVEO_SURREAL_DATABASE=integration",
-        "VEOVEO_SURREAL_USERNAME=root",
-        "VEOVEO_SURREAL_PASSWORD=root",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-platform-store",
-        "--test",
-        "surreal_integration",
-        "recording_catalog_commits_layers_and_governed_authority_atomically",
-        "--",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:57:23Z",
-      "durationSeconds": 1.117580399,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-workspace-check",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "check",
-        "--workspace",
-        "--all-targets"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T03:57:10Z",
-      "durationSeconds": 11.749474018,
+      "finishedAt": "2026-08-27T04:27:52Z",
+      "durationSeconds": 49.33979015,
       "detail": "completed successfully"
     }
   ]
