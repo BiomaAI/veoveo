@@ -3,13 +3,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{
-    Extension, Router,
+    Extension, Json, Router,
     body::Body,
     extract::{Path, State},
     http::{HeaderMap, StatusCode, header},
     middleware,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use clap::Parser;
 use re_protos::cloud::v1alpha1::rerun_cloud_service_server::RerunCloudServiceServer;
@@ -34,10 +34,14 @@ use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
+    CreateRecordingProjectionRequest, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier,
+    GatewayInternalTrustBundle, Page, RecordingProjectionHandle, ServerSlug, SubscriptionHub,
+    TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
 };
-use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
+use veoveo_platform_store::{
+    PlatformStore, RecordingId, RecordingProjectionReceiptId, StoreConfig, StoreCredentials,
+};
+use veoveo_recording_hub::{GatewayLayerPublisher, GatewayLayerPublisherConfig};
 use veoveo_recording_mcp::blueprint_playback::recording_scoped_blueprint;
 use veoveo_recording_mcp::live_stream::{
     FRAMED_RRD_CONTENT_TYPE, LIVE_RRD_START_HEADER, LiveRrdStart, authorized_live_rrd_stream,
@@ -45,12 +49,12 @@ use veoveo_recording_mcp::live_stream::{
 use veoveo_recording_mcp::{
     RecordingService,
     admin::{self, SERVER_DOCS},
-    contract::{
-        QueryRecordingOutput, QueryRecordingRequest, SealRecordingOutput, SealRecordingRequest,
-    },
+    contract::{CreateCatalogGrantRequest, SealRecordingOutput, SealRecordingRequest},
+    layer_cache::LayerCacheLimits,
     playback::{
-        PLAYBACK_SESSION_HEADER, PlaybackManager, playback_application_id, playback_store_id,
+        PlaybackManager, RECORDING_GRANT_HEADER, playback_application_id, playback_store_id,
     },
+    service::ProjectionRuntimeLimits,
     uris,
 };
 
@@ -63,14 +67,16 @@ mod prompts;
 #[path = "server/state.rs"]
 mod state;
 
-use auth::{InternalAuthState, authenticate, caller, identity};
+use auth::{
+    InternalAuthState, artifact_caller, artifact_caller_from_context, authenticate, identity,
+};
 use config::Args;
 use prompts::RecordingPrompt;
 use state::AppState;
 
 const SERVER_SLUG: &str = "recording";
 const LIST_PAGE_SIZE: usize = 100;
-const EXPLORER_TOOLS: &[&str] = &["query_recording", "seal_recording"];
+const EXPLORER_TOOLS: &[&str] = &["create_recording_projection", "seal_recording"];
 
 #[derive(Clone)]
 struct RecordingMcp {
@@ -89,34 +95,8 @@ impl RecordingMcp {
     }
 
     #[tool(
-        title = "Query recording",
-        description = "Run a row-bounded snapshot query over the authorized durable RRD segments of one recording, optionally within an inclusive timeline range.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<QueryRecordingOutput>(),
-        annotations(
-            read_only_hint = true,
-            destructive_hint = false,
-            idempotent_hint = true,
-            open_world_hint = false
-        )
-    )]
-    async fn query_recording(
-        &self,
-        Parameters(request): Parameters<QueryRecordingRequest>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, McpError> {
-        let identity = identity(&context)?;
-        let output = self
-            .state
-            .recordings
-            .query(&identity, request)
-            .await
-            .map_err(invalid_params)?;
-        structured_result(format!("returned {} row(s)", output.rows.len()), &output)
-    }
-
-    #[tool(
         title = "Seal recording",
-        description = "Fsync and validate every frozen segment, publish governed immutable segment and manifest artifacts, then atomically seal the recording. Requires admin:manage scope.",
+        description = "Validate committed immutable layers, publish the v9 manifest Artifact, then atomically seal the recording. Requires admin:manage scope.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SealRecordingOutput>(),
         annotations(
             read_only_hint = false,
@@ -132,11 +112,10 @@ impl RecordingMcp {
     ) -> Result<CallToolResult, McpError> {
         let recording_id = parse_recording_id(&request.recording_id)?;
         let identity = identity(&context)?;
-        let caller = caller(&context)?;
         let output = self
             .state
             .recordings
-            .seal(&identity, &caller, recording_id)
+            .seal(&identity, recording_id)
             .await
             .map_err(invalid_params)?;
         self.state
@@ -145,10 +124,46 @@ impl RecordingMcp {
             .await;
         self.state
             .subscribers
-            .notify_resource_updated(uris::segments_uri(&request.recording_id))
+            .notify_resource_updated(uris::layers_uri(&request.recording_id))
             .await;
         self.state.subscribers.notify_resource_list_changed().await;
         structured_result("recording sealed".to_owned(), &output)
+    }
+
+    #[tool(
+        title = "Create recording projection",
+        description = "Materialize one deterministic, bounded Apache Arrow stream from exact entities and components in one governed immutable recording. The returned handle contains no bearer credentials.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<RecordingProjectionHandle>(),
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn create_recording_projection(
+        &self,
+        Parameters(request): Parameters<CreateRecordingProjectionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = identity(&context)?;
+        let artifact_caller = artifact_caller_from_context(&context, identity.clone())?;
+        let cancellation = context.ct.clone();
+        match self
+            .state
+            .recordings
+            .create_projection(&identity, &artifact_caller, request, cancellation)
+            .await
+        {
+            Ok(handle) => structured_result("recording projection ready".to_owned(), &handle),
+            Err(error) => {
+                tracing::warn!(%error, "recording projection request failed");
+                Err(McpError::invalid_params(
+                    "recording projection request was rejected",
+                    None,
+                ))
+            }
+        }
     }
 }
 
@@ -174,7 +189,7 @@ impl ServerHandler for RecordingMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Governed access to the installation recording catalog. Discover recordings through resources, query bounded temporal rows from frozen shards or acknowledged live parts with query_recording, and seal only frozen recordings when the caller has admin:manage scope. Sealing returns artifact:// occurrence URIs; artifact policy controls subsequent reads and sharing."
+            "Governed access to the installation recording catalog. Discover recordings through resources, materialize deterministic bounded Apache Arrow projections from committed immutable layers with create_recording_projection, and seal only frozen recordings when the caller has admin:manage scope. Sealing returns artifact:// occurrence URIs; artifact policy controls subsequent reads and sharing."
                 .to_owned(),
         );
         info
@@ -268,11 +283,11 @@ impl ServerHandler for RecordingMcp {
             );
             resources.push(
                 Resource::new(
-                    uris::segments_uri(&recording.recording_id),
-                    format!("segments for {}", recording.recording_key),
+                    uris::layers_uri(&recording.recording_id),
+                    format!("layers for {}", recording.recording_key),
                 )
-                .with_title(format!("Segments for {}", recording.recording_key))
-                .with_description("Durable segment validation and artifact state.")
+                .with_title(format!("Layers for {}", recording.recording_key))
+                .with_description("Immutable layer publication and Artifact state.")
                 .with_mime_type("application/json"),
             );
         }
@@ -302,9 +317,9 @@ impl ServerHandler for RecordingMcp {
                 .with_title("Recording")
                 .with_description("Governed recording metadata by UUIDv7.")
                 .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::SEGMENTS_TEMPLATE, "recording segments")
-                .with_title("Recording segments")
-                .with_description("Durable segments for one governed recording.")
+            ResourceTemplate::new(uris::LAYERS_TEMPLATE, "recording layers")
+                .with_title("Recording layers")
+                .with_description("Durable layers for one governed recording.")
                 .with_mime_type("application/json"),
         ];
         let page = mcp_page(templates, request.as_ref())?;
@@ -356,9 +371,9 @@ impl ServerHandler for RecordingMcp {
                         }],
                         tools: &[
                             veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Query recording",
-                                name: "query_recording",
-                                arguments_json: r#"{"recording_id":"","entities":"/**","timeline":"tick","max_rows":100}"#,
+                                label: "Create bounded Arrow projection",
+                                name: "create_recording_projection",
+                                arguments_json: r#"{"dataset_id":"","recording_id":"","entity_paths":["/sensor"],"component_ids":["Scalars:scalars"],"timeline":"tick","sampling":{"kind":"range","start":0,"end":100},"sparse_fill":"none","maximum_entities":8,"maximum_columns":8,"maximum_samples":1000,"maximum_rows":10000,"maximum_bytes":33554432,"deadline_ms":15000,"idempotency_key":"","units":{},"coordinate_frame_refs":[]}"#,
                             },
                             veoveo_mcp_apps_extension::WorkbenchTool {
                                 label: "Seal recording",
@@ -366,6 +381,11 @@ impl ServerHandler for RecordingMcp {
                                 arguments_json: r#"{"recording_id":""}"#,
                             },
                         ],
+                        stream_result: Some(
+                            veoveo_mcp_apps_extension::WorkbenchStreamResult::RecordingProjection {
+                                tool_name: "create_recording_projection",
+                            },
+                        ),
                     },
                 );
                 return Ok(ReadResourceResult::new(vec![
@@ -383,16 +403,16 @@ impl ServerHandler for RecordingMcp {
                         .map_err(internal)?,
                 );
             }
-            if let Some(value) = uris::parse_segments_uri(uri) {
+            if let Some(value) = uris::parse_layers_uri(uri) {
                 let recording_id = parse_recording_id(value)?;
-                let segments = self
+                let layers = self
                     .state
                     .recordings
-                    .segment_views(&identity, recording_id)
+                    .layer_views(&identity, recording_id)
                     .await
                     .map_err(internal)?
                     .ok_or_else(|| McpError::resource_not_found("recording not found", None))?;
-                return json_resource(uri, &segments);
+                return json_resource(uri, &layers);
             }
             if let Some(value) = uris::parse_recording_uri(uri) {
                 let recording_id = parse_recording_id(value)?;
@@ -484,7 +504,7 @@ impl ServerHandler for RecordingMcp {
         };
         if !matches!(
             reference.uri.as_str(),
-            uris::RECORDING_TEMPLATE | uris::SEGMENTS_TEMPLATE
+            uris::RECORDING_TEMPLATE | uris::LAYERS_TEMPLATE
         ) || request.argument.name != "recording_id"
         {
             return Ok(CompleteResult::default());
@@ -556,7 +576,7 @@ fn parse_recording_id(value: &str) -> Result<RecordingId, McpError> {
 }
 
 fn subscribable_recording_id(uri: &str) -> Result<RecordingId, McpError> {
-    uris::parse_segments_uri(uri)
+    uris::parse_layers_uri(uri)
         .or_else(|| uris::parse_recording_uri(uri))
         .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))
         .and_then(parse_recording_id)
@@ -571,11 +591,41 @@ fn internal(error: impl std::fmt::Display) -> McpError {
 }
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
-    match state.recordings.platform_store().healthcheck().await {
-        Ok(()) => StatusCode::OK,
+    if let Err(error) = state.recordings.platform_store().healthcheck().await {
+        tracing::warn!("recording MCP store readiness failed: {error}");
+        return StatusCode::SERVICE_UNAVAILABLE;
+    }
+    if let Err(error) = state.recordings.storage_readiness() {
+        tracing::warn!("recording MCP storage readiness failed: {error}");
+        return StatusCode::SERVICE_UNAVAILABLE;
+    }
+    StatusCode::OK
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordingStorageDiagnostics {
+    schema: &'static str,
+    layer_cache: Option<veoveo_recording_mcp::layer_cache::LayerCacheStats>,
+    projection_scratch: Option<veoveo_recording_mcp::service::ProjectionRuntimeStats>,
+}
+
+async fn storage_diagnostics(State(state): State<Arc<AppState>>) -> Response {
+    let diagnostics = state
+        .recordings
+        .layer_cache_stats()
+        .and_then(|layer_cache| {
+            Ok(RecordingStorageDiagnostics {
+                schema: "veoveo.io/recording-storage-diagnostics/v1",
+                layer_cache,
+                projection_scratch: state.recordings.projection_runtime_stats()?,
+            })
+        });
+    match diagnostics {
+        Ok(diagnostics) => Json(diagnostics).into_response(),
         Err(error) => {
-            tracing::warn!("recording MCP readiness failed: {error}");
-            StatusCode::SERVICE_UNAVAILABLE
+            tracing::warn!(%error, "recording storage diagnostics failed");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
         }
     }
 }
@@ -589,9 +639,16 @@ async fn playback_manifest(
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    let artifact_caller = match artifact_caller(identity.clone(), &headers) {
+        Ok(caller) => caller,
+        Err(error) => {
+            tracing::warn!(%error, %recording_id, "recording playback omitted Artifact authority");
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+    };
     let plan = match state
         .recordings
-        .playback_plan(&identity, recording_id)
+        .playback_plan(&identity, Some(&artifact_caller), recording_id)
         .await
     {
         Ok(Some(plan)) => plan,
@@ -601,17 +658,109 @@ async fn playback_manifest(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let requested_session = headers
-        .get(PLAYBACK_SESSION_HEADER)
+    let requested_grant = headers
+        .get(RECORDING_GRANT_HEADER)
         .and_then(|value| value.to_str().ok());
-    match state
-        .playback
-        .prepare_manifest(&identity, plan, requested_session)
+    let grant = match state
+        .recordings
+        .issue_read_grant(
+            &identity,
+            plan.dataset_id,
+            veoveo_platform_store::RecordingReadGrantClass::ViewerSegment,
+            vec![plan.recording_id],
+            plan.catalog_revision.clone(),
+            requested_grant,
+        )
         .await
     {
+        Ok(grant) => grant,
+        Err(error) => {
+            tracing::error!(%error, %recording_id, "recording viewer grant failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    match state.playback.prepare_manifest(plan, grant).await {
         Ok(manifest) => axum::Json(manifest).into_response(),
         Err(error) => {
             tracing::error!(%error, %recording_id, "recording playback catalog preparation failed");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+async fn catalog_grant(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
+    headers: HeaderMap,
+    Json(request): Json<CreateCatalogGrantRequest>,
+) -> Response {
+    let dataset_uuid = request.dataset_id;
+    if dataset_uuid.get_version_num() != 7 {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    if request.recording_ids.is_empty() || request.recording_ids.len() > 500 {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let mut recording_ids = Vec::with_capacity(request.recording_ids.len());
+    for value in request.recording_ids {
+        if value.get_version_num() != 7 {
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+        recording_ids.push(RecordingId::from_uuid(value));
+    }
+    recording_ids.sort_unstable();
+    recording_ids.dedup();
+    let dataset_id = veoveo_platform_store::RecordingDatasetId::from_uuid(dataset_uuid);
+    let artifact_caller = match artifact_caller(identity.clone(), &headers) {
+        Ok(caller) => caller,
+        Err(error) => {
+            tracing::warn!(%error, %dataset_id, "catalog grant omitted Artifact authority");
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+    };
+    let plans = match state
+        .recordings
+        .dataset_playback_plans(
+            &identity,
+            &artifact_caller,
+            dataset_id,
+            recording_ids.clone(),
+        )
+        .await
+    {
+        Ok(Some(plans)) => plans,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%error, %dataset_id, "dataset catalog planning failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let catalog_revision = veoveo_recording_mcp::service::catalog_set_revision(&plans);
+    let requested_grant = headers
+        .get(RECORDING_GRANT_HEADER)
+        .and_then(|value| value.to_str().ok());
+    let grant = match state
+        .recordings
+        .issue_read_grant(
+            &identity,
+            dataset_id,
+            veoveo_platform_store::RecordingReadGrantClass::CatalogDataset,
+            recording_ids,
+            catalog_revision,
+            requested_grant,
+        )
+        .await
+    {
+        Ok(grant) => grant,
+        Err(error) => {
+            tracing::error!(%error, %dataset_id, "durable dataset catalog grant failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    match state.playback.prepare_catalog_grant(plans, grant).await {
+        Ok(grant) => Json(grant).into_response(),
+        Err(error) => {
+            tracing::error!(%error, %dataset_id, "virtual dataset catalog failed");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
@@ -628,7 +777,7 @@ async fn playback_live_recording(
     };
     let plan = match state
         .recordings
-        .playback_plan(&identity, recording_id)
+        .playback_plan(&identity, None, recording_id)
         .await
     {
         Ok(Some(plan)) => plan,
@@ -657,14 +806,14 @@ async fn playback_live_recording(
     };
     tracing::info!(
         %recording_id,
-        segment_id = %live.descriptor.segment_id,
+        layer_id = %live.descriptor.layer_id,
         current_byte_len = live.descriptor.current_byte_len,
         history_seconds = live.descriptor.history_seconds,
         video_preroll_seconds = live.descriptor.video_preroll_seconds,
         ?start,
         "governed Rerun channel playback opened"
     );
-    let playback_store_id = match playback_store_id(recording_id, &plan.recording_key) {
+    let playback_store_id = match playback_store_id(plan.dataset_id, recording_id) {
         Ok(store_id) => store_id,
         Err(error) => {
             tracing::error!(%error, %recording_id, "live playback identity construction failed");
@@ -709,7 +858,7 @@ async fn playback_blueprint(
     };
     let plan = match state
         .recordings
-        .playback_plan(&identity, recording_id)
+        .playback_plan(&identity, None, recording_id)
         .await
     {
         Ok(Some(plan)) => plan,
@@ -722,7 +871,7 @@ async fn playback_blueprint(
     let Some(blueprint) = plan.blueprint.filter(|value| value.revision == revision) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let application_id = match playback_application_id(recording_id) {
+    let application_id = match playback_application_id(plan.dataset_id) {
         Ok(value) => value,
         Err(error) => {
             tracing::error!(%error, %recording_id, "Blueprint playback identity construction failed");
@@ -750,6 +899,72 @@ async fn playback_blueprint(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+async fn projection_data(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
+    Path((recording_id, projection_id)): Path<(String, String)>,
+) -> Response {
+    let Ok(recording_id) = parse_recording_id(&recording_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Ok(projection_uuid) = uuid::Uuid::parse_str(&projection_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if projection_uuid.get_version_num() != 7 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let projection_id = RecordingProjectionReceiptId::from_uuid(projection_uuid);
+    let download = match state
+        .recordings
+        .projection_download(&identity, recording_id, projection_id)
+        .await
+    {
+        Ok(Some(download)) => download,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%error, %recording_id, %projection_id, "recording projection redemption failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let file = match tokio::fs::File::open(&download.path).await {
+        Ok(file) => file,
+        Err(error) => {
+            tracing::error!(%error, %recording_id, %projection_id, "recording projection result disappeared");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let mut response = Response::new(Body::from_stream(stream));
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("application/vnd.apache.arrow.stream"),
+    );
+    headers.insert(
+        header::CONTENT_LENGTH,
+        header::HeaderValue::from_str(&download.byte_len.to_string())
+            .expect("u64 is a valid Content-Length"),
+    );
+    headers.insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("private, no-store"),
+    );
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        header::HeaderValue::from_static("attachment; filename=recording-projection.arrow"),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        header::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::HeaderName::from_static("x-veoveo-payload-sha256"),
+        header::HeaderValue::from_str(&download.sha256)
+            .expect("SHA-256 hex is a valid header value"),
+    );
+    response
 }
 
 fn rrd_response(body: Body) -> Response {
@@ -805,14 +1020,38 @@ async fn main() -> anyhow::Result<()> {
     );
     let state = Arc::new(AppState {
         recordings: RecordingService::new(
-            store,
+            store.clone(),
             HttpArtifactPlane::new(&args.artifact_service_url),
             spool_dir,
         )?
+        .with_layer_cache(
+            args.catalog_cache_dir,
+            LayerCacheLimits {
+                managed_bytes: args.catalog_cache_managed_bytes,
+                minimum_free_bytes: args.catalog_cache_minimum_free_bytes,
+            },
+        )?
+        .with_projection_runtime(ProjectionRuntimeLimits {
+            aggregate_scratch_bytes: args.projection_scratch_bytes,
+            minimum_free_bytes: args.projection_minimum_free_bytes,
+            concurrent_projections: usize::from(args.projection_concurrency),
+            maximum_deadline_ms: args.projection_deadline_ms,
+        })?
+        .with_layer_publisher(GatewayLayerPublisher::new(GatewayLayerPublisherConfig {
+            gateway_url: args.gateway_url,
+            gateway_transport_url: args.gateway_transport_url,
+            protected_resource: args.publication_protected_resource,
+            profile: args.publication_profile,
+            client_id: args.publication_client_id,
+            private_key_pem_file: args.publication_private_key_pem_file,
+            key_id: args.publication_key_id,
+            algorithm: args.publication_signing_algorithm,
+        })?)
         .with_live_history_seconds(args.live_history_seconds)?,
         playback: PlaybackManager::new(
             args.playback_token_key.expose_secret(),
             &args.playback_public_url,
+            store,
         )?,
         subscribers: SubscriptionHub::new(),
     });
@@ -848,7 +1087,14 @@ async fn main() -> anyhow::Result<()> {
         auth_state.clone(),
         authenticate,
     ));
+    let storage_diagnostics_router = Router::new()
+        .route("/admin/storage", get(storage_diagnostics))
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            authenticate,
+        ));
     let playback = Router::new()
+        .route("/catalog-grants", post(catalog_grant))
         .route("/{recording_id}/playback", get(playback_manifest))
         .route(
             "/{recording_id}/live/rrd-stream",
@@ -857,6 +1103,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/{recording_id}/blueprints/{revision}/data.rrd",
             get(playback_blueprint),
+        )
+        .route(
+            "/{recording_id}/projections/{projection_id}/data.arrow",
+            get(projection_data),
         )
         .layer(middleware::from_fn_with_state(auth_state, authenticate));
     let redap = tonic::service::Routes::new(RerunCloudServiceServer::new(
@@ -868,6 +1118,7 @@ async fn main() -> anyhow::Result<()> {
     let router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
+        .merge(storage_diagnostics_router)
         .nest_service("/admin", admin_router)
         .nest("/mcp", mcp)
         .nest("/recordings", playback)
@@ -908,6 +1159,16 @@ mod tests {
             .unwrap();
         let annotations = seal.annotations.unwrap();
         assert_eq!(annotations.read_only_hint, Some(false));
+        assert_eq!(annotations.idempotent_hint, Some(true));
+        assert_eq!(annotations.open_world_hint, Some(true));
+
+        let projection = RecordingMcp::tool_router()
+            .list_all()
+            .into_iter()
+            .find(|tool| tool.name == "create_recording_projection")
+            .unwrap();
+        let annotations = projection.annotations.unwrap();
+        assert_eq!(annotations.read_only_hint, Some(true));
         assert_eq!(annotations.idempotent_hint, Some(true));
         assert_eq!(annotations.open_world_hint, Some(true));
     }

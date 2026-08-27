@@ -1,29 +1,24 @@
-use std::collections::BTreeMap;
-use std::path::{Component, Path};
-use std::str::FromStr;
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Uuid as SurrealUuid};
-use uuid::Uuid;
+use std::collections::BTreeMap;
+use surrealdb::types::{RecordId, SurrealValue};
 
-use crate::identity::PLATFORM_ID_NAMESPACE;
 use crate::{
     ArtifactId, InvocationAuthorityRecord, OpenObject, OutboxDraft, PlatformIdentity,
-    PlatformStore, RecordingId, RecordingRecord, RecordingState, SegmentId, SegmentRecord,
-    SegmentState, StoreError, TaskId, TenantId, deterministic_principal_id,
+    PlatformStore, RecordingDatasetId, RecordingId, RecordingLayerState, RecordingRecord,
+    RecordingState, StoreError, TaskId, TenantId, deterministic_principal_id,
     deterministic_work_context_id,
 };
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_RECORDING_LIMIT: u32 = 500;
-const MAX_SEGMENT_LIMIT: u32 = 10_000;
+const MAX_RECORDING_LAYER_LIMIT: u32 = 10_000;
 
 #[derive(Clone, Debug)]
 pub struct RecordingDraft {
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
-    pub dataset: String,
+    pub dataset_id: RecordingDatasetId,
     pub application_id: String,
     pub recording_key: String,
     pub classification: String,
@@ -33,28 +28,11 @@ pub struct RecordingDraft {
 }
 
 #[derive(Clone, Debug)]
-pub struct SegmentDraft {
-    pub identity: PlatformIdentity,
-    pub recording_id: RecordingId,
-    pub segment_key: String,
-    pub ordinal: i64,
-    pub relative_path: String,
-    pub start_time: Option<DateTime<Utc>>,
-}
-
-#[derive(Clone, Debug)]
-pub struct SegmentSealBinding {
-    pub segment_id: SegmentId,
-    pub artifact_id: ArtifactId,
-}
-
-#[derive(Clone, Debug)]
 pub struct RecordingSeal {
     pub identity: PlatformIdentity,
     pub recording_id: RecordingId,
     pub task_id: Option<TaskId>,
     pub manifest_artifact_id: ArtifactId,
-    pub segments: Vec<SegmentSealBinding>,
     pub sealed_at: DateTime<Utc>,
 }
 
@@ -68,7 +46,7 @@ struct RecordingContent {
     delegation_id: Option<String>,
     policy_revision: String,
     authority: InvocationAuthorityRecord,
-    dataset: String,
+    dataset: RecordId,
     application_id: String,
     recording_key: String,
     state: RecordingState,
@@ -87,36 +65,21 @@ struct RecordingContent {
     revision: i64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
-struct SegmentContent {
-    tenant: RecordId,
-    recording: RecordId,
-    segment_key: String,
-    ordinal: i64,
-    relative_path: String,
-    artifact: Option<RecordId>,
-    state: SegmentState,
-    start_time: Option<DateTime<Utc>>,
-    end_time: Option<DateTime<Utc>>,
-    byte_len: i64,
-    message_count: i64,
-    sha256: Option<String>,
-    failure_reason: Option<String>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    revision: i64,
-}
-
 impl PlatformStore {
     pub async fn create_recording(
         &self,
         mut draft: RecordingDraft,
     ) -> Result<RecordingRecord, StoreError> {
-        validate_name("dataset", &draft.dataset, 128)?;
         validate_name("application_id", &draft.application_id, 512)?;
         validate_name("recording_key", &draft.recording_key, 512)?;
         validate_name("classification", &draft.classification, 256)?;
         normalize_labels(&mut draft.labels)?;
+
+        self.recording_dataset(draft.identity.tenant_id, draft.dataset_id)
+            .await?
+            .ok_or(StoreError::RecordingDatasetConflict {
+                dataset_id: draft.dataset_id.to_string(),
+            })?;
 
         if let Some(existing) = self
             .recording_by_key(
@@ -152,7 +115,7 @@ impl PlatformStore {
             delegation_id: draft.authority.delegation_id.clone(),
             policy_revision: draft.authority.policy_revision.clone(),
             authority: draft.authority.clone(),
-            dataset: draft.dataset.clone(),
+            dataset: draft.dataset_id.record_id(),
             application_id: draft.application_id.clone(),
             recording_key: draft.recording_key.clone(),
             state: RecordingState::Live,
@@ -259,175 +222,6 @@ impl PlatformStore {
         Ok(response.take(0)?)
     }
 
-    pub async fn open_segment(&self, draft: SegmentDraft) -> Result<SegmentRecord, StoreError> {
-        validate_name("segment_key", &draft.segment_key, 512)?;
-        validate_relative_path(&draft.relative_path)?;
-        if draft.ordinal < 0 {
-            return Err(StoreError::InvalidRecordingField {
-                field: "ordinal",
-                reason: "must be non-negative",
-            });
-        }
-        let mut recording = self
-            .recording(draft.identity.tenant_id, draft.recording_id)
-            .await?
-            .ok_or_else(|| StoreError::RecordingNotFound(draft.recording_id.to_string()))?;
-        if matches!(
-            recording.state,
-            RecordingState::Ready | RecordingState::Interrupted
-        ) {
-            recording = self
-                .resume_recording(&draft.identity, draft.recording_id)
-                .await?;
-        }
-        if recording.state != RecordingState::Live {
-            return Err(StoreError::RecordingStateConflict {
-                recording_id: draft.recording_id.to_string(),
-                state: recording_state_name(recording.state).to_owned(),
-                target: "open segment",
-            });
-        }
-        if let Some(existing) = self
-            .segment_by_key(
-                draft.identity.tenant_id,
-                draft.recording_id,
-                &draft.segment_key,
-            )
-            .await?
-        {
-            validate_existing_segment(&existing, &draft)?;
-            return Ok(existing);
-        }
-
-        let id = SegmentId::new();
-        let now = Utc::now();
-        let content = SegmentContent {
-            tenant: draft.identity.tenant_id.record_id(),
-            recording: draft.recording_id.record_id(),
-            segment_key: draft.segment_key.clone(),
-            ordinal: draft.ordinal,
-            relative_path: draft.relative_path.clone(),
-            artifact: None,
-            state: SegmentState::Writing,
-            start_time: draft.start_time,
-            end_time: None,
-            byte_len: 0,
-            message_count: 0,
-            sha256: None,
-            failure_reason: None,
-            created_at: now,
-            updated_at: now,
-            revision: 0,
-        };
-        let edge = recording_segment_edge(draft.recording_id, id);
-        let outbox = segment_event(
-            &draft.identity,
-            draft.recording_id,
-            id,
-            "recording.segment_opened",
-            SegmentState::Writing,
-        );
-        let result = self
-            .db
-            .query("BEGIN TRANSACTION; CREATE ONLY $segment CONTENT $content RETURN NONE; RELATE ONLY $recording->$edge->$segment CONTENT { ordinal: $ordinal, created_at: time::now() } RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("segment", id.record_id()))
-            .bind(("content", content.clone()))
-            .bind(("recording", draft.recording_id.record_id()))
-            .bind(("edge", edge))
-            .bind(("ordinal", draft.ordinal))
-            .bind(("outbox", outbox))
-            .await
-            .and_then(|response| response.check());
-        if let Err(error) = result {
-            if let Some(existing) = self
-                .segment_by_key(
-                    draft.identity.tenant_id,
-                    draft.recording_id,
-                    &content.segment_key,
-                )
-                .await?
-            {
-                validate_existing_segment(&existing, &draft)?;
-                return Ok(existing);
-            }
-            return Err(error.into());
-        }
-        self.segment(draft.identity.tenant_id, id)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "segment creation readback",
-            })
-    }
-
-    pub async fn freeze_segment(
-        &self,
-        identity: &PlatformIdentity,
-        segment_id: SegmentId,
-        byte_len: i64,
-        message_count: i64,
-        sha256: &str,
-        end_time: Option<DateTime<Utc>>,
-    ) -> Result<SegmentRecord, StoreError> {
-        if byte_len < 0 || message_count < 0 {
-            return Err(StoreError::InvalidRecordingField {
-                field: "segment metrics",
-                reason: "must be non-negative",
-            });
-        }
-        validate_sha256(sha256)?;
-        let existing = self.segment(identity.tenant_id, segment_id).await?.ok_or(
-            StoreError::MissingRecord {
-                operation: "segment freeze",
-            },
-        )?;
-        if existing.state == SegmentState::Frozen
-            && existing.byte_len == byte_len
-            && existing.message_count == message_count
-            && existing.sha256.as_deref() == Some(sha256)
-        {
-            return Ok(existing);
-        }
-        if existing.state != SegmentState::Writing {
-            return Err(StoreError::SegmentConflict {
-                segment_id: segment_id.to_string(),
-            });
-        }
-        let outbox = segment_event(
-            identity,
-            recording_id_from_record(&existing.recording)?,
-            segment_id,
-            "recording.segment_frozen",
-            SegmentState::Frozen,
-        );
-        self
-            .db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $segment); IF $current.revision != $revision OR $current.state != 'writing' { THROW 'segment_revision_conflict'; }; UPDATE ONLY $segment SET state = 'frozen', byte_len = $byte_len, message_count = $message_count, sha256 = $sha256, end_time = $end_time, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("segment", segment_id.record_id()))
-            .bind(("revision", existing.revision))
-            .bind(("byte_len", byte_len))
-            .bind(("message_count", message_count))
-            .bind(("sha256", sha256.to_owned()))
-            .bind(("end_time", end_time))
-            .bind(("outbox", outbox))
-            .await?
-            .check()?;
-        let segment = self.segment(identity.tenant_id, segment_id).await?.ok_or(
-            StoreError::MissingRecord {
-                operation: "segment freeze readback",
-            },
-        )?;
-        let recording_id = recording_id_from_record(&segment.recording)?;
-        let activity_at = end_time.unwrap_or_else(Utc::now);
-        self.db
-            .query("UPDATE ONLY $recording SET last_data_at = $activity_at, updated_at = time::now(), revision += 1 WHERE tenant = $tenant AND state = 'live' RETURN NONE;")
-            .bind(("recording", recording_id.record_id()))
-            .bind(("tenant", identity.tenant_id.record_id()))
-            .bind(("activity_at", activity_at))
-            .await?
-            .check()?;
-        Ok(segment)
-    }
-
     pub async fn finish_recording(
         &self,
         identity: &PlatformIdentity,
@@ -448,17 +242,17 @@ impl PlatformStore {
                 target: "ready",
             });
         }
-        let segments = self
-            .recording_segments(identity.tenant_id, recording_id, MAX_SEGMENT_LIMIT)
+        let layers = self
+            .recording_layers(identity.tenant_id, recording_id, MAX_RECORDING_LAYER_LIMIT)
             .await?;
-        if segments.is_empty()
-            || segments
+        if layers.is_empty()
+            || layers
                 .iter()
-                .any(|segment| segment.state != SegmentState::Frozen)
+                .any(|layer| layer.state != RecordingLayerState::Committed)
         {
             return Err(StoreError::RecordingStateConflict {
                 recording_id: recording_id.to_string(),
-                state: "contains non-frozen segments".to_owned(),
+                state: "contains non-committed layers".to_owned(),
                 target: "ready",
             });
         }
@@ -506,16 +300,16 @@ impl PlatformStore {
                 target: "interrupted",
             });
         }
-        let segments = self
-            .recording_segments(identity.tenant_id, recording_id, MAX_SEGMENT_LIMIT)
+        let layers = self
+            .recording_layers(identity.tenant_id, recording_id, MAX_RECORDING_LAYER_LIMIT)
             .await?;
-        if segments
+        if layers
             .iter()
-            .any(|segment| segment.state != SegmentState::Frozen)
+            .any(|layer| layer.state != RecordingLayerState::Committed)
         {
             return Err(StoreError::RecordingStateConflict {
                 recording_id: recording_id.to_string(),
-                state: "contains non-frozen segments".to_owned(),
+                state: "contains non-committed layers".to_owned(),
                 target: "interrupted",
             });
         }
@@ -542,7 +336,7 @@ impl PlatformStore {
             })
     }
 
-    async fn resume_recording(
+    pub(crate) async fn resume_recording(
         &self,
         identity: &PlatformIdentity,
         recording_id: RecordingId,
@@ -584,62 +378,6 @@ impl PlatformStore {
             })
     }
 
-    pub async fn segment(
-        &self,
-        tenant_id: TenantId,
-        segment_id: SegmentId,
-    ) -> Result<Option<SegmentRecord>, StoreError> {
-        let mut response = self
-            .db
-            .query("SELECT * FROM ONLY $segment WHERE tenant = $tenant;")
-            .bind(("segment", segment_id.record_id()))
-            .bind(("tenant", tenant_id.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
-    }
-
-    pub async fn segment_by_key(
-        &self,
-        tenant_id: TenantId,
-        recording_id: RecordingId,
-        segment_key: &str,
-    ) -> Result<Option<SegmentRecord>, StoreError> {
-        let mut response = self
-            .db
-            .query("SELECT * FROM segment WHERE tenant = $tenant AND recording = $recording AND segment_key = $segment_key LIMIT 1;")
-            .bind(("tenant", tenant_id.record_id()))
-            .bind(("recording", recording_id.record_id()))
-            .bind(("segment_key", segment_key.to_owned()))
-            .await?
-            .check()?;
-        let records: Vec<SegmentRecord> = response.take(0)?;
-        Ok(records.into_iter().next())
-    }
-
-    pub async fn recording_segments(
-        &self,
-        tenant_id: TenantId,
-        recording_id: RecordingId,
-        limit: u32,
-    ) -> Result<Vec<SegmentRecord>, StoreError> {
-        if limit == 0 || limit > MAX_SEGMENT_LIMIT {
-            return Err(StoreError::InvalidRecordingField {
-                field: "limit",
-                reason: "must be in 1..=10000",
-            });
-        }
-        let mut response = self
-            .db
-            .query("SELECT * FROM segment WHERE tenant = $tenant AND recording = $recording ORDER BY ordinal ASC LIMIT $limit;")
-            .bind(("tenant", tenant_id.record_id()))
-            .bind(("recording", recording_id.record_id()))
-            .bind(("limit", i64::from(limit)))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
-    }
-
     pub async fn begin_recording_seal(
         &self,
         identity: &PlatformIdentity,
@@ -665,17 +403,17 @@ impl PlatformStore {
                 target: "sealing",
             });
         }
-        let segments = self
-            .recording_segments(identity.tenant_id, recording_id, MAX_SEGMENT_LIMIT)
+        let layers = self
+            .recording_layers(identity.tenant_id, recording_id, MAX_RECORDING_LAYER_LIMIT)
             .await?;
-        if segments.is_empty()
-            || segments
+        if layers.is_empty()
+            || layers
                 .iter()
-                .any(|segment| segment.state != SegmentState::Frozen)
+                .any(|layer| layer.state != RecordingLayerState::Committed)
         {
             return Err(StoreError::RecordingStateConflict {
                 recording_id: recording_id.to_string(),
-                state: "contains non-frozen segments".to_owned(),
+                state: "contains non-committed layers".to_owned(),
                 target: "sealing",
             });
         }
@@ -724,138 +462,43 @@ impl PlatformStore {
                 target: "sealed",
             });
         }
-        let segments = self
-            .recording_segments(
+        let layers = self
+            .recording_layers(
                 seal.identity.tenant_id,
                 seal.recording_id,
-                MAX_SEGMENT_LIMIT,
+                MAX_RECORDING_LAYER_LIMIT,
             )
             .await?;
-        if segments.len() != seal.segments.len() {
+        if layers.is_empty()
+            || layers
+                .iter()
+                .any(|layer| layer.state != RecordingLayerState::Committed)
+        {
             return Err(StoreError::RecordingStateConflict {
                 recording_id: seal.recording_id.to_string(),
-                state: "segment binding count mismatch".to_owned(),
+                state: "contains non-committed layers".to_owned(),
                 target: "sealed",
             });
         }
-        let by_id: BTreeMap<_, _> = seal
-            .segments
-            .iter()
-            .map(|binding| (binding.segment_id, binding.artifact_id))
-            .collect();
-        for segment in &segments {
-            let segment_id = segment_id_from_record(&segment.id)?;
-            if segment.state != SegmentState::Frozen
-                || by_id.get(&segment_id).copied().map(ArtifactId::record_id) != segment.artifact
-            {
-                return Err(StoreError::SegmentConflict {
-                    segment_id: segment_id.to_string(),
-                });
-            }
-        }
-
-        let mut sql = String::from(
-            "BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' { THROW 'recording_revision_conflict'; };",
-        );
-        for index in 0..seal.segments.len() {
-            sql.push_str(&format!(
-                " UPDATE ONLY $segment_{index} SET state = 'sealed', artifact = $artifact_{index}, updated_at = time::now(), revision += 1 RETURN NONE;"
-            ));
-        }
-        sql.push_str(" UPDATE ONLY $recording SET state = 'sealed', manifest_artifact = $manifest, sealed_at = $sealed_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;");
         let outbox = recording_event(
             &seal.identity,
             seal.recording_id,
             "recording.sealed",
             RecordingState::Sealed,
         );
-        let mut query = self
-            .db
-            .query(sql)
+        self.db
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' OR $current.manifest_artifact != $manifest { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealed', sealed_at = $sealed_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
             .bind(("recording", seal.recording_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("manifest", seal.manifest_artifact_id.record_id()))
             .bind(("sealed_at", seal.sealed_at))
-            .bind(("outbox", outbox));
-        for (index, binding) in seal.segments.iter().enumerate() {
-            query = query
-                .bind((format!("segment_{index}"), binding.segment_id.record_id()))
-                .bind((format!("artifact_{index}"), binding.artifact_id.record_id()));
-        }
-        query.await?.check()?;
+            .bind(("outbox", outbox))
+            .await?
+            .check()?;
         self.recording(seal.identity.tenant_id, seal.recording_id)
             .await?
             .ok_or(StoreError::MissingRecord {
                 operation: "complete recording seal readback",
-            })
-    }
-
-    pub async fn stage_segment_artifact(
-        &self,
-        identity: &PlatformIdentity,
-        recording_id: RecordingId,
-        segment_id: SegmentId,
-        artifact_id: ArtifactId,
-    ) -> Result<SegmentRecord, StoreError> {
-        let artifact =
-            self.artifact_aggregate(artifact_id)
-                .await?
-                .ok_or(StoreError::MissingRecord {
-                    operation: "stage segment artifact occurrence",
-                })?;
-        if artifact.occurrence.tenant != identity.tenant_id.record_id() {
-            return Err(StoreError::SegmentConflict {
-                segment_id: segment_id.to_string(),
-            });
-        }
-        let recording = self
-            .recording(identity.tenant_id, recording_id)
-            .await?
-            .ok_or_else(|| StoreError::RecordingNotFound(recording_id.to_string()))?;
-        if recording.state != RecordingState::Sealing {
-            return Err(StoreError::RecordingStateConflict {
-                recording_id: recording_id.to_string(),
-                state: recording_state_name(recording.state).to_owned(),
-                target: "stage segment artifact",
-            });
-        }
-        let segment = self.segment(identity.tenant_id, segment_id).await?.ok_or(
-            StoreError::MissingRecord {
-                operation: "stage segment artifact",
-            },
-        )?;
-        if segment.recording != recording_id.record_id() || segment.state != SegmentState::Frozen {
-            return Err(StoreError::SegmentConflict {
-                segment_id: segment_id.to_string(),
-            });
-        }
-        if segment.artifact == Some(artifact_id.record_id()) {
-            return Ok(segment);
-        }
-        if segment.artifact.is_some() {
-            return Err(StoreError::SegmentConflict {
-                segment_id: segment_id.to_string(),
-            });
-        }
-        let outbox = segment_event(
-            identity,
-            recording_id,
-            segment_id,
-            "recording.segment_artifact_staged",
-            SegmentState::Frozen,
-        );
-        self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $segment); IF $current.revision != $revision OR $current.state != 'frozen' OR $current.artifact != NONE { THROW 'segment_revision_conflict'; }; UPDATE ONLY $segment SET artifact = $artifact, updated_at = time::now(), revision += 1 RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("segment", segment_id.record_id()))
-            .bind(("revision", segment.revision))
-            .bind(("artifact", artifact_id.record_id()))
-            .bind(("outbox", outbox))
-            .await?
-            .check()?;
-        self.segment(identity.tenant_id, segment_id)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "stage segment artifact readback",
             })
     }
 
@@ -1009,39 +652,6 @@ fn normalize_labels(labels: &mut Vec<String>) -> Result<(), StoreError> {
     Ok(())
 }
 
-fn validate_relative_path(value: &str) -> Result<(), StoreError> {
-    validate_name("relative_path", value, 4_096)?;
-    let path = Path::new(value);
-    if path.is_absolute()
-        || path.components().any(|component| {
-            matches!(
-                component,
-                Component::ParentDir
-                    | Component::CurDir
-                    | Component::RootDir
-                    | Component::Prefix(_)
-            )
-        })
-        || path.extension().and_then(|value| value.to_str()) != Some("rrd")
-    {
-        return Err(StoreError::InvalidRecordingField {
-            field: "relative_path",
-            reason: "must be a normalized relative .rrd path",
-        });
-    }
-    Ok(())
-}
-
-fn validate_sha256(value: &str) -> Result<(), StoreError> {
-    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(StoreError::InvalidRecordingField {
-            field: "sha256",
-            reason: "must be 64 hexadecimal characters",
-        });
-    }
-    Ok(())
-}
-
 fn validate_existing_recording(
     existing: &RecordingRecord,
     draft: &RecordingDraft,
@@ -1066,7 +676,7 @@ fn validate_existing_recording(
         || existing.delegation_id != draft.authority.delegation_id
         || existing.policy_revision != draft.authority.policy_revision
         || existing.authority != draft.authority
-        || existing.dataset != draft.dataset
+        || existing.dataset != draft.dataset_id.record_id()
         || existing.application_id != draft.application_id
         || existing.recording_key != draft.recording_key
         || existing.classification != draft.classification
@@ -1075,23 +685,6 @@ fn validate_existing_recording(
         return Err(StoreError::IdentityConflict {
             entity: "recording",
             key: draft.recording_key.clone(),
-        });
-    }
-    Ok(())
-}
-
-fn validate_existing_segment(
-    existing: &SegmentRecord,
-    draft: &SegmentDraft,
-) -> Result<(), StoreError> {
-    if existing.tenant != draft.identity.tenant_id.record_id()
-        || existing.recording != draft.recording_id.record_id()
-        || existing.segment_key != draft.segment_key
-        || existing.ordinal != draft.ordinal
-        || existing.relative_path != draft.relative_path
-    {
-        return Err(StoreError::SegmentConflict {
-            segment_id: segment_id_from_record(&existing.id)?.to_string(),
         });
     }
     Ok(())
@@ -1116,84 +709,9 @@ fn recording_event(
     )
 }
 
-fn segment_event(
-    identity: &PlatformIdentity,
-    recording_id: RecordingId,
-    segment_id: SegmentId,
-    event_type: &str,
-    state: SegmentState,
-) -> OutboxDraft {
-    OutboxDraft::now(
-        Some(identity.tenant_id.record_id()),
-        "recording_segment",
-        segment_id.to_string(),
-        event_type,
-        EVENT_SCHEMA_VERSION,
-        OpenObject::new(BTreeMap::from([
-            ("recording_id".to_owned(), serde_json::json!(recording_id)),
-            ("segment_id".to_owned(), serde_json::json!(segment_id)),
-            ("state".to_owned(), serde_json::json!(state)),
-        ])),
-    )
-}
-
-fn recording_segment_edge(recording_id: RecordingId, segment_id: SegmentId) -> RecordId {
-    let id = Uuid::new_v5(
-        &PLATFORM_ID_NAMESPACE,
-        format!("recording-segment:{recording_id}:{segment_id}").as_bytes(),
-    );
-    RecordId::new("recording_segment", SurrealUuid::from(id))
-}
-
-fn recording_id_from_record(record: &RecordId) -> Result<RecordingId, StoreError> {
-    typed_uuid_from_record(record, RecordingId::TABLE).map(RecordingId::from_uuid)
-}
-
-fn segment_id_from_record(record: &RecordId) -> Result<SegmentId, StoreError> {
-    typed_uuid_from_record(record, SegmentId::TABLE).map(SegmentId::from_uuid)
-}
-
-fn typed_uuid_from_record(record: &RecordId, table: &'static str) -> Result<Uuid, StoreError> {
-    if record.table.as_str() != table {
-        return Err(StoreError::InvalidRecordingField {
-            field: "record_id",
-            reason: "has the wrong table",
-        });
-    }
-    let raw = match &record.key {
-        RecordIdKey::Uuid(value) => value.to_string(),
-        RecordIdKey::String(value) => value.clone(),
-        _ => {
-            return Err(StoreError::InvalidRecordingField {
-                field: "record_id",
-                reason: "must use a UUID key",
-            });
-        }
-    };
-    let value = Uuid::from_str(&raw).map_err(|_| StoreError::InvalidRecordingField {
-        field: "record_id",
-        reason: "must use a UUID key",
-    })?;
-    if value.get_version_num() != 7 {
-        return Err(StoreError::InvalidRecordingField {
-            field: "record_id",
-            reason: "must use UUIDv7",
-        });
-    }
-    Ok(value)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn relative_paths_are_confined_rrd_paths() {
-        assert!(validate_relative_path("world/2026-07-09/recording.r1.rrd").is_ok());
-        assert!(validate_relative_path("../recording.rrd").is_err());
-        assert!(validate_relative_path("/recording.rrd").is_err());
-        assert!(validate_relative_path("recording.json").is_err());
-    }
 
     #[test]
     fn label_normalization_is_stable() {

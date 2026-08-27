@@ -101,8 +101,11 @@ domain_id!(DomainUsageId, "domain_usage");
 domain_id!(FrameWorldRecordId, "frame_world");
 domain_id!(FrameWorldRevisionRecordId, "frame_world_revision");
 domain_id!(CoordinateOperationId, "coordinate_operation");
+domain_id!(RecordingDatasetId, "recording_dataset");
 domain_id!(RecordingId, "recording");
-domain_id!(SegmentId, "segment");
+domain_id!(RecordingLayerId, "recording_layer");
+domain_id!(RecordingReadGrantId, "recording_read_grant");
+domain_id!(RecordingProjectionReceiptId, "recording_projection_receipt");
 domain_id!(RecordingIngestStreamId, "recording_ingest_stream");
 domain_id!(RecordingIngestBatchId, "recording_ingest_batch");
 domain_id!(

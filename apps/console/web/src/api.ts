@@ -434,11 +434,11 @@ export function artifactPreviewUrl(artifactId: string): string {
 
 export async function loadRecordingPlayback(
   recordingId: string,
-  options: { signal?: AbortSignal; playbackSession?: string } = {}
+  options: { signal?: AbortSignal; recordingGrant?: string } = {}
 ): Promise<RecordingPlaybackManifest> {
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (options.playbackSession) {
-    headers["X-Veoveo-Playback-Session"] = options.playbackSession;
+  if (options.recordingGrant) {
+    headers["X-Veoveo-Recording-Grant"] = options.recordingGrant;
   }
   const response = await fetch(
     `/console/api/recordings/${encodeURIComponent(recordingId)}/playback`,
@@ -468,6 +468,46 @@ export function recordingLiveRrdStreamRoute(recordingId: string): string {
 export function recordingBlueprintUrl(recordingId: string, revision: number): string {
   const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/blueprints/${encodeURIComponent(revision)}/data.rrd`;
   return new URL(path, window.location.origin).toString();
+}
+
+export interface RecordingProjectionStream {
+  stream: ReadableStream<Uint8Array>;
+  byteLength: number;
+  sha256: string;
+}
+
+export async function loadRecordingProjectionStream(
+  recordingId: string,
+  projectionId: string,
+  signal?: AbortSignal,
+): Promise<RecordingProjectionStream> {
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/projections/${encodeURIComponent(projectionId)}/data.arrow`;
+  const response = await fetch(path, {
+    credentials: "same-origin",
+    headers: { Accept: "application/vnd.apache.arrow.stream" },
+    signal,
+  });
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) authenticationRequired();
+  if (response.status === 403) {
+    throw new Error("Recording projection is not permitted by the active policy.");
+  }
+  if (!response.ok) throw new Error(`Recording projection returned ${response.status}`);
+  const byteLength = Number(response.headers.get("content-length"));
+  const sha256 = response.headers.get("x-veoveo-payload-sha256") ?? "";
+  if (
+    response.headers.get("content-type") !== "application/vnd.apache.arrow.stream" ||
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0 ||
+    byteLength > 32 * 1024 * 1024 ||
+    !/^[0-9a-f]{64}$/i.test(sha256) ||
+    response.body === null
+  ) {
+    response.body?.cancel().catch(() => undefined);
+    throw new Error("Recording projection returned an invalid bounded Arrow stream.");
+  }
+  return { stream: response.body, byteLength, sha256 };
 }
 
 export async function loadApps(signal?: AbortSignal): Promise<AppCatalog> {

@@ -91,6 +91,17 @@ pub(super) struct RecordingPlaybackState {
     pub(super) gateway_state: GatewayState,
     pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
     pub(super) upstream_http: GatewayUpstreamHttpClientPool,
+    pub(super) artifact_server: ServerSlug,
+}
+
+#[derive(Clone)]
+pub(super) struct RecordingLayerPublicationState {
+    pub(super) catalog: SharedCatalog,
+    pub(super) gateway_state: GatewayState,
+    pub(super) http: SharedHttpClient,
+    pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
+    pub(super) artifact_server: ServerSlug,
+    pub(super) artifact_service_url: String,
 }
 
 #[derive(Clone)]

@@ -88,6 +88,7 @@ pub enum GatewayAction {
     RecordingBatchAppend,
     RecordingBlueprintPublish,
     RecordingStreamFinish,
+    RecordingLayerPublish,
 }
 
 impl GatewayAction {
@@ -116,7 +117,8 @@ impl GatewayAction {
             | Self::RecordingStreamStatus
             | Self::RecordingBatchAppend
             | Self::RecordingBlueprintPublish
-            | Self::RecordingStreamFinish => None,
+            | Self::RecordingStreamFinish
+            | Self::RecordingLayerPublish => None,
         }
     }
 

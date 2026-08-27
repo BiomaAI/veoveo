@@ -15,8 +15,9 @@ mod diagnostics;
 mod governance;
 pub mod ingest;
 pub mod ingest_http;
+pub mod layer_files;
 pub mod live;
-pub mod query;
+pub mod publication;
 pub mod sim;
 pub mod spool;
 pub mod video;
@@ -29,17 +30,16 @@ pub use diagnostics::{
     RECORDING_INGEST_DIAGNOSTICS_SCHEMA, RecordingIngestDiagnostics,
     RecordingIngestDiagnosticsDocument,
 };
+pub use governance::invocation_authority_record;
 pub use ingest::{
     RecordingBlueprintPublicationError, RecordingIngestService, RecordingIngestServiceConfig,
     ingest_part_paths, ingest_part_sequence, ingest_recording_static_context_path,
     ingest_segment_parts_directory, live_segment_byte_len,
 };
 pub use ingest_http::recording_ingest_internal_router;
+pub use layer_files::{RecordingLayerFileScope, collect_recording_layer_files};
 pub use live::{LiveRrdBatchKind, optimize_live_rrd_messages};
-pub use query::{
-    QueryIndexRange, QueryResult, SegmentReadScope, collect_segments, query_segments,
-    query_segments_in_range, query_tree,
-};
+pub use publication::{GatewayLayerPublisher, GatewayLayerPublisherConfig};
 pub use sim::{
     Generator, LatLon, Sample, SensorId, SensorKind, SensorReport, SensorSpec, SensorStack,
     StackReport, TrackPattern, Wave,
@@ -48,6 +48,7 @@ pub use spool::{
     Counters, FrozenSegment, OpenedSegment, PublishedBlueprint, SegmentCatalog, SegmentKey,
     Spooler, run_blocking,
 };
+pub use veoveo_recording_forwarder::config::ClientAssertionAlgorithm;
 pub use veoveo_rrd::video::{
     RrdVideoBoundary, h264_access_unit_is_decoder_reentrant, inspect_log_message_video_boundary,
     inspect_rrd_video_boundary,

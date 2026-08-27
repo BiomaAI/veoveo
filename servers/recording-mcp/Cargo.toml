@@ -36,6 +36,7 @@ bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
 futures.workspace = true
+fs4 = "=1.1.0"
 hex.workspace = true
 notify.workspace = true
 re_build_info.workspace = true
@@ -56,7 +57,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "fs", "io-util", "sync", "time"] }
-tokio-util.workspace = true
+tokio-util = { workspace = true, features = ["io"] }
 tonic = { workspace = true, optional = true }
 tonic-web = { workspace = true, optional = true }
 tower-http.workspace = true
@@ -71,6 +72,7 @@ veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store.workspace = true
 veoveo-recording-hub = { path = "../../platform/recordings/hub" }
+veoveo-rrd.workspace = true
 
 [dev-dependencies]
 re_sdk.workspace = true

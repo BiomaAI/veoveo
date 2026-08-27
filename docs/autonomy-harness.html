@@ -690,7 +690,7 @@ flowchart LR
         <h5>Context, queried</h5>
         <ul>
           <li><code>memory_query</code> — <code>SELECT id, eta, risk FROM missions WHERE status='active'</code></li>
-          <li><code>recording__query_recording</code> — latest-at: every vehicle now · range: this vehicle's last 5 minutes</li>
+          <li><code>recording__create_recording_projection</code> — bounded latest-at and range Arrow views over admitted layers</li>
           <li><code>timeline_query</code> — my own tool calls and outcomes, last 6 hours</li>
           <li><code>duckdb__query</code> — <code>SELECT class, count(*) FROM detections GROUP BY window_5m</code></li>
         </ul>
@@ -1267,7 +1267,7 @@ flowchart LR
                subscriptions, and publication of recordings as artifacts.</p>
           </div>
           <div class="tools"><table>
-            <tr><td class="tn">query_recording</td><td>Latest-at, range, or dataframe reads over an authorized recording's segments.</td></tr>
+            <tr><td class="tn">create_recording_projection</td><td>Deterministic bounded Arrow projection over one authorized Rerun recording segment.</td></tr>
             <tr><td class="tn">seal_recording</td><td>Close a recording and publish it to the artifact plane.</td></tr>
           </table></div>
           <div class="server-foot">

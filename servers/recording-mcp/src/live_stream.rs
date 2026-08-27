@@ -3,7 +3,7 @@
 //! Rerun 0.36's public `WebViewer.open_channel` API accepts complete RRD byte
 //! arrays. This adapter preserves those decode boundaries over streaming HTTP:
 //! every body frame is a four-byte big-endian length followed by one complete
-//! RRD payload. Frames follow durable ingest and segment notifications; there
+//! RRD payload. Frames follow durable ingest and layer notifications; there
 //! is no playback poll or delivery timer.
 
 use std::{io, pin::Pin, time::Duration};
@@ -15,11 +15,11 @@ use re_build_info::CrateVersion;
 use re_log_encoding::{EncodingOptions, rrd::Encoder};
 use re_log_types::{LogMsg, StoreId};
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{PlatformTable, RecordingId, RecordingState, SegmentRecord};
+use veoveo_platform_store::{PlatformTable, RecordingId, RecordingLayerRecord, RecordingState};
 
 use crate::{
     live_playback::{LiveMessageStart, stream_live_message_batches},
-    service::{PlaybackLiveSegmentPlan, RecordingService},
+    service::{PlaybackLiveLayerPlan, RecordingService},
 };
 
 pub const FRAMED_RRD_CONTENT_TYPE: &str =
@@ -54,43 +54,43 @@ pub fn authorized_live_rrd_stream(
     start: LiveRrdStart,
 ) -> LiveRrdStream {
     let stream = async_stream::try_stream! {
-        // Subscribe before projecting the current writing segment. A rollover racing
+        // Subscribe before projecting the current writing layer. A rollover racing
         // authorization remains queued as a typed wakeup rather than requiring a poll.
-        let mut segment_wake = recordings
+        let mut layer_wake = recordings
             .platform_store()
-            .live::<SegmentRecord>(PlatformTable::Segment)
+            .live::<RecordingLayerRecord>(PlatformTable::RecordingLayer)
             .await
-            .map_err(|error| io::Error::other(format!("subscribe to recording segments: {error}")))?;
+            .map_err(|error| io::Error::other(format!("subscribe to recording layers: {error}")))?;
         let mut last_ordinal = None;
         let mut store_info_sent = false;
-        let mut first_segment = true;
+        let mut first_layer = true;
 
         loop {
             let next = loop {
                 let plan = recordings
-                    .playback_plan(&identity, recording_id)
+                    .playback_plan(&identity, None, recording_id)
                     .await
                     .map_err(|error| io::Error::other(format!("authorize live recording: {error}")))?
                     .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "recording is not visible"))?;
-                if let Some(live) = next_live_segment(plan.live, last_ordinal) {
+                if let Some(live) = next_live_layer(plan.live, last_ordinal) {
                     break Some(live);
                 }
                 if plan.state != RecordingState::Live {
                     break None;
                 }
-                match segment_wake.next().await {
+                match layer_wake.next().await {
                     Some(Ok(_)) => {}
                     Some(Err(error)) => {
-                        Err(io::Error::other(format!("recording segment subscription failed: {error}")))?;
+                        Err(io::Error::other(format!("recording layer subscription failed: {error}")))?;
                     }
-                    None => Err(io::Error::other("recording segment subscription ended"))?,
+                    None => Err(io::Error::other("recording layer subscription ended"))?,
                 }
             };
 
             let Some(live) = next else { break; };
             let ordinal = live.descriptor.ordinal;
-            let segment_id = live.descriptor.segment_id.clone();
-            let message_start = if first_segment {
+            let layer_id = live.descriptor.layer_id.clone();
+            let message_start = if first_layer {
                 match start {
                     LiveRrdStart::Bootstrap => LiveMessageStart::Bootstrap,
                     LiveRrdStart::ResumeHead => LiveMessageStart::ResumeHead,
@@ -107,9 +107,9 @@ pub fn authorized_live_rrd_stream(
             );
             tracing::info!(
                 %recording_id,
-                %segment_id,
+                %layer_id,
                 ordinal,
-                "governed Rerun channel following live segment"
+                "governed Rerun channel following live layer"
             );
             while let Some(batch) = receiver.recv().await {
                 let mut batch = batch?;
@@ -126,17 +126,17 @@ pub fn authorized_live_rrd_stream(
                 }
                 yield encode_frame(batch)?;
             }
-            first_segment = false;
+            first_layer = false;
             last_ordinal = Some(ordinal);
         }
     };
     Box::pin(stream)
 }
 
-fn next_live_segment(
-    live: Option<PlaybackLiveSegmentPlan>,
+fn next_live_layer(
+    live: Option<PlaybackLiveLayerPlan>,
     last_ordinal: Option<i64>,
-) -> Option<PlaybackLiveSegmentPlan> {
+) -> Option<PlaybackLiveLayerPlan> {
     live.filter(|candidate| last_ordinal.is_none_or(|last| candidate.descriptor.ordinal > last))
 }
 
@@ -226,11 +226,12 @@ mod tests {
     }
 
     #[test]
-    fn rollover_advances_only_to_a_strictly_newer_writing_segment() {
-        fn segment(ordinal: i64) -> PlaybackLiveSegmentPlan {
-            PlaybackLiveSegmentPlan {
-                descriptor: crate::contract::PlaybackLiveSegment {
-                    segment_id: uuid::Uuid::now_v7().to_string(),
+    fn rollover_advances_only_to_a_strictly_newer_writing_layer() {
+        fn layer(ordinal: i64) -> PlaybackLiveLayerPlan {
+            PlaybackLiveLayerPlan {
+                descriptor: crate::contract::PlaybackLiveReceiver {
+                    layer_id: uuid::Uuid::now_v7().to_string(),
+                    layer_name: format!("capture-{ordinal:020}"),
                     ordinal,
                     current_byte_len: 0,
                     history_seconds: 1,
@@ -242,16 +243,16 @@ mod tests {
         }
 
         assert_eq!(
-            next_live_segment(Some(segment(2)), None)
+            next_live_layer(Some(layer(2)), None)
                 .unwrap()
                 .descriptor
                 .ordinal,
             2
         );
-        assert!(next_live_segment(Some(segment(2)), Some(2)).is_none());
-        assert!(next_live_segment(Some(segment(1)), Some(2)).is_none());
+        assert!(next_live_layer(Some(layer(2)), Some(2)).is_none());
+        assert!(next_live_layer(Some(layer(1)), Some(2)).is_none());
         assert_eq!(
-            next_live_segment(Some(segment(3)), Some(2))
+            next_live_layer(Some(layer(3)), Some(2))
                 .unwrap()
                 .descriptor
                 .ordinal,

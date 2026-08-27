@@ -18,6 +18,12 @@ pub struct WorkbenchTool<'a> {
     pub arguments_json: &'a str,
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum WorkbenchStreamResult<'a> {
+    RecordingProjection { tool_name: &'a str },
+}
+
 /// Typed input for the shared host-neutral operational App shell.
 ///
 /// Servers own these values and therefore retain their domain vocabulary,
@@ -32,6 +38,7 @@ pub struct WorkbenchApp<'a> {
     pub empty_message: &'a str,
     pub resources: &'a [WorkbenchResource<'a>],
     pub tools: &'a [WorkbenchTool<'a>],
+    pub stream_result: Option<WorkbenchStreamResult<'a>>,
 }
 
 /// Render a self-contained MCP App document for a server-owned workbench.
@@ -64,6 +71,7 @@ mod tests {
                 name: "inspect",
                 arguments_json: r#"{"id":""}"#,
             }],
+            stream_result: None,
         });
         assert!(html.contains("example://index"));
         assert!(html.contains("tools/call"));

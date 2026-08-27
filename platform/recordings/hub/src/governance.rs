@@ -10,7 +10,7 @@ use veoveo_platform_store::{
     WorkContextMembershipLevel as StoreMembership,
 };
 
-pub(crate) fn authority_record(authority: &InvocationAuthority) -> InvocationAuthorityRecord {
+pub fn invocation_authority_record(authority: &InvocationAuthority) -> InvocationAuthorityRecord {
     let (invocation_mode, initiator_key, delegation_id) = match &authority.provenance {
         InvocationProvenance::Direct { initiator } => (
             StoreInvocationMode::Direct,

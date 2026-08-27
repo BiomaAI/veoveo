@@ -1,66 +1,75 @@
 use std::collections::BTreeSet;
+use std::fs::File;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
-use chrono::Utc;
-use sha2::Digest as _;
+use chrono::{TimeDelta, Utc};
+use sha2::{Digest as _, Sha256};
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_mcp_contract::{
-    ArtifactPlane, DataLabelId, GatewayInternalIdentity, PlaneCaller, PutArtifactRequest,
-};
+use veoveo_mcp_contract::{DataLabelId, GatewayInternalIdentity, PlaneCaller, PutArtifactRequest};
 use veoveo_platform_store::{
     ArtifactId as PlatformArtifactId, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
-    RecordIdKey, RecordingId, RecordingRecord, RecordingSeal, RecordingState, SegmentId,
-    SegmentRecord, SegmentSealBinding, SegmentState,
+    RecordIdKey, RecordingDatasetId, RecordingId, RecordingLayerDraft, RecordingLayerId,
+    RecordingLayerKind, RecordingLayerRecord, RecordingLayerState, RecordingReadGrantClass,
+    RecordingReadGrantDraft, RecordingReadGrantId, RecordingReadGrantRecord, RecordingRecord,
+    RecordingSeal, RecordingState,
 };
 use veoveo_recording_hub::{
-    QueryIndexRange, ingest_segment_parts_directory, inspect_segment, live_segment_byte_len,
-    query_segments_in_range,
+    GatewayLayerPublisher, ingest_segment_parts_directory, invocation_authority_record,
+    live_segment_byte_len,
 };
+use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
 
 use crate::contract::{
-    ManifestBlueprint, ManifestSegment, PlaybackLiveSegment, QueryRecordingOutput,
-    QueryRecordingRequest, RecordingManifest, RecordingView, SealRecordingOutput, SegmentView,
+    LayerView, ManifestBlueprint, ManifestLayer, PlaybackLiveReceiver, RecordingManifest,
+    RecordingView, SealRecordingOutput,
 };
+use crate::layer_cache::{CachedLayer, LayerCache, LayerCacheLimits, LayerCacheStats};
 
+mod projection;
 mod read;
+pub use projection::{ProjectionDownload, ProjectionRuntimeLimits, ProjectionRuntimeStats};
 pub use read::{
-    MaterializedRecordingReadSnapshot, RecordingReadAuthority, RecordingReadPlan,
-    RecordingReadSegment, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
+    MaterializedRecordingReadSnapshot, RecordingReadAuthority, RecordingReadLayer,
+    RecordingReadPlan, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
 };
 
-const MAX_QUERY_ROWS: u64 = 10_000;
-const MAX_SEGMENTS: u32 = 10_000;
+const MAX_LAYERS: u32 = 10_000;
 const DEFAULT_LIVE_HISTORY_SECONDS: u64 = 1;
 const LIVE_VIDEO_PREROLL_SECONDS: u64 = 2;
-const RRD_MIME: &str = "application/vnd.rerun.rrd";
 const MANIFEST_MIME: &str = "application/vnd.veoveo.recording-manifest+json";
+const VIEWER_GRANT_TTL: TimeDelta = TimeDelta::minutes(5);
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RecordingPlaybackPlan {
+    pub dataset_id: RecordingDatasetId,
+    pub dataset_key: String,
+    pub catalog_revision: String,
     pub recording_id: RecordingId,
     pub application_id: String,
     pub recording_key: String,
     pub state: RecordingState,
     pub started_at: chrono::DateTime<Utc>,
     pub ended_at: Option<chrono::DateTime<Utc>>,
-    pub archive_segments: Vec<PlaybackArchiveSegmentPlan>,
-    pub live: Option<PlaybackLiveSegmentPlan>,
+    pub archive_layers: Vec<PlaybackArchiveLayerPlan>,
+    pub live: Option<PlaybackLiveLayerPlan>,
     pub blueprint: Option<PlaybackBlueprintPlan>,
 }
 
-#[derive(Clone, Debug)]
-pub struct PlaybackArchiveSegmentPlan {
-    pub segment_id: SegmentId,
-    pub ordinal: i64,
+#[derive(Clone)]
+pub struct PlaybackArchiveLayerPlan {
+    pub layer_id: RecordingLayerId,
+    pub layer_name: String,
+    pub kind: RecordingLayerKind,
+    pub ordinal: Option<i64>,
     pub byte_len: u64,
     pub sha256: String,
-    pub path: PathBuf,
+    pub cached: CachedLayer,
 }
 
 #[derive(Clone, Debug)]
-pub struct PlaybackLiveSegmentPlan {
-    pub descriptor: PlaybackLiveSegment,
+pub struct PlaybackLiveLayerPlan {
+    pub descriptor: PlaybackLiveReceiver,
     pub path: PathBuf,
 }
 
@@ -76,9 +85,13 @@ pub struct PlaybackBlueprintPlan {
 
 #[derive(Clone)]
 pub struct RecordingService {
-    store: PlatformStore,
+    pub(super) store: PlatformStore,
     artifacts: HttpArtifactPlane,
-    spool_root: PathBuf,
+    pub(super) spool_root: PathBuf,
+    layer_cache: Option<LayerCache>,
+    catalog_cache_root: Option<PathBuf>,
+    layer_publisher: Option<GatewayLayerPublisher>,
+    projection_runtime: Option<projection::ProjectionRuntime>,
     live_history_seconds: u64,
 }
 
@@ -99,8 +112,40 @@ impl RecordingService {
             store,
             artifacts,
             spool_root,
+            layer_cache: None,
+            catalog_cache_root: None,
+            layer_publisher: None,
+            projection_runtime: None,
             live_history_seconds: DEFAULT_LIVE_HISTORY_SECONDS,
         })
+    }
+
+    pub fn with_layer_cache(mut self, root: PathBuf, limits: LayerCacheLimits) -> Result<Self> {
+        ensure!(
+            root.is_absolute(),
+            "recording catalog cache root must be absolute"
+        );
+        std::fs::create_dir_all(&root)?;
+        let root = root.canonicalize()?;
+        let cache = LayerCache::new(root.join("layers"), limits, self.artifacts.clone())?;
+        self.catalog_cache_root = Some(root);
+        self.layer_cache = Some(cache);
+        Ok(self)
+    }
+
+    pub fn with_projection_runtime(mut self, limits: ProjectionRuntimeLimits) -> Result<Self> {
+        let root = self
+            .catalog_cache_root
+            .as_ref()
+            .context("recording layer cache must be configured before projections")?
+            .join("projections");
+        self.projection_runtime = Some(projection::ProjectionRuntime::new(root, limits)?);
+        Ok(self)
+    }
+
+    pub fn with_layer_publisher(mut self, publisher: GatewayLayerPublisher) -> Self {
+        self.layer_publisher = Some(publisher);
+        self
     }
 
     pub fn with_live_history_seconds(mut self, seconds: u64) -> Result<Self> {
@@ -117,6 +162,18 @@ impl RecordingService {
             self.live_history_seconds
                 .saturating_add(LIVE_VIDEO_PREROLL_SECONDS),
         )
+    }
+
+    pub fn layer_cache_stats(&self) -> Result<Option<LayerCacheStats>> {
+        self.layer_cache.as_ref().map(LayerCache::stats).transpose()
+    }
+
+    pub fn storage_readiness(&self) -> Result<()> {
+        self.layer_cache
+            .as_ref()
+            .context("recording layer cache is not configured")?
+            .readiness()?;
+        self.projection_runtime_readiness()
     }
 
     pub fn platform_store(&self) -> &PlatformStore {
@@ -145,6 +202,59 @@ impl RecordingService {
                     veoveo_mcp_contract::PrincipalKind::Service => PrincipalKind::Service,
                 },
             )
+            .await?)
+    }
+
+    pub async fn issue_read_grant(
+        &self,
+        identity: &GatewayInternalIdentity,
+        dataset_id: RecordingDatasetId,
+        grant_class: RecordingReadGrantClass,
+        mut recording_ids: Vec<RecordingId>,
+        catalog_revision: String,
+        requested_grant: Option<&str>,
+    ) -> Result<RecordingReadGrantRecord> {
+        recording_ids.sort_unstable();
+        recording_ids.dedup();
+        ensure!(
+            !recording_ids.is_empty(),
+            "recording grant must admit at least one recording"
+        );
+        let platform_identity = self.platform_identity(identity).await?;
+        if let Some(requested_grant) = requested_grant.filter(|value| value.len() <= 128)
+            && let Ok(grant_id) = requested_grant.parse::<RecordingReadGrantId>()
+            && grant_id.as_uuid().get_version_num() == 7
+            && let Some(grant) = self
+                .store
+                .recording_read_grant(platform_identity.tenant_id, grant_id)
+                .await?
+        {
+            let expected_recordings = recording_ids
+                .iter()
+                .copied()
+                .map(RecordingId::record_id)
+                .collect::<Vec<_>>();
+            if grant.dataset == dataset_id.record_id()
+                && grant.grant_class == grant_class
+                && grant.recordings == expected_recordings
+                && grant.actor == platform_identity.principal_id.record_id()
+                && grant.policy_revision == identity.authority.policy_revision.as_str()
+                && grant.catalog_revision == catalog_revision
+            {
+                return Ok(grant);
+            }
+        }
+        Ok(self
+            .store
+            .create_recording_read_grant(RecordingReadGrantDraft {
+                identity: platform_identity,
+                authority: invocation_authority_record(&identity.authority),
+                dataset_id,
+                grant_class,
+                recording_ids,
+                catalog_revision,
+                expires_at: Utc::now() + VIEWER_GRANT_TTL,
+            })
             .await?)
     }
 
@@ -181,24 +291,21 @@ impl RecordingService {
             .map(|recording| (platform_identity, recording)))
     }
 
-    pub async fn segment_views(
+    pub async fn layer_views(
         &self,
         identity: &GatewayInternalIdentity,
         recording_id: RecordingId,
-    ) -> Result<Option<Vec<SegmentView>>> {
+    ) -> Result<Option<Vec<LayerView>>> {
         let Some((platform_identity, _)) = self.visible_recording(identity, recording_id).await?
         else {
             return Ok(None);
         };
-        let segments = self
+        let layers = self
             .store
-            .recording_segments(platform_identity.tenant_id, recording_id, MAX_SEGMENTS)
+            .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
         Ok(Some(
-            segments
-                .iter()
-                .map(segment_view)
-                .collect::<Result<Vec<_>>>()?,
+            layers.iter().map(layer_view).collect::<Result<Vec<_>>>()?,
         ))
     }
 
@@ -220,50 +327,106 @@ impl RecordingService {
     pub async fn playback_plan(
         &self,
         identity: &GatewayInternalIdentity,
+        artifact_caller: Option<&PlaneCaller>,
         recording_id: RecordingId,
     ) -> Result<Option<RecordingPlaybackPlan>> {
-        let authority = RecordingReadAuthority::from_gateway(identity);
-        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
-            return Ok(None);
-        };
         let Some((platform_identity, recording)) =
             self.visible_recording(identity, recording_id).await?
         else {
             return Ok(None);
         };
-        let segments = plan
-            .segments
+        let dataset_id =
+            RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
+        let dataset = self
+            .store
+            .recording_dataset(platform_identity.tenant_id, dataset_id)
+            .await?
+            .context("recording dataset is missing")?;
+        let catalog_layers = self
+            .store
+            .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
+            .await?;
+        let dataset_uuid = record_uuid(&dataset.id, "recording_dataset")?;
+        let recording_uuid = record_uuid(&recording.id, "recording")?;
+        let mut archive_layers = Vec::new();
+        if let Some(artifact_caller) = artifact_caller {
+            let cache = self
+                .layer_cache
+                .as_ref()
+                .context("recording layer cache is not configured")?;
+            for layer in catalog_layers
+                .iter()
+                .filter(|layer| layer.state == RecordingLayerState::Committed)
+            {
+                let layer_id =
+                    RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?);
+                let artifact_id = veoveo_mcp_contract::ArtifactId::parse(
+                    record_uuid(
+                        layer
+                            .artifact
+                            .as_ref()
+                            .context("committed recording layer has no Artifact occurrence")?,
+                        "artifact_occurrence",
+                    )?
+                    .to_string(),
+                )?;
+                let byte_len = u64::try_from(layer.byte_len)
+                    .context("committed recording layer has negative byte length")?;
+                let sha256 = layer
+                    .sha256
+                    .clone()
+                    .context("committed recording layer has no digest")?;
+                let cached = cache
+                    .materialize(
+                        artifact_caller,
+                        artifact_id,
+                        byte_len,
+                        &sha256,
+                        dataset_uuid,
+                        recording_uuid,
+                    )
+                    .await?;
+                archive_layers.push(PlaybackArchiveLayerPlan {
+                    layer_id,
+                    layer_name: layer.layer_name.clone(),
+                    kind: layer.kind,
+                    ordinal: layer.ordinal,
+                    byte_len,
+                    sha256,
+                    cached,
+                });
+            }
+        }
+        archive_layers.sort_by_key(|layer| {
+            (
+                layer_kind_order(layer.kind),
+                layer.ordinal,
+                layer.layer_name.clone(),
+            )
+        });
+
+        let live = catalog_layers
             .iter()
-            .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
-            .map(|segment| {
-                Ok(PlaybackArchiveSegmentPlan {
-                    segment_id: segment.segment_id,
-                    ordinal: segment.ordinal,
-                    byte_len: segment.byte_len,
-                    sha256: segment
-                        .sha256
-                        .clone()
-                        .context("playback segment is missing sha256")?,
-                    path: segment.path.clone(),
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let live = plan
-            .segments
-            .iter()
-            .filter(|segment| segment.state == SegmentState::Writing)
-            .max_by_key(|segment| segment.ordinal)
-            .map(|segment| {
-                Ok::<_, anyhow::Error>(PlaybackLiveSegmentPlan {
-                    descriptor: PlaybackLiveSegment {
-                        segment_id: segment.segment_id.to_string(),
-                        ordinal: segment.ordinal,
-                        current_byte_len: live_segment_byte_len(&segment.path)?,
+            .filter(|layer| layer.state == RecordingLayerState::Writing)
+            .filter_map(|layer| layer.ordinal.map(|ordinal| (ordinal, layer)))
+            .max_by_key(|(ordinal, _)| *ordinal)
+            .map(|(ordinal, layer)| {
+                let relative = layer
+                    .staging_path
+                    .as_deref()
+                    .context("writing recording layer has no staging path")?;
+                let path = authorized_live_layer_path(&self.spool_root, relative)?;
+                Ok::<_, anyhow::Error>(PlaybackLiveLayerPlan {
+                    descriptor: PlaybackLiveReceiver {
+                        layer_id: record_uuid(&layer.id, "recording_layer")?.to_string(),
+                        layer_name: layer.layer_name.clone(),
+                        ordinal,
+                        current_byte_len: live_segment_byte_len(&path)?,
                         history_seconds: self.live_history_seconds,
                         video_preroll_seconds: LIVE_VIDEO_PREROLL_SECONDS,
                         transport: crate::contract::PlaybackLiveTransport::RerunRrdChannelV2,
                     },
-                    path: segment.path.clone(),
+                    path,
                 })
             })
             .transpose()?;
@@ -272,11 +435,11 @@ impl RecordingService {
             .current_recording_blueprint(platform_identity.tenant_id, recording_id)
             .await?
             .map(|blueprint| {
-                let path = self.segment_path(&blueprint.relative_path)?;
+                let path = self.archive_path(&blueprint.relative_path)?;
                 let bytes = std::fs::read(&path)?;
                 ensure!(
                     bytes.len() as i64 == blueprint.byte_len
-                        && hex::encode(sha2::Sha256::digest(&bytes)) == blueprint.sha256,
+                        && hex::encode(Sha256::digest(&bytes)) == blueprint.sha256,
                     "playback Blueprint no longer matches its governed publication"
                 );
                 let validated = veoveo_recording_hub::validate_blueprint_rrd(
@@ -296,69 +459,56 @@ impl RecordingService {
                 })
             })
             .transpose()?;
+        let catalog_revision =
+            catalog_revision(dataset.revision, recording.revision, &catalog_layers);
         Ok(Some(RecordingPlaybackPlan {
+            dataset_id,
+            dataset_key: dataset.dataset_key,
+            catalog_revision,
             recording_id,
-            application_id: plan.application_id,
-            recording_key: plan.recording_key,
-            state: plan.state,
+            application_id: recording.application_id,
+            recording_key: recording.recording_key,
+            state: recording.state,
             started_at: recording.started_at,
             ended_at: recording.ended_at,
-            archive_segments: segments,
+            archive_layers,
             live,
             blueprint,
         }))
     }
 
-    pub async fn query(
+    pub async fn dataset_playback_plans(
         &self,
         identity: &GatewayInternalIdentity,
-        request: QueryRecordingRequest,
-    ) -> Result<QueryRecordingOutput> {
+        artifact_caller: &PlaneCaller,
+        dataset_id: RecordingDatasetId,
+        mut recording_ids: Vec<RecordingId>,
+    ) -> Result<Option<Vec<RecordingPlaybackPlan>>> {
+        recording_ids.sort_unstable();
+        recording_ids.dedup();
         ensure!(
-            request.max_rows > 0 && request.max_rows <= MAX_QUERY_ROWS,
-            "max_rows must be in 1..={MAX_QUERY_ROWS}"
+            !recording_ids.is_empty() && recording_ids.len() <= 500,
+            "catalog grant must admit 1..=500 recordings"
         );
-        ensure!(
-            !request.timeline.trim().is_empty() && request.timeline.len() <= 256,
-            "timeline must be 1-256 characters"
-        );
-        ensure!(
-            !request.entities.trim().is_empty() && request.entities.len() <= 4_096,
-            "entities must be 1-4096 characters"
-        );
-        let range = request
-            .range
-            .map(|range| QueryIndexRange::new(range.start, range.end))
-            .transpose()?;
-        let recording_id = parse_recording_id(&request.recording_id)?;
-        let authority = RecordingReadAuthority::from_gateway(identity);
-        let Some(materialized) = self
-            .materialize_analysis_snapshot(&authority, recording_id)
-            .await?
-        else {
-            anyhow::bail!("recording not found");
-        };
-        let entities = request.entities.clone();
-        let timeline = request.timeline.clone();
-        let max_rows = request.max_rows;
-        let result = tokio::task::spawn_blocking(move || {
-            query_segments_in_range(materialized.paths(), &entities, &timeline, max_rows, range)
-        })
-        .await
-        .context("recording query worker panicked")??;
-        Ok(QueryRecordingOutput {
-            recording_id: recording_id.to_string(),
-            timeline: request.timeline,
-            range: request.range,
-            rows: result.rows,
-            rows_by_recording: result.rows_by_recording,
-        })
+        let mut plans = Vec::with_capacity(recording_ids.len());
+        for recording_id in recording_ids {
+            let Some(plan) = self
+                .playback_plan(identity, Some(artifact_caller), recording_id)
+                .await?
+            else {
+                return Ok(None);
+            };
+            if plan.dataset_id != dataset_id {
+                return Ok(None);
+            }
+            plans.push(plan);
+        }
+        Ok(Some(plans))
     }
 
     pub async fn seal(
         &self,
         identity: &GatewayInternalIdentity,
-        caller: &PlaneCaller,
         recording_id: RecordingId,
     ) -> Result<SealRecordingOutput> {
         ensure_seal_scope(identity)?;
@@ -378,169 +528,79 @@ impl RecordingService {
             "recording is not sealable from state {}",
             recording_state(recording.state)
         );
-        let segments = self
+        let mut layers = self
             .store
-            .recording_segments(platform_identity.tenant_id, recording_id, MAX_SEGMENTS)
+            .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
-        ensure!(!segments.is_empty(), "recording has no segments");
-        for segment in &segments {
-            ensure!(
-                segment.state == SegmentState::Frozen,
-                "segment {} is not frozen",
-                record_uuid(&segment.id, "segment")?
-            );
-            self.validate_segment(segment).await?;
+        ensure!(!layers.is_empty(), "recording has no layers");
+        ensure!(
+            layers
+                .iter()
+                .all(|layer| layer.state == RecordingLayerState::Committed),
+            "recording contains a non-committed layer"
+        );
+        if recording.state != RecordingState::Sealing {
+            self.store
+                .begin_recording_seal(&platform_identity, recording_id, None)
+                .await?;
         }
-        let blueprint = self
+        let dataset_id =
+            RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
+        let mut dataset = self
+            .store
+            .recording_dataset(platform_identity.tenant_id, dataset_id)
+            .await?
+            .context("recording dataset is missing")?;
+        let current = self
+            .store
+            .recording(platform_identity.tenant_id, recording_id)
+            .await?
+            .context("recording disappeared while sealing")?;
+        let sealed_at = current.updated_at;
+        self.ensure_properties_layer(
+            &platform_identity,
+            &current,
+            dataset_id,
+            &dataset.dataset_key,
+            sealed_at,
+            &layers,
+        )
+        .await?;
+        layers = self
+            .store
+            .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
+            .await?;
+        dataset = self
+            .store
+            .recording_dataset(platform_identity.tenant_id, dataset_id)
+            .await?
+            .context("recording dataset disappeared while sealing")?;
+        let manifest_layers = layers
+            .iter()
+            .map(manifest_layer)
+            .collect::<Result<Vec<_>>>()?;
+        let manifest_blueprint = self
             .store
             .current_recording_blueprint(platform_identity.tenant_id, recording_id)
-            .await?;
-        if let Some(blueprint) = &blueprint {
-            let path = self.segment_path(&blueprint.relative_path)?;
-            let bytes = tokio::fs::read(&path).await?;
-            ensure!(
-                bytes.len() as i64 == blueprint.byte_len
-                    && hex::encode(sha2::Sha256::digest(&bytes)) == blueprint.sha256,
-                "recording Blueprint no longer matches its governed publication"
-            );
-            veoveo_recording_hub::validate_blueprint_rrd(
-                &bytes,
-                u64::try_from(blueprint.message_count)?,
-                &recording.application_id,
-            )?;
-        }
-
-        self.store
-            .begin_recording_seal(&platform_identity, recording_id, None)
-            .await?;
-        let mut manifest_segments = Vec::with_capacity(segments.len());
-        let mut bindings = Vec::with_capacity(segments.len());
-        for segment in &segments {
-            let segment_id = SegmentId::from_uuid(record_uuid(&segment.id, "segment")?);
-            let (artifact_id, artifact_uri) = if let Some(artifact) = &segment.artifact {
-                let id =
-                    PlatformArtifactId::from_uuid(record_uuid(artifact, "artifact_occurrence")?);
-                (id, artifact_uri(id))
-            } else {
-                let path = self.segment_path(&segment.relative_path)?;
-                let bytes = tokio::fs::read(&path)
-                    .await
-                    .with_context(|| format!("reading frozen segment {}", path.display()))?;
-                let metadata = self
-                    .artifacts
-                    .put(
-                        caller,
-                        PutArtifactRequest {
-                            mime_type: Some(RRD_MIME.to_owned()),
-                            filename: path
-                                .file_name()
-                                .and_then(|value| value.to_str())
-                                .map(str::to_owned),
-                            classification: artifact_classification(&recording.classification)?,
-                            data_labels: labels(&recording.labels)?,
-                            retention_expires_at: None,
-                            metadata: serde_json::json!({
-                                "provenance": {
-                                    "kind": "recording_segment",
-                                    "recording_id": recording_id,
-                                    "segment_id": segment_id,
-                                    "ordinal": segment.ordinal,
-                                    "sha256": segment.sha256,
-                                    "application_id": recording.application_id,
-                                    "recording_key": recording.recording_key,
-                                }
-                            }),
-                        },
-                        bytes,
-                    )
-                    .await?;
-                let artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid());
-                self.store
-                    .stage_segment_artifact(
-                        &platform_identity,
-                        recording_id,
-                        segment_id,
-                        artifact_id,
-                    )
-                    .await?;
-                (artifact_id, metadata.artifact_uri)
-            };
-            bindings.push(SegmentSealBinding {
-                segment_id,
-                artifact_id,
-            });
-            manifest_segments.push(ManifestSegment {
-                segment_id: segment_id.to_string(),
-                ordinal: segment.ordinal,
-                byte_len: segment.byte_len,
-                sha256: segment
-                    .sha256
-                    .clone()
-                    .context("frozen segment is missing sha256")?,
-                artifact_uri,
-            });
-        }
-
-        let manifest_blueprint = if let Some(blueprint) = blueprint {
-            let (artifact_id, artifact_uri) = if let Some(artifact) = &blueprint.artifact {
-                let id =
-                    PlatformArtifactId::from_uuid(record_uuid(artifact, "artifact_occurrence")?);
-                (id, artifact_uri(id))
-            } else {
-                let path = self.segment_path(&blueprint.relative_path)?;
-                let bytes = tokio::fs::read(&path).await?;
-                let metadata = self
-                    .artifacts
-                    .put(
-                        caller,
-                        PutArtifactRequest {
-                            mime_type: Some(RRD_MIME.to_owned()),
-                            filename: Some(format!(
-                                "{}.blueprint.{}.rrd",
-                                recording.recording_key, blueprint.revision
-                            )),
-                            classification: artifact_classification(&recording.classification)?,
-                            data_labels: labels(&recording.labels)?,
-                            retention_expires_at: None,
-                            metadata: serde_json::json!({
-                                "provenance": {
-                                    "kind": "recording_blueprint",
-                                    "recording_id": recording_id,
-                                    "blueprint_id": blueprint.blueprint_id,
-                                    "revision": blueprint.revision,
-                                    "sha256": blueprint.sha256,
-                                    "application_id": recording.application_id,
-                                }
-                            }),
-                        },
-                        bytes,
-                    )
-                    .await?;
-                let artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid());
-                self.store
-                    .stage_recording_blueprint_artifact(
-                        &platform_identity,
-                        recording_id,
-                        u64::try_from(blueprint.revision)?,
-                        artifact_id,
-                    )
-                    .await?;
-                (artifact_id, metadata.artifact_uri)
-            };
-            let _ = artifact_id;
-            Some(ManifestBlueprint {
-                blueprint_id: blueprint.blueprint_id,
-                revision: blueprint.revision,
-                byte_len: blueprint.byte_len,
-                message_count: blueprint.message_count,
-                sha256: blueprint.sha256,
-                artifact_uri,
+            .await?
+            .map(|blueprint| {
+                let artifact = blueprint
+                    .artifact
+                    .as_ref()
+                    .context("recording Blueprint has not been published")?;
+                Ok::<_, anyhow::Error>(ManifestBlueprint {
+                    blueprint_id: blueprint.blueprint_id,
+                    revision: blueprint.revision,
+                    byte_len: blueprint.byte_len,
+                    message_count: blueprint.message_count,
+                    sha256: blueprint.sha256,
+                    artifact_uri: artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
+                        artifact,
+                        "artifact_occurrence",
+                    )?)),
+                })
             })
-        } else {
-            None
-        };
-
-        let sealed_at = Utc::now();
+            .transpose()?;
         let current = self
             .store
             .recording(platform_identity.tenant_id, recording_id)
@@ -549,36 +609,17 @@ impl RecordingService {
         let manifest_artifact_id = if let Some(record) = current.manifest_artifact {
             PlatformArtifactId::from_uuid(record_uuid(&record, "artifact_occurrence")?)
         } else {
-            let recording_view = self.view(platform_identity.tenant_id, current).await?;
             let manifest = RecordingManifest {
-                schema: "veoveo.recording-manifest/v2".to_owned(),
-                recording: recording_view,
-                segments: manifest_segments.clone(),
+                schema: "veoveo.io/recording-manifest/v9".to_owned(),
+                dataset_id: dataset_id.to_string(),
+                recording_segment_id: recording_id.to_string(),
+                catalog_revision: catalog_revision(dataset.revision, current.revision, &layers),
+                layers: manifest_layers.clone(),
                 blueprint: manifest_blueprint.clone(),
                 sealed_at: sealed_at.to_rfc3339(),
             };
-            let bytes = serde_json::to_vec_pretty(&manifest)?;
             let metadata = self
-                .artifacts
-                .put(
-                    caller,
-                    PutArtifactRequest {
-                        mime_type: Some(MANIFEST_MIME.to_owned()),
-                        filename: Some(format!("{}.recording.json", recording.recording_key)),
-                        classification: artifact_classification(&recording.classification)?,
-                        data_labels: labels(&recording.labels)?,
-                        retention_expires_at: None,
-                        metadata: serde_json::json!({
-                            "provenance": {
-                                "kind": "recording_manifest",
-                                "recording_id": recording_id,
-                                "application_id": recording.application_id,
-                                "recording_key": recording.recording_key,
-                            }
-                        }),
-                    },
-                    bytes,
-                )
+                .publish_manifest(&recording, dataset_id, recording_id, &manifest)
                 .await?;
             let artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid());
             self.store
@@ -592,19 +633,233 @@ impl RecordingService {
                 recording_id,
                 task_id: None,
                 manifest_artifact_id,
-                segments: bindings,
                 sealed_at,
             })
             .await?;
         Ok(SealRecordingOutput {
             recording_id: recording_id.to_string(),
             manifest_artifact_uri: artifact_uri(manifest_artifact_id),
-            segment_artifact_uris: manifest_segments
+            layer_artifact_uris: manifest_layers
                 .into_iter()
-                .map(|segment| segment.artifact_uri)
+                .map(|layer| layer.artifact_uri)
                 .collect(),
             blueprint_artifact_uri: manifest_blueprint.map(|blueprint| blueprint.artifact_uri),
         })
+    }
+
+    async fn ensure_properties_layer(
+        &self,
+        identity: &PlatformIdentity,
+        recording: &RecordingRecord,
+        dataset_id: RecordingDatasetId,
+        dataset_key: &str,
+        sealed_at: chrono::DateTime<Utc>,
+        source_layers: &[RecordingLayerRecord],
+    ) -> Result<()> {
+        let publisher = self
+            .layer_publisher
+            .as_ref()
+            .context("recording properties publisher is not configured")?;
+        let cache_root = self
+            .catalog_cache_root
+            .as_ref()
+            .context("recording catalog cache is not configured")?;
+        let recording_id = RecordingId::from_uuid(record_uuid(&recording.id, "recording")?);
+        let relative_path = format!("properties/{recording_id}.rrd");
+        let path = cache_root.join(&relative_path);
+        std::fs::create_dir_all(
+            path.parent()
+                .context("recording properties layer has no parent")?,
+        )?;
+        let mut layer = self
+            .store
+            .open_recording_layer(RecordingLayerDraft {
+                identity: identity.clone(),
+                recording_id,
+                layer_name: "properties".to_owned(),
+                kind: RecordingLayerKind::Properties,
+                ordinal: None,
+                staging_path: Some(relative_path),
+                start_time: None,
+            })
+            .await?;
+        if layer.state == RecordingLayerState::Committed {
+            return Ok(());
+        }
+        let properties = RecordingProperties {
+            dataset_id: uuid::Uuid::parse_str(&dataset_id.to_string())?,
+            recording_id: uuid::Uuid::parse_str(&recording_id.to_string())?,
+            dataset_key: dataset_key.to_owned(),
+            producer_recording_key: recording.recording_key.clone(),
+            lifecycle_state: "sealed".to_owned(),
+            started_at: recording.started_at.to_rfc3339(),
+            ended_at: recording
+                .ended_at
+                .context("sealable recording has no end time")?
+                .to_rfc3339(),
+            sealed_at: sealed_at.to_rfc3339(),
+            source_revision: recording.revision,
+            immutable_manifest_digest: source_layer_manifest_digest(
+                dataset_id,
+                recording_id,
+                source_layers,
+            ),
+            model_revisions: Default::default(),
+            environment_revisions: Default::default(),
+        };
+        if layer.state == RecordingLayerState::Writing {
+            let inspection = if path.exists() {
+                veoveo_rrd::recording_layer::inspect_canonical_recording_layer(
+                    &path,
+                    properties.dataset_id,
+                    properties.recording_id,
+                )?
+            } else {
+                build_properties_layer(&path, &properties)?
+            };
+            layer = self
+                .store
+                .stage_recording_layer(
+                    identity,
+                    RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?),
+                    i64::try_from(inspection.byte_len)?,
+                    i64::try_from(inspection.message_count)?,
+                    &inspection.sha256,
+                    Some(&inspection.rrd_version),
+                    Some(&inspection.schema_digest),
+                    Some(sealed_at),
+                )
+                .await?;
+        }
+        ensure!(
+            layer.state == RecordingLayerState::Staged,
+            "recording properties layer is not publishable"
+        );
+        let layer_id = RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?);
+        let sha256 = layer
+            .sha256
+            .as_deref()
+            .context("staged properties layer has no digest")?;
+        let byte_len = u64::try_from(layer.byte_len)?;
+        let metadata = publisher
+            .publish(
+                layer_id,
+                PutArtifactRequest {
+                    mime_type: Some("application/vnd.rerun.rrd".to_owned()),
+                    filename: Some(format!("{recording_id}.properties.rrd")),
+                    classification: artifact_classification(&recording.classification)?,
+                    data_labels: labels(&recording.labels)?,
+                    retention_expires_at: None,
+                    metadata: serde_json::json!({
+                        "provenance": {
+                            "kind": "recording_layer",
+                            "layer_kind": "properties",
+                            "dataset_id": dataset_id,
+                            "recording_id": recording_id,
+                            "layer_id": layer_id,
+                            "sha256": sha256,
+                        }
+                    }),
+                },
+                &path,
+                byte_len,
+                sha256,
+            )
+            .await?;
+        ensure!(
+            metadata.artifact_id.as_uuid() == uuid::Uuid::parse_str(&layer_id.to_string())?
+                && metadata.byte_len == byte_len,
+            "published properties occurrence does not match its reserved layer"
+        );
+        self.store
+            .commit_recording_layer(
+                identity,
+                layer_id,
+                PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid()),
+            )
+            .await?;
+        match std::fs::remove_file(&path) {
+            Ok(()) => {
+                File::open(
+                    path.parent()
+                        .context("recording properties layer has no parent")?,
+                )?
+                .sync_all()?;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        Ok(())
+    }
+
+    async fn publish_manifest(
+        &self,
+        recording: &RecordingRecord,
+        dataset_id: RecordingDatasetId,
+        recording_id: RecordingId,
+        manifest: &RecordingManifest,
+    ) -> Result<veoveo_mcp_contract::ArtifactMetadata> {
+        let publisher = self
+            .layer_publisher
+            .as_ref()
+            .context("recording manifest publisher is not configured")?;
+        let cache_root = self
+            .catalog_cache_root
+            .as_ref()
+            .context("recording catalog cache is not configured")?;
+        let directory = cache_root.join("manifests");
+        std::fs::create_dir_all(&directory)?;
+        let path = directory.join(format!("{recording_id}.v9.json"));
+        let bytes = serde_json::to_vec_pretty(manifest)?;
+        let sha256 = hex::encode(Sha256::digest(&bytes));
+        if path.exists() {
+            let existing = std::fs::read(&path)?;
+            ensure!(
+                existing == bytes,
+                "staged recording manifest differs from the retry input"
+            );
+        } else {
+            let mut file = std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path)?;
+            use std::io::Write as _;
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+            drop(file);
+            File::open(&directory)?.sync_all()?;
+        }
+        let artifact_id = veoveo_mcp_contract::ArtifactId::parse(recording_id.to_string())?;
+        let metadata = publisher
+            .publish_artifact(
+                artifact_id,
+                PutArtifactRequest {
+                    mime_type: Some(MANIFEST_MIME.to_owned()),
+                    filename: Some(format!("{}.recording-v9.json", recording.recording_key)),
+                    classification: artifact_classification(&recording.classification)?,
+                    data_labels: labels(&recording.labels)?,
+                    retention_expires_at: None,
+                    metadata: serde_json::json!({
+                        "provenance": {
+                            "kind": "recording_manifest",
+                            "recording_id": recording_id,
+                            "dataset_id": dataset_id,
+                            "catalog_revision": manifest.catalog_revision,
+                            "sha256": sha256,
+                        }
+                    }),
+                },
+                &path,
+                u64::try_from(bytes.len())?,
+                &sha256,
+            )
+            .await?;
+        match std::fs::remove_file(&path) {
+            Ok(()) => File::open(&directory)?.sync_all()?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        Ok(metadata)
     }
 
     async fn sealed_output(
@@ -617,17 +872,17 @@ impl RecordingService {
             .manifest_artifact
             .as_ref()
             .context("sealed recording has no manifest artifact")?;
-        let segments = self
+        let layers = self
             .store
-            .recording_segments(identity.tenant_id, recording_id, MAX_SEGMENTS)
+            .recording_layers(identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
-        let segment_artifact_uris = segments
+        let layer_artifact_uris = layers
             .iter()
-            .map(|segment| {
-                let artifact = segment
+            .map(|layer| {
+                let artifact = layer
                     .artifact
                     .as_ref()
-                    .context("sealed segment has no artifact")?;
+                    .context("committed layer has no artifact")?;
                 Ok(artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
                     artifact,
                     "artifact_occurrence",
@@ -654,7 +909,7 @@ impl RecordingService {
                 manifest,
                 "artifact_occurrence",
             )?)),
-            segment_artifact_uris,
+            layer_artifact_uris,
             blueprint_artifact_uri,
         })
     }
@@ -665,14 +920,21 @@ impl RecordingService {
         recording: RecordingRecord,
     ) -> Result<RecordingView> {
         let recording_id = RecordingId::from_uuid(record_uuid(&recording.id, "recording")?);
-        let segment_count = self
+        let dataset_id =
+            RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
+        let dataset = self
             .store
-            .recording_segments(tenant_id, recording_id, MAX_SEGMENTS)
+            .recording_dataset(tenant_id, dataset_id)
             .await?
-            .len();
+            .context("recording dataset is missing")?;
+        let layers = self
+            .store
+            .recording_layers(tenant_id, recording_id, MAX_LAYERS)
+            .await?;
         Ok(RecordingView {
             recording_id: recording_id.to_string(),
-            dataset: recording.dataset,
+            dataset_id: dataset_id.to_string(),
+            dataset_key: dataset.dataset_key,
             application_id: recording.application_id,
             recording_key: recording.recording_key,
             state: recording_state(recording.state).to_owned(),
@@ -688,52 +950,36 @@ impl RecordingService {
                         .expect("validated platform artifact record"),
                 ))
             }),
-            segment_count,
+            layer_count: layers.len(),
+            committed_layer_count: layers
+                .iter()
+                .filter(|layer| layer.state == RecordingLayerState::Committed)
+                .count(),
         })
     }
 
-    async fn validate_segment(&self, segment: &SegmentRecord) -> Result<()> {
-        let path = self.segment_path(&segment.relative_path)?;
-        let inspection = tokio::task::spawn_blocking(move || inspect_segment(&path))
-            .await
-            .context("segment validation worker panicked")??;
-        ensure!(
-            i64::try_from(inspection.byte_len).ok() == Some(segment.byte_len),
-            "segment byte length no longer matches catalog"
-        );
-        ensure!(
-            segment.sha256.as_deref() == Some(inspection.sha256.as_str()),
-            "segment sha256 no longer matches catalog"
-        );
-        Ok(())
-    }
-
-    fn segment_path(&self, relative: &str) -> Result<PathBuf> {
-        let path = confined_segment_path(&self.spool_root, relative)?;
+    fn archive_path(&self, relative: &str) -> Result<PathBuf> {
+        let path = confined_layer_path(&self.spool_root, relative)?;
         let canonical = path
             .canonicalize()
-            .with_context(|| format!("canonicalizing segment {}", path.display()))?;
+            .with_context(|| format!("canonicalizing recording file {}", path.display()))?;
         ensure!(
             canonical.starts_with(&self.spool_root) && canonical.is_file(),
-            "segment path escapes the configured spool root"
+            "recording file escapes the configured spool root"
         );
         Ok(canonical)
     }
-
-    fn live_segment_path(&self, relative: &str) -> Result<PathBuf> {
-        authorized_live_segment_path(&self.spool_root, relative)
-    }
 }
 
-fn authorized_live_segment_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
-    let path = confined_segment_path(spool_root, relative)?;
+fn authorized_live_layer_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
+    let path = confined_layer_path(spool_root, relative)?;
     if path.exists() {
         let canonical = path
             .canonicalize()
-            .with_context(|| format!("canonicalizing live segment {}", path.display()))?;
+            .with_context(|| format!("canonicalizing live layer {}", path.display()))?;
         ensure!(
             canonical.starts_with(spool_root) && canonical.is_file(),
-            "live segment escapes the configured spool root"
+            "live layer escapes the configured spool root"
         );
         return Ok(canonical);
     }
@@ -741,36 +987,32 @@ fn authorized_live_segment_path(spool_root: &Path, relative: &str) -> Result<Pat
     if parts.exists() {
         let canonical_parts = parts
             .canonicalize()
-            .with_context(|| format!("canonicalizing live segment parts {}", parts.display()))?;
+            .with_context(|| format!("canonicalizing live layer parts {}", parts.display()))?;
         ensure!(
             canonical_parts.starts_with(spool_root) && canonical_parts.is_dir(),
-            "live segment parts escape the configured spool root"
+            "live layer parts escape the configured spool root"
         );
         return Ok(path);
     }
-    // The catalog commits a writing segment immediately before Hub creates
-    // its parts directory. Admit that short, valid state by proving the
-    // existing parent is confined; the live reader then waits on filesystem
-    // notification for the source to appear.
-    let parent = path.parent().context("live segment path has no parent")?;
+    let parent = path.parent().context("live layer path has no parent")?;
     let canonical_parent = parent
         .canonicalize()
-        .with_context(|| format!("canonicalizing live segment parent {}", parent.display()))?;
+        .with_context(|| format!("canonicalizing live layer parent {}", parent.display()))?;
     ensure!(
         canonical_parent.starts_with(spool_root) && canonical_parent.is_dir(),
-        "live segment parent escapes the configured spool root"
+        "live layer parent escapes the configured spool root"
     );
     Ok(path)
 }
 
-fn confined_segment_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
+fn confined_layer_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
     let relative = Path::new(relative);
     ensure!(
         !relative.as_os_str().is_empty()
             && relative
                 .components()
                 .all(|component| matches!(component, Component::Normal(_))),
-        "segment path must be a normalized relative path"
+        "recording layer path must be a normalized relative path"
     );
     Ok(spool_root.join(relative))
 }
@@ -786,7 +1028,7 @@ fn visible(recording: &RecordingRecord, identity: &GatewayInternalIdentity) -> b
     )
 }
 
-fn labels_visible<'a>(
+pub(super) fn labels_visible<'a>(
     recording: &RecordingRecord,
     clearance: impl IntoIterator<Item = &'a str>,
 ) -> bool {
@@ -812,42 +1054,125 @@ fn ensure_seal_scope(identity: &GatewayInternalIdentity) -> Result<()> {
 fn labels(values: &[String]) -> Result<BTreeSet<DataLabelId>> {
     values
         .iter()
-        .map(|value| label(value))
-        .collect::<Result<BTreeSet<_>>>()
-}
-
-fn label(value: &str) -> Result<DataLabelId> {
-    DataLabelId::new(value.to_owned()).map_err(Into::into)
+        .map(|value| DataLabelId::new(value.to_owned()).map_err(Into::into))
+        .collect()
 }
 
 fn artifact_classification(value: &str) -> Result<Option<DataLabelId>> {
     if value == "unclassified" {
         Ok(None)
     } else {
-        label(value).map(Some)
+        DataLabelId::new(value.to_owned())
+            .map(Some)
+            .map_err(Into::into)
     }
 }
 
-fn segment_view(segment: &SegmentRecord) -> Result<SegmentView> {
-    Ok(SegmentView {
-        segment_id: record_uuid(&segment.id, "segment")?.to_string(),
-        ordinal: segment.ordinal,
-        state: segment_state(segment.state).to_owned(),
-        byte_len: segment.byte_len,
-        message_count: segment.message_count,
-        sha256: segment.sha256.clone(),
-        artifact_uri: segment.artifact.as_ref().map(|artifact| {
+fn layer_view(layer: &RecordingLayerRecord) -> Result<LayerView> {
+    Ok(LayerView {
+        layer_id: record_uuid(&layer.id, "recording_layer")?.to_string(),
+        layer_name: layer.layer_name.clone(),
+        kind: layer_kind(layer.kind).to_owned(),
+        ordinal: layer.ordinal,
+        state: layer_state(layer.state).to_owned(),
+        byte_len: layer.byte_len,
+        message_count: layer.message_count,
+        sha256: layer.sha256.clone(),
+        artifact_uri: layer.artifact.as_ref().map(|artifact| {
             artifact_uri(PlatformArtifactId::from_uuid(
                 record_uuid(artifact, "artifact_occurrence")
                     .expect("validated platform artifact record"),
             ))
         }),
-        created_at: segment.created_at.to_rfc3339(),
-        updated_at: segment.updated_at.to_rfc3339(),
+        rrd_version: layer.rrd_version.clone(),
+        schema_digest: layer.schema_digest.clone(),
+        created_at: layer.created_at.to_rfc3339(),
+        updated_at: layer.updated_at.to_rfc3339(),
     })
 }
 
-fn parse_recording_id(value: &str) -> Result<RecordingId> {
+fn manifest_layer(layer: &RecordingLayerRecord) -> Result<ManifestLayer> {
+    let artifact = layer
+        .artifact
+        .as_ref()
+        .context("committed layer has no Artifact occurrence")?;
+    Ok(ManifestLayer {
+        layer_id: record_uuid(&layer.id, "recording_layer")?.to_string(),
+        layer_name: layer.layer_name.clone(),
+        kind: layer_kind(layer.kind).to_owned(),
+        ordinal: layer.ordinal,
+        byte_len: layer.byte_len,
+        sha256: layer
+            .sha256
+            .clone()
+            .context("committed layer has no digest")?,
+        artifact_uri: artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
+            artifact,
+            "artifact_occurrence",
+        )?)),
+        rrd_version: layer.rrd_version.clone(),
+        schema_digest: layer.schema_digest.clone(),
+    })
+}
+
+fn catalog_revision(
+    dataset_revision: i64,
+    recording_revision: i64,
+    layers: &[RecordingLayerRecord],
+) -> String {
+    let mut digest = Sha256::new();
+    digest.update(dataset_revision.to_be_bytes());
+    digest.update(recording_revision.to_be_bytes());
+    for layer in layers {
+        digest.update(layer.layer_name.as_bytes());
+        digest.update([0]);
+        digest.update(layer.revision.to_be_bytes());
+        if let Some(value) = &layer.sha256 {
+            digest.update(value.as_bytes());
+        }
+    }
+    hex::encode(digest.finalize())
+}
+
+pub fn catalog_set_revision(plans: &[RecordingPlaybackPlan]) -> String {
+    let mut revisions = plans
+        .iter()
+        .map(|plan| (plan.recording_id, plan.catalog_revision.as_str()))
+        .collect::<Vec<_>>();
+    revisions.sort_unstable_by_key(|(recording_id, _)| *recording_id);
+    let mut digest = Sha256::new();
+    for (recording_id, revision) in revisions {
+        digest.update(recording_id.as_uuid().as_bytes());
+        digest.update(revision.as_bytes());
+    }
+    hex::encode(digest.finalize())
+}
+
+fn source_layer_manifest_digest(
+    dataset_id: RecordingDatasetId,
+    recording_id: RecordingId,
+    layers: &[RecordingLayerRecord],
+) -> String {
+    let mut digest = Sha256::new();
+    digest.update(dataset_id.to_string());
+    digest.update([0]);
+    digest.update(recording_id.to_string());
+    for layer in layers
+        .iter()
+        .filter(|layer| layer.kind != RecordingLayerKind::Properties)
+    {
+        digest.update([0]);
+        digest.update(layer.layer_name.as_bytes());
+        digest.update(layer.byte_len.to_be_bytes());
+        digest.update(layer.message_count.to_be_bytes());
+        if let Some(sha256) = &layer.sha256 {
+            digest.update(sha256.as_bytes());
+        }
+    }
+    hex::encode(digest.finalize())
+}
+
+pub fn parse_recording_id(value: &str) -> Result<RecordingId> {
     let value = uuid::Uuid::parse_str(value).context("recording_id must be a UUIDv7")?;
     ensure!(
         value.get_version_num() == 7,
@@ -856,7 +1181,7 @@ fn parse_recording_id(value: &str) -> Result<RecordingId> {
     Ok(RecordingId::from_uuid(value))
 }
 
-fn record_uuid(record: &RecordId, table: &str) -> Result<uuid::Uuid> {
+pub(super) fn record_uuid(record: &RecordId, table: &str) -> Result<uuid::Uuid> {
     ensure!(
         record.table.as_str() == table,
         "record has unexpected table"
@@ -886,12 +1211,28 @@ fn recording_state(state: RecordingState) -> &'static str {
     }
 }
 
-fn segment_state(state: SegmentState) -> &'static str {
+fn layer_kind(kind: RecordingLayerKind) -> &'static str {
+    match kind {
+        RecordingLayerKind::Capture => "capture",
+        RecordingLayerKind::Properties => "properties",
+        RecordingLayerKind::Derived => "derived",
+    }
+}
+
+fn layer_kind_order(kind: RecordingLayerKind) -> u8 {
+    match kind {
+        RecordingLayerKind::Properties => 0,
+        RecordingLayerKind::Capture => 1,
+        RecordingLayerKind::Derived => 2,
+    }
+}
+
+fn layer_state(state: RecordingLayerState) -> &'static str {
     match state {
-        SegmentState::Writing => "writing",
-        SegmentState::Frozen => "frozen",
-        SegmentState::Sealed => "sealed",
-        SegmentState::Failed => "failed",
+        RecordingLayerState::Writing => "writing",
+        RecordingLayerState::Staged => "staged",
+        RecordingLayerState::Committed => "committed",
+        RecordingLayerState::Failed => "failed",
     }
 }
 
@@ -907,42 +1248,26 @@ mod tests {
     }
 
     #[test]
-    fn live_segment_path_authorizes_confined_parts_before_rollover() {
+    fn live_layer_path_authorizes_confined_parts_before_rollover() {
         let directory = tempfile::tempdir().unwrap();
         let root = directory.path().canonicalize().unwrap();
-        let relative = "recordings/live.ingest-stream-s0.rrd";
+        let relative = "recordings/live.ingest-stream-r0.rrd";
         let final_path = root.join(relative);
         let parts = ingest_segment_parts_directory(&final_path);
         fs::create_dir_all(&parts).unwrap();
 
         assert_eq!(
-            authorized_live_segment_path(&root, relative).unwrap(),
+            authorized_live_layer_path(&root, relative).unwrap(),
             final_path
         );
     }
 
     #[test]
-    fn live_segment_path_rejects_traversal() {
+    fn live_layer_path_rejects_traversal() {
         let directory = tempfile::tempdir().unwrap();
         let root = directory.path().canonicalize().unwrap();
 
-        assert!(authorized_live_segment_path(&root, "../outside.rrd").is_err());
-        assert!(authorized_live_segment_path(&root, "/outside.rrd").is_err());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn live_segment_path_rejects_parts_symlink_outside_spool() {
-        use std::os::unix::fs::symlink;
-
-        let directory = tempfile::tempdir().unwrap();
-        let root = directory.path().join("spool");
-        let outside = directory.path().join("outside");
-        fs::create_dir(&root).unwrap();
-        fs::create_dir(&outside).unwrap();
-        let final_path = root.join("live.rrd");
-        symlink(&outside, ingest_segment_parts_directory(&final_path)).unwrap();
-
-        assert!(authorized_live_segment_path(&root, "live.rrd").is_err());
+        assert!(authorized_live_layer_path(&root, "../outside.rrd").is_err());
+        assert!(authorized_live_layer_path(&root, "/outside.rrd").is_err());
     }
 }

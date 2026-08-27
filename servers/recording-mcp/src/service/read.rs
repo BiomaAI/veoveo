@@ -5,25 +5,26 @@ use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    DataLabelId, GatewayInternalIdentity, PrincipalId, PrincipalKind, TenantId, TokenIssuer,
-    TokenSubject,
+    DataLabelId, GatewayInternalIdentity, PlaneCaller, PrincipalId, PrincipalKind, TenantId,
+    TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
-    PrincipalKind as StorePrincipalKind, RecordingId, RecordingState, SegmentId, SegmentState,
+    PrincipalKind as StorePrincipalKind, RecordingDatasetId, RecordingId, RecordingLayerId,
+    RecordingLayerKind, RecordingLayerState, RecordingState,
 };
 use veoveo_recording_hub::{
     ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory, inspect_segment,
 };
 
-use super::{MAX_SEGMENTS, RecordingService, labels_visible, record_uuid};
+use super::{
+    MAX_LAYERS, RecordingService, authorized_live_layer_path, labels_visible, record_uuid,
+};
+use crate::layer_cache::CachedLayer;
 
-const ANALYSIS_SNAPSHOT_ATTEMPTS: usize = 4;
-
-/// Stable identity and clearance needed to reopen an authorized recording.
+/// Stable identity and clearance used to reopen a governed recording.
 ///
-/// Unlike a gateway assertion this value has no bearer or expiry. It can be
-/// reconstructed from a durable task owner after restart, while the recording
-/// policy is evaluated again against current catalog state.
+/// Bearer credentials are deliberately absent. Callers that need an Artifact
+/// download provide a fresh, short-lived Artifact-plane caller separately.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecordingReadAuthority {
     principal_id: PrincipalId,
@@ -65,42 +66,47 @@ impl RecordingReadAuthority {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RecordingReadSegment {
-    pub segment_id: SegmentId,
-    pub ordinal: i64,
-    pub state: SegmentState,
+#[derive(Clone)]
+pub struct RecordingReadLayer {
+    pub layer_id: RecordingLayerId,
+    pub layer_name: String,
+    pub kind: RecordingLayerKind,
+    pub ordinal: Option<i64>,
+    pub state: RecordingLayerState,
     pub byte_len: u64,
     pub sha256: Option<String>,
     pub started_at: Option<DateTime<Utc>>,
     pub ended_at: Option<DateTime<Utc>>,
     pub path: PathBuf,
+    cached: Option<CachedLayer>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct RecordingReadPlan {
     pub recording_id: RecordingId,
-    pub dataset: String,
+    pub dataset_id: RecordingDatasetId,
+    pub dataset_key: String,
     pub application_id: String,
     pub recording_key: String,
     pub state: RecordingState,
     pub classification: String,
     pub labels: Vec<String>,
-    pub segments: Vec<RecordingReadSegment>,
+    pub layers: Vec<RecordingReadLayer>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RecordingReadSourceKind {
-    FrozenSegment,
-    SealedSegment,
+    CommittedLayer,
     LiveIngestPart,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct RecordingReadSource {
-    pub segment_id: SegmentId,
-    pub segment_ordinal: i64,
+    pub layer_id: RecordingLayerId,
+    pub layer_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layer_ordinal: Option<i64>,
     pub kind: RecordingReadSourceKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub part_sequence: Option<u64>,
@@ -113,11 +119,11 @@ pub struct RecordingReadSource {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct RecordingReadSnapshot {
     pub recording_id: RecordingId,
+    pub dataset_id: RecordingDatasetId,
     pub captured_at: DateTime<Utc>,
     pub sources: Vec<RecordingReadSource>,
 }
 
-#[derive(Debug)]
 pub struct MaterializedRecordingReadSnapshot {
     pub plan: RecordingReadPlan,
     pub snapshot: RecordingReadSnapshot,
@@ -132,52 +138,46 @@ impl MaterializedRecordingReadSnapshot {
 }
 
 impl RecordingReadPlan {
-    /// Frozen and sealed paths retained for callers that require archival
-    /// sources. Live analysis should use `analysis_snapshot`.
-    pub fn stable_segment_paths(&self) -> Vec<PathBuf> {
-        self.segments
+    pub fn stable_layer_paths(&self) -> Vec<PathBuf> {
+        self.layers
             .iter()
-            .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
-            .map(|segment| segment.path.clone())
+            .filter(|layer| layer.state == RecordingLayerState::Committed)
+            .map(|layer| layer.path.clone())
             .collect()
     }
 
-    /// Capture the immutable recording sources visible at this instant.
-    ///
-    /// Frozen and sealed segments remain direct sources. An authenticated
-    /// writing segment contributes only complete, acknowledged ingest parts;
-    /// the mutable native-writer file is never admitted.
-    pub fn analysis_snapshot(&self) -> Result<RecordingReadSnapshot> {
+    fn analysis_snapshot(&self) -> Result<RecordingReadSnapshot> {
         let mut sources = Vec::new();
-        for segment in &self.segments {
-            match segment.state {
-                SegmentState::Frozen | SegmentState::Sealed => {
-                    let metadata = std::fs::metadata(&segment.path).with_context(|| {
-                        format!("reading recording source {}", segment.path.display())
+        for layer in &self.layers {
+            match layer.state {
+                RecordingLayerState::Committed => {
+                    ensure!(
+                        layer.cached.is_some(),
+                        "committed recording layer is not pinned in the verified cache"
+                    );
+                    let metadata = std::fs::metadata(&layer.path).with_context(|| {
+                        format!("reading recording source {}", layer.path.display())
                     })?;
                     ensure!(
-                        metadata.is_file() && metadata.len() == segment.byte_len,
-                        "recording segment byte length no longer matches the catalog"
+                        metadata.is_file() && metadata.len() == layer.byte_len,
+                        "recording layer byte length no longer matches the catalog"
                     );
                     sources.push(RecordingReadSource {
-                        segment_id: segment.segment_id,
-                        segment_ordinal: segment.ordinal,
-                        kind: if segment.state == SegmentState::Frozen {
-                            RecordingReadSourceKind::FrozenSegment
-                        } else {
-                            RecordingReadSourceKind::SealedSegment
-                        },
+                        layer_id: layer.layer_id,
+                        layer_name: layer.layer_name.clone(),
+                        layer_ordinal: layer.ordinal,
+                        kind: RecordingReadSourceKind::CommittedLayer,
                         part_sequence: None,
-                        byte_len: segment.byte_len,
-                        sha256: segment
+                        byte_len: layer.byte_len,
+                        sha256: layer
                             .sha256
                             .clone()
-                            .context("immutable recording segment is missing sha256")?,
-                        path: segment.path.clone(),
+                            .context("committed recording layer is missing sha256")?,
+                        path: layer.path.clone(),
                     });
                 }
-                SegmentState::Writing if !segment.path.exists() => {
-                    let parts_directory = ingest_segment_parts_directory(&segment.path);
+                RecordingLayerState::Writing if !layer.path.exists() => {
+                    let parts_directory = ingest_segment_parts_directory(&layer.path);
                     for path in ingest_part_paths(&parts_directory)? {
                         let sequence = ingest_part_sequence(&path).with_context(|| {
                             format!("reading live ingest part sequence {}", path.display())
@@ -188,11 +188,12 @@ impl RecordingReadPlan {
                         ensure!(
                             inspection.application_id == self.application_id
                                 && inspection.recording_key == self.recording_key,
-                            "live ingest part changed its logical recording identity"
+                            "live ingest part changed its producer recording identity"
                         );
                         sources.push(RecordingReadSource {
-                            segment_id: segment.segment_id,
-                            segment_ordinal: segment.ordinal,
+                            layer_id: layer.layer_id,
+                            layer_name: layer.layer_name.clone(),
+                            layer_ordinal: layer.ordinal,
                             kind: RecordingReadSourceKind::LiveIngestPart,
                             part_sequence: Some(sequence),
                             byte_len: inspection.byte_len,
@@ -201,27 +202,26 @@ impl RecordingReadPlan {
                         });
                     }
                 }
-                SegmentState::Writing | SegmentState::Failed => {}
+                RecordingLayerState::Writing
+                | RecordingLayerState::Staged
+                | RecordingLayerState::Failed => {}
             }
         }
         sources.sort_by_key(|source| {
             (
-                source.segment_ordinal,
+                source.layer_ordinal,
+                source.layer_name.clone(),
                 source.part_sequence.unwrap_or_default(),
             )
         });
         Ok(RecordingReadSnapshot {
             recording_id: self.recording_id,
+            dataset_id: self.dataset_id,
             captured_at: Utc::now(),
             sources,
         })
     }
 
-    /// Copy live ingest parts into a task-local snapshot before extraction.
-    ///
-    /// Hub may replace a writing parts directory with its frozen shard at any
-    /// time. These bounded copies retain the exact acknowledged bytes selected
-    /// for one task while immutable archive sources remain zero-copy.
     fn materialize_analysis_snapshot(self) -> Result<MaterializedRecordingReadSnapshot> {
         let snapshot = self.analysis_snapshot()?;
         let mut temporary = None;
@@ -242,7 +242,7 @@ impl RecordingReadPlan {
             };
             let destination = directory.path().join(format!(
                 "{index:05}-{}-{:020}.rrd",
-                source.segment_id,
+                source.layer_id,
                 source
                     .part_sequence
                     .context("live ingest source is missing its part sequence")?
@@ -257,12 +257,7 @@ impl RecordingReadPlan {
                 copied == source.byte_len,
                 "live ingest part changed while the analysis snapshot was captured"
             );
-            let copied_inspection = inspect_segment(&destination).with_context(|| {
-                format!(
-                    "validating copied live ingest part {}",
-                    destination.display()
-                )
-            })?;
+            let copied_inspection = inspect_segment(&destination)?;
             ensure!(
                 copied_inspection.byte_len == source.byte_len
                     && copied_inspection.sha256 == source.sha256,
@@ -280,88 +275,33 @@ impl RecordingReadPlan {
 }
 
 impl RecordingService {
-    /// Resolve and retain one analysis snapshot across live ingest rollover.
-    ///
-    /// Ingest parts are immutable after publication but Hub may atomically
-    /// replace their directory with a frozen segment while this process is
-    /// opening them. A missing part therefore restarts the complete governed
-    /// read-plan capture; a task never combines paths from two catalog views.
     pub async fn materialize_analysis_snapshot(
         &self,
-        authority: &RecordingReadAuthority,
-        recording_id: RecordingId,
+        _authority: &RecordingReadAuthority,
+        _recording_id: RecordingId,
     ) -> Result<Option<MaterializedRecordingReadSnapshot>> {
-        for attempt in 1..=ANALYSIS_SNAPSHOT_ATTEMPTS {
-            let Some(plan) = self.read_plan(authority, recording_id).await? else {
-                return Ok(None);
-            };
-            let recording_is_live = plan.state == RecordingState::Live;
-            let materialized =
-                tokio::task::spawn_blocking(move || plan.materialize_analysis_snapshot())
-                    .await
-                    .context("recording analysis snapshot worker panicked")?;
-            match materialized {
-                Ok(materialized) => {
-                    if recording_is_live
-                        && self
-                            .snapshot_missed_ingest_rollover(authority, &materialized)
-                            .await?
-                    {
-                        ensure!(
-                            attempt < ANALYSIS_SNAPSHOT_ATTEMPTS,
-                            "live recording kept rolling over while its analysis snapshot was captured"
-                        );
-                        tokio::task::yield_now().await;
-                        continue;
-                    }
-                    return Ok(Some(materialized));
-                }
-                Err(error)
-                    if recording_is_live
-                        && error_chain_contains_not_found(&error)
-                        && attempt < ANALYSIS_SNAPSHOT_ATTEMPTS =>
-                {
-                    tokio::task::yield_now().await;
-                }
-                Err(error) => return Err(error),
-            }
-        }
-        unreachable!("analysis snapshot attempts either return or continue before exhaustion")
+        anyhow::bail!("Artifact-backed recording reads require a fresh Artifact-read credential")
     }
 
-    async fn snapshot_missed_ingest_rollover(
+    pub async fn materialize_analysis_snapshot_with_caller(
         &self,
         authority: &RecordingReadAuthority,
-        materialized: &MaterializedRecordingReadSnapshot,
-    ) -> Result<bool> {
-        let uncovered_writing_segments = uncovered_writing_segments(materialized);
-        if uncovered_writing_segments.is_empty() {
-            return Ok(false);
-        }
-        let Some(current) = self
-            .read_plan(authority, materialized.plan.recording_id)
-            .await?
-        else {
-            return Ok(true);
+        caller: &PlaneCaller,
+        recording_id: RecordingId,
+    ) -> Result<Option<MaterializedRecordingReadSnapshot>> {
+        let Some(plan) = self.read_plan(authority, caller, recording_id).await? else {
+            return Ok(None);
         };
-        let current_writing_segments = current
-            .segments
-            .iter()
-            .filter(|segment| segment.state == SegmentState::Writing)
-            .map(|segment| segment.segment_id)
-            .collect::<BTreeSet<_>>();
-        Ok(uncovered_writing_segments
-            .iter()
-            .any(|segment_id| !current_writing_segments.contains(segment_id)))
+        tokio::task::spawn_blocking(move || plan.materialize_analysis_snapshot())
+            .await
+            .context("recording analysis snapshot worker panicked")?
+            .map(Some)
     }
 
-    /// Resolve one governed recording into a local, typed read plan.
-    ///
-    /// Callers persist the recording identity, not these filesystem paths, and
-    /// call this method again when a resumable task is reclaimed.
     pub async fn read_plan(
         &self,
         authority: &RecordingReadAuthority,
+        caller: &PlaneCaller,
         recording_id: RecordingId,
     ) -> Result<Option<RecordingReadPlan>> {
         let tenant_key = authority
@@ -395,264 +335,93 @@ impl RecordingService {
         ) {
             return Ok(None);
         }
-        let catalog_segments = self
+        let dataset_id =
+            RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
+        let dataset = self
             .store
-            .recording_segments(platform_identity.tenant_id, recording_id, MAX_SEGMENTS)
+            .recording_dataset(platform_identity.tenant_id, dataset_id)
+            .await?
+            .context("recording dataset is missing")?;
+        let cache = self
+            .layer_cache
+            .as_ref()
+            .context("recording layer cache is not configured")?;
+        let dataset_uuid = record_uuid(&dataset.id, "recording_dataset")?;
+        let recording_uuid = record_uuid(&recording.id, "recording")?;
+        let catalog_layers = self
+            .store
+            .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
-        let mut segments = Vec::with_capacity(catalog_segments.len());
-        for segment in catalog_segments {
-            ensure!(
-                segment.byte_len >= 0,
-                "recording segment has negative byte_len"
-            );
-            let path = match segment.state {
-                SegmentState::Writing => self.live_segment_path(&segment.relative_path),
-                SegmentState::Frozen | SegmentState::Sealed => {
-                    self.segment_path(&segment.relative_path)
+        let mut layers = Vec::with_capacity(catalog_layers.len());
+        for layer in catalog_layers {
+            let layer_id = RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?);
+            let (path, cached) = match layer.state {
+                RecordingLayerState::Committed => {
+                    let artifact_id = veoveo_mcp_contract::ArtifactId::parse(
+                        record_uuid(
+                            layer
+                                .artifact
+                                .as_ref()
+                                .context("committed layer has no Artifact occurrence")?,
+                            "artifact_occurrence",
+                        )?
+                        .to_string(),
+                    )?;
+                    let byte_len = u64::try_from(layer.byte_len)
+                        .context("committed layer has negative byte length")?;
+                    let sha256 = layer
+                        .sha256
+                        .as_deref()
+                        .context("committed layer has no digest")?;
+                    let cached = cache
+                        .materialize(
+                            caller,
+                            artifact_id,
+                            byte_len,
+                            sha256,
+                            dataset_uuid,
+                            recording_uuid,
+                        )
+                        .await?;
+                    (cached.path().to_path_buf(), Some(cached))
                 }
-                SegmentState::Failed => {
-                    super::confined_segment_path(&self.spool_root, &segment.relative_path)
+                RecordingLayerState::Writing => {
+                    let relative = layer
+                        .staging_path
+                        .as_deref()
+                        .context("writing layer has no staging path")?;
+                    (
+                        authorized_live_layer_path(&self.spool_root, relative)?,
+                        None,
+                    )
                 }
+                RecordingLayerState::Staged | RecordingLayerState::Failed => continue,
             };
-            let path = match path {
-                Ok(path) => path,
-                Err(error)
-                    if recording.state == RecordingState::Live
-                        && error_chain_contains_not_found(&error) =>
-                {
-                    continue;
-                }
-                Err(error) => return Err(error),
-            };
-            segments.push(RecordingReadSegment {
-                segment_id: SegmentId::from_uuid(record_uuid(&segment.id, "segment")?),
-                ordinal: segment.ordinal,
-                state: segment.state,
-                byte_len: u64::try_from(segment.byte_len)
-                    .context("recording segment byte_len exceeds u64")?,
-                sha256: segment.sha256,
-                started_at: segment.start_time,
-                ended_at: segment.end_time,
+            layers.push(RecordingReadLayer {
+                layer_id,
+                layer_name: layer.layer_name,
+                kind: layer.kind,
+                ordinal: layer.ordinal,
+                state: layer.state,
+                byte_len: u64::try_from(layer.byte_len)
+                    .context("recording layer byte length is negative")?,
+                sha256: layer.sha256,
+                started_at: layer.start_time,
+                ended_at: layer.end_time,
                 path,
+                cached,
             });
         }
         Ok(Some(RecordingReadPlan {
             recording_id,
-            dataset: recording.dataset,
+            dataset_id,
+            dataset_key: dataset.dataset_key,
             application_id: recording.application_id,
             recording_key: recording.recording_key,
             state: recording.state,
             classification: recording.classification,
             labels: recording.labels,
-            segments,
+            layers,
         }))
-    }
-}
-
-fn uncovered_writing_segments(
-    materialized: &MaterializedRecordingReadSnapshot,
-) -> BTreeSet<SegmentId> {
-    let captured_live_segments = materialized
-        .snapshot
-        .sources
-        .iter()
-        .filter(|source| source.kind == RecordingReadSourceKind::LiveIngestPart)
-        .map(|source| source.segment_id)
-        .collect::<BTreeSet<_>>();
-    materialized
-        .plan
-        .segments
-        .iter()
-        .filter(|segment| {
-            segment.state == SegmentState::Writing
-                && !captured_live_segments.contains(&segment.segment_id)
-        })
-        .map(|segment| segment.segment_id)
-        .collect()
-}
-
-fn error_chain_contains_not_found(error: &anyhow::Error) -> bool {
-    error.chain().any(|cause| {
-        cause
-            .downcast_ref::<std::io::Error>()
-            .is_some_and(|error| error.kind() == std::io::ErrorKind::NotFound)
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Cursor;
-
-    use anyhow::Context as _;
-    use re_build_info::CrateVersion;
-    use re_log_encoding::{EncodingOptions, rrd::Encoder};
-    use re_log_types::{ApplicationId, LogMsg};
-    use re_sdk::RecordingStreamBuilder;
-    use re_sdk_types::archetypes::Scalars;
-    use veoveo_recording_hub::query_segments_in_range;
-
-    use super::*;
-
-    fn encoded_rrd(application_id: &str, recording_key: &str, value: f64) -> Vec<u8> {
-        let (recording, storage) =
-            RecordingStreamBuilder::new(ApplicationId::try_new(application_id).unwrap())
-                .recording_id(recording_key)
-                .memory()
-                .unwrap();
-        recording.set_duration_secs("sensor_time", value);
-        recording
-            .log("/sensor/value", &Scalars::single(value))
-            .unwrap();
-        let mut encoder = Encoder::new_eager(
-            CrateVersion::LOCAL,
-            EncodingOptions::PROTOBUF_COMPRESSED,
-            Vec::new(),
-        )
-        .unwrap();
-        for message in storage.take() {
-            encoder.append(&message).unwrap();
-        }
-        encoder.finish().unwrap();
-        let bytes = encoder.into_inner().unwrap();
-        re_log_encoding::Decoder::<LogMsg>::decode_eager(Cursor::new(&bytes))
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        bytes
-    }
-
-    #[test]
-    fn identifies_not_found_through_context() {
-        let error = std::fs::File::open("/a-path-that-does-not-exist")
-            .context("opening projected recording segment")
-            .unwrap_err();
-        assert!(error_chain_contains_not_found(&error));
-        assert!(!error_chain_contains_not_found(&anyhow::anyhow!(
-            "catalog authorization failed"
-        )));
-    }
-
-    #[test]
-    fn analysis_snapshot_keeps_acknowledged_live_parts_across_rollover() {
-        let directory = tempfile::tempdir().unwrap();
-        let application_id = "live-perception";
-        let recording_key = "flight-a";
-        let frozen_path = directory.path().join("frozen.rrd");
-        std::fs::write(
-            &frozen_path,
-            encoded_rrd(application_id, recording_key, 1.0),
-        )
-        .unwrap();
-        let frozen_inspection = inspect_segment(&frozen_path).unwrap();
-
-        let live_path = directory
-            .path()
-            .join(format!("flight.ingest-{}-s1.rrd", uuid::Uuid::now_v7()));
-        let parts_directory = ingest_segment_parts_directory(&live_path);
-        std::fs::create_dir(&parts_directory).unwrap();
-        for (sequence, value) in [(7_u64, 2.0), (8, 3.0)] {
-            std::fs::write(
-                parts_directory.join(format!("{sequence:020}.rrd")),
-                encoded_rrd(application_id, recording_key, value),
-            )
-            .unwrap();
-        }
-
-        let recording_id = RecordingId::from_uuid(uuid::Uuid::now_v7());
-        let plan = RecordingReadPlan {
-            recording_id,
-            dataset: "world".to_owned(),
-            application_id: application_id.to_owned(),
-            recording_key: recording_key.to_owned(),
-            state: RecordingState::Live,
-            classification: "unclassified".to_owned(),
-            labels: Vec::new(),
-            segments: vec![
-                RecordingReadSegment {
-                    segment_id: SegmentId::from_uuid(uuid::Uuid::now_v7()),
-                    ordinal: 0,
-                    state: SegmentState::Frozen,
-                    byte_len: frozen_inspection.byte_len,
-                    sha256: Some(frozen_inspection.sha256),
-                    started_at: None,
-                    ended_at: None,
-                    path: frozen_path,
-                },
-                RecordingReadSegment {
-                    segment_id: SegmentId::from_uuid(uuid::Uuid::now_v7()),
-                    ordinal: 1,
-                    state: SegmentState::Writing,
-                    byte_len: 0,
-                    sha256: None,
-                    started_at: None,
-                    ended_at: None,
-                    path: live_path,
-                },
-            ],
-        };
-
-        let materialized = plan.materialize_analysis_snapshot().unwrap();
-        assert_eq!(materialized.snapshot.recording_id, recording_id);
-        assert_eq!(materialized.snapshot.sources.len(), 3);
-        assert_eq!(
-            materialized.snapshot.sources[0].kind,
-            RecordingReadSourceKind::FrozenSegment
-        );
-        assert_eq!(
-            materialized.snapshot.sources[1].kind,
-            RecordingReadSourceKind::LiveIngestPart
-        );
-        assert_eq!(materialized.snapshot.sources[1].part_sequence, Some(7));
-        assert_eq!(materialized.snapshot.sources[2].part_sequence, Some(8));
-
-        let public_snapshot = serde_json::to_string(&materialized.snapshot).unwrap();
-        assert!(!public_snapshot.contains(directory.path().to_str().unwrap()));
-        assert!(!public_snapshot.contains("\"path\""));
-
-        std::fs::remove_dir_all(parts_directory).unwrap();
-        assert!(materialized.paths()[1].is_file());
-        assert!(materialized.paths()[2].is_file());
-        let queried =
-            query_segments_in_range(materialized.paths(), "/**", "sensor_time", 10, None).unwrap();
-        assert_eq!(
-            queried
-                .rows_by_recording
-                .get(recording_key)
-                .copied()
-                .unwrap_or_default(),
-            3
-        );
-    }
-
-    #[test]
-    fn analysis_snapshot_marks_writing_segments_missed_during_rollover() {
-        let directory = tempfile::tempdir().unwrap();
-        let segment_id = SegmentId::from_uuid(uuid::Uuid::now_v7());
-        let plan = RecordingReadPlan {
-            recording_id: RecordingId::from_uuid(uuid::Uuid::now_v7()),
-            dataset: "world".to_owned(),
-            application_id: "live-perception".to_owned(),
-            recording_key: "flight-a".to_owned(),
-            state: RecordingState::Live,
-            classification: "unclassified".to_owned(),
-            labels: Vec::new(),
-            segments: vec![RecordingReadSegment {
-                segment_id,
-                ordinal: 0,
-                state: SegmentState::Writing,
-                byte_len: 0,
-                sha256: None,
-                started_at: None,
-                ended_at: None,
-                path: directory.path().join("rotating.rrd"),
-            }],
-        };
-
-        let materialized = plan.materialize_analysis_snapshot().unwrap();
-        assert!(materialized.snapshot.sources.is_empty());
-        assert_eq!(
-            uncovered_writing_segments(&materialized),
-            BTreeSet::from([segment_id])
-        );
     }
 }

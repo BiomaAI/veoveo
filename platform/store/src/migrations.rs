@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 46] = [
+const MIGRATIONS: [Migration; 47] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -304,6 +304,12 @@ const MIGRATIONS: [Migration; 46] = [
         filename: "0045_map_geopackage_products.surql",
         sql: include_str!("../migrations/0045_map_geopackage_products.surql"),
     },
+    Migration {
+        version: 46,
+        name: "recording_catalog_hard_cut",
+        filename: "0046_recording_catalog_hard_cut.surql",
+        sql: include_str!("../migrations/0046_recording_catalog_hard_cut.surql"),
+    },
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -486,7 +492,7 @@ mod tests {
     use super::*;
     use crate::PlatformTable;
 
-    const RELATIONS: [&str; 9] = [
+    const RELATIONS: [&str; 8] = [
         "membership",
         "artifact_grant",
         "profile_server",
@@ -494,7 +500,6 @@ mod tests {
         "task_used_artifact",
         "artifact_derived_from",
         "task_used_frame",
-        "recording_segment",
         "agent_owner",
     ];
 

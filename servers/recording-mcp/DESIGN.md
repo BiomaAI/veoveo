@@ -1,149 +1,145 @@
 # Recording MCP design
 
-`recording-mcp` is the governed catalog and read boundary for Recording Hub
-data. The repository-wide ingest, storage, and playback contract is normative
-in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
+`recording-mcp` is the governed catalog, playback, and projection boundary for
+Recording Hub data. [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md) defines the
+repository-wide ingest, storage, publication, activation, and operations contract.
 
 ## Standards And Protocols
 
 | Standard or protocol | Implemented profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP for discovery, bounded queries, resources, templates, subscriptions, notifications, and artifact publication. |
-| MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://recording/explorer.html` Explorer projects the governed catalog and recording operations through MCP resources and tools. |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Recording query, manifest, subscription, and structured-result contracts. |
-| [Rerun 0.36.3](https://rerun.io/docs/) RRD and Rerun Data Protocol | Immutable frozen and sealed shards are layers of one recording-scoped dataset segment. The public service implements the viewer's read subset of the `rerun.cloud.v1alpha1.RerunCloudService` protocol over HTTP/2 or gRPC-Web. It does not claim the catalog, mutation, table, task, or maintenance profiles. |
-| Rerun 0.36.3 WebViewer `LogChannel` | Live playback uses the public `WebViewer.open_channel` and `LogChannel.send_rrd` API. Each send contains one complete independently decodable RRD byte array, as required by the pinned JavaScript SDK. |
-| [Fetch Standard](https://fetch.spec.whatwg.org/) and Veoveo framed RRD stream v2 | Console performs one authenticated same-origin GET. The response media type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`; each frame is an unsigned four-byte big-endian length followed by one complete RRD. The required `x-veoveo-rerun-live-start` header selects `bootstrap` for an empty Rerun channel or `resume-head` for a channel that already holds the bounded bootstrap. This is an internal browser adapter, not a public recording protocol. |
-| Veoveo recording ingest | Version `2026-08-06`; authenticated protobuf batches and distinct Blueprint publications carry native Rerun stores from a producer-local forwarder through the gateway to Recording Hub, with policy-scoped single-recording replacement. |
-| Veoveo recording playback manifest | Version `veoveo.io/recording-playback/v8`; one finite producer Blueprint, one stable Redap archive URI, one optional recording-scoped `rerun_rrd_channel_v2` source, a catalog revision, and recording-scoped access material. |
-| [JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519) | Rerun-compatible HS256 read tokens carry the standard Redap audience and an exact installation hostname. A server-side session binds each token subject to one recording and one authorized Veoveo actor. |
-| H.264 Annex B in Rerun `VideoStream` | Producers store decoder-reentrant access units and original timeline indices. Archive materialization and live analysis derive canonical keyframe identity from the encoded bytes. The internal live-view adapter omits keyframe columns because the pinned viewer derives sync samples from H.264 and requires dense sample chunks. |
-| SHA-256 | Frozen shard and artifact manifests bind immutable bytes to a digest. |
+| Model Context Protocol `2026-07-28` | JSON-RPC 2.0 over Streamable HTTP for recording discovery, layer inspection, sealing, projection control, resources, prompts, subscriptions, and notifications. |
+| MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | `ui://recording/explorer.html` is the server-owned Recording Explorer. |
+| JSON Schema Draft 2020-12 | Closed tool inputs, views, playback manifest, grants, projection handles, and storage diagnostics. |
+| Rerun `0.36.3` RRD | Immutable Artifact-backed capture, properties, and derived layers. Dataset UUID is the Rerun application ID, and recording UUID is the Rerun recording and segment ID. |
+| Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only WebViewer and Catalog SDK subset over HTTP/2 or gRPC-Web. The service does not claim complete Redap conformance. |
+| Apache Arrow IPC stream | Deterministic bounded projection payload produced from exact admitted RRD layers. |
+| Veoveo playback manifest v9 | `veoveo.io/recording-playback/v9` is the only accepted manifest. |
+| Veoveo framed RRD stream v2 | Same-origin live channel adapter using one complete RRD per big-endian length frame. |
+| OAuth service authentication and JWT | Gateway internal assertions, short-lived host-limited Redap grants, and separate Artifact-read credentials. |
+| H.264 Annex B and SHA-256 | Decoder-reentrant live continuity and immutable byte identity. |
 
-The MCP surface owns recording discovery, bounded queries, subscriptions, and
-artifact publication. The authenticated manifest and bounded live RRD stream routes
-sit beside the MCP endpoint because neither is an MCP content block. Gateway
-policy and audit target `recording://recordings/{id}` before either route
-reaches this server.
+## Durable Authority
 
-Archive playback uses Rerun's native lazy data path. `recording-mcp` derives one
-in-memory Redap catalog for an authorized recording, assigns its catalog UUIDv7
-as the exact Rerun dataset id, and registers every immutable shard as a named
-layer of the producer's recording segment. Registration verifies that Rerun
-reports the expected segment id for every layer. The durable Veoveo catalog and
-RRD shards remain authoritative; the derived Redap catalog is bounded cache
-state and is rebuilt from them after eviction or restart.
+SurrealDB records durable recording datasets, recordings, immutable layer manifests,
+read grants, and projection receipts. Artifact occurrences are authoritative for every
+committed RRD layer. Hub-local files and the Recording MCP cache are recoverable staging
+or derived state.
 
-The manifest returns one stable canonical `rerun://` HTTPS dataset-segment URI rather than a
-URL per shard. Its revision is a deterministic digest over ordered layer names,
-content digests, and lengths. New frozen shards append layers to the existing
-dataset. Replacement, removal, or identity drift rebuilds the derived catalog
-and changes the revision. Rerun reads footer manifests and fetches only the
-chunks required by the active view; no browser path opens every shard or
-constructs a whole-recording RRD.
+One dataset may admit many recording segments. The producer recording key remains source
+metadata. Every layer is decoded and verified against the dataset and recording Store ID
+before registration. Catalog revision is deterministic over durable dataset and recording
+revisions plus the ordered layer identities and digests.
 
-The public Redap path is recording-scoped, read-only, and intentionally smaller
-than a general Rerun catalog. A five-minute server session binds the token
-subject to the authorized actor and recording. The standard Rerun read token is
-host-limited and expires after 30 minutes, while active Console renewal keeps
-the server session alive and rotates the token before its renewal window.
-`FindEntries` enumerates only the one dataset in that session's isolated
-derived catalog, which lets native Rerun source navigation resolve without
-exposing another recording. Writes, registration, tables, tasks, and
-maintenance are denied. The BFF never stores playback session state and never
-proxies archive bytes.
+`RecordingService` resolves visibility before loading layer manifests. Committed layers
+require a fresh Artifact-read caller. Writing layers may use the confined Hub spool for
+the live receiver only. A missing credential never falls back to an old local archive
+path.
 
-Live playback is a Rerun-native message projection over the recording's current
-writing shard. It emits store information and static context, retains a bounded
-row-ID history window, then follows newly durable data. The bounded bootstrap
-is compacted once with Rerun's `live` optimization profile before delivery.
-Static context belongs to the governed recording. An authenticated ingest
-connection may roll over, reopen, or cross a date partition without losing
-codec declarations, camera calibration, or other static Rerun state.
-This preserves its rows and H.264 groups of pictures while preventing the
-browser from indexing the producer's many one-row SDK chunks during its first
-interactive frames. Every outgoing message is rewritten to the same dataset
-and segment identity used by Redap, then encoded with Rerun's native LZ4
-protobuf transport. A typed catalog subscription advances the same response to
-the next writing shard after rollover. It never replays a shard already sent to
-that receiver.
+## Layer Cache
 
-The live projection removes every `VideoStream:is_keyframe` column after
-compaction. Rerun 0.36 discovers H.264 sync samples from the access-unit bytes,
-while its viewer cache indexes `VideoStream:sample` as a dense physical column.
-Omitting the sparse marker prevents messages from separate live batches from
-being compacted into a chunk whose sample component has fewer values than rows.
-This adapter does not alter the durable ingest parts. Archive materialization
-derives and validates its canonical keyframe markers from the same encoded
-bytes.
+`layer_cache.rs` owns Artifact-to-PVC materialization. It reserves capacity before the
+download, uses a partial file, verifies length and SHA-256, checks the canonical RRD Store
+ID, and atomically installs the result. The cache key includes occurrence UUID and digest.
+Pinned entries cannot be evicted. Least-recently-used unpinned entries are removed until
+both the managed ceiling and physical free-space floor are safe.
 
-WebViewer opens one `LogChannel` for the selected live recording. Console fetches
-the recording-scoped stream through the HttpOnly session and parses only enough
-bytes to recover each complete framed RRD. It passes that array directly to
-`LogChannel.send_rrd`. The channel remains open when the HTTP transport
-reconnects, which preserves the producer Blueprint and viewer state. A reconnect
-starts at the current durable head and never replays the bootstrap into the same
-channel. Recording history retains data committed during the transport gap. The BFF
-streams the response without buffering. No access token enters a URL or a
-browser-readable cookie. Catalog SSE events refresh recording metadata, while
-the recording-scoped stream follows segment rollover within its existing
-response. History remains the lazy archive dataset and is the only mode that
-renews a Redap credential.
+Startup removes partial and unrecognized files. A complete cache deletion changes no
+durable identity and loses no recording. `/readyz` fails when the cache or projection
+scratch violates its storage contract. Authenticated `/admin/storage` exposes the typed
+`veoveo.io/recording-storage-diagnostics/v1` snapshot.
+
+## Governed Virtual Catalogs
+
+`playback.rs` builds one Rerun handler per durable grant key:
+
+```text
+(tenant, dataset, policy revision, admitted recording-set digest, grant class)
+```
+
+Only the exact admitted layers are registered. The service never registers a broader
+dataset and relies on response filtering for direct chunk access. Viewer grants admit one
+recording. Catalog grants admit an explicit sorted set in one dataset. Projection grants
+cannot reach Redap.
+
+The scoped Redap service implements these read methods:
+
+- `Version`, `WhoAmI`, and exact `FindEntries`
+- `ReadDatasetEntry`
+- dataset, dataset-manifest, and recording-segment-table schema reads
+- dataset manifest and recording segment table scans
+- RRD manifest and segment asset reads
+- `QueryDataset` and `FetchChunks`
+- bounded `WatchEvents` and the client bandwidth probe
+
+The handler returns permission denied for entry, dataset, table, registration, task,
+maintenance, and streaming mutations. `WriteChunks` and `WriteTable` are explicitly
+denied. Selected `re_redap_tests 0.36.3` assertions cover query filters, manifest scans,
+chunk completeness, and missing recording segments. Veoveo tests own grant isolation,
+scope, expiry, and direct-fetch authorization.
+
+## Projection
+
+`service/projection.rs` validates every request bound before obtaining a work permit or
+reserving scratch. The shared `veoveo-rrd` projection module builds a Rerun query
+expression, combines the admitted immutable layers, emits canonical Arrow IPC, rejects
+non-finite selected numeric data, and computes result and schema digests.
+
+The runtime has two permits and 96 MiB aggregate scratch at the reviewed maximum. A
+request may select at most 64 entities, 64 components, 10,000 samples, 10,000 rows,
+32 MiB, and 15 seconds. Deployment values may lower these limits. Cancellation, deadline,
+validation failure, or worker failure removes partial output and releases its reservation.
+
+Receipts persist the actor, one-recording projection grant, idempotency key, manifest
+digest, query digest, result identity, state, and expiry. Reusing a key for a different
+request conflicts. A ready download rechecks the file length and SHA-256 before streaming.
+
+The Gateway and Console BFF keep authorization and routes outside the opaque App frame.
+The Console host extension `veoveo/recordings/projection-stream` accepts only the exact
+Recording Explorer descriptor. It transfers a `ReadableStream` through a dedicated
+`MessagePort` together with expected length and digest. There is no buffering fallback.
+
+## Playback Manifest And Live Stream
+
+Manifest v9 contains the durable dataset ID, recording segment ID, catalog revision,
+short-lived viewer grant, archive descriptor, optional live receiver, and governed
+Blueprint. Archive URI is one stable Rerun dataset-segment URI. It is not a URL per
+capture layer.
+
+Live playback retains one WebViewer `LogChannel`. The first transport supplies bounded
+static and temporal bootstrap state. A reconnect on the same channel starts at the
+current durable head. Filesystem notifications advance complete ingest parts and writing
+layers without polling. All messages are rewritten to the same Store ID used by archive
+playback.
+
+The live adapter removes sparse H.264 keyframe columns after compaction because Rerun
+derives sync samples from the access-unit bytes and requires dense sample chunks. The
+durable capture bytes are not modified by this browser adapter.
+
+## Module Ownership
+
+| Path | Responsibility |
+|---|---|
+| `contract.rs` | recording, layer, seal, manifest v9, and manifest-occurrence views |
+| `service.rs` | visibility, playback plans, sealing, properties publication, and catalog revision |
+| `service/read.rs` | governed Artifact-backed analysis plans and task-local live-part snapshots |
+| `service/projection.rs` | request validation, receipts, concurrency, scratch, and Arrow download |
+| `layer_cache.rs` | verified bounded Artifact-backed RRD cache |
+| `playback.rs` | durable grants, virtual Rerun handlers, scoped Redap, and manifest composition |
+| `live_playback.rs` | bounded reactive Rerun message projection for writing layers |
+| `live_stream.rs` | authenticated framed RRD transport |
+| `bin/server.rs` | thin HTTP, gRPC-Web, readiness, diagnostics, and MCP composition |
 
 ## Validation
 
-The focused headed-browser gates retain the authoritative simulator and require
-a hardware-backed WebGL or WebGPU adapter. Live acceptance follows the active
-recording for two minutes and proves zero source lag plus changing H.264 camera
-content. Archive acceptance requires the exclusive recording-scoped Redap read
-subset, the producer Blueprint, and a nonblank archived camera frame:
+Focused component evidence includes deterministic RRD normalization and Arrow bytes,
+cache corruption and eviction behavior, scratch cleanup, manifest v9 rejection of other
+schemas, durable grant transactions, and selected official Redap assertions. Console
+tests prove that no bearer, URL, local path, RRD bytes, or whole `ArrayBuffer` crosses the
+projection bridge.
 
-```sh
-cargo xtask smoke uav-recording-browser-verify \
-  --public-base-url https://installation.example \
-  --chrome-cdp-url http://127.0.0.1:9222
-
-cargo xtask smoke uav-recording-archive-browser-verify \
-  --recording-id <ready-recording-uuidv7> \
-  --public-base-url https://installation.example \
-  --chrome-cdp-url http://127.0.0.1:9222
-```
-
-Rerun 0.36 persists standalone-viewer state unconditionally. Before starting an
-embedded viewer, Console clears the pinned Rerun state keys. A previously opened
-Redap server therefore cannot restore catalog queries or watch traffic into Live
-mode. The governed producer Blueprint is opened again as the presentation
-authority.
-There is no manifest status polling. Filesystem events wake the projection when
-the active file or acknowledged part directory changes; idle playback does not
-scan on an interval.
-
-Governed query and analysis plans include complete acknowledged ingest parts
-from the current writing shard. An analysis consumer captures one ordered
-snapshot, copies its live parts into bounded task-local storage, and verifies
-each copy against its captured byte length and SHA-256 identity. Frozen and
-sealed sources remain zero-copy. The writer publishes each part through an
-atomic UUIDv7 staging file; readers exclude that exact staging identity until
-its rename commits the canonical sequence-named part. Other unexpected entries
-still invalidate the snapshot. Source provenance contains recording,
-segment, and part identities without filesystem paths. Hub may replace the
-parts directory with its frozen shard during capture. A missing part or an
-uncovered writing segment restarts the complete authorized read-plan capture;
-one snapshot never combines paths from two catalog views.
-
-Hub mutation response deadlines do not cancel admitted work. Archive
-publication and its catalog transition finish under one ordered materialization
-lock, while an unacknowledged producer retry waits and resolves idempotently.
-Recovery treats an atomically published authenticated shard as immutable and
-catalogs its verified identity without another optimization pass.
-
-`contract.rs` owns playback manifest v8. `service.rs` resolves an authorized
-playback plan from durable identities, while `service/read.rs` owns governed
-analysis snapshots. `playback.rs` owns session authorization, stable identity,
-derived catalogs, and the scoped Redap service. Its `redap` Cargo feature is
-required by the server binary but excluded from library consumers, which keeps
-recording analysis and smoke builds out of the DataFusion-backed server graph.
-`live_playback.rs` owns the bounded follow projection. `live_stream.rs` owns the
-authorized framed RRD transport and advances one WebViewer channel from segment
-to segment through the typed store change stream.
-`bin/server.rs` owns HTTP and gRPC-Web composition.
+The deployment acceptance uses the typed Rust smoke harness. Archive and live viewer
+acceptance must run in a headed browser after the harness proves hardware WebGPU or
+WebGL. It rejects SwiftShader, llvmpipe, software adapters, and software rasterizer
+warnings. The operator interacts with the embedded Rerun viewer and visually inspects the
+captured image before the result qualifies.

@@ -15,12 +15,13 @@ use veoveo_platform_store::{
     MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
     MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject,
     OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey,
-    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId, RecordingSeal,
-    RecordingState, SegmentDraft, SegmentId, SegmentSealBinding, SegmentState, ShareLinkId,
-    StoreConfig, StoreCredentials, StoreError, TaskId, TimeAuthorityReleaseDraft,
-    TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord,
-    WorkContextMembershipLevel, decode_changefeed_entry, deterministic_work_context_id,
-    gateway_replay_record_id, migrations,
+    RecordingDatasetDraft, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
+    RecordingLayerKind, RecordingLayerState, RecordingProjectionReceiptDraft,
+    RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal,
+    RecordingState, ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId,
+    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
+    WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
+    deterministic_work_context_id, gateway_replay_record_id, migrations,
 };
 
 fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
@@ -1334,7 +1335,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
 }
 
 #[tokio::test]
-async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
+async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
     if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
         return;
     }
@@ -1367,134 +1368,28 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
         )
         .await
         .unwrap();
-    let empty_interrupted = store
-        .create_recording(RecordingDraft {
-            identity: identity.clone(),
-            authority: artifact_authority(&identity),
-            dataset: "world".into(),
-            application_id: "sensor-suite".into(),
-            recording_key: "run-interrupted-before-data".into(),
-            classification: "restricted".into(),
-            labels: vec!["operations".into(), "restricted".into()],
-            metadata: BTreeMap::new(),
-            started_at: Utc::now(),
-        })
+    let dataset = store
+        .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+            identity.clone(),
+            "world",
+        ))
         .await
         .unwrap();
-    let empty_interrupted = store
-        .interrupt_recording(
-            &identity,
-            RecordingId::from_uuid(record_uuid(&empty_interrupted.id)),
-            Utc::now(),
-            "producer stopped before durable data",
-        )
+    let dataset_id = veoveo_platform_store::RecordingDatasetId::from_uuid(record_uuid(&dataset.id));
+    let retried_dataset = store
+        .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+            identity.clone(),
+            "world",
+        ))
         .await
         .unwrap();
-    assert_eq!(empty_interrupted.state, RecordingState::Interrupted);
-    assert_eq!(
-        empty_interrupted.failure_reason.as_deref(),
-        Some("producer stopped before durable data")
-    );
-    let interrupted = store
-        .create_recording(RecordingDraft {
-            identity: identity.clone(),
-            authority: artifact_authority(&identity),
-            dataset: "world".into(),
-            application_id: "sensor-suite".into(),
-            recording_key: "run-interrupted".into(),
-            classification: "restricted".into(),
-            labels: vec!["operations".into(), "restricted".into()],
-            metadata: BTreeMap::new(),
-            started_at: Utc::now(),
-        })
-        .await
-        .unwrap();
-    let interrupted_id = RecordingId::from_uuid(record_uuid(&interrupted.id));
-    let blueprint_commit = RecordingBlueprintCommit {
-        draft: RecordingBlueprintDraft {
-            identity: identity.clone(),
-            recording_id: interrupted_id,
-            stream_id: None,
-            work_context: interrupted.work_context.clone(),
-            producer_id: "anonymous-producer".into(),
-            application_id: interrupted.application_id.clone(),
-            blueprint_id: "producer-layout".into(),
-            revision: 1,
-            relative_path: "blueprints/recording/1.rrd".into(),
-            sha256: "b".repeat(64),
-            byte_len: 1024,
-            message_count: 8,
-            maximum_revisions: 4,
-        },
-        created_at: Utc::now(),
-    };
-    let (first_blueprint, retried_blueprint) = tokio::join!(
-        store.commit_recording_blueprint(blueprint_commit.clone()),
-        store.commit_recording_blueprint(blueprint_commit.clone()),
-    );
-    let first_blueprint = first_blueprint.unwrap();
-    let retried_blueprint = retried_blueprint.unwrap();
-    assert_ne!(
-        first_blueprint.duplicate, retried_blueprint.duplicate,
-        "one concurrent publication creates the revision and one is idempotent"
-    );
-    assert_eq!(first_blueprint.blueprint, retried_blueprint.blueprint);
-    let mut conflicting_blueprint = blueprint_commit;
-    conflicting_blueprint.draft.sha256 = "c".repeat(64);
-    assert!(matches!(
-        store
-            .commit_recording_blueprint(conflicting_blueprint)
-            .await,
-        Err(StoreError::RecordingBlueprintRevisionConflict { revision: 1 })
-    ));
-    let interrupted_segment = store
-        .open_segment(SegmentDraft {
-            identity: identity.clone(),
-            recording_id: interrupted_id,
-            segment_key: "2026-07-09/run-interrupted.rrd".into(),
-            ordinal: 0,
-            relative_path: "world/2026-07-09/run-interrupted.rrd".into(),
-            start_time: Some(Utc::now()),
-        })
-        .await
-        .unwrap();
-    store
-        .freeze_segment(
-            &identity,
-            SegmentId::from_uuid(record_uuid(&interrupted_segment.id)),
-            512,
-            5,
-            &"f".repeat(64),
-            Some(Utc::now()),
-        )
-        .await
-        .unwrap();
-    let interrupted_at = Utc::now();
-    let interrupted = store
-        .interrupt_recording(
-            &identity,
-            interrupted_id,
-            interrupted_at,
-            "capture process stopped before recording completion",
-        )
-        .await
-        .unwrap();
-    assert_eq!(interrupted.state, RecordingState::Interrupted);
-    assert!(
-        interrupted
-            .ended_at
-            .is_some_and(|ended| ended >= interrupted_at)
-    );
-    assert_eq!(
-        interrupted.failure_reason.as_deref(),
-        Some("capture process stopped before recording completion")
-    );
+    assert_eq!(dataset.id, retried_dataset.id);
 
     let recording = store
         .create_recording(RecordingDraft {
             identity: identity.clone(),
             authority: artifact_authority(&identity),
-            dataset: "world".into(),
+            dataset_id,
             application_id: "sensor-suite".into(),
             recording_key: "run-42".into(),
             classification: "restricted".into(),
@@ -1506,70 +1401,63 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
         .unwrap();
     let recording_id = RecordingId::from_uuid(record_uuid(&recording.id));
     let first = store
-        .open_segment(SegmentDraft {
-            identity: identity.clone(),
-            recording_id,
-            segment_key: "2026-07-09/run-42.rrd".into(),
-            ordinal: 0,
-            relative_path: "world/2026-07-09/run-42.rrd".into(),
-            start_time: Some(Utc::now()),
-        })
+        .open_recording_layer(
+            RecordingLayerDraft::capture(
+                identity.clone(),
+                recording_id,
+                0,
+                "world/2026-07-09/run-42.rrd".into(),
+                Some(Utc::now()),
+            )
+            .unwrap(),
+        )
         .await
         .unwrap();
     let second = store
-        .open_segment(SegmentDraft {
-            identity: identity.clone(),
-            recording_id,
-            segment_key: "2026-07-09/run-42.r1.rrd".into(),
-            ordinal: 1,
-            relative_path: "world/2026-07-09/run-42.r1.rrd".into(),
-            start_time: Some(Utc::now()),
-        })
+        .open_recording_layer(
+            RecordingLayerDraft::capture(
+                identity.clone(),
+                recording_id,
+                1,
+                "world/2026-07-09/run-42.r1.rrd".into(),
+                Some(Utc::now()),
+            )
+            .unwrap(),
+        )
         .await
         .unwrap();
-    let first_id = SegmentId::from_uuid(record_uuid(&first.id));
-    let second_id = SegmentId::from_uuid(record_uuid(&second.id));
+    let first_id = RecordingLayerId::from_uuid(record_uuid(&first.id));
+    let second_id = RecordingLayerId::from_uuid(record_uuid(&second.id));
     assert_eq!(
         store
-            .freeze_segment(
+            .stage_recording_layer(
                 &identity,
                 first_id,
-                1_024,
+                128,
                 10,
-                &"a".repeat(64),
+                &"c".repeat(64),
+                Some("0.36.3"),
+                Some(&"a".repeat(64)),
                 Some(Utc::now())
             )
             .await
             .unwrap()
             .state,
-        SegmentState::Frozen
+        RecordingLayerState::Staged
     );
     store
-        .freeze_segment(
+        .stage_recording_layer(
             &identity,
             second_id,
-            2_048,
+            128,
             20,
-            &"b".repeat(64),
+            &"d".repeat(64),
+            Some("0.36.3"),
+            Some(&"b".repeat(64)),
             Some(Utc::now()),
         )
         .await
         .unwrap();
-    let capture_ended_at = Utc::now();
-    let ready = store
-        .finish_recording(&identity, recording_id, capture_ended_at)
-        .await
-        .unwrap();
-    assert_eq!(ready.state, RecordingState::Ready);
-    assert_eq!(ready.ended_at, Some(capture_ended_at));
-    assert_eq!(
-        store
-            .begin_recording_seal(&identity, recording_id, None)
-            .await
-            .unwrap()
-            .state,
-        RecordingState::Sealing
-    );
 
     let first_artifact = ArtifactId::new();
     let second_artifact = ArtifactId::new();
@@ -1600,11 +1488,90 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
             .unwrap();
     }
     store
-        .stage_segment_artifact(&identity, recording_id, first_id, first_artifact)
+        .commit_recording_layer(&identity, first_id, first_artifact)
         .await
         .unwrap();
     store
-        .stage_segment_artifact(&identity, recording_id, second_id, second_artifact)
+        .commit_recording_layer(&identity, second_id, second_artifact)
+        .await
+        .unwrap();
+    assert!(matches!(
+        store
+            .commit_recording_layer(&identity, second_id, first_artifact)
+            .await,
+        Err(StoreError::RecordingLayerConflict { .. })
+    ));
+    let dataset_after_capture = store
+        .recording_dataset(identity.tenant_id, dataset_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(dataset_after_capture.revision, 2);
+
+    let capture_ended_at = Utc::now();
+    let ready = store
+        .finish_recording(&identity, recording_id, capture_ended_at)
+        .await
+        .unwrap();
+    assert_eq!(ready.state, RecordingState::Ready);
+    assert_eq!(ready.ended_at, Some(capture_ended_at));
+    assert_eq!(
+        store
+            .begin_recording_seal(&identity, recording_id, None)
+            .await
+            .unwrap()
+            .state,
+        RecordingState::Sealing
+    );
+
+    let properties = store
+        .open_recording_layer(RecordingLayerDraft {
+            identity: identity.clone(),
+            recording_id,
+            layer_name: "properties".into(),
+            kind: RecordingLayerKind::Properties,
+            ordinal: None,
+            staging_path: Some("world/2026-07-09/run-42.properties.rrd".into()),
+            start_time: None,
+        })
+        .await
+        .unwrap();
+    let properties_id = RecordingLayerId::from_uuid(record_uuid(&properties.id));
+    store
+        .stage_recording_layer(
+            &identity,
+            properties_id,
+            128,
+            1,
+            &"f".repeat(64),
+            Some("0.36.3"),
+            Some(&"9".repeat(64)),
+            None,
+        )
+        .await
+        .unwrap();
+    let properties_artifact = ArtifactId::new();
+    store
+        .create_artifact_occurrence(ArtifactOccurrenceDraft {
+            artifact_id: properties_artifact,
+            identity: identity.clone(),
+            authority: artifact_authority(&identity),
+            owner: identity.principal_id.record_id(),
+            initial_grants: vec![owner_grant(properties_artifact, &identity)],
+            sha256: "f".repeat(64),
+            byte_len: 128,
+            object_key: format!("recording-test/{properties_artifact}"),
+            media_type: "application/octet-stream".into(),
+            filename: Some("run-42.properties.rrd".into()),
+            classification: "restricted".into(),
+            labels: vec!["operations".into(), "restricted".into()],
+            metadata: BTreeMap::new(),
+            retention_expires_at: None,
+        })
+        .await
+        .unwrap();
+    store
+        .commit_recording_layer(&identity, properties_id, properties_artifact)
         .await
         .unwrap();
     store
@@ -1617,16 +1584,6 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
             recording_id,
             task_id: None,
             manifest_artifact_id: manifest_artifact,
-            segments: vec![
-                SegmentSealBinding {
-                    segment_id: first_id,
-                    artifact_id: first_artifact,
-                },
-                SegmentSealBinding {
-                    segment_id: second_id,
-                    artifact_id: second_artifact,
-                },
-            ],
             sealed_at: Utc::now(),
         })
         .await
@@ -1638,15 +1595,71 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
         sealed.manifest_artifact,
         Some(manifest_artifact.record_id())
     );
-    let segments = store
-        .recording_segments(identity.tenant_id, recording_id, 10)
+    let layers = store
+        .recording_layers(identity.tenant_id, recording_id, 10)
         .await
         .unwrap();
-    assert!(
-        segments
-            .iter()
-            .all(|segment| { segment.state == SegmentState::Sealed && segment.artifact.is_some() })
+    assert!(layers.iter().all(|layer| {
+        layer.state == RecordingLayerState::Committed && layer.artifact.is_some()
+    }));
+    assert!(layers.iter().all(|layer| layer.staging_path.is_none()));
+
+    let grant_expires_at = Utc::now() + TimeDelta::minutes(5);
+    let grant = store
+        .create_recording_read_grant(RecordingReadGrantDraft {
+            identity: identity.clone(),
+            authority: artifact_authority(&identity),
+            dataset_id,
+            grant_class: RecordingReadGrantClass::AppProjection,
+            recording_ids: vec![recording_id, recording_id],
+            catalog_revision: "3".into(),
+            expires_at: grant_expires_at,
+        })
+        .await
+        .unwrap();
+    assert_eq!(grant.recordings, vec![recording_id.record_id()]);
+    let grant_id = veoveo_platform_store::RecordingReadGrantId::from_uuid(record_uuid(&grant.id));
+    let projection_draft = RecordingProjectionReceiptDraft {
+        identity: identity.clone(),
+        grant_id,
+        caller_idempotency_key: "projection-1".into(),
+        manifest_digest: "1".repeat(64),
+        query_digest: "2".repeat(64),
+        expires_at: Utc::now() + TimeDelta::minutes(1),
+    };
+    let projection = store
+        .reserve_recording_projection(projection_draft.clone())
+        .await
+        .unwrap();
+    let retried_projection = store
+        .reserve_recording_projection(projection_draft)
+        .await
+        .unwrap();
+    assert_eq!(projection.id, retried_projection.id);
+    let projection_id =
+        veoveo_platform_store::RecordingProjectionReceiptId::from_uuid(record_uuid(&projection.id));
+    assert_eq!(
+        store
+            .begin_recording_projection(&identity, projection_id)
+            .await
+            .unwrap()
+            .state,
+        RecordingProjectionState::Materializing
     );
+    assert_eq!(
+        store
+            .complete_recording_projection(&identity, projection_id, 512, &"3".repeat(64))
+            .await
+            .unwrap()
+            .state,
+        RecordingProjectionState::Ready
+    );
+    let cleanup = store
+        .cleanup_expired_recording_catalog_authority(grant_expires_at + TimeDelta::seconds(1))
+        .await
+        .unwrap();
+    assert_eq!(cleanup.projection_receipts, 1);
+    assert_eq!(cleanup.read_grants, 1);
     let outbox = store.read_outbox(0, 100).await.unwrap();
     assert!(outbox.events.iter().any(|event| {
         event.aggregate_id == recording_id.to_string() && event.event_type == "recording.sealed"

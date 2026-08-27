@@ -9,6 +9,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
+use futures::StreamExt as _;
 use serde::Deserialize;
 use veoveo_mcp_contract::access::{AccessLevel, AccessSubject, ArtifactId};
 use veoveo_mcp_contract::storage::ArtifactMetadata;
@@ -17,8 +18,9 @@ use veoveo_mcp_contract::{
     ArtifactPlaneError, ArtifactShareLinkId, ArtifactWriteCapabilityId,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
     GrantList, IssueArtifactWriteCapabilityRequest, ListArtifactAccessRequests,
-    ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
-    RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
+    ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest,
+    PutGrantRequest, RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
+    StreamArtifactRequest,
 };
 
 use crate::PlaneAuthenticator;
@@ -63,6 +65,7 @@ where
             "/artifacts",
             get(list_artifacts::<R, S>).post(put_artifact::<R, S>),
         )
+        .route("/artifacts/stream", post(put_artifact_stream::<R, S>))
         .route("/artifacts/{artifact_id}", get(get_artifact::<R, S>))
         .route("/artifacts/{artifact_id}/meta", get(head_artifact::<R, S>))
         .route(
@@ -352,6 +355,58 @@ async fn put_artifact<R: ArtifactRepository, S: BlobStore>(
     let metadata = state
         .service
         .put(&caller, put_request(&headers)?, body.to_vec())
+        .await?;
+    Ok((StatusCode::CREATED, Json(metadata)).into_response())
+}
+
+async fn put_artifact_stream<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    headers: HeaderMap,
+    body: Body,
+) -> Result<Response, ApiError> {
+    let caller = caller(&state, &headers)?;
+    let descriptor = headers
+        .get("x-artifact-stream-put")
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| {
+            ArtifactPlaneError::InvalidRequest("missing x-artifact-stream-put header".into())
+        })?;
+    if descriptor.len() > MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES {
+        return Err(ArtifactPlaneError::InvalidRequest(
+            "streaming artifact descriptor exceeds 4096 bytes".into(),
+        )
+        .into());
+    }
+    let request: StreamArtifactRequest = serde_json::from_str(descriptor).map_err(|error| {
+        ArtifactPlaneError::InvalidRequest(format!(
+            "invalid x-artifact-stream-put descriptor: {error}"
+        ))
+    })?;
+    if request.expected_byte_len > MAX_UPLOAD_BODY_BYTES as u64 {
+        return Err(ArtifactPlaneError::InvalidRequest(format!(
+            "streaming artifact exceeds {MAX_UPLOAD_BODY_BYTES} bytes"
+        ))
+        .into());
+    }
+    let content_length = headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok())
+        .ok_or_else(|| {
+            ArtifactPlaneError::InvalidRequest("streaming artifact requires Content-Length".into())
+        })?;
+    if content_length != request.expected_byte_len {
+        return Err(ArtifactPlaneError::InvalidRequest(
+            "streaming artifact Content-Length does not match the descriptor".into(),
+        )
+        .into());
+    }
+    let stream = body.into_data_stream().map(|chunk| {
+        chunk.map_err(|error| crate::store::BlobStoreError::Backend(error.to_string()))
+    });
+    let metadata = state
+        .service
+        .put_stream(&caller, request, Box::pin(stream))
         .await?;
     Ok((StatusCode::CREATED, Json(metadata)).into_response())
 }

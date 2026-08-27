@@ -268,11 +268,33 @@ jq -n '{
   stringData: {token: env.CLOUDFLARED_TUNNEL_TOKEN}
 }' | kubectl --context k3d-veoveo-bioma apply -f -
 
+# The disposable Bioma fixture uses the owner-managed recording test key for
+# three separately scoped OAuth client identities. Production installations
+# should issue distinct keys while preserving these Secret names and keys.
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-recording-hub", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    "private-key.pem": env.VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-recording-mcp-publisher", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    "private-key.pem": env.VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
 ~~~
 
 A production installation projects the same keys from its secret manager. The UAV,
-Cloudflare, and recording-producer credentials remain separate least-privilege
-Secrets. The committed JWKS files contain public keys only. The reference installation mounts the
+Cloudflare and recording credentials remain separate least-privilege Secret objects.
+The disposable fixture reuses one owner test key across the three recording OAuth
+clients, while production issues separate private keys. The committed JWKS files contain public keys only. The reference installation mounts the
 installation-owned machine-client JWKS with the gateway control plane, which keeps
 local client assertions independent of an external JWKS endpoint.
 

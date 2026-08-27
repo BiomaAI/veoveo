@@ -13,8 +13,12 @@ use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
 use re_sdk::{ApplicationId, RecordingStreamBuilder};
 use re_sdk_types::archetypes::Scalars;
 use veoveo_recording_hub::{
-    DatasetName, DatasetRoute, SegmentReadScope, Spooler, SpoolerConfig, collect_segments,
-    inspect_segment, query_tree, run_blocking,
+    DatasetName, DatasetRoute, RecordingLayerFileScope, Spooler, SpoolerConfig,
+    collect_recording_layer_files, inspect_segment, run_blocking,
+};
+use veoveo_rrd::projection::{
+    ArrowProjectionSummary, ProjectionQuery, ProjectionSampling, ProjectionSparseFill,
+    write_arrow_projection,
 };
 
 #[derive(Parser)]
@@ -45,7 +49,7 @@ enum SmokeCommand {
         #[arg(long)]
         stop_file: PathBuf,
         #[arg(long, default_value_t = 192 * 1024 * 1024)]
-        segment_max_bytes: u64,
+        capture_layer_max_bytes: u64,
         #[arg(long = "route")]
         routes: Vec<String>,
     },
@@ -69,7 +73,7 @@ async fn main() -> Result<()> {
             spool_dir,
             ready_file,
             stop_file,
-            segment_max_bytes,
+            capture_layer_max_bytes,
             routes,
         } => {
             child_spooler(
@@ -77,7 +81,7 @@ async fn main() -> Result<()> {
                 spool_dir,
                 ready_file,
                 stop_file,
-                segment_max_bytes,
+                capture_layer_max_bytes,
                 routes,
             )
             .await
@@ -97,9 +101,9 @@ async fn restart_kill() -> Result<()> {
     let mut second = spawn_child(&spool, 192 * 1024 * 1024, &["world="])?;
     push(&second.proxy, "sensor-suite", "restart-run", 20, false).await?;
     second.stop()?;
-    let result = query_tree(&spool, "/**", "tick", 10_000, SegmentReadScope::Frozen)?;
-    ensure!(result.rows_by_recording.get("restart-run") == Some(&50));
-    let files = collect_segments(&spool, SegmentReadScope::Frozen)?;
+    let result = project_rows(&spool, 10_000)?;
+    ensure!(result.row_count == 50);
+    let files = collect_recording_layer_files(&spool, RecordingLayerFileScope::Committed)?;
     ensure!(
         files.len() == 2,
         "expected crash sibling pair, got {files:?}"
@@ -117,21 +121,21 @@ async fn catalog_rebuild() -> Result<()> {
     let mut child = spawn_child(&spool, 192 * 1024 * 1024, &["world="])?;
     push(&child.proxy, "sensor-suite", "catalog-run", 40, false).await?;
     child.stop()?;
-    let valid = collect_segments(&spool, SegmentReadScope::Frozen)?;
+    let valid = collect_recording_layer_files(&spool, RecordingLayerFileScope::Committed)?;
     ensure!(valid.len() == 1);
     inspect_segment(&valid[0])?;
 
     let corrupt = valid[0].with_file_name("corrupt.rrd");
     std::fs::write(&corrupt, b"not-an-rrd")?;
     ensure!(inspect_segment(&corrupt).is_err());
-    let rebuild = collect_segments(&spool, SegmentReadScope::Frozen)?
+    let rebuild = collect_recording_layer_files(&spool, RecordingLayerFileScope::Committed)?
         .iter()
         .map(|path| inspect_segment(path))
         .collect::<Result<Vec<_>>>();
     ensure!(rebuild.is_err(), "catalog rebuild did not fail closed");
     std::fs::remove_file(&corrupt)?;
-    let rebuilt = query_tree(&spool, "/**", "tick", 10_000, SegmentReadScope::Frozen)?;
-    ensure!(rebuilt.rows_by_recording.get("catalog-run") == Some(&40));
+    let rebuilt = project_rows(&spool, 10_000)?;
+    ensure!(rebuilt.row_count == 40);
     println!("catalog-rebuild: corruption rejected and 40 rows rebuilt");
     Ok(())
 }
@@ -147,24 +151,10 @@ async fn agent_world() -> Result<()> {
     push(&child.proxy, "veoveo-sim-gnss", "world-run", 25, false).await?;
     push(&child.proxy, "veoveo-agent-pilot", "agent-run", 15, false).await?;
     child.stop()?;
-    let world = query_tree(
-        &spool.join("world"),
-        "/**",
-        "tick",
-        10_000,
-        SegmentReadScope::Frozen,
-    )?;
-    let agents = query_tree(
-        &spool.join("agents"),
-        "/**",
-        "tick",
-        10_000,
-        SegmentReadScope::Frozen,
-    )?;
-    ensure!(world.rows_by_recording.get("world-run") == Some(&25));
-    ensure!(!world.rows_by_recording.contains_key("agent-run"));
-    ensure!(agents.rows_by_recording.get("agent-run") == Some(&15));
-    ensure!(!agents.rows_by_recording.contains_key("world-run"));
+    let world = project_rows(&spool.join("world"), 10_000)?;
+    let agents = project_rows(&spool.join("agents"), 10_000)?;
+    ensure!(world.row_count == 25);
+    ensure!(agents.row_count == 15);
     println!("agent-world: routed 25 world and 15 agent rows without leakage");
     Ok(())
 }
@@ -176,15 +166,9 @@ async fn rollover_burst(messages: usize) -> Result<()> {
     let mut child = spawn_child(&spool, 4_096, &["world="])?;
     push(&child.proxy, "burst-suite", "burst-run", messages, true).await?;
     child.stop()?;
-    let result = query_tree(
-        &spool,
-        "/**",
-        "tick",
-        messages as u64 + 1,
-        SegmentReadScope::Frozen,
-    )?;
-    ensure!(result.rows_by_recording.get("burst-run") == Some(&(messages as u64)));
-    let segments = collect_segments(&spool, SegmentReadScope::Frozen)?;
+    let result = project_rows(&spool, messages as u64 + 1)?;
+    ensure!(result.row_count == messages as u64);
+    let segments = collect_recording_layer_files(&spool, RecordingLayerFileScope::Committed)?;
     ensure!(
         segments.len() > 1,
         "burst did not exercise segment rollover"
@@ -194,6 +178,30 @@ async fn rollover_burst(messages: usize) -> Result<()> {
         segments.len()
     );
     Ok(())
+}
+
+fn project_rows(root: &Path, maximum_rows: u64) -> Result<ArrowProjectionSummary> {
+    let layers = collect_recording_layer_files(root, RecordingLayerFileScope::Committed)?;
+    let directory = tempfile::tempdir()?;
+    write_arrow_projection(
+        &layers,
+        &ProjectionQuery {
+            entity_paths: vec!["/world/smoke".to_owned()],
+            component_ids: vec!["Scalars:scalars".to_owned()],
+            timeline: "tick".to_owned(),
+            sampling: ProjectionSampling::Range {
+                start: 0,
+                end: i64::MAX,
+            },
+            sparse_fill: ProjectionSparseFill::None,
+            maximum_entities: 1,
+            maximum_columns: 1,
+            maximum_samples: 10_000,
+            maximum_rows,
+            maximum_bytes: 32 * 1024 * 1024,
+        },
+        &directory.path().join("projection.arrow"),
+    )
 }
 
 struct ChildSpooler {
@@ -220,7 +228,11 @@ impl Drop for ChildSpooler {
     }
 }
 
-fn spawn_child(spool: &Path, segment_max_bytes: u64, routes: &[&str]) -> Result<ChildSpooler> {
+fn spawn_child(
+    spool: &Path,
+    capture_layer_max_bytes: u64,
+    routes: &[&str],
+) -> Result<ChildSpooler> {
     let port = free_port()?;
     let ready = spool.join(format!("ready-{port}"));
     let stop = spool.join(format!("stop-{port}"));
@@ -236,8 +248,8 @@ fn spawn_child(spool: &Path, segment_max_bytes: u64, routes: &[&str]) -> Result<
         .arg(&ready)
         .arg("--stop-file")
         .arg(&stop)
-        .arg("--segment-max-bytes")
-        .arg(segment_max_bytes.to_string())
+        .arg("--capture-layer-max-bytes")
+        .arg(capture_layer_max_bytes.to_string())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit());
     for route in routes {
@@ -282,7 +294,7 @@ async fn child_spooler(
     spool_dir: PathBuf,
     ready_file: PathBuf,
     stop_file: PathBuf,
-    segment_max_bytes: u64,
+    capture_layer_max_bytes: u64,
     routes: Vec<String>,
 ) -> Result<()> {
     let datasets = routes
@@ -301,8 +313,8 @@ async fn child_spooler(
         bind,
         spool_dir,
         datasets,
-        segment_max_bytes,
-        segment_max_age_s: 3_600,
+        capture_layer_max_bytes,
+        capture_layer_max_age_s: 3_600,
         recording_idle_timeout_s: 3_600,
         flush_interval_ms: 10,
         fsync_on_flush: true,

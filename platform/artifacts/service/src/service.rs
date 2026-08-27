@@ -21,7 +21,8 @@ use veoveo_mcp_contract::{
     InvocationAuthority, InvocationProvenance, IssueArtifactWriteCapabilityRequest,
     IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest,
     MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest,
-    RedeemArtifactWriteCapabilityRequest, WorkContextMembershipLevel, parse_artifact_plane_uri,
+    RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest, WorkContextMembershipLevel,
+    parse_artifact_plane_uri,
 };
 
 use crate::ledger::{
@@ -325,9 +326,34 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .put(&object_key, bytes.clone())
             .await
             .map_err(transport)?;
+        self.record_occurrence(
+            artifact_id,
+            actor,
+            authority,
+            labels,
+            request,
+            sha,
+            bytes.len() as u64,
+            object_key,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn record_occurrence(
+        &self,
+        artifact_id: ArtifactId,
+        actor: RepositoryActor,
+        authority: InvocationAuthority,
+        labels: BTreeSet<DataLabelId>,
+        request: PutArtifactRequest,
+        sha: BlobSha256,
+        byte_len: u64,
+        object_key: String,
+    ) -> Result<StoredArtifact, ArtifactPlaneError> {
         let metadata = ArtifactMetadata {
             artifact_id,
-            byte_len: bytes.len() as u64,
+            byte_len,
             mime_type: request.mime_type.clone(),
             filename: request.filename.clone(),
             artifact_uri: artifact_id.plane_uri(),
@@ -398,6 +424,121 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             })
             .await
             .map_err(transport)
+    }
+
+    pub async fn put_stream(
+        &self,
+        caller: &PlaneCaller,
+        mut request: StreamArtifactRequest,
+        stream: BlobStream,
+    ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
+        if request.expected_byte_len == 0 {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "streaming artifact must not be empty".into(),
+            ));
+        }
+        let sha = BlobSha256::new(request.expected_sha256.clone())
+            .map_err(|reason| ArtifactPlaneError::InvalidRequest(reason.into()))?;
+        let actor = Self::actor(caller)?;
+        let authority = caller.identity.authority.clone();
+        if request.artifact.classification.is_none() {
+            request.artifact.classification = authority.output_policy.classification.clone();
+        }
+        request
+            .artifact
+            .data_labels
+            .extend(authority.output_policy.data_labels.iter().cloned());
+        let labels = Self::validate_put(caller.clearance(), &request.artifact)?;
+        if let Some(existing) = self
+            .repository
+            .get_artifact(request.artifact_id)
+            .await
+            .map_err(transport)?
+        {
+            if stream_retry_matches(
+                &existing,
+                &actor,
+                &authority,
+                &labels,
+                &request.artifact,
+                &sha,
+                request.expected_byte_len,
+            ) {
+                return Ok(existing.metadata);
+            }
+            return Err(ArtifactPlaneError::Conflict(format!(
+                "artifact occurrence {} already exists with different immutable publication data",
+                request.artifact_id
+            )));
+        }
+        let object_key = tenant_blob_key(&actor.tenant, &sha);
+        let verified = self
+            .store
+            .put_verified_stream(&object_key, stream, request.expected_byte_len, sha.as_str())
+            .await
+            .map_err(|error| match error {
+                crate::store::BlobStoreError::TooLarge { .. }
+                | crate::store::BlobStoreError::VerificationFailed { .. } => {
+                    ArtifactPlaneError::InvalidRequest(error.to_string())
+                }
+                other => transport(other),
+            })?;
+        let artifact_id = request.artifact_id;
+        let stored = match self
+            .record_occurrence(
+                artifact_id,
+                actor.clone(),
+                authority.clone(),
+                labels.clone(),
+                request.artifact.clone(),
+                sha,
+                verified.byte_len,
+                object_key,
+            )
+            .await
+        {
+            Ok(stored) => stored,
+            Err(ArtifactPlaneError::Conflict(_)) => {
+                let existing = self
+                    .repository
+                    .get_artifact(artifact_id)
+                    .await
+                    .map_err(transport)?
+                    .ok_or_else(|| {
+                        ArtifactPlaneError::Conflict(format!(
+                            "artifact occurrence {artifact_id} was concurrently reserved"
+                        ))
+                    })?;
+                let expected_sha = BlobSha256::new(request.expected_sha256.clone())
+                    .expect("stream digest was validated");
+                if stream_retry_matches(
+                    &existing,
+                    &actor,
+                    &authority,
+                    &labels,
+                    &request.artifact,
+                    &expected_sha,
+                    request.expected_byte_len,
+                ) {
+                    existing
+                } else {
+                    return Err(ArtifactPlaneError::Conflict(format!(
+                        "artifact occurrence {artifact_id} was concurrently committed with different immutable publication data"
+                    )));
+                }
+            }
+            Err(error) => return Err(error),
+        };
+        self.audit(
+            Some(actor),
+            Some(stored.tenant.clone()),
+            "artifact.put_stream",
+            Some(artifact_id),
+            AuditOutcome::Allowed,
+            serde_json::Map::new(),
+        )
+        .await?;
+        Ok(stored.metadata)
     }
 
     pub async fn issue_write_capability(
@@ -1265,6 +1406,35 @@ fn secret_hash(domain: &[u8], secret: &str) -> String {
     hex::encode(hash.finalize())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn stream_retry_matches(
+    existing: &StoredArtifact,
+    actor: &RepositoryActor,
+    authority: &InvocationAuthority,
+    labels: &BTreeSet<DataLabelId>,
+    request: &PutArtifactRequest,
+    sha: &BlobSha256,
+    byte_len: u64,
+) -> bool {
+    existing.tenant == actor.tenant
+        && existing
+            .metadata
+            .compliance
+            .provenance
+            .as_ref()
+            .is_some_and(|provenance| provenance.producer == actor.principal)
+        && &existing.authority == authority
+        && &existing.labels == labels
+        && &existing.blob_sha256 == sha
+        && existing.metadata.byte_len == byte_len
+        && existing.metadata.mime_type == request.mime_type
+        && existing.metadata.filename == request.filename
+        && existing.metadata.compliance.classification == request.classification
+        && existing.metadata.compliance.data_labels == request.data_labels
+        && existing.metadata.compliance.retention_expires_at == request.retention_expires_at
+        && existing.metadata.metadata == request.metadata
+}
+
 fn transport(error: impl std::fmt::Display) -> ArtifactPlaneError {
     ArtifactPlaneError::Transport(error.to_string())
 }
@@ -1281,6 +1451,7 @@ mod tests {
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};
 
+    use axum::body::Bytes;
     use chrono::{TimeDelta, Utc};
     use futures::TryStreamExt;
     use veoveo_mcp_contract::gateway::{
@@ -1297,7 +1468,7 @@ mod tests {
 
     use super::*;
     use crate::ledger::testing::InMemoryRepository;
-    use crate::store::testing::InMemoryBlobStore;
+    use crate::store::{BlobStoreError, testing::InMemoryBlobStore};
 
     fn caller(principal: &str, tenant: &str, labels: &[&str]) -> PlaneCaller {
         let now = Utc::now();
@@ -1447,6 +1618,101 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(bytes, payload);
+    }
+
+    fn streamed_request(artifact_id: ArtifactId, bytes: &[u8]) -> StreamArtifactRequest {
+        StreamArtifactRequest {
+            artifact_id,
+            artifact: PutArtifactRequest {
+                mime_type: Some("application/vnd.rerun.rrd".to_owned()),
+                filename: Some("capture-00000000000000000000.rrd".to_owned()),
+                ..PutArtifactRequest::default()
+            },
+            expected_byte_len: bytes.len() as u64,
+            expected_sha256: hex::encode(Sha256::digest(bytes)),
+        }
+    }
+
+    fn byte_stream(chunks: impl IntoIterator<Item = Result<Bytes, BlobStoreError>>) -> BlobStream {
+        Box::pin(futures::stream::iter(
+            chunks.into_iter().collect::<Vec<_>>(),
+        ))
+    }
+
+    #[tokio::test]
+    async fn streaming_put_is_create_only_and_exactly_retryable() {
+        let (service, _) = service();
+        let alice = caller("recording-hub", "acme", &[]);
+        let bytes = b"canonical-rerun-layer";
+        let request = streamed_request(ArtifactId::new(), bytes);
+        let first = service
+            .put_stream(
+                &alice,
+                request.clone(),
+                byte_stream([Ok(Bytes::copy_from_slice(bytes))]),
+            )
+            .await
+            .unwrap();
+        let retry = service
+            .put_stream(&alice, request.clone(), byte_stream(std::iter::empty()))
+            .await
+            .unwrap();
+        assert_eq!(retry, first);
+
+        let mut conflict = request;
+        conflict.artifact.filename = Some("different.rrd".to_owned());
+        assert!(matches!(
+            service
+                .put_stream(&alice, conflict, byte_stream(std::iter::empty()),)
+                .await,
+            Err(ArtifactPlaneError::Conflict(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn failed_stream_verification_never_creates_an_occurrence() {
+        let (service, repository) = service();
+        let alice = caller("recording-hub", "acme", &[]);
+        let bytes = b"canonical-rerun-layer";
+        for stream in [
+            byte_stream([Ok(Bytes::from_static(b"short"))]),
+            byte_stream([
+                Ok(Bytes::from_static(b"partial")),
+                Err(BlobStoreError::Backend("interrupted upload".to_owned())),
+            ]),
+        ] {
+            let artifact_id = ArtifactId::new();
+            let request = streamed_request(artifact_id, bytes);
+            assert!(service.put_stream(&alice, request, stream).await.is_err());
+            assert!(
+                repository
+                    .get_artifact(artifact_id)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+        }
+
+        let artifact_id = ArtifactId::new();
+        let mut request = streamed_request(artifact_id, bytes);
+        request.expected_sha256 = "00".repeat(32);
+        assert!(
+            service
+                .put_stream(
+                    &alice,
+                    request,
+                    byte_stream([Ok(Bytes::copy_from_slice(bytes))]),
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            repository
+                .get_artifact(artifact_id)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]

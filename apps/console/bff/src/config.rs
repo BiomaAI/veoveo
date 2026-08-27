@@ -244,6 +244,15 @@ impl Config {
             .expect("validated profile and recording/Blueprint ids")
     }
 
+    pub(crate) fn recording_projection_url(&self, recording_id: &str, projection_id: &str) -> Url {
+        self.gateway_url
+            .join(&format!(
+                "/recordings/{}/{recording_id}/projections/{projection_id}/data.arrow",
+                self.admin_profile
+            ))
+            .expect("validated profile and recording/projection ids")
+    }
+
     pub(crate) fn gateway_host(&self) -> String {
         let host = self.public_base_url.host_str().expect("validated URL");
         match self.public_base_url.port() {

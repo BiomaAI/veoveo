@@ -622,6 +622,7 @@ impl ServerHandler for FramesMcp {
                                 arguments_json: "{}",
                             },
                         ],
+                        stream_result: None,
                     },
                 );
                 return Ok(ReadResourceResult::new(vec![

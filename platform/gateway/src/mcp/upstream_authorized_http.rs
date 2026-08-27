@@ -18,6 +18,7 @@ use veoveo_mcp_contract::{
 };
 
 const INTERNAL_REQUEST_TOKEN_TTL_SECONDS: i64 = 60;
+const ARTIFACT_READ_AUTHORIZATION_HEADER: &str = "x-veoveo-artifact-read-authorization";
 
 /// Per-request HTTP authorization for one auth-scoped gateway-to-server client.
 ///
@@ -32,6 +33,7 @@ pub(super) struct GatewayAuthorizedHttpClient {
     server: ServerSlug,
     actor: Principal,
     authority: InvocationAuthority,
+    artifact_server: Option<ServerSlug>,
 }
 
 impl std::fmt::Debug for GatewayAuthorizedHttpClient {
@@ -54,6 +56,7 @@ impl GatewayAuthorizedHttpClient {
         server: ServerSlug,
         actor: Principal,
         authority: InvocationAuthority,
+        artifact_server: Option<ServerSlug>,
     ) -> Self {
         Self {
             http,
@@ -62,15 +65,23 @@ impl GatewayAuthorizedHttpClient {
             server,
             actor,
             authority,
+            artifact_server,
         }
     }
 
     fn issue_bearer_token(&self) -> Result<String, GatewayAuthorizedHttpError> {
+        self.issue_bearer_token_for(self.server.clone())
+    }
+
+    fn issue_bearer_token_for(
+        &self,
+        server: ServerSlug,
+    ) -> Result<String, GatewayAuthorizedHttpError> {
         let expires_at = Utc::now() + TimeDelta::seconds(INTERNAL_REQUEST_TOKEN_TTL_SECONDS);
         self.issuer
             .issue(
                 self.profile.clone(),
-                self.server.clone(),
+                server,
                 self.actor.clone(),
                 self.authority.clone(),
                 expires_at,
@@ -86,6 +97,8 @@ pub(super) enum GatewayAuthorizedHttpError {
     InternalToken(InternalTokenError),
     #[error("upstream HTTP request failed: {0}")]
     Http(reqwest::Error),
+    #[error("failed to construct gateway internal request header: {0}")]
+    InvalidHeader(axum::http::header::InvalidHeaderValue),
 }
 
 impl StreamableHttpClient for GatewayAuthorizedHttpClient {
@@ -97,11 +110,28 @@ impl StreamableHttpClient for GatewayAuthorizedHttpClient {
         message: ClientJsonRpcMessage,
         session_id: Option<Arc<str>>,
         _static_auth_header: Option<String>,
-        custom_headers: HashMap<HeaderName, HeaderValue>,
+        mut custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<StreamableHttpPostResponse, StreamableHttpError<Self::Error>> {
         let bearer_token = self
             .issue_bearer_token()
             .map_err(StreamableHttpError::Client)?;
+        if let Some(artifact_server) = &self.artifact_server {
+            let header_name = HeaderName::from_static(ARTIFACT_READ_AUTHORIZATION_HEADER);
+            if custom_headers.contains_key(&header_name) {
+                return Err(StreamableHttpError::ReservedHeaderConflict(
+                    ARTIFACT_READ_AUTHORIZATION_HEADER.to_owned(),
+                ));
+            }
+            let artifact_token = self
+                .issue_bearer_token_for(artifact_server.clone())
+                .map_err(StreamableHttpError::Client)?;
+            custom_headers.insert(
+                header_name,
+                HeaderValue::from_str(&format!("Bearer {artifact_token}"))
+                    .map_err(GatewayAuthorizedHttpError::InvalidHeader)
+                    .map_err(StreamableHttpError::Client)?,
+            );
+        }
         <reqwest::Client as StreamableHttpClient>::post_message(
             &self.http,
             uri,
@@ -273,6 +303,7 @@ mod tests {
             ServerSlug::new("uav-sim").unwrap(),
             actor,
             authority,
+            None,
         );
 
         let first = client.issue_bearer_token().unwrap();

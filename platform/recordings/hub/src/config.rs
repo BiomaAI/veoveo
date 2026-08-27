@@ -72,12 +72,12 @@ pub struct SpoolerConfig {
     /// Routing table, longest-prefix matched.
     #[serde(default)]
     pub datasets: Vec<DatasetRoute>,
-    /// Freeze a live segment once it exceeds this size.
-    #[serde(default = "default_segment_max_bytes")]
-    pub segment_max_bytes: u64,
-    /// Freeze a live segment once it is older than this (seconds).
-    #[serde(default = "default_segment_max_age_s")]
-    pub segment_max_age_s: u64,
+    /// Freeze a live capture layer once it exceeds this size.
+    #[serde(default = "default_capture_layer_max_bytes")]
+    pub capture_layer_max_bytes: u64,
+    /// Freeze a live capture layer once it is older than this (seconds).
+    #[serde(default = "default_capture_layer_max_age_s")]
+    pub capture_layer_max_age_s: u64,
     /// Finish a recording after this many seconds without producer data.
     #[serde(default = "default_recording_idle_timeout_s")]
     pub recording_idle_timeout_s: u64,
@@ -101,10 +101,10 @@ pub struct SpoolerConfig {
     pub blueprint_max_revisions: u32,
 }
 
-fn default_segment_max_bytes() -> u64 {
+fn default_capture_layer_max_bytes() -> u64 {
     192 * 1024 * 1024
 }
-fn default_segment_max_age_s() -> u64 {
+fn default_capture_layer_max_age_s() -> u64 {
     3600
 }
 fn default_recording_idle_timeout_s() -> u64 {
@@ -133,16 +133,16 @@ impl SpoolerConfig {
     /// Validate invariants that must hold before the spooler accepts traffic.
     pub fn validate(&self) -> Result<()> {
         ensure!(
-            self.segment_max_bytes >= 4096,
-            "segment_max_bytes must be at least 4096"
+            self.capture_layer_max_bytes >= 4096,
+            "capture_layer_max_bytes must be at least 4096"
         );
         ensure!(
-            self.segment_max_bytes <= 240 * 1024 * 1024,
-            "segment_max_bytes must not exceed 240 MiB so a frozen segment fits the governed artifact upload limit"
+            self.capture_layer_max_bytes <= 240 * 1024 * 1024,
+            "capture_layer_max_bytes must not exceed 240 MiB so a capture layer fits the governed artifact upload limit"
         );
         ensure!(
-            self.segment_max_age_s >= 1,
-            "segment_max_age_s must be at least 1"
+            self.capture_layer_max_age_s >= 1,
+            "capture_layer_max_age_s must be at least 1"
         );
         ensure!(
             self.recording_idle_timeout_s >= 1,
@@ -153,8 +153,8 @@ impl SpoolerConfig {
             "flush_interval_ms must be at least 1"
         );
         ensure!(
-            (1..=self.segment_max_bytes).contains(&self.blueprint_max_bytes),
-            "blueprint_max_bytes must be between 1 and segment_max_bytes"
+            (1..=self.capture_layer_max_bytes).contains(&self.blueprint_max_bytes),
+            "blueprint_max_bytes must be between 1 and capture_layer_max_bytes"
         );
         ensure!(
             self.blueprint_max_messages > 0,
@@ -183,8 +183,8 @@ impl SpoolerConfig {
         Duration::from_millis(self.flush_interval_ms)
     }
 
-    pub fn segment_max_age(&self) -> Duration {
-        Duration::from_secs(self.segment_max_age_s)
+    pub fn capture_layer_max_age(&self) -> Duration {
+        Duration::from_secs(self.capture_layer_max_age_s)
     }
 
     pub fn recording_idle_timeout(&self) -> Duration {
@@ -214,8 +214,8 @@ mod tests {
             bind: "127.0.0.1:0".parse().unwrap(),
             spool_dir: PathBuf::from("/tmp/spool"),
             datasets: routes,
-            segment_max_bytes: default_segment_max_bytes(),
-            segment_max_age_s: default_segment_max_age_s(),
+            capture_layer_max_bytes: default_capture_layer_max_bytes(),
+            capture_layer_max_age_s: default_capture_layer_max_age_s(),
             recording_idle_timeout_s: default_recording_idle_timeout_s(),
             flush_interval_ms: default_flush_interval_ms(),
             fsync_on_flush: default_fsync_on_flush(),

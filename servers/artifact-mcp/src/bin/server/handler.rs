@@ -493,6 +493,7 @@ impl ServerHandler for ArtifactMcp {
                             arguments_json: r#"{"artifact_id":""}"#,
                         },
                     ],
+                    stream_result: None,
                 },
             );
             return Ok(

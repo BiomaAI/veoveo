@@ -18,8 +18,8 @@ use veoveo_recording_forwarder::{
     oauth::{OAuthTokenProvider, OAuthTokenProviderConfig},
 };
 use veoveo_recording_hub::{
-    BlueprintMapProviderSelection, SegmentReadScope, collect_segments, inspect_segment,
-    validate_blueprint_rrd,
+    BlueprintMapProviderSelection, RecordingLayerFileScope, collect_recording_layer_files,
+    inspect_segment, validate_blueprint_rrd,
 };
 use veoveo_recording_protocol::v1::{
     OpenRecordingStreamRequest, RecordingStreamFinishMode, RecordingStreamState,
@@ -151,6 +151,7 @@ pub(crate) async fn recording_ingest(
                 token_transport_endpoint,
                 protected_resource: token_resource,
                 client_id: "smoke-recording-producer".to_owned(),
+                scope: "recording:ingest".to_owned(),
                 key_id: "test-key".to_owned(),
                 algorithm: ClientAssertionAlgorithm::Rs256,
                 private_key_pem_file: token_key,
@@ -371,38 +372,38 @@ pub(crate) async fn recording_ingest(
         "recording stream did not finish at its durable checkpoint: {finished:?}"
     );
 
-    let segments = collect_segments(&spool_dir, SegmentReadScope::Frozen)?;
+    let layers = collect_recording_layer_files(&spool_dir, RecordingLayerFileScope::Committed)?;
     ensure!(
-        segments.len() == 2,
-        "expected superseded and current immutable segments, found {segments:?}"
+        layers.len() == 2,
+        "expected superseded and current immutable capture layers, found {layers:?}"
     );
-    let inspected = segments
+    let inspected = layers
         .iter()
-        .map(|segment| Ok((segment, inspect_segment(segment)?)))
+        .map(|layer| Ok((layer, inspect_segment(layer)?)))
         .collect::<Result<Vec<_>>>()?;
     let (_, superseded_inspection) = inspected
         .iter()
         .find(|(_, inspection)| inspection.recording_key == superseded_request.recording_id)
-        .context("superseded recording segment was not frozen")?;
+        .context("superseded recording capture layer was not committed")?;
     ensure!(
         superseded_inspection.application_id == superseded_request.application_id,
-        "superseded segment changed application identity: {superseded_inspection:?}"
+        "superseded capture layer changed application identity: {superseded_inspection:?}"
     );
     let (current_segment, inspection) = inspected
         .iter()
         .find(|(_, inspection)| inspection.recording_key == request.recording_id)
-        .context("current recording segment was not frozen")?;
+        .context("current recording capture layer was not committed")?;
     ensure!(
         inspection.application_id == request.application_id
             && inspection.recording_key == request.recording_id,
-        "materialized segment changed recording identity: {inspection:?}"
+        "materialized capture layer changed recording identity: {inspection:?}"
     );
     let decoded =
         Decoder::<LogMsg>::decode_eager(std::io::BufReader::new(File::open(current_segment)?))?
             .collect::<Result<Vec<_>, _>>()?;
     ensure!(
         decoded.len() as u64 == batch.message_count + second_batch.message_count - 1,
-        "two ingest batches did not merge into one complete segment: {inspection:?}"
+        "two ingest batches did not merge into one complete capture layer: {inspection:?}"
     );
     let blueprint_files = files_below(&spool_dir.join("blueprints"))?;
     ensure!(

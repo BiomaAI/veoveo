@@ -127,6 +127,8 @@ impl GatewayMcp {
             server_slug.clone(),
             subject.actor.clone(),
             subject.authority.clone(),
+            (server_slug.as_str() == "recording")
+                .then(|| ServerSlug::new("artifact").expect("artifact is a valid server slug")),
         );
         let transport = StreamableHttpClientTransport::<GatewayAuthorizedHttpClient>::with_client(
             authorized_http_client,

@@ -5,7 +5,8 @@ use futures::StreamExt;
 use secrecy::SecretString;
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord, InvocationMode,
-    PlatformIdentity, PlatformStore, PrincipalKind, RecordingDraft, StoreConfig, StoreCredentials,
+    PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey, RecordingDatasetDraft,
+    RecordingDatasetId, RecordingDraft, StoreConfig, StoreCredentials,
     WorkContextInitialGrantRecord, WorkContextMembershipLevel,
 };
 
@@ -146,12 +147,23 @@ pub(crate) async fn gateway_console_stream(
             PrincipalKind::Service,
         )
         .await?;
+    let dataset = store
+        .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+            identity.clone(),
+            "smoke",
+        ))
+        .await?;
+    let dataset_id = match &dataset.id.key {
+        RecordIdKey::Uuid(value) => RecordingDatasetId::from_uuid(**value),
+        RecordIdKey::String(value) => RecordingDatasetId::from_uuid(uuid::Uuid::parse_str(value)?),
+        other => bail!("console stream dataset key is not a UUID: {other:?}"),
+    };
     let first_key = format!("console-stream-{}", uuid::Uuid::now_v7().simple());
     store
         .create_recording(RecordingDraft {
             identity: identity.clone(),
             authority: recording_authority(&identity),
-            dataset: "smoke".to_owned(),
+            dataset_id,
             application_id: "console-stream-smoke".to_owned(),
             recording_key: first_key.clone(),
             classification: "internal".to_owned(),
@@ -174,7 +186,7 @@ pub(crate) async fn gateway_console_stream(
         .create_recording(RecordingDraft {
             identity: identity.clone(),
             authority: recording_authority(&identity),
-            dataset: "smoke".to_owned(),
+            dataset_id,
             application_id: "console-stream-smoke".to_owned(),
             recording_key: second_key.clone(),
             classification: "internal".to_owned(),

@@ -21,6 +21,7 @@ import {
   callAppTool,
   cancelAppTask,
   getAppTask,
+  loadRecordingProjectionStream,
   openAppResourceEvents,
   readAppResource,
   sendAgentMessage,
@@ -37,6 +38,7 @@ import {
   type ResourceEventStream,
 } from "./resourceEventStream";
 import { interceptResourceReadRequests } from "./resourceRead.ts";
+import { interceptRecordingProjectionStreams } from "./recordingProjectionStream.ts";
 
 export interface AppBridge {
   dispose: () => void;
@@ -47,7 +49,6 @@ export interface AppBridge {
 export type InternalAppLinkHandler = (url: string) => boolean;
 
 const TASK_METHODS = new Set(["tasks/get", "tasks/update", "tasks/cancel"]);
-
 /**
  * Agent messaging is admitted only for exact targets declared by the App
  * resource. The BFF retains the authenticated human, CSRF, Work Context,
@@ -370,11 +371,17 @@ export function attachAppBridge(
     iframe.style.height = `${appFrameOuterHeight(height, nonContentHeight)}px`;
   });
 
+  const projectionStreams = interceptRecordingProjectionStreams(
+    new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
+    app,
+    (message, transfer) => iframe.contentWindow?.postMessage(message, "*", transfer),
+    loadRecordingProjectionStream,
+  );
   const subscriptions = interceptResourceSubscriptions(
     interceptTaskRequests(
       interceptResourceReadRequests(
         interceptAgentMessages(
-          new PostMessageTransport(iframe.contentWindow, iframe.contentWindow),
+          projectionStreams.transport,
           app,
         ),
         app,
@@ -393,6 +400,7 @@ export function attachAppBridge(
   return {
     dispose: () => {
       subscriptions.dispose();
+      projectionStreams.dispose();
       void bridge.close();
     },
     notifyToolResult: (result) => {

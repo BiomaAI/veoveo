@@ -15,6 +15,25 @@ spec:
   resources:
     requests:
       storage: {{ .Values.recording.persistence.size }}
+{{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: recording-catalog-cache
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recording
+spec:
+  accessModes:
+    {{- toYaml .Values.recording.catalogCache.accessModes | nindent 4 }}
+  {{- if .Values.recording.catalogCache.storageClass }}
+  storageClassName: {{ .Values.recording.catalogCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.recording.catalogCache.size }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -99,10 +118,12 @@ spec:
             - {{ .Values.recording.route | quote }}
             - --recording-idle-timeout-s
             - {{ .Values.recording.idleTimeoutSeconds | quote }}
-            - --segment-max-bytes
-            - {{ printf "%.0f" .Values.recording.segmentMaxBytes | quote }}
-            - --segment-max-age-s
-            - {{ printf "%.0f" .Values.recording.segmentMaxAgeSeconds | quote }}
+            - --capture-layer-max-bytes
+            - {{ printf "%.0f" .Values.recording.captureLayerMaxBytes | quote }}
+            - --minimum-free-bytes
+            - {{ printf "%.0f" .Values.recording.spoolMinimumFreeBytes | quote }}
+            - --capture-layer-max-age-s
+            - {{ printf "%.0f" .Values.recording.captureLayerMaxAgeSeconds | quote }}
             - --blueprint-max-bytes
             - {{ printf "%.0f" .Values.recording.blueprintMaxBytes | quote }}
             - --blueprint-max-messages
@@ -125,6 +146,22 @@ spec:
               value: {{ .Values.recording.classification | quote }}
             - name: RECORDING_INGEST_PROTECTED_RESOURCE
               value: {{ printf "%s/ingest/recordings" (trimSuffix "/" .Values.global.publicBaseUrl) | quote }}
+            - name: VEOVEO_GATEWAY_URL
+              value: {{ printf "%s/" (trimSuffix "/" .Values.global.publicBaseUrl) | quote }}
+            - name: VEOVEO_RECORDING_GATEWAY_TRANSPORT_URL
+              value: {{ printf "%s/" (trimSuffix "/" .Values.recording.publication.gatewayTransportUrl) | quote }}
+            - name: VEOVEO_RECORDING_PUBLICATION_RESOURCE
+              value: {{ printf "%s/recordings/publish" (trimSuffix "/" .Values.global.publicBaseUrl) | quote }}
+            - name: VEOVEO_RECORDING_PUBLICATION_PROFILE
+              value: {{ .Values.recording.publication.profile | quote }}
+            - name: VEOVEO_RECORDING_HUB_CLIENT_ID
+              value: {{ .Values.recording.publication.clientId | quote }}
+            - name: VEOVEO_RECORDING_HUB_PRIVATE_KEY_PEM_FILE
+              value: /var/run/veoveo/recording-hub/private-key.pem
+            - name: VEOVEO_RECORDING_HUB_KEY_ID
+              value: {{ .Values.recording.publication.keyId | quote }}
+            - name: VEOVEO_RECORDING_HUB_SIGNING_ALGORITHM
+              value: {{ .Values.recording.publication.signingAlgorithm | quote }}
             {{- if .Values.recording.labels }}
             - name: RECORDING_LABELS
               value: {{ join "," .Values.recording.labels | quote }}
@@ -152,12 +189,15 @@ spec:
           securityContext:
             {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
           resources:
-            {{- toYaml .Values.recording.resources | nindent 12 }}
+            {{- toYaml .Values.recording.hubResources | nindent 12 }}
           volumeMounts:
             - name: recordings
               mountPath: /recordings
-            - name: tmp
+            - name: recording-hub-tmp
               mountPath: /tmp
+            - name: recording-hub-key
+              mountPath: /var/run/veoveo/recording-hub
+              readOnly: true
         {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
         - name: recording-mcp
           image: {{ include "veoveo.ownedImage" (list . .Values.recording.mcpImage) }}
@@ -167,6 +207,20 @@ spec:
             - "8796"
             - --spool-dir
             - /recordings
+            - --catalog-cache-dir
+            - /recording-cache
+            - --catalog-cache-managed-bytes
+            - {{ printf "%.0f" .Values.recording.catalogCache.managedBytes | quote }}
+            - --catalog-cache-minimum-free-bytes
+            - {{ printf "%.0f" .Values.recording.catalogCache.minimumFreeBytes | quote }}
+            - --projection-scratch-bytes
+            - {{ printf "%.0f" .Values.recording.projection.aggregateScratchBytes | quote }}
+            - --projection-minimum-free-bytes
+            - {{ printf "%.0f" .Values.recording.projection.minimumFreeBytes | quote }}
+            - --projection-concurrency
+            - {{ .Values.recording.projection.concurrency | quote }}
+            - --projection-deadline-ms
+            - {{ .Values.recording.projection.deadlineMilliseconds | quote }}
             - --allowed-host
             - recording-mcp:8796
             - --artifact-service-url
@@ -175,6 +229,22 @@ spec:
             - {{ .Values.recording.liveHistorySeconds | quote }}
           env:
             {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: VEOVEO_GATEWAY_URL
+              value: {{ printf "%s/" (trimSuffix "/" .Values.global.publicBaseUrl) | quote }}
+            - name: VEOVEO_RECORDING_GATEWAY_TRANSPORT_URL
+              value: {{ printf "%s/" (trimSuffix "/" .Values.recording.publication.gatewayTransportUrl) | quote }}
+            - name: VEOVEO_RECORDING_PUBLICATION_RESOURCE
+              value: {{ printf "%s/recordings/publish" (trimSuffix "/" .Values.global.publicBaseUrl) | quote }}
+            - name: VEOVEO_RECORDING_PUBLICATION_PROFILE
+              value: {{ .Values.recording.publication.profile | quote }}
+            - name: VEOVEO_RECORDING_MCP_PUBLISHER_CLIENT_ID
+              value: {{ .Values.recording.mcpPublisher.clientId | quote }}
+            - name: VEOVEO_RECORDING_MCP_PUBLISHER_PRIVATE_KEY_PEM_FILE
+              value: /var/run/veoveo/recording-mcp-publisher/private-key.pem
+            - name: VEOVEO_RECORDING_MCP_PUBLISHER_KEY_ID
+              value: {{ .Values.recording.mcpPublisher.keyId | quote }}
+            - name: VEOVEO_RECORDING_MCP_PUBLISHER_SIGNING_ALGORITHM
+              value: {{ .Values.recording.mcpPublisher.signingAlgorithm | quote }}
             - name: RECORDING_PLAYBACK_PUBLIC_URL
               value: {{ trimSuffix "/" .Values.global.publicBaseUrl | quote }}
             - name: RECORDING_PLAYBACK_TOKEN_KEY
@@ -202,18 +272,46 @@ spec:
           securityContext:
             {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
           resources:
-            {{- toYaml .Values.recording.resources | nindent 12 }}
+            {{- toYaml .Values.recording.mcpResources | nindent 12 }}
           volumeMounts:
             - name: recordings
               mountPath: /recordings
               readOnly: true
-            - name: tmp
+            - name: recording-mcp-tmp
               mountPath: /tmp
+            - name: recording-catalog-cache
+              mountPath: /recording-cache
+            - name: recording-mcp-publisher-key
+              mountPath: /var/run/veoveo/recording-mcp-publisher
+              readOnly: true
         {{- end }}
       volumes:
         - name: recordings
           persistentVolumeClaim:
             claimName: recording-spool
-        - name: tmp
-          emptyDir: {}
+        - name: recording-hub-tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
+        - name: recording-mcp-tmp
+          emptyDir:
+            sizeLimit: 256Mi
+        {{- end }}
+        - name: recording-hub-key
+          secret:
+            secretName: {{ .Values.recording.publication.privateKey.existingSecret }}
+            items:
+              - key: {{ .Values.recording.publication.privateKey.key }}
+                path: private-key.pem
+        {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
+        - name: recording-mcp-publisher-key
+          secret:
+            secretName: {{ .Values.recording.mcpPublisher.privateKey.existingSecret }}
+            items:
+              - key: {{ .Values.recording.mcpPublisher.privateKey.key }}
+                path: private-key.pem
+        - name: recording-catalog-cache
+          persistentVolumeClaim:
+            claimName: recording-catalog-cache
+        {{- end }}
 {{- end }}

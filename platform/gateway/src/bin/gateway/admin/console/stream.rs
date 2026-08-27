@@ -24,9 +24,9 @@ use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     AgentRecord, ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge,
     ArtifactOccurrenceRecord, AuditEventRecord, ChangefeedCursor, ChangefeedEntry, PlatformStore,
-    PlatformTable, PrincipalRecord, RecordId, RecordingRecord, SegmentRecord, SegmentState,
-    ShareLinkRecord, TaskRecord, Value as DbValue, WakeRecord, decode_changefeed_entry,
-    deterministic_tenant_id,
+    PlatformTable, PrincipalRecord, RecordId, RecordingLayerRecord, RecordingLayerState,
+    RecordingRecord, ShareLinkRecord, TaskRecord, Value as DbValue, WakeRecord,
+    decode_changefeed_entry, deterministic_tenant_id,
 };
 
 use super::projection::{
@@ -66,7 +66,7 @@ const STREAM_TABLES: [PlatformTable; 12] = [
     PlatformTable::Agent,
     PlatformTable::Wake,
     PlatformTable::Recording,
-    PlatformTable::Segment,
+    PlatformTable::RecordingLayer,
     PlatformTable::AuditEvent,
 ];
 
@@ -492,7 +492,7 @@ struct ConsoleStreamState {
     agents: BTreeMap<String, AgentRecord>,
     wakes: BTreeMap<String, (String, bool)>,
     recordings: BTreeMap<String, RecordingRecord>,
-    segments: BTreeMap<String, (String, i64, SegmentState)>,
+    layers: BTreeMap<String, (String, i64, RecordingLayerState)>,
     artifact_access: ArtifactAccessContext,
 }
 
@@ -560,15 +560,11 @@ impl ConsoleStreamState {
         for recording in projection.recordings {
             recordings.insert(record_key(&recording.id)?, recording);
         }
-        let mut segments = BTreeMap::new();
-        for segment in &projection.segments {
-            segments.insert(
-                record_key(&segment.id)?,
-                (
-                    record_key(&segment.recording)?,
-                    segment.byte_len,
-                    segment.state,
-                ),
+        let mut layers = BTreeMap::new();
+        for layer in &projection.layers {
+            layers.insert(
+                record_key(&layer.id)?,
+                (record_key(&layer.recording)?, layer.byte_len, layer.state),
             );
         }
         Ok(Self {
@@ -586,7 +582,7 @@ impl ConsoleStreamState {
             agents,
             wakes,
             recordings,
-            segments,
+            layers,
             artifact_access,
         })
     }
@@ -732,12 +728,12 @@ impl ConsoleStreamState {
                         self.recordings.insert(id.clone(), recording);
                         self.emit_recording(&id, versionstamp, rank)
                     }
-                    PlatformTable::Segment => {
-                        let segment: SegmentRecord = row.into_t()?;
-                        let recording = record_key(&segment.recording)?;
-                        self.segments.insert(
-                            record_key(&segment.id)?,
-                            (recording.clone(), segment.byte_len, segment.state),
+                    PlatformTable::RecordingLayer => {
+                        let layer: RecordingLayerRecord = row.into_t()?;
+                        let recording = record_key(&layer.recording)?;
+                        self.layers.insert(
+                            record_key(&layer.id)?,
+                            (recording.clone(), layer.byte_len, layer.state),
                         );
                         self.emit_recording(&recording, versionstamp, rank)
                     }
@@ -807,11 +803,10 @@ impl ConsoleStreamState {
                     },
                     PlatformTable::Recording => {
                         self.recordings.remove(&key);
-                        self.segments
-                            .retain(|_, (recording, _, _)| *recording != key);
+                        self.layers.retain(|_, (recording, _, _)| *recording != key);
                         Ok(out("recording", delete_payload(&key)))
                     }
-                    PlatformTable::Segment => match self.segments.remove(&key) {
+                    PlatformTable::RecordingLayer => match self.layers.remove(&key) {
                         Some((recording, _, _)) => {
                             self.emit_recording(&recording, versionstamp, rank)
                         }
@@ -908,14 +903,14 @@ impl ConsoleStreamState {
         let Some(recording) = self.recordings.get(id) else {
             return Ok(None);
         };
-        let (segment_count, playable_segment_count, playable_byte_length) = self
-            .segments
+        let (layer_count, committed_layer_count, committed_byte_length) = self
+            .layers
             .values()
             .filter(|(recording, _, _)| recording == id)
             .fold(
                 (0usize, 0usize, 0i64),
                 |(total, playable, bytes), (_, byte_len, state)| {
-                    if matches!(state, SegmentState::Frozen | SegmentState::Sealed) {
+                    if *state == RecordingLayerState::Committed {
                         (total + 1, playable + 1, bytes + byte_len)
                     } else {
                         (total + 1, playable, bytes)
@@ -924,9 +919,9 @@ impl ConsoleStreamState {
             );
         let summary = recording_summary(
             recording.clone(),
-            segment_count,
-            playable_segment_count,
-            playable_byte_length,
+            layer_count,
+            committed_layer_count,
+            committed_byte_length,
         )?;
         Ok(Some(OutEvent {
             versionstamp,
@@ -963,7 +958,7 @@ mod tests {
                 < table_rank(PlatformTable::ArtifactGrant)
         );
         assert!(table_rank(PlatformTable::Agent) < table_rank(PlatformTable::Wake));
-        assert!(table_rank(PlatformTable::Recording) < table_rank(PlatformTable::Segment));
+        assert!(table_rank(PlatformTable::Recording) < table_rank(PlatformTable::RecordingLayer));
     }
 
     #[test]

@@ -1,8 +1,8 @@
 # Recording Catalog Hard Cut Implementation Plan
 
-Status: proposed implementation plan for platform request `016` only. Implementation
-has not started. Existing recording contracts remain authoritative until the activation
-commit lands.
+Status: implementation complete for platform request `016`. Disposable-development
+activation and headed hardware-GPU acceptance remain before closure. The landed code is
+the only supported recording contract after activation.
 
 This plan extracts the Recording Catalog Hard Cut from
 [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md). It is deliberately
@@ -81,6 +81,30 @@ This project does not include:
 The current Recording Explorer App is the only hosted App that must consume the new
 projection stream. The host bridge primitive may be reusable, but this project does not
 redesign the App catalog or resource authority.
+
+## Implementation Record
+
+The implementation follows the bounded design in this document:
+
+- migration `0046_recording_catalog_hard_cut` introduces durable datasets, layers,
+  grants, and projection receipts and removes the old recording catalog tables;
+- `platform/recordings/rrd` owns Store ID normalization, properties layers, and
+  deterministic bounded Arrow IPC;
+- Recording Hub publishes verified capture layers through a scoped streaming Artifact
+  route and reserves spool headroom before materialization;
+- Recording MCP owns the verified PVC cache, durable virtual-catalog grants, selected
+  read-only Redap profile, manifest v9, projections, storage readiness, and diagnostics;
+- Gateway and Console carry short-lived internal Artifact authority while the Recording
+  Explorer receives only a host-mediated transferable stream;
+- Helm supplies separate cache storage, bounded scratch and temporary files, explicit
+  ephemeral-storage resources, and fail-closed free-space floors;
+- `cargo xtask doctor` validates the recording storage budget and rejects obsolete
+  surfaces in normative recording contracts.
+
+The activation uses the approved disposable-data path. Recording-based durable Reason
+and Stream replay remain outside request `016` because restart-safe Artifact-read
+authority requires its own design. They fail closed instead of persisting a caller bearer
+or falling back to a Hub-local archive path.
 
 ## Current Baseline And Hard-Cut Deletes
 

@@ -11,14 +11,14 @@ use veoveo_mcp_contract::{
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
 use veoveo_platform_store::{
     AgentRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, AuditEventRecord,
-    PrincipalRecord, RecordId, RecordIdKey, RecordingRecord, SegmentRecord, ShareLinkRecord,
+    PrincipalRecord, RecordId, RecordIdKey, RecordingLayerRecord, RecordingRecord, ShareLinkRecord,
     TaskRecord, WakeRecord,
 };
 
 use crate::runtime::AdminState;
 
 pub(crate) const SNAPSHOT_LIMIT: i64 = 200;
-const SEGMENT_SNAPSHOT_LIMIT: i64 = 10_000;
+const LAYER_SNAPSHOT_LIMIT: i64 = 10_000;
 
 pub(crate) struct Projection {
     pub(crate) principals: Vec<PrincipalRecord>,
@@ -30,7 +30,7 @@ pub(crate) struct Projection {
     pub(crate) agents: Vec<AgentRecord>,
     pub(crate) wakes: Vec<WakeRecord>,
     pub(crate) recordings: Vec<RecordingRecord>,
-    pub(crate) segments: Vec<SegmentRecord>,
+    pub(crate) layers: Vec<RecordingLayerRecord>,
     pub(crate) audit: Vec<AuditEventRecord>,
 }
 
@@ -67,7 +67,7 @@ pub(crate) async fn load_projection(
             SELECT * FROM agent WHERE tenant = $tenant ORDER BY updated_at DESC LIMIT $limit;
             SELECT * FROM wake WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
             SELECT * FROM recording WHERE tenant = $tenant ORDER BY started_at DESC LIMIT $limit;
-            SELECT * FROM segment
+            SELECT * FROM recording_layer
                 WHERE tenant = $tenant
                 AND recording IN (
                     SELECT VALUE id FROM recording
@@ -76,13 +76,13 @@ pub(crate) async fn load_projection(
                     LIMIT $limit
                 )
                 ORDER BY created_at DESC
-                LIMIT $segment_limit;
+                LIMIT $layer_limit;
             SELECT * FROM audit_event WHERE tenant = $tenant ORDER BY occurred_at DESC LIMIT $limit;
             "#,
         )
         .bind(("tenant", tenant.clone()))
         .bind(("limit", SNAPSHOT_LIMIT))
-        .bind(("segment_limit", SEGMENT_SNAPSHOT_LIMIT))
+        .bind(("layer_limit", LAYER_SNAPSHOT_LIMIT))
         .await?
         .check()?;
     Ok(Projection {
@@ -95,7 +95,7 @@ pub(crate) async fn load_projection(
         agents: response.take(6)?,
         wakes: response.take(7)?,
         recordings: response.take(8)?,
-        segments: response.take(9)?,
+        layers: response.take(9)?,
         audit: response.take(10)?,
     })
 }
@@ -220,7 +220,7 @@ pub(crate) struct ArtifactRecordingSummary {
     pub(crate) recording_id: String,
     pub(crate) kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) segment_id: Option<String>,
+    pub(crate) layer_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) ordinal: Option<i64>,
 }
@@ -235,7 +235,7 @@ struct ArtifactProvenance {
     kind: String,
     recording_id: String,
     #[serde(default)]
-    segment_id: Option<String>,
+    layer_id: Option<String>,
     #[serde(default)]
     ordinal: Option<i64>,
 }
@@ -289,9 +289,9 @@ pub(crate) struct RecordingSummary {
     pub(crate) application: String,
     pub(crate) recording_key: String,
     pub(crate) state: veoveo_platform_store::RecordingState,
-    pub(crate) segment_count: usize,
-    pub(crate) playable_segment_count: usize,
-    pub(crate) playable_byte_length: i64,
+    pub(crate) layer_count: usize,
+    pub(crate) committed_layer_count: usize,
+    pub(crate) committed_byte_length: i64,
     pub(crate) started_at: DateTime<Utc>,
     pub(crate) last_data_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -446,7 +446,7 @@ pub(crate) fn artifact_summary(
         .map(|value| ArtifactRecordingSummary {
             recording_id: value.provenance.recording_id,
             kind: value.provenance.kind,
-            segment_id: value.provenance.segment_id,
+            layer_id: value.provenance.layer_id,
             ordinal: value.provenance.ordinal,
         });
     Ok(ArtifactSummary {
@@ -663,18 +663,18 @@ pub(crate) fn agent_public_key(agent: &AgentRecord) -> &str {
 
 pub(crate) fn recording_summary(
     recording: RecordingRecord,
-    segment_count: usize,
-    playable_segment_count: usize,
-    playable_byte_length: i64,
+    layer_count: usize,
+    committed_layer_count: usize,
+    committed_byte_length: i64,
 ) -> anyhow::Result<RecordingSummary> {
     Ok(RecordingSummary {
         id: record_key(&recording.id)?,
         application: recording.application_id,
         recording_key: recording.recording_key,
         state: recording.state,
-        segment_count,
-        playable_segment_count,
-        playable_byte_length,
+        layer_count,
+        committed_layer_count,
+        committed_byte_length,
         started_at: recording.started_at,
         last_data_at: recording.last_data_at,
         ended_at: recording.ended_at,
