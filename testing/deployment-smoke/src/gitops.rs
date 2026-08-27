@@ -197,7 +197,7 @@ impl Deadline {
 }
 
 pub(crate) fn converge(arguments: GitopsConvergeArgs) -> Result<()> {
-    validate_revision("--revision", &arguments.revision)?;
+    validate_local_revision("--revision", &arguments.revision)?;
     ensure!(
         !arguments.releases.is_empty(),
         "at least one --release is required"
@@ -608,6 +608,28 @@ fn validate_revision(argument: &str, revision: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_local_revision(argument: &str, revision: &str) -> Result<()> {
+    validate_revision(argument, revision)?;
+    let revision_expression = format!("{revision}^{{commit}}");
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", &revision_expression])
+        .output()
+        .context("resolving the expected GitOps revision from the local repository")?;
+    ensure!(
+        output.status.success(),
+        "{argument} `{revision}` is not a local commit; pass the exact output of `git rev-parse HEAD`"
+    );
+    let resolved = String::from_utf8(output.stdout)
+        .context("local Git commit ID is not UTF-8")?
+        .trim()
+        .to_owned();
+    ensure!(
+        resolved.eq_ignore_ascii_case(revision),
+        "{argument} `{revision}` resolved to `{resolved}`; pass the exact output of `git rev-parse HEAD`"
+    );
+    Ok(())
+}
+
 fn observe_release(
     arguments: &GitopsConvergeArgs,
     object: &ObjectRef,
@@ -743,6 +765,23 @@ mod tests {
         assert!(DeploymentRef::parse("console-bff").is_err());
         assert!(validate_revision("--revision", REVISION).is_ok());
         assert!(validate_revision("--revision", "01234567").is_err());
+    }
+
+    #[test]
+    fn requires_the_expected_revision_to_be_an_exact_local_commit() {
+        let output = Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let head = String::from_utf8(output.stdout).unwrap();
+        let head = head.trim();
+
+        assert!(validate_local_revision("--revision", head).is_ok());
+        assert!(
+            validate_local_revision("--revision", "ffffffffffffffffffffffffffffffffffffffff")
+                .is_err()
+        );
     }
 
     #[test]
