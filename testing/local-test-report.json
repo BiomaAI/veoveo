@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ec402f7c753430a65e3144158b21d366f4820b5b1dfce886ba6b14b4ede7c0ca",
-  "updatedAt": "2026-08-27T07:03:03Z",
+  "buildDigest": "sha256:5c432443a245990b49982d278079f38a389e7e7beebabe4603028e0c32393b15",
+  "updatedAt": "2026-08-27T07:04:13Z",
   "checks": [
     {
       "name": "helm-config",
@@ -14,39 +14,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:02:39Z",
-      "durationSeconds": 13.621918854,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-playback",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-recording-mcp",
-        "--features",
-        "redap"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T07:02:48Z",
-      "durationSeconds": 1.202509933,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-release-doctor",
-      "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
-        "cargo",
-        "xtask",
-        "doctor"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T07:03:03Z",
-      "durationSeconds": 1.9075334750000001,
+      "finishedAt": "2026-08-27T07:04:13Z",
+      "durationSeconds": 4.574252592,
       "detail": "completed successfully"
     }
   ]
