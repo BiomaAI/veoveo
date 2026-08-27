@@ -852,13 +852,21 @@ async fn playback_blueprint(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
     Path((recording_id, revision)): Path<(String, u64)>,
+    headers: HeaderMap,
 ) -> Response {
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    let artifact_caller = match artifact_caller(identity.clone(), &headers) {
+        Ok(caller) => caller,
+        Err(error) => {
+            tracing::warn!(%error, %recording_id, "recording Blueprint omitted Artifact authority");
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+    };
     let plan = match state
         .recordings
-        .playback_plan(&identity, None, recording_id)
+        .playback_plan(&identity, Some(&artifact_caller), recording_id)
         .await
     {
         Ok(Some(plan)) => plan,

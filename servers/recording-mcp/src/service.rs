@@ -9,10 +9,10 @@ use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{DataLabelId, GatewayInternalIdentity, PlaneCaller, PutArtifactRequest};
 use veoveo_platform_store::{
     ArtifactId as PlatformArtifactId, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
-    RecordIdKey, RecordingDatasetId, RecordingId, RecordingLayerDraft, RecordingLayerId,
-    RecordingLayerKind, RecordingLayerRecord, RecordingLayerState, RecordingReadGrantClass,
-    RecordingReadGrantDraft, RecordingReadGrantId, RecordingReadGrantRecord, RecordingRecord,
-    RecordingSeal, RecordingState,
+    RecordIdKey, RecordingBlueprintRecord, RecordingDatasetId, RecordingId, RecordingLayerDraft,
+    RecordingLayerId, RecordingLayerKind, RecordingLayerRecord, RecordingLayerState,
+    RecordingReadGrantClass, RecordingReadGrantDraft, RecordingReadGrantId,
+    RecordingReadGrantRecord, RecordingRecord, RecordingSeal, RecordingState,
 };
 use veoveo_recording_hub::{
     GatewayLayerPublisher, ingest_segment_parts_directory, invocation_authority_record,
@@ -80,6 +80,7 @@ pub struct PlaybackBlueprintPlan {
     pub byte_len: u64,
     pub sha256: String,
     pub path: PathBuf,
+    pub cached: Option<CachedLayer>,
     pub map_provider: veoveo_recording_hub::BlueprintMapProviderSelection,
 }
 
@@ -433,32 +434,14 @@ impl RecordingService {
         let blueprint = self
             .store
             .current_recording_blueprint(platform_identity.tenant_id, recording_id)
-            .await?
-            .map(|blueprint| {
-                let path = self.archive_path(&blueprint.relative_path)?;
-                let bytes = std::fs::read(&path)?;
-                ensure!(
-                    bytes.len() as i64 == blueprint.byte_len
-                        && hex::encode(Sha256::digest(&bytes)) == blueprint.sha256,
-                    "playback Blueprint no longer matches its governed publication"
-                );
-                let validated = veoveo_recording_hub::validate_blueprint_rrd(
-                    &bytes,
-                    u64::try_from(blueprint.message_count)?,
-                    &recording.application_id,
-                )?;
-                Ok::<_, anyhow::Error>(PlaybackBlueprintPlan {
-                    blueprint_id: blueprint.blueprint_id,
-                    revision: u64::try_from(blueprint.revision)
-                        .context("Blueprint revision is negative")?,
-                    byte_len: u64::try_from(blueprint.byte_len)
-                        .context("Blueprint byte length is negative")?,
-                    sha256: blueprint.sha256,
-                    path,
-                    map_provider: validated.map_provider,
-                })
-            })
-            .transpose()?;
+            .await?;
+        let blueprint = match blueprint {
+            Some(blueprint) => {
+                self.playback_blueprint_plan(&recording, blueprint, artifact_caller)
+                    .await?
+            }
+            None => None,
+        };
         let catalog_revision =
             catalog_revision(dataset.revision, recording.revision, &catalog_layers);
         Ok(Some(RecordingPlaybackPlan {
@@ -474,6 +457,72 @@ impl RecordingService {
             archive_layers,
             live,
             blueprint,
+        }))
+    }
+
+    async fn playback_blueprint_plan(
+        &self,
+        recording: &RecordingRecord,
+        blueprint: RecordingBlueprintRecord,
+        artifact_caller: Option<&PlaneCaller>,
+    ) -> Result<Option<PlaybackBlueprintPlan>> {
+        let byte_len =
+            u64::try_from(blueprint.byte_len).context("Blueprint byte length is negative")?;
+        let message_count = u64::try_from(blueprint.message_count)
+            .context("Blueprint message count is negative")?;
+        let (path, cached) = if let Some(artifact) = blueprint.artifact.as_ref() {
+            let Some(artifact_caller) = artifact_caller else {
+                return Ok(None);
+            };
+            let cache = self
+                .layer_cache
+                .as_ref()
+                .context("recording layer cache is not configured")?;
+            let cached = cache
+                .materialize_blueprint(
+                    artifact_caller,
+                    veoveo_mcp_contract::ArtifactId::parse(
+                        record_uuid(artifact, "artifact_occurrence")?.to_string(),
+                    )?,
+                    byte_len,
+                    &blueprint.sha256,
+                    &recording.application_id,
+                    &blueprint.blueprint_id,
+                    message_count,
+                )
+                .await?;
+            (cached.path().to_path_buf(), Some(cached))
+        } else {
+            ensure!(
+                recording.state != RecordingState::Sealed,
+                "sealed recording Blueprint has no Artifact occurrence"
+            );
+            (self.archive_path(&blueprint.relative_path)?, None)
+        };
+        let bytes = std::fs::read(&path)?;
+        ensure!(
+            bytes.len() as i64 == blueprint.byte_len
+                && hex::encode(Sha256::digest(&bytes)) == blueprint.sha256,
+            "playback Blueprint no longer matches its governed publication"
+        );
+        let validated = veoveo_recording_hub::validate_blueprint_rrd(
+            &bytes,
+            message_count,
+            &recording.application_id,
+        )?;
+        ensure!(
+            validated.store_id.recording_id().as_str() == blueprint.blueprint_id,
+            "playback Blueprint identity no longer matches its catalog record"
+        );
+        Ok(Some(PlaybackBlueprintPlan {
+            blueprint_id: blueprint.blueprint_id,
+            revision: u64::try_from(blueprint.revision)
+                .context("Blueprint revision is negative")?,
+            byte_len,
+            sha256: blueprint.sha256,
+            path,
+            cached,
+            map_provider: validated.map_provider,
         }))
     }
 
@@ -566,6 +615,8 @@ impl RecordingService {
             &layers,
         )
         .await?;
+        self.ensure_blueprint_artifact(&platform_identity, &current, dataset_id, recording_id)
+            .await?;
         layers = self
             .store
             .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
@@ -792,6 +843,94 @@ impl RecordingService {
         Ok(())
     }
 
+    async fn ensure_blueprint_artifact(
+        &self,
+        identity: &PlatformIdentity,
+        recording: &RecordingRecord,
+        dataset_id: RecordingDatasetId,
+        recording_id: RecordingId,
+    ) -> Result<()> {
+        let Some(blueprint) = self
+            .store
+            .current_recording_blueprint(identity.tenant_id, recording_id)
+            .await?
+        else {
+            return Ok(());
+        };
+        if blueprint.artifact.is_some() {
+            self.remove_spool_staging_file(&blueprint.relative_path)?;
+            return Ok(());
+        }
+        let publisher = self
+            .layer_publisher
+            .as_ref()
+            .context("recording Blueprint publisher is not configured")?;
+        let path = self.archive_path(&blueprint.relative_path)?;
+        let bytes = std::fs::read(&path)?;
+        let byte_len = u64::try_from(blueprint.byte_len)
+            .context("recording Blueprint byte length is negative")?;
+        let message_count = u64::try_from(blueprint.message_count)
+            .context("recording Blueprint message count is negative")?;
+        ensure!(
+            bytes.len() as u64 == byte_len
+                && hex::encode(Sha256::digest(&bytes)) == blueprint.sha256,
+            "recording Blueprint staging bytes changed before publication"
+        );
+        let validated = veoveo_recording_hub::validate_blueprint_rrd(
+            &bytes,
+            message_count,
+            &recording.application_id,
+        )?;
+        ensure!(
+            validated.store_id.recording_id().as_str() == blueprint.blueprint_id,
+            "recording Blueprint staging identity changed before publication"
+        );
+        let blueprint_occurrence = record_uuid(&blueprint.id, "recording_blueprint")?;
+        let metadata = publisher
+            .publish_artifact(
+                veoveo_mcp_contract::ArtifactId::parse(blueprint_occurrence.to_string())?,
+                PutArtifactRequest {
+                    mime_type: Some("application/vnd.rerun.rrd".to_owned()),
+                    filename: Some(format!(
+                        "{}.blueprint-{}.rrd",
+                        recording.recording_key, blueprint.revision
+                    )),
+                    classification: artifact_classification(&recording.classification)?,
+                    data_labels: labels(&recording.labels)?,
+                    retention_expires_at: None,
+                    metadata: serde_json::json!({
+                        "provenance": {
+                            "kind": "recording_blueprint",
+                            "dataset_id": dataset_id,
+                            "recording_id": recording_id,
+                            "blueprint_id": blueprint.blueprint_id,
+                            "revision": blueprint.revision,
+                            "sha256": blueprint.sha256,
+                        }
+                    }),
+                },
+                &path,
+                byte_len,
+                &blueprint.sha256,
+            )
+            .await?;
+        ensure!(
+            metadata.artifact_id.as_uuid() == blueprint_occurrence && metadata.byte_len == byte_len,
+            "published Blueprint occurrence does not match its reserved identity"
+        );
+        self.store
+            .stage_recording_blueprint_artifact(
+                identity,
+                recording_id,
+                u64::try_from(blueprint.revision)
+                    .context("recording Blueprint revision is negative")?,
+                PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid()),
+            )
+            .await?;
+        self.remove_spool_staging_file(&blueprint.relative_path)?;
+        Ok(())
+    }
+
     async fn publish_manifest(
         &self,
         recording: &RecordingRecord,
@@ -968,6 +1107,18 @@ impl RecordingService {
             "recording file escapes the configured spool root"
         );
         Ok(canonical)
+    }
+
+    fn remove_spool_staging_file(&self, relative: &str) -> Result<()> {
+        let path = confined_layer_path(&self.spool_root, relative)?;
+        match std::fs::remove_file(&path) {
+            Ok(()) => {
+                File::open(path.parent().context("staging file has no parent")?)?.sync_all()?
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        Ok(())
     }
 }
 
