@@ -1,63 +1,21 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:58f9712e9595cdbeb49f4db7f4fc0b8d34bc65e7d47b41ed619b74a6fbdae9cb",
-  "updatedAt": "2026-08-27T07:18:34Z",
+  "buildDigest": "sha256:4f4a6ea95cb17edea95a8d913a470d21899d9d7bcc1ecc44ec187b14b222e86a",
+  "updatedAt": "2026-08-27T07:29:42Z",
   "checks": [
     {
-      "name": "console-web",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T07:17:57Z",
-      "durationSeconds": 4.526128904,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-web-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T07:18:17Z",
-      "durationSeconds": 2.842312578,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-web-tests",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "test"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T07:18:05Z",
-      "durationSeconds": 0.329689143,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-archive-browser",
+      "name": "recording-mcp",
       "command": [
         "env",
         "CARGO_BUILD_JOBS=4",
         "cargo",
         "test",
         "-p",
-        "veoveo-browser-smoke"
+        "veoveo-recording-mcp"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:18:27Z",
-      "durationSeconds": 0.432565394,
+      "finishedAt": "2026-08-27T07:29:34Z",
+      "durationSeconds": 4.261608111,
       "detail": "completed successfully"
     },
     {
@@ -70,8 +28,8 @@
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:18:34Z",
-      "durationSeconds": 1.880500031,
+      "finishedAt": "2026-08-27T07:29:42Z",
+      "durationSeconds": 1.8807461509999999,
       "detail": "completed successfully"
     }
   ]

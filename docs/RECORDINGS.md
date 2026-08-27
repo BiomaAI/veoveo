@@ -81,7 +81,9 @@ Sealing emits the deterministic properties layer through the same publication pa
 producer Blueprint is validated, published under the occurrence UUID reserved by its
 durable catalog record, and removed from Hub staging before the v9 manifest occurrence
 is published. A retry resumes from the staged occurrence. A producer Blueprint wins
-when present. The dataset default is otherwise eligible.
+when present. The dataset default is otherwise eligible. After the durable seal commits,
+Recording MCP removes the recording-scoped static context used to seed live capture
+layers. An idempotent seal request retries both Blueprint and static-context cleanup.
 
 ## Governed Catalogs
 
