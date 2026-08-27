@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:927c75890ad5810aac326c7c8e14099ffaa9b00f48545b082a2606486e390954",
-  "updatedAt": "2026-08-27T05:01:05Z",
+  "buildDigest": "sha256:ec2dc1448a9f8e0625bf8501a39cf7608890d092872532d96ed4de035bb6f9c6",
+  "updatedAt": "2026-08-27T05:21:02Z",
   "checks": [
     {
       "name": "recording-playback",
@@ -17,8 +17,20 @@
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T05:01:05Z",
-      "durationSeconds": 7.056329273,
+      "finishedAt": "2026-08-27T05:20:51Z",
+      "durationSeconds": 1.034577505,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-release-doctor",
+      "command": [
+        "cargo",
+        "xtask",
+        "doctor"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T05:21:02Z",
+      "durationSeconds": 1.958386801,
       "detail": "completed successfully"
     }
   ]
