@@ -1574,6 +1574,11 @@ web client. Retain `app_catalog()` only for gallery listing and gallery change e
 This phase replaces `RECORDING-PROJECTION-016` and the current archive architecture. It is one
 activation boundary even when implementation is divided into reviewable commits.
 
+[`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) isolates the proposed
+implementation sequence, initial resource limits, verification matrix, and activation runbook for
+this phase. The broader plan remains the product scope; the focused plan is not approval to start
+schema activation.
+
 Before activation, the installation owner records one retention choice: run the offline migration
 or explicitly discard recordings made under the old architecture. The implementation supports
 only that selected cutover. This choice does not block Phase 1 or other independent work.
