@@ -276,6 +276,7 @@ spec:
           volumeMounts:
             - name: recordings
               mountPath: /recordings
+              readOnly: false
             - name: recording-mcp-tmp
               mountPath: /tmp
             - name: recording-catalog-cache
