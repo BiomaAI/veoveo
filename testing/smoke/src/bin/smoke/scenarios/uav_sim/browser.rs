@@ -329,9 +329,19 @@ pub(crate) struct ConsoleRecordingArchiveCaptureEvidence {
     screenshot_sha256: String,
     hardware: HardwareIdentity,
     network: RecordingPlaybackNetworkEvidence,
+    timeline: RecordingArchiveTimelineEvidence,
     render: RerunRenderEvidence,
     camera_render: RerunRenderEvidence,
     responsiveness: RerunResponsivenessEvidence,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordingArchiveTimelineEvidence {
+    recording_id: String,
+    timeline: String,
+    current_time: f64,
+    newest_time: f64,
 }
 
 impl ConsoleRecordingCaptureEvidence {
@@ -1839,6 +1849,7 @@ async fn capture_console_recording_archive_inner(
                 Err(error) => return Err(error).context("archived Rerun transport did not settle"),
             }
         };
+        let timeline = wait_for_rerun_archive_latest(&mut cdp, &session_id).await?;
         let responsiveness = sample_rerun_responsiveness(&mut cdp, &session_id).await?;
         responsiveness.validate()?;
         let viewer_bounds = rerun_viewer_bounds(&mut cdp, &session_id).await?;
@@ -1851,7 +1862,7 @@ async fn capture_console_recording_archive_inner(
         final_hardware.validate()?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleRecordingArchiveCaptureEvidence {
-            schema: "veoveo.io/uav-console-recording-archive-capture/v1",
+            schema: "veoveo.io/uav-console-recording-archive-capture/v2",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             recording_id: recording_id.to_owned(),
@@ -1859,6 +1870,7 @@ async fn capture_console_recording_archive_inner(
             screenshot_sha256,
             hardware: final_hardware,
             network,
+            timeline,
             render,
             camera_render,
             responsiveness,
@@ -1869,6 +1881,59 @@ async fn capture_console_recording_archive_inner(
     let evidence = acceptance?;
     close?;
     Ok(evidence)
+}
+
+async fn wait_for_rerun_archive_latest(
+    cdp: &mut Cdp,
+    session_id: &str,
+) -> Result<RecordingArchiveTimelineEvidence> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        let state: Value = cdp
+            .evaluate(
+                session_id,
+                r#"(() => {
+                  const host = document.querySelector(".rerun-web-viewer-host");
+                  return {
+                    archiveState: host?.dataset.rerunArchiveState ?? "",
+                    recordingId: host?.dataset.rerunRecordingId ?? "",
+                    timeline: host?.dataset.rerunTimeline ?? "",
+                    currentTime: Number(host?.dataset.rerunCurrentTime ?? NaN),
+                    newestTime: Number(host?.dataset.rerunNewestTime ?? NaN),
+                    error: document.querySelector(".recording-viewer-error")?.textContent ?? ""
+                  };
+                })()"#,
+                false,
+            )
+            .await?;
+        ensure!(
+            state
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .is_empty(),
+            "Console Rerun viewer failed while selecting archive time: {state}"
+        );
+        if state.get("archiveState").and_then(Value::as_str) == Some("latest") {
+            let evidence = serde_json::from_value::<RecordingArchiveTimelineEvidence>(state)?;
+            ensure!(
+                !evidence.recording_id.is_empty()
+                    && evidence.timeline == "simulation_time"
+                    && evidence.current_time.is_finite()
+                    && evidence.newest_time.is_finite()
+                    && evidence.current_time > 0.0
+                    && (evidence.current_time - evidence.newest_time).abs() <= 1.0,
+                "Rerun archive did not select its latest simulation time: {evidence:?}"
+            );
+            return Ok(evidence);
+        }
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "Rerun archive did not select its latest simulation time: {state}"
+        );
+        assert_page_visible(cdp, session_id).await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 async fn wait_for_console_recording_surface(
