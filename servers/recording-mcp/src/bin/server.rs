@@ -54,7 +54,7 @@ use veoveo_recording_mcp::{
     playback::{
         PlaybackManager, RECORDING_GRANT_HEADER, playback_application_id, playback_store_id,
     },
-    service::ProjectionRuntimeLimits,
+    service::{PlaybackArchiveSelection, ProjectionRuntimeLimits},
     uris,
 };
 
@@ -149,6 +149,7 @@ impl RecordingMcp {
         let identity = identity(&context)?;
         let artifact_caller = artifact_caller_from_context(&context, identity.clone())?;
         let cancellation = context.ct.clone();
+        self.state.playback.prune_catalogs();
         match self
             .state
             .recordings
@@ -646,9 +647,15 @@ async fn playback_manifest(
             return StatusCode::UNAUTHORIZED.into_response();
         }
     };
+    state.playback.prune_catalogs();
     let plan = match state
         .recordings
-        .playback_plan(&identity, Some(&artifact_caller), recording_id)
+        .playback_plan(
+            &identity,
+            Some(&artifact_caller),
+            recording_id,
+            PlaybackArchiveSelection::SealedViewer,
+        )
         .await
     {
         Ok(Some(plan)) => plan,
@@ -718,6 +725,7 @@ async fn catalog_grant(
             return StatusCode::UNAUTHORIZED.into_response();
         }
     };
+    state.playback.prune_catalogs();
     let plans = match state
         .recordings
         .dataset_playback_plans(
@@ -777,7 +785,12 @@ async fn playback_live_recording(
     };
     let plan = match state
         .recordings
-        .playback_plan(&identity, None, recording_id)
+        .playback_plan(
+            &identity,
+            None,
+            recording_id,
+            PlaybackArchiveSelection::Omit,
+        )
         .await
     {
         Ok(Some(plan)) => plan,
@@ -864,9 +877,15 @@ async fn playback_blueprint(
             return StatusCode::UNAUTHORIZED.into_response();
         }
     };
+    state.playback.prune_catalogs();
     let plan = match state
         .recordings
-        .playback_plan(&identity, Some(&artifact_caller), recording_id)
+        .playback_plan(
+            &identity,
+            Some(&artifact_caller),
+            recording_id,
+            PlaybackArchiveSelection::Omit,
+        )
         .await
     {
         Ok(Some(plan)) => plan,

@@ -92,12 +92,21 @@ A download first enters a partial file, then passes length, digest, and RRD iden
 checks before atomic rename. Archive layers bind the dataset and recording IDs.
 Blueprints bind the producer application ID, Blueprint ID, and message count. Cache keys
 bind the occurrence and digest. Active virtual catalogs and Blueprint responses pin
-their files, and least-recently-used eviction removes only unpinned entries.
+their files, and least-recently-used eviction removes only unpinned entries. A virtual
+catalog releases its pins after five minutes without authorized access, which matches the
+maximum Redap token lifetime. Recording MCP prunes those idle catalogs before reserving
+space for another materialization.
 
 A virtual catalog key contains tenant, dataset ID, policy revision, the digest of the
 admitted recording set, and grant class. The Rerun handler receives only those layers.
 Authorization does not depend on filtering a broader catalog response after a direct
 chunk request has already arrived.
+
+A viewer manifest selects one recording data plane. While the recording is `live`, it
+contains the governed live receiver and does not materialize committed history into the
+archive cache. After the recording leaves `live`, the viewer manifest materializes and
+names the complete immutable archive. Catalog SDK grants and Arrow projections continue
+to request committed layers explicitly, including for an active recording.
 
 | Grant class | Consumer | Authority |
 |---|---|---|
@@ -212,6 +221,10 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
 - Run deterministic RRD, Artifact streaming, layer cache, projection cancellation,
   selected Redap, BFF, bridge, Helm lint, and Helm render checks through
   `cargo xtask test-report`.
+- Reopen a long-running live recording after committed layers have filled most of the
+  managed archive cache. Require the manifest and Blueprint requests to succeed without
+  an archive materialization, prove the live channel remains open, and visually inspect
+  an advancing Rerun camera pane in headed hardware-backed Chrome.
 - Run `cargo xtask doctor`. It rejects incoherent cache, scratch, headroom, concurrency,
   deadline, and spool budgets and scans normative recording contracts for old surfaces.
 - Run `cargo xtask release preflight` with the expected build growth and Kubernetes node.

@@ -55,6 +55,10 @@ message count. The cache key includes occurrence UUID and digest. Pinned entries
 be evicted. Least-recently-used unpinned entries are removed until both the managed
 ceiling and physical free-space floor are safe.
 
+Virtual catalogs release their cache pins after five minutes without authorized access,
+equal to the maximum Redap token lifetime. Playback and projection entrypoints prune idle
+catalogs before they materialize another layer.
+
 Startup removes partial and unrecognized files. A complete cache deletion changes no
 durable identity and loses no recording. `/readyz` fails when the cache or projection
 scratch violates its storage contract. Authenticated `/admin/storage` exposes the typed
@@ -72,6 +76,11 @@ Only the exact admitted layers are registered. The service never registers a bro
 dataset and relies on response filtering for direct chunk access. Viewer grants admit one
 recording. Catalog grants admit an explicit sorted set in one dataset. Projection grants
 cannot reach Redap.
+
+An active viewer does not construct a virtual archive catalog. Its manifest names the
+live receiver and Blueprint, while committed history remains authoritative in Artifact
+storage. Once the recording leaves `live`, the viewer materializes the complete archive.
+Catalog SDK and projection requests select complete committed materialization explicitly.
 
 The scoped Redap service implements these read methods:
 
@@ -113,9 +122,10 @@ Recording Explorer descriptor. It transfers a `ReadableStream` through a dedicat
 ## Playback Manifest And Live Stream
 
 Manifest v9 contains the durable dataset ID, recording segment ID, catalog revision,
-short-lived viewer grant, archive descriptor, optional live receiver, and governed
-Blueprint. Archive URI is one stable Rerun dataset-segment URI. It is not a URL per
-capture layer.
+short-lived viewer grant, optional archive descriptor, optional live receiver, and
+governed Blueprint. An active recording exposes the live receiver without prewarming its
+committed archive. A recording that has left `live` exposes the archive. Archive URI is
+one stable Rerun dataset-segment URI. It is not a URL per capture layer.
 
 Live playback retains one WebViewer `LogChannel`. The first transport supplies bounded
 static and temporal bootstrap state. A reconnect on the same channel starts at the

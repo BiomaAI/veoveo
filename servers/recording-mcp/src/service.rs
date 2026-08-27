@@ -56,6 +56,23 @@ pub struct RecordingPlaybackPlan {
     pub blueprint: Option<PlaybackBlueprintPlan>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PlaybackArchiveSelection {
+    Complete,
+    SealedViewer,
+    Omit,
+}
+
+impl PlaybackArchiveSelection {
+    fn materializes(self, state: RecordingState) -> bool {
+        match self {
+            Self::Complete => true,
+            Self::SealedViewer => state != RecordingState::Live,
+            Self::Omit => false,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PlaybackArchiveLayerPlan {
     pub layer_id: RecordingLayerId,
@@ -330,6 +347,7 @@ impl RecordingService {
         identity: &GatewayInternalIdentity,
         artifact_caller: Option<&PlaneCaller>,
         recording_id: RecordingId,
+        archive_selection: PlaybackArchiveSelection,
     ) -> Result<Option<RecordingPlaybackPlan>> {
         let Some((platform_identity, recording)) =
             self.visible_recording(identity, recording_id).await?
@@ -350,7 +368,9 @@ impl RecordingService {
         let dataset_uuid = record_uuid(&dataset.id, "recording_dataset")?;
         let recording_uuid = record_uuid(&recording.id, "recording")?;
         let mut archive_layers = Vec::new();
-        if let Some(artifact_caller) = artifact_caller {
+        if archive_selection.materializes(recording.state)
+            && let Some(artifact_caller) = artifact_caller
+        {
             let cache = self
                 .layer_cache
                 .as_ref()
@@ -542,7 +562,12 @@ impl RecordingService {
         let mut plans = Vec::with_capacity(recording_ids.len());
         for recording_id in recording_ids {
             let Some(plan) = self
-                .playback_plan(identity, Some(artifact_caller), recording_id)
+                .playback_plan(
+                    identity,
+                    Some(artifact_caller),
+                    recording_id,
+                    PlaybackArchiveSelection::Complete,
+                )
                 .await?
             else {
                 return Ok(None);
@@ -1471,5 +1496,21 @@ mod tests {
                 .join(format!(".recording-{recording_id}.static-context"))
         );
         assert!(recording_static_context_path(&root, "../outside.rrd", recording_id).is_err());
+    }
+
+    #[test]
+    fn viewer_materializes_archive_only_after_live_capture_ends() {
+        assert!(!PlaybackArchiveSelection::SealedViewer.materializes(RecordingState::Live));
+        for state in [
+            RecordingState::Ready,
+            RecordingState::Sealing,
+            RecordingState::Sealed,
+            RecordingState::Interrupted,
+            RecordingState::Failed,
+        ] {
+            assert!(PlaybackArchiveSelection::SealedViewer.materializes(state));
+        }
+        assert!(PlaybackArchiveSelection::Complete.materializes(RecordingState::Live));
+        assert!(!PlaybackArchiveSelection::Omit.materializes(RecordingState::Sealed));
     }
 }

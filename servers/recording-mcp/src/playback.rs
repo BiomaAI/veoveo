@@ -49,6 +49,7 @@ pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v9";
 pub const RECORDING_GRANT_HEADER: &str = "x-veoveo-recording-grant";
 const TOKEN_ISSUER: &str = "veoveo-recording-playback";
 const MAX_TOKEN_TTL: Duration = Duration::from_secs(5 * 60);
+const MAX_CATALOG_IDLE: Duration = MAX_TOKEN_TTL;
 const MAX_VIRTUAL_CATALOGS: usize = 64;
 
 type BoxedStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'static>>;
@@ -410,6 +411,7 @@ impl PlaybackManager {
                 "recording grant does not admit Redap access",
             ));
         }
+        self.prune_catalogs();
         let key = virtual_catalog_key(&grant);
         let slot = self
             .inner
@@ -433,10 +435,12 @@ impl PlaybackManager {
         })
     }
 
-    fn prune_catalogs(&self) {
+    pub fn prune_catalogs(&self) {
         let Ok(mut catalogs) = self.inner.catalogs.lock() else {
             return;
         };
+        let now = Utc::now();
+        catalogs.retain(|_, slot| !catalog_slot_is_idle(slot, now));
         while catalogs.len() > MAX_VIRTUAL_CATALOGS {
             let Some(oldest) = catalogs
                 .iter()
@@ -448,6 +452,14 @@ impl PlaybackManager {
             catalogs.remove(&oldest);
         }
     }
+}
+
+fn catalog_slot_is_idle(slot: &CatalogSlot, now: DateTime<Utc>) -> bool {
+    slot.accessed_at.lock().ok().is_some_and(|accessed_at| {
+        now.signed_duration_since(*accessed_at)
+            .to_std()
+            .is_ok_and(|idle| idle > MAX_CATALOG_IDLE)
+    })
 }
 
 fn validate_viewer_grant(
@@ -844,6 +856,28 @@ mod tests {
             playback_dataset_id(dataset_id).unwrap().to_string()
         );
         assert_eq!(store_id.recording_id().as_str(), recording_id.to_string());
+    }
+
+    #[test]
+    fn virtual_catalog_slots_expire_after_the_maximum_token_idle_window() {
+        let now = Utc::now();
+        let slot = |accessed_at| CatalogSlot {
+            state: AsyncMutex::new(None),
+            accessed_at: Mutex::new(accessed_at),
+        };
+
+        assert!(catalog_slot_is_idle(
+            &slot(now - chrono::TimeDelta::minutes(6)),
+            now
+        ));
+        assert!(!catalog_slot_is_idle(
+            &slot(now - chrono::TimeDelta::minutes(4)),
+            now
+        ));
+        assert!(!catalog_slot_is_idle(
+            &slot(now + chrono::TimeDelta::minutes(1)),
+            now
+        ));
     }
 }
 

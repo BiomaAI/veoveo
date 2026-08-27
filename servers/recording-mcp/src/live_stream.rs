@@ -68,7 +68,12 @@ pub fn authorized_live_rrd_stream(
         loop {
             let next = loop {
                 let plan = recordings
-                    .playback_plan(&identity, None, recording_id)
+                    .playback_plan(
+                        &identity,
+                        None,
+                        recording_id,
+                        crate::service::PlaybackArchiveSelection::Omit,
+                    )
                     .await
                     .map_err(|error| io::Error::other(format!("authorize live recording: {error}")))?
                     .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "recording is not visible"))?;

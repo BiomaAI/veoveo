@@ -291,7 +291,12 @@ impl RecordingService {
         let dataset_id = RecordingDatasetId::from_uuid(request.dataset_id);
         let recording_id = RecordingId::from_uuid(request.recording_id);
         let plan = self
-            .playback_plan(identity, Some(artifact_caller), recording_id)
+            .playback_plan(
+                identity,
+                Some(artifact_caller),
+                recording_id,
+                super::PlaybackArchiveSelection::Complete,
+            )
             .await?
             .context("recording projection source is not visible")?;
         ensure!(
