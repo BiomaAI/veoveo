@@ -1,21 +1,18 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4164a87ad661fa571c2de115faf4cf65ef68a7db9a2037ff580a5c697835410c",
-  "updatedAt": "2026-08-27T04:41:33Z",
+  "buildDigest": "sha256:c3b3e8ccd22354f0495e9a839b5b1e34a8ab43297b02cfdccc00ee199122a038",
+  "updatedAt": "2026-08-27T04:48:12Z",
   "checks": [
     {
-      "name": "gitops-revision-preflight",
+      "name": "recording-uav-closure",
       "command": [
-        "env",
-        "CARGO_BUILD_JOBS=4",
         "cargo",
-        "test",
-        "-p",
-        "veoveo-deployment-smoke"
+        "xtask",
+        "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T04:41:33Z",
-      "durationSeconds": 1.57323193,
+      "finishedAt": "2026-08-27T04:48:12Z",
+      "durationSeconds": 1.8575849770000001,
       "detail": "completed successfully"
     }
   ]
