@@ -144,6 +144,15 @@ fn validate_recording_catalog_contract(repository: &RepositoryContext) -> Result
     println!(
         "HINT before image work, run `cargo xtask release preflight --expected-growth-gib <estimate> --kubernetes-node <node>`"
     );
+    println!(
+        "HINT local-path PVC capacity is not a filesystem quota; compare live recording storage diagnostics with node free space and DiskPressure"
+    );
+    println!(
+        "HINT hard-cut resets must delete large SurrealDB row sets in bounded record-ID batches; one unbounded changefeed delete can exhaust database memory"
+    );
+    println!(
+        "HINT suspend the owning GitOps reconciler before quiescing recording Deployments; a manual scale can be drift-corrected during the reset"
+    );
     Ok(())
 }
 
