@@ -22,6 +22,8 @@ is assembled.
 Run each relevant existing command through the report wrapper. The wrapper executes
 the command directly without a shell, streams its normal output to the terminal, and
 updates `testing/local-test-report.json` whether the command passes or fails.
+It supplies the repository-managed `protoc` binary unless the caller explicitly
+sets `PROTOC`, which keeps transitive Prost build scripts independent of host packages.
 
 ```bash
 cargo xtask test-report run --name rust-workspace -- \

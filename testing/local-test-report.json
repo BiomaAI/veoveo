@@ -1,38 +1,51 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c6283a47550b771091d318bd3b31d3aaf46718eba41c7d4786c69e4239437866",
-  "updatedAt": "2026-08-26T21:54:26Z",
+  "buildDigest": "sha256:4a94757c8758313fcc5871c2b8bc40118698b0d390ed054d8618e5eb6f931679",
+  "updatedAt": "2026-08-27T00:33:43Z",
   "checks": [
     {
-      "name": "console-apps-browser-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "-p",
-        "veoveo-browser-smoke",
-        "--tests",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-26T21:54:26Z",
-      "durationSeconds": 2.374018361,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "console-apps-browser-tests",
+      "name": "recording-mcp",
       "command": [
         "cargo",
         "test",
-        "--locked",
         "-p",
-        "veoveo-browser-smoke"
+        "veoveo-recording-mcp",
+        "--features",
+        "redap"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-26T21:54:06Z",
-      "durationSeconds": 2.304047148,
+      "finishedAt": "2026-08-27T00:33:41Z",
+      "durationSeconds": 54.638675093,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-redap-profile",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-recording-mcp",
+        "--features",
+        "redap-conformance",
+        "pinned_official_redap"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T00:32:45Z",
+      "durationSeconds": 16.681994328000002,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "xtask-test-report",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "test_report"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T00:33:43Z",
+      "durationSeconds": 0.576067606,
       "detail": "completed successfully"
     }
   ]

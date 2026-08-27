@@ -1077,6 +1077,30 @@ mod tests {
         assert_ne!(second.access.session_id, first.access.session_id);
     }
 
+    #[cfg(feature = "redap-conformance")]
+    #[tokio::test]
+    async fn pinned_official_redap_query_validation_passes() {
+        re_redap_tests::query_dataset_should_fail(RerunCloudHandlerBuilder::new().build()).await;
+    }
+
+    #[cfg(feature = "redap-conformance")]
+    #[tokio::test]
+    async fn pinned_official_redap_unknown_segment_filter_passes() {
+        re_redap_tests::query_dataset_unknown_segment_id_returns_empty(
+            RerunCloudHandlerBuilder::new().build(),
+        )
+        .await;
+    }
+
+    #[cfg(feature = "redap-conformance")]
+    #[tokio::test]
+    async fn pinned_official_redap_fetch_chunks_passes() {
+        re_redap_tests::multi_dataset_fetch_chunk_completeness(
+            RerunCloudHandlerBuilder::new().build(),
+        )
+        .await;
+    }
+
     fn manager() -> PlaybackManager {
         PlaybackManager::new(&STANDARD.encode([7_u8; 32]), "https://veoveo.example").unwrap()
     }
