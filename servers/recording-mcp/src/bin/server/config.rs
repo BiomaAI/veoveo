@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use secrecy::SecretString;
+use url::Url;
 use veoveo_mcp_contract::parse_allowed_host_authority;
+use veoveo_recording_hub::ClientAssertionAlgorithm;
 
 #[derive(Parser)]
 #[command(name = "server", about = "Governed Recording MCP server")]
@@ -11,6 +13,78 @@ pub(super) struct Args {
     pub(super) port: u16,
     #[arg(long, env = "RECORDING_SPOOL_DIR")]
     pub(super) spool_dir: PathBuf,
+    #[arg(
+        long,
+        env = "RECORDING_CATALOG_CACHE_DIR",
+        default_value = "/recording-cache"
+    )]
+    pub(super) catalog_cache_dir: PathBuf,
+    #[arg(
+        long,
+        env = "RECORDING_CATALOG_CACHE_MANAGED_BYTES",
+        default_value_t = 8 * 1024 * 1024 * 1024_u64
+    )]
+    pub(super) catalog_cache_managed_bytes: u64,
+    #[arg(
+        long,
+        env = "RECORDING_CATALOG_CACHE_MINIMUM_FREE_BYTES",
+        default_value_t = 1024 * 1024 * 1024_u64
+    )]
+    pub(super) catalog_cache_minimum_free_bytes: u64,
+    #[arg(
+        long,
+        env = "RECORDING_PROJECTION_SCRATCH_BYTES",
+        default_value_t = 96 * 1024 * 1024_u64
+    )]
+    pub(super) projection_scratch_bytes: u64,
+    #[arg(
+        long,
+        env = "RECORDING_PROJECTION_MINIMUM_FREE_BYTES",
+        default_value_t = 1024 * 1024 * 1024_u64
+    )]
+    pub(super) projection_minimum_free_bytes: u64,
+    #[arg(
+        long,
+        env = "RECORDING_PROJECTION_CONCURRENCY",
+        default_value_t = 2,
+        value_parser = clap::value_parser!(u8).range(1..=2)
+    )]
+    pub(super) projection_concurrency: u8,
+    #[arg(
+        long,
+        env = "RECORDING_PROJECTION_DEADLINE_MS",
+        default_value_t = 15_000,
+        value_parser = clap::value_parser!(u64).range(1..=15_000)
+    )]
+    pub(super) projection_deadline_ms: u64,
+    #[arg(long, env = "VEOVEO_GATEWAY_URL")]
+    pub(super) gateway_url: Url,
+    #[arg(long, env = "VEOVEO_RECORDING_GATEWAY_TRANSPORT_URL")]
+    pub(super) gateway_transport_url: Option<Url>,
+    #[arg(long, env = "VEOVEO_RECORDING_PUBLICATION_RESOURCE")]
+    pub(super) publication_protected_resource: Url,
+    #[arg(
+        long,
+        env = "VEOVEO_RECORDING_PUBLICATION_PROFILE",
+        default_value = "recording-publish"
+    )]
+    pub(super) publication_profile: String,
+    #[arg(
+        long,
+        env = "VEOVEO_RECORDING_MCP_PUBLISHER_CLIENT_ID",
+        default_value = "recording-mcp-publisher"
+    )]
+    pub(super) publication_client_id: String,
+    #[arg(long, env = "VEOVEO_RECORDING_MCP_PUBLISHER_PRIVATE_KEY_PEM_FILE")]
+    pub(super) publication_private_key_pem_file: PathBuf,
+    #[arg(long, env = "VEOVEO_RECORDING_MCP_PUBLISHER_KEY_ID")]
+    pub(super) publication_key_id: String,
+    #[arg(
+        long,
+        env = "VEOVEO_RECORDING_MCP_PUBLISHER_SIGNING_ALGORITHM",
+        default_value = "rs256"
+    )]
+    pub(super) publication_signing_algorithm: ClientAssertionAlgorithm,
     #[arg(
         long,
         env = "ARTIFACT_SERVICE_URL",

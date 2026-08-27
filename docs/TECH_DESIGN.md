@@ -218,7 +218,7 @@ migrations themselves.
   JWT revocations;
 - tasks, owners, leases, results, retention pins, provider jobs/events, and usage;
 - artifact blobs, occurrences, grants, share links, and write capabilities;
-- coordinate frames/operations, recordings/segments, agents/episodes/wakes;
+- coordinate frames/operations, recording datasets/layers, agents/episodes/wakes;
 - audit events and the transactional outbox.
 
 Cross-process state changes write their domain record and outbox event in one

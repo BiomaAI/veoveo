@@ -471,7 +471,7 @@ async fn uav_sim_verify_with_visual_hold(
         "stream__stop_live_session",
         "stream__run_recording",
         "reason__analyze_recording",
-        "recording__query_recording",
+        "recording__create_recording_projection",
     ] {
         contains(&info, tool)?;
     }
@@ -503,6 +503,14 @@ async fn uav_sim_verify_with_visual_hold(
     ensure!(
         uuid::Uuid::parse_str(recording_id)?.get_version_num() == 7,
         "UAV recording identity must be UUIDv7"
+    );
+    let recording_catalog_entry = operator
+        .resource(&recording_uri, Duration::from_secs(60))
+        .await?;
+    let dataset_id = json_string(&recording_catalog_entry, "/dataset_id")?.to_owned();
+    ensure!(
+        uuid::Uuid::parse_str(&dataset_id)?.get_version_num() == 7,
+        "UAV recording dataset identity must be UUIDv7"
     );
     let camera_entity = json_string(&state, "/recordings/0/camera_streams/0")?.to_owned();
 
@@ -710,6 +718,7 @@ async fn uav_sim_verify_with_visual_hold(
 
         wait_for_recording_camera_range(
             &operator,
+            &dataset_id,
             recording_id,
             &camera_entity,
             freshness_probe_start,
@@ -1404,6 +1413,7 @@ async fn download_governed_json_artifact(
 
 async fn wait_for_recording_camera_range(
     operator: &OperatorClient<'_>,
+    dataset_id: &str,
     recording_id: &str,
     camera_entity: &str,
     range_start: i64,
@@ -1412,35 +1422,44 @@ async fn wait_for_recording_camera_range(
 ) -> Result<Value> {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
-        let recording = operator
+        let projection = operator
             .call_tool(
-                "recording__query_recording",
+                "recording__create_recording_projection",
                 serde_json::json!({
+                    "dataset_id": dataset_id,
                     "recording_id": recording_id,
-                    "entities": camera_entity,
+                    "entity_paths": [camera_entity],
+                    "component_ids": ["VideoStream:sample"],
                     "timeline": "simulation_time",
-                    "range": {
+                    "sampling": {
+                        "kind": "range",
                         "start": range_start,
                         "end": range_end
                     },
-                    "max_rows": 1
+                    "sparse_fill": "none",
+                    "maximum_entities": 1,
+                    "maximum_columns": 1,
+                    "maximum_samples": 1000,
+                    "maximum_rows": 10000,
+                    "maximum_bytes": 33554432,
+                    "deadline_ms": 15000,
+                    "idempotency_key": uuid::Uuid::now_v7().to_string(),
+                    "units": {},
+                    "coordinate_frame_refs": []
                 }),
             )
             .await?;
-        if recording
-            .get("rows_by_recording")
-            .and_then(Value::as_object)
-            .is_some_and(|rows| {
-                rows.values()
-                    .any(|count| count.as_u64().is_some_and(|count| count > 0))
-            })
+        if projection
+            .pointer("/result/row_count")
+            .and_then(Value::as_u64)
+            .is_some_and(|count| count > 0)
         {
-            return Ok(recording);
+            return Ok(projection);
         }
         if tokio::time::Instant::now() >= deadline {
             bail!(
-                "Recording Hub exposed no durable live UAV camera samples in range \
-                 {range_start}..={range_end} within {timeout:?}: {recording}"
+                "Recording Catalog exposed no durable live UAV camera samples in range \
+                 {range_start}..={range_end} within {timeout:?}: {projection}"
             );
         }
         tokio::time::sleep(Duration::from_secs(5)).await;

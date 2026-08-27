@@ -7,8 +7,7 @@ use axum::{
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use veoveo_mcp_contract::{GatewayInternalIdentity, GatewayInternalTokenVerifier, PlaneCaller};
 
-#[derive(Clone)]
-pub(super) struct ForwardedBearer(pub(super) String);
+pub(super) const ARTIFACT_READ_AUTHORIZATION_HEADER: &str = "x-veoveo-artifact-read-authorization";
 
 #[derive(Clone)]
 pub(super) struct InternalAuthState {
@@ -34,7 +33,6 @@ pub(super) async fn authenticate(
             return (StatusCode::UNAUTHORIZED, "invalid gateway authorization").into_response();
         }
     };
-    request.extensions_mut().insert(ForwardedBearer(token));
     request.extensions_mut().insert(identity);
     next.run(request).await
 }
@@ -53,31 +51,40 @@ pub(super) fn identity(
         .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
 }
 
-pub(super) fn caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, McpError> {
+pub(super) fn artifact_caller(
+    identity: GatewayInternalIdentity,
+    headers: &HeaderMap,
+) -> Result<PlaneCaller, &'static str> {
+    let bearer = bearer_from_name(headers, ARTIFACT_READ_AUTHORIZATION_HEADER)?;
+    Ok(PlaneCaller {
+        memberships: identity.actor.group_memberships(),
+        identity,
+        bearer_token: bearer.to_owned(),
+    })
+}
+
+pub(super) fn artifact_caller_from_context(
+    context: &RequestContext<RoleServer>,
+    identity: GatewayInternalIdentity,
+) -> Result<PlaneCaller, McpError> {
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
         .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
-    let identity = parts
-        .extensions
-        .get::<GatewayInternalIdentity>()
-        .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
-    let bearer = parts
-        .extensions
-        .get::<ForwardedBearer>()
-        .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
-    Ok(PlaneCaller {
-        memberships: identity.actor.group_memberships(),
-        identity,
-        bearer_token: bearer,
-    })
+    artifact_caller(identity, &parts.headers)
+        .map_err(|_| McpError::invalid_request("Artifact read authority missing", None))
 }
 
 fn bearer(headers: &HeaderMap) -> Result<&str, &'static str> {
+    bearer_from_name(headers, AUTHORIZATION)
+}
+
+fn bearer_from_name<'a>(
+    headers: &'a HeaderMap,
+    name: impl axum::http::header::AsHeaderName,
+) -> Result<&'a str, &'static str> {
     let header = headers
-        .get(AUTHORIZATION)
+        .get(name)
         .and_then(|value| value.to_str().ok())
         .ok_or("missing authorization")?;
     let Some((scheme, token)) = header.split_once(' ') else {

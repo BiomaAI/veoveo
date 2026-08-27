@@ -8,12 +8,12 @@ use serde_json::Value;
 #[derive(Clone, Copy)]
 pub(super) enum RecordingPrompt {
     Inspect,
-    Query,
+    Project,
     Seal,
 }
 
 impl RecordingPrompt {
-    pub(super) const ALL: [Self; 3] = [Self::Inspect, Self::Query, Self::Seal];
+    pub(super) const ALL: [Self; 3] = [Self::Inspect, Self::Project, Self::Seal];
 
     pub(super) fn by_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|prompt| prompt.name() == name)
@@ -22,7 +22,7 @@ impl RecordingPrompt {
     fn name(self) -> &'static str {
         match self {
             Self::Inspect => "recording-inspect",
-            Self::Query => "recording-query",
+            Self::Project => "recording-project",
             Self::Seal => "recording-seal",
         }
     }
@@ -34,13 +34,15 @@ impl RecordingPrompt {
                 "Inspect governed recording metadata and segment state.",
                 vec![required("recording_id", "Recording UUIDv7.")],
             ),
-            Self::Query => (
-                "Query recording",
-                "Draft a bounded temporal recording query.",
+            Self::Project => (
+                "Project recording",
+                "Draft a deterministic bounded Apache Arrow projection.",
                 vec![
+                    required("dataset_id", "Recording dataset UUIDv7."),
                     required("recording_id", "Recording UUIDv7."),
                     optional("timeline", "Rerun timeline name."),
-                    optional("entities", "Rerun entity path filter."),
+                    optional("entity_path", "Exact Rerun entity path."),
+                    optional("component_id", "Exact Rerun component identifier."),
                 ],
             ),
             Self::Seal => (
@@ -55,25 +57,31 @@ impl RecordingPrompt {
     pub(super) fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
         #[derive(Deserialize)]
         struct Args {
+            dataset_id: Option<String>,
             recording_id: String,
             timeline: Option<String>,
-            entities: Option<String>,
+            entity_path: Option<String>,
+            component_id: Option<String>,
         }
         let args: Args = serde_json::from_value(Value::Object(arguments.unwrap_or_default()))
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
         let text = match self {
             Self::Inspect => format!(
-                "Read recording://recordings/{} and recording://recordings/{}/segments. Report lifecycle state, classification, labels, segment health, and artifact availability.",
+                "Read recording://recordings/{} and recording://recordings/{}/layers. Report lifecycle state, classification, labels, layer health, and Artifact availability.",
                 args.recording_id, args.recording_id
             ),
-            Self::Query => format!(
-                "Call query_recording with recording_id {}, timeline {}, entities {}, an inclusive range when the question is time-bounded, and a bounded max_rows. Summarize returned observations without claiming rows beyond the response.",
+            Self::Project => format!(
+                "Call create_recording_projection with dataset_id {}, recording_id {}, timeline {}, exact entity path {}, exact component identifier {}, explicit sampling, fixed row/byte/deadline bounds, and a fresh idempotency key. Consume the returned Arrow stream through the authorized host path and summarize only the projected result metadata.",
+                args.dataset_id.as_deref().unwrap_or("<dataset UUIDv7>"),
                 args.recording_id,
                 args.timeline.as_deref().unwrap_or("tick"),
-                args.entities.as_deref().unwrap_or("/**")
+                args.entity_path.as_deref().unwrap_or("<exact entity path>"),
+                args.component_id
+                    .as_deref()
+                    .unwrap_or("<exact component identifier>")
             ),
             Self::Seal => format!(
-                "Read recording://recordings/{0} and recording://recordings/{0}/segments. Only if every segment is frozen, call seal_recording for {0}; then report the manifest and segment artifact URIs.",
+                "Read recording://recordings/{0} and recording://recordings/{0}/layers. Only if every immutable layer is committed, call seal_recording for {0}; then report the manifest and layer Artifact URIs.",
                 args.recording_id
             ),
         };

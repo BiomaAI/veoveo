@@ -572,6 +572,7 @@ impl ServerHandler for TimeMcp {
                             arguments_json: "{}",
                         },
                     ],
+                    stream_result: None,
                 },
             );
             return Ok(ReadResourceResult::new(vec![

@@ -14,14 +14,15 @@ use re_log_types::{LogMsg, StoreKind};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     GatewayInternalResourceIdentity, PrincipalKind as ContractPrincipalKind, ProtectedResourceId,
+    PutArtifactRequest,
 };
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey,
-    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId,
-    RecordingIngestBatchDraft, RecordingIngestBatchState, RecordingIngestQuota,
-    RecordingIngestQuotaCheckpoint, RecordingIngestStreamId, RecordingIngestStreamRecord,
-    RecordingIngestStreamState, RecordingState, SegmentDraft, SegmentId, SegmentRecord,
-    SegmentState, StoreError, TenantId,
+    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDatasetDraft, RecordingDatasetId,
+    RecordingDraft, RecordingId, RecordingIngestBatchDraft, RecordingIngestBatchState,
+    RecordingIngestQuota, RecordingIngestQuotaCheckpoint, RecordingIngestStreamId,
+    RecordingIngestStreamRecord, RecordingIngestStreamState, RecordingLayerDraft, RecordingLayerId,
+    RecordingLayerRecord, RecordingLayerState, RecordingState, StoreError, TenantId,
 };
 use veoveo_recording_protocol::{
     BatchValidationError, DEFAULT_MAXIMUM_BATCH_BYTES, REQUIRED_SCOPE,
@@ -33,8 +34,10 @@ use veoveo_recording_protocol::{
 };
 
 use crate::diagnostics::IngestDiagnostics;
-use crate::governance::{authority_record, governed_classification, governed_labels};
+use crate::governance::{governed_classification, governed_labels};
 use crate::inspect_segment;
+use crate::invocation_authority_record;
+use crate::publication::GatewayLayerPublisher;
 
 const VIDEO_STREAM_MARKER: &str = ".video-stream";
 
@@ -54,8 +57,9 @@ pub struct RecordingIngestServiceConfig {
     pub spool_root: PathBuf,
     pub protected_resource: ProtectedResourceId,
     pub maximum_batch_bytes: u64,
-    pub segment_max_bytes: u64,
-    pub segment_max_age_seconds: u64,
+    pub capture_layer_max_bytes: u64,
+    pub capture_layer_max_age_seconds: u64,
+    pub minimum_free_bytes: u64,
 }
 
 impl RecordingIngestServiceConfig {
@@ -66,16 +70,20 @@ impl RecordingIngestServiceConfig {
         );
         ensure!(self.spool_root.is_absolute(), "spool root must be absolute");
         ensure!(
+            self.minimum_free_bytes > 0,
+            "recording spool minimum free bytes must be positive"
+        );
+        ensure!(
             self.maximum_batch_bytes > 0 && self.maximum_batch_bytes <= DEFAULT_MAXIMUM_BATCH_BYTES,
             "maximum batch bytes must be in 1..={DEFAULT_MAXIMUM_BATCH_BYTES}"
         );
         ensure!(
-            self.segment_max_bytes >= self.maximum_batch_bytes,
-            "segment maximum bytes must hold at least one maximum-size batch"
+            self.capture_layer_max_bytes >= self.maximum_batch_bytes,
+            "capture-layer maximum bytes must hold at least one maximum-size batch"
         );
         ensure!(
-            self.segment_max_age_seconds > 0,
-            "segment maximum age must be positive"
+            self.capture_layer_max_age_seconds > 0,
+            "capture-layer maximum age must be positive"
         );
         ensure!(
             self.journal_root != self.spool_root,
@@ -178,6 +186,7 @@ pub struct RecordingIngestService {
     active_segments: Arc<std::sync::Mutex<BTreeMap<RecordingIngestStreamId, ActiveIngestSegment>>>,
     segment_byte_lengths: Arc<std::sync::Mutex<BTreeMap<PathBuf, u64>>>,
     diagnostics: IngestDiagnostics,
+    publisher: GatewayLayerPublisher,
 }
 
 #[derive(Clone)]
@@ -189,12 +198,16 @@ struct AuthorizedIngestStream {
 
 #[derive(Clone)]
 struct ActiveIngestSegment {
-    segment: SegmentRecord,
+    layer: RecordingLayerRecord,
     path: PathBuf,
 }
 
 impl RecordingIngestService {
-    pub fn new(store: PlatformStore, config: RecordingIngestServiceConfig) -> Result<Self> {
+    pub fn new(
+        store: PlatformStore,
+        config: RecordingIngestServiceConfig,
+        publisher: GatewayLayerPublisher,
+    ) -> Result<Self> {
         config.validate()?;
         std::fs::create_dir_all(&config.journal_root).with_context(|| {
             format!("creating ingest journal {}", config.journal_root.display())
@@ -212,6 +225,7 @@ impl RecordingIngestService {
             active_segments: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             segment_byte_lengths: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             diagnostics: IngestDiagnostics::default(),
+            publisher,
         })
     }
 
@@ -222,6 +236,13 @@ impl RecordingIngestService {
     /// Verify that the durable catalog dependency can serve a query.
     pub async fn healthcheck(&self) -> Result<()> {
         self.store.healthcheck().await?;
+        let available = fs4::available_space(&self.config.spool_root)?;
+        self.diagnostics
+            .observe_spool_headroom(available, self.config.minimum_free_bytes);
+        ensure!(
+            available >= self.config.minimum_free_bytes,
+            "recording spool is below its minimum free-space headroom"
+        );
         Ok(())
     }
 
@@ -255,15 +276,24 @@ impl RecordingIngestService {
                 );
             }
         }
-        let authority = authority_record(&gateway.authority);
+        let authority = invocation_authority_record(&gateway.authority);
         let classification = governed_classification(&authority, &producer.classification);
         let labels = governed_labels(&authority, &producer.labels);
+        let dataset = self
+            .store
+            .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+                identity.clone(),
+                producer.dataset.clone(),
+            ))
+            .await?;
+        let dataset_id =
+            typed_record_uuid::<RecordingDatasetId>(&dataset.id, RecordingDatasetId::TABLE)?;
         let recording = self
             .store
             .create_recording(RecordingDraft {
                 identity: identity.clone(),
                 authority,
-                dataset: producer.dataset.clone(),
+                dataset_id,
                 application_id: application_id.to_owned(),
                 recording_key: recording_key.to_owned(),
                 classification,
@@ -354,17 +384,17 @@ impl RecordingIngestService {
             if recording.state != RecordingState::Live {
                 continue;
             }
-            let segments = self
+            let layers = self
                 .store
-                .recording_segments(identity.tenant_id, recording_id, 10_000)
+                .recording_layers(identity.tenant_id, recording_id, 10_000)
                 .await?;
-            if failed_recordings.contains(&recording_id) || segments.is_empty() {
+            if failed_recordings.contains(&recording_id) || layers.is_empty() {
                 self.store
                     .interrupt_recording(
                         identity,
                         recording_id,
                         recording.last_data_at,
-                        if segments.is_empty() {
+                        if layers.is_empty() {
                             "producer superseded recording before durable data"
                         } else {
                             "producer superseded a recording with a failed ingest stream"
@@ -458,6 +488,21 @@ impl RecordingIngestService {
             &stream.application_id,
             &stream.recording_key,
         )?;
+        let batch_bytes = u64::try_from(batch.encoded_rrd.len())?;
+        let maximum_layer_bytes = self
+            .config
+            .capture_layer_max_bytes
+            .checked_add(self.config.maximum_batch_bytes)
+            .context("recording layer reservation overflow")?;
+        let reservation_bytes = batch_bytes
+            .checked_mul(2)
+            .and_then(|bytes| {
+                maximum_layer_bytes
+                    .checked_mul(2)
+                    .and_then(|layer| bytes.checked_add(layer))
+            })
+            .context("recording spool reservation overflow")?;
+        let _spool_reservation = self.reserve_spool(reservation_bytes)?;
         let (journal_path, relative_path) =
             self.write_journal(identity.tenant_id, stream_id, batch)?;
         let outcome = self
@@ -596,7 +641,7 @@ impl RecordingIngestService {
                     gateway.authority.work_context.as_str(),
                 )?
                 .record_id()
-            && recording.authority == authority_record(&gateway.authority))
+            && recording.authority == invocation_authority_record(&gateway.authority))
         {
             return Err(RecordingBlueprintPublicationError::AssociationMismatch.into());
         }
@@ -670,11 +715,11 @@ impl RecordingIngestService {
             let recording_id =
                 typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
             let finished_at = stream.finished_at.unwrap_or_else(chrono::Utc::now);
-            let segments = self
+            let layers = self
                 .store
-                .recording_segments(identity.tenant_id, recording_id, 10_000)
+                .recording_layers(identity.tenant_id, recording_id, 10_000)
                 .await?;
-            if segments.is_empty() {
+            if layers.is_empty() {
                 self.store
                     .interrupt_recording(
                         &identity,
@@ -894,6 +939,23 @@ impl RecordingIngestService {
         Ok((path, relative))
     }
 
+    fn reserve_spool(&self, byte_len: u64) -> Result<crate::diagnostics::SpoolReservation> {
+        let available = fs4::available_space(&self.config.spool_root)?;
+        let required = byte_len
+            .checked_add(self.config.minimum_free_bytes)
+            .context("recording spool headroom calculation overflow")?;
+        if available < required {
+            self.diagnostics
+                .reject_spool_headroom(available, self.config.minimum_free_bytes);
+            anyhow::bail!(
+                "recording spool has insufficient headroom: {available} bytes available, {required} required"
+            );
+        }
+        Ok(self
+            .diagnostics
+            .reserve_spool(byte_len, available, self.config.minimum_free_bytes))
+    }
+
     async fn materialize(
         &self,
         identity: &PlatformIdentity,
@@ -964,7 +1026,7 @@ impl RecordingIngestService {
         identity: &PlatformIdentity,
         stream_id: RecordingIngestStreamId,
         stream: &RecordingIngestStreamRecord,
-    ) -> Result<(SegmentRecord, PathBuf)> {
+    ) -> Result<(RecordingLayerRecord, PathBuf)> {
         if let Some(active) = self
             .active_segments
             .lock()
@@ -972,41 +1034,31 @@ impl RecordingIngestService {
             .get(&stream_id)
             .cloned()
         {
-            return Ok((active.segment, active.path));
+            return Ok((active.layer, active.path));
         }
         let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
-        let segments = self
+        let layers = self
             .store
-            .recording_segments(identity.tenant_id, recording_id, 10_000)
+            .recording_layers(identity.tenant_id, recording_id, 10_000)
             .await?;
-        if let Some(segment) = segments
+        if let Some(layer) = layers
             .iter()
-            .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
-            .max_by_key(|segment| segment.ordinal)
-        {
-            let path = self.segment_path(segment)?;
-            if path.exists() {
-                remove_directory_if_exists(&ingest_segment_parts_directory(&path))?;
-            }
-        }
-        if let Some(segment) = segments
-            .iter()
-            .filter(|segment| segment.state == SegmentState::Writing)
-            .max_by_key(|segment| segment.ordinal)
+            .filter(|layer| layer.state == RecordingLayerState::Writing)
+            .max_by_key(|layer| layer.ordinal)
             .cloned()
         {
-            let path = self.segment_path(&segment)?;
+            let path = self.layer_path(&layer)?;
             if path.exists() {
-                self.freeze_segment(identity, stream_id, segment, &path)
+                self.freeze_segment(identity, stream_id, layer, &path)
                     .await?;
             } else {
-                self.remember_active_segment(stream_id, &segment, &path)?;
-                return Ok((segment, path));
+                self.remember_active_segment(stream_id, &layer, &path)?;
+                return Ok((layer, path));
             }
         }
-        let ordinal = segments
+        let ordinal = layers
             .iter()
-            .map(|segment| segment.ordinal)
+            .filter_map(|layer| layer.ordinal)
             .max()
             .map_or(0, |ordinal| ordinal + 1);
         let directory = self
@@ -1025,19 +1077,18 @@ impl RecordingIngestService {
             .to_str()
             .context("segment path is not UTF-8")?
             .to_owned();
-        let segment = self
+        let layer = self
             .store
-            .open_segment(SegmentDraft {
-                identity: identity.clone(),
+            .open_recording_layer(RecordingLayerDraft::capture(
+                identity.clone(),
                 recording_id,
-                segment_key: relative_path.clone(),
                 ordinal,
                 relative_path,
-                start_time: Some(chrono::Utc::now()),
-            })
+                Some(chrono::Utc::now()),
+            )?)
             .await?;
-        self.remember_active_segment(stream_id, &segment, &path)?;
-        Ok((segment, path))
+        self.remember_active_segment(stream_id, &layer, &path)?;
+        Ok((layer, path))
     }
 
     async fn freeze_active_segment(
@@ -1048,21 +1099,21 @@ impl RecordingIngestService {
     ) -> Result<()> {
         if let Some(active) = self.take_active_segment(stream_id)? {
             return self
-                .freeze_segment(identity, stream_id, active.segment, &active.path)
+                .freeze_segment(identity, stream_id, active.layer, &active.path)
                 .await;
         }
         let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
-        let segments = self
+        let layers = self
             .store
-            .recording_segments(identity.tenant_id, recording_id, 10_000)
+            .recording_layers(identity.tenant_id, recording_id, 10_000)
             .await?;
-        if let Some(segment) = segments
+        if let Some(layer) = layers
             .into_iter()
-            .filter(|segment| segment.state == SegmentState::Writing)
-            .max_by_key(|segment| segment.ordinal)
+            .filter(|layer| layer.state == RecordingLayerState::Writing)
+            .max_by_key(|layer| layer.ordinal)
         {
-            let path = self.segment_path(&segment)?;
-            self.freeze_segment(identity, stream_id, segment, &path)
+            let path = self.layer_path(&layer)?;
+            self.freeze_segment(identity, stream_id, layer, &path)
                 .await?;
         }
         Ok(())
@@ -1072,70 +1123,112 @@ impl RecordingIngestService {
         &self,
         identity: &PlatformIdentity,
         stream_id: RecordingIngestStreamId,
-        segment: SegmentRecord,
+        layer: RecordingLayerRecord,
         path: &Path,
     ) -> Result<()> {
         self.forget_active_segment(stream_id)?;
-        let segment_id = typed_record_uuid::<SegmentId>(&segment.id, SegmentId::TABLE)?;
+        let layer_id = typed_record_uuid::<RecordingLayerId>(&layer.id, RecordingLayerId::TABLE)?;
         let current = self
             .store
-            .segment(identity.tenant_id, segment_id)
+            .recording_layer(identity.tenant_id, layer_id)
             .await?
-            .context("recording segment disappeared before freeze")?;
-        if matches!(current.state, SegmentState::Frozen | SegmentState::Sealed) {
-            let expected_byte_len = u64::try_from(current.byte_len)?;
-            let expected_sha256 = current
-                .sha256
-                .clone()
-                .context("cataloged recording segment has no digest")?;
-            let path = path.to_path_buf();
+            .context("recording layer disappeared before publication")?;
+        if current.state == RecordingLayerState::Committed {
             let parts_directory = ingest_segment_parts_directory(&path);
-            let validation_parts_directory = parts_directory.clone();
+            let cleanup_path = path.to_path_buf();
+            let cleanup_parts_directory = parts_directory.clone();
             tokio::task::spawn_blocking(move || {
-                let inspection = inspect_segment(&path)?;
-                ensure!(
-                    inspection.byte_len == expected_byte_len
-                        && inspection.sha256 == expected_sha256,
-                    "cataloged recording segment identity changed"
-                );
-                remove_directory_if_exists(&validation_parts_directory)
+                remove_if_exists(&cleanup_path)?;
+                remove_directory_if_exists(&cleanup_parts_directory)
             })
             .await
-            .context("joining cataloged segment validation")??;
+            .context("joining committed layer cleanup")??;
             self.forget_segment_byte_len(&parts_directory)?;
             return Ok(());
         }
         ensure!(
-            current.state == SegmentState::Writing,
-            "recording segment cannot be frozen from state {:?}",
+            matches!(
+                current.state,
+                RecordingLayerState::Writing | RecordingLayerState::Staged
+            ),
+            "recording layer cannot be published from state {:?}",
             current.state
         );
-        let recording_id =
-            typed_record_uuid::<RecordingId>(&segment.recording, RecordingId::TABLE)?;
+        let recording_id = typed_record_uuid::<RecordingId>(&layer.recording, RecordingId::TABLE)?;
+        let recording = self
+            .store
+            .recording(identity.tenant_id, recording_id)
+            .await?
+            .context("recording layer target disappeared")?;
+        let dataset_id =
+            typed_record_uuid::<RecordingDatasetId>(&recording.dataset, RecordingDatasetId::TABLE)?;
         let parts_directory = ingest_segment_parts_directory(path);
         let freeze_path = path.to_path_buf();
         let freeze_parts_directory = parts_directory.clone();
-        let (message_count, ended_at, inspection) = tokio::task::spawn_blocking(move || {
-            prepare_segment_freeze(&freeze_path, &freeze_parts_directory, recording_id)
+        let (ended_at, inspection) = tokio::task::spawn_blocking(move || -> Result<_> {
+            let (_, ended_at, _) =
+                prepare_segment_freeze(&freeze_path, &freeze_parts_directory, recording_id)?;
+            let inspection = veoveo_rrd::recording_layer::normalize_recording_layer(
+                &freeze_path,
+                dataset_id.as_uuid(),
+                recording_id.as_uuid(),
+            )?;
+            Ok((ended_at, inspection))
         })
         .await
-        .context("joining recording segment materialization")??;
-        self.store
-            .freeze_segment(
+        .context("joining recording layer materialization")??;
+        let staged = self
+            .store
+            .stage_recording_layer(
                 identity,
-                segment_id,
+                layer_id,
                 i64::try_from(inspection.byte_len)?,
-                i64::try_from(message_count)?,
+                i64::try_from(inspection.message_count)?,
                 &inspection.sha256,
+                Some(&inspection.rrd_version),
+                Some(&inspection.schema_digest),
                 Some(ended_at),
             )
             .await?;
+        let metadata = self
+            .publisher
+            .publish(
+                layer_id,
+                PutArtifactRequest {
+                    mime_type: Some("application/vnd.rerun.rrd".to_owned()),
+                    filename: Some(format!("{}.rrd", staged.layer_name)),
+                    classification: None,
+                    data_labels: BTreeSet::new(),
+                    retention_expires_at: None,
+                    metadata: serde_json::json!({
+                        "recording_id": recording_id.to_string(),
+                        "dataset_id": dataset_id.to_string(),
+                        "layer_kind": "capture",
+                        "schema_digest": inspection.schema_digest,
+                    }),
+                },
+                path,
+                inspection.byte_len,
+                &inspection.sha256,
+            )
+            .await?;
+        self.store
+            .commit_recording_layer(
+                identity,
+                layer_id,
+                veoveo_platform_store::ArtifactId::from_uuid(metadata.artifact_id.as_uuid()),
+            )
+            .await?;
         tokio::task::spawn_blocking({
+            let path = path.to_path_buf();
             let parts_directory = parts_directory.clone();
-            move || remove_directory_if_exists(&parts_directory)
+            move || {
+                remove_if_exists(&path)?;
+                remove_directory_if_exists(&parts_directory)
+            }
         })
         .await
-        .context("joining recording ingest part cleanup")??;
+        .context("joining recording layer staging cleanup")??;
         self.forget_segment_byte_len(&parts_directory)?;
         Ok(())
     }
@@ -1143,7 +1236,7 @@ impl RecordingIngestService {
     fn remember_active_segment(
         &self,
         stream_id: RecordingIngestStreamId,
-        segment: &SegmentRecord,
+        layer: &RecordingLayerRecord,
         path: &Path,
     ) -> Result<()> {
         self.active_segments
@@ -1152,7 +1245,7 @@ impl RecordingIngestService {
             .insert(
                 stream_id,
                 ActiveIngestSegment {
-                    segment: segment.clone(),
+                    layer: layer.clone(),
                     path: path.to_path_buf(),
                 },
             );
@@ -1174,10 +1267,10 @@ impl RecordingIngestService {
         self.take_active_segment(stream_id).map(|_| ())
     }
 
-    fn segment_is_due(&self, segment: &SegmentRecord, byte_len: u64) -> Result<bool> {
-        let age = chrono::Utc::now() - segment.start_time.unwrap_or(segment.created_at);
-        Ok(byte_len >= self.config.segment_max_bytes
-            || age.num_seconds() >= i64::try_from(self.config.segment_max_age_seconds)?)
+    fn segment_is_due(&self, layer: &RecordingLayerRecord, byte_len: u64) -> Result<bool> {
+        let age = chrono::Utc::now() - layer.start_time.unwrap_or(layer.created_at);
+        Ok(byte_len >= self.config.capture_layer_max_bytes
+            || age.num_seconds() >= i64::try_from(self.config.capture_layer_max_age_seconds)?)
     }
 
     fn segment_byte_len(&self, parts_directory: &Path) -> Result<u64> {
@@ -1211,8 +1304,12 @@ impl RecordingIngestService {
         Ok(())
     }
 
-    fn segment_path(&self, segment: &SegmentRecord) -> Result<PathBuf> {
-        let path = self.config.spool_root.join(&segment.relative_path);
+    fn layer_path(&self, layer: &RecordingLayerRecord) -> Result<PathBuf> {
+        let staging_path = layer
+            .staging_path
+            .as_deref()
+            .context("mutable recording layer has no staging path")?;
+        let path = self.config.spool_root.join(staging_path);
         ensure!(
             path.starts_with(&self.config.spool_root),
             "segment path escapes the recording spool"
@@ -1679,8 +1776,9 @@ macro_rules! typed_record_id {
 
 typed_record_id!(TenantId, 5);
 typed_record_id!(PrincipalId, 5);
+typed_record_id!(RecordingDatasetId, 7);
 typed_record_id!(RecordingId, 7);
-typed_record_id!(SegmentId, 7);
+typed_record_id!(RecordingLayerId, 7);
 typed_record_id!(RecordingIngestStreamId, 7);
 
 fn typed_record_uuid<T: TypedRecordId>(record: &RecordId, expected_table: &str) -> Result<T> {
@@ -1721,8 +1819,9 @@ mod tests {
             spool_root: PathBuf::from("/spool"),
             protected_resource: ProtectedResourceId::new("https://example.test/ingest").unwrap(),
             maximum_batch_bytes: DEFAULT_MAXIMUM_BATCH_BYTES + 1,
-            segment_max_bytes: DEFAULT_MAXIMUM_BATCH_BYTES + 1,
-            segment_max_age_seconds: 60,
+            capture_layer_max_bytes: DEFAULT_MAXIMUM_BATCH_BYTES + 1,
+            capture_layer_max_age_seconds: 60,
+            minimum_free_bytes: 1024 * 1024,
         };
         assert!(config.validate().is_err());
     }

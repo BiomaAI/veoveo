@@ -122,7 +122,7 @@ export interface ArtifactSummary {
   recording?: {
     recordingId: string;
     kind: string;
-    segmentId?: string;
+    layerId?: string;
     ordinal?: number;
   };
 }
@@ -226,9 +226,9 @@ export interface RecordingSummary {
   application: string;
   recordingKey: string;
   state: "live" | "ready" | "sealing" | "sealed" | "interrupted" | "failed";
-  segmentCount: number;
-  playableSegmentCount: number;
-  playableByteLength: number;
+  layerCount: number;
+  committedLayerCount: number;
+  committedByteLength: number;
   startedAt: string;
   lastDataAt: string;
   endedAt?: string;
@@ -236,30 +236,33 @@ export interface RecordingSummary {
 }
 
 export interface RecordingPlaybackManifest {
-  schema: "veoveo.io/recording-playback/v8";
-  recording_id: string;
+  schema: "veoveo.io/recording-playback/v9";
+  dataset_id: string;
+  recording_segment_id: string;
   application_id: string;
   recording_key: string;
   state: RecordingSummary["state"];
   started_at: string;
   ended_at?: string;
+  catalog_revision: string;
   access: {
-    session_id: string;
+    grant_id: string;
     redap_token: string;
     expires_at: string;
   };
   archive?: {
     uri: string;
     dataset_id: string;
-    segment_id: string;
-    revision: string;
+    recording_segment_id: string;
+    catalog_revision: string;
     rrd_version: string;
     optimization_profile: string;
     byte_len: number;
     layer_count: number;
   };
   live?: {
-    segment_id: string;
+    layer_id: string;
+    layer_name: string;
     ordinal: number;
     current_byte_len: number;
     history_seconds: number;

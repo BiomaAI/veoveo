@@ -3,9 +3,11 @@
 Status: canonical multi-cycle implementation plan and delivery record. The `001`–`013`
 cycle is closed. Nine requests are delivered, three unfinished themes have one explicit
 successor in the `014`–`023` cycle, and private build inputs closed without implementation
-because no approved need opened that optional track. The `014`–`023` cycle is approved and
-implementation has not started. Existing component designs remain normative until each current
-phase lands and deletes the surface it replaces.
+because no approved need opened that optional track. The `014`–`023` cycle is active.
+Request `016` has completed implementation and awaits disposable-development activation
+and headed hardware-GPU acceptance. Other phases retain their own start gates. Existing
+component designs remain normative until each current phase lands and deletes the surface
+it replaces.
 
 ## Standards And Protocols
 
@@ -20,7 +22,7 @@ Together those two tables form this plan's standards register.
 | Requests | Review input | State | Canonical disposition |
 |---|---|---|---|
 | `001`–`013` | `veoveo-platform-improvements-2026-08-14` | closed on 2026-08-26 | nine delivered, `003` partially delivered and superseded by `023`, `009` superseded by `022`, `010` superseded by `021`, and `013` closed without implementation |
-| `014`–`023` | `veoveo-platform-improvements-2026-08-26` | approved, not started | current hard-cut implementation plan |
+| `014`–`023` | `veoveo-platform-improvements-2026-08-26` | active; `016` implementation complete, activation pending | current hard-cut implementation plan |
 
 No work remains under an old request identifier after it moves to a current successor. Future
 evidence and implementation update the current cycle only. Historical commits and acceptance
@@ -1574,10 +1576,10 @@ web client. Retain `app_catalog()` only for gallery listing and gallery change e
 This phase replaces `RECORDING-PROJECTION-016` and the current archive architecture. It is one
 activation boundary even when implementation is divided into reviewable commits.
 
-[`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) isolates the proposed
-implementation sequence, initial resource limits, verification matrix, and activation runbook for
-this phase. The broader plan remains the product scope; the focused plan is not approval to start
-schema activation.
+[`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) records the implemented
+sequence, initial resource limits, verification matrix, and activation runbook for this phase.
+The broader plan remains the product scope. The focused plan does not authorize work from another
+request.
 
 Before activation, the installation owner records one retention choice: run the offline migration
 or explicitly discard recordings made under the old architecture. The implementation supports

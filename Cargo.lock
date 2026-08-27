@@ -5463,6 +5463,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs4"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e72ed92b67c146290f88e9c89d60ca163ea417a446f61ffd7b72df3e7f1dfd5"
+dependencies = [
+ "rustix",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "fs_extra"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15525,6 +15535,8 @@ dependencies = [
  "base64 0.23.1",
  "reqwest 0.13.4",
  "serde_json",
+ "tokio",
+ "tokio-util",
  "veoveo-mcp-contract",
 ]
 
@@ -16079,6 +16091,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "hex",
  "secrecy",
  "serde",
  "serde_json",
@@ -16172,6 +16185,7 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "clap",
+ "fs4",
  "futures",
  "h264-reader",
  "hex",
@@ -16192,6 +16206,7 @@ dependencies = [
  "re_sdk_types",
  "re_types_core",
  "re_uri",
+ "reqwest 0.13.4",
  "secrecy",
  "serde",
  "serde_json",
@@ -16199,11 +16214,14 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-recording-forwarder",
  "veoveo-recording-protocol",
  "veoveo-rrd",
 ]
@@ -16219,6 +16237,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
+ "fs4",
  "futures",
  "hex",
  "notify",
@@ -16257,6 +16276,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-recording-hub",
+ "veoveo-rrd",
 ]
 
 [[package]]
@@ -16293,13 +16313,21 @@ name = "veoveo-rrd"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "hex",
  "re_chunk",
+ "re_chunk_store",
+ "re_dataframe",
  "re_log_encoding",
  "re_log_types",
+ "re_sdk",
  "re_sdk_types",
+ "re_types_core",
  "schemars 1.2.2",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "uuid",
  "veoveo-mcp-contract",
 ]
 
@@ -16349,6 +16377,7 @@ dependencies = [
  "veoveo-recording-forwarder",
  "veoveo-recording-hub",
  "veoveo-recording-protocol",
+ "veoveo-rrd",
  "veoveo-stream-mcp",
  "veoveo-sumo-mcp",
 ]
@@ -16614,6 +16643,7 @@ dependencies = [
  "protoc-bin-vendored",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
  "sha2 0.11.0",
  "tempfile",
  "url",

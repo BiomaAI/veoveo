@@ -42,6 +42,7 @@ pub struct OAuthTokenProvider {
     token_transport_endpoint: Url,
     protected_resource: Url,
     client_id: String,
+    scope: String,
     key_id: String,
     algorithm: Algorithm,
     encoding_key: Arc<EncodingKey>,
@@ -59,6 +60,7 @@ pub struct OAuthTokenProviderConfig {
     pub token_transport_endpoint: Url,
     pub protected_resource: Url,
     pub client_id: String,
+    pub scope: String,
     pub key_id: String,
     pub algorithm: ClientAssertionAlgorithm,
     pub private_key_pem_file: PathBuf,
@@ -66,6 +68,8 @@ pub struct OAuthTokenProviderConfig {
 
 impl OAuthTokenProvider {
     pub fn new(config: OAuthTokenProviderConfig) -> Result<Self> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
         ensure!(
             config.token_endpoint.scheme() == "https"
                 || (config.token_endpoint.scheme() == "http"
@@ -79,6 +83,10 @@ impl OAuthTokenProvider {
             matches!(config.token_transport_endpoint.scheme(), "http" | "https")
                 && config.token_transport_endpoint.host_str().is_some(),
             "OAuth token transport endpoint must use HTTP(S)"
+        );
+        ensure!(
+            !config.client_id.trim().is_empty() && !config.scope.trim().is_empty(),
+            "OAuth client ID and scope must not be empty"
         );
         let pem = std::fs::read(&config.private_key_pem_file).with_context(|| {
             format!(
@@ -97,6 +105,7 @@ impl OAuthTokenProvider {
             token_transport_endpoint: config.token_transport_endpoint,
             protected_resource: config.protected_resource,
             client_id: config.client_id,
+            scope: config.scope,
             key_id: config.key_id,
             algorithm,
             encoding_key: Arc::new(encoding_key),
@@ -136,17 +145,17 @@ impl OAuthTokenProvider {
                 ("client_id", self.client_id.as_str()),
                 ("client_assertion_type", CLIENT_ASSERTION_TYPE),
                 ("client_assertion", assertion.as_str()),
-                ("scope", "recording:ingest"),
+                ("scope", self.scope.as_str()),
                 ("resource", self.protected_resource.as_str()),
             ])
             .send()
             .await
-            .context("requesting recording producer access token")?
+            .context("requesting recording service access token")?
             .error_for_status()
-            .context("recording producer token request was denied")?
+            .context("recording service token request was denied")?
             .json::<TokenResponse>()
             .await
-            .context("decoding recording producer token response")?;
+            .context("decoding recording service token response")?;
         ensure!(
             response.token_type.eq_ignore_ascii_case("Bearer") && response.expires_in > 0,
             "authorization server returned an invalid token response"

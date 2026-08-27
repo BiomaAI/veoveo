@@ -427,6 +427,7 @@ impl ServerHandler for ReasonMcp {
                             name: "analyze_recording",
                             arguments_json: "{}",
                         }],
+                        stream_result: None,
                     },
                 );
                 return Ok(ReadResourceResult::new(vec![

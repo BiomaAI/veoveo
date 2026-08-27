@@ -19,8 +19,12 @@ use re_sdk_types::components::VideoCodec;
 use veoveo_recording_hub::config::{DatasetName, DatasetRoute, SpoolerConfig};
 use veoveo_recording_hub::spool::{Spooler, run_blocking};
 use veoveo_recording_hub::{
-    QueryIndexRange, SegmentReadScope, VideoClipRequest, extract_video_clip,
-    extract_video_clip_from_messages, query_segments_in_range, remux_h264_mp4,
+    RecordingLayerFileScope, VideoClipRequest, collect_recording_layer_files, extract_video_clip,
+    extract_video_clip_from_messages, remux_h264_mp4,
+};
+use veoveo_rrd::projection::{
+    ArrowProjectionSummary, ProjectionQuery, ProjectionSampling, ProjectionSparseFill,
+    write_arrow_projection,
 };
 
 const H264_FIXTURE: &str = "AAAAAQkQAAAAAWdCwAraJbARAAADAAEAAAMABI8SJqAAAAABaM4PyAAAAQYF//9N3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSByMzIyMiBiMzU2MDVhIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTAgcmVmPTEgZGVibG9jaz0wOjA6MCBhbmFseXNlPTA6MCBtZT1kaWEgc3VibWU9MCBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0wIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MCA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0wIHRocmVhZHM9MSBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yIGtleWludF9taW49MiBzY2VuZWN1dD0wIGludHJhX3JlZnJlc2g9MCByYz1jcmYgbWJ0cmVlPTAgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MACAAAABZYiEOhGKAAIY8cAAQPY4AAh5SddeAAAAAQkwAAABQZogEqLAAAAAAQkQAAAAAWdCwAraJbARAAADAAEAAAMABI8SJqAAAAABaM4PyAAAAWWIggMoRigACT3HAAEOuOAAJfEnXXgAAAABCTAAAAFBmiASosA=";
@@ -42,8 +46,8 @@ fn config(spool: &std::path::Path, bind: SocketAddr) -> SpoolerConfig {
             dataset: DatasetName::new("world").unwrap(),
             application_id_prefix: String::new(),
         }],
-        segment_max_bytes: 64 * 1024 * 1024,
-        segment_max_age_s: 3600,
+        capture_layer_max_bytes: 64 * 1024 * 1024,
+        capture_layer_max_age_s: 3600,
         recording_idle_timeout_s: 3600,
         flush_interval_ms: 50,
         fsync_on_flush: true,
@@ -54,13 +58,52 @@ fn config(spool: &std::path::Path, bind: SocketAddr) -> SpoolerConfig {
     }
 }
 
+fn project_rows(
+    root: &std::path::Path,
+    entity_path: &str,
+    timeline: &str,
+    start: i64,
+    end: i64,
+    scope: RecordingLayerFileScope,
+) -> anyhow::Result<ArrowProjectionSummary> {
+    let layers = collect_recording_layer_files(root, scope)?;
+    project_layer_rows(&layers, entity_path, timeline, start, end)
+}
+
+fn project_layer_rows(
+    layers: &[std::path::PathBuf],
+    entity_path: &str,
+    timeline: &str,
+    start: i64,
+    end: i64,
+) -> anyhow::Result<ArrowProjectionSummary> {
+    let directory = tempfile::tempdir()?;
+    write_arrow_projection(
+        layers,
+        &ProjectionQuery {
+            entity_paths: vec![entity_path.to_owned()],
+            component_ids: vec!["Scalars:scalars".to_owned()],
+            timeline: timeline.to_owned(),
+            sampling: ProjectionSampling::Range { start, end },
+            sparse_fill: ProjectionSparseFill::None,
+            maximum_entities: 1,
+            maximum_columns: 1,
+            maximum_samples: 10_000,
+            maximum_rows: 10_000,
+            maximum_bytes: 32 * 1024 * 1024,
+        },
+        &directory.path().join("projection.arrow"),
+    )
+}
+
 /// Spawn the proxy + spooler, run `body` (which pushes data), then stop and
 /// return the segment tree row counts per recording on timeline `tick`.
 async fn spool_run(
     spool_dir: &std::path::Path,
+    start_sequence: usize,
     n_messages: usize,
     recording: &str,
-) -> std::collections::BTreeMap<String, u64> {
+) -> u64 {
     let port = free_port();
     let bind: SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
     let cfg = config(spool_dir, bind);
@@ -93,7 +136,7 @@ async fn spool_run(
         .recording_id(recording.to_string())
         .connect_grpc_opts(proxy)
         .expect("connect");
-    for i in 0..n_messages {
+    for i in start_sequence..start_sequence + n_messages {
         stream.set_time_sequence("tick", i as i64);
         stream
             .log("/world/sim/test", &Scalars::new([i as f64]))
@@ -109,29 +152,29 @@ async fn spool_run(
     let counters = drain.join().expect("join").expect("run_blocking");
     assert!(counters.messages > 0, "spooler saw messages");
 
-    let result = veoveo_recording_hub::query_tree(
+    project_rows(
         spool_dir,
-        "/**",
+        "/world/sim/test",
         "tick",
-        100_000,
-        SegmentReadScope::Frozen,
+        0,
+        i64::MAX,
+        RecordingLayerFileScope::Committed,
     )
-    .expect("query");
-    result.rows_by_recording
+    .expect("project")
+    .row_count
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn roundtrip_counts_match() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let counts = spool_run(dir.path(), 25, "rec-round").await;
+    let row_count = spool_run(dir.path(), 0, 25, "rec-round").await;
     assert_eq!(
-        counts.get("rec-round").copied(),
-        Some(25),
-        "all 25 scalar rows are durable and queryable: {counts:?}"
+        row_count, 25,
+        "all 25 scalar rows are durable and projectable"
     );
 
     // The world dataset directory exists and holds a segment.
-    let segments = veoveo_recording_hub::collect_segments(dir.path(), SegmentReadScope::Frozen)
+    let segments = collect_recording_layer_files(dir.path(), RecordingLayerFileScope::Committed)
         .expect("collect");
     assert!(!segments.is_empty(), "at least one segment written");
     assert!(
@@ -147,31 +190,29 @@ async fn roundtrip_counts_match() {
     std::fs::copy(&segments[0], parts.join("00000000000000000001.rrd"))
         .expect("copy immutable live part");
     assert!(
-        veoveo_recording_hub::collect_segments(live.path(), SegmentReadScope::Frozen)
+        collect_recording_layer_files(live.path(), RecordingLayerFileScope::Committed)
             .expect("collect frozen")
             .is_empty(),
         "frozen catalog scans exclude the live tail"
     );
-    let live_result = veoveo_recording_hub::query_tree(
+    let live_result = project_rows(
         live.path(),
-        "/**",
+        "/world/sim/test",
         "tick",
-        100_000,
-        SegmentReadScope::FrozenAndActive,
+        0,
+        i64::MAX,
+        RecordingLayerFileScope::CommittedAndWriting,
     )
     .expect("query live tail");
     assert_eq!(
-        live_result.rows_by_recording.get("rec-round").copied(),
-        Some(25),
-        "live queries include immutable active RRD parts"
+        live_result.row_count, 25,
+        "live projections include immutable active RRD parts"
     );
 
-    let range = QueryIndexRange::new(5, 9).expect("valid query range");
     let selected =
-        query_segments_in_range(&segments, "/**", "tick", 100, Some(range)).expect("range query");
+        project_layer_rows(&segments, "/world/sim/test", "tick", 5, 9).expect("range projection");
     assert_eq!(
-        selected.rows_by_recording.get("rec-round").copied(),
-        Some(5),
+        selected.row_count, 5,
         "the inclusive timeline range selects five durable rows"
     );
 }
@@ -243,18 +284,17 @@ async fn direct_spool_preserves_a_distinct_producer_blueprint() {
         re_log_types::StoreKind::Blueprint
     );
     assert_eq!(
-        veoveo_recording_hub::query_tree(
+        project_rows(
             dir.path(),
-            "/**",
+            "/world/value",
             "log_time",
-            100,
-            SegmentReadScope::Frozen,
+            i64::MIN,
+            i64::MAX,
+            RecordingLayerFileScope::Committed,
         )
-        .expect("query recording independently")
-        .rows_by_recording
-        .get("recording-with-layout")
-        .copied(),
-        Some(1)
+        .expect("project recording independently")
+        .row_count,
+        1
     );
 }
 
@@ -296,20 +336,16 @@ async fn restart_resumes_into_sibling_segment() {
     let dir = tempfile::tempdir().expect("tempdir");
 
     // First session: write, freeze, stop.
-    let first = spool_run(dir.path(), 10, "rec-resume").await;
-    assert_eq!(first.get("rec-resume").copied(), Some(10));
+    let first = spool_run(dir.path(), 0, 10, "rec-resume").await;
+    assert_eq!(first, 10);
 
     // Second session with the SAME recording id: must not truncate the prior
     // file — it resumes into a `.rN` sibling, and the total is cumulative.
-    let second = spool_run(dir.path(), 15, "rec-resume").await;
-    assert_eq!(
-        second.get("rec-resume").copied(),
-        Some(25),
-        "both sessions' rows are durable across restart: {second:?}"
-    );
+    let second = spool_run(dir.path(), 10, 15, "rec-resume").await;
+    assert_eq!(second, 25, "both sessions' rows are durable across restart");
 
     // Two physical segments for one recording (base + .r1).
-    let segments = veoveo_recording_hub::collect_segments(dir.path(), SegmentReadScope::Frozen)
+    let segments = collect_recording_layer_files(dir.path(), RecordingLayerFileScope::Committed)
         .expect("collect");
     let resume_segments: Vec<_> = segments
         .iter()
@@ -458,7 +494,7 @@ async fn h264_video_extracts_across_restart_segment_boundary() {
     )
     .await;
 
-    let segments = veoveo_recording_hub::collect_segments(dir.path(), SegmentReadScope::Frozen)
+    let segments = collect_recording_layer_files(dir.path(), RecordingLayerFileScope::Committed)
         .expect("segments");
     assert_eq!(segments.len(), 2, "restart produced two physical segments");
     let clip = extract_video_clip(

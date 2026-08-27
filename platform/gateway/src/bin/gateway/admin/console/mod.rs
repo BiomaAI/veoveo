@@ -17,7 +17,7 @@ use veoveo_mcp_contract::{
     WorkContextMembershipLevel,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
-use veoveo_platform_store::{ChangefeedCursor, SegmentState, deterministic_tenant_id};
+use veoveo_platform_store::{ChangefeedCursor, RecordingLayerState, deterministic_tenant_id};
 
 pub(crate) use health::{ServerHealthMonitor, spawn_server_health_prober};
 use projection::{
@@ -310,15 +310,15 @@ fn build_snapshot(
             *pending_wakes.entry(record_key(&wake.agent)?).or_default() += 1;
         }
     }
-    let mut recording_segments = BTreeMap::<String, (usize, usize, i64)>::new();
-    for segment in &projection.segments {
-        let aggregate = recording_segments
-            .entry(record_key(&segment.recording)?)
+    let mut recording_layers = BTreeMap::<String, (usize, usize, i64)>::new();
+    for layer in &projection.layers {
+        let aggregate = recording_layers
+            .entry(record_key(&layer.recording)?)
             .or_default();
         aggregate.0 += 1;
-        if matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed) {
+        if layer.state == RecordingLayerState::Committed {
             aggregate.1 += 1;
-            aggregate.2 += segment.byte_len;
+            aggregate.2 += layer.byte_len;
         }
     }
 
@@ -375,7 +375,7 @@ fn build_snapshot(
         .into_iter()
         .map(|recording| {
             let id = record_key(&recording.id)?;
-            let aggregate = recording_segments.get(&id).copied().unwrap_or_default();
+            let aggregate = recording_layers.get(&id).copied().unwrap_or_default();
             recording_summary(recording, aggregate.0, aggregate.1, aggregate.2)
         })
         .collect::<anyhow::Result<Vec<_>>>()?;

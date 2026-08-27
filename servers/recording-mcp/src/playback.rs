@@ -1,9 +1,9 @@
-//! Recording-scoped Rerun Data Protocol playback.
+//! Governed virtual Rerun Data Protocol catalogs and playback manifests.
 //!
 //! The durable Veoveo recording catalog remains authoritative. This module
-//! derives a Rerun dataset from immutable shards, issues short-lived
-//! recording-scoped read sessions, and exposes only the Redap methods required
-//! by the viewer.
+//! derives policy-scoped catalogs from immutable Artifact-backed layers, maps
+//! Redap token subjects to durable grants, and exposes only the required read
+//! profile.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -14,7 +14,7 @@ use std::{
 };
 
 use anyhow::{Context as _, Result, ensure};
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use futures::Stream;
 use re_auth::{Claims, Jwt, Permission, RedapProvider, VerificationOptions};
 use re_log_types::{ApplicationId, EntryId, EntryName, StoreId, StoreKind};
@@ -28,29 +28,28 @@ use re_protos::{
     headers::RerunHeadersInjectorExt as _,
 };
 use re_server::{RerunCloudHandler, RerunCloudHandlerBuilder};
-use re_uri::{DatasetSegmentUri, Fragment, Origin};
-use sha2::{Digest as _, Sha256};
+use re_uri::{DatasetSegmentUri, EntryUri, Fragment, Origin};
 use tokio::sync::Mutex as AsyncMutex;
 use tonic::{Request, Response, Status};
 use url::Url;
-use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{RecordingId, RecordingState};
+use veoveo_platform_store::{
+    PlatformStore, RecordId, RecordIdKey, RecordingDatasetId, RecordingId, RecordingReadGrantClass,
+    RecordingReadGrantId, RecordingReadGrantRecord, RecordingState,
+};
 
 use crate::{
     RecordingPlaybackPlan,
     contract::{
-        PlaybackAccess, PlaybackArchive, PlaybackBlueprint, PlaybackManifest, PlaybackMapProvider,
+        CatalogReadGrant, PlaybackAccess, PlaybackArchive, PlaybackBlueprint, PlaybackManifest,
+        PlaybackMapProvider,
     },
 };
 
-pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v8";
-pub const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
+pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v9";
+pub const RECORDING_GRANT_HEADER: &str = "x-veoveo-recording-grant";
 const TOKEN_ISSUER: &str = "veoveo-recording-playback";
-const SESSION_TTL: TimeDelta = TimeDelta::minutes(5);
-const TOKEN_TTL: Duration = Duration::from_secs(30 * 60);
-const TOKEN_RENEW_WINDOW: TimeDelta = TimeDelta::minutes(10);
-const MAX_SESSIONS: usize = 1_024;
-const MAX_CATALOGS: usize = 64;
+const MAX_TOKEN_TTL: Duration = Duration::from_secs(5 * 60);
+const MAX_VIRTUAL_CATALOGS: usize = 64;
 
 type BoxedStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'static>>;
 
@@ -61,25 +60,19 @@ pub struct PlaybackManager {
 
 struct PlaybackManagerInner {
     provider: RedapProvider,
+    store: PlatformStore,
     public_origin: Origin,
     allowed_host: String,
-    sessions: Mutex<HashMap<String, PlaybackSession>>,
-    catalogs: Mutex<HashMap<String, Arc<CatalogSlot>>>,
+    catalogs: Mutex<HashMap<VirtualCatalogKey, Arc<CatalogSlot>>>,
 }
 
-#[derive(Clone)]
-struct PlaybackSession {
-    recording_id: String,
-    identity: SessionIdentity,
-    token: String,
-    token_expires_at: DateTime<Utc>,
-    expires_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct SessionIdentity {
-    actor_id: String,
-    tenant: Option<String>,
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct VirtualCatalogKey {
+    tenant: RecordId,
+    dataset_id: RecordId,
+    policy_revision: String,
+    admitted_set_digest: String,
+    grant_class: RecordingReadGrantClass,
 }
 
 struct CatalogSlot {
@@ -90,16 +83,17 @@ struct CatalogSlot {
 struct DerivedCatalog {
     handler: Arc<RerunCloudHandler>,
     dataset_id: EntryId,
-    segment_id: String,
-    layers: BTreeMap<String, CatalogLayer>,
+    recordings: BTreeMap<String, BTreeMap<String, CatalogLayer>>,
     revision: String,
     byte_len: u64,
+    _leases: Vec<crate::layer_cache::CachedLayer>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct CatalogLayer {
-    segment_id: String,
-    ordinal: i64,
+    layer_id: String,
+    kind: String,
+    ordinal: Option<i64>,
     byte_len: u64,
     sha256: String,
 }
@@ -112,7 +106,11 @@ struct AuthorizedCatalog {
 }
 
 impl PlaybackManager {
-    pub fn new(signing_key_base64: &str, public_base_url: &str) -> Result<Self> {
+    pub fn new(
+        signing_key_base64: &str,
+        public_base_url: &str,
+        store: PlatformStore,
+    ) -> Result<Self> {
         let provider = RedapProvider::from_secret_key_base64(signing_key_base64)
             .context("RECORDING_PLAYBACK_TOKEN_KEY must be canonical base64")?;
         let public_url = Url::parse(public_base_url)
@@ -141,12 +139,12 @@ impl PlaybackManager {
         Ok(Self {
             inner: Arc::new(PlaybackManagerInner {
                 provider,
+                store,
                 public_origin,
                 allowed_host: public_url
                     .host_str()
                     .expect("host was validated")
                     .to_owned(),
-                sessions: Mutex::new(HashMap::new()),
                 catalogs: Mutex::new(HashMap::new()),
             }),
         })
@@ -154,25 +152,27 @@ impl PlaybackManager {
 
     pub async fn prepare_manifest(
         &self,
-        identity: &GatewayInternalIdentity,
         plan: RecordingPlaybackPlan,
-        requested_session: Option<&str>,
+        grant: RecordingReadGrantRecord,
     ) -> Result<PlaybackManifest> {
-        let archive = if plan.archive_segments.is_empty() {
+        validate_viewer_grant(&grant, &plan)?;
+        let archive = if plan.archive_layers.is_empty() {
             None
         } else {
-            Some(self.ensure_catalog(&plan).await?)
+            Some(self.ensure_catalog(&[&plan], &grant).await?)
         };
-        let access = self.renew_or_issue(identity, plan.recording_id, requested_session)?;
+        let access = self.issue_access(&grant)?;
         self.prune_catalogs();
         Ok(PlaybackManifest {
             schema: PLAYBACK_MANIFEST_SCHEMA.to_owned(),
-            recording_id: plan.recording_id.to_string(),
+            dataset_id: plan.dataset_id.to_string(),
+            recording_segment_id: plan.recording_id.to_string(),
             application_id: plan.application_id,
             recording_key: plan.recording_key,
             state: recording_state(plan.state).to_owned(),
             started_at: plan.started_at.to_rfc3339(),
             ended_at: plan.ended_at.map(|value| value.to_rfc3339()),
+            catalog_revision: plan.catalog_revision,
             access,
             archive,
             live: plan.live.map(|live| live.descriptor),
@@ -205,8 +205,66 @@ impl PlaybackManager {
         }
     }
 
-    async fn ensure_catalog(&self, plan: &RecordingPlaybackPlan) -> Result<PlaybackArchive> {
-        let recording_id = plan.recording_id.to_string();
+    pub async fn prepare_catalog_grant(
+        &self,
+        plans: Vec<RecordingPlaybackPlan>,
+        grant: RecordingReadGrantRecord,
+    ) -> Result<CatalogReadGrant> {
+        ensure!(
+            grant.grant_class == RecordingReadGrantClass::CatalogDataset,
+            "Catalog SDK access requires a catalog_dataset grant"
+        );
+        let mut admitted = plans
+            .iter()
+            .map(|plan| plan.recording_id)
+            .collect::<Vec<_>>();
+        admitted.sort_unstable();
+        admitted.dedup();
+        let expected = admitted
+            .iter()
+            .copied()
+            .map(RecordingId::record_id)
+            .collect::<Vec<_>>();
+        let dataset_id = plans
+            .first()
+            .map(|plan| plan.dataset_id)
+            .context("Catalog SDK grant has no recording plans")?;
+        ensure!(
+            plans.iter().all(|plan| plan.dataset_id == dataset_id)
+                && grant.dataset == dataset_id.record_id()
+                && grant.recordings == expected,
+            "Catalog SDK grant does not match its admitted dataset"
+        );
+        let plans_ref = plans.iter().collect::<Vec<_>>();
+        self.ensure_catalog(&plans_ref, &grant).await?;
+        let access = self.issue_access(&grant)?;
+        self.prune_catalogs();
+        Ok(CatalogReadGrant {
+            schema: veoveo_mcp_contract::RECORDING_CATALOG_GRANT_SCHEMA.to_owned(),
+            grant_id: uuid::Uuid::parse_str(&access.grant_id)?,
+            dataset_id: dataset_id.as_uuid(),
+            recording_segment_ids: admitted.into_iter().map(RecordingId::as_uuid).collect(),
+            catalog_revision: grant.catalog_revision,
+            entry_uri: EntryUri::new(
+                self.inner.public_origin.clone(),
+                playback_dataset_id(dataset_id)?,
+            )
+            .to_string(),
+            redap_token: access.redap_token,
+            expires_at: access.expires_at,
+        })
+    }
+
+    async fn ensure_catalog(
+        &self,
+        plans: &[&RecordingPlaybackPlan],
+        grant: &RecordingReadGrantRecord,
+    ) -> Result<PlaybackArchive> {
+        let plan = plans
+            .first()
+            .copied()
+            .context("virtual catalog has no recording plans")?;
+        let key = virtual_catalog_key(grant);
         let slot = {
             let mut catalogs = self
                 .inner
@@ -214,7 +272,7 @@ impl PlaybackManager {
                 .lock()
                 .map_err(|_| anyhow::anyhow!("playback catalog cache is poisoned"))?;
             catalogs
-                .entry(recording_id.clone())
+                .entry(key)
                 .or_insert_with(|| {
                     Arc::new(CatalogSlot {
                         state: AsyncMutex::new(None),
@@ -227,162 +285,85 @@ impl PlaybackManager {
             *accessed_at = Utc::now();
         }
 
-        let expected_layers = plan
-            .archive_segments
+        let expected_recordings = plans
             .iter()
-            .map(|segment| {
-                (
-                    layer_name(segment.ordinal, &segment.segment_id.to_string()),
-                    CatalogLayer {
-                        segment_id: segment.segment_id.to_string(),
-                        ordinal: segment.ordinal,
-                        byte_len: segment.byte_len,
-                        sha256: segment.sha256.clone(),
-                    },
-                )
+            .map(|plan| {
+                let layers = plan
+                    .archive_layers
+                    .iter()
+                    .map(|layer| {
+                        (
+                            layer.layer_name.clone(),
+                            CatalogLayer {
+                                layer_id: layer.layer_id.to_string(),
+                                kind: recording_layer_kind(layer.kind).to_owned(),
+                                ordinal: layer.ordinal,
+                                byte_len: layer.byte_len,
+                                sha256: layer.sha256.clone(),
+                            },
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                (plan.recording_id.to_string(), layers)
             })
             .collect::<BTreeMap<_, _>>();
-        let revision = catalog_revision(&expected_layers);
-        let byte_len = plan
-            .archive_segments
+        let revision = grant.catalog_revision.clone();
+        let byte_len = plans
             .iter()
-            .try_fold(0_u64, |total, segment| total.checked_add(segment.byte_len))
-            .context("recording playback byte length overflow")?;
+            .flat_map(|plan| &plan.archive_layers)
+            .try_fold(0_u64, |total, layer| total.checked_add(layer.byte_len))
+            .context("virtual catalog byte length overflow")?;
 
         let mut state = slot.state.lock().await;
         let must_rebuild = state.as_ref().is_none_or(|catalog| {
-            catalog.segment_id != plan.recording_key
-                || catalog
-                    .layers
-                    .iter()
-                    .any(|(name, layer)| expected_layers.get(name) != Some(layer))
-                || catalog
-                    .layers
-                    .keys()
-                    .any(|name| !expected_layers.contains_key(name))
+            catalog.recordings != expected_recordings || catalog.revision != revision
         });
         if must_rebuild {
-            *state = Some(build_catalog(plan, &expected_layers, revision.clone(), byte_len).await?);
-        } else if state
-            .as_ref()
-            .is_some_and(|catalog| catalog.revision != revision)
-        {
-            let catalog = state.as_mut().expect("catalog was checked");
-            let missing = plan
-                .archive_segments
-                .iter()
-                .filter(|segment| {
-                    !catalog.layers.contains_key(&layer_name(
-                        segment.ordinal,
-                        &segment.segment_id.to_string(),
-                    ))
-                })
-                .collect::<Vec<_>>();
-            register_layers(
-                &catalog.handler,
-                catalog.dataset_id,
-                &plan.recording_key,
-                &missing,
-            )
-            .await?;
-            catalog.layers = expected_layers;
-            catalog.revision = revision.clone();
-            catalog.byte_len = byte_len;
+            *state =
+                Some(build_catalog(plans, expected_recordings, revision.clone(), byte_len).await?);
         }
         let catalog = state.as_ref().expect("catalog was initialized");
         let uri = DatasetSegmentUri {
             origin: self.inner.public_origin.clone(),
             dataset_id: catalog.dataset_id.id,
-            segment_id: catalog.segment_id.clone().into(),
+            segment_id: plan.recording_id.to_string().into(),
             fragment: Fragment::default(),
         }
         .to_string();
         Ok(PlaybackArchive {
             uri,
             dataset_id: catalog.dataset_id.to_string(),
-            segment_id: catalog.segment_id.clone(),
-            revision: catalog.revision.clone(),
+            recording_segment_id: plan.recording_id.to_string(),
+            catalog_revision: catalog.revision.clone(),
             rrd_version: "0.36.3".to_owned(),
             optimization_profile: "object-store".to_owned(),
             byte_len: catalog.byte_len,
-            layer_count: catalog.layers.len(),
+            layer_count: plan.archive_layers.len(),
         })
     }
 
-    fn renew_or_issue(
-        &self,
-        identity: &GatewayInternalIdentity,
-        recording_id: RecordingId,
-        requested_session: Option<&str>,
-    ) -> Result<PlaybackAccess> {
+    fn issue_access(&self, grant: &RecordingReadGrantRecord) -> Result<PlaybackAccess> {
         let now = Utc::now();
-        let recording_id = recording_id.to_string();
-        let identity = SessionIdentity::from(identity);
-        let mut sessions = self
+        ensure!(grant.expires_at > now, "recording read grant expired");
+        let remaining = (grant.expires_at - now).to_std()?;
+        let token_ttl = std::cmp::min(remaining, MAX_TOKEN_TTL);
+        let grant_id = grant_id_from_record(&grant.id)?;
+        let token = self
             .inner
-            .sessions
-            .lock()
-            .map_err(|_| anyhow::anyhow!("playback session store is poisoned"))?;
-        sessions.retain(|_, session| session.expires_at > now);
-
-        let session_id = requested_session
-            .filter(|value| value.len() <= 128)
-            .and_then(|session_id| {
-                sessions
-                    .get(session_id)
-                    .filter(|session| {
-                        session.recording_id == recording_id && session.identity == identity
-                    })
-                    .map(|_| session_id.to_owned())
-            })
-            .unwrap_or_else(|| uuid::Uuid::now_v7().to_string());
-
-        let needs_token = sessions
-            .get(&session_id)
-            .is_none_or(|session| session.token_expires_at <= now + TOKEN_RENEW_WINDOW);
-        let (token, token_expires_at) = if needs_token {
-            (
-                self.inner
-                    .provider
-                    .token(
-                        TOKEN_TTL,
-                        TOKEN_ISSUER,
-                        session_id.clone(),
-                        Permission::Read,
-                        Some(&self.inner.allowed_host),
-                    )
-                    .context("issuing recording-scoped Redap token")?
-                    .to_string(),
-                now + TimeDelta::from_std(TOKEN_TTL)?,
+            .provider
+            .token(
+                token_ttl,
+                TOKEN_ISSUER,
+                grant_id.to_string(),
+                Permission::Read,
+                Some(&self.inner.allowed_host),
             )
-        } else {
-            let session = sessions.get(&session_id).expect("token source exists");
-            (session.token.clone(), session.token_expires_at)
-        };
-        let expires_at = now + SESSION_TTL;
-        sessions.insert(
-            session_id.clone(),
-            PlaybackSession {
-                recording_id,
-                identity,
-                token: token.clone(),
-                token_expires_at,
-                expires_at,
-            },
-        );
-        if sessions.len() > MAX_SESSIONS
-            && let Some(oldest) = sessions
-                .iter()
-                .filter(|(candidate, _)| *candidate != &session_id)
-                .min_by_key(|(_, session)| session.expires_at)
-                .map(|(candidate, _)| candidate.clone())
-        {
-            sessions.remove(&oldest);
-        }
+            .context("issuing recording grant Redap token")?
+            .to_string();
         Ok(PlaybackAccess {
-            session_id,
+            grant_id: grant_id.to_string(),
             redap_token: token,
-            expires_at: expires_at.to_rfc3339(),
+            expires_at: grant.expires_at.to_rfc3339(),
         })
     }
 
@@ -409,25 +390,31 @@ impl PlaybackManager {
             .map_err(|_| Status::unauthenticated("invalid recording playback token"))?;
         ensure_redap_claims(&claims, &self.inner.allowed_host)?;
         let subject = claims.sub().to_owned();
-        let recording_id = {
-            let now = Utc::now();
-            let mut sessions = self
-                .inner
-                .sessions
-                .lock()
-                .map_err(|_| Status::internal("playback session store is unavailable"))?;
-            sessions.retain(|_, session| session.expires_at > now);
-            sessions
-                .get(&subject)
-                .map(|session| session.recording_id.clone())
-                .ok_or_else(|| Status::unauthenticated("recording playback session expired"))?
-        };
+        let grant_id = subject
+            .parse::<RecordingReadGrantId>()
+            .map_err(|_| Status::unauthenticated("invalid recording grant subject"))?;
+        let grant = self
+            .inner
+            .store
+            .recording_read_grant_by_id(grant_id)
+            .await
+            .map_err(|_| Status::internal("recording grant store is unavailable"))?
+            .ok_or_else(|| Status::unauthenticated("recording grant expired"))?;
+        if !matches!(
+            grant.grant_class,
+            RecordingReadGrantClass::ViewerSegment | RecordingReadGrantClass::CatalogDataset
+        ) {
+            return Err(Status::permission_denied(
+                "recording grant does not admit Redap access",
+            ));
+        }
+        let key = virtual_catalog_key(&grant);
         let slot = self
             .inner
             .catalogs
             .lock()
             .map_err(|_| Status::internal("playback catalog cache is unavailable"))?
-            .get(&recording_id)
+            .get(&key)
             .cloned()
             .ok_or_else(|| Status::unavailable("recording playback catalog is not prepared"))?;
         if let Ok(mut accessed_at) = slot.accessed_at.lock() {
@@ -445,29 +432,14 @@ impl PlaybackManager {
     }
 
     fn prune_catalogs(&self) {
-        let now = Utc::now();
-        let active_recordings = self
-            .inner
-            .sessions
-            .lock()
-            .ok()
-            .map(|mut sessions| {
-                sessions.retain(|_, session| session.expires_at > now);
-                sessions
-                    .values()
-                    .map(|session| session.recording_id.clone())
-                    .collect::<std::collections::HashSet<_>>()
-            })
-            .unwrap_or_default();
         let Ok(mut catalogs) = self.inner.catalogs.lock() else {
             return;
         };
-        while catalogs.len() > MAX_CATALOGS {
+        while catalogs.len() > MAX_VIRTUAL_CATALOGS {
             let Some(oldest) = catalogs
                 .iter()
-                .filter(|(recording_id, _)| !active_recordings.contains(*recording_id))
                 .min_by_key(|(_, slot)| slot.accessed_at.lock().ok().map(|value| *value))
-                .map(|(recording_id, _)| recording_id.clone())
+                .map(|(key, _)| key.clone())
             else {
                 break;
             };
@@ -476,25 +448,65 @@ impl PlaybackManager {
     }
 }
 
-impl From<&GatewayInternalIdentity> for SessionIdentity {
-    fn from(identity: &GatewayInternalIdentity) -> Self {
-        Self {
-            actor_id: identity.actor.id.to_string(),
-            tenant: identity.actor.tenant.as_ref().map(ToString::to_string),
-        }
+fn validate_viewer_grant(
+    grant: &RecordingReadGrantRecord,
+    plan: &RecordingPlaybackPlan,
+) -> Result<()> {
+    ensure!(
+        grant.grant_class == RecordingReadGrantClass::ViewerSegment,
+        "playback manifest requires a viewer_segment grant"
+    );
+    ensure!(
+        grant.dataset == plan.dataset_id.record_id()
+            && grant.recordings == [plan.recording_id.record_id()]
+            && grant.catalog_revision == plan.catalog_revision,
+        "playback grant does not match the requested recording catalog"
+    );
+    Ok(())
+}
+
+fn virtual_catalog_key(grant: &RecordingReadGrantRecord) -> VirtualCatalogKey {
+    VirtualCatalogKey {
+        tenant: grant.tenant.clone(),
+        dataset_id: grant.dataset.clone(),
+        policy_revision: grant.policy_revision.clone(),
+        admitted_set_digest: grant.admitted_set_digest.clone(),
+        grant_class: grant.grant_class,
     }
 }
 
+fn grant_id_from_record(record: &RecordId) -> Result<RecordingReadGrantId> {
+    ensure!(
+        record.table.as_str() == RecordingReadGrantId::TABLE,
+        "recording grant record has the wrong table"
+    );
+    let raw = match &record.key {
+        RecordIdKey::Uuid(value) => value.to_string(),
+        RecordIdKey::String(value) => value.clone(),
+        other => anyhow::bail!("recording grant key is not a UUID: {other:?}"),
+    };
+    let value = uuid::Uuid::parse_str(&raw)?;
+    ensure!(
+        value.get_version_num() == 7,
+        "recording grant key is not UUIDv7"
+    );
+    Ok(RecordingReadGrantId::from_uuid(value))
+}
+
 async fn build_catalog(
-    plan: &RecordingPlaybackPlan,
-    layers: &BTreeMap<String, CatalogLayer>,
+    plans: &[&RecordingPlaybackPlan],
+    expected_recordings: BTreeMap<String, BTreeMap<String, CatalogLayer>>,
     revision: String,
     byte_len: u64,
 ) -> Result<DerivedCatalog> {
-    let dataset_id = playback_dataset_id(plan.recording_id)?;
+    let plan = plans
+        .first()
+        .copied()
+        .context("virtual catalog has no recording plans")?;
+    let dataset_id = playback_dataset_id(plan.dataset_id)?;
     let handler = Arc::new(RerunCloudHandlerBuilder::new().build());
     let create: proto::CreateDatasetEntryRequest = CreateDatasetEntryRequest {
-        name: EntryName::new(format!("recording-{}", plan.recording_id))
+        name: EntryName::new(format!("dataset-{}", plan.dataset_id))
             .context("constructing recording dataset name")?,
         id: Some(dataset_id),
     }
@@ -503,60 +515,77 @@ async fn build_catalog(
         .create_dataset_entry(Request::new(create))
         .await
         .context("creating the derived recording dataset")?;
-    let segments = plan.archive_segments.iter().collect::<Vec<_>>();
-    register_layers(&handler, dataset_id, &plan.recording_key, &segments).await?;
+    let mut leases = Vec::new();
+    for plan in plans {
+        ensure!(
+            plan.dataset_id == plans[0].dataset_id,
+            "virtual catalog recordings must belong to one dataset"
+        );
+        let archive_layers = plan.archive_layers.iter().collect::<Vec<_>>();
+        register_layers(
+            &handler,
+            dataset_id,
+            &plan.recording_id.to_string(),
+            &archive_layers,
+        )
+        .await?;
+        leases.extend(plan.archive_layers.iter().map(|layer| layer.cached.clone()));
+    }
     Ok(DerivedCatalog {
         handler,
         dataset_id,
-        segment_id: plan.recording_key.clone(),
-        layers: layers.clone(),
+        recordings: expected_recordings,
         revision,
         byte_len,
+        _leases: leases,
     })
 }
 
-pub fn playback_store_id(recording_id: RecordingId, segment_id: &str) -> Result<StoreId> {
-    let application_id = ApplicationId::try_new(playback_dataset_id(recording_id)?.to_string())
+pub fn playback_store_id(
+    dataset_id: RecordingDatasetId,
+    recording_id: RecordingId,
+) -> Result<StoreId> {
+    let application_id = ApplicationId::try_new(playback_dataset_id(dataset_id)?.to_string())
         .context("playback dataset id is not a valid Rerun application id")?;
     Ok(StoreId::new(
         StoreKind::Recording,
         application_id,
-        segment_id,
+        recording_id.to_string(),
     ))
 }
 
-pub fn playback_application_id(recording_id: RecordingId) -> Result<String> {
-    Ok(playback_dataset_id(recording_id)?.to_string())
+pub fn playback_application_id(dataset_id: RecordingDatasetId) -> Result<String> {
+    Ok(playback_dataset_id(dataset_id)?.to_string())
 }
 
-fn playback_dataset_id(recording_id: RecordingId) -> Result<EntryId> {
-    let recording_uuid = uuid::Uuid::parse_str(&recording_id.to_string())
-        .context("recording playback id is not a UUID")?;
+fn playback_dataset_id(dataset_id: RecordingDatasetId) -> Result<EntryId> {
+    let dataset_uuid = uuid::Uuid::parse_str(&dataset_id.to_string())
+        .context("recording dataset id is not a UUID")?;
     Ok(EntryId::from(re_tuid::Tuid::from_bytes(
-        *recording_uuid.as_bytes(),
+        *dataset_uuid.as_bytes(),
     )))
 }
 
 async fn register_layers(
     handler: &RerunCloudHandler,
     dataset_id: EntryId,
-    expected_segment_id: &str,
-    segments: &[&crate::PlaybackArchiveSegmentPlan],
+    expected_recording_id: &str,
+    layers: &[&crate::PlaybackArchiveLayerPlan],
 ) -> Result<()> {
-    if segments.is_empty() {
+    if layers.is_empty() {
         return Ok(());
     }
-    let mut data_sources = Vec::with_capacity(segments.len());
-    for segment in segments {
-        let storage_url = Url::from_file_path(&segment.path).map_err(|()| {
+    let mut data_sources = Vec::with_capacity(layers.len());
+    for layer in layers {
+        let storage_url = Url::from_file_path(layer.cached.path()).map_err(|()| {
             anyhow::anyhow!(
                 "recording archive path is not an absolute file URL: {}",
-                segment.path.display()
+                layer.cached.path().display()
             )
         })?;
         data_sources.push(proto::DataSource {
             storage_url: Some(storage_url.to_string()),
-            layer: Some(layer_name(segment.ordinal, &segment.segment_id.to_string())),
+            layer: Some(layer.layer_name.clone()),
             prefix: false,
             typ: proto::DataSourceKind::Rrd as i32,
         });
@@ -583,39 +612,28 @@ async fn register_layers(
     let registered = RegisterWithDatasetDataframe::try_from(data)
         .context("validating Rerun registration result dataframe")?;
     ensure!(
-        registered.rerun_segment_id.len() == segments.len(),
+        registered.rerun_segment_id.len() == layers.len(),
         "Rerun registered {} of {} immutable recording layers",
         registered.rerun_segment_id.len(),
-        segments.len()
+        layers.len()
     );
     for segment_id in registered.rerun_segment_id.into_iter_owned() {
         ensure!(
-            segment_id.as_str() == expected_segment_id,
-            "immutable recording shard belongs to Rerun segment {}, expected {}",
+            segment_id.as_str() == expected_recording_id,
+            "immutable recording layer belongs to Rerun segment {}, expected {}",
             segment_id.as_str(),
-            expected_segment_id
+            expected_recording_id
         );
     }
     Ok(())
 }
 
-fn layer_name(ordinal: i64, segment_id: &str) -> String {
-    format!("shard-{ordinal:020}-{segment_id}")
-}
-
-fn catalog_revision(layers: &BTreeMap<String, CatalogLayer>) -> String {
-    let mut digest = Sha256::new();
-    for (name, layer) in layers {
-        digest.update(name.as_bytes());
-        digest.update([0]);
-        digest.update(layer.sha256.as_bytes());
-        digest.update(layer.byte_len.to_be_bytes());
+fn recording_layer_kind(kind: veoveo_platform_store::RecordingLayerKind) -> &'static str {
+    match kind {
+        veoveo_platform_store::RecordingLayerKind::Capture => "capture",
+        veoveo_platform_store::RecordingLayerKind::Properties => "properties",
+        veoveo_platform_store::RecordingLayerKind::Derived => "derived",
     }
-    digest
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 fn recording_state(state: RecordingState) -> &'static str {
@@ -798,427 +816,57 @@ impl_scoped_redap_service! {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::BTreeSet,
-        path::{Path, PathBuf},
-    };
-
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
-    use re_build_info::CrateVersion;
-    use re_log_encoding::{EncodingOptions, rrd::Encoder};
-    use re_sdk::RecordingStreamBuilder;
-    use re_sdk_types::archetypes::Scalars;
-    use veoveo_mcp_contract::{
-        AccessSubject, DataLabelId, GatewayProfileId, GroupId, InvocationAuthority,
-        InvocationProvenance, JwtId, PolicyVersion, Principal, PrincipalAssurance, PrincipalId,
-        PrincipalKind, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer, TokenSubject,
-        WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
-    };
-    use veoveo_platform_store::SegmentId;
-
     use super::*;
 
     #[test]
-    fn public_playback_origin_and_key_are_validated() {
-        let key = STANDARD.encode([7_u8; 32]);
-        assert!(PlaybackManager::new(&key, "https://veoveo.example").is_ok());
-        assert!(PlaybackManager::new(&key, "https://veoveo.example/path").is_err());
-        assert!(PlaybackManager::new("not-base64", "https://veoveo.example").is_err());
+    fn manifest_schema_is_the_v9_hard_cut() {
+        assert_eq!(PLAYBACK_MANIFEST_SCHEMA, "veoveo.io/recording-playback/v9");
     }
 
     #[test]
-    fn revision_is_stable_and_sensitive_to_shard_identity() {
-        let layers = BTreeMap::from([(
-            "shard".to_owned(),
-            CatalogLayer {
-                segment_id: "segment".to_owned(),
-                ordinal: 0,
-                byte_len: 42,
-                sha256: "abc".to_owned(),
-            },
-        )]);
-        let first = catalog_revision(&layers);
-        assert_eq!(first, catalog_revision(&layers));
-        let mut changed = layers;
-        changed.get_mut("shard").unwrap().sha256 = "def".to_owned();
-        assert_ne!(first, catalog_revision(&changed));
+    fn durable_dataset_uuid_is_the_rerun_dataset_entry_id() {
+        let dataset_id = RecordingDatasetId::new();
+        let entry_id = playback_dataset_id(dataset_id).unwrap();
+        assert_eq!(entry_id.to_string(), dataset_id.to_string());
     }
 
-    #[tokio::test]
-    async fn redap_access_is_recording_scoped_and_append_only() {
-        let directory = tempfile::tempdir().unwrap();
+    #[test]
+    fn playback_store_uses_dataset_and_recording_uuids() {
+        let dataset_id = RecordingDatasetId::new();
         let recording_id = RecordingId::new();
-        let recording_key = "inspection-flight";
-        let first_segment = SegmentId::new();
-        let first_path = write_rrd(
-            directory.path(),
-            "first.rrd",
-            recording_key,
-            "sensor/first",
-            1.0,
-        );
-        let manager = manager();
-        let identity = identity("operator-a");
-        let mut first_plan = plan(
-            recording_id,
-            recording_key,
-            vec![archive_plan(first_segment, 0, first_path.clone())],
-        );
-        first_plan.blueprint = Some(crate::PlaybackBlueprintPlan {
-            blueprint_id: "producer-default".to_owned(),
-            revision: 2,
-            byte_len: 512,
-            sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_owned(),
-            path: first_path,
-            map_provider: veoveo_recording_hub::BlueprintMapProviderSelection::Mapbox,
-        });
+        let store_id = playback_store_id(dataset_id, recording_id).unwrap();
+        assert_eq!(store_id.application_id().as_str(), dataset_id.to_string());
+        assert_eq!(store_id.recording_id().as_str(), recording_id.to_string());
+    }
+}
 
-        let first_manifest = manager
-            .prepare_manifest(&identity, first_plan.clone(), None)
-            .await
-            .unwrap();
-        let first_archive = first_manifest.archive.as_ref().unwrap();
-        assert_eq!(first_manifest.schema, PLAYBACK_MANIFEST_SCHEMA);
-        assert!(matches!(
-            first_manifest
-                .blueprint
-                .as_ref()
-                .map(|blueprint| blueprint.map_provider),
-            Some(crate::contract::PlaybackMapProvider::Mapbox)
-        ));
-        assert_eq!(first_archive.layer_count, 1);
-        assert_eq!(first_archive.segment_id, recording_key);
-        assert!(
-            first_archive
-                .uri
-                .starts_with("rerun://veoveo.example:443/dataset/"),
-            "unexpected Redap URI: {}",
-            first_archive.uri
-        );
+#[cfg(all(test, feature = "redap-conformance"))]
+mod official_read_profile {
+    use re_server::{RerunCloudHandler, RerunCloudHandlerBuilder};
 
-        let service = manager.scoped_redap_service();
-        let response = service
-            .read_dataset_entry(authorized_request(
-                proto::ReadDatasetEntryRequest {},
-                &first_manifest.access.redap_token,
-                Some(playback_dataset_id(recording_id).unwrap()),
-            ))
-            .await
-            .unwrap()
-            .into_inner();
-        assert!(response.dataset.is_some());
-        let who = service
-            .who_am_i(authorized_request(
-                proto::WhoAmIRequest {},
-                &first_manifest.access.redap_token,
-                None,
-            ))
-            .await
-            .unwrap()
-            .into_inner();
-        assert!(who.can_read);
-        assert!(!who.can_write);
-        assert_eq!(
-            who.user_id.as_deref(),
-            Some(first_manifest.access.session_id.as_str())
-        );
-
-        let entries = service
-            .find_entries(authorized_request(
-                proto::FindEntriesRequest::default(),
-                &first_manifest.access.redap_token,
-                None,
-            ))
-            .await
-            .unwrap()
-            .into_inner()
-            .entries;
-        assert_eq!(entries.len(), 1);
-        assert_eq!(
-            entries[0].name.as_deref(),
-            Some(format!("recording-{recording_id}").as_str())
-        );
-
-        let second_segment = SegmentId::new();
-        let second_path = write_rrd(
-            directory.path(),
-            "second.rrd",
-            recording_key,
-            "sensor/second",
-            2.0,
-        );
-        let second_plan = plan(
-            recording_id,
-            recording_key,
-            vec![
-                archive_plan(
-                    first_segment,
-                    0,
-                    first_plan.archive_segments[0].path.clone(),
-                ),
-                archive_plan(second_segment, 1, second_path),
-            ],
-        );
-        let second_manifest = manager
-            .prepare_manifest(
-                &identity,
-                second_plan,
-                Some(&first_manifest.access.session_id),
-            )
-            .await
-            .unwrap();
-        let second_archive = second_manifest.archive.as_ref().unwrap();
-        assert_eq!(
-            second_manifest.access.session_id,
-            first_manifest.access.session_id
-        );
-        assert_eq!(second_archive.uri, first_archive.uri);
-        assert_eq!(second_archive.layer_count, 2);
-        assert_ne!(second_archive.revision, first_archive.revision);
-
-        let other_recording_id = RecordingId::new();
-        let other_path = write_rrd(
-            directory.path(),
-            "other.rrd",
-            "other-flight",
-            "sensor/other",
-            3.0,
-        );
-        manager
-            .prepare_manifest(
-                &identity,
-                plan(
-                    other_recording_id,
-                    "other-flight",
-                    vec![archive_plan(SegmentId::new(), 0, other_path)],
-                ),
-                None,
-            )
-            .await
-            .unwrap();
-        let cross_recording = service
-            .read_dataset_entry(authorized_request(
-                proto::ReadDatasetEntryRequest {},
-                &first_manifest.access.redap_token,
-                Some(playback_dataset_id(other_recording_id).unwrap()),
-            ))
-            .await
-            .unwrap_err();
-        assert_eq!(cross_recording.code(), tonic::Code::NotFound);
-
-        let unauthenticated = service
-            .read_dataset_entry(
-                Request::new(proto::ReadDatasetEntryRequest {})
-                    .with_entry_id(playback_dataset_id(recording_id).unwrap()),
-            )
-            .await
-            .unwrap_err();
-        assert_eq!(unauthenticated.code(), tonic::Code::Unauthenticated);
+    fn handler() -> RerunCloudHandler {
+        RerunCloudHandlerBuilder::new().build()
     }
 
     #[tokio::test]
-    async fn mismatched_rrd_segment_identity_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = write_rrd(
-            directory.path(),
-            "wrong.rrd",
-            "wrong-flight",
-            "sensor/value",
-            1.0,
-        );
-        let error = manager()
-            .prepare_manifest(
-                &identity("operator-a"),
-                plan(
-                    RecordingId::new(),
-                    "expected-flight",
-                    vec![archive_plan(SegmentId::new(), 0, path)],
-                ),
-                None,
-            )
-            .await
-            .unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("immutable recording shard belongs to Rerun segment wrong-flight")
-        );
+    async fn official_query_dataset_filter_profile() {
+        re_redap_tests::query_dataset_unknown_segment_id_returns_empty(handler()).await;
+        re_redap_tests::query_dataset_should_fail(handler()).await;
     }
 
     #[tokio::test]
-    async fn a_playback_session_cannot_be_adopted_by_another_actor() {
-        let directory = tempfile::tempdir().unwrap();
-        let recording_id = RecordingId::new();
-        let path = write_rrd(
-            directory.path(),
-            "recording.rrd",
-            "inspection-flight",
-            "sensor/value",
-            1.0,
-        );
-        let manager = manager();
-        let plan = plan(
-            recording_id,
-            "inspection-flight",
-            vec![archive_plan(SegmentId::new(), 0, path)],
-        );
-        let first = manager
-            .prepare_manifest(&identity("operator-a"), plan.clone(), None)
-            .await
-            .unwrap();
-        let second = manager
-            .prepare_manifest(
-                &identity("operator-b"),
-                plan,
-                Some(&first.access.session_id),
-            )
-            .await
-            .unwrap();
-        assert_ne!(second.access.session_id, first.access.session_id);
+    async fn official_segment_and_manifest_scan_profile() {
+        re_redap_tests::scan_segment_table_filter(handler()).await;
+        re_redap_tests::scan_dataset_manifest_filter(handler()).await;
     }
 
-    #[cfg(feature = "redap-conformance")]
     #[tokio::test]
-    async fn pinned_official_redap_query_validation_passes() {
-        re_redap_tests::query_dataset_should_fail(RerunCloudHandlerBuilder::new().build()).await;
+    async fn official_fetch_chunks_profile() {
+        re_redap_tests::multi_dataset_fetch_chunk_completeness(handler()).await;
     }
 
-    #[cfg(feature = "redap-conformance")]
     #[tokio::test]
-    async fn pinned_official_redap_unknown_segment_filter_passes() {
-        re_redap_tests::query_dataset_unknown_segment_id_returns_empty(
-            RerunCloudHandlerBuilder::new().build(),
-        )
-        .await;
-    }
-
-    #[cfg(feature = "redap-conformance")]
-    #[tokio::test]
-    async fn pinned_official_redap_fetch_chunks_passes() {
-        re_redap_tests::multi_dataset_fetch_chunk_completeness(
-            RerunCloudHandlerBuilder::new().build(),
-        )
-        .await;
-    }
-
-    fn manager() -> PlaybackManager {
-        PlaybackManager::new(&STANDARD.encode([7_u8; 32]), "https://veoveo.example").unwrap()
-    }
-
-    fn plan(
-        recording_id: RecordingId,
-        recording_key: &str,
-        archive_segments: Vec<crate::PlaybackArchiveSegmentPlan>,
-    ) -> RecordingPlaybackPlan {
-        RecordingPlaybackPlan {
-            recording_id,
-            application_id: "inspection-camera".to_owned(),
-            recording_key: recording_key.to_owned(),
-            state: RecordingState::Ready,
-            started_at: Utc::now(),
-            ended_at: Some(Utc::now()),
-            archive_segments,
-            live: None,
-            blueprint: None,
-        }
-    }
-
-    fn archive_plan(
-        segment_id: SegmentId,
-        ordinal: i64,
-        path: PathBuf,
-    ) -> crate::PlaybackArchiveSegmentPlan {
-        let bytes = std::fs::read(&path).unwrap();
-        crate::PlaybackArchiveSegmentPlan {
-            segment_id,
-            ordinal,
-            byte_len: bytes.len() as u64,
-            sha256: Sha256::digest(&bytes)
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect(),
-            path,
-        }
-    }
-
-    fn write_rrd(
-        directory: &Path,
-        name: &str,
-        recording_key: &str,
-        entity: &str,
-        value: f64,
-    ) -> PathBuf {
-        let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
-            .recording_id(recording_key)
-            .memory()
-            .unwrap();
-        recording.log(entity, &Scalars::single(value)).unwrap();
-        let mut encoder = Encoder::new_eager(
-            CrateVersion::LOCAL,
-            EncodingOptions::PROTOBUF_COMPRESSED,
-            Vec::new(),
-        )
-        .unwrap();
-        for message in storage.take() {
-            encoder.append(&message).unwrap();
-        }
-        encoder.finish().unwrap();
-        let path = directory.join(name);
-        std::fs::write(&path, encoder.into_inner().unwrap()).unwrap();
-        path
-    }
-
-    fn authorized_request<T>(body: T, token: &str, entry_id: Option<EntryId>) -> Request<T> {
-        let mut request = match entry_id {
-            Some(entry_id) => Request::new(body).with_entry_id(entry_id),
-            None => Request::new(body),
-        };
-        request
-            .metadata_mut()
-            .insert("authorization", format!("Bearer {token}").parse().unwrap());
-        request
-    }
-
-    fn identity(principal: &str) -> GatewayInternalIdentity {
-        let now = Utc::now();
-        let actor = Principal {
-            id: PrincipalId::new(principal).unwrap(),
-            kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://issuer.example").unwrap(),
-            subject: TokenSubject::new(format!("subject-{principal}")).unwrap(),
-            tenant: Some(TenantId::new("tenant-a").unwrap()),
-            groups: BTreeSet::<GroupId>::new(),
-            group_roles: BTreeSet::new(),
-            roles: BTreeSet::<RoleId>::new(),
-            scopes: BTreeSet::<ScopeName>::new(),
-            data_labels: BTreeSet::<DataLabelId>::new(),
-            assurances: BTreeSet::<PrincipalAssurance>::new(),
-            authenticated_at: Some(now),
-        };
-        GatewayInternalIdentity {
-            issuer: TokenIssuer::new("veoveo-internal").unwrap(),
-            profile: GatewayProfileId::new("operations").unwrap(),
-            server: ServerSlug::new("recording").unwrap(),
-            actor: actor.clone(),
-            authority: InvocationAuthority {
-                work_context: WorkContextId::new("flight-operations").unwrap(),
-                tenant: TenantId::new("tenant-a").unwrap(),
-                membership: WorkContextMembershipLevel::Owner,
-                policy_revision: PolicyVersion::new("r1").unwrap(),
-                output_policy: WorkContextOutputPolicy {
-                    owner: AccessSubject::Principal(actor.id.clone()),
-                    initial_grants: Vec::new(),
-                    classification: None,
-                    data_labels: BTreeSet::new(),
-                },
-                provenance: InvocationProvenance::Direct {
-                    initiator: actor.id,
-                },
-            },
-            jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
-            issued_at: now,
-            not_before: now,
-            expires_at: now + TimeDelta::minutes(5),
-        }
+    async fn official_rrd_manifest_profile() {
+        re_redap_tests::segment_id_not_found(handler()).await;
     }
 }

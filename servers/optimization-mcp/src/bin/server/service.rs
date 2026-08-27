@@ -451,6 +451,7 @@ impl ServerHandler for OptimizationMcp {
                         empty_message: "No optimization runs are visible to this identity.",
                         resources: &resources,
                         tools: &tools,
+                        stream_result: None,
                     },
                 );
                 return Ok(ReadResourceResult::new(vec![

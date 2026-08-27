@@ -59,8 +59,11 @@ pub enum PlatformTable {
     TimeMissionEpoch,
     TimeTemporalEvent,
     TimeClockPolicy,
+    RecordingDataset,
     Recording,
-    Segment,
+    RecordingLayer,
+    RecordingReadGrant,
+    RecordingProjectionReceipt,
     RecordingIngestStream,
     RecordingIngestBatch,
     RecordingBlueprint,
@@ -74,7 +77,7 @@ pub enum PlatformTable {
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 65] = [
+    pub const ALL: [Self; 68] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -128,8 +131,11 @@ impl PlatformTable {
         Self::TimeMissionEpoch,
         Self::TimeTemporalEvent,
         Self::TimeClockPolicy,
+        Self::RecordingDataset,
         Self::Recording,
-        Self::Segment,
+        Self::RecordingLayer,
+        Self::RecordingReadGrant,
+        Self::RecordingProjectionReceipt,
         Self::RecordingIngestStream,
         Self::RecordingIngestBatch,
         Self::RecordingBlueprint,
@@ -197,8 +203,11 @@ impl PlatformTable {
             Self::TimeMissionEpoch => "time_mission_epoch",
             Self::TimeTemporalEvent => "time_temporal_event",
             Self::TimeClockPolicy => "time_clock_policy",
+            Self::RecordingDataset => "recording_dataset",
             Self::Recording => "recording",
-            Self::Segment => "segment",
+            Self::RecordingLayer => "recording_layer",
+            Self::RecordingReadGrant => "recording_read_grant",
+            Self::RecordingProjectionReceipt => "recording_projection_receipt",
             Self::RecordingIngestStream => "recording_ingest_stream",
             Self::RecordingIngestBatch => "recording_ingest_batch",
             Self::RecordingBlueprint => "recording_blueprint",

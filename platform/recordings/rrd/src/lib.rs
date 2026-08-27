@@ -9,6 +9,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{CrsId, DatumId, EllipsoidId, FrameKind, GeofenceId, GeofenceRule};
 
+pub mod projection;
+pub mod properties_layer;
+pub mod recording_layer;
 pub mod video;
 
 fn validate_rrd_id(value: &str, kind: &'static str) -> Result<(), RrdIdError> {

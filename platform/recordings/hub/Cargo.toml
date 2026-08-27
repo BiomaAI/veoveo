@@ -16,10 +16,6 @@ name = "sensor-sim"
 path = "src/bin/sensor_sim.rs"
 
 [[bin]]
-name = "hub-query"
-path = "src/bin/hub_query.rs"
-
-[[bin]]
 name = "hub-smoke"
 path = "src/bin/hub_smoke.rs"
 
@@ -28,6 +24,7 @@ anyhow.workspace = true
 axum.workspace = true
 chrono.workspace = true
 clap.workspace = true
+fs4 = "=1.1.0"
 hex.workspace = true
 h264-reader.workspace = true
 mp4.workspace = true
@@ -36,12 +33,16 @@ serde_json.workspace = true
 secrecy.workspace = true
 sha2.workspace = true
 prost.workspace = true
+reqwest = { workspace = true, features = ["form", "json", "rustls-no-provider", "stream"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time", "fs"] }
+tokio-util = { workspace = true, features = ["io"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
 uuid.workspace = true
 veoveo-platform-store.workspace = true
 veoveo-mcp-contract.workspace = true
+veoveo-recording-forwarder = { path = "../forwarder" }
 veoveo-recording-protocol.workspace = true
 veoveo-rrd.workspace = true
 tempfile = "3"

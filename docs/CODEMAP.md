@@ -21,7 +21,7 @@ component:
 | [`EXTERNAL_REPOSITORY_INTEGRATION.md`](EXTERNAL_REPOSITORY_INTEGRATION.md) | coding-agent runbook for native external build, conformance, private publication, gateway composition, and digest-pinned GitOps integration |
 | [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
-| [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
+| [`RECORDINGS.md`](RECORDINGS.md) | durable recording datasets and layers, Artifact publication, governed Redap, bounded Arrow projection, playback, disk safety, and the recording change checklist |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
 | [`DEVELOPMENT_ITERATION.md`](DEVELOPMENT_ITERATION.md) | affected-target staging, digest-locked development rollout, focused acceptance, runtime pressure diagnostics, and iteration budgets |
 | [`CONTINUOUS_INTEGRATION.md`](CONTINUOUS_INTEGRATION.md) | temporary host-local test reporting, informational GitHub presentation, and the future full GPU CI architecture |
@@ -245,14 +245,15 @@ path-free content provenance.
 
 ### `platform/recordings/rrd`
 
-Owns cross-domain Rerun/RRD spacetime types, adapters, and encoded-video boundary
-inspection. Domain results that do not overlap Rerun concepts stay local to their MCP
-crate.
+Owns cross-domain Rerun/RRD spacetime types, adapters, encoded-video boundary
+inspection, canonical recording-layer Store ID normalization, deterministic properties
+layers, and bounded Arrow IPC projection. Domain results that do not overlap Rerun
+concepts stay local to their MCP crate.
 
 ### `platform/recordings/video`
 
 Owns governed video selection and task-start materialization shared by Stream replay and
-Reason. It consumes Recording MCP read plans, combines immutable archive shards with
+Reason. It consumes Recording MCP read plans, combines immutable Artifact-backed layers with
 complete acknowledged live ingest parts, and remuxes the bounded H.264 range without
 re-encoding.
 
@@ -274,6 +275,7 @@ The only durable platform persistence layer.
 | `migrations.rs` | ordered SurrealDB 3.2 schema migrations |
 | `models.rs` | persisted Rust record and enum definitions |
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
+| `recording_catalog.rs` | recording datasets and layers, durable read grants, projection receipts, expiry, and cleanup |
 | `administration.rs` | bootstrap, runtime user, migration administration |
 | `identity.rs` | tenant/principal/group resolution |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
@@ -283,7 +285,7 @@ The only durable platform persistence layer.
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
 | `map_presentations.rs` | Immutable publication products plus governed, publication-pinned map compositions and revisions |
 | `time.rs` | authority sources and releases, active pointers, acquisitions, calendars, epochs, clock policy, and events |
-| `recordings.rs` | recording and segment catalog |
+| `recordings.rs` | recording lifecycle and visibility |
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
@@ -634,13 +636,14 @@ types.
 | File | Responsibility |
 |---|---|
 | `ingest_http.rs` | cluster-internal authenticated protobuf routes and typed error projection |
-| `ingest.rs` | producer authorization, atomic no-clobber journal and Blueprint publication, quota-bound append, ordered live parts, rollover merge, and restart reconciliation |
-| `diagnostics.rs` | bounded authenticated-ingest acceptance, duplication, materialization-backlog, and last-success counters |
+| `ingest.rs` | producer authorization, atomic no-clobber journal and Blueprint publication, quota-bound append, ordered live parts, capture-layer rollover, publication recovery, and restart reconciliation |
+| `diagnostics.rs` | bounded authenticated-ingest acceptance, duplication, publication backlog, spool reservations, free-space headroom, and last-success counters |
 | `blueprint.rs` | complete Blueprint-store validation, application association, and confined immutable paths |
-| `spool.rs` | segment encode/flush/fsync/freeze, idle completion, and recovery |
-| `catalog.rs` | per-stream identity, capture timestamps, segment verification, and catalog publication |
-| `query.rs` | governed RRD query/readback |
-| `config.rs` | validated raw gRPC spool and segment limits |
+| `spool.rs` | capture-layer encode, flush, fsync, freeze, idle completion, and recovery |
+| `catalog.rs` | dataset and recording identity, capture timestamps, layer verification, and durable catalog transitions |
+| `layer_files.rs` | confined discovery of writing and committed capture-layer files |
+| `publication.rs` | scoped Gateway streaming publication, occurrence verification, and local recovery cleanup |
+| `config.rs` | validated raw gRPC spool and capture-layer limits |
 | `archive.rs` | one-time object-store compaction, GoP rebatching, footer encoding, and atomic archive publication |
 | `ingest.rs` | authenticated durable-part journal projection, compact static-context snapshots, and decoder-reentrant rollover |
 | `spool.rs` | direct loopback writer, decoder-reentrant rollover, and archive freeze |
@@ -670,18 +673,19 @@ instead of a private video path.
 
 ### `servers/recording-mcp`
 
-`contract.rs` owns query, publication, playback-manifest v8, archive-catalog, Blueprint, and live
-descriptor types. `service.rs` resolves authorized MCP and playback plans.
-`playback.rs` owns stable dataset identity, bounded playback sessions, the derived
-append-only Rerun catalog, finite governed Blueprint source, and the recording-scoped read-only Redap service.
+`contract.rs` owns recording, layer, seal, playback-manifest v9, Blueprint, and live
+descriptor types. `service.rs` resolves authorized MCP and playback plans and publishes
+properties layers. `service/projection.rs` owns projection receipts, concurrency,
+scratch, and Arrow downloads. `layer_cache.rs` owns verified bounded Artifact-to-PVC
+materialization and eviction. `playback.rs` owns durable grants, dataset-scoped virtual
+Rerun catalogs, finite governed Blueprint sources, and the scoped read-only Redap service.
 `live_playback.rs` retains recording-scoped static context across ingest generations, filters
 bounded temporal history, and rewrites messages to the stable playback identity.
 `live_stream.rs` frames complete RRD batches for the authorized WebViewer `LogChannel` and
 distinguishes an empty-channel bootstrap from a current-head transport resume.
-`uris.rs` owns recording identities, and `bin/server.rs` composes
-the authenticated manifest, framed live route, Redap, and MCP transports.
-`bin/server/state.rs` composes platform store, spool access, playback, subscriptions, and
-artifact publication.
+`uris.rs` owns recording identities. `bin/server.rs` composes the authenticated manifest,
+framed live route, Redap, projections, MCP transports, storage readiness and diagnostics,
+and Artifact publication.
 
 ### `servers/stream-mcp`
 
@@ -700,10 +704,11 @@ artifact publication.
 | `gst-runner/` | native operator-admitted GStreamer graph execution with NVIDIA decode/inference and typed event output |
 | `Dockerfile` | DeepStream 9 development/runtime multi-stage image |
 
-`recording-mcp::service::read` owns the reusable governed local read plan, and
+`recording-mcp::service::read` owns the reusable governed Artifact-backed read plan, and
 `platform/recordings/video` owns selection and materialization over it;
-Stream replay persists recording identities rather than segment paths. Live Stream
-sessions consume their admitted ingress directly and do not depend on Recording Hub.
+Recording-based durable Stream replay remains fail-closed until its own design supplies
+a fresh Artifact-read capability after restart. Live Stream sessions consume their
+admitted ingress directly and do not depend on Recording Hub.
 
 ### `servers/reason-mcp`
 
@@ -720,10 +725,9 @@ sessions consume their admitted ingress directly and do not depend on Recording 
 | `runner/` | Python world-model runner: typed protocol, frame sampling, vLLM inference |
 | `Dockerfile` | vLLM runtime image with the server binary and installed runner |
 
-Reason consumes governed video through `platform/recordings/video` exactly as
-Stream replay does and embeds a bounded grounding subset in the durable request at
-submission time; it persists neither segment paths, artifact URLs, nor caller
-bearers. The runner binary belongs to
+Reason embeds a bounded grounding subset in the durable request at submission time. Its
+recording-video materialization remains fail-closed until a fresh Artifact-read
+capability can be recovered without persisting a caller bearer. The runner binary belongs to
 the deployable image and the engine is a site-compiled deployment input, so the
 server fails readiness until both are present.
 
@@ -862,6 +866,9 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
   bespoke admin REST router, BFF proxy route, or hardcoded console page.
 - Change browser behavior through `apps/console/bff` plus `apps/console/web`; do not expose gateway
   tokens to JavaScript.
+- Change Recording Explorer bulk projection delivery through
+  `apps/console/web/src/apps/recordingProjectionStream.ts`. Only the exact Recording
+  Explorer may receive its transferable stream.
 - Change public routes in Helm ingress, then extend the Rust deployment smoke.
 - Change installation image/config content in Helm, the offline lock/builder, and
   deployment contract together.

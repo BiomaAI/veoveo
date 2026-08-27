@@ -677,6 +677,7 @@ impl ServerHandler for MediaMcp {
                                 arguments_json: r#"{"artifact_uri":"media://artifact/"}"#,
                             },
                         ],
+                        stream_result: None,
                     },
                 );
                 return Ok(ReadResourceResult::new(vec![

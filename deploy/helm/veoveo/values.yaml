@@ -143,12 +143,40 @@ recording:
   labels: []
   route: world=
   idleTimeoutSeconds: 15
-  segmentMaxBytes: 201326592
-  segmentMaxAgeSeconds: 3600
+  captureLayerMaxBytes: 201326592
+  spoolMinimumFreeBytes: 1073741824
+  captureLayerMaxAgeSeconds: 3600
   liveHistorySeconds: 1
   blueprintMaxBytes: 2097152
   blueprintMaxMessages: 10000
   blueprintMaxRevisions: 32
+  publication:
+    gatewayTransportUrl: http://mcp-gateway:8788
+    profile: recording-publish
+    clientId: recording-hub
+    keyId: recording-hub-2026
+    signingAlgorithm: rs256
+    privateKey:
+      existingSecret: veoveo-recording-hub
+      key: private-key.pem
+  mcpPublisher:
+    clientId: recording-mcp-publisher
+    keyId: recording-mcp-publisher-2026
+    signingAlgorithm: rs256
+    privateKey:
+      existingSecret: veoveo-recording-mcp-publisher
+      key: private-key.pem
+  catalogCache:
+    size: 10Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    managedBytes: 8589934592
+    minimumFreeBytes: 1073741824
+  projection:
+    aggregateScratchBytes: 100663296
+    minimumFreeBytes: 1073741824
+    concurrency: 2
+    deadlineMilliseconds: 15000
   persistence:
     size: 100Gi
     storageClass: ""
@@ -161,13 +189,24 @@ recording:
     repository: veoveo/recording-mcp
     tag: 0.1.0
     digest: ""
-  resources:
+  hubResources:
     requests:
       cpu: 250m
       memory: 512Mi
+      ephemeral-storage: 512Mi
     limits:
       cpu: "2"
       memory: 4Gi
+      ephemeral-storage: 2Gi
+  mcpResources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+      ephemeral-storage: 256Mi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+      ephemeral-storage: 1Gi
 
 stream:
   runtimeClassName: nvidia

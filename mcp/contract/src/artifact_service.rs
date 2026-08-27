@@ -355,6 +355,21 @@ impl PutArtifactRequest {
     }
 }
 
+/// Internal bounded streaming upload descriptor.
+///
+/// The expected length and digest are mandatory because the service must reject
+/// a corrupt or truncated body before committing an object or occurrence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StreamArtifactRequest {
+    /// Pre-reserved occurrence identity. Recording publication uses the
+    /// distinct `RecordingLayerId` wrapper around this same UUIDv7.
+    pub artifact_id: ArtifactId,
+    pub artifact: PutArtifactRequest,
+    pub expected_byte_len: u64,
+    pub expected_sha256: String,
+}
+
 /// A grant mutation request. The occurrence id travels in the request path.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PutGrantRequest {

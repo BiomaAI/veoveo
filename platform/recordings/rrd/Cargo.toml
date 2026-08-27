@@ -9,11 +9,21 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
+hex.workspace = true
 re_chunk.workspace = true
+re_chunk_store.workspace = true
+re_dataframe.workspace = true
 re_log_encoding.workspace = true
 re_log_types.workspace = true
 re_sdk_types.workspace = true
+re_types_core.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+uuid.workspace = true
 veoveo-mcp-contract = { workspace = true }
+
+[dev-dependencies]
+re_sdk.workspace = true
+tempfile = "3"

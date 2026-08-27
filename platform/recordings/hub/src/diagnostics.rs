@@ -19,6 +19,10 @@ pub struct RecordingIngestDiagnostics {
     pub duplicate_batches_total: u64,
     pub materialization_backlog_batches: u64,
     pub materialization_backlog_bytes: u64,
+    pub reserved_spool_bytes: u64,
+    pub spool_headroom_rejections_total: u64,
+    pub available_spool_bytes: u64,
+    pub minimum_free_spool_bytes: u64,
     pub last_success_at: Option<DateTime<Utc>>,
 }
 
@@ -35,6 +39,21 @@ pub(crate) struct IngestDiagnostics {
     state: Arc<Mutex<IngestDiagnosticsState>>,
 }
 
+pub(crate) struct SpoolReservation {
+    diagnostics: IngestDiagnostics,
+    byte_len: u64,
+}
+
+impl Drop for SpoolReservation {
+    fn drop(&mut self) {
+        let mut state = self.diagnostics.lock();
+        state.snapshot.reserved_spool_bytes = state
+            .snapshot
+            .reserved_spool_bytes
+            .saturating_sub(self.byte_len);
+    }
+}
+
 #[derive(Default)]
 struct IngestDiagnosticsState {
     snapshot: RecordingIngestDiagnostics,
@@ -42,6 +61,39 @@ struct IngestDiagnosticsState {
 }
 
 impl IngestDiagnostics {
+    pub(crate) fn reserve_spool(
+        &self,
+        byte_len: u64,
+        available_bytes: u64,
+        minimum_free_bytes: u64,
+    ) -> SpoolReservation {
+        let mut state = self.lock();
+        state.snapshot.reserved_spool_bytes =
+            state.snapshot.reserved_spool_bytes.saturating_add(byte_len);
+        state.snapshot.available_spool_bytes = available_bytes;
+        state.snapshot.minimum_free_spool_bytes = minimum_free_bytes;
+        SpoolReservation {
+            diagnostics: self.clone(),
+            byte_len,
+        }
+    }
+
+    pub(crate) fn reject_spool_headroom(&self, available_bytes: u64, minimum_free_bytes: u64) {
+        let mut state = self.lock();
+        state.snapshot.available_spool_bytes = available_bytes;
+        state.snapshot.minimum_free_spool_bytes = minimum_free_bytes;
+        state.snapshot.spool_headroom_rejections_total = state
+            .snapshot
+            .spool_headroom_rejections_total
+            .saturating_add(1);
+    }
+
+    pub(crate) fn observe_spool_headroom(&self, available_bytes: u64, minimum_free_bytes: u64) {
+        let mut state = self.lock();
+        state.snapshot.available_spool_bytes = available_bytes;
+        state.snapshot.minimum_free_spool_bytes = minimum_free_bytes;
+    }
+
     pub(crate) fn durable_batch(
         &self,
         stream_id: impl ToString,
@@ -125,6 +177,14 @@ mod tests {
         assert_eq!(observed.diagnostics.duplicate_batches_total, 1);
         assert_eq!(observed.diagnostics.materialization_backlog_batches, 1);
         assert_eq!(observed.diagnostics.materialization_backlog_bytes, 1_024);
+
+        let reservation = diagnostics.reserve_spool(4_096, 1_000_000, 100_000);
+        assert_eq!(
+            diagnostics.document().diagnostics.reserved_spool_bytes,
+            4_096
+        );
+        drop(reservation);
+        assert_eq!(diagnostics.document().diagnostics.reserved_spool_bytes, 0);
 
         diagnostics.materialized("stream-a", 7);
         let observed = diagnostics.document();

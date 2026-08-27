@@ -39,7 +39,7 @@ import type {
 const GovernedRerunViewer = lazy(() => import("../components/GovernedRerunViewer"));
 
 type RecordingStateFilter = "all" | RecordingSummary["state"];
-const PLAYBACK_SESSION_RENEWAL_FRACTION = 0.8;
+const RECORDING_GRANT_RENEWAL_FRACTION = 0.8;
 
 const lifecycleDetail: Record<RecordingSummary["state"], string> = {
   live: "Receiving data",
@@ -65,9 +65,9 @@ function initialRecordingSelection(
     recordings.find(
       (recording) =>
         (recording.state === "ready" || recording.state === "sealed") &&
-        recording.playableSegmentCount > 0
+        recording.committedLayerCount > 0
     )?.id ??
-    recordings.find((recording) => recording.playableSegmentCount > 0)?.id ??
+    recordings.find((recording) => recording.committedLayerCount > 0)?.id ??
     recordings[0]?.id
   );
 }
@@ -152,7 +152,7 @@ export function RecordingsView({
   );
   const selectedRecordingRef = useRef(resolvedSelectedId);
   const selectedCatalogVersion = selected
-    ? `${selected.state}:${selected.segmentCount}:${selected.playableSegmentCount}:${selected.playableByteLength}`
+    ? `${selected.state}:${selected.layerCount}:${selected.committedLayerCount}:${selected.committedByteLength}`
     : "";
   const observedCatalogVersion = useRef(selectedCatalogVersion);
 
@@ -182,21 +182,21 @@ export function RecordingsView({
 
   const refreshPlaybackManifest = useCallback(async () => {
     if (!resolvedSelectedId || !manifest || refreshingManifest.current) return;
-    const currentLiveSegmentId = manifest.live?.segment_id;
+    const currentLiveLayerId = manifest.live?.layer_id;
     const currentManifestState = manifest.state;
-    const currentArchiveRevision = manifest.archive?.revision;
-    const currentPlaybackSession = manifest.access.session_id;
+    const currentArchiveRevision = manifest.archive?.catalog_revision;
+    const currentRecordingGrant = manifest.access.grant_id;
     refreshingManifest.current = true;
     try {
       const value = await loadRecordingPlayback(resolvedSelectedId, {
-        playbackSession: currentPlaybackSession,
+        recordingGrant: currentRecordingGrant,
       });
       if (selectedRecordingRef.current !== resolvedSelectedId) return;
       if (
-        value.live?.segment_id === currentLiveSegmentId &&
+        value.live?.layer_id === currentLiveLayerId &&
         value.state === currentManifestState &&
-        value.archive?.revision === currentArchiveRevision &&
-        value.access.session_id === currentPlaybackSession &&
+        value.archive?.catalog_revision === currentArchiveRevision &&
+        value.access.grant_id === currentRecordingGrant &&
         value.access.redap_token === manifest.access.redap_token &&
         value.access.expires_at === manifest.access.expires_at
       ) {
@@ -205,7 +205,7 @@ export function RecordingsView({
       setManifest(value);
       setPlaybackError(undefined);
     } catch (cause: unknown) {
-      console.warn("Recording playback session refresh failed", cause);
+      console.warn("Recording grant refresh failed", cause);
     } finally {
       refreshingManifest.current = false;
     }
@@ -238,14 +238,14 @@ export function RecordingsView({
   const playback = useMemo(() => {
     if (!manifest) return undefined;
     const liveRoute = manifest.live
-      ? recordingLiveRrdStreamRoute(manifest.recording_id)
+      ? recordingLiveRrdStreamRoute(manifest.recording_segment_id)
       : undefined;
     const receiver = selectExclusiveRerunPlaybackReceiver(
       requestedPlaybackMode,
       manifest.archive
         ? {
             uri: manifest.archive.uri,
-            revision: manifest.archive.revision,
+            revision: manifest.archive.catalog_revision,
           }
         : undefined,
       liveRoute
@@ -255,7 +255,7 @@ export function RecordingsView({
           redapToken: manifest.access.redap_token,
           receiver: receiver.receiver,
           blueprintUrl: manifest.blueprint
-            ? recordingBlueprintUrl(manifest.recording_id, manifest.blueprint.revision)
+            ? recordingBlueprintUrl(manifest.recording_segment_id, manifest.blueprint.revision)
             : undefined,
           blueprintMapProvider: manifest.blueprint?.map_provider,
         }
@@ -263,7 +263,7 @@ export function RecordingsView({
     return {
       source,
       mode: receiver.mode,
-      viewerKey: `${manifest.recording_id}:${receiver.mode}`,
+      viewerKey: `${manifest.recording_segment_id}:${receiver.mode}`,
     };
   }, [manifest, requestedPlaybackMode]);
   const playbackSource = playback?.source;
@@ -278,7 +278,7 @@ export function RecordingsView({
   useEffect(() => {
     if (!manifest || !requiresPlaybackCredentialRenewal(playbackSource?.receiver)) return;
     const remaining = Date.parse(manifest.access.expires_at) - Date.now();
-    const delay = Math.max(1_000, remaining * PLAYBACK_SESSION_RENEWAL_FRACTION);
+    const delay = Math.max(1_000, remaining * RECORDING_GRANT_RENEWAL_FRACTION);
     const timeout = window.setTimeout(() => {
       void refreshPlaybackManifest();
     }, delay);
@@ -331,9 +331,9 @@ export function RecordingsView({
               <span className="recording-card-id mono">Catalog ID · {recording.id}</span>
               <div className="recording-card-metrics">
                 <span>
-                  {recording.playableSegmentCount}/{recording.segmentCount} playable
+                  {recording.committedLayerCount}/{recording.layerCount} committed
                 </span>
-                <span>{formatBytes(recording.playableByteLength)}</span>
+                <span>{formatBytes(recording.committedByteLength)}</span>
                 <span>{formatDate(recording.startedAt)}</span>
               </div>
             </button>
@@ -365,9 +365,9 @@ export function RecordingsView({
               <div><span>Lifecycle</span><strong>{lifecycleDetail[selected.state]}</strong></div>
               <div>
                 <span>Archive health</span>
-                <strong>{selected.playableSegmentCount} of {selected.segmentCount} ready</strong>
+                <strong>{selected.committedLayerCount} of {selected.layerCount} committed</strong>
               </div>
-              <div><span>Playable size</span><strong>{formatBytes(selected.playableByteLength)}</strong></div>
+              <div><span>Committed size</span><strong>{formatBytes(selected.committedByteLength)}</strong></div>
               <div><span>Started</span><strong>{formatDate(selected.startedAt)}</strong></div>
               <div>
                 <span>Ended</span>
@@ -395,12 +395,12 @@ export function RecordingsView({
                       Recording Hub opens it.
                     </span>
                   </div>
-                ) : selected.playableSegmentCount > 0 ? (
+                ) : selected.committedLayerCount > 0 ? (
                   <div className="recording-viewer-state recording-viewer-error">
                     <strong>Playback manifest is inconsistent.</strong>
                     <span>
-                      The catalog reports {selected.playableSegmentCount} playable segment
-                      {selected.playableSegmentCount === 1 ? "" : "s"}, but the playback manifest
+                      The catalog reports {selected.committedLayerCount} committed layer
+                      {selected.committedLayerCount === 1 ? "" : "s"}, but the playback manifest
                       returned none.
                     </span>
                     <button type="button" className="button button-secondary" onClick={reloadPlayback}>
@@ -412,7 +412,7 @@ export function RecordingsView({
                     <FileStack size={30} />
                     <strong>This recording has no playable data.</strong>
                     <span>
-                      Its lifecycle is {selected.state}; no frozen or sealed RRD segment is
+                      Its lifecycle is {selected.state}; no committed RRD layer is
                       available.
                     </span>
                   </div>

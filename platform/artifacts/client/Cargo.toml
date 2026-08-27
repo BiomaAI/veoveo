@@ -11,4 +11,6 @@ path = "src/lib.rs"
 base64.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider", "json", "query", "stream"] }
 serde_json.workspace = true
+tokio = { workspace = true, features = ["fs"] }
+tokio-util = { workspace = true, features = ["io"] }
 veoveo-mcp-contract = { workspace = true, default-features = false }

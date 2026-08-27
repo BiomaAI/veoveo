@@ -464,16 +464,22 @@
         "labels",
         "route",
         "idleTimeoutSeconds",
-        "segmentMaxBytes",
-        "segmentMaxAgeSeconds",
+        "captureLayerMaxBytes",
+        "spoolMinimumFreeBytes",
+        "captureLayerMaxAgeSeconds",
         "liveHistorySeconds",
         "blueprintMaxBytes",
         "blueprintMaxMessages",
         "blueprintMaxRevisions",
+        "publication",
+        "mcpPublisher",
+        "catalogCache",
+        "projection",
         "persistence",
         "hubImage",
         "mcpImage",
-        "resources"
+        "hubResources",
+        "mcpResources"
       ],
       "properties": {
         "tenantKey": {
@@ -505,12 +511,16 @@
           "minimum": 1,
           "maximum": 3600
         },
-        "segmentMaxBytes": {
+        "captureLayerMaxBytes": {
           "type": "integer",
           "minimum": 8388608,
           "maximum": 251658240
         },
-        "segmentMaxAgeSeconds": {
+        "spoolMinimumFreeBytes": {
+          "type": "integer",
+          "minimum": 1048576
+        },
+        "captureLayerMaxAgeSeconds": {
           "type": "integer",
           "minimum": 1
         },
@@ -533,6 +543,80 @@
           "minimum": 1,
           "maximum": 10000
         },
+        "publication": {
+          "$ref": "#/definitions/recordingPublisher"
+        },
+        "mcpPublisher": {
+          "$ref": "#/definitions/recordingPublisherIdentity"
+        },
+        "catalogCache": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "size",
+            "storageClass",
+            "accessModes",
+            "managedBytes",
+            "minimumFreeBytes"
+          ],
+          "properties": {
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "accessModes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "managedBytes": {
+              "type": "integer",
+              "minimum": 1048576
+            },
+            "minimumFreeBytes": {
+              "type": "integer",
+              "minimum": 1048576
+            }
+          }
+        },
+        "projection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "aggregateScratchBytes",
+            "minimumFreeBytes",
+            "concurrency",
+            "deadlineMilliseconds"
+          ],
+          "properties": {
+            "aggregateScratchBytes": {
+              "type": "integer",
+              "minimum": 1048576,
+              "maximum": 100663296
+            },
+            "minimumFreeBytes": {
+              "type": "integer",
+              "minimum": 1048576
+            },
+            "concurrency": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2
+            },
+            "deadlineMilliseconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 15000
+            }
+          }
+        },
         "persistence": {
           "$ref": "#/definitions/persistence"
         },
@@ -542,10 +626,14 @@
         "mcpImage": {
           "$ref": "#/definitions/image"
         },
-        "resources": {
+        "hubResources": {
+          "type": "object"
+        },
+        "mcpResources": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "stream": {
       "type": "object",
@@ -1162,6 +1250,106 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "recordingPublisherIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clientId",
+        "keyId",
+        "signingAlgorithm",
+        "privateKey"
+      ],
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "keyId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signingAlgorithm": {
+          "enum": [
+            "eddsa",
+            "es256",
+            "rs256"
+          ]
+        },
+        "privateKey": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "existingSecret",
+            "key"
+          ],
+          "properties": {
+            "existingSecret": {
+              "type": "string",
+              "minLength": 1
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "recordingPublisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gatewayTransportUrl",
+        "profile",
+        "clientId",
+        "keyId",
+        "signingAlgorithm",
+        "privateKey"
+      ],
+      "properties": {
+        "gatewayTransportUrl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "clientId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "keyId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signingAlgorithm": {
+          "enum": [
+            "eddsa",
+            "es256",
+            "rs256"
+          ]
+        },
+        "privateKey": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "existingSecret",
+            "key"
+          ],
+          "properties": {
+            "existingSecret": {
+              "type": "string",
+              "minLength": 1
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
     },
     "sizeLimit": {
       "type": "object",

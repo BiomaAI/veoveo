@@ -1,4 +1,4 @@
-//! SurrealDB-backed catalog projection for durable RRD segments.
+//! SurrealDB-backed catalog projection for immutable recording layers.
 //!
 //! The filesystem remains the byte authority while a recording is open. This
 //! module gives each recording and segment a typed installation identity and
@@ -13,17 +13,21 @@ use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, NaiveDate, Utc};
 use re_dataframe::{ChunkStoreConfig, QueryEngine};
 use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::{PrincipalId as ContractPrincipalId, TokenIssuer, TokenSubject};
+use veoveo_mcp_contract::{
+    DataLabelId, PrincipalId as ContractPrincipalId, PutArtifactRequest, TokenIssuer, TokenSubject,
+};
 use veoveo_platform_store::{
     InvocationAuthorityRecord, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
-    RecordIdKey, RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDraft, RecordingId,
-    RecordingState, SegmentDraft, SegmentId, SegmentState,
+    RecordIdKey, RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDatasetDraft,
+    RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
+    RecordingLayerRecord, RecordingLayerState, RecordingState,
 };
 
 use crate::config::DatasetName;
 use crate::governance::{governed_classification, governed_labels};
 use crate::ingest::is_authenticated_ingest_path;
-use crate::query::{SegmentReadScope, collect_segments};
+use crate::layer_files::{RecordingLayerFileScope, collect_recording_layer_files};
+use crate::publication::GatewayLayerPublisher;
 use crate::spool::{FrozenSegment, OpenedSegment, PublishedBlueprint, SegmentCatalog, SegmentKey};
 
 #[derive(Clone, Debug)]
@@ -54,6 +58,7 @@ pub struct PlatformCatalog {
     spool_root: PathBuf,
     policy: CatalogPolicy,
     runtime: tokio::runtime::Handle,
+    publisher: GatewayLayerPublisher,
 }
 
 impl PlatformCatalog {
@@ -62,6 +67,7 @@ impl PlatformCatalog {
         spool_root: PathBuf,
         policy: CatalogPolicy,
         runtime: tokio::runtime::Handle,
+        publisher: GatewayLayerPublisher,
     ) -> Result<Self> {
         ensure!(spool_root.is_absolute(), "spool root must be absolute");
         std::fs::create_dir_all(&spool_root)
@@ -108,6 +114,7 @@ impl PlatformCatalog {
             spool_root,
             policy,
             runtime,
+            publisher,
         })
     }
 
@@ -118,45 +125,36 @@ impl PlatformCatalog {
     pub async fn reconcile(&self) -> Result<usize> {
         let mut reconciled = 0;
         let mut recovered_recordings = BTreeSet::new();
-        for path in collect_segments(&self.spool_root, SegmentReadScope::Frozen)? {
+        for path in
+            collect_recording_layer_files(&self.spool_root, RecordingLayerFileScope::Committed)?
+        {
             if is_authenticated_ingest_path(&path) {
                 continue;
             }
-            let inspection = inspect_segment(&path)?;
-            let key = segment_key_from_path(&self.spool_root, &path, &inspection)?;
-            let opened = OpenedSegment {
-                key: key.clone(),
-                path: path.clone(),
-                started_at: Utc::now(),
+            let relative = relative_path(&self.spool_root, &path)?;
+            let layer = if let Some(layer) = self
+                .store
+                .recording_layer_by_staging_path(self.identity.tenant_id, &relative)
+                .await?
+            {
+                layer
+            } else {
+                let inspection = inspect_segment(&path)?;
+                match self.canonical_recovery_layer(&path, &inspection).await? {
+                    Some(layer) => layer,
+                    None => {
+                        let key = segment_key_from_path(&self.spool_root, &path, &inspection)?;
+                        self.register_opened(&OpenedSegment {
+                            key,
+                            path: path.clone(),
+                            started_at: Utc::now(),
+                        })
+                        .await?
+                    }
+                }
             };
-            let segment = self.register_opened(&opened).await?;
-            recovered_recordings.insert(recording_id(&segment.recording)?);
-            match segment.state {
-                SegmentState::Writing => {
-                    self.store
-                        .freeze_segment(
-                            &self.identity,
-                            segment_id(&segment.id)?,
-                            i64::try_from(inspection.byte_len)
-                                .context("segment exceeds i64 byte length")?,
-                            0,
-                            &inspection.sha256,
-                            None,
-                        )
-                        .await?;
-                }
-                SegmentState::Frozen | SegmentState::Sealed => {
-                    ensure!(
-                        segment.byte_len == i64::try_from(inspection.byte_len)?
-                            && segment.sha256.as_deref() == Some(&inspection.sha256),
-                        "cataloged segment {} changed on disk",
-                        path.display()
-                    );
-                }
-                SegmentState::Failed => {
-                    anyhow::bail!("failed segment {} requires operator repair", path.display());
-                }
-            }
+            recovered_recordings.insert(recording_id(&layer.recording)?);
+            self.publish_layer(layer, &path, None).await?;
             reconciled += 1;
         }
         for recording_id in recovered_recordings {
@@ -179,16 +177,53 @@ impl PlatformCatalog {
         Ok(reconciled)
     }
 
-    async fn register_opened(
+    async fn canonical_recovery_layer(
         &self,
-        segment: &OpenedSegment,
-    ) -> Result<veoveo_platform_store::SegmentRecord> {
+        path: &Path,
+        inspection: &SegmentInspection,
+    ) -> Result<Option<RecordingLayerRecord>> {
+        let Ok(dataset_uuid) = uuid::Uuid::parse_str(&inspection.application_id) else {
+            return Ok(None);
+        };
+        let Ok(recording_uuid) = uuid::Uuid::parse_str(&inspection.recording_key) else {
+            return Ok(None);
+        };
+        if dataset_uuid.get_version_num() != 7 || recording_uuid.get_version_num() != 7 {
+            return Ok(None);
+        }
+        let recording_id = RecordingId::from_uuid(recording_uuid);
+        let Some(recording) = self
+            .store
+            .recording(self.identity.tenant_id, recording_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if recording.dataset != RecordingDatasetId::from_uuid(dataset_uuid).record_id() {
+            return Ok(None);
+        }
+        let layer_name = format!("capture-{:020}", direct_capture_ordinal(path)?);
+        self.store
+            .recording_layer_by_name(self.identity.tenant_id, recording_id, &layer_name)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn register_opened(&self, segment: &OpenedSegment) -> Result<RecordingLayerRecord> {
+        let dataset = self
+            .store
+            .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+                self.identity.clone(),
+                segment.key.dataset.as_str(),
+            ))
+            .await?;
+        let dataset_id = dataset_id(&dataset.id)?;
         let recording = self
             .store
             .create_recording(RecordingDraft {
                 identity: self.identity.clone(),
                 authority: self.authority.clone(),
-                dataset: segment.key.dataset.as_str().to_owned(),
+                dataset_id,
                 application_id: segment.key.application_id.clone(),
                 recording_key: segment.key.recording.clone(),
                 classification: governed_classification(
@@ -208,33 +243,16 @@ impl PlatformCatalog {
             .await?;
         let recording_id = recording_id(&recording.id)?;
         let relative_path = relative_path(&self.spool_root, &segment.path)?;
-        let segment_key = relative_path.clone();
-        if let Some(existing) = self
-            .store
-            .segment_by_key(self.identity.tenant_id, recording_id, &segment_key)
-            .await?
-        {
-            return Ok(existing);
-        }
-        let segments = self
-            .store
-            .recording_segments(self.identity.tenant_id, recording_id, 10_000)
-            .await?;
-        let ordinal = segments
-            .iter()
-            .map(|segment| segment.ordinal)
-            .max()
-            .map_or(0, |value| value + 1);
+        let ordinal = direct_capture_ordinal(&segment.path)?;
         Ok(self
             .store
-            .open_segment(SegmentDraft {
-                identity: self.identity.clone(),
+            .open_recording_layer(RecordingLayerDraft::capture(
+                self.identity.clone(),
                 recording_id,
-                segment_key,
                 ordinal,
                 relative_path,
-                start_time: Some(Utc::now()),
-            })
+                Some(segment.started_at),
+            )?)
             .await?)
     }
 
@@ -249,23 +267,111 @@ impl PlatformCatalog {
             .await?
             .context("frozen segment has no recording catalog entry")?;
         let recording_id = recording_id(&recording.id)?;
-        let key = relative_path(&self.spool_root, &frozen.path)?;
-        let segment = self
+        let layer_name = format!("capture-{:020}", direct_capture_ordinal(&frozen.path)?);
+        let layer = self
             .store
-            .segment_by_key(self.identity.tenant_id, recording_id, &key)
+            .recording_layer_by_name(self.identity.tenant_id, recording_id, &layer_name)
             .await?
-            .context("frozen segment has no segment catalog entry")?;
-        self.store
-            .freeze_segment(
+            .context("frozen capture has no recording layer entry")?;
+        self.publish_layer(layer, &frozen.path, Some(frozen.ended_at))
+            .await
+    }
+
+    async fn publish_layer(
+        &self,
+        layer: RecordingLayerRecord,
+        path: &Path,
+        ended_at: Option<DateTime<Utc>>,
+    ) -> Result<()> {
+        let layer_id = layer_id(&layer.id)?;
+        if layer.state == RecordingLayerState::Committed {
+            remove_if_exists(path)?;
+            return Ok(());
+        }
+        ensure!(
+            matches!(
+                layer.state,
+                RecordingLayerState::Writing | RecordingLayerState::Staged
+            ),
+            "failed recording layer {layer_id} requires operator repair"
+        );
+        let recording_id = recording_id(&layer.recording)?;
+        let recording = self
+            .store
+            .recording(self.identity.tenant_id, recording_id)
+            .await?
+            .context("recording layer has no recording")?;
+        let dataset_id = dataset_id(&recording.dataset)?;
+        let path = path.to_path_buf();
+        let normalization_path = path.clone();
+        let inspection = tokio::task::spawn_blocking(move || {
+            veoveo_rrd::recording_layer::normalize_recording_layer(
+                &normalization_path,
+                dataset_id.as_uuid(),
+                recording_id.as_uuid(),
+            )
+        })
+        .await
+        .context("joining recording layer normalization")??;
+        let staged = self
+            .store
+            .stage_recording_layer(
                 &self.identity,
-                segment_id(&segment.id)?,
-                i64::try_from(frozen.byte_len).context("segment exceeds i64 byte length")?,
-                i64::try_from(frozen.message_count).context("segment exceeds i64 message count")?,
-                &frozen.sha256,
-                Some(frozen.ended_at),
+                layer_id,
+                i64::try_from(inspection.byte_len)?,
+                i64::try_from(inspection.message_count)?,
+                &inspection.sha256,
+                Some(&inspection.rrd_version),
+                Some(&inspection.schema_digest),
+                ended_at,
             )
             .await?;
+        let metadata = self
+            .publisher
+            .publish(
+                layer_id,
+                PutArtifactRequest {
+                    mime_type: Some("application/vnd.rerun.rrd".to_owned()),
+                    filename: Some(format!("{}.rrd", staged.layer_name)),
+                    classification: artifact_classification(&recording.classification)?,
+                    data_labels: artifact_labels(&recording.labels)?,
+                    retention_expires_at: None,
+                    metadata: serde_json::json!({
+                        "recording_id": recording_id.to_string(),
+                        "dataset_id": dataset_id.to_string(),
+                        "layer_kind": "capture",
+                        "schema_digest": inspection.schema_digest,
+                    }),
+                },
+                path.as_path(),
+                inspection.byte_len,
+                &inspection.sha256,
+            )
+            .await?;
+        let artifact_id =
+            veoveo_platform_store::ArtifactId::from_uuid(metadata.artifact_id.as_uuid());
+        self.store
+            .commit_recording_layer(&self.identity, layer_id, artifact_id)
+            .await?;
+        remove_if_exists(path.as_path())?;
         Ok(())
+    }
+}
+
+fn artifact_labels(values: &[String]) -> Result<BTreeSet<DataLabelId>> {
+    values
+        .iter()
+        .map(|value| DataLabelId::new(value.to_owned()).map_err(Into::into))
+        .collect()
+}
+
+fn artifact_classification(value: &str) -> Result<Option<DataLabelId>> {
+    if value == "unclassified" {
+        Ok(None)
+    } else {
+        DataLabelId::new(value.to_owned())
+            .map(Some)
+            .map_err(Into::into)
     }
 }
 
@@ -468,8 +574,44 @@ fn recording_id(record: &RecordId) -> Result<RecordingId> {
     Ok(RecordingId::from_uuid(record_uuid(record, "recording")?))
 }
 
-fn segment_id(record: &RecordId) -> Result<SegmentId> {
-    Ok(SegmentId::from_uuid(record_uuid(record, "segment")?))
+fn dataset_id(record: &RecordId) -> Result<RecordingDatasetId> {
+    Ok(RecordingDatasetId::from_uuid(record_uuid(
+        record,
+        RecordingDatasetId::TABLE,
+    )?))
+}
+
+fn layer_id(record: &RecordId) -> Result<RecordingLayerId> {
+    Ok(RecordingLayerId::from_uuid(record_uuid(
+        record,
+        RecordingLayerId::TABLE,
+    )?))
+}
+
+fn direct_capture_ordinal(path: &Path) -> Result<i64> {
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .context("recording layer filename is not UTF-8")?;
+    let ordinal = stem
+        .rsplit_once(".r")
+        .and_then(|(_, value)| value.parse::<i64>().ok())
+        .unwrap_or(0);
+    ensure!(ordinal >= 0, "recording layer ordinal must not be negative");
+    Ok(ordinal)
+}
+
+fn remove_if_exists(path: &Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => {
+            if let Some(parent) = path.parent() {
+                File::open(parent)?.sync_all()?;
+            }
+            Ok(())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error).with_context(|| format!("removing {}", path.display())),
+    }
 }
 
 fn record_uuid(record: &RecordId, expected_table: &str) -> Result<uuid::Uuid> {

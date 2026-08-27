@@ -16,7 +16,7 @@ use veoveo_mcp_contract::{
     CreateArtifactShareLinkRequest, DecideArtifactAccessRequest, GrantList,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
     ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
-    RedeemArtifactWriteCapabilityRequest, parse_artifact_plane_uri,
+    RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest, parse_artifact_plane_uri,
 };
 
 /// One authorized bulk artifact download.
@@ -48,6 +48,42 @@ impl HttpArtifactPlane {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             http,
+        }
+    }
+
+    /// Stream one prevalidated file into the Artifact plane without retaining
+    /// the complete object in client or service memory.
+    pub async fn put_file_stream(
+        &self,
+        caller: &PlaneCaller,
+        request: &StreamArtifactRequest,
+        path: &std::path::Path,
+    ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
+        let file = tokio::fs::File::open(path).await.map_err(transport)?;
+        let byte_len = file.metadata().await.map_err(transport)?.len();
+        if byte_len != request.expected_byte_len {
+            return Err(ArtifactPlaneError::InvalidRequest(format!(
+                "streaming artifact file length {byte_len} does not match expected {}",
+                request.expected_byte_len
+            )));
+        }
+        let descriptor = serde_json::to_string(request).map_err(transport)?;
+        let response = self
+            .http
+            .post(self.url("/artifacts/stream"))
+            .bearer_auth(&caller.bearer_token)
+            .header("x-artifact-stream-put", descriptor)
+            .header(reqwest::header::CONTENT_LENGTH, byte_len)
+            .body(reqwest::Body::wrap_stream(
+                tokio_util::io::ReaderStream::new(file),
+            ))
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
         }
     }
 

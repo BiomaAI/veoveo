@@ -303,8 +303,8 @@ impl Spooler {
         crate::inspect_log_message_video_boundary(msg, &mut video)?;
         let is_static = log_message_is_static(msg)?;
         let should_rotate = self.writers.get(&key).is_some_and(|writer| {
-            let due = writer.bytes >= self.config.segment_max_bytes
-                || writer.opened_at.elapsed() >= self.config.segment_max_age();
+            let due = writer.bytes >= self.config.capture_layer_max_bytes
+                || writer.opened_at.elapsed() >= self.config.capture_layer_max_age();
             due && (!writer.video_seen || video.begins_with_decoder_reentrant_access_unit)
         });
         if should_rotate {
@@ -478,8 +478,8 @@ impl Spooler {
         for key in idle {
             self.freeze_key(&key, true)?;
         }
-        let max_bytes = self.config.segment_max_bytes;
-        let max_age = self.config.segment_max_age();
+        let max_bytes = self.config.capture_layer_max_bytes;
+        let max_age = self.config.capture_layer_max_age();
         let due: Vec<SegmentKey> = self
             .writers
             .iter()

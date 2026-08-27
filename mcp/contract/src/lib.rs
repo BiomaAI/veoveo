@@ -28,6 +28,7 @@ pub mod live_view;
 pub mod pagination;
 pub mod protocol;
 pub mod provider;
+pub mod recording_catalog;
 pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
@@ -59,7 +60,7 @@ pub use artifact_service::{
     GrantList, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
     ListArtifactAccessRequests, ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
     PlaneCaller, PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
-    SetArtifactReleaseStateRequest,
+    SetArtifactReleaseStateRequest, StreamArtifactRequest,
 };
 pub use bootstrap::{
     SERVER_BOOTSTRAP_FLAG, SERVER_BOOTSTRAP_ISSUER, SERVER_BOOTSTRAP_MOUNT_PATH,
@@ -167,6 +168,12 @@ pub use protocol::{
     sanitized_request_meta, trace_id_from_traceparent,
 };
 pub use provider::Provider;
+pub use recording_catalog::{
+    CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest,
+    RECORDING_CATALOG_GRANT_SCHEMA, RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingCatalogGrant,
+    RecordingProjectionHandle, RecordingProjectionResultMetadata, RecordingProjectionSampling,
+    RecordingProjectionSparseFill,
+};
 pub use storage::{
     ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactPut, ArtifactReleaseState,
     ComplianceMetadata,

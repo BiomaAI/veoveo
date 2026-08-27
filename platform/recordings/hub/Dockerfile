@@ -32,7 +32,7 @@ RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
     && mkdir -p /var/lib/veoveo/spool \
     && chown -R veoveo:veoveo /var/lib/veoveo
 
-COPY --from=veoveo-rust-artifacts /bin/spooler /bin/sensor-sim /bin/hub-query /usr/local/bin/
+COPY --from=veoveo-rust-artifacts /bin/spooler /bin/sensor-sim /usr/local/bin/
 
 USER veoveo
 RUN rerun analytics disable \

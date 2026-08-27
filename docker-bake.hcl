@@ -230,7 +230,7 @@ target "recording-hub" {
   labels = {
     "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-recording-hub"
-    "io.veoveo.build.binaries"  = "spooler,sensor-sim,hub-query"
+    "io.veoveo.build.binaries"  = "spooler,sensor-sim"
     "io.veoveo.build.family"    = "rust-trixie-v1"
     "io.veoveo.build.auxiliary" = ""
   }

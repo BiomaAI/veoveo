@@ -656,12 +656,12 @@
         "apps": true
       },
       "tools": [
-        "query_recording",
+        "create_recording_projection",
         "seal_recording"
       ],
       "prompts": [
         "recording-inspect",
-        "recording-query",
+        "recording-project",
         "recording-seal"
       ],
       "required_scopes": [
@@ -1174,7 +1174,7 @@
           "tools": {
             "mode": "listed",
             "items": [
-              "query_recording"
+              "create_recording_projection"
             ]
           },
           "resources": {
@@ -1194,7 +1194,7 @@
             "mode": "listed",
             "items": [
               "recording-inspect",
-              "recording-query"
+              "recording-project"
             ]
           },
           "completions": "enabled",
@@ -1688,7 +1688,7 @@
           "tools": {
             "mode": "listed",
             "items": [
-              "query_recording",
+              "create_recording_projection",
               "seal_recording"
             ]
           },
@@ -4007,7 +4007,7 @@
             "recording"
           ],
           "tools": [
-            "query_recording"
+            "create_recording_projection"
           ],
           "resource_schemes": [
             "recording",
@@ -4015,7 +4015,7 @@
           ],
           "prompts": [
             "recording-inspect",
-            "recording-query"
+            "recording-project"
           ],
           "required_scopes": [
             "operator:use"
@@ -4050,7 +4050,7 @@
             "recording"
           ],
           "tools": [
-            "query_recording"
+            "create_recording_projection"
           ],
           "resource_schemes": [
             "recording",
@@ -4058,7 +4058,7 @@
           ],
           "prompts": [
             "recording-inspect",
-            "recording-query"
+            "recording-project"
           ],
           "principal_ids": [
             "https://veoveo.example/oauth#operator-service"
@@ -4090,7 +4090,7 @@
             "recording"
           ],
           "tools": [
-            "query_recording",
+            "create_recording_projection",
             "seal_recording"
           ],
           "resource_schemes": [
@@ -4099,7 +4099,7 @@
           ],
           "prompts": [
             "recording-inspect",
-            "recording-query",
+            "recording-project",
             "recording-seal"
           ],
           "required_scopes": [
@@ -4708,7 +4708,7 @@
             "recording"
           ],
           "tools": [
-            "query_recording",
+            "create_recording_projection",
             "seal_recording"
           ],
           "resource_schemes": [
@@ -4717,7 +4717,7 @@
           ],
           "prompts": [
             "recording-inspect",
-            "recording-query",
+            "recording-project",
             "recording-seal"
           ],
           "principal_ids": [

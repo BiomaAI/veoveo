@@ -1,38 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct QueryRecordingRequest {
-    pub recording_id: String,
-    #[serde(default = "default_entities")]
-    pub entities: String,
-    #[serde(default = "default_timeline")]
-    pub timeline: String,
-    #[serde(default = "default_max_rows")]
-    pub max_rows: u64,
-    #[serde(default)]
-    pub range: Option<QueryTimelineRange>,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct QueryTimelineRange {
-    pub start: i64,
-    pub end: i64,
-}
-
-fn default_entities() -> String {
-    "/**".to_owned()
-}
-
-fn default_timeline() -> String {
-    "tick".to_owned()
-}
-
-fn default_max_rows() -> u64 {
-    10_000
-}
+pub use veoveo_mcp_contract::{
+    CreateRecordingCatalogGrantRequest as CreateCatalogGrantRequest,
+    RecordingCatalogGrant as CatalogReadGrant,
+};
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -43,7 +15,8 @@ pub struct SealRecordingRequest {
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct RecordingView {
     pub recording_id: String,
-    pub dataset: String,
+    pub dataset_id: String,
+    pub dataset_key: String,
     pub application_id: String,
     pub recording_key: String,
     pub state: String,
@@ -54,57 +27,55 @@ pub struct RecordingView {
     pub ended_at: Option<String>,
     pub sealed_at: Option<String>,
     pub manifest_artifact_uri: Option<String>,
-    pub segment_count: usize,
+    pub layer_count: usize,
+    pub committed_layer_count: usize,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct SegmentView {
-    pub segment_id: String,
-    pub ordinal: i64,
+pub struct LayerView {
+    pub layer_id: String,
+    pub layer_name: String,
+    pub kind: String,
+    pub ordinal: Option<i64>,
     pub state: String,
     pub byte_len: i64,
     pub message_count: i64,
     pub sha256: Option<String>,
     pub artifact_uri: Option<String>,
+    pub rrd_version: Option<String>,
+    pub schema_digest: Option<String>,
     pub created_at: String,
     pub updated_at: String,
-}
-
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct QueryRecordingOutput {
-    pub recording_id: String,
-    pub timeline: String,
-    pub range: Option<QueryTimelineRange>,
-    pub rows: Vec<serde_json::Value>,
-    pub rows_by_recording: std::collections::BTreeMap<String, u64>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct SealRecordingOutput {
     pub recording_id: String,
     pub manifest_artifact_uri: String,
-    pub segment_artifact_uris: Vec<String>,
+    pub layer_artifact_uris: Vec<String>,
     pub blueprint_artifact_uri: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct PlaybackManifest {
     pub schema: String,
-    pub recording_id: String,
+    pub dataset_id: String,
+    pub recording_segment_id: String,
     pub application_id: String,
     pub recording_key: String,
     pub state: String,
     pub started_at: String,
     pub ended_at: Option<String>,
+    pub catalog_revision: String,
     pub access: PlaybackAccess,
     pub archive: Option<PlaybackArchive>,
-    pub live: Option<PlaybackLiveSegment>,
+    pub live: Option<PlaybackLiveReceiver>,
     pub blueprint: Option<PlaybackBlueprint>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct PlaybackAccess {
-    pub session_id: String,
+    pub grant_id: String,
     pub redap_token: String,
     pub expires_at: String,
 }
@@ -113,8 +84,8 @@ pub struct PlaybackAccess {
 pub struct PlaybackArchive {
     pub uri: String,
     pub dataset_id: String,
-    pub segment_id: String,
-    pub revision: String,
+    pub recording_segment_id: String,
+    pub catalog_revision: String,
     pub rrd_version: String,
     pub optimization_profile: String,
     pub byte_len: u64,
@@ -122,8 +93,9 @@ pub struct PlaybackArchive {
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct PlaybackLiveSegment {
-    pub segment_id: String,
+pub struct PlaybackLiveReceiver {
+    pub layer_id: String,
+    pub layer_name: String,
     pub ordinal: i64,
     pub current_byte_len: u64,
     pub history_seconds: u64,
@@ -158,8 +130,10 @@ pub enum PlaybackMapProvider {
 #[derive(Clone, Debug, Serialize)]
 pub struct RecordingManifest {
     pub schema: String,
-    pub recording: RecordingView,
-    pub segments: Vec<ManifestSegment>,
+    pub dataset_id: String,
+    pub recording_segment_id: String,
+    pub catalog_revision: String,
+    pub layers: Vec<ManifestLayer>,
     pub blueprint: Option<ManifestBlueprint>,
     pub sealed_at: String,
 }
@@ -175,10 +149,14 @@ pub struct ManifestBlueprint {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct ManifestSegment {
-    pub segment_id: String,
-    pub ordinal: i64,
+pub struct ManifestLayer {
+    pub layer_id: String,
+    pub layer_name: String,
+    pub kind: String,
+    pub ordinal: Option<i64>,
     pub byte_len: i64,
     pub sha256: String,
     pub artifact_uri: String,
+    pub rrd_version: Option<String>,
+    pub schema_digest: Option<String>,
 }

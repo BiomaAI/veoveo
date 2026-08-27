@@ -8,7 +8,7 @@ pub const DOC_TEMPLATE: &str = "recording://docs/{doc_id}";
 pub const CATALOG_URI: &str = "recording://catalog";
 pub const EXPLORER_APP_URI: &str = "ui://recording/explorer.html";
 pub const RECORDING_TEMPLATE: &str = "recording://recordings/{recording_id}";
-pub const SEGMENTS_TEMPLATE: &str = "recording://recordings/{recording_id}/segments";
+pub const LAYERS_TEMPLATE: &str = "recording://recordings/{recording_id}/layers";
 
 pub fn doc_uri(doc_id: &str) -> String {
     format!("recording://docs/{doc_id}")
@@ -22,8 +22,8 @@ pub fn recording_uri(recording_id: &str) -> String {
     format!("recording://recordings/{recording_id}")
 }
 
-pub fn segments_uri(recording_id: &str) -> String {
-    format!("recording://recordings/{recording_id}/segments")
+pub fn layers_uri(recording_id: &str) -> String {
+    format!("recording://recordings/{recording_id}/layers")
 }
 
 pub fn parse_recording_uri(uri: &str) -> Option<&str> {
@@ -31,10 +31,10 @@ pub fn parse_recording_uri(uri: &str) -> Option<&str> {
     (!value.is_empty() && !value.contains('/')).then_some(value)
 }
 
-pub fn parse_segments_uri(uri: &str) -> Option<&str> {
+pub fn parse_layers_uri(uri: &str) -> Option<&str> {
     let value = uri
         .strip_prefix("recording://recordings/")?
-        .strip_suffix("/segments")?;
+        .strip_suffix("/layers")?;
     (!value.is_empty() && !value.contains('/')).then_some(value)
 }
 
@@ -61,11 +61,11 @@ mod tests {
             Some("abc")
         );
         assert_eq!(
-            parse_recording_uri("recording://recordings/abc/segments"),
+            parse_recording_uri("recording://recordings/abc/layers"),
             None
         );
         assert_eq!(
-            parse_segments_uri("recording://recordings/abc/segments"),
+            parse_layers_uri("recording://recordings/abc/layers"),
             Some("abc")
         );
     }

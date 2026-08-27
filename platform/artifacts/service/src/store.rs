@@ -8,10 +8,18 @@ use axum::body::Bytes;
 use futures::{Stream, StreamExt};
 use object_store::{
     Attribute, Attributes, GetOptions, GetRange, ObjectStore, ObjectStoreExt, PutPayload,
-    path::Path,
+    buffered::BufWriter, path::Path,
 };
+use sha2::{Digest as _, Sha256};
+use tokio::io::AsyncWriteExt as _;
 
 pub type BlobStream = Pin<Box<dyn Stream<Item = Result<Bytes, BlobStoreError>> + Send + 'static>>;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerifiedBlob {
+    pub byte_len: u64,
+    pub sha256: String,
+}
 
 /// Storage is addressed only by opaque internal object keys. Public callers
 /// never supply a key and never receive one in artifact metadata.
@@ -21,6 +29,14 @@ pub trait BlobStore: Send + Sync {
         object_key: &str,
         bytes: Vec<u8>,
     ) -> impl std::future::Future<Output = Result<(), BlobStoreError>> + Send;
+
+    fn put_verified_stream(
+        &self,
+        object_key: &str,
+        stream: BlobStream,
+        expected_byte_len: u64,
+        expected_sha256: &str,
+    ) -> impl std::future::Future<Output = Result<VerifiedBlob, BlobStoreError>> + Send;
 
     fn get_bounded(
         &self,
@@ -43,7 +59,16 @@ pub trait BlobStore: Send + Sync {
 #[derive(Debug)]
 pub enum BlobStoreError {
     NotFound,
-    TooLarge { actual: u64, limit: u64 },
+    TooLarge {
+        actual: u64,
+        limit: u64,
+    },
+    VerificationFailed {
+        actual_byte_len: u64,
+        expected_byte_len: u64,
+        actual_sha256: String,
+        expected_sha256: String,
+    },
     Backend(String),
 }
 
@@ -57,6 +82,15 @@ impl std::fmt::Display for BlobStoreError {
                     "artifact is {actual} bytes; bounded read limit is {limit}"
                 )
             }
+            Self::VerificationFailed {
+                actual_byte_len,
+                expected_byte_len,
+                actual_sha256,
+                expected_sha256,
+            } => write!(
+                formatter,
+                "artifact stream verification failed: length {actual_byte_len}/{expected_byte_len}, sha256 {actual_sha256}/{expected_sha256}"
+            ),
             Self::Backend(message) => write!(formatter, "object store error: {message}"),
         }
     }
@@ -102,6 +136,62 @@ impl BlobStore for ArtifactObjectStore {
             .await
             .map_err(map_store_error)?;
         Ok(())
+    }
+
+    async fn put_verified_stream(
+        &self,
+        object_key: &str,
+        mut stream: BlobStream,
+        expected_byte_len: u64,
+        expected_sha256: &str,
+    ) -> Result<VerifiedBlob, BlobStoreError> {
+        let path = Self::path(object_key)?;
+        let attributes = Attributes::from_iter([
+            (Attribute::CacheControl, "no-store"),
+            (Attribute::ContentDisposition, "attachment"),
+            (Attribute::ContentType, "application/octet-stream"),
+        ]);
+        let mut writer = BufWriter::with_capacity(Arc::clone(&self.inner), path, 8 * 1024 * 1024)
+            .with_attributes(attributes)
+            .with_max_concurrency(2);
+        let mut byte_len = 0_u64;
+        let mut digest = Sha256::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = match chunk {
+                Ok(chunk) => chunk,
+                Err(error) => {
+                    writer.abort().await.map_err(map_store_error)?;
+                    return Err(error);
+                }
+            };
+            byte_len = byte_len.checked_add(chunk.len() as u64).ok_or_else(|| {
+                BlobStoreError::Backend("streaming artifact length overflow".into())
+            })?;
+            if byte_len > expected_byte_len {
+                writer.abort().await.map_err(map_store_error)?;
+                return Err(BlobStoreError::TooLarge {
+                    actual: byte_len,
+                    limit: expected_byte_len,
+                });
+            }
+            digest.update(&chunk);
+            writer.put(chunk).await.map_err(map_store_error)?;
+        }
+        let sha256 = hex::encode(digest.finalize());
+        if byte_len != expected_byte_len || sha256 != expected_sha256 {
+            writer.abort().await.map_err(map_store_error)?;
+            return Err(BlobStoreError::VerificationFailed {
+                actual_byte_len: byte_len,
+                expected_byte_len,
+                actual_sha256: sha256,
+                expected_sha256: expected_sha256.to_owned(),
+            });
+        }
+        writer
+            .shutdown()
+            .await
+            .map_err(|error| BlobStoreError::Backend(error.to_string()))?;
+        Ok(VerifiedBlob { byte_len, sha256 })
     }
 
     async fn get_bounded(
@@ -176,6 +266,18 @@ pub(crate) mod testing {
     impl BlobStore for InMemoryBlobStore {
         async fn put(&self, object_key: &str, bytes: Vec<u8>) -> Result<(), BlobStoreError> {
             self.inner.put(object_key, bytes).await
+        }
+
+        async fn put_verified_stream(
+            &self,
+            object_key: &str,
+            stream: BlobStream,
+            expected_byte_len: u64,
+            expected_sha256: &str,
+        ) -> Result<VerifiedBlob, BlobStoreError> {
+            self.inner
+                .put_verified_stream(object_key, stream, expected_byte_len, expected_sha256)
+                .await
         }
 
         async fn get_bounded(

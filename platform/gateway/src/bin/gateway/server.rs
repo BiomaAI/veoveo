@@ -44,12 +44,17 @@ use super::{
     host::validate_host,
     oauth::{authorization_callback, authorize_endpoint, revoke_refresh_token, token_endpoint},
     recording_ingest::recording_ingest_router,
-    recording_playback::{playback_blueprint, playback_live_recording, playback_manifest},
+    recording_layer_publication::publish_recording_layer,
+    recording_playback::{
+        catalog_grant, playback_blueprint, playback_live_recording, playback_manifest,
+        projection_data,
+    },
     runtime::{
         AdminState, AppState, ArtifactDownloadState, DynamicMcpState, GatewayRetentionPolicy,
         ProfileAuthState, ProfileMcpService, Readiness, RecordingIngestGatewayState,
-        RecordingPlaybackState, build_http_client, current_catalog, profile_id_from_gateway_path,
-        spawn_gateway_retention_gc_loop, spawn_refresh_delivery_gc_loop,
+        RecordingLayerPublicationState, RecordingPlaybackState, build_http_client, current_catalog,
+        profile_id_from_gateway_path, spawn_gateway_retention_gc_loop,
+        spawn_refresh_delivery_gc_loop,
     },
 };
 
@@ -184,7 +189,27 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         ));
     router = router.merge(artifact_download_router);
 
+    let recording_publication_router = Router::new()
+        .route(
+            "/recordings/{profile}/layers",
+            axum::routing::post(publish_recording_layer),
+        )
+        .with_state(RecordingLayerPublicationState {
+            catalog: catalog.clone(),
+            gateway_state: gateway_state.clone(),
+            http: http.clone(),
+            internal_token_issuer: internal_token_issuer.clone(),
+            artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
+            artifact_service_url: artifact_service_url.trim_end_matches('/').to_owned(),
+        })
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            authenticate_mcp,
+        ));
+    router = router.merge(recording_publication_router);
+
     let recording_playback_router = Router::new()
+        .route("/recordings/{profile}/catalog-grants", post(catalog_grant))
         .route(
             "/recordings/{profile}/{recording_id}/playback",
             get(playback_manifest),
@@ -197,11 +222,16 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             "/recordings/{profile}/{recording_id}/blueprints/{revision}/data.rrd",
             get(playback_blueprint),
         )
+        .route(
+            "/recordings/{profile}/{recording_id}/projections/{projection_id}/data.arrow",
+            get(projection_data),
+        )
         .with_state(RecordingPlaybackState {
             catalog: catalog.clone(),
             gateway_state: gateway_state.clone(),
             internal_token_issuer: internal_token_issuer.clone(),
             upstream_http: upstream_http.clone(),
+            artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
         })
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),

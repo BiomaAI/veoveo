@@ -15,16 +15,18 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
 use secrecy::{ExposeSecret, SecretString};
+use url::Url;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalResourceTokenVerifier,
     GatewayInternalTrustBundle, ProtectedResourceId, ServerSlug, TokenIssuer,
 };
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
+use veoveo_recording_forwarder::config::ClientAssertionAlgorithm;
 use veoveo_recording_hub::config::{DatasetName, DatasetRoute, SpoolerConfig};
 use veoveo_recording_hub::spool::{Spooler, run_blocking};
 use veoveo_recording_hub::{
-    CatalogPolicy, PlatformCatalog, RecordingIngestService, RecordingIngestServiceConfig,
-    recording_ingest_internal_router,
+    CatalogPolicy, GatewayLayerPublisher, GatewayLayerPublisherConfig, PlatformCatalog,
+    RecordingIngestService, RecordingIngestServiceConfig, recording_ingest_internal_router,
 };
 
 #[derive(Parser)]
@@ -48,9 +50,12 @@ struct Args {
     #[arg(long = "route")]
     routes: Vec<String>,
     #[arg(long, default_value_t = 192 * 1024 * 1024)]
-    segment_max_bytes: u64,
+    capture_layer_max_bytes: u64,
+    /// Free-space floor preserved while journaling and normalizing capture layers.
+    #[arg(long, env = "RECORDING_SPOOL_MINIMUM_FREE_BYTES", default_value_t = 1024 * 1024 * 1024_u64)]
+    minimum_free_bytes: u64,
     #[arg(long, default_value_t = 3600)]
-    segment_max_age_s: u64,
+    capture_layer_max_age_s: u64,
     /// Finish and expose a recording after this many seconds without data.
     #[arg(long, default_value_t = 15)]
     recording_idle_timeout_s: u64,
@@ -136,6 +141,36 @@ struct Args {
         default_value = GATEWAY_INTERNAL_TOKEN_ISSUER
     )]
     internal_token_issuer: String,
+    /// Canonical public Gateway origin used as OAuth issuer and token audience.
+    #[arg(long, env = "VEOVEO_GATEWAY_URL")]
+    gateway_url: Url,
+    /// Physical Gateway origin used by the Hub inside the installation network.
+    #[arg(long, env = "VEOVEO_RECORDING_GATEWAY_TRANSPORT_URL")]
+    gateway_transport_url: Option<Url>,
+    #[arg(long, env = "VEOVEO_RECORDING_PUBLICATION_RESOURCE")]
+    publication_protected_resource: Url,
+    #[arg(
+        long,
+        env = "VEOVEO_RECORDING_PUBLICATION_PROFILE",
+        default_value = "recording-publish"
+    )]
+    publication_profile: String,
+    #[arg(
+        long,
+        env = "VEOVEO_RECORDING_HUB_CLIENT_ID",
+        default_value = "recording-hub"
+    )]
+    publication_client_id: String,
+    #[arg(long, env = "VEOVEO_RECORDING_HUB_PRIVATE_KEY_PEM_FILE")]
+    publication_private_key_pem_file: PathBuf,
+    #[arg(long, env = "VEOVEO_RECORDING_HUB_KEY_ID")]
+    publication_key_id: String,
+    #[arg(
+        long,
+        env = "VEOVEO_RECORDING_HUB_SIGNING_ALGORITHM",
+        default_value = "rs256"
+    )]
+    publication_signing_algorithm: ClientAssertionAlgorithm,
 }
 
 fn parse_secret(value: &str) -> Result<SecretString, String> {
@@ -178,8 +213,8 @@ fn main() -> Result<()> {
         bind: args.bind,
         spool_dir,
         datasets,
-        segment_max_bytes: args.segment_max_bytes,
-        segment_max_age_s: args.segment_max_age_s,
+        capture_layer_max_bytes: args.capture_layer_max_bytes,
+        capture_layer_max_age_s: args.capture_layer_max_age_s,
         recording_idle_timeout_s: args.recording_idle_timeout_s,
         flush_interval_ms: args.flush_interval_ms,
         fsync_on_flush: args.fsync_on_flush,
@@ -211,6 +246,16 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
     )
     .await
     .context("connecting recording catalog with database-scoped credentials")?;
+    let publisher = GatewayLayerPublisher::new(GatewayLayerPublisherConfig {
+        gateway_url: args.gateway_url.clone(),
+        gateway_transport_url: args.gateway_transport_url.clone(),
+        protected_resource: args.publication_protected_resource.clone(),
+        profile: args.publication_profile.clone(),
+        client_id: args.publication_client_id.clone(),
+        private_key_pem_file: args.publication_private_key_pem_file.clone(),
+        key_id: args.publication_key_id.clone(),
+        algorithm: args.publication_signing_algorithm,
+    })?;
     let ingest = RecordingIngestService::new(
         store.clone(),
         RecordingIngestServiceConfig {
@@ -218,9 +263,11 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
             spool_root: config.spool_dir.clone(),
             protected_resource: ProtectedResourceId::new(&args.ingest_protected_resource)?,
             maximum_batch_bytes: veoveo_recording_protocol::DEFAULT_MAXIMUM_BATCH_BYTES,
-            segment_max_bytes: config.segment_max_bytes,
-            segment_max_age_seconds: config.segment_max_age_s,
+            capture_layer_max_bytes: config.capture_layer_max_bytes,
+            capture_layer_max_age_seconds: config.capture_layer_max_age_s,
+            minimum_free_bytes: args.minimum_free_bytes,
         },
+        publisher.clone(),
     )?;
     let reconciled_ingest = ingest.reconcile().await?;
     tracing::info!(reconciled_ingest, "recording ingest journal reconciled");
@@ -256,6 +303,7 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
             maximum_blueprint_revisions: config.blueprint_max_revisions,
         },
         tokio::runtime::Handle::current(),
+        publisher,
     )
     .await?;
     let reconciled = catalog.reconcile().await?;

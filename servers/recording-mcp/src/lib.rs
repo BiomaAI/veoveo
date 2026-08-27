@@ -3,6 +3,7 @@
 pub mod admin;
 pub mod blueprint_playback;
 pub mod contract;
+pub mod layer_cache;
 pub mod live_playback;
 #[cfg(feature = "redap")]
 pub mod live_stream;
@@ -12,8 +13,8 @@ pub mod service;
 pub mod uris;
 
 pub use service::{
-    MaterializedRecordingReadSnapshot, PlaybackArchiveSegmentPlan, PlaybackBlueprintPlan,
-    PlaybackLiveSegmentPlan, RecordingPlaybackPlan, RecordingReadAuthority, RecordingReadPlan,
-    RecordingReadSegment, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
+    MaterializedRecordingReadSnapshot, PlaybackArchiveLayerPlan, PlaybackBlueprintPlan,
+    PlaybackLiveLayerPlan, RecordingPlaybackPlan, RecordingReadAuthority, RecordingReadLayer,
+    RecordingReadPlan, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
     RecordingService,
 };

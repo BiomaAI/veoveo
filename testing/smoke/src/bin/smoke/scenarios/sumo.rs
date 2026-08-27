@@ -7,8 +7,9 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, ensure};
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
-use veoveo_recording_hub::{
-    DatasetName, DatasetRoute, SegmentReadScope, Spooler, SpoolerConfig, query_tree, run_blocking,
+use veoveo_recording_hub::{DatasetName, DatasetRoute, Spooler, SpoolerConfig, run_blocking};
+use veoveo_rrd::projection::{
+    ProjectionQuery, ProjectionSampling, ProjectionSparseFill, write_arrow_projection,
 };
 use veoveo_sumo_mcp::{
     driver::{FakeSimDriver, SimDriver},
@@ -30,8 +31,8 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
             dataset: DatasetName::new("world")?,
             application_id_prefix: "veoveo-sumo".to_owned(),
         }],
-        segment_max_bytes: 192 * 1024 * 1024,
-        segment_max_age_s: 3_600,
+        capture_layer_max_bytes: 192 * 1024 * 1024,
+        capture_layer_max_age_s: 3_600,
         recording_idle_timeout_s: 15,
         flush_interval_ms: 10,
         fsync_on_flush: true,
@@ -41,7 +42,7 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
         blueprint_max_revisions: veoveo_recording_protocol::DEFAULT_MAXIMUM_BLUEPRINT_REVISIONS,
     };
     let flush_interval = config.flush_interval();
-    let max_age = config.segment_max_age();
+    let max_age = config.capture_layer_max_age();
     let (shutdown_signal, shutdown_handle) = shutdown::shutdown();
     let options = ServerOptions {
         memory_limit: MemoryLimit::from_bytes(config.live_queue_limit_bytes),
@@ -77,19 +78,35 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
     shutdown_signal.stop();
     drain.await.context("SUMO recording drain panicked")??;
 
-    let query = query_tree(
-        &spool_dir.join("world"),
-        "/world/sumo/**",
-        "tick",
-        u64::from(steps) + 1,
-        SegmentReadScope::Frozen,
+    let mut layers = Vec::new();
+    collect_rrd_layers(&spool_dir.join("world"), &mut layers)?;
+    layers.sort();
+    let output = temp.path().join("sumo-smoke.arrow");
+    let query = write_arrow_projection(
+        &layers,
+        &ProjectionQuery {
+            entity_paths: vec!["/world/sumo/vehicle_count".to_owned()],
+            component_ids: vec!["Scalars:scalars".to_owned()],
+            timeline: "tick".to_owned(),
+            sampling: ProjectionSampling::Range {
+                start: 0,
+                end: i64::from(steps),
+            },
+            sparse_fill: ProjectionSparseFill::None,
+            maximum_entities: 1,
+            maximum_columns: 1,
+            maximum_samples: usize::try_from(steps)?.saturating_add(1),
+            maximum_rows: u64::from(steps).saturating_add(1),
+            maximum_bytes: 4 * 1024 * 1024,
+        },
+        &output,
     )?;
     ensure!(
-        query.rows_by_recording.get("sumo-smoke") == Some(&u64::from(steps)),
-        "expected {steps} durable SUMO rows, got {:?}",
-        query.rows_by_recording
+        query.row_count == u64::from(steps),
+        "expected {steps} durable SUMO Arrow rows, got {}",
+        query.row_count
     );
-    println!("sumo push smoke ok: {steps} typed world frames persisted and queried");
+    println!("sumo push smoke ok: {steps} typed world frames persisted and projected to Arrow");
     Ok(())
 }
 
@@ -242,7 +259,7 @@ pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()>
         ],
         [],
     )?;
-    let query = run_checked(
+    let layers = run_checked(
         Path::new("kubectl"),
         [
             "--context".into(),
@@ -254,32 +271,38 @@ pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()>
             "-c".into(),
             "recording-hub".into(),
             "--".into(),
-            "hub-query".into(),
-            "--root".into(),
+            "find".into(),
             "/recordings".into(),
-            "--include-active".into(),
-            "--entities".into(),
-            "/world/sumo/**".into(),
-            "--timeline".into(),
-            "tick".into(),
-            "--max-rows".into(),
-            "0".into(),
+            "-type".into(),
+            "f".into(),
+            "-name".into(),
+            "*.rrd".into(),
+            "-size".into(),
+            "+0c".into(),
+            "-print".into(),
         ],
         [],
     )?;
-    let query: Value = serde_json::from_str(query.trim())?;
-    let rows = query
-        .get("rows_by_recording")
-        .and_then(Value::as_object)
-        .context("hub query omitted rows_by_recording")?;
     ensure!(
-        rows.iter().any(|(recording, count)| {
-            recording.starts_with("sumo-live") && count.as_u64().is_some_and(|count| count > 0)
-        }),
-        "Recording Hub did not retain the live SUMO world: {rows:?}"
+        layers.lines().any(|path| path.contains("sumo-live")),
+        "Recording Hub did not retain a nonempty live SUMO RRD layer: {layers}"
     );
 
     println!("sumo verify ok: live k3d TraCI, authenticated MCP task/actuation, and durable world");
+    Ok(())
+}
+
+fn collect_rrd_layers(root: &Path, output: &mut Vec<PathBuf>) -> Result<()> {
+    for entry in std::fs::read_dir(root)
+        .with_context(|| format!("reading recording layer directory {}", root.display()))?
+    {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_rrd_layers(&path, output)?;
+        } else if path.extension().is_some_and(|extension| extension == "rrd") {
+            output.push(path);
+        }
+    }
     Ok(())
 }
 

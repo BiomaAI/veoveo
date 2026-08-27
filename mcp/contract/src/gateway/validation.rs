@@ -735,6 +735,7 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         | GatewayAction::RecordingBatchAppend
         | GatewayAction::RecordingBlueprintPublish
         | GatewayAction::RecordingStreamFinish => false,
+        GatewayAction::RecordingLayerPublish => server.slug.as_str() == "recording",
     }
 }
 

@@ -107,8 +107,14 @@ pub enum StoreError {
         state: String,
         target: &'static str,
     },
-    #[error("segment `{segment_id}` conflicts with its existing immutable identity")]
-    SegmentConflict { segment_id: String },
+    #[error("recording dataset `{dataset_id}` conflicts with its durable identity")]
+    RecordingDatasetConflict { dataset_id: String },
+    #[error("recording layer `{layer_id}` conflicts with its durable identity")]
+    RecordingLayerConflict { layer_id: String },
+    #[error("recording read grant `{grant_id}` conflicts with its durable authority")]
+    RecordingReadGrantConflict { grant_id: String },
+    #[error("recording projection `{projection_id}` conflicts with its durable request")]
+    RecordingProjectionConflict { projection_id: String },
     #[error("invalid recording ingest field {field}: {reason}")]
     InvalidRecordingIngestField {
         field: &'static str,

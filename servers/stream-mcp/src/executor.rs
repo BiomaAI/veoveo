@@ -454,6 +454,7 @@ mod tests {
         };
         let source_snapshot = RecordingSourceSnapshot {
             recording_id: "01983da0-0000-7000-8000-000000000000".to_owned(),
+            dataset_id: "01983da0-0000-7000-8000-000000000010".to_owned(),
             captured_at: chrono::Utc::now(),
             sources: Vec::new(),
         };

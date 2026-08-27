@@ -346,11 +346,45 @@ string_enum! {
 }
 
 string_enum! {
-    pub enum SegmentState {
+    pub enum RecordingRetentionMode {
+        InstallationDefault => "installation_default",
+        RetainUntil => "retain_until",
+        RetainForever => "retain_forever",
+    }
+}
+
+string_enum! {
+    pub enum RecordingLayerKind {
+        Capture => "capture",
+        Properties => "properties",
+        Derived => "derived",
+    }
+}
+
+string_enum! {
+    pub enum RecordingLayerState {
         Writing => "writing",
-        Frozen => "frozen",
-        Sealed => "sealed",
+        Staged => "staged",
+        Committed => "committed",
         Failed => "failed",
+    }
+}
+
+string_enum! {
+    pub enum RecordingReadGrantClass {
+        ViewerSegment => "viewer_segment",
+        CatalogDataset => "catalog_dataset",
+        AppProjection => "app_projection",
+    }
+}
+
+string_enum! {
+    pub enum RecordingProjectionState {
+        Reserved => "reserved",
+        Materializing => "materializing",
+        Ready => "ready",
+        Failed => "failed",
+        Cancelled => "cancelled",
     }
 }
 
@@ -1403,7 +1437,7 @@ pub struct RecordingRecord {
     pub delegation_id: Option<String>,
     pub policy_revision: String,
     pub authority: InvocationAuthorityRecord,
-    pub dataset: String,
+    pub dataset: RecordId,
     pub application_id: String,
     pub recording_key: String,
     pub state: RecordingState,
@@ -1423,24 +1457,80 @@ pub struct RecordingRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct SegmentRecord {
+pub struct RecordingDatasetRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub dataset_key: String,
+    pub display_label: String,
+    pub default_blueprint_artifact: Option<RecordId>,
+    pub retention_mode: RecordingRetentionMode,
+    pub retention_expires_at: Option<DateTime<Utc>>,
+    pub revision: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct RecordingLayerRecord {
     pub id: RecordId,
     pub tenant: RecordId,
     pub recording: RecordId,
-    pub segment_key: String,
-    pub ordinal: i64,
-    pub relative_path: String,
+    pub layer_name: String,
+    pub kind: RecordingLayerKind,
+    pub ordinal: Option<i64>,
+    pub staging_path: Option<String>,
     pub artifact: Option<RecordId>,
-    pub state: SegmentState,
+    pub state: RecordingLayerState,
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
     pub byte_len: i64,
     pub message_count: i64,
     pub sha256: Option<String>,
+    pub rrd_version: Option<String>,
+    pub schema_digest: Option<String>,
     pub failure_reason: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub revision: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct RecordingReadGrantRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub dataset: RecordId,
+    pub grant_class: RecordingReadGrantClass,
+    pub recordings: Vec<RecordId>,
+    pub admitted_set_digest: String,
+    pub actor: RecordId,
+    pub work_context: RecordId,
+    pub policy_revision: String,
+    pub catalog_revision: String,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct RecordingProjectionReceiptRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub grant: RecordId,
+    pub dataset: RecordId,
+    pub recordings: Vec<RecordId>,
+    pub actor: RecordId,
+    pub work_context: RecordId,
+    pub policy_revision: String,
+    pub catalog_revision: String,
+    pub caller_idempotency_key: String,
+    pub manifest_digest: String,
+    pub query_digest: String,
+    pub state: RecordingProjectionState,
+    pub result_byte_len: Option<i64>,
+    pub result_sha256: Option<String>,
+    pub failure_reason: Option<String>,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -1793,15 +1883,6 @@ pub struct DerivationEdge {
     pub r#in: RecordId,
     pub out: RecordId,
     pub relation: String,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct RecordingSegmentEdge {
-    pub id: RecordId,
-    pub r#in: RecordId,
-    pub out: RecordId,
-    pub ordinal: i64,
     pub created_at: DateTime<Utc>,
 }
 

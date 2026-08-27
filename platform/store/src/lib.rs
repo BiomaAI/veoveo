@@ -24,6 +24,7 @@ mod migrations;
 mod models;
 mod outbox;
 mod recording_blueprints;
+mod recording_catalog;
 mod recording_ingest;
 mod recordings;
 mod store;
@@ -81,11 +82,15 @@ pub use outbox::{OutboxDraft, OutboxPage};
 pub use recording_blueprints::{
     RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingBlueprintOutcome,
 };
+pub use recording_catalog::{
+    RecordingCatalogCleanup, RecordingDatasetDraft, RecordingLayerDraft,
+    RecordingProjectionReceiptDraft, RecordingReadGrantDraft, capture_layer_name,
+};
 pub use recording_ingest::{
     RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestQuotaCheckpoint,
     RecordingIngestStreamDraft,
 };
-pub use recordings::{RecordingDraft, RecordingSeal, SegmentDraft, SegmentSealBinding};
+pub use recordings::{RecordingDraft, RecordingSeal};
 pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;
