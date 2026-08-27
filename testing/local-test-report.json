@@ -1,19 +1,21 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:20f90da3de4ff4743e0523d3e4bb7833af251f5324d49192f63c265cf4837325",
-  "updatedAt": "2026-08-27T04:35:58Z",
+  "buildDigest": "sha256:4164a87ad661fa571c2de115faf4cf65ef68a7db9a2037ff580a5c697835410c",
+  "updatedAt": "2026-08-27T04:41:33Z",
   "checks": [
     {
-      "name": "recording-helm-config",
+      "name": "gitops-revision-preflight",
       "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "test",
+        "-p",
+        "veoveo-deployment-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T04:35:58Z",
-      "durationSeconds": 4.533634521,
+      "finishedAt": "2026-08-27T04:41:33Z",
+      "durationSeconds": 1.57323193,
       "detail": "completed successfully"
     }
   ]
