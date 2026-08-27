@@ -1,21 +1,63 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:5c432443a245990b49982d278079f38a389e7e7beebabe4603028e0c32393b15",
-  "updatedAt": "2026-08-27T07:04:13Z",
+  "buildDigest": "sha256:ab0d2376a69f2d3fd06dbb8d2aaf69400632cea5eaee3c2637cb1a0bf01e5b7e",
+  "updatedAt": "2026-08-27T07:15:01Z",
   "checks": [
     {
-      "name": "helm-config",
+      "name": "console-web",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T07:14:32Z",
+      "durationSeconds": 3.806334592,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-web-lint",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T07:14:50Z",
+      "durationSeconds": 2.87916607,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "console-web-tests",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "test"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T07:14:42Z",
+      "durationSeconds": 0.303539585,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-archive-browser",
       "command": [
         "env",
         "CARGO_BUILD_JOBS=4",
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "test",
+        "-p",
+        "veoveo-browser-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:04:13Z",
-      "durationSeconds": 4.574252592,
+      "finishedAt": "2026-08-27T07:15:01Z",
+      "durationSeconds": 0.448615695,
       "detail": "completed successfully"
     }
   ]

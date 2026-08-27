@@ -905,7 +905,7 @@ async fn verify_recording_archive(
     )
     .await?;
     let evidence = RecordingArchiveBrowserAcceptanceEvidence {
-        schema: "veoveo.io/uav-recording-archive-browser-evidence/v1",
+        schema: "veoveo.io/uav-recording-archive-browser-evidence/v2",
         completed_at: Utc::now(),
         source_revision,
         run_id,

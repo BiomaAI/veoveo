@@ -21,6 +21,10 @@ type ViewerStatus =
   | { state: "open" }
   | { state: "error"; message: string };
 
+const ARCHIVE_TIMELINE = "simulation_time";
+const ARCHIVE_SEEK_ATTEMPTS = 300;
+const ARCHIVE_SEEK_RETRY_MILLISECONDS = 100;
+
 interface LiveRuntime {
   channel?: LogChannel;
   connection?: RerunLiveConnection;
@@ -197,8 +201,42 @@ export default function GovernedRerunViewer({
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let removeTimeUpdateListener: (() => void) | undefined;
+    const archiveSeekTimers = new Set<number>();
     openedSourcesRef.current = { redapToken: desiredSourceRef.current.redapToken };
     liveRuntimeRef.current = { disconnected: false, seeded: false };
+
+    const seekArchiveToLatest = (recordingId: string, attemptsRemaining: number) => {
+      if (
+        !active ||
+        desiredSourceRef.current.receiver.kind !== "archive" ||
+        host.current?.dataset.rerunArchiveState === "latest"
+      ) {
+        return;
+      }
+      const range = viewer.get_time_range(recordingId, ARCHIVE_TIMELINE);
+      if (!range || !Number.isFinite(range.max)) {
+        if (attemptsRemaining <= 1) {
+          if (host.current) host.current.dataset.rerunArchiveState = "timeline-unavailable";
+          return;
+        }
+        const timer = window.setTimeout(() => {
+          archiveSeekTimers.delete(timer);
+          seekArchiveToLatest(recordingId, attemptsRemaining - 1);
+        }, ARCHIVE_SEEK_RETRY_MILLISECONDS);
+        archiveSeekTimers.add(timer);
+        return;
+      }
+      viewer.set_active_recording_id(recordingId);
+      viewer.set_active_timeline(recordingId, ARCHIVE_TIMELINE);
+      viewer.set_current_time(recordingId, ARCHIVE_TIMELINE, range.max);
+      if (host.current) {
+        host.current.dataset.rerunRecordingId = recordingId;
+        host.current.dataset.rerunTimeline = ARCHIVE_TIMELINE;
+        host.current.dataset.rerunCurrentTime = String(range.max);
+        host.current.dataset.rerunNewestTime = String(range.max);
+        host.current.dataset.rerunArchiveState = "latest";
+      }
+    };
 
     const disconnect = () => {
       const desired = desiredSourceRef.current;
@@ -278,6 +316,9 @@ export default function GovernedRerunViewer({
             host.current.dataset.rerunRecordingId = event.recording_id;
             host.current.dataset.rerunViewerState = "open";
           }
+          if (desiredSourceRef.current.receiver.kind === "archive") {
+            seekArchiveToLatest(event.recording_id, ARCHIVE_SEEK_ATTEMPTS);
+          }
           setStatus({ state: "open" });
         });
         removeTimeUpdateListener = viewer.on("time_update", (event) => {
@@ -335,6 +376,8 @@ export default function GovernedRerunViewer({
       liveRuntimeRef.current.channel = undefined;
       removeOpenListener?.();
       removeTimeUpdateListener?.();
+      for (const timer of archiveSeekTimers) window.clearTimeout(timer);
+      archiveSeekTimers.clear();
       try {
         viewer.stop();
       } catch (cause) {
