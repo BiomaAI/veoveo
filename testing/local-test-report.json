@@ -1,24 +1,8 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:a1bcda4bd29967bbaf6f3d2e75194d75b5bc138942cd3f478fcbd76e8b827e0b",
-  "updatedAt": "2026-08-27T04:27:52Z",
+  "buildDigest": "sha256:ff774aaf98782718c310fc664379fba9e6854975e2ffff689d9b92790b885cff",
+  "updatedAt": "2026-08-27T04:35:10Z",
   "checks": [
-    {
-      "name": "recording-doctor",
-      "command": [
-        "cargo",
-        "run",
-        "-q",
-        "-p",
-        "veoveo-xtask",
-        "--",
-        "doctor"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-27T04:26:58Z",
-      "durationSeconds": 1.8245136,
-      "detail": "completed successfully"
-    },
     {
       "name": "recording-helm-config",
       "command": [
@@ -28,8 +12,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T04:27:52Z",
-      "durationSeconds": 49.33979015,
+      "finishedAt": "2026-08-27T04:35:10Z",
+      "durationSeconds": 5.371230971,
       "detail": "completed successfully"
     }
   ]

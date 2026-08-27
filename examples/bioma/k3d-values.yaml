@@ -9,8 +9,11 @@ artifactService:
   replicas: 1
 recording:
   tenantKey: bioma
+  # local-path does not enforce PVC capacity. Keep the Hub's actual-filesystem
+  # floor above the node reserve used by release preflight and kubelet image GC.
+  spoolMinimumFreeBytes: 214748364800
   persistence:
-    size: 20Gi
+    size: 256Gi
 stream:
   liveInput:
     width: 640
