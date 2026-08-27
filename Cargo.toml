@@ -89,7 +89,11 @@ memmap2 = "=0.9.11"
 object_store = { version = "0.14.1", default-features = false, features = ["aws"] }
 opentelemetry = "0.32.0"
 opentelemetry-appender-tracing = "0.32.0"
-opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "logs"] }
+# Rerun's official Redap tests bring `re_perf_telemetry`, which enables the
+# OTLP `hyper-client`. opentelemetry-otlp 0.32.0 cannot compile the combined
+# blocking-reqwest + hyper feature set unless the higher-priority async
+# reqwest client is also enabled.
+opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "reqwest-client", "trace", "logs"] }
 opentelemetry_sdk = "0.32.1"
 mp4 = "0.14.0"
 nix = { version = "0.31.3", features = ["process", "signal"] }
@@ -124,6 +128,7 @@ re_log_types = "=0.36.3"
 re_auth = "=0.36.3"
 re_protos = "=0.36.3"
 re_server = "=0.36.3"
+re_redap_tests = "=0.36.3"
 re_tuid = "=0.36.3"
 re_uri = "=0.36.3"
 re_build_info = "=0.36.3"
