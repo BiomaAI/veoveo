@@ -214,9 +214,13 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
 - Treat a local-path PVC size as a scheduling request, not a filesystem quota. Compare
   Hub storage diagnostics and actual mounted usage with node free space before activation;
   the kubelet cannot protect its image filesystem from an unbounded backing directory.
+  Set `spoolMinimumFreeBytes` at or above the installation's retained node reserve.
 - Delete a large pre-cut SurrealDB row set through bounded record-ID batches. An
   unbounded delete on a changefeed table can retain the complete transaction in database
   memory, and disconnecting the CLI does not guarantee server-side cancellation.
+- Parse every mounted publisher PEM before rollout. A Secret object with the expected key
+  name but a zero-byte value passes Kubernetes shape checks and fails both publishers at
+  startup with `InvalidKeyFormat`.
 - After rollout, confirm `Ready=True`, `DiskPressure=False`, no new `Evicted` recording
   pods, zero leaked scratch, and healthy storage diagnostics.
 - Before browser automation, prove the headed browser has hardware WebGPU or WebGL and

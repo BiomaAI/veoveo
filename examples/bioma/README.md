@@ -289,6 +289,12 @@ jq -n '{
   }
 }' | kubectl --context k3d-veoveo-bioma apply -f -
 
+for secret in veoveo-recording-producer veoveo-recording-hub veoveo-recording-mcp-publisher; do
+  kubectl --context k3d-veoveo-bioma -n veoveo get secret "$secret" \
+    -o go-template='{{index .data "private-key.pem" | base64decode}}' \
+    | openssl pkey -check -noout
+done
+
 ~~~
 
 A production installation projects the same keys from its secret manager. The UAV,
