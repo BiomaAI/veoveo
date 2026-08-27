@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:054acb74be112ad8f1b216d8e673836f2ff636e8b1348d13fa370ee9290cf7a0",
-  "updatedAt": "2026-08-27T07:44:43Z",
+  "updatedAt": "2026-08-27T07:49:46Z",
   "checks": [
     {
       "name": "bioma-image-lock",
@@ -14,8 +14,56 @@
         "veoveo-deployment-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:44:38Z",
-      "durationSeconds": 0.390497286,
+      "finishedAt": "2026-08-27T07:49:41Z",
+      "durationSeconds": 0.406275486,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-browser-smoke",
+      "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-browser-smoke"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T07:49:31Z",
+      "durationSeconds": 0.441874289,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-mcp",
+      "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-recording-mcp"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T07:49:27Z",
+      "durationSeconds": 1.026906793,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-redap",
+      "command": [
+        "env",
+        "CARGO_BUILD_JOBS=4",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-recording-mcp",
+        "--features",
+        "redap-conformance",
+        "official_read_profile"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-27T07:49:19Z",
+      "durationSeconds": 21.130294415,
       "detail": "completed successfully"
     },
     {
@@ -28,8 +76,8 @@
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T07:44:43Z",
-      "durationSeconds": 1.861599761,
+      "finishedAt": "2026-08-27T07:49:46Z",
+      "durationSeconds": 1.873707021,
       "detail": "completed successfully"
     }
   ]

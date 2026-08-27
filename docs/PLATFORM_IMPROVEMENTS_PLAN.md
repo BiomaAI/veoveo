@@ -1259,10 +1259,11 @@ ergonomic milestone.
 
 ## Current Cycle: Requests 014–023
 
-Status: approved architecture and implementation plan. Implementation has not started. Phase 1
-may begin after its focused resolver contract is recorded. Decisions needed only by later phases
-do not block unrelated work. Existing component designs remain normative until each phase lands
-and deletes the surface it replaces.
+Status: active delivery record. Phase 2, the Recording Catalog Hard Cut, is complete and
+activated as of 2026-08-27. The other current-cycle phases remain planned unless their own
+sections record a later state. Phase 1 may begin after its focused resolver contract is recorded.
+Decisions needed only by later phases do not block unrelated work. Existing component designs
+remain normative until each phase lands and deletes the surface it replaces.
 
 Planning baseline: Veoveo main `6edf9d6b08886a3503067daa7803098d5ea7bc12` on 2026-08-26.
 The implementation review was refreshed at `e1d72227dc681363e47bef5f06e26e5caa738cfd` on the
@@ -1573,6 +1574,11 @@ web client. Retain `app_catalog()` only for gallery listing and gallery change e
 
 ### Phase 2: Recording Catalog Hard Cut
 
+Status: complete. The focused implementation and acceptance record is in
+[`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md). It includes
+Artifact-backed seal and cache-loss recovery, governed Redap and Arrow reads, manifest
+v9 activation, disk safety, and headed RTX 4090 Console/Rerun inspection.
+
 This phase replaces `RECORDING-PROJECTION-016` and the current archive architecture. It is one
 activation boundary even when implementation is divided into reviewable commits.
 
@@ -1581,9 +1587,9 @@ sequence, initial resource limits, verification matrix, and activation runbook f
 The broader plan remains the product scope. The focused plan does not authorize work from another
 request.
 
-Before activation, the installation owner records one retention choice: run the offline migration
-or explicitly discard recordings made under the old architecture. The implementation supports
-only that selected cutover. This choice does not block Phase 1 or other independent work.
+Activation used the explicitly approved disposable-data cut. Recordings made under the old
+architecture were discarded before the guarded schema migration, and the runtime supports only
+the new catalog. This completed choice does not block Phase 1 or other independent work.
 
 #### Canonical Rerun object model
 
