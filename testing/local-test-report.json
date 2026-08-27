@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ff774aaf98782718c310fc664379fba9e6854975e2ffff689d9b92790b885cff",
-  "updatedAt": "2026-08-27T04:35:10Z",
+  "buildDigest": "sha256:20f90da3de4ff4743e0523d3e4bb7833af251f5324d49192f63c265cf4837325",
+  "updatedAt": "2026-08-27T04:35:58Z",
   "checks": [
     {
       "name": "recording-helm-config",
@@ -12,8 +12,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-27T04:35:10Z",
-      "durationSeconds": 5.371230971,
+      "finishedAt": "2026-08-27T04:35:58Z",
+      "durationSeconds": 4.533634521,
       "detail": "completed successfully"
     }
   ]
