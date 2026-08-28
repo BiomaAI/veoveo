@@ -1,31 +1,20 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:057c0734c5f7cd1d924cf9d363d7599deb4737e045b5ab6806c324bd3392686b",
-  "updatedAt": "2026-08-28T19:55:14Z",
+  "buildDigest": "sha256:289673415f61028faa9179a468cf9ee3e779a32efaa6435e904a6465678e11eb",
+  "updatedAt": "2026-08-28T19:56:27Z",
   "checks": [
     {
-      "name": "platform-doctor",
+      "name": "bioma-uav-chart-source",
       "command": [
-        "cargo",
-        "xtask",
-        "doctor"
+        "kubectl",
+        "apply",
+        "--dry-run=client",
+        "-f",
+        "examples/bioma/gitops/sources/uav-sim.yaml"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T19:55:14Z",
-      "durationSeconds": 1.845603996,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "xtask",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T19:55:00Z",
-      "durationSeconds": 0.458587494,
+      "finishedAt": "2026-08-28T19:56:27Z",
+      "durationSeconds": 0.651051248,
       "detail": "completed successfully"
     }
   ]
