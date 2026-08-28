@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:69afa094e5ae28f82f8bdaad5ada0d7c7b63f75d5d67304abd1e4d31269ed78e",
-  "updatedAt": "2026-08-28T19:36:40Z",
+  "buildDigest": "sha256:057c0734c5f7cd1d924cf9d363d7599deb4737e045b5ab6806c324bd3392686b",
+  "updatedAt": "2026-08-28T19:55:14Z",
   "checks": [
     {
       "name": "platform-doctor",
@@ -11,62 +11,21 @@
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T19:36:24Z",
-      "durationSeconds": 1.986088708,
+      "finishedAt": "2026-08-28T19:55:14Z",
+      "durationSeconds": 1.845603996,
       "detail": "completed successfully"
     },
     {
-      "name": "recording-hub",
+      "name": "xtask",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-recording-hub"
+        "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T19:35:48Z",
-      "durationSeconds": 18.225774888,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-store",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-platform-store",
-        "recording"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T19:36:16Z",
-      "durationSeconds": 20.983638052,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-recording-policy",
-      "command": [
-        "env",
-        "PYTHONPATH=showcase/uav-sim/runtime",
-        "python",
-        "-m",
-        "unittest",
-        "showcase/uav-sim/runtime/tests/test_recording_segments.py"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T19:36:33Z",
-      "durationSeconds": 0.056309002,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-sim-helm",
-      "command": [
-        "helm",
-        "lint",
-        "showcase/uav-sim/deploy/helm"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T19:36:40Z",
-      "durationSeconds": 0.073553322,
+      "finishedAt": "2026-08-28T19:55:00Z",
+      "durationSeconds": 0.458587494,
       "detail": "completed successfully"
     }
   ]

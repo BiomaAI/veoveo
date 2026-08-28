@@ -314,7 +314,7 @@ struct ReleaseHelmChartsArgs {
     /// Exact Git revision or ref to resolve.
     #[arg(long)]
     revision: String,
-    /// Semantic chart release version.
+    /// Immutable semantic chart version; untagged commits require a pre-release suffix.
     #[arg(long)]
     version: String,
     /// Parent directory for revision- and version-addressed release bundles.
