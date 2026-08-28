@@ -59,6 +59,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
+| [`MAP_APP_INTEGRATION.md`](MAP_APP_INTEGRATION.md) | consumer guide for using Map MCP resources and the reusable Map App from another MCP server |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, logistics routing, and immutable Optimization travel models |
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | NVIDIA cuOpt routing, route scenarios, convex and MILP models, independent verification, and GPU execution |
 | [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md) | admitted live and replay GStreamer graphs, typed pipeline profiles, live results, and the Stream MCP App |
