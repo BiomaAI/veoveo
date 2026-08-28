@@ -239,8 +239,9 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
   interactive `surreal sql` input in a hand-written `BEGIN`/`COMMIT` pair; use one
   independently atomic bounded statement or a checked non-interactive script and verify
   the count after every batch.
-- Install the Rustls crypto provider in focused HTTP tests before constructing a Reqwest
-  client. A missing provider is test harness failure, not a product transport failure.
+- Install the selected Rustls crypto provider at every binary and focused-test entrypoint
+  before constructing a Reqwest client. A compile pass cannot detect a missing process-global
+  provider, and the resulting panic is initialization failure rather than transport evidence.
 - Continue timeline values in restart fixtures when the test intends append semantics.
   Reusing the same sequence coordinates exercises Rerun conflict resolution and can hide
   an otherwise durable earlier layer from the projected result.

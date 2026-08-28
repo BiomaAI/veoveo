@@ -16207,6 +16207,7 @@ dependencies = [
  "re_types_core",
  "re_uri",
  "reqwest 0.13.4",
+ "rustls",
  "secrecy",
  "serde",
  "serde_json",
