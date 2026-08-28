@@ -1,33 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d6fbdd3d3e4763bb513dbcc65a24690b8d1a3c752846463f1ed6b4b745047a55",
-  "updatedAt": "2026-08-28T21:25:37Z",
+  "buildDigest": "sha256:255bced43308bf50beac80ad9cad378218b86a1fd46baac3b7a693c0a2ceb197",
+  "updatedAt": "2026-08-28T21:58:32Z",
   "checks": [
     {
-      "name": "deployment-smoke",
+      "name": "recording-forwarder",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-deployment-smoke"
+        "veoveo-recording-forwarder"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T21:25:37Z",
-      "durationSeconds": 0.442442774,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "deployment-smoke-gitops-stalled",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-deployment-smoke",
-        "gitops::tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T21:25:26Z",
-      "durationSeconds": 2.966403686,
+      "finishedAt": "2026-08-28T21:58:32Z",
+      "durationSeconds": 33.840857254,
       "detail": "completed successfully"
     }
   ]
