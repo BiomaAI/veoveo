@@ -234,6 +234,11 @@ async fn handle_rerun_message(
         && store_id.kind() == StoreKind::Recording
         && matches!(message, LogMsg::SetStoreInfo(_))
     {
+        let mut superseded_accumulators =
+            take_superseded_recording_accumulators(accumulators, &store_id);
+        for accumulator in &mut superseded_accumulators {
+            flush_accumulator(accumulator, queue, queue_events, limits.batch_bytes).await?;
+        }
         let changed = queue
             .lock()
             .expect("durable queue mutex poisoned")
@@ -244,6 +249,7 @@ async fn handle_rerun_message(
         if changed > 0 {
             info!(
                 superseded_recordings = changed,
+                retired_accumulators = superseded_accumulators.len(),
                 "new producer recording generation requested durable completion of prior generations"
             );
             queue_events.work_available.notify_one();
@@ -354,6 +360,25 @@ async fn handle_rerun_message(
         }
     }
     Ok(())
+}
+
+fn take_superseded_recording_accumulators(
+    accumulators: &mut HashMap<StoreId, RecordingAccumulator>,
+    current: &StoreId,
+) -> Vec<RecordingAccumulator> {
+    let superseded = accumulators
+        .keys()
+        .filter(|candidate| {
+            candidate.kind() == StoreKind::Recording
+                && candidate.application_id() == current.application_id()
+                && *candidate != current
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    superseded
+        .into_iter()
+        .filter_map(|store_id| accumulators.remove(&store_id))
+        .collect()
 }
 
 #[cfg(unix)]
@@ -709,6 +734,7 @@ fn blueprint_permanent_rejection(error: &anyhow::Error) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use re_log_types::ApplicationId;
     use reqwest::StatusCode;
 
     use super::*;
@@ -722,6 +748,35 @@ mod tests {
             retry_after_seconds: None,
         }
         .into()
+    }
+
+    #[test]
+    fn superseded_generation_is_retired_before_blueprint_association() {
+        let old = StoreId::recording("inspection-camera", "old");
+        let current = StoreId::recording("inspection-camera", "current");
+        let unrelated = StoreId::recording("other-camera", "current");
+        let mut accumulators = HashMap::from([
+            (old.clone(), RecordingAccumulator::new(old.clone()).unwrap()),
+            (
+                unrelated.clone(),
+                RecordingAccumulator::new(unrelated.clone()).unwrap(),
+            ),
+        ]);
+
+        let retired = take_superseded_recording_accumulators(&mut accumulators, &current);
+        assert_eq!(retired.len(), 1);
+        assert_eq!(retired[0].store_id(), &old);
+        assert!(accumulators.contains_key(&unrelated));
+        accumulators.insert(
+            current.clone(),
+            RecordingAccumulator::new(current.clone()).unwrap(),
+        );
+
+        let blueprint = StoreId::default_blueprint(ApplicationId::from("inspection-camera"));
+        assert_eq!(
+            crate::blueprint::associated_recording(&blueprint, accumulators.keys()).unwrap(),
+            &current
+        );
     }
 
     #[test]
