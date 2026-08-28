@@ -58,6 +58,15 @@ projects complete ordered parts for the active capture layer. Rollover is driven
 configured byte or age boundary. Video-bearing capture waits for a decoder-reentrant
 access unit before opening the next layer.
 
+The UAV producer also bounds the logical Rerun recording. It starts a new recording ID
+before its conservative encoded-payload budget exceeds 4 GiB or its wall age reaches
+four hours. The payload budget counts each native H.264 access unit exactly and reserves
+an envelope for every telemetry and control event. Starting the replacement emits the
+Blueprint and static world context again. The forwarder then finishes the superseded
+recording through its ordinary source-generation transition. Capture-layer rollover and
+logical-recording rotation are separate controls: the former keeps publication work
+small, while the latter keeps one playback segment within the managed cache envelope.
+
 Publication is one retry-safe sequence:
 
 1. Reserve the `recording_layer` record and UUID.
@@ -193,6 +202,14 @@ readiness endpoint checks the spool free-space floor. Both containers have expli
 ephemeral-storage requests and limits, and their incidental `/tmp` mounts have bounded
 `emptyDir.sizeLimit` values.
 
+Startup reconciles authenticated mutable capture layers after replaying durable batch
+journals. A `writing` layer with no parts is an empty resumable reservation. A `writing`
+or `staged` layer with recovery parts is frozen and published idempotently before ingest
+opens. A staged layer without recovery parts, multiple mutable capture layers, a failed
+capture layer, or a mutable ordinal preceding a later layer stops startup or the next
+ingest operation with the exact layer identity. Hub never skips that state to open a
+later ordinal.
+
 Authenticated `/admin/storage` returns typed layer-cache and projection counters. Hub
 diagnostics expose spool reservations, available bytes, configured floor, and headroom
 rejections. Operators should treat a headroom rejection as backpressure, not as a reason
@@ -207,12 +224,21 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
 - Suspend the owning GitOps reconciliation before scaling Hub and producer Deployments
   to zero. Confirm the desired and current replica counts remain zero; a manual scale
   alone can be corrected while the database reset is still running.
+- Keep the producer's logical recording rotation at or below 4 GiB and four hours. Run
+  `cargo xtask doctor` after changing the producer, chart, cache, or projection budgets.
+- Run the focused host-safe policy test from `showcase/uav-sim/runtime` with
+  `PYTHONPATH=. python -m unittest tests/test_recording_segments.py`. The complete UAV
+  runtime contract suite uses dependencies supplied by the Isaac simulation image.
 - Update the Store migration, Rust strong types, Hub, Recording MCP, Gateway, Console,
   smoke fixtures, Helm schema, examples, and both recording design documents together.
 - Search active contracts for obsolete manifest versions, query tool names, Hub query
   binaries, segment-table Rust types, and filesystem playback authority.
 - Run the live SurrealDB catalog transaction test. Multi-statement transaction responses
   include statement slots, and a wrong response index can survive compile-only checks.
+- Delete approved development rows by explicit IDs in bounded batches. Do not wrap
+  interactive `surreal sql` input in a hand-written `BEGIN`/`COMMIT` pair; use one
+  independently atomic bounded statement or a checked non-interactive script and verify
+  the count after every batch.
 - Install the Rustls crypto provider in focused HTTP tests before constructing a Reqwest
   client. A missing provider is test harness failure, not a product transport failure.
 - Continue timeline values in restart fixtures when the test intends append semantics.

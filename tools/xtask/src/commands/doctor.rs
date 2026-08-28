@@ -21,6 +21,19 @@ struct Values {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct UavValues {
+    recording: UavRecordingValues,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UavRecordingValues {
+    maximum_segment_bytes: u64,
+    maximum_segment_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RecordingValues {
     capture_layer_max_bytes: u64,
     spool_minimum_free_bytes: u64,
@@ -87,6 +100,14 @@ fn validate_recording_catalog_contract(repository: &RepositoryContext) -> Result
         &fs::read(&values_path).with_context(|| format!("reading {}", values_path.display()))?,
     )
     .with_context(|| format!("parsing {}", values_path.display()))?;
+    let uav_values_path = repository
+        .root()
+        .join("showcase/uav-sim/deploy/helm/values.yaml");
+    let uav_values: UavValues = serde_yaml_ng::from_slice(
+        &fs::read(&uav_values_path)
+            .with_context(|| format!("reading {}", uav_values_path.display()))?,
+    )
+    .with_context(|| format!("parsing {}", uav_values_path.display()))?;
     let cache_capacity = parse_binary_quantity(&values.recording.catalog_cache.size)?;
     let spool_capacity = parse_binary_quantity(&values.recording.persistence.size)?;
     let shared_cache_floor = values
@@ -131,12 +152,35 @@ fn validate_recording_catalog_contract(repository: &RepositoryContext) -> Result
         spool_reservation <= spool_capacity,
         "recording spool cannot hold the worst-case journal/materialization reservation plus its free-space floor"
     );
+    ensure!(
+        uav_values.recording.maximum_segment_bytes <= 4 * GIB,
+        "UAV recording maximum segment bytes exceeds the reviewed 4 GiB ceiling"
+    );
+    ensure!(
+        uav_values.recording.maximum_segment_seconds <= 4 * 60 * 60,
+        "UAV recording maximum segment age exceeds the reviewed four-hour ceiling"
+    );
+    ensure!(
+        uav_values
+            .recording
+            .maximum_segment_bytes
+            .checked_mul(2)
+            .is_some_and(
+                |two_segments| two_segments <= values.recording.catalog_cache.managed_bytes
+            ),
+        "recording managed cache must hold two maximum-size UAV recording segments"
+    );
 
     reject_obsolete_recording_surfaces(repository)?;
     println!(
         "Recording catalog budgets are coherent: {} GiB cache PVC, {} GiB spool PVC",
         cache_capacity / GIB,
         spool_capacity / GIB
+    );
+    println!(
+        "UAV recording rotation is bounded at {} GiB or {} hours",
+        uav_values.recording.maximum_segment_bytes / GIB,
+        uav_values.recording.maximum_segment_seconds / (60 * 60)
     );
     println!(
         "HINT after recording schema changes, run the live SurrealDB catalog transaction test; multi-statement response indexes are wire behavior"
@@ -152,6 +196,9 @@ fn validate_recording_catalog_contract(repository: &RepositoryContext) -> Result
     );
     println!(
         "HINT suspend the owning GitOps reconciler before quiescing recording Deployments; a manual scale can be drift-corrected during the reset"
+    );
+    println!(
+        "HINT run focused host-safe UAV recording policy tests from `showcase/uav-sim/runtime` with `PYTHONPATH=. python -m unittest tests/test_recording_segments.py`; the full runtime suite uses image-only Isaac dependencies"
     );
     Ok(())
 }

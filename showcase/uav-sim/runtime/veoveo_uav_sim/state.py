@@ -317,6 +317,7 @@ class RuntimeState:
         queued_events: int,
         dropped_events: int,
         diagnostic: str | None,
+        recording_key: str | None = None,
     ) -> None:
         with self._condition:
             recording = self._state["recordings"][0]
@@ -325,6 +326,9 @@ class RuntimeState:
                 queued_events=max(0, queued_events),
                 dropped_events=max(0, dropped_events),
             )
+            if recording_key is not None and recording_key != recording["recording_key"]:
+                recording["recording_key"] = recording_key
+                recording["started_at"] = _timestamp()
             if diagnostic:
                 recording["diagnostic"] = diagnostic
             else:

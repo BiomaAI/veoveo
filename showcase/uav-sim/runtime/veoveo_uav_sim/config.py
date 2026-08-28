@@ -239,6 +239,8 @@ class RecordingConfig:
     telemetry_hz: int
     queue_capacity: int
     map_provider: RecordingMapProvider
+    maximum_segment_bytes: int
+    maximum_segment_seconds: int
 
     @classmethod
     def from_environment(cls) -> "RecordingConfig":
@@ -261,6 +263,18 @@ class RecordingConfig:
                 "UAV_SIM_RECORDING_QUEUE_CAPACITY", "256", 16, 65_536
             ),
             map_provider=map_provider,
+            maximum_segment_bytes=_int(
+                "UAV_SIM_RECORDING_MAXIMUM_SEGMENT_BYTES",
+                str(4 * 1024 * 1024 * 1024),
+                64 * 1024 * 1024,
+                4 * 1024 * 1024 * 1024,
+            ),
+            maximum_segment_seconds=_int(
+                "UAV_SIM_RECORDING_MAXIMUM_SEGMENT_SECONDS",
+                str(4 * 60 * 60),
+                60,
+                4 * 60 * 60,
+            ),
         )
 
 

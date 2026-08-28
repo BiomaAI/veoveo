@@ -146,11 +146,13 @@
     "recording": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["telemetryHz", "queueCapacity", "mapProvider"],
+      "required": ["telemetryHz", "queueCapacity", "mapProvider", "maximumSegmentBytes", "maximumSegmentSeconds"],
       "properties": {
         "telemetryHz": {"type": "integer", "minimum": 1, "maximum": 120},
         "queueCapacity": {"type": "integer", "minimum": 16, "maximum": 65536},
-        "mapProvider": {"enum": ["openStreetMap", "mapboxSatellite"]}
+        "mapProvider": {"enum": ["openStreetMap", "mapboxSatellite"]},
+        "maximumSegmentBytes": {"type": "integer", "minimum": 67108864, "maximum": 4294967296},
+        "maximumSegmentSeconds": {"type": "integer", "minimum": 60, "maximum": 14400}
       }
     },
     "world": {

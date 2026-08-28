@@ -700,6 +700,28 @@ impl PlatformStore {
         Ok(response.take(0)?)
     }
 
+    /// Return installation-wide mutable layers for bounded Recording Hub startup recovery.
+    ///
+    /// Tenant-scoped catalog callers use [`Self::pending_recording_layers`].
+    pub async fn pending_recording_layers_for_recovery(
+        &self,
+        limit: u32,
+    ) -> Result<Vec<RecordingLayerRecord>, StoreError> {
+        if limit == 0 || limit > MAX_LAYER_LIMIT {
+            return Err(StoreError::InvalidRecordingField {
+                field: "limit",
+                reason: "must be in 1..=10000",
+            });
+        }
+        let mut response = self
+            .db
+            .query("SELECT * FROM recording_layer WHERE state IN ['writing', 'staged'] ORDER BY updated_at ASC LIMIT $limit;")
+            .bind(("limit", i64::from(limit)))
+            .await?
+            .check()?;
+        Ok(response.take(0)?)
+    }
+
     pub async fn create_recording_read_grant(
         &self,
         mut draft: RecordingReadGrantDraft,

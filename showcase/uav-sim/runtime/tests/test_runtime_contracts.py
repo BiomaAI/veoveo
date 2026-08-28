@@ -350,6 +350,8 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(config.recording.telemetry_hz, 5)
         self.assertEqual(config.recording.queue_capacity, 256)
         self.assertEqual(config.recording.map_provider.value, "openStreetMap")
+        self.assertEqual(config.recording.maximum_segment_bytes, 4 * 1024**3)
+        self.assertEqual(config.recording.maximum_segment_seconds, 4 * 60 * 60)
 
         app_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
@@ -489,12 +491,16 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             "UAV_SIM_RECORDING_MAP_PROVIDER": "mapboxSatellite",
             "UAV_SIM_RECORDING_TELEMETRY_HZ": "4",
             "UAV_SIM_RECORDING_QUEUE_CAPACITY": "128",
+            "UAV_SIM_RECORDING_MAXIMUM_SEGMENT_BYTES": str(2 * 1024**3),
+            "UAV_SIM_RECORDING_MAXIMUM_SEGMENT_SECONDS": "7200",
         }
         with patch.dict(os.environ, environment, clear=True):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.recording.map_provider.value, "mapboxSatellite")
         self.assertEqual(config.recording.telemetry_hz, 4)
         self.assertEqual(config.recording.queue_capacity, 128)
+        self.assertEqual(config.recording.maximum_segment_bytes, 2 * 1024**3)
+        self.assertEqual(config.recording.maximum_segment_seconds, 7200)
 
         invalid = {
             **VALID_ENVIRONMENT,
