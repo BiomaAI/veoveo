@@ -66,6 +66,13 @@ hand:
   ends in `-mcp`, regardless of implementation language.
 - Against an installation, the server set is the gateway control-plane
   catalog.
+
+Hosted servers may consume another server's canonical resources when the active
+installation profile and policy expose them. This is the supported integration
+path for reusable domain capabilities such as Map data. An App that performs a
+cross-server read declares a typed App dependency; the gateway projects only
+the caller-authorized declaration. This grants no direct storage, private HTTP,
+renderer, or credential access, and it does not authorize mutations.
 - Transport-invariant checks additionally name the known MCP endpoints that
   live outside `servers/`: the gateway itself, the bridges, and showcase
   extensions such as `showcase/sumo/sumo-mcp`.
