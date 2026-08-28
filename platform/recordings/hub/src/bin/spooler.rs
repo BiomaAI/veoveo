@@ -189,7 +189,12 @@ fn parse_route(raw: &str) -> Result<DatasetRoute> {
     })
 }
 
+fn install_rustls_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 fn main() -> Result<()> {
+    install_rustls_provider();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
@@ -229,6 +234,18 @@ fn main() -> Result<()> {
         .enable_all()
         .build()?;
     runtime.block_on(run(config, args))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::install_rustls_provider;
+
+    #[test]
+    fn installs_crypto_before_building_the_gateway_http_client() {
+        install_rustls_provider();
+        assert!(rustls::crypto::CryptoProvider::get_default().is_some());
+        reqwest::Client::builder().build().unwrap();
+    }
 }
 
 async fn run(config: SpoolerConfig, args: Args) -> Result<()> {

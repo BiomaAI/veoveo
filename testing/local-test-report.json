@@ -1,20 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:289673415f61028faa9179a468cf9ee3e779a32efaa6435e904a6465678e11eb",
-  "updatedAt": "2026-08-28T19:56:27Z",
+  "buildDigest": "sha256:2e19f3b436f5d49aba5a1340a15cba8cff186b05a80e3b55d3543711daf75f7e",
+  "updatedAt": "2026-08-28T20:03:47Z",
   "checks": [
     {
-      "name": "bioma-uav-chart-source",
+      "name": "recording-hub",
       "command": [
-        "kubectl",
-        "apply",
-        "--dry-run=client",
-        "-f",
-        "examples/bioma/gitops/sources/uav-sim.yaml"
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-recording-hub"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T19:56:27Z",
-      "durationSeconds": 0.651051248,
+      "finishedAt": "2026-08-28T20:03:47Z",
+      "durationSeconds": 20.128839896,
       "detail": "completed successfully"
     }
   ]
