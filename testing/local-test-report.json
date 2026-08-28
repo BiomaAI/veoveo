@@ -1,37 +1,33 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:07b60b25b5449859aedcdcde324381f5111cf7d488a50766e262c5f898cba982",
-  "updatedAt": "2026-08-28T21:02:20Z",
+  "buildDigest": "sha256:d6fbdd3d3e4763bb513dbcc65a24690b8d1a3c752846463f1ed6b4b745047a55",
+  "updatedAt": "2026-08-28T21:25:37Z",
   "checks": [
     {
-      "name": "bioma-uav-helm",
+      "name": "deployment-smoke",
       "command": [
-        "helm",
-        "template",
-        "uav-sim",
-        "showcase/uav-sim/deploy/helm",
-        "--namespace",
-        "veoveo",
-        "-f",
-        "examples/bioma/uav-sim-values.yaml",
-        "-f",
-        "examples/bioma/images.lock.yaml"
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deployment-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T21:02:17Z",
-      "durationSeconds": 0.053565092,
+      "finishedAt": "2026-08-28T21:25:37Z",
+      "durationSeconds": 0.442442774,
       "detail": "completed successfully"
     },
     {
-      "name": "doctor",
+      "name": "deployment-smoke-gitops-stalled",
       "command": [
         "cargo",
-        "xtask",
-        "doctor"
+        "test",
+        "-p",
+        "veoveo-deployment-smoke",
+        "gitops::tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T21:02:20Z",
-      "durationSeconds": 1.9891536520000002,
+      "finishedAt": "2026-08-28T21:25:26Z",
+      "durationSeconds": 2.966403686,
       "detail": "completed successfully"
     }
   ]
