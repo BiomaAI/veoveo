@@ -3,6 +3,7 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -173,6 +174,10 @@ struct FluxCondition {
     #[serde(rename = "type")]
     condition_type: String,
     status: String,
+    #[serde(default)]
+    reason: String,
+    #[serde(default)]
+    message: String,
 }
 
 struct Deadline {
@@ -288,12 +293,12 @@ fn converge_inner(
 
     run_phase(phases, "desired_state_apply", || {
         request_reconciliation(arguments, KUSTOMIZATION_RESOURCE, root)?;
-        wait_for_resource::<FluxKustomization>(
+        wait_for_kustomization_or_release_failure(
             arguments,
-            KUSTOMIZATION_RESOURCE,
             root,
+            releases,
             deadline,
-            |kustomization| kustomization_ready_at(kustomization, &arguments.revision),
+            &arguments.revision,
         )
     })?;
 
@@ -369,6 +374,36 @@ fn converge_inner(
         }
         Ok(())
     })
+}
+
+fn wait_for_kustomization_or_release_failure(
+    arguments: &GitopsConvergeArgs,
+    root: &ObjectRef,
+    releases: &[ObjectRef],
+    deadline: &Deadline,
+    revision: &str,
+) -> Result<()> {
+    loop {
+        let kustomization =
+            get_resource::<FluxKustomization>(arguments, KUSTOMIZATION_RESOURCE, root)?;
+        if kustomization_ready_at(&kustomization, revision) {
+            return Ok(());
+        }
+        for release in releases {
+            let observed = get_resource::<HelmRelease>(arguments, HELM_RELEASE_RESOURCE, release)?;
+            if let Some(diagnostic) = helm_release_terminal_failure(&observed) {
+                bail!(
+                    "HelmRelease {}/{} stalled while applying Git revision {}: {}",
+                    release.namespace,
+                    release.name,
+                    revision,
+                    diagnostic
+                );
+            }
+        }
+        let remaining = deadline.remaining("root Kustomization convergence")?;
+        thread::sleep(remaining.min(Duration::from_secs(2)));
+    }
 }
 
 fn run_phase(
@@ -583,6 +618,30 @@ fn helm_release_ready(release: &HelmRelease) -> bool {
             .is_some_and(|inventory| !inventory.entries.is_empty())
 }
 
+fn helm_release_terminal_failure(release: &HelmRelease) -> Option<String> {
+    if !generation_observed(
+        release.metadata.generation,
+        release.status.observed_generation,
+    ) {
+        return None;
+    }
+    release
+        .status
+        .conditions
+        .iter()
+        .find(|condition| {
+            condition.condition_type == "Stalled" && condition.status.eq_ignore_ascii_case("true")
+        })
+        .map(
+            |condition| match (condition.reason.as_str(), condition.message.as_str()) {
+                ("", "") => "Stalled=True".to_owned(),
+                ("", message) => message.to_owned(),
+                (reason, "") => reason.to_owned(),
+                (reason, message) => format!("{reason}: {message}"),
+            },
+        )
+}
+
 fn generation_observed(generation: i64, observed_generation: Option<i64>) -> bool {
     generation > 0 && observed_generation == Some(generation)
 }
@@ -755,6 +814,42 @@ mod tests {
 
         assert!(!kustomization_ready_at(&kustomization, REVISION));
         assert!(!helm_release_ready(&release));
+    }
+
+    #[test]
+    fn reports_only_generation_current_stalled_helm_releases() {
+        let current: HelmRelease = serde_json::from_value(json!({
+            "metadata": {"generation": 9},
+            "status": {
+                "observedGeneration": 9,
+                "conditions": [{
+                    "type": "Stalled",
+                    "status": "True",
+                    "reason": "RetriesExceeded",
+                    "message": "Failed to upgrade after 6 attempt(s)"
+                }]
+            }
+        }))
+        .unwrap();
+        let stale: HelmRelease = serde_json::from_value(json!({
+            "metadata": {"generation": 10},
+            "status": {
+                "observedGeneration": 9,
+                "conditions": [{
+                    "type": "Stalled",
+                    "status": "True",
+                    "reason": "RetriesExceeded",
+                    "message": "old failure"
+                }]
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(
+            helm_release_terminal_failure(&current).as_deref(),
+            Some("RetriesExceeded: Failed to upgrade after 6 attempt(s)")
+        );
+        assert_eq!(helm_release_terminal_failure(&stale), None);
     }
 
     #[test]
