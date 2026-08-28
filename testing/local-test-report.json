@@ -1,19 +1,25 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2e19f3b436f5d49aba5a1340a15cba8cff186b05a80e3b55d3543711daf75f7e",
-  "updatedAt": "2026-08-28T20:03:47Z",
+  "buildDigest": "sha256:73480019d288f4366148bea6c1c7f5435bbef86e64bddff38a2b0ae50a23e08f",
+  "updatedAt": "2026-08-28T20:06:14Z",
   "checks": [
     {
-      "name": "recording-hub",
+      "name": "bioma-platform-helm",
       "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-recording-hub"
+        "helm",
+        "template",
+        "veoveo",
+        "deploy/helm/veoveo",
+        "--namespace",
+        "veoveo",
+        "-f",
+        "examples/bioma/values.yaml",
+        "-f",
+        "examples/bioma/images.lock.yaml"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T20:03:47Z",
-      "durationSeconds": 20.128839896,
+      "finishedAt": "2026-08-28T20:06:14Z",
+      "durationSeconds": 0.072742668,
       "detail": "completed successfully"
     }
   ]
