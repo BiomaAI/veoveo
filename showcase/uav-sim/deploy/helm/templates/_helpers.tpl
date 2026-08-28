@@ -159,7 +159,7 @@
 - name: UAV_SIM_RECORDING_MAP_PROVIDER
   value: {{ .root.Values.recording.mapProvider | quote }}
 - name: UAV_SIM_RECORDING_MAXIMUM_SEGMENT_BYTES
-  value: {{ .root.Values.recording.maximumSegmentBytes | quote }}
+  value: {{ printf "%.0f" .root.Values.recording.maximumSegmentBytes | quote }}
 - name: UAV_SIM_RECORDING_MAXIMUM_SEGMENT_SECONDS
   value: {{ .root.Values.recording.maximumSegmentSeconds | quote }}
 - name: UAV_SIM_CAMERA_FOCAL_LENGTH_MM

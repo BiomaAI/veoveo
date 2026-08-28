@@ -193,6 +193,12 @@ pub(crate) fn helm_charts(
     args: &ReleaseHelmChartsArgs,
 ) -> Result<()> {
     let publication = PublicationSource::prepare(repository, &args.revision)?;
+    let tags = crate::process::output_text(
+        "git",
+        ["tag", "--points-at", publication.revision()],
+        Some(repository.root()),
+    )?;
+    validate_helm_release_version(&args.version, publication.revision(), &tags)?;
     let output_root = if args.output_dir.is_absolute() {
         args.output_dir.clone()
     } else {
@@ -215,6 +221,22 @@ pub(crate) fn helm_charts(
         )?;
     }
     println!("Helm chart release bundle: {}", output.display());
+    Ok(())
+}
+
+fn validate_helm_release_version(version: &str, revision: &str, tags: &str) -> Result<()> {
+    if version.contains('-') || version.contains('+') {
+        return Ok(());
+    }
+    let tagged_release = tags
+        .lines()
+        .map(str::trim)
+        .any(|tag| tag == version || tag == format!("v{version}"));
+    ensure!(
+        tagged_release,
+        "untagged Helm revision {revision} cannot publish bare version {version}; use a revision-qualified pre-release such as {version}-{} or tag the release commit",
+        revision.chars().take(12).collect::<String>()
+    );
     Ok(())
 }
 
@@ -1385,6 +1407,7 @@ mod tests {
 
     use super::{
         development_image_lock, load_committed_profile, profile_location, translate_registry,
+        validate_helm_release_version,
     };
     use crate::{ImageDevelopmentLockArgs, context::RepositoryContext};
 
@@ -1404,6 +1427,15 @@ mod tests {
             .expect("translate registry"),
             "k3d-registry.localhost:5001/veoveo/gateway"
         );
+    }
+
+    #[test]
+    fn untagged_helm_releases_require_an_immutable_pre_release_version() {
+        let revision = "9f9b35084b5bad3d6b09490f10443a55a1cb0155";
+        assert!(validate_helm_release_version("0.1.0-9f9b35084b5b", revision, "").is_ok());
+        assert!(validate_helm_release_version("0.1.0", revision, "v0.1.0\n").is_ok());
+        let error = validate_helm_release_version("0.1.0", revision, "").unwrap_err();
+        assert!(error.to_string().contains("cannot publish bare version"));
     }
 
     fn git_init(path: &Path) {

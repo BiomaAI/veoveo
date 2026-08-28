@@ -170,6 +170,7 @@ fn validate_recording_catalog_contract(repository: &RepositoryContext) -> Result
             ),
         "recording managed cache must hold two maximum-size UAV recording segments"
     );
+    validate_uav_recording_render(repository, &uav_values)?;
 
     reject_obsolete_recording_surfaces(repository)?;
     println!(
@@ -199,6 +200,35 @@ fn validate_recording_catalog_contract(repository: &RepositoryContext) -> Result
     );
     println!(
         "HINT run focused host-safe UAV recording policy tests from `showcase/uav-sim/runtime` with `PYTHONPATH=. python -m unittest tests/test_recording_segments.py`; the full runtime suite uses image-only Isaac dependencies"
+    );
+    println!(
+        "HINT publish development charts with a revision-qualified version such as `0.1.0-$(git rev-parse --short=12 HEAD)`; xtask rejects bare versions from untagged commits"
+    );
+    Ok(())
+}
+
+fn validate_uav_recording_render(repository: &RepositoryContext, values: &UavValues) -> Result<()> {
+    let chart = repository.root().join("showcase/uav-sim/deploy/helm");
+    let rendered = process::output_text(
+        "helm",
+        ["template", "doctor-uav", path_text(&chart)?],
+        Some(repository.root()),
+    )?;
+    let expected_bytes = format!(
+        "- name: UAV_SIM_RECORDING_MAXIMUM_SEGMENT_BYTES\n              value: \"{}\"",
+        values.recording.maximum_segment_bytes
+    );
+    let expected_seconds = format!(
+        "- name: UAV_SIM_RECORDING_MAXIMUM_SEGMENT_SECONDS\n              value: \"{}\"",
+        values.recording.maximum_segment_seconds
+    );
+    ensure!(
+        rendered.contains(&expected_bytes),
+        "UAV recording maximum segment bytes did not render as a decimal integer environment value"
+    );
+    ensure!(
+        rendered.contains(&expected_seconds),
+        "UAV recording maximum segment age did not render as a decimal integer environment value"
     );
     Ok(())
 }
@@ -255,6 +285,11 @@ fn parse_binary_quantity(value: &str) -> Result<u64> {
 
 fn first_line(value: &str) -> &str {
     value.lines().next().unwrap_or(value).trim()
+}
+
+fn path_text(path: &std::path::Path) -> Result<&str> {
+    path.to_str()
+        .with_context(|| format!("path is not UTF-8: {}", path.display()))
 }
 
 fn installed_uv_version(value: &str) -> Option<&str> {
