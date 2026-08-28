@@ -1,8 +1,27 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ceb063beb766ab82a503a4674a4c2d66562907a4f13e6d74f35282b7278c3a3b",
-  "updatedAt": "2026-08-28T20:55:59Z",
+  "buildDigest": "sha256:07b60b25b5449859aedcdcde324381f5111cf7d488a50766e262c5f898cba982",
+  "updatedAt": "2026-08-28T21:02:20Z",
   "checks": [
+    {
+      "name": "bioma-uav-helm",
+      "command": [
+        "helm",
+        "template",
+        "uav-sim",
+        "showcase/uav-sim/deploy/helm",
+        "--namespace",
+        "veoveo",
+        "-f",
+        "examples/bioma/uav-sim-values.yaml",
+        "-f",
+        "examples/bioma/images.lock.yaml"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-08-28T21:02:17Z",
+      "durationSeconds": 0.053565092,
+      "detail": "completed successfully"
+    },
     {
       "name": "doctor",
       "command": [
@@ -11,75 +30,8 @@
         "doctor"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T20:55:43Z",
-      "durationSeconds": 1.9679276940000001,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-helm",
-      "command": [
-        "helm",
-        "lint",
-        "showcase/uav-sim/deploy/helm"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T20:55:39Z",
-      "durationSeconds": 0.06562654,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-recording-segments",
-      "command": [
-        "env",
-        "PYTHONPATH=showcase/uav-sim/runtime",
-        "python",
-        "-m",
-        "unittest",
-        "showcase/uav-sim/runtime/tests/test_recording_segments.py"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T20:55:36Z",
-      "durationSeconds": 0.0657705,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "uav-runtime-contracts-image",
-      "command": [
-        "kubectl",
-        "-n",
-        "veoveo",
-        "exec",
-        "deployment/uav-sim",
-        "-c",
-        "isaac-sim",
-        "--",
-        "env",
-        "PYTHONPATH=/tmp/uav-runtime-process-key:/opt/veoveo/uav-python/rerun_sdk:/opt/veoveo/uav-python",
-        "/isaac-sim/python.sh",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "/tmp/uav-runtime-process-key/tests",
-        "-p",
-        "test_runtime_contracts.py"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T20:55:59Z",
-      "durationSeconds": 1.558328157,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "xtask",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-28T20:55:40Z",
-      "durationSeconds": 0.494541805,
+      "finishedAt": "2026-08-28T21:02:20Z",
+      "durationSeconds": 1.9891536520000002,
       "detail": "completed successfully"
     }
   ]
