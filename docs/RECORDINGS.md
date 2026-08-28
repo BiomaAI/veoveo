@@ -289,6 +289,11 @@ migration `0046_recording_catalog_hard_cut` and deploy Gateway, Artifact service
 Recording MCP, Console, and their Helm contract as one compatible release. Resume
 reconciliation only after the compatible desired state is available.
 
+Suspension prevents a new reconciliation; it does not cancel a Helm action that is already
+running. Confirm that the root Kustomization and affected HelmReleases are idle before the
+reset. When an action is already active, keep the resources suspended and let its bounded
+upgrade or rollback settle before resuming from the root Kustomization.
+
 Before the migration, rollback is an ordinary code rollback. After activation, recovery
 is roll-forward or restoration of the complete old database, object data, and workload
 set together. A mixed playback-manifest deployment is unsupported.
