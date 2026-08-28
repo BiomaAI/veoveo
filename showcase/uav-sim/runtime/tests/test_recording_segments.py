@@ -2,10 +2,20 @@ from __future__ import annotations
 
 import unittest
 
-from veoveo_uav_sim.recording_segments import RecordingSegmentBudget
+from veoveo_uav_sim.recording_segments import (
+    RecordingSegmentBudget,
+    new_recording_key,
+)
 
 
 class RecordingSegmentBudgetTests(unittest.TestCase):
+    def test_process_and_rotation_generations_are_distinct_uuid4_keys(self) -> None:
+        first = new_recording_key()
+        second = new_recording_key()
+        self.assertEqual(first.version, 4)
+        self.assertEqual(second.version, 4)
+        self.assertNotEqual(first, second)
+
     def test_rotates_before_size_or_age_overflow(self) -> None:
         budget = RecordingSegmentBudget(
             maximum_bytes=80_000,

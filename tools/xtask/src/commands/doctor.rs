@@ -230,6 +230,10 @@ fn validate_uav_recording_render(repository: &RepositoryContext, values: &UavVal
         rendered.contains(&expected_seconds),
         "UAV recording maximum segment age did not render as a decimal integer environment value"
     );
+    ensure!(
+        !rendered.contains("UAV_SIM_RECORDING_KEY"),
+        "UAV recording identity must be process-scoped; the chart still injects a pod-lifetime recording key"
+    );
     Ok(())
 }
 

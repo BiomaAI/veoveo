@@ -287,6 +287,12 @@ IMU values, changing health state, and leader video. The producer Blueprint open
 3D, Leader camera, and Fleet map views. Installation-owned browser map credentials never
 enter RRD bytes or Blueprint metadata.
 
+Every simulator process mints a fresh UUIDv4 recording generation. The process also
+rotates that identity before its 4 GiB encoded-payload budget or four-hour wall age is
+reached, then republishes its Blueprint and static world context. The pod UID is not used
+as a recording identity because container restart must not reset a budget while reopening
+the same logical recording.
+
 Recording publication uses its own bounded worker queue. Queue pressure may shed
 recording observations according to policy, but it cannot delay physics, PX4, operator
 rendering, or the optional live RTP path. The producer-local forwarder moves batches to
