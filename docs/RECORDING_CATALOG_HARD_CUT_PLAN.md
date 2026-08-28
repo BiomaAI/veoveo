@@ -578,6 +578,12 @@ Before activation:
 - run store, ingest, Redap, SDK, projection, live, browser-GPU, restart, and disk-pressure
   acceptance before reopening producers.
 
+The development producer must rotate one logical Rerun recording before a conservative
+4 GiB encoded-payload budget or four-hour wall age. Hub startup must reconcile every
+authenticated mutable capture layer after journal replay. It may resume a staged layer
+only when its recovery parts remain available; otherwise readiness and ingest fail with
+the exact layer rather than opening a later ordinal.
+
 Before schema activation, rollback is an ordinary code rollback. After activation, the
 supported recovery is either roll forward to a corrected hard-cut build or restore the
 complete pre-cut installation snapshot and old build together. A mixed v8/v9 deployment

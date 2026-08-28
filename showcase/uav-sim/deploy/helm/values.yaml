@@ -65,6 +65,8 @@ recording:
   telemetryHz: 5
   queueCapacity: 256
   mapProvider: openStreetMap
+  maximumSegmentBytes: 4294967296
+  maximumSegmentSeconds: 14400
 
 world:
   source: google_photorealistic_3d_tiles

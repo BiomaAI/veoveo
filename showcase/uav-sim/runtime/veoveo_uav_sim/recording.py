@@ -4,6 +4,8 @@ import json
 import logging
 import queue
 import threading
+import time
+import uuid
 from dataclasses import dataclass
 
 import rerun as rr
@@ -13,6 +15,7 @@ from .config import RecordingMapProvider, RuntimeConfig
 from .event_queue import NonBlockingEventQueue
 from .geo import enu_to_geodetic
 from .h264 import NativeH264AccessUnit
+from .recording_segments import RecordingSegmentBudget
 from .state import VehicleTelemetry
 from .world_config import WorldConfiguration
 
@@ -29,6 +32,7 @@ class ImuTelemetry:
 @dataclass(frozen=True, slots=True)
 class RecordingPublisherStatus:
     lifecycle: str
+    recording_key: str
     queued_events: int
     dropped_events: int
     last_error: str | None
@@ -132,6 +136,7 @@ class RecordingPublisher:
         )
         self._status_lock = threading.Lock()
         self._lifecycle = "connecting"
+        self._recording_key = str(config.recording_key)
         self._last_error: str | None = None
         self._closed = threading.Event()
         self._worker = threading.Thread(
@@ -143,7 +148,8 @@ class RecordingPublisher:
 
     @property
     def recording_key(self) -> str:
-        return str(self._config.recording_key)
+        with self._status_lock:
+            return self._recording_key
 
     def offer_frame(
         self,
@@ -212,6 +218,7 @@ class RecordingPublisher:
         with self._status_lock:
             return RecordingPublisherStatus(
                 lifecycle=self._lifecycle,
+                recording_key=self._recording_key,
                 queued_events=self._events.depth(),
                 dropped_events=self._events.dropped(),
                 last_error=self._last_error,
@@ -227,11 +234,12 @@ class RecordingPublisher:
             LOGGER.error("recording worker did not stop within 30 seconds")
 
     def _run(self) -> None:
+        recording_key = self._config.recording_key
         while not self._closed.is_set():
             sink: _RecordingSink | None = None
             try:
-                sink = _RecordingSink(self._config, self._world)
-                self._set_status("ready", None)
+                sink = _RecordingSink(self._config, self._world, recording_key)
+                self._set_status("ready", None, recording_key)
                 while True:
                     try:
                         event = self._events.take(0.5)
@@ -243,6 +251,19 @@ class RecordingPublisher:
                         sink.close()
                         self._set_status("stopped", None)
                         return
+                    if sink.should_rotate_before(event):
+                        previous_key = recording_key
+                        sink.close()
+                        recording_key = uuid.uuid4()
+                        sink = _RecordingSink(
+                            self._config, self._world, recording_key
+                        )
+                        self._set_status("ready", None, recording_key)
+                        LOGGER.info(
+                            "rotated governed recording %s to %s at its bounded segment policy",
+                            previous_key,
+                            recording_key,
+                        )
                     sink.handle(event)
             except Exception as error:
                 message = _bounded_diagnostic(error)
@@ -252,23 +273,36 @@ class RecordingPublisher:
                 self._set_status("degraded", message)
                 if sink is not None:
                     sink.abort()
+                recording_key = uuid.uuid4()
                 if self._closed.wait(2.0):
                     return
 
-    def _set_status(self, lifecycle: str, error: str | None) -> None:
+    def _set_status(
+        self,
+        lifecycle: str,
+        error: str | None,
+        recording_key: uuid.UUID | None = None,
+    ) -> None:
         with self._status_lock:
             self._lifecycle = lifecycle
             self._last_error = error
+            if recording_key is not None:
+                self._recording_key = str(recording_key)
 
 
 class _RecordingSink:
-    def __init__(self, config: RuntimeConfig, world: WorldConfiguration) -> None:
+    def __init__(
+        self,
+        config: RuntimeConfig,
+        world: WorldConfiguration,
+        recording_key: uuid.UUID,
+    ) -> None:
         self._config = config
         self._world = world
         self._root = f"/world/uav-sim/{config.session_id}"
         self._recording = rr.RecordingStream(
             "veoveo-uav-sim",
-            recording_id=config.recording_key,
+            recording_id=recording_key,
             batcher_config=rr.ChunkBatcherConfig.LOW_LATENCY(),
         )
         self._recording.connect_grpc(config.recording_proxy)
@@ -301,6 +335,19 @@ class _RecordingSink:
             config.camera.width,
             config.camera.height,
         )
+        self._budget = RecordingSegmentBudget(
+            maximum_bytes=config.recording.maximum_segment_bytes,
+            maximum_seconds=config.recording.maximum_segment_seconds,
+            opened_monotonic_s=time.monotonic(),
+        )
+
+    def should_rotate_before(
+        self,
+        event: _FrameEvent | _CameraEvent | _TilesEvent | _MissionEvent,
+    ) -> bool:
+        return self._budget.should_rotate_before(
+            _recording_event_budget_bytes(event), time.monotonic()
+        )
 
     def handle(
         self,
@@ -309,6 +356,7 @@ class _RecordingSink:
         | _TilesEvent
         | _MissionEvent,
     ) -> None:
+        payload_bytes = _recording_event_budget_bytes(event)
         if isinstance(event, _FrameEvent):
             self._log_frame(event)
         elif isinstance(event, _CameraEvent):
@@ -330,6 +378,7 @@ class _RecordingSink:
                     )
                 ),
             )
+        self._budget.account(payload_bytes)
 
     def close(self) -> None:
         self._recording.flush()
@@ -497,6 +546,24 @@ def _recording_blueprint(config: RuntimeConfig, root: str) -> rrb.Blueprint:
         auto_views=False,
         collapse_panels=True,
     )
+
+
+def _recording_event_budget_bytes(
+    event: _FrameEvent | _CameraEvent | _TilesEvent | _MissionEvent,
+) -> int:
+    envelope_bytes = 4 * 1024
+    if isinstance(event, _CameraEvent):
+        return envelope_bytes + len(event.access_unit.sample)
+    if isinstance(event, _FrameEvent):
+        return envelope_bytes + len(event.vehicles) * 1024 + len(event.imu) * 512
+    if isinstance(event, _MissionEvent):
+        return (
+            envelope_bytes
+            + len(event.mission_id.encode())
+            + len(event.lifecycle.encode())
+            + len(event.detail_json.encode())
+        )
+    return envelope_bytes
 
 
 def _bounded_diagnostic(error: Exception) -> str:

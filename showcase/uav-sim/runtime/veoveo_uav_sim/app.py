@@ -950,6 +950,7 @@ def run(config: RuntimeConfig) -> None:
                     recording_status.queued_events,
                     recording_status.dropped_events,
                     recording_status.last_error,
+                    recording_status.recording_key,
                 )
                 state.observe_render_cycle(
                     native_update_wall_seconds,
