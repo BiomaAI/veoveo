@@ -192,6 +192,7 @@ def run(config: RuntimeConfig) -> None:
     from .px4_hil import Px4HilFleet
     from .realtime import FixedStepCadenceGate, MonotonicPhysicsClock
     from .recording import ImuTelemetry, RecordingPublisher
+    from .recording_segments import new_recording_key
     from .render_pose import rendered_pose_agreement
     from .runtime_events import (
         RuntimeEventPublisher,
@@ -266,8 +267,9 @@ def run(config: RuntimeConfig) -> None:
             raise RuntimeError(
                 "Isaac SimulationApp stopped before a frame world was configured"
             )
-        state = RuntimeState(config, world_config)
-        recording = RecordingPublisher(config, world_config)
+        recording_key = new_recording_key()
+        state = RuntimeState(config, world_config, recording_key)
+        recording = RecordingPublisher(config, world_config, recording_key)
         if config.stream_publication is not None:
             stream_publication = StreamPublicationWorker(config.stream_publication)
         if not SimulationManager.switch_physics_engine("newton", verbose=True):

@@ -15,7 +15,7 @@ from .config import RecordingMapProvider, RuntimeConfig
 from .event_queue import NonBlockingEventQueue
 from .geo import enu_to_geodetic
 from .h264 import NativeH264AccessUnit
-from .recording_segments import RecordingSegmentBudget
+from .recording_segments import RecordingSegmentBudget, new_recording_key
 from .state import VehicleTelemetry
 from .world_config import WorldConfiguration
 
@@ -128,15 +128,21 @@ def _video_packet(sample: bytes) -> rr.VideoStream:
 class RecordingPublisher:
     """Nonblocking simulation-side facade over one retrying recording worker."""
 
-    def __init__(self, config: RuntimeConfig, world: WorldConfiguration) -> None:
+    def __init__(
+        self,
+        config: RuntimeConfig,
+        world: WorldConfiguration,
+        recording_key: uuid.UUID,
+    ) -> None:
         self._config = config
         self._world = world
+        self._initial_recording_key = recording_key
         self._events = NonBlockingEventQueue[_RecordingEvent](
             config.recording.queue_capacity
         )
         self._status_lock = threading.Lock()
         self._lifecycle = "connecting"
-        self._recording_key = str(config.recording_key)
+        self._recording_key = str(recording_key)
         self._last_error: str | None = None
         self._closed = threading.Event()
         self._worker = threading.Thread(
@@ -234,7 +240,7 @@ class RecordingPublisher:
             LOGGER.error("recording worker did not stop within 30 seconds")
 
     def _run(self) -> None:
-        recording_key = self._config.recording_key
+        recording_key = self._initial_recording_key
         while not self._closed.is_set():
             sink: _RecordingSink | None = None
             try:
@@ -254,7 +260,7 @@ class RecordingPublisher:
                     if sink.should_rotate_before(event):
                         previous_key = recording_key
                         sink.close()
-                        recording_key = uuid.uuid4()
+                        recording_key = new_recording_key()
                         sink = _RecordingSink(
                             self._config, self._world, recording_key
                         )
@@ -273,7 +279,7 @@ class RecordingPublisher:
                 self._set_status("degraded", message)
                 if sink is not None:
                     sink.abort()
-                recording_key = uuid.uuid4()
+                recording_key = new_recording_key()
                 if self._closed.wait(2.0):
                     return
 

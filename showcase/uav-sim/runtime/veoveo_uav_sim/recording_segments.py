@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
+
+
+def new_recording_key() -> uuid.UUID:
+    """Mint one process- or rotation-scoped Rerun recording identity."""
+    return uuid.uuid4()
 
 
 @dataclass(slots=True)

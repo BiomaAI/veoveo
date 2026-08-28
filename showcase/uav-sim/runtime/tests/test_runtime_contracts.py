@@ -6,6 +6,7 @@ import struct
 import tempfile
 import threading
 import unittest
+import uuid
 from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
@@ -104,7 +105,6 @@ from veoveo_uav_sim.world_config import (
 VALID_ENVIRONMENT = {
     "CESIUM_ION_ACCESS_TOKEN": "test-token",
     "UAV_SIM_CESIUM_ION_ASSET_ID": "2275207",
-    "UAV_SIM_RECORDING_KEY": "019f7122-3d89-7d21-8312-8940d1e0f510",
     "UAV_SIM_SESSION_ID": "uav-showcase",
     "UAV_SIM_ADAPTER_BEARER_TOKEN": "test-adapter-token-0000000000000000",
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
@@ -141,6 +141,8 @@ VALID_ENVIRONMENT = {
         ]
     ),
 }
+
+RECORDING_KEY = uuid.UUID("019f7122-3d89-7d21-8312-8940d1e0f510")
 
 WORLD = WorldConfiguration(
     revision_uri="frames://world/uav-showcase-new-york/revision/revision-1",
@@ -620,7 +622,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             {**VALID_ENVIRONMENT, "UAV_SIM_VEHICLE_COUNT": "4"},
             clear=True,
         ):
-            state = RuntimeState(RuntimeConfig.from_environment(), WORLD).snapshot()
+            state = RuntimeState(
+                RuntimeConfig.from_environment(), WORLD, RECORDING_KEY
+            ).snapshot()
         self.assertEqual(len(state["cameras"]), 1)
         camera = state["cameras"][0]
         camera_path = camera["entity_path"]
@@ -632,6 +636,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(camera["encoder"], "nvidia_nvenc")
         self.assertEqual(camera["transport"], "rtsp_rtp")
         self.assertEqual(state["recordings"][0]["camera_streams"], [camera_path])
+        self.assertEqual(
+            state["recordings"][0]["recording_key"], str(RECORDING_KEY)
+        )
 
         recording_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "recording.py"
@@ -721,7 +728,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
-        state = RuntimeState(config, WORLD)
+        state = RuntimeState(config, WORLD, RECORDING_KEY)
         state.update_recording_publisher("degraded", 17, 9, "network unavailable")
         recording = state.snapshot()["recordings"][0]
         self.assertTrue(recording["active"])
@@ -733,7 +740,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
 
     def test_streamable_cameras_share_one_persistent_atlas(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+            state = RuntimeState(
+                RuntimeConfig.from_environment(), WORLD, RECORDING_KEY
+            )
         products = state.snapshot()["stream_products"]
 
         state.update_stream_products(products)
@@ -751,7 +760,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
 
     def test_camera_health_tracks_its_persistent_product(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+            state = RuntimeState(
+                RuntimeConfig.from_environment(), WORLD, RECORDING_KEY
+            )
         state.update_stream_products(
             [
                 {
@@ -779,7 +790,9 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
 
     def test_render_timing_separates_native_update_from_complete_cycle(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            state = RuntimeState(RuntimeConfig.from_environment(), WORLD)
+            state = RuntimeState(
+                RuntimeConfig.from_environment(), WORLD, RECORDING_KEY
+            )
         state.observe_render_cycle(
             0.02,
             0.03,

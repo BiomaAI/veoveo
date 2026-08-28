@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from math import sqrt
@@ -354,7 +353,6 @@ class RuntimeConfig:
     px4_connect_timeout_seconds: float
     px4_directory: str
     recording_proxy: str
-    recording_key: uuid.UUID
     recording: RecordingConfig
     camera: CameraConfig
     operator_live_view: OperatorLiveViewRuntimeConfig
@@ -440,7 +438,6 @@ class RuntimeConfig:
                 "UAV_SIM_TILE_CACHE_POLICY must be ephemeral or persistent"
             ) from error
 
-        recording_key = uuid.UUID(_required("UAV_SIM_RECORDING_KEY"))
         cache_directory = Path(
             os.environ.get("XDG_CACHE_HOME", "/var/lib/veoveo/.cache")
         )
@@ -475,7 +472,6 @@ class RuntimeConfig:
             recording_proxy=os.environ.get(
                 "UAV_SIM_RECORDING_PROXY", "rerun+http://127.0.0.1:9876/proxy"
             ),
-            recording_key=recording_key,
             recording=RecordingConfig.from_environment(),
             camera=CameraConfig.from_environment(),
             operator_live_view=OperatorLiveViewRuntimeConfig.from_json(

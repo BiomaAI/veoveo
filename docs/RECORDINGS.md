@@ -58,14 +58,17 @@ projects complete ordered parts for the active capture layer. Rollover is driven
 configured byte or age boundary. Video-bearing capture waits for a decoder-reentrant
 access unit before opening the next layer.
 
-The UAV producer also bounds the logical Rerun recording. It starts a new recording ID
-before its conservative encoded-payload budget exceeds 4 GiB or its wall age reaches
-four hours. The payload budget counts each native H.264 access unit exactly and reserves
-an envelope for every telemetry and control event. Starting the replacement emits the
-Blueprint and static world context again. The forwarder then finishes the superseded
-recording through its ordinary source-generation transition. Capture-layer rollover and
-logical-recording rotation are separate controls: the former keeps publication work
-small, while the latter keeps one playback segment within the managed cache envelope.
+The UAV producer also bounds the logical Rerun recording. Every process start mints a
+fresh UUIDv4 recording ID, and the running process replaces it before its conservative
+encoded-payload budget exceeds 4 GiB or its wall age reaches four hours. A pod UID is not
+a recording identity because a container restart would reuse it while resetting the
+in-memory budget. The payload budget counts each native H.264 access unit exactly and
+reserves an envelope for every telemetry and control event. Starting the replacement
+emits the Blueprint and static world context again. The forwarder then finishes the
+superseded recording through its ordinary source-generation transition. Capture-layer
+rollover and logical-recording rotation are separate controls: the former keeps
+publication work small, while the latter keeps one playback segment within the managed
+cache envelope.
 
 Publication is one retry-safe sequence:
 
@@ -228,7 +231,9 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
   `cargo xtask doctor` after changing the producer, chart, cache, or projection budgets.
 - Run the focused host-safe policy test from `showcase/uav-sim/runtime` with
   `PYTHONPATH=. python -m unittest tests/test_recording_segments.py`. The complete UAV
-  runtime contract suite uses dependencies supplied by the Isaac simulation image.
+  runtime contract suite uses dependencies supplied by the Isaac simulation image. Copy
+  the complete 3 MiB `showcase/uav-sim/runtime` tree into a writable image path before
+  running it; the suite inspects its adjacent source, asset, Dockerfile, and patch fixtures.
 - Update the Store migration, Rust strong types, Hub, Recording MCP, Gateway, Console,
   smoke fixtures, Helm schema, examples, and both recording design documents together.
 - Search active contracts for obsolete manifest versions, query tool names, Hub query

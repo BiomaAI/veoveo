@@ -182,10 +182,6 @@
   value: {{ .root.Values.session.camera.mount.orientationWxyz.y | quote }}
 - name: UAV_SIM_CAMERA_ORIENTATION_Z
   value: {{ .root.Values.session.camera.mount.orientationWxyz.z | quote }}
-- name: UAV_SIM_RECORDING_KEY
-  valueFrom:
-    fieldRef:
-      fieldPath: metadata.uid
 {{- if .root.Values.streamPublication.enabled }}
 - name: UAV_SIM_STREAM_HOST
   value: {{ .root.Values.streamPublication.endpointHost | quote }}
