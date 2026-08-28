@@ -179,6 +179,30 @@ data labels before adding
 `_meta["io.veoveo/app-resource-dependencies"]` to the listed App resource.
 Dependencies are sorted for deterministic projection.
 
+### Reusable domain Apps
+
+An App may build on another domain without copying that domain's data or
+embedding a private service client. The App owner declares the exact dependency
+in its server manifest, and the installation binding decides whether the owner
+and target are exposed to the same caller. For Map integrations, the target is
+the registered Map server, the scheme is `map`, and the prefix names the
+smallest required `map://` resource family. A consumer should prefer immutable
+Map compositions, publications, and bounded feature-layer reads over broad
+collection access.
+
+The existing Map workspace, `ui://map/workspace.html`, is the canonical reusable
+Map experience. A host may open it through normal App discovery and navigation.
+An integrating server may instead ship its own App and read authorized Map
+resources through the projected dependency, then add its own domain overlays.
+It must preserve Map attribution, provenance, resource identity, and update
+semantics. App dependencies do not grant tool access; Map mutations remain
+ordinary linked tools with their own scopes.
+
+Apps must fail closed when a Map dependency is absent or unauthorized. They must
+not accept browser-supplied server aliases, arbitrary `map://` prefixes, direct
+Map service URLs, or credentials. A reusable visual component is a protocol
+surface over governed resources, not a second Map authority.
+
 The Console trusts only that gateway projection. It re-lists the exact App
 resource before each cross-server read and accepts the URI only when it matches
 the projected scheme, prefix, and `read` operation. A browser-supplied server,

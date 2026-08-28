@@ -12,6 +12,13 @@ MCP surface: scoped tools for mutations, `map://` resources for reads, and one
 permission-aware MCP App that renders immutable compositions
 (see `mcp/apps-extension/DESIGN.md`).
 
+Map MCP is also a reusable capability for other MCP servers. Consumers use the
+canonical `map://` resources and Map tools through the gateway, or declare a
+typed App dependency when their own App needs Map data. They do not connect to
+Map storage, private HTTP routes, or renderer internals. The installation's
+profile, policy, scopes, tenant, labels, and Work Context remain authoritative
+for every consumer.
+
 ## Status
 
 Implemented in this workspace.
