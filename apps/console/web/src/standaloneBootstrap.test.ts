@@ -12,6 +12,7 @@ const descriptor: AppDescriptor = {
   title: "Map administration",
   tools: [],
   resourceDependencies: [],
+  toolDependencies: [],
   agentMessageTargets: [],
 };
 

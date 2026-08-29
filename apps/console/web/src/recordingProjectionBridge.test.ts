@@ -20,6 +20,7 @@ const explorer: AppDescriptor = {
   }],
   agentMessageTargets: [],
   resourceDependencies: [],
+  toolDependencies: [],
 };
 
 function innerTransport(sent: JSONRPCMessage[]): Transport {

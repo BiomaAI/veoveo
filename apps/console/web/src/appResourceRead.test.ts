@@ -22,6 +22,7 @@ const app: AppDescriptor = {
       operations: ["read"],
     },
   ],
+  toolDependencies: [],
 };
 
 function harness() {

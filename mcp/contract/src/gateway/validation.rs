@@ -306,11 +306,9 @@ pub(super) fn validate_app_resource_dependencies(
                 "the URI prefix must be a non-root family under the declared scheme",
             ));
         }
-        if dependency.operations.is_empty()
-            || !dependency.operations.contains(&AppResourceOperation::Read)
-        {
+        if dependency.operations.is_empty() {
             return Err(invalid(
-                "resources/read must be an explicitly permitted operation",
+                "at least one resource operation must be explicitly permitted",
             ));
         }
         if !dependency.data_labels.is_subset(known_data_labels) {
@@ -318,6 +316,55 @@ pub(super) fn validate_app_resource_dependencies(
         }
         if !unique.insert(dependency) {
             return Err(invalid("the dependency is declared more than once"));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_app_tool_dependencies(
+    server: &ServerManifest,
+    servers: &BTreeMap<ServerSlug, &ServerManifest>,
+    known_data_labels: &BTreeSet<DataLabelId>,
+) -> Result<(), GatewayControlPlaneError> {
+    let mut aliases = BTreeSet::new();
+    for dependency in &server.app_tool_dependencies {
+        let invalid = |reason: &str| GatewayControlPlaneError::InvalidAppResourceDependency {
+            server: server.slug.clone(),
+            app_resource: dependency.app_resource.clone(),
+            reason: reason.to_owned(),
+        };
+        let expected = format!("ui://{}/", server.slug);
+        if !server.capabilities.apps || !dependency.app_resource.as_str().starts_with(&expected) {
+            return Err(invalid("the App resource is not owned by the Apps server"));
+        }
+        if dependency.server == server.slug {
+            return Err(invalid(
+                "cross-server dependencies cannot target the owning server",
+            ));
+        }
+        let Some(target) = servers.get(&dependency.server) else {
+            return Err(invalid("the target server is not registered"));
+        };
+        if !target.capabilities.tools || dependency.tools.is_empty() {
+            return Err(invalid("the target must expose at least one tool"));
+        }
+        if !dependency.data_labels.is_subset(known_data_labels) {
+            return Err(invalid("the dependency references an unknown data label"));
+        }
+        for import in &dependency.tools {
+            if import.name.as_str().is_empty()
+                || import.name.as_str().contains("__")
+                || server
+                    .tools
+                    .iter()
+                    .any(|tool| tool.as_str() == import.name.as_str())
+                || !aliases.insert((dependency.app_resource.clone(), import.name.clone()))
+                || import.target_tool.as_str().is_empty()
+            {
+                return Err(invalid(
+                    "tool aliases and target names must be nonempty and unique",
+                ));
+            }
         }
     }
     Ok(())
