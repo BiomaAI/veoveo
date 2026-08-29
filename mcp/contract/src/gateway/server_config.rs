@@ -25,6 +25,9 @@ pub struct ServerManifest {
     /// one exact App resource owned by this server.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub app_resource_dependencies: Vec<AppResourceDependency>,
+    /// Installation-validated tools imported by one exact App resource.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub app_tool_dependencies: Vec<AppToolDependency>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<LocalToolName>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -40,6 +43,7 @@ pub struct ServerManifest {
 }
 
 pub const APP_RESOURCE_DEPENDENCIES_META_KEY: &str = "io.veoveo/app-resource-dependencies";
+pub const APP_TOOL_DEPENDENCIES_META_KEY: &str = "io.veoveo/app-tool-dependencies";
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
@@ -47,6 +51,7 @@ pub const APP_RESOURCE_DEPENDENCIES_META_KEY: &str = "io.veoveo/app-resource-dep
 #[serde(rename_all = "snake_case")]
 pub enum AppResourceOperation {
     Read,
+    Subscribe,
 }
 
 /// One exact cross-server resource family admitted to one owning MCP App.
@@ -64,6 +69,24 @@ pub struct AppResourceDependency {
     pub operations: BTreeSet<AppResourceOperation>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub data_labels: BTreeSet<DataLabelId>,
+}
+
+/// One exact cross-server tool set admitted to one owning MCP App.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+pub struct AppToolDependency {
+    pub app_resource: ResourceUri,
+    pub server: ServerSlug,
+    pub required_scope: ScopeName,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub data_labels: BTreeSet<DataLabelId>,
+    pub tools: BTreeSet<AppToolImport>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+pub struct AppToolImport {
+    /// Stable name exposed to the App frame.
+    pub name: LocalToolName,
+    pub target_tool: LocalToolName,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]

@@ -6,9 +6,9 @@ use rmcp::model::{
 };
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    APP_RESOURCE_DEPENDENCIES_META_KEY, DataLabelId, GatewayAction, GatewayResourceProjection,
-    GatewayToolName, McpMethodName, PolicyTarget, ResourceProjectionMode, ResourceUri, ScopeName,
-    ServerManifest, ServerResourceUri, ServerSlug,
+    APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, DataLabelId, GatewayAction,
+    GatewayResourceProjection, GatewayToolName, McpMethodName, PolicyTarget,
+    ResourceProjectionMode, ResourceUri, ScopeName, ServerManifest, ServerResourceUri, ServerSlug,
 };
 
 use crate::GatewayCatalog;
@@ -160,6 +160,42 @@ pub(crate) fn project_app_resource_dependencies(
         APP_RESOURCE_DEPENDENCIES_META_KEY.to_owned(),
         serde_json::to_value(dependencies)
             .map_err(|error| mcp_internal(format!("project App dependencies: {error}")))?,
+    );
+    Ok(())
+}
+
+pub(crate) fn project_app_tool_dependencies(
+    server: &ServerManifest,
+    resource: &mut Resource,
+    profile_servers: &BTreeSet<ServerSlug>,
+    scopes: &BTreeSet<ScopeName>,
+    data_labels: &BTreeSet<DataLabelId>,
+) -> Result<(), McpError> {
+    if let Some(meta) = &mut resource.meta {
+        meta.0.remove(APP_TOOL_DEPENDENCIES_META_KEY);
+    }
+    let mut dependencies = server
+        .app_tool_dependencies
+        .iter()
+        .filter(|dependency| {
+            dependency.app_resource.as_str() == resource.uri
+                && profile_servers.contains(&dependency.server)
+                && scopes.contains(&dependency.required_scope)
+                && dependency.data_labels.is_subset(data_labels)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    dependencies.sort();
+    if dependencies.is_empty() {
+        return Ok(());
+    }
+    let metadata = resource
+        .meta
+        .get_or_insert_with(rmcp::model::MetaObject::new);
+    metadata.0.insert(
+        APP_TOOL_DEPENDENCIES_META_KEY.to_owned(),
+        serde_json::to_value(dependencies)
+            .map_err(|error| mcp_internal(format!("project App tool dependencies: {error}")))?,
     );
     Ok(())
 }
@@ -463,6 +499,7 @@ mod tests {
             resource_projection,
             referenced_resource_schemes: std::collections::BTreeSet::new(),
             app_resource_dependencies: Vec::new(),
+            app_tool_dependencies: Vec::new(),
             tools: vec![LocalToolName::new("run").unwrap()],
             compatibility_helpers: Vec::new(),
             prompts: Vec::new(),

@@ -10,6 +10,7 @@ const app = {
   name: "view-preview",
   tools: [],
   resourceDependencies: [],
+  toolDependencies: [],
   agentMessageTargets: [],
 } satisfies AppDescriptor;
 

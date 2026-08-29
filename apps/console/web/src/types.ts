@@ -396,6 +396,7 @@ export interface AppDescriptor {
   prefersBorder?: boolean;
   tools: AppToolDescriptor[];
   resourceDependencies: AppResourceDependency[];
+  toolDependencies: AppToolDependency[];
   agentMessageTargets: string[];
 }
 
@@ -405,8 +406,16 @@ export interface AppResourceDependency {
   scheme: string;
   uri_prefix: string;
   required_scope: string;
-  operations: Array<"read">;
+  operations: Array<"read" | "subscribe">;
   data_labels?: string[];
+}
+
+export interface AppToolDependency {
+  app_resource: string;
+  server: string;
+  required_scope: string;
+  data_labels?: string[];
+  tools: Array<{ name: string; target_tool: string }>;
 }
 
 export interface AppCatalog {

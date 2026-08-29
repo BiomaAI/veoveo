@@ -168,7 +168,13 @@ interface ResourceListener {
 }
 
 function resourceOwnedByApp(app: AppDescriptor, uri: string): boolean {
-  return !uri.includes("..") && uri.startsWith(`${app.server}://`) && uri.length > app.server.length + 3;
+  if (uri.includes("..")) return false;
+  if (uri.startsWith(`${app.server}://`) && uri.length > app.server.length + 3) return true;
+  return app.resourceDependencies.some((dependency) =>
+    dependency.operations.includes("subscribe") &&
+    uri.startsWith(dependency.uri_prefix) &&
+    uri.startsWith(`${dependency.scheme}://`),
+  );
 }
 
 /**

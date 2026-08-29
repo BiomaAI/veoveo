@@ -120,6 +120,7 @@ fn media_manifest() -> ServerManifest {
         resource_projection: ResourceProjectionMode::Identity,
         referenced_resource_schemes: BTreeSet::new(),
         app_resource_dependencies: Vec::new(),
+        app_tool_dependencies: Vec::new(),
         tools: vec![LocalToolName::new("run").unwrap()],
         compatibility_helpers: Vec::new(),
         prompts: vec![],

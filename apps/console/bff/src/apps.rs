@@ -19,8 +19,8 @@ use veoveo_mcp_apps_extension::{
     APP_MIME_TYPE, is_app_resource, resource_agent_message_targets, resource_ui_meta, tool_app_link,
 };
 use veoveo_mcp_contract::{
-    APP_RESOURCE_DEPENDENCIES_META_KEY, AppResourceDependency, AppResourceOperation,
-    GatewayDiscoveryFailure,
+    APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, AppResourceDependency,
+    AppResourceOperation, AppToolDependency, GatewayDiscoveryFailure,
 };
 
 use crate::{
@@ -68,6 +68,7 @@ struct AppDescriptor {
     prefers_border: Option<bool>,
     tools: Vec<AppToolDescriptor>,
     resource_dependencies: Vec<AppResourceDependency>,
+    tool_dependencies: Vec<AppToolDependency>,
     agent_message_targets: Vec<String>,
 }
 
@@ -117,6 +118,24 @@ fn app_resource_dependencies(resource: &rmcp::model::Resource) -> Vec<AppResourc
         .unwrap_or_default()
 }
 
+fn dependency_prefix_matches(prefix: &str, uri: &str) -> bool {
+    prefix.ends_with('/') && uri.starts_with(prefix)
+        || !prefix.ends_with('/')
+            && (uri == prefix
+                || uri
+                    .strip_prefix(prefix)
+                    .is_some_and(|rest| rest.starts_with('/')))
+}
+
+fn app_tool_dependencies(resource: &rmcp::model::Resource) -> Vec<AppToolDependency> {
+    resource
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.0.get(APP_TOOL_DEPENDENCIES_META_KEY))
+        .and_then(|value| serde_json::from_value(value.clone()).ok())
+        .unwrap_or_default()
+}
+
 fn app_dependency_allows_resource(resource: &rmcp::model::Resource, uri: &str) -> bool {
     if uri.contains("..") {
         return false;
@@ -125,7 +144,27 @@ fn app_dependency_allows_resource(resource: &rmcp::model::Resource, uri: &str) -
         .iter()
         .any(|dependency| {
             dependency.operations.contains(&AppResourceOperation::Read)
-                && uri.starts_with(dependency.uri_prefix.as_str())
+                && dependency_prefix_matches(dependency.uri_prefix.as_str(), uri)
+                && uri
+                    .strip_prefix(dependency.scheme.as_str())
+                    .and_then(|rest| rest.strip_prefix("://"))
+                    .is_some_and(|rest| !rest.is_empty())
+        })
+}
+
+fn app_dependency_allows_subscription(resource: &rmcp::model::Resource, uri: &str) -> bool {
+    if let Some(owner) = app_uri_server(&resource.uri) {
+        if uri.starts_with(&format!("{owner}://")) {
+            return app_resource_uri_allowed(owner, uri);
+        }
+    }
+    app_resource_dependencies(resource)
+        .iter()
+        .any(|dependency| {
+            dependency
+                .operations
+                .contains(&AppResourceOperation::Subscribe)
+                && dependency_prefix_matches(dependency.uri_prefix.as_str(), uri)
                 && uri
                     .strip_prefix(dependency.scheme.as_str())
                     .and_then(|rest| rest.strip_prefix("://"))
@@ -135,6 +174,7 @@ fn app_dependency_allows_resource(resource: &rmcp::model::Resource, uri: &str) -
 
 struct AppTaskOwner {
     server: String,
+    target_server: String,
     app_uri: String,
     recorded_at: Instant,
 }
@@ -147,11 +187,18 @@ struct AppTaskOwner {
 pub(crate) struct AppTaskRegistry(Arc<Mutex<VecDeque<(String, AppTaskOwner)>>>);
 
 impl AppTaskRegistry {
-    pub(crate) fn record(&self, task_id: &str, server: &str, app_uri: &str) {
-        self.record_at(Instant::now(), task_id, server, app_uri);
+    pub(crate) fn record(&self, task_id: &str, server: &str, target_server: &str, app_uri: &str) {
+        self.record_at(Instant::now(), task_id, server, target_server, app_uri);
     }
 
-    fn record_at(&self, now: Instant, task_id: &str, server: &str, app_uri: &str) {
+    fn record_at(
+        &self,
+        now: Instant,
+        task_id: &str,
+        server: &str,
+        target_server: &str,
+        app_uri: &str,
+    ) {
         let Ok(mut tasks) = self.0.lock() else {
             return;
         };
@@ -164,6 +211,7 @@ impl AppTaskRegistry {
             task_id.to_owned(),
             AppTaskOwner {
                 server: server.to_owned(),
+                target_server: target_server.to_owned(),
                 app_uri: app_uri.to_owned(),
                 recorded_at: now,
             },
@@ -179,9 +227,10 @@ impl AppTaskRegistry {
             return false;
         };
         evict_expired_app_tasks(&mut tasks, now);
-        tasks
-            .iter()
-            .any(|(id, owner)| id == task_id && owner.server == server && owner.app_uri == app_uri)
+        tasks.iter().any(|(id, owner)| {
+            let _target_server = &owner.target_server;
+            id == task_id && owner.server == server && owner.app_uri == app_uri
+        })
     }
 }
 
@@ -402,7 +451,7 @@ fn app_descriptors(catalog: &McpAppCatalog) -> Vec<AppDescriptor> {
         let Some(server) = app_uri_server(&resource.uri) else {
             continue;
         };
-        let tools = catalog
+        let mut tools = catalog
             .tools()
             .iter()
             .filter_map(|tool| {
@@ -420,7 +469,30 @@ fn app_descriptors(catalog: &McpAppCatalog) -> Vec<AppDescriptor> {
                     ),
                 })
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let tool_dependencies = app_tool_dependencies(resource);
+        for dependency in &tool_dependencies {
+            for import in &dependency.tools {
+                let target = format!("{}__{}", dependency.server, import.target_tool);
+                if let Some(tool) = catalog
+                    .tools()
+                    .iter()
+                    .find(|tool| tool.name.as_ref() == target)
+                    && tool_app_link(tool).is_some_and(|link| link.visible_to_app())
+                {
+                    tools.push(AppToolDescriptor {
+                        name: import.name.to_string(),
+                        title: tool.title.clone(),
+                        description: tool.description.as_deref().map(ToOwned::to_owned),
+                        input_schema: serde_json::Value::Object(
+                            tool.input_schema.as_ref().clone().into_iter().collect(),
+                        ),
+                    });
+                }
+            }
+        }
+        tools.sort_by(|left, right| left.name.cmp(&right.name));
+        tools.dedup_by(|left, right| left.name == right.name);
         apps.push(AppDescriptor {
             server: server.to_owned(),
             resource_uri: resource.uri.clone(),
@@ -438,6 +510,7 @@ fn app_descriptors(catalog: &McpAppCatalog) -> Vec<AppDescriptor> {
             prefers_border: resource_ui_meta(resource).and_then(|metadata| metadata.prefers_border),
             tools,
             resource_dependencies: app_resource_dependencies(resource),
+            tool_dependencies,
             agent_message_targets: resource_agent_message_targets(resource),
         });
     }
@@ -752,7 +825,7 @@ struct AppResourceEventSubscription {
 }
 
 fn app_resource_event_uris(
-    server: &str,
+    _server: &str,
     subscriptions: &[AppResourceEventSubscription],
 ) -> Result<BTreeSet<String>, (StatusCode, &'static str)> {
     if subscriptions.is_empty() || subscriptions.len() > MAX_APP_RESOURCE_SUBSCRIPTIONS {
@@ -772,15 +845,6 @@ fn app_resource_event_uris(
                 "resource subscription batch contains a duplicate",
             ));
         }
-    }
-    if uris
-        .iter()
-        .any(|uri| !app_resource_uri_allowed(server, uri))
-    {
-        return Err((
-            StatusCode::FORBIDDEN,
-            "resource subscription is not owned by this App's server",
-        ));
     }
     Ok(uris)
 }
@@ -823,13 +887,25 @@ pub(crate) async fn app_resource_events(
             return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
         }
     };
-    if !catalog.resources().iter().any(|resource| {
+    let Some(app_resource) = catalog.resources().iter().find(|resource| {
         resource.uri == request.app_uri
             && is_app_resource(resource)
             && app_uri_server(&resource.uri) == Some(request.server.as_str())
-    }) {
+    }) else {
         return with_session_headers(
             call_error(StatusCode::FORBIDDEN, "App resource is not available"),
+            response_headers,
+        );
+    };
+    if uris
+        .iter()
+        .any(|uri| !app_dependency_allows_subscription(app_resource, uri))
+    {
+        return with_session_headers(
+            call_error(
+                StatusCode::FORBIDDEN,
+                "resource subscription is not admitted",
+            ),
             response_headers,
         );
     }
@@ -1014,6 +1090,8 @@ pub(crate) struct CallAppToolRequest {
 #[derive(Serialize)]
 struct CallAppToolError {
     error: String,
+    code: &'static str,
+    retryable: bool,
 }
 
 #[derive(Serialize)]
@@ -1039,10 +1117,23 @@ fn app_resource_capacity_error(resource: &'static str, limit: usize) -> Response
 }
 
 fn call_error(status: StatusCode, message: &str) -> Response {
+    let (code, retryable) = match status {
+        StatusCode::SERVICE_UNAVAILABLE | StatusCode::BAD_GATEWAY => {
+            ("dependency_unavailable", true)
+        }
+        StatusCode::FORBIDDEN => ("dependency_forbidden", false),
+        StatusCode::NOT_FOUND => ("dependency_not_admitted", false),
+        StatusCode::BAD_REQUEST | StatusCode::PAYLOAD_TOO_LARGE => {
+            ("dependency_invalid_arguments", false)
+        }
+        _ => ("dependency_internal", false),
+    };
     (
         status,
         Json(CallAppToolError {
             error: message.to_owned(),
+            code,
+            retryable,
         }),
     )
         .into_response()
@@ -1066,11 +1157,6 @@ pub(crate) async fn call_app_tool(
     request_headers: HeaderMap,
     Json(request): Json<CallAppToolRequest>,
 ) -> Response {
-    // An app view may only call app-visible tools of its own server, linked
-    // to its own view; gateway policy remains the authoritative second wall.
-    if request.tool.contains("__") {
-        return call_error(StatusCode::BAD_REQUEST, "tool must be a local tool name");
-    }
     if app_uri_server(&request.app_uri) != Some(request.server.as_str()) {
         return call_error(
             StatusCode::BAD_REQUEST,
@@ -1084,7 +1170,6 @@ pub(crate) async fn call_app_tool(
             "tool arguments exceed the cap",
         );
     }
-    let gateway_tool = format!("{}__{}", request.server, request.tool);
     let listing = with_apps_session(&state, &request_headers, |mcp| async move {
         mcp.app_catalog().await
     })
@@ -1108,18 +1193,63 @@ pub(crate) async fn call_app_tool(
             return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
         }
     };
+    let Some(app_resource) = catalog
+        .resources()
+        .iter()
+        .find(|resource| resource.uri == request.app_uri && is_app_resource(resource))
+    else {
+        return with_session_headers(
+            call_error(StatusCode::NOT_FOUND, "unknown App"),
+            response_headers,
+        );
+    };
+    let gateway_tool = if request.tool.contains("__") {
+        return with_session_headers(
+            call_error(StatusCode::BAD_REQUEST, "tool alias must be local"),
+            response_headers,
+        );
+    } else if let Some(import) = app_tool_dependencies(app_resource)
+        .iter()
+        .flat_map(|dependency| {
+            dependency
+                .tools
+                .iter()
+                .map(move |import| (dependency, import))
+        })
+        .find(|(_, import)| import.name.as_str() == request.tool)
+    {
+        format!("{}__{}", import.0.server, import.1.target_tool)
+    } else {
+        format!("{}__{}", request.server, request.tool)
+    };
     let Some(tool) = catalog
         .tools()
         .iter()
         .find(|tool| tool.name.as_ref() == gateway_tool)
     else {
         return with_session_headers(
-            call_error(StatusCode::NOT_FOUND, "unknown tool for this app"),
+            call_error(StatusCode::NOT_FOUND, "dependency tool is unavailable"),
             response_headers,
         );
     };
-    let allowed = tool_app_link(tool)
-        .is_some_and(|link| link.visible_to_app() && link.resource_uri == request.app_uri);
+    let allowed = if request.tool.contains("__") {
+        false
+    } else {
+        tool_app_link(tool)
+            .is_some_and(|link| link.visible_to_app() && link.resource_uri == request.app_uri)
+            || app_tool_dependencies(app_resource)
+                .iter()
+                .any(|dependency| {
+                    dependency.tools.iter().any(|import| {
+                        import.name.as_str() == request.tool
+                            && dependency.server.as_str()
+                                == gateway_tool
+                                    .split_once("__")
+                                    .map(|(server, _)| server)
+                                    .unwrap_or("")
+                    })
+                })
+    };
     if !allowed {
         return with_session_headers(
             call_error(
@@ -1129,6 +1259,10 @@ pub(crate) async fn call_app_tool(
             response_headers,
         );
     }
+    let target_server = gateway_tool
+        .split_once("__")
+        .map(|(server, _)| server.to_owned())
+        .unwrap_or_else(|| request.server.clone());
     let mut params = rmcp::model::CallToolRequestParams::new(gateway_tool);
     match request.arguments {
         serde_json::Value::Object(map) => {
@@ -1146,9 +1280,12 @@ pub(crate) async fn call_app_tool(
     params.request_state = request.request_state;
     let result = match mcp.call_tool_once(params).await {
         Ok(rmcp::model::CallToolResponse::Task(result)) => {
-            state
-                .app_tasks
-                .record(&result.task.task_id, &request.server, &request.app_uri);
+            state.app_tasks.record(
+                &result.task.task_id,
+                &request.server,
+                &target_server,
+                &request.app_uri,
+            );
             return with_session_headers(
                 capped_json_response(&result, "tool result exceeds the cap"),
                 response_headers,
@@ -1519,6 +1656,7 @@ mod tests {
             prefers_border: Some(false),
             tools: Vec::new(),
             resource_dependencies: Vec::new(),
+            tool_dependencies: Vec::new(),
             agent_message_targets: Vec::new(),
         };
         let value = serde_json::to_value(descriptor).expect("descriptor serializes");
@@ -1567,10 +1705,7 @@ mod tests {
 
         let mut foreign = valid;
         foreign[1].uri = "map://sources".to_owned();
-        assert_eq!(
-            app_resource_event_uris("fleet", &foreign).unwrap_err().0,
-            StatusCode::FORBIDDEN
-        );
+        assert!(app_resource_event_uris("fleet", &foreign).is_ok());
     }
 
     #[test]
@@ -1606,7 +1741,7 @@ mod tests {
     fn app_task_registry_admits_only_the_creating_view() {
         let registry = AppTaskRegistry::default();
         let now = Instant::now();
-        registry.record_at(now, "task-1", "map", "ui://map/workspace.html");
+        registry.record_at(now, "task-1", "map", "map", "ui://map/workspace.html");
         assert!(registry.owns_at(now, "task-1", "map", "ui://map/workspace.html"));
         assert!(!registry.owns_at(now, "task-1", "map", "ui://map/other.html"));
         assert!(!registry.owns_at(now, "task-1", "timeseries", "ui://map/workspace.html"));
@@ -1617,7 +1752,7 @@ mod tests {
     fn app_task_registry_expires_entries_lazily() {
         let registry = AppTaskRegistry::default();
         let now = Instant::now();
-        registry.record_at(now, "task-1", "map", "ui://map/workspace.html");
+        registry.record_at(now, "task-1", "map", "map", "ui://map/workspace.html");
         assert!(registry.owns_at(
             now + APP_TASK_RETENTION - Duration::from_secs(1),
             "task-1",
@@ -1642,11 +1777,18 @@ mod tests {
                 now,
                 &format!("task-{index}"),
                 "map",
+                "map",
                 "ui://map/workspace.html",
             );
         }
         assert!(registry.owns_at(now, "task-0", "map", "ui://map/workspace.html"));
-        registry.record_at(now, "task-overflow", "map", "ui://map/workspace.html");
+        registry.record_at(
+            now,
+            "task-overflow",
+            "map",
+            "map",
+            "ui://map/workspace.html",
+        );
         assert!(!registry.owns_at(now, "task-0", "map", "ui://map/workspace.html"));
         assert!(registry.owns_at(now, "task-1", "map", "ui://map/workspace.html"));
         assert!(registry.owns_at(now, "task-overflow", "map", "ui://map/workspace.html"));
@@ -1656,8 +1798,8 @@ mod tests {
     fn app_task_registry_rerecords_a_task_id_without_duplicates() {
         let registry = AppTaskRegistry::default();
         let now = Instant::now();
-        registry.record_at(now, "task-1", "map", "ui://map/workspace.html");
-        registry.record_at(now, "task-1", "map", "ui://map/other.html");
+        registry.record_at(now, "task-1", "map", "map", "ui://map/workspace.html");
+        registry.record_at(now, "task-1", "map", "map", "ui://map/other.html");
         assert!(!registry.owns_at(now, "task-1", "map", "ui://map/workspace.html"));
         assert!(registry.owns_at(now, "task-1", "map", "ui://map/other.html"));
     }
