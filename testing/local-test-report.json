@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:1a8c1b19df65638710777f458f5890ae5bad985a8c703e29d5201baa9a1cc6e8",
-  "updatedAt": "2026-08-28T22:06:07Z",
+  "buildDigest": "sha256:3ed31bdee57137ac1f04845eb0decf29033cc1f76e2c9671df9d25457ced64fb",
+  "updatedAt": "2026-08-29T21:31:11Z",
   "checks": [
     {
       "name": "bioma-platform-helm",
@@ -18,8 +18,8 @@
         "examples/bioma/images.lock.yaml"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T22:06:06Z",
-      "durationSeconds": 0.126582161,
+      "finishedAt": "2026-08-29T21:30:49Z",
+      "durationSeconds": 0.188758196,
       "detail": "completed successfully"
     },
     {
@@ -37,8 +37,8 @@
         "examples/bioma/images.lock.yaml"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T22:06:07Z",
-      "durationSeconds": 0.0532069,
+      "finishedAt": "2026-08-29T21:30:50Z",
+      "durationSeconds": 0.060187322,
       "detail": "completed successfully"
     },
     {
@@ -50,8 +50,8 @@
         "veoveo-recording-forwarder"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-28T22:06:05Z",
-      "durationSeconds": 0.766425138,
+      "finishedAt": "2026-08-29T21:31:11Z",
+      "durationSeconds": 20.090996988,
       "detail": "completed successfully"
     }
   ]
