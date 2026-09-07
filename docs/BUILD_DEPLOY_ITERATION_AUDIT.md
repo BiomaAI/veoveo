@@ -12,7 +12,7 @@ implemented changes and their verification.
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin | Production TypeScript/Vite build passes; authenticated headed-browser acceptance remains pending |
-| Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks, strict Clippy and resolved Bake context checks pass; a fixture HTML edit preserves the compiler digest and changes the asset digest |
+| Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
@@ -415,5 +415,26 @@ metadata and native runner inputs remain in the compiler boundary.
 Fourteen App-helper tests and 85 xtask tests passed. Both servers passed all-target
 compilation checks, and strict Clippy passed across the helper, planner and consumers.
 The real two-image plan resolved in 2.5 s. A fixture presentation edit changes only the
-asset digest. This is input-isolation evidence; a packaged-image build and headed
-visual acceptance remain separate checks.
+asset digest.
+
+The first packaged-image solve at `aca3cb3c` took 640.795 s while establishing the
+worker's Bookworm compiler cache; its Map Cargo action took 8 min 44 s. This is a cold
+baseline, not an estimate of the Rust link cost for every presentation edit.
+
+Runtime recipes now copy App assets after native setup. Baseline `e733162b` staged both
+images in 14.415 s. Presentation-only revision `ea8aa2fe` changes the two App titles and
+its test receipt; it staged both images in 12.084 s in one solve. Both Rust actions,
+Stream's CMake action and Map's runtime setup were cached. No Cargo command executed.
+
+Only Map layer 33 and Stream layer 22 changed. The images retain 33 and 22 preceding
+layer blobs respectively. Their unchanged binary layers are
+`sha256:18f7a1544fe208f0bb777aeb90bb99ac6fb61555916a15bb5cf922e2159a09cf`
+for Map and `sha256:b1c278dcbe04270100686751bf976694f4064fbdb9cbd14abdda3c490308080f`
+for Stream. Archive inspection verified exact committed App bytes, mode 0444, and
+root ownership. The changed compressed asset layers contain 416,204 and 5,764 bytes.
+
+Receipts are `output/development/packaged-apps-final-{baseline,edited}.json`; the
+manifest and archive inspection is in
+`output/development/packaged-apps-layer-inspection.json`. These are packaging and
+input-reuse measurements. The benchmark images were not deployed, and headed visual
+acceptance remains pending.

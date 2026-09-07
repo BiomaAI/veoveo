@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:2f86f0f4ce16152ad0c457bc0086c94419b5415ef2ff8342a2099676e1660606",
-  "updatedAt": "2026-09-07T05:58:58Z",
+  "updatedAt": "2026-09-07T06:06:19Z",
   "checks": [
     {
       "name": "final-app-layer-plan",
@@ -20,6 +20,60 @@
       "status": "passed",
       "finishedAt": "2026-09-07T05:58:58Z",
       "durationSeconds": 3.053743743,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "packaged-app-image-baseline",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "stage",
+        "--target",
+        "map-mcp",
+        "--target",
+        "stream-mcp",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "e733162b",
+        "--evidence-output",
+        "output/development/packaged-apps-final-baseline.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T06:05:31Z",
+      "durationSeconds": 14.870395118,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "packaged-app-presentation-stage",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "stage",
+        "--target",
+        "map-mcp",
+        "--target",
+        "stream-mcp",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "ea8aa2fe",
+        "--evidence-output",
+        "output/development/packaged-apps-final-edited.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T06:06:19Z",
+      "durationSeconds": 12.529764813,
       "detail": "completed successfully"
     }
   ]
