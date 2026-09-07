@@ -1,4 +1,4 @@
-//! Cargo-derived source boundaries for reusable shared Rust artifact targets.
+//! Cargo-derived source boundaries for every Rust image compiler family.
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -527,5 +527,39 @@ mod tests {
                 .to_string()
                 .contains("outside the declared input closure")
         );
+    }
+    #[test]
+    fn real_recording_consumers_exclude_service_implementations_and_keep_native_inputs() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .unwrap();
+        let metadata = metadata(&repository).unwrap();
+        let files = tracked_files(&repository).unwrap();
+        for package in ["veoveo-stream-mcp", "veoveo-reason-mcp"] {
+            let inputs =
+                input_files(&repository, &metadata, &[package.to_owned()], &files).unwrap();
+            assert!(inputs.contains(Path::new("platform/recordings/reader/src/read.rs")));
+            assert!(!inputs.contains(Path::new("platform/recordings/hub/src/ingest.rs")));
+            assert!(!inputs.contains(Path::new("servers/recording-mcp/src/service.rs")));
+            assert!(!inputs.contains(Path::new("platform/recordings/forwarder/src/client.rs")));
+            // Cargo still receives all real workspace manifests and target entrypoints.
+            assert!(inputs.contains(Path::new("servers/recording-mcp/Cargo.toml")));
+            assert!(inputs.contains(Path::new("servers/recording-mcp/src/lib.rs")));
+            let source_packages = source_packages(&metadata, &[package.to_owned()]).unwrap();
+            assert!(!source_packages.iter().any(|name| matches!(
+                name.as_str(),
+                "veoveo-recording-mcp" | "veoveo-recording-hub" | "veoveo-recording-forwarder"
+            )));
+            match package {
+                "veoveo-stream-mcp" => assert!(
+                    inputs.contains(Path::new("servers/stream-mcp/gst-runner/CMakeLists.txt"))
+                ),
+                "veoveo-reason-mcp" => {
+                    assert!(inputs.contains(Path::new("servers/reason-mcp/runner/pyproject.toml")))
+                }
+                _ => unreachable!(),
+            }
+        }
     }
 }

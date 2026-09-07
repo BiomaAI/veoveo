@@ -13,7 +13,7 @@
 
 ## Ownership
 
-`tools/xtask/src/commands/image/source_context.rs` derives shared Rust source contexts.
+`tools/xtask/src/commands/image/source_context.rs` derives source contexts for every Rust compiler family.
 The checked-in Bake catalog owns compiler images and runtime assembly. Managed worker
 identity, resource limits, and cache-preserving maintenance belong to `control/`.
 The [image-build runbook](../../docs/IMAGE_BUILDS.md) defines commands and receipts.
@@ -71,9 +71,16 @@ Different source revisions may share compilation output when their admitted comp
 inputs match. Staging and qualification continue to inspect immutable runnable OCI
 digests; this context boundary grants no release eligibility by itself.
 
-Standalone NVIDIA and SUMO compiler families retain their complete source mounts.
+Standalone NVIDIA and SUMO compiler families receive the same Cargo-derived source
+boundary. Their selected packages include native runner sources, Python runners, image
+recipes and runtime assets. They still use their existing compiler and runtime images.
 Moving a binary between ABI families requires independent compatibility and runtime
 evidence before changing that boundary.
+
+The Recording reader extraction removes Hub, forwarder and Recording MCP production
+sources from Stream and Reason contexts. All workspace manifests and real Cargo target
+entrypoints remain present for discovery. A service implementation edit outside those
+metadata entrypoints cannot invalidate their compiler action.
 
 ## Normalized Dependency Publication
 

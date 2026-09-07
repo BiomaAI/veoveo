@@ -1,74 +1,58 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:7147ca1b9a9fbd196118195aa4420f31855abe9485108c3c8fde6cbd1c728101",
-  "updatedAt": "2026-09-07T05:10:40Z",
+  "buildDigest": "sha256:e51e019576c193b020f65e22bd8c34c545f518f069aee30b947a998d4ac2de07",
+  "updatedAt": "2026-09-07T05:15:17Z",
   "checks": [
     {
-      "name": "recording-reader-clippy",
+      "name": "rust-source-boundaries",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T05:13:30Z",
+      "durationSeconds": 4.814192254,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "rust-source-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-recording-reader",
-        "-p",
-        "veoveo-recording-video",
-        "-p",
-        "veoveo-recording-mcp",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-reason-mcp",
-        "--lib",
+        "veoveo-xtask",
+        "--all-targets",
         "--no-deps",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:58:06Z",
-      "durationSeconds": 10.924073192,
+      "finishedAt": "2026-09-07T05:14:43Z",
+      "durationSeconds": 2.710433406,
       "detail": "completed successfully"
     },
     {
-      "name": "recording-reader-targets",
+      "name": "standalone-source-plan",
       "command": [
         "cargo",
-        "check",
-        "-p",
-        "veoveo-recording-reader",
-        "-p",
-        "veoveo-recording-video",
-        "-p",
-        "veoveo-recording-mcp",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-reason-mcp",
-        "--features",
-        "veoveo-recording-mcp/redap",
-        "--all-targets"
+        "xtask",
+        "image",
+        "plan",
+        "--target",
+        "stream-mcp",
+        "--target",
+        "reason-mcp",
+        "--target",
+        "sumo-mcp",
+        "--format",
+        "json"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T05:10:40Z",
-      "durationSeconds": 71.777559506,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-reader-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-recording-reader",
-        "-p",
-        "veoveo-recording-video",
-        "-p",
-        "veoveo-recording-mcp",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T05:07:27Z",
-      "durationSeconds": 112.162204726,
+      "finishedAt": "2026-09-07T05:15:17Z",
+      "durationSeconds": 2.09511672,
       "detail": "completed successfully"
     }
   ]
