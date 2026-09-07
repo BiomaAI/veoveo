@@ -1078,6 +1078,13 @@ operation remains scope-gated by its canonical resource or tool handler. The gat
 `resource_projection: server_owned`, and the Console renders it from its generic
 catalog; no map-specific Console page, BFF route, or REST router exists.
 
+The image packages the document at `/opt/veoveo/map/assets/workspace-app.html`.
+Startup loads one bounded immutable `AppHtml` snapshot before connecting services.
+For a local process, pass `serve --workspace-app servers/map-mcp/assets/workspace-app.html`
+alongside its normal configuration. Regenerate the HTML and restart that process
+to preview an edit. Image builds keep the App generator and HTML in the assembly
+context, allowing an unchanged Rust artifact to be reused.
+
 ## Isolation And Security
 
 Every SurrealDB catalog read includes the tenant id. Owner-scoped routes,

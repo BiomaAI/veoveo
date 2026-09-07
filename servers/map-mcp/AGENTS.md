@@ -61,6 +61,10 @@ workspace App.
 - `npm --prefix servers/map-mcp/app ci && npm --prefix servers/map-mcp/app run build`
   regenerates the self-contained workspace App from exact MapLibre GL JS and
   esbuild pins. The generated HTML must remain below the Console's 2 MiB limit.
+- The App is an image asset loaded once at startup. Local runs pass
+  `serve --workspace-app servers/map-mcp/assets/workspace-app.html`; restart the
+  process after regenerating HTML. Use `cargo xtask image` to bind its declared
+  asset context for image assembly.
 - Browser acceptance for the workspace map requires headed Chrome and a proven
   hardware WebGL2 renderer. Static HTML tests or software graphics are not
   visual acceptance.

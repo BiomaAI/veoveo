@@ -53,7 +53,7 @@ A server shipping a view (see `servers/timeseries-mcp` and
    `.with_title(...)`, `.with_description(...)`, and optionally
    `.with_icons(...)` (data: URIs — hosts render nav/catalog entries from
    these fields, so they are the server-owned menu contribution).
-3. Serve the view: `app_html_contents(uri, include_str!(...))` from
+3. Serve the view: `app_html_contents(uri, html)` from
    `read_resource`. The document stays self-contained unless its function
    requires a declared live-data connection. Such a view uses
    `app_resource_with_meta` and lists exact installation-owned origins in
@@ -73,6 +73,21 @@ only implements the MCP Apps bridge, task observation, resource subscriptions,
 theme projection, and generic JSON presentation; it has no domain catalog and no
 authority of its own. A purpose-built App remains appropriate when the domain
 requires maps, charts, video, spatial interaction, or another specialized visual.
+
+### Packaged App Assets
+
+`AppHtml` reads an image-owned HTML file into an immutable startup snapshot. It
+requires a regular, nonempty UTF-8 file within the Console's 2 MiB limit. Missing or
+invalid assets fail startup. The server applies the same resource authorization to
+these bytes as to an embedded document; the loader creates no route or permission.
+
+Map and Stream package their App HTML outside the Rust binary. Their Cargo metadata
+declares `image-asset-inputs`, which the image planner places in a separate named
+context and excludes from compiler mounts. Runtime assembly copies those exact bytes
+into the image. Presentation edits therefore retain the compiler action. A local
+server accepts an explicit asset path and reads it on each process start; its file
+does not change the running snapshot. Deployments obtain new bytes through a new
+immutable image digest.
 
 ## Host obligations
 

@@ -11,6 +11,7 @@ use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 use super::live::LiveSessionManager;
 
 pub(super) struct AppState {
+    pub(super) live_app: veoveo_mcp_apps_extension::AppHtml,
     pub(super) tasks: TaskRuntime,
     pub(super) artifacts: ArtifactRepository,
     pub(super) recordings: Arc<RecordingReader>,

@@ -58,6 +58,7 @@ pub async fn run() -> Result<()> {
 }
 
 async fn serve(args: Args) -> Result<()> {
+    let workspace_app = veoveo_mcp_apps_extension::AppHtml::load(&args.workspace_app)?;
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-map-mcp", "info,veoveo_map_mcp=debug")?;
     let public_deployment = args.public_deployment()?;
@@ -159,6 +160,7 @@ async fn serve(args: Args) -> Result<()> {
         },
     )?;
     let state = Arc::new(MapApplication {
+        workspace_app,
         workspace_basemap,
         tasks,
         catalog: catalog.clone(),

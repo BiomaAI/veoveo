@@ -45,6 +45,7 @@ COPY --from=valhalla-runtime /usr/local/lib/libprime_server.so.0.0.0 /usr/local/
 COPY --from=veoveo-rust-artifacts /lib/libduckdb.so /usr/local/lib/libduckdb.so
 COPY --from=duckdb-spatial /out/extensions/spatial.duckdb_extension /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
 COPY --from=veoveo-rust-artifacts /bin/map-mcp /usr/local/bin/map-mcp
+COPY --from=veoveo-image-assets --chmod=0444 servers/map-mcp/assets/workspace-app.html /opt/veoveo/map/assets/workspace-app.html
 COPY servers/map-mcp/data/src/map_data /opt/veoveo/map-data/map_data
 RUN ln -s libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so.0 \
     && ln -s libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so \

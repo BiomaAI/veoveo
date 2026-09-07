@@ -1,15 +1,21 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:976b288eeace8555aae7b596c93801bc8ac8bc1cfa4e81b6a119d7f38496da3e",
-  "updatedAt": "2026-09-07T05:37:40Z",
+  "buildDigest": "sha256:22b1a04af11aebd5fb56892f8ef4d8ed0d0b5c82dc3f3a9b9186105e5025b3dc",
+  "updatedAt": "2026-09-07T05:51:09Z",
   "checks": [
     {
-      "name": "image-extraction-clippy",
+      "name": "packaged-app-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
         "veoveo-xtask",
+        "-p",
+        "veoveo-mcp-apps-extension",
+        "-p",
+        "veoveo-map-mcp",
+        "-p",
+        "veoveo-stream-mcp",
         "--all-targets",
         "--no-deps",
         "--",
@@ -17,48 +23,58 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T05:35:33Z",
-      "durationSeconds": 2.662188813,
+      "finishedAt": "2026-09-07T05:50:42Z",
+      "durationSeconds": 91.288277447,
       "detail": "completed successfully"
     },
     {
-      "name": "image-extraction-timing",
+      "name": "packaged-app-consumers",
+      "command": [
+        "cargo",
+        "check",
+        "-p",
+        "veoveo-map-mcp",
+        "-p",
+        "veoveo-stream-mcp",
+        "--all-targets"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T05:48:34Z",
+      "durationSeconds": 135.048984987,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "packaged-app-inputs",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-xtask"
+        "veoveo-xtask",
+        "-p",
+        "veoveo-mcp-apps-extension"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T05:34:49Z",
-      "durationSeconds": 4.694517372,
+      "finishedAt": "2026-09-07T05:46:10Z",
+      "durationSeconds": 5.250148907,
       "detail": "completed successfully"
     },
     {
-      "name": "uav-pinned-qualification",
+      "name": "packaged-app-plan",
       "command": [
         "cargo",
         "xtask",
-        "release",
-        "images",
+        "image",
+        "plan",
         "--target",
-        "uav-sim-runtime",
-        "--push-registry",
-        "127.0.0.1:5001",
-        "--pull-registry",
-        "k3d-veoveo-registry.localhost:5000",
-        "--registry-transport",
-        "insecure-http",
-        "--revision",
-        "ad605a21d433b93bd931dc99b9bc6d736b2a17dd",
-        "--stage-evidence",
-        "output/development/uav-after-raw-cache-eviction.json",
-        "--evidence-output",
-        "output/development/uav-pinned-qualified.json"
+        "map-mcp",
+        "--target",
+        "stream-mcp",
+        "--format",
+        "json"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T05:37:40Z",
-      "durationSeconds": 10.856948415,
+      "finishedAt": "2026-09-07T05:51:09Z",
+      "durationSeconds": 2.474554711,
       "detail": "completed successfully"
     }
   ]

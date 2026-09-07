@@ -65,6 +65,7 @@ RUN mkdir -p /opt/veoveo \
     && ln -s "${driver_lib_dir}" /opt/veoveo/host-libraries
 
 COPY --from=builder /out/bin/stream-mcp /usr/local/bin/stream-mcp
+COPY --from=veoveo-image-assets --chmod=0444 servers/stream-mcp/assets/live.html /opt/veoveo/stream/assets/live.html
 COPY --from=builder /out/bin/stream-gst-runner \
     /usr/local/bin/stream-gst-runner
 

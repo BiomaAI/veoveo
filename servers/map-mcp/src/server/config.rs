@@ -24,6 +24,9 @@ pub(super) enum Cli {
 pub(super) struct Args {
     #[arg(long, default_value_t = 8799)]
     pub port: u16,
+    /// Image-owned App document; use a source asset path for local development.
+    #[arg(long, default_value = "/opt/veoveo/map/assets/workspace-app.html")]
+    pub workspace_app: PathBuf,
     #[arg(long, env = "PUBLIC_BASE_URL")]
     pub public_base_url: String,
     #[arg(long, default_value = "http://artifact-service:8790")]

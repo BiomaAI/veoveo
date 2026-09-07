@@ -3,6 +3,9 @@ name = "veoveo-map-mcp"
 version.workspace = true
 edition.workspace = true
 
+[package.metadata.veoveo]
+image-asset-inputs = ["servers/map-mcp/assets/workspace-app.html", "servers/map-mcp/app"]
+
 [lib]
 name = "veoveo_map_mcp"
 path = "src/lib.rs"

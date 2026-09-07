@@ -3,6 +3,9 @@ name = "veoveo-stream-mcp"
 version.workspace = true
 edition.workspace = true
 
+[package.metadata.veoveo]
+image-asset-inputs = ["servers/stream-mcp/assets/live.html"]
+
 [lib]
 name = "veoveo_stream_mcp"
 path = "src/lib.rs"
