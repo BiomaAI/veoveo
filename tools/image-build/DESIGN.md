@@ -8,6 +8,7 @@
 | Docker Buildx Bake | typed target selection and generated context overrides |
 | BuildKit source mounts | read-only compilation inputs, persistent locked Cargo caches |
 | `veoveo.io/rust-source-context/v1` | repository-owned SHA-256 source identity, separate from an OCI artifact digest |
+| `veoveo.io/normalized-parent/v1` | immutable dependency publication receipt, recipe identity and OCI runtime digest |
 | Git | exact committed publication source; local builds also admit non-ignored working-tree files |
 
 ## Ownership
@@ -73,3 +74,40 @@ digests; this context boundary grants no release eligibility by itself.
 Standalone NVIDIA and SUMO compiler families retain their complete source mounts.
 Moving a binary between ABI families requires independent compatibility and runtime
 evidence before changing that boundary.
+
+## Normalized Dependency Publication
+
+A Bake consumer declares `io.veoveo.build.normalized-parent` with the target name of
+its dependency image. Exactly one named context must refer to that target. Every
+local target in the parent's dependency graph declares `io.veoveo.build.input-paths`
+as comma-separated context-relative files or directories. The planner materializes
+only these inputs, its declared Dockerfile, and any applicable Docker ignore file.
+An undeclared application file is unavailable to the dependency build.
+
+The recipe identity hashes the complete resolved Bake target graph, ordered source
+identities, fixed build epoch, exporter options, and the pinned BuildKit image. Tags,
+cache import/export hints, and output/attestation settings are excluded because the
+normalization publisher supplies its own output policy. Other Bake fields, including
+unknown upstream fields, remain part of the hash. Dependency Dockerfiles contain
+upstream version and digest pins. The recipe identifies admitted build inputs; its
+published OCI digest identifies the resulting bytes.
+
+Staging and qualification first resolve the registry's recipe tag. An explicit
+missing manifest permits one dependency build with timestamp rewriting and no release
+attestations. Authentication, transport, and malformed-manifest errors stop the
+command. A local admission receipt pins the resolved digest; later runs validate that
+immutable manifest and fail if it disappeared. Another build host can resolve the
+same registry recipe tag without rebuilding. These internal parent images carry no
+release eligibility. The final image keeps the normal qualification requirements.
+
+The runtime solve replaces the dependency target context with a digest-pinned
+`docker-image://` input. It therefore consumes the already normalized filesystem.
+Application source revisions keep their exact OCI revision labels and separate image
+receipts. Local Docker-load builds retain the direct dependency graph because that
+exporter does not rewrite inherited timestamps or require a publication registry.
+
+Plans retain parent recipes and input counts. Each publication run writes
+`parents/<target>/receipt.json`, plus BuildKit metadata, raw events, and phase timings
+when it publishes a missing parent. Command evidence includes parent resolution and
+publication time. Local admission receipts live below
+`target/veoveo-xtask/normalized/<registry-hash>/<recipe-hash>/`.

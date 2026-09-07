@@ -1,23 +1,30 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:8bd207042e414c094d8b1b6aaa5e9c032b03e7850f68f8163be07b00ce6eb0f1",
-  "updatedAt": "2026-09-07T03:59:15Z",
+  "buildDigest": "sha256:fa0c0becb39782ba838afc56a7bfae91600e741d3a967af07439905fd1ee4b6c",
+  "updatedAt": "2026-09-07T04:09:32Z",
   "checks": [
     {
-      "name": "complete-helm-contract",
+      "name": "normalized-parent-clippy",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "clippy",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-image-build-control",
+        "--all-targets",
+        "--no-deps",
+        "--",
+        "-D",
+        "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:58:37Z",
-      "durationSeconds": 6.327962275,
+      "finishedAt": "2026-09-07T04:08:31Z",
+      "durationSeconds": 2.3683369340000002,
       "detail": "completed successfully"
     },
     {
-      "name": "remaining-rollout-contracts",
+      "name": "normalized-parent-contract",
       "command": [
         "cargo",
         "test",
@@ -26,28 +33,57 @@
         "--quiet"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:59:07Z",
-      "durationSeconds": 1.053667527,
+      "finishedAt": "2026-09-07T04:08:17Z",
+      "durationSeconds": 3.694470048,
       "detail": "completed successfully"
     },
     {
-      "name": "rollout-clippy",
+      "name": "normalized-parent-helm",
       "command": [
         "cargo",
-        "clippy",
-        "-p",
-        "veoveo-xtask",
-        "-p",
-        "veoveo-deployment-smoke",
-        "--all-targets",
-        "--no-deps",
-        "--",
-        "-D",
-        "warnings"
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:59:15Z",
-      "durationSeconds": 2.338312506,
+      "finishedAt": "2026-09-07T04:08:43Z",
+      "durationSeconds": 4.832831229,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "normalized-parent-plan",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "plan",
+        "--target",
+        "uav-sim-runtime",
+        "--format",
+        "json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T04:09:11Z",
+      "durationSeconds": 3.533399933,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "normalized-parent-preflight",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "preflight",
+        "--expected-growth-gib",
+        "2",
+        "--kubernetes-node",
+        "k3d-veoveo-bioma-server-0",
+        "--namespace",
+        "veoveo"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T04:09:32Z",
+      "durationSeconds": 0.799645746,
       "detail": "completed successfully"
     }
   ]

@@ -543,6 +543,9 @@ target "simulation-runtime-payload" {
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64"]
   target     = "payload"
+  labels = {
+    "io.veoveo.build.input-paths" = "Dockerfile,requirements.lock,simulation-runtime.lock.json,patches,probes,veoveo_simulation_base"
+  }
 }
 
 target "simulation-runtime" {
@@ -577,11 +580,10 @@ target "uav-sim-runtime" {
   target     = "runtime"
   tags       = [image_ref("uav-sim-runtime")]
   contexts = {
-    simulation-runtime = "target:simulation-runtime-payload"
     uav-sim-dependencies = "target:uav-sim-dependencies"
   }
-  args = {
-    SIMULATION_RUNTIME_IMAGE = "simulation-runtime"
+  labels = {
+    "io.veoveo.build.normalized-parent" = "uav-sim-dependencies"
   }
   cache-from = registry_cache("uav-sim-runtime")
   cache-to   = registry_cache_export("uav-sim-runtime")
@@ -592,6 +594,9 @@ target "uav-sim-dependencies" {
   dockerfile = "Dockerfile.dependencies"
   platforms  = ["linux/amd64"]
   target     = "dependencies"
+  labels = {
+    "io.veoveo.build.input-paths" = "Dockerfile.dependencies,patches"
+  }
   contexts = {
     simulation-runtime = "target:simulation-runtime-payload"
   }

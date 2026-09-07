@@ -120,6 +120,26 @@ pub(super) fn prepare(
     metadata: &CargoMetadata,
     packages: &[String],
 ) -> Result<SourceContext> {
+    let files = tracked_files(repository)?;
+    let selected = input_files(repository, metadata, packages, &files)?;
+    let context = materialize(repository, selected, source_packages(metadata, packages)?)?;
+    process::output(
+        "cargo",
+        [
+            "metadata",
+            "--no-deps",
+            "--format-version",
+            "1",
+            "--locked",
+            "--offline",
+        ],
+        Some(context.path()),
+    )
+    .context("validating the generated Cargo workspace before image compilation")?;
+    Ok(context)
+}
+
+pub(super) fn tracked_files(repository: &Path) -> Result<BTreeSet<PathBuf>> {
     let tracked = process::output(
         "git",
         [
@@ -154,22 +174,7 @@ pub(super) fn prepare(
             }
         }
     }
-    let selected = input_files(repository, metadata, packages, &files)?;
-    let context = materialize(repository, selected, source_packages(metadata, packages)?)?;
-    process::output(
-        "cargo",
-        [
-            "metadata",
-            "--no-deps",
-            "--format-version",
-            "1",
-            "--locked",
-            "--offline",
-        ],
-        Some(context.path()),
-    )
-    .context("validating the generated Cargo workspace before image compilation")?;
-    Ok(context)
+    Ok(files)
 }
 
 fn closure(metadata: &CargoMetadata, packages: &[String]) -> Result<BTreeSet<String>> {
@@ -315,7 +320,7 @@ fn input_files(
     Ok(required)
 }
 
-fn materialize(
+pub(super) fn materialize(
     repository: &Path,
     files: BTreeSet<PathBuf>,
     source_packages: Vec<String>,

@@ -89,6 +89,39 @@ pub(crate) fn inspect_staged(
     parse_staged(&output.stdout, staging_digest, platform, &reference)
 }
 
+/// Resolve a normalized recipe tag once. Only an explicit missing manifest admits
+/// publication; auth, transport, and malformed-image failures remain errors.
+pub(crate) fn resolve_staged_reference(reference: &str, insecure: bool) -> Result<Option<String>> {
+    let mut command = std::process::Command::new("docker");
+    command.args(["manifest", "inspect", "--verbose"]);
+    if insecure {
+        command.arg("--insecure");
+    }
+    let output = command
+        .arg(reference)
+        .output()
+        .context("resolving normalized recipe reference")?;
+    if !output.status.success() {
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        if diagnostic.trim() == format!("no such manifest: {reference}") {
+            return Ok(None);
+        }
+        anyhow::bail!(
+            "resolving normalized recipe {reference}: {}",
+            diagnostic.trim()
+        );
+    }
+    let manifest: ManifestRecord = serde_json::from_slice(&output.stdout)
+        .context("normalized recipe must resolve directly to one OCI image manifest")?;
+    parse_staged(
+        &output.stdout,
+        &manifest.descriptor.digest,
+        "linux/amd64",
+        reference,
+    )?;
+    Ok(Some(manifest.descriptor.digest))
+}
+
 fn parse_staged(
     bytes: &[u8],
     staging_digest: &str,

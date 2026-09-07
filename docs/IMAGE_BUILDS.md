@@ -480,3 +480,19 @@ This is host Cargo maintenance. It does not prune BuildKit state, Docker images,
 registry artifacts, Kubernetes storage, or another worktree’s target directory.
 Rerunning a pruned test may relink its executable from retained dependency libraries.
 Run the resource preflight again after reclamation to verify actual filesystem space.
+
+## Normalized GPU Parents
+
+UAV staging and qualification publish the simulation and UAV dependency payload once
+per admitted recipe. Subsequent source-only revisions use its exact OCI digest as
+their parent. The registry tag is `veoveo/uav-sim-dependencies:recipe-<sha256>`;
+installation image locks continue to name only runnable workloads.
+
+`cargo xtask image plan --target uav-sim-runtime --format json` reports the parent
+recipe and each target's input digest. Application files are absent from the parent
+source contexts. A patch, dependency pin, admitted base file, build option, BuildKit
+image, or normalization epoch change produces a new recipe. The next publication
+builds that parent before assembling the application image. Parent timing and receipts
+are retained with the main solve evidence. See the
+[compilation and parent design](../tools/image-build/DESIGN.md) for the complete input
+and failure contract.
