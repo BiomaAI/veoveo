@@ -81,6 +81,7 @@ material they operate:
 | [`configs/stream/README.md`](../configs/stream/README.md) | operator-admitted Stream graph, profile, model, and live-ingress configuration |
 | [`configs/reason/README.md`](../configs/reason/README.md) | reason catalog and runtime configuration |
 | [`deploy/contract/DESIGN.md`](../deploy/contract/DESIGN.md) | typed development profile and local registry declarations shared by operational tools |
+| [`testing/deployment-smoke/DESIGN.md`](../testing/deployment-smoke/DESIGN.md) | focused Helm checks, passive or requested GitOps observation, and convergence evidence limits |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
 | [`tools/image-build/DESIGN.md`](../tools/image-build/DESIGN.md) | Cargo-derived compilation inputs, artifact reuse, normalized dependency publication, and source identity |
@@ -141,7 +142,7 @@ Hub, administration, and GPU policy.
 | `testing/smoke/src/bin/smoke/deployment/gpu/helm.rs` | Helm v4 release metadata, exact allocator artifact and render verification, and atomic installation |
 | `testing/smoke/src/bin/smoke/deployment/gpu/admission.rs` | kubelet-plugin selector, DaemonSet readiness, node taint, and pod scheduling diagnostics |
 | `testing/smoke/src/bin/smoke/deployment/gpu/workloads.rs` | typed Deployment selector, current ReplicaSet ownership, Ready Pod/container, replica-count, and in-container GPU evidence targeting |
-| `testing/deployment-smoke/` | focused Helm configuration, deployment-profile, and exact-revision GitOps convergence CLI; `src/helm_config.rs` owns configuration assertions shared with the full suite |
+| `testing/deployment-smoke/` | focused Helm configuration, deployment-profile, and exact-revision GitOps convergence CLI; passive observation issues no reconciliation requests; `src/helm_config.rs` owns configuration assertions shared with the full suite |
 | `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and explicit native live-view container-restart recovery evidence |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |

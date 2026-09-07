@@ -64,8 +64,11 @@ enum Command {
         #[arg(long)]
         profile: PathBuf,
     },
-    /// Refresh and observe an exact GitOps revision through deployment readiness.
+    /// Observe an exact GitOps revision through deployment readiness.
     GitopsConverge {
+        /// Observe passively, or explicitly request Flux reconciliation.
+        #[arg(long, value_enum, default_value_t = gitops::ReconciliationMode::Observe)]
+        reconciliation: gitops::ReconciliationMode,
         #[arg(long)]
         context: String,
         #[arg(long)]
@@ -97,6 +100,7 @@ fn run() -> Result<()> {
         Command::ProfileGpuVerify { profile } => deployment::profile_gpu_verify(&profile),
         Command::ProfileDown { profile } => deployment::profile_down(&profile),
         Command::GitopsConverge {
+            reconciliation,
             context,
             source,
             root,
@@ -106,6 +110,7 @@ fn run() -> Result<()> {
             timeout_seconds,
             evidence_output,
         } => gitops::converge(gitops::GitopsConvergeArgs {
+            reconciliation,
             context,
             source,
             root,

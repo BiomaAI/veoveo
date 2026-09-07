@@ -1,89 +1,36 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2d80f60660dda453c41fe08d0768e206ddc041cadac65fe84684ad9f954eca89",
-  "updatedAt": "2026-09-07T06:39:14Z",
+  "buildDigest": "sha256:c6a88cf6c490d79a5d4f1e376bd395e250e82855b44d4d252c7ee31ad2c72fce",
+  "updatedAt": "2026-09-07T06:50:20Z",
   "checks": [
     {
-      "name": "authenticated-console-binaries",
+      "name": "passive-gitops-final-clippy",
       "command": [
         "cargo",
-        "build",
+        "clippy",
         "-p",
-        "veoveo-console-bff",
-        "-p",
-        "veoveo-mcp-conformance",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--bin",
-        "console-bff",
-        "--bin",
-        "conformance",
-        "--bin",
-        "gateway"
+        "veoveo-deployment-smoke",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T06:34:48Z",
-      "durationSeconds": 0.723558287,
+      "finishedAt": "2026-09-07T06:50:20Z",
+      "durationSeconds": 0.492636127,
       "detail": "completed successfully"
     },
     {
-      "name": "console-production-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T06:35:14Z",
-      "durationSeconds": 5.60800808,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "iteration-core-tests",
+      "name": "passive-gitops-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-xtask",
-        "-p",
-        "veoveo-image-build-control",
-        "-p",
-        "veoveo-mcp-apps-extension",
-        "-p",
-        "veoveo-recording-reader",
-        "--lib"
+        "veoveo-deployment-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T06:37:53Z",
-      "durationSeconds": 142.104137235,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "iteration-helm-contract",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T06:39:14Z",
-      "durationSeconds": 22.989928129,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "iteration-planner-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T06:38:09Z",
-      "durationSeconds": 2.1102418099999998,
+      "finishedAt": "2026-09-07T06:49:53Z",
+      "durationSeconds": 4.046084821,
       "detail": "completed successfully"
     }
   ]

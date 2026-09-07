@@ -8,16 +8,27 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail, ensure};
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/gitops-convergence-evidence/v2";
+const EVIDENCE_SCHEMA: &str = "veoveo.io/gitops-convergence-evidence/v3";
 const GIT_REPOSITORY_RESOURCE: &str = "gitrepositories.source.toolkit.fluxcd.io";
 const KUSTOMIZATION_RESOURCE: &str = "kustomizations.kustomize.toolkit.fluxcd.io";
 const HELM_RELEASE_RESOURCE: &str = "helmreleases.helm.toolkit.fluxcd.io";
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ReconciliationMode {
+    /// Observe controller convergence without requesting reconciliation.
+    Observe,
+    /// Request source, root, and Helm reconciliation before observing readiness.
+    Request,
+}
+
 #[derive(Debug)]
 pub(crate) struct GitopsConvergeArgs {
+    pub(crate) reconciliation: ReconciliationMode,
     pub(crate) context: String,
     pub(crate) source: String,
     pub(crate) root: String,
@@ -32,6 +43,8 @@ pub(crate) struct GitopsConvergeArgs {
 #[serde(rename_all = "camelCase")]
 struct ConvergenceEvidence {
     schema_version: &'static str,
+    reconciliation_mode: ReconciliationMode,
+    started_at_unix_millis: u128,
     observed_at_unix_millis: u128,
     context: String,
     source: ObjectRef,
@@ -202,6 +215,8 @@ impl Deadline {
 }
 
 pub(crate) fn converge(arguments: GitopsConvergeArgs) -> Result<()> {
+    let deadline = Deadline::new(arguments.timeout);
+    let started_at_unix_millis = unix_millis()?;
     validate_local_revision("--revision", &arguments.revision)?;
     ensure!(
         !arguments.releases.is_empty(),
@@ -228,7 +243,6 @@ pub(crate) fn converge(arguments: GitopsConvergeArgs) -> Result<()> {
         .iter()
         .map(|value| DeploymentRef::parse(value))
         .collect::<Result<Vec<_>>>()?;
-    let deadline = Deadline::new(arguments.timeout);
     let mut phases = Vec::new();
 
     let result = converge_inner(
@@ -246,6 +260,8 @@ pub(crate) fn converge(arguments: GitopsConvergeArgs) -> Result<()> {
         .collect();
     let evidence = ConvergenceEvidence {
         schema_version: EVIDENCE_SCHEMA,
+        reconciliation_mode: arguments.reconciliation,
+        started_at_unix_millis,
         observed_at_unix_millis: unix_millis()?,
         context: arguments.context.clone(),
         source,
@@ -445,6 +461,9 @@ fn request_reconciliation(
     resource: &str,
     object: &ObjectRef,
 ) -> Result<()> {
+    if arguments.reconciliation == ReconciliationMode::Observe {
+        return Ok(());
+    }
     run_kubectl(
         arguments,
         &[

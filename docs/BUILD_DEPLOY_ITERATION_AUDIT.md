@@ -20,6 +20,7 @@ implemented changes and their verification.
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
 | Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, per-solve CPU deltas, and filesystem extraction windows | Failure-path tests retain errors before BuildKit starts; cached compiler actions report no execution; extraction remains visible when a scanner materializes cached layers |
 | Exact image selection | Repeated `--target` flags select one sorted Bake solve for planning, local builds, staging, and qualification; affected planning excludes dev-only Cargo edges | CLI selection tests and dependency-closure fixtures cover staging/qualification parity and retained build dependencies |
+| Passive convergence observation | GitOps verification defaults to observation; explicit requested reconciliation remains a declared mode in v3 evidence with the verification start time | Six process-level Rust fixtures pass; a live observation of the already-active Bioma revision takes 1.232 s with unchanged reconciliation annotations and sampled Pod identities; publication latency remains pending |
 
 ## Standards And Protocols
 
@@ -465,6 +466,17 @@ The temporary browser tab, local services, database container, and private key f
 were removed. No production authentication state changed. The record is
 `output/development/console-vite-authenticated-hmr.json`. This verifies the local
 authenticated UI loop; it does not accept a hosted GPU workload or the staged images.
+
+The passive GitOps verifier observed Bioma revision
+`fd87d2197bbfcd52fa36b397a1666481a74b74e9` in 1.232 s. Both Helm inventories were
+Ready, and the selected gateway, Console BFF, and UAV simulator Deployments passed
+rollout and availability checks. The source, root, and release generations and explicit
+reconciliation annotations stayed identical. The sampled gateway, Console, simulator,
+and UAV MCP Pod identities also stayed identical. This is verification overhead for
+an already-active revision, not publication latency or GPU runtime acceptance.
+The record is `output/development/gitops-passive-existing-revision.json`; before/after
+state is in `output/development/gitops-passive-{before,after}.json` and
+`output/development/gitops-passive-pods-{before,after}.json`.
 
 ## Remaining Experiment Boundary
 

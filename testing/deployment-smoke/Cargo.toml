@@ -7,6 +7,10 @@ edition.workspace = true
 name = "deployment-smoke"
 path = "src/main.rs"
 
+[[test]]
+name = "gitops_convergence"
+harness = false
+
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
