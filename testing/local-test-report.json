@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:d0eeaaaa691e0a5b0207f1647a5349761d95ed2f79d9095b175411e64da101c8",
-  "updatedAt": "2026-09-07T17:34:26Z",
+  "updatedAt": "2026-09-07T18:00:00Z",
   "checks": [
     {
       "name": "cache-cleanup-preflight",
@@ -20,6 +20,80 @@
       "status": "passed",
       "finishedAt": "2026-09-07T17:34:09Z",
       "durationSeconds": 0.827680598,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "common-reason-cli-abi",
+      "command": [
+        "kubectl",
+        "-n",
+        "veoveo",
+        "exec",
+        "deployment/reason-mcp",
+        "-c",
+        "reason-mcp",
+        "--",
+        "timeout",
+        "10",
+        "/tmp/veoveo-common-rust-4d3e30dd-reason",
+        "--help"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T18:00:00Z",
+      "durationSeconds": 0.107149106,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "common-rust-artifact-experiment",
+      "command": [
+        "env",
+        "BUILDX_CONFIG=/home/rozgo/BiomaAI/veoveo/target/veoveo-xtask/docker-config/buildx",
+        "flock",
+        "target/veoveo-xtask/builder.lock",
+        "target/veoveo-xtask/docker-config/cli-plugins/v0.37.0/docker-buildx",
+        "bake",
+        "--builder",
+        "veoveo",
+        "-f",
+        "docker-bake.hcl",
+        "rust-bookworm-artifacts",
+        "--set",
+        "rust-bookworm-artifacts.args.VEOVEO_CARGO_PACKAGES=veoveo-stream-mcp,veoveo-reason-mcp",
+        "--set",
+        "rust-bookworm-artifacts.args.VEOVEO_CARGO_BINARIES=stream-mcp,reason-mcp",
+        "--set",
+        "rust-bookworm-artifacts.args.VEOVEO_TARGET_CACHE_ID=veoveo-target-v1-42641a0fbe67-d793280d4d65-linux-amd64-release",
+        "--set",
+        "rust-bookworm-artifacts.output=type=local,dest=output/development/common-rust-artifacts",
+        "--metadata-file",
+        "output/development/common-rust-artifacts.buildkit.json",
+        "--progress",
+        "plain"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T17:58:28Z",
+      "durationSeconds": 354.473238592,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "common-stream-cli-abi",
+      "command": [
+        "kubectl",
+        "-n",
+        "veoveo",
+        "exec",
+        "deployment/stream-mcp",
+        "-c",
+        "stream-mcp",
+        "--",
+        "timeout",
+        "10",
+        "/tmp/veoveo-common-rust-4d3e30dd-stream",
+        "--help"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T17:59:54Z",
+      "durationSeconds": 0.172650375,
       "detail": "completed successfully"
     },
     {

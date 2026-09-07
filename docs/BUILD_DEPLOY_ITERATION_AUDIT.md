@@ -18,6 +18,7 @@ implemented changes and their verification.
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
+| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidate binaries passed loader inspection and CLI execution in the deployed runtime containers; family admission remains pending service and GPU acceptance |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
 | Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, per-solve CPU deltas, and filesystem extraction windows | Failure-path tests retain errors before BuildKit starts; cached compiler actions report no execution; extraction remains visible when a scanner materializes cached layers |
@@ -526,7 +527,7 @@ The current evidence is `output/development/cargo-cache-hourly-maintenance.json`
 `1788802461571092011-stage-14415` records the complete staging duration.
 
 The common Stream/Reason compiler family remains unadmitted. Its candidate executable
-must pass ELF, startup, and hardware workload checks in both runtime images. A controlled
+must pass service startup and hardware workload checks in both runtime images. A controlled
 CPU comparison also remains pending; raising the declared quota establishes capacity
 but does not itself measure a throughput gain. Evaluate sccache and a second-worker
 action cache on the corrected narrow-input baseline when a separate worker is available.
@@ -538,3 +539,35 @@ unmeasured. Selected chart publication and separate release image closures are d
 splitting atomic Helm ownership still belongs to the complete `DEPLOY-SCOPE-023` migration.
 These boundaries remain explicit in the
 [iteration register](DEVELOPMENT_ITERATION.md#active-follow-ups-worth-fixing-next).
+
+The next experiment at `4d3e30dd` built both control binaries in the existing
+`rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
+cache family, explicitly selected both packages and binaries, and exported a local
+scratch artifact. The Cargo action took 351.3 s; the recorded command took 354.5 s.
+This established the combined recording dependency graph in a cache previously used
+by Map. It is not a matched comparison with the earlier standalone builds.
+
+Both ELF files use `/lib64/ld-linux-x86-64.so.2` and require glibc symbols through
+2.34. Their dynamic dependencies are libc, libm, libgcc_s and the loader. Temporary
+copies passed loader verification, resolved libraries, and exited successfully from
+`--help` in their respective deployed runtime containers. Stream retained its
+runtime's driver-support preloads. The temporary copies were removed. No executable
+in an installed image was replaced.
+
+| Candidate | Bytes | SHA-256 |
+|---|---:|---|
+| Stream | 43,454,984 | `f73e340483b46a0f4926d2f9230e001cef717bd7e66964b3dd3608034c46cad5` |
+| Reason | 41,423,504 | `5d4f1a6b934e4d2e6b21c2c2ba9f6f653558ffa8e99c2e50af41360bca5cc4c9` |
+
+The Reason model mount contains 5.7 GiB of checkpoint files, and its existing Python
+environment reports CUDA on the RTX 4090. Its readiness endpoint nevertheless timed
+out after eight seconds. More importantly for acceptance, the current Reason runner
+decodes video with PyAV and resizes frames with Pillow on the CPU. That path requires
+an NVDEC/CUDA migration under the repository GPU rule. The current runner cannot
+provide hardware video-processing acceptance for the compiler-family change.
+
+The experiment record is `output/development/common-rust-abi-experiment.json`, with
+BuildKit metadata in `output/development/common-rust-artifacts.buildkit.json`.
+CLI execution proves that the candidate loaders and initial executable paths work;
+it does not prove initialized services or completed GPU tasks. The production Bake
+catalog and runtime recipes retain their existing families.
