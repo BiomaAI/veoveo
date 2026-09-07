@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
 
+use crate::video::{annex_b_nals, h264_access_unit_is_decoder_reentrant};
 use anyhow::{Context, Result, ensure};
 use h264_reader::nal::sps::SeqParameterSet;
 use h264_reader::nal::{Nal as _, RefNal};
@@ -23,7 +24,6 @@ use re_sdk_types::archetypes::VideoStream;
 use re_sdk_types::components::{IsKeyframe, VideoCodec, VideoSample};
 use re_sdk_types::external::arrow::array::{Array as _, ListArray};
 use re_sdk_types::external::re_types_core::Loggable;
-use veoveo_rrd::video::{annex_b_nals, h264_access_unit_is_decoder_reentrant};
 
 const NANOSECONDS_PER_SECOND: u128 = 1_000_000_000;
 const H264_MP4_TIMESCALE: u32 = 90_000;
@@ -468,3 +468,6 @@ fn annex_b_to_avcc(sample: &[u8]) -> Result<Vec<u8>> {
     ensure!(has_picture, "H.264 sample has no coded picture NAL");
     Ok(output)
 }
+
+#[cfg(test)]
+mod tests;

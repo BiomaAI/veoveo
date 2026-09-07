@@ -20,11 +20,10 @@ pub mod live;
 pub mod publication;
 pub mod sim;
 pub mod spool;
-pub mod video;
 
 pub use archive::{ArchiveMaterialization, materialize_archive_shard};
 pub use blueprint::{BlueprintMapProviderSelection, ValidatedBlueprint, validate_blueprint_rrd};
-pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
+pub use catalog::{CatalogPolicy, PlatformCatalog};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
 pub use diagnostics::{
     RECORDING_INGEST_DIAGNOSTICS_SCHEMA, RecordingIngestDiagnostics,
@@ -33,8 +32,7 @@ pub use diagnostics::{
 pub use governance::invocation_authority_record;
 pub use ingest::{
     RecordingBlueprintPublicationError, RecordingIngestService, RecordingIngestServiceConfig,
-    ingest_part_paths, ingest_part_sequence, ingest_recording_static_context_path,
-    ingest_segment_parts_directory, live_segment_byte_len,
+    ingest_recording_static_context_path, live_segment_byte_len,
 };
 pub use ingest_http::recording_ingest_internal_router;
 pub use layer_files::{RecordingLayerFileScope, collect_recording_layer_files};
@@ -52,8 +50,4 @@ pub use veoveo_recording_forwarder::config::ClientAssertionAlgorithm;
 pub use veoveo_rrd::video::{
     RrdVideoBoundary, h264_access_unit_is_decoder_reentrant, inspect_log_message_video_boundary,
     inspect_rrd_video_boundary,
-};
-pub use video::{
-    EncodedVideoClip, EncodedVideoSample, H264VideoProfile, VideoClipRequest, VideoIndexKind,
-    extract_video_clip, extract_video_clip_from_messages, remux_h264_mp4,
 };

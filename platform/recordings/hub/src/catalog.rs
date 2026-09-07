@@ -6,13 +6,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
-use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, NaiveDate, Utc};
-use re_dataframe::{ChunkStoreConfig, QueryEngine};
-use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     DataLabelId, PrincipalId as ContractPrincipalId, PutArtifactRequest, TokenIssuer, TokenSubject,
 };
@@ -22,6 +19,8 @@ use veoveo_platform_store::{
     RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
     RecordingLayerRecord, RecordingLayerState, RecordingState,
 };
+
+use veoveo_rrd::segment::{SegmentInspection, inspect_segment};
 
 use crate::config::DatasetName;
 use crate::governance::{governed_classification, governed_labels};
@@ -40,14 +39,6 @@ pub struct CatalogPolicy {
     pub classification: String,
     pub labels: Vec<String>,
     pub maximum_blueprint_revisions: u32,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SegmentInspection {
-    pub application_id: String,
-    pub recording_key: String,
-    pub byte_len: u64,
-    pub sha256: String,
 }
 
 #[derive(Clone)]
@@ -476,58 +467,6 @@ impl SegmentCatalog for PlatformCatalog {
 
 /// Fsync, decode, identify, and hash one RRD segment. It accepts a crash-safe
 /// footer-less segment when Rerun can decode every complete message in it.
-pub fn inspect_segment(path: &Path) -> Result<SegmentInspection> {
-    let file = File::open(path).with_context(|| format!("opening segment {}", path.display()))?;
-    file.sync_all()
-        .with_context(|| format!("syncing segment {}", path.display()))?;
-    let byte_len = file
-        .metadata()
-        .with_context(|| format!("reading segment metadata {}", path.display()))?
-        .len();
-    ensure!(byte_len > 0, "segment {} is empty", path.display());
-
-    let mut hash = Sha256::new();
-    let mut reader = BufReader::new(file);
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        let count = reader
-            .read(&mut buffer)
-            .with_context(|| format!("hashing segment {}", path.display()))?;
-        if count == 0 {
-            break;
-        }
-        hash.update(&buffer[..count]);
-    }
-    let sha256 = hex::encode(hash.finalize());
-
-    let engines = QueryEngine::from_rrd_filepath(&ChunkStoreConfig::DEFAULT, path)
-        .with_context(|| format!("validating RRD segment {}", path.display()))?;
-    let mut identities = engines
-        .into_iter()
-        .filter(|(store_id, _)| store_id.is_recording())
-        .map(|(store_id, _)| {
-            (
-                store_id.application_id().as_str().to_owned(),
-                store_id.recording_id().as_str().to_owned(),
-            )
-        })
-        .collect::<Vec<_>>();
-    identities.sort();
-    identities.dedup();
-    ensure!(
-        identities.len() == 1,
-        "segment {} must contain exactly one recording identity",
-        path.display()
-    );
-    let (application_id, recording_key) = identities.remove(0);
-    Ok(SegmentInspection {
-        application_id,
-        recording_key,
-        byte_len,
-        sha256,
-    })
-}
-
 fn segment_key_from_path(
     root: &Path,
     path: &Path,

@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
 use re_sdk::{
     RecordingStreamBuilder,
@@ -18,16 +17,12 @@ use re_sdk_types::archetypes::{Scalars, VideoStream};
 use re_sdk_types::components::VideoCodec;
 use veoveo_recording_hub::config::{DatasetName, DatasetRoute, SpoolerConfig};
 use veoveo_recording_hub::spool::{Spooler, run_blocking};
-use veoveo_recording_hub::{
-    RecordingLayerFileScope, VideoClipRequest, collect_recording_layer_files, extract_video_clip,
-    extract_video_clip_from_messages, remux_h264_mp4,
-};
+use veoveo_recording_hub::{RecordingLayerFileScope, collect_recording_layer_files};
 use veoveo_rrd::projection::{
     ArrowProjectionSummary, ProjectionQuery, ProjectionSampling, ProjectionSparseFill,
     write_arrow_projection,
 };
-
-const H264_FIXTURE: &str = "AAAAAQkQAAAAAWdCwAraJbARAAADAAEAAAMABI8SJqAAAAABaM4PyAAAAQYF//9N3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSByMzIyMiBiMzU2MDVhIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTAgcmVmPTEgZGVibG9jaz0wOjA6MCBhbmFseXNlPTA6MCBtZT1kaWEgc3VibWU9MCBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0wIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MCA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0wIHRocmVhZHM9MSBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yIGtleWludF9taW49MiBzY2VuZWN1dD0wIGludHJhX3JlZnJlc2g9MCByYz1jcmYgbWJ0cmVlPTAgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MACAAAABZYiEOhGKAAIY8cAAQPY4AAh5SddeAAAAAQkwAAABQZogEqLAAAAAAQkQAAAAAWdCwAraJbARAAADAAEAAAMABI8SJqAAAAABaM4PyAAAAWWIggMoRigACT3HAAEOuOAAJfEnXXgAAAABCTAAAAFBmiASosA=";
+use veoveo_rrd::video_clip::{VideoClipRequest, extract_video_clip, remux_h264_mp4};
 
 /// Reserve a free localhost port for the proxy.
 fn free_port() -> u16 {
@@ -408,9 +403,7 @@ async fn spool_video_session(
 }
 
 fn fixture_access_units() -> Vec<Vec<u8>> {
-    let bytes = BASE64_STANDARD
-        .decode(H264_FIXTURE)
-        .expect("fixture base64");
+    let bytes = include_bytes!("../../rrd/tests/fixtures/video.h264");
     let mut starts = Vec::new();
     for index in 0..bytes.len().saturating_sub(4) {
         if bytes[index..].starts_with(&[0, 0, 0, 1, 9]) {
@@ -425,48 +418,6 @@ fn fixture_access_units() -> Vec<Vec<u8>> {
             bytes[*start..end].to_vec()
         })
         .collect()
-}
-
-#[test]
-fn live_video_extraction_derives_keyframes_from_annex_b_samples() {
-    let access_units = fixture_access_units();
-    let (recording, storage) = RecordingStreamBuilder::new("veoveo-video-test")
-        .recording_id("rec-video-live")
-        .memory()
-        .expect("memory recording");
-    recording
-        .log_static("/world/camera/front", &VideoStream::new(VideoCodec::H264))
-        .expect("log video codec");
-    for (index, sample) in access_units.iter().enumerate() {
-        recording.set_duration_secs("sensor_time", index as f64 / 2.0);
-        recording
-            .log(
-                "/world/camera/front",
-                &VideoStream::update_fields().with_sample(sample.clone()),
-            )
-            .expect("log live video sample without keyframe metadata");
-    }
-
-    let clip = extract_video_clip_from_messages(
-        storage.take(),
-        &VideoClipRequest {
-            application_id: "veoveo-video-test".to_owned(),
-            recording_key: "rec-video-live".to_owned(),
-            entity_path: "/world/camera/front".to_owned(),
-            timeline: "sensor_time".to_owned(),
-            start_index: 500_000_000,
-            end_index: 1_500_000_000,
-            max_samples: 10,
-            max_encoded_bytes: 1_000_000,
-        },
-    )
-    .expect("extract live video without a keyframe column");
-    assert_eq!(clip.decode_start_index, 0);
-    assert_eq!(clip.samples.len(), 4);
-    assert!(clip.samples[0].is_keyframe);
-    assert!(!clip.samples[1].is_keyframe);
-    assert!(clip.samples[2].is_keyframe);
-    assert!(!clip.samples[3].is_keyframe);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -547,6 +498,8 @@ async fn h264_video_extracts_across_restart_segment_boundary() {
         540_000
     );
 
+    // TODO(GPU): replace this optional software decode probe with mandatory NVDEC
+    // and hardware-surface validation before using it as GPU acceptance evidence.
     if std::process::Command::new("ffmpeg")
         .arg("-version")
         .output()

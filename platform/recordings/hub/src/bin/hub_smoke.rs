@@ -14,12 +14,13 @@ use re_sdk::{ApplicationId, RecordingStreamBuilder};
 use re_sdk_types::archetypes::Scalars;
 use veoveo_recording_hub::{
     DatasetName, DatasetRoute, RecordingLayerFileScope, Spooler, SpoolerConfig,
-    collect_recording_layer_files, inspect_segment, run_blocking,
+    collect_recording_layer_files, run_blocking,
 };
 use veoveo_rrd::projection::{
     ArrowProjectionSummary, ProjectionQuery, ProjectionSampling, ProjectionSparseFill,
     write_arrow_projection,
 };
+use veoveo_rrd::segment::inspect_segment;
 
 #[derive(Parser)]
 #[command(name = "hub-smoke", about = "Recording Hub Rust smoke scenarios")]

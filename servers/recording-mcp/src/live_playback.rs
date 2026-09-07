@@ -19,10 +19,8 @@ use re_log_encoding::Decoder;
 use re_log_types::{LogMsg, StoreId};
 use tokio::sync::mpsc;
 use veoveo_platform_store::RecordingId;
-use veoveo_recording_hub::{
-    LiveRrdBatchKind, ingest_part_sequence, ingest_recording_static_context_path,
-    ingest_segment_parts_directory,
-};
+use veoveo_recording_hub::{LiveRrdBatchKind, ingest_recording_static_context_path};
+use veoveo_rrd::ingest_parts::{ingest_part_sequence, ingest_segment_parts_directory};
 
 pub type LiveMessageBatchReceiver = mpsc::Receiver<Result<Vec<LogMsg>, io::Error>>;
 

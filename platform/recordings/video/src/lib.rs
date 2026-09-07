@@ -14,10 +14,10 @@ use anyhow::{Context, Result, bail, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_platform_store::RecordingId;
-use veoveo_recording_hub::{
+use veoveo_recording_mcp::{RecordingReadAuthority, RecordingReadSnapshot, RecordingService};
+use veoveo_rrd::video_clip::{
     EncodedVideoClip, VideoClipRequest, VideoIndexKind, extract_video_clip, remux_h264_mp4,
 };
-use veoveo_recording_mcp::{RecordingReadAuthority, RecordingReadSnapshot, RecordingService};
 
 mod source_snapshot;
 

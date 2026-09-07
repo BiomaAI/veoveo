@@ -26,8 +26,6 @@ chrono.workspace = true
 clap.workspace = true
 fs4 = "=1.1.0"
 hex.workspace = true
-h264-reader.workspace = true
-mp4.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 secrecy.workspace = true
@@ -66,5 +64,5 @@ re_chunk_store.workspace = true
 re_entity_db.workspace = true
 
 [dev-dependencies]
-base64.workspace = true
+mp4.workspace = true
 futures.workspace = true

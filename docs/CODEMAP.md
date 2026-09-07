@@ -250,8 +250,10 @@ path-free content provenance.
 ### `platform/recordings/rrd`
 
 Owns cross-domain Rerun/RRD spacetime types, adapters, encoded-video boundary
-inspection, canonical recording-layer Store ID normalization, deterministic properties
-layers, and bounded Arrow IPC projection. Domain results that do not overlap Rerun
+inspection, bounded encoded-video extraction and MP4 remux, complete ingest-part
+discovery, segment verification, canonical recording-layer Store ID normalization,
+deterministic properties layers, and bounded Arrow IPC projection.
+[`DESIGN.md`](../platform/recordings/rrd/DESIGN.md) governs these shared file operations. Domain results that do not overlap Rerun
 concepts stay local to their MCP crate.
 
 ### `platform/recordings/video`
