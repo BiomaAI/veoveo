@@ -1,36 +1,81 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c6a88cf6c490d79a5d4f1e376bd395e250e82855b44d4d252c7ee31ad2c72fce",
-  "updatedAt": "2026-09-07T06:50:20Z",
+  "buildDigest": "sha256:d0eeaaaa691e0a5b0207f1647a5349761d95ed2f79d9095b175411e64da101c8",
+  "updatedAt": "2026-09-07T17:34:26Z",
   "checks": [
     {
-      "name": "passive-gitops-final-clippy",
+      "name": "cache-cleanup-preflight",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "preflight",
+        "--expected-growth-gib",
+        "20",
+        "--kubernetes-node",
+        "k3d-veoveo-bioma-server-0",
+        "--namespace",
+        "veoveo"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T17:34:09Z",
+      "durationSeconds": 0.827680598,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "hourly-cache-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-deployment-smoke",
+        "veoveo-xtask",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T06:50:20Z",
-      "durationSeconds": 0.492636127,
+      "finishedAt": "2026-09-07T17:31:27Z",
+      "durationSeconds": 13.583576329,
       "detail": "completed successfully"
     },
     {
-      "name": "passive-gitops-tests",
+      "name": "hourly-cache-retention",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-deployment-smoke"
+        "veoveo-xtask",
+        "commands::release_cache::tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T06:49:53Z",
-      "durationSeconds": 4.046084821,
+      "finishedAt": "2026-09-07T17:30:38Z",
+      "durationSeconds": 3.191414659,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "uav-stage-after-cache-cleanup",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "stage",
+        "--target",
+        "uav-sim-runtime",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "ad605a21d433b93bd931dc99b9bc6d736b2a17dd",
+        "--evidence-output",
+        "output/development/uav-after-cache-cleanup.stage.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T17:34:26Z",
+      "durationSeconds": 4.830557114,
       "detail": "completed successfully"
     }
   ]

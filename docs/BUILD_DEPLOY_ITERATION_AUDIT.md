@@ -1,7 +1,8 @@
 # Build And Deployment Iteration Audit
 
 Status: implementation authorized on September 6, 2026; core changes are committed
-and locally verified. Remaining large-build experiments await additional build capacity.
+and locally verified. Broader cache cleanup restored capacity for the next local build
+experiments; their runtime acceptance remains pending.
 The findings below retain the pre-change evidence. The delivery record identifies
 implemented changes and their verification.
 
@@ -11,7 +12,7 @@ implemented changes and their verification.
 |---|---|---|
 | Rollout triggers | Removed platform, UAV, and SUMO chart-version Pod annotations; Stream hashes runtime files; UAV bootstrap requires its content digest; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled throughput comparison remains pending |
-| Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; initial maintenance recovered 107 GiB; a final scoped pass recovered another 1.76 GiB, while the 20 GiB experiment still fails the reserve gate |
+| Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants; hourly retention can reclaim superseded outputs within one day | Candidate and Cargo-lock interoperability tests pass; the broader pass recovered 18.4 GiB of Cargo outputs and about 61 GiB of image cache; the 20 GiB experiment now passes the reserve gate |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin with a private MCP transport | Production TypeScript/Vite build passes; authenticated headed hardware-WebGL refresh preserves the document and signed-in session |
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
@@ -481,12 +482,12 @@ state is in `output/development/gitops-passive-{before,after}.json` and
 
 ## Remaining Experiment Boundary
 
-The final 20 GiB growth preflight found 368 GiB available against 386 GiB required,
+The initial 20 GiB growth preflight found 368 GiB available against 386 GiB required,
 including the 366 GiB reserve. The Kubernetes node remained Ready with no disk pressure.
 The retained BuildKit cache measured 191.92 GB. The available host has one NVMe shared
 with the live cluster; no separate build disk or second builder was available for this
-implementation cycle. Large compiler-family and second-worker experiments need that
-capacity before they can proceed without displacing the warm GPU cache again.
+implementation cycle. That check retained expanded GPU qualification snapshots and
+used a Cargo retention policy that excluded outputs produced within the same day.
 
 This constraint recurred across three consecutive goal turns. A fresh scoped Cargo
 plan identified one superseded gateway executable copy and 16 older incremental
@@ -494,9 +495,35 @@ variants. Applying it reclaimed 1.76 GiB while retaining dependency libraries, c
 executables, and the newest incremental variants. The post-maintenance preflight still
 reported 368 GiB available against 386 GiB required. No additional build volume is
 mounted. The maintenance record is
-`output/development/cargo-cache-final-maintenance.json`. Further execution needs a
-separate build disk or build host. Further cache reclamation cannot establish independent
-build storage or reuse across workers.
+`output/development/cargo-cache-final-maintenance.json`. Treating additional storage
+as a prerequisite for all further local experiments was too conservative.
+
+The subsequent user-directed cleanup removed an unused BuildKit 0.31.2 image, 139 old
+BuildKit records outside the recent build graph, and 27 expanded normalized-UAV image
+records. Those BuildKit removals reclaimed approximately 12.6 and 48.5 GiB. All 14
+execution-cache mounts were retained. Registry verification found the normalized
+parent manifest and all 37 compressed layer blobs intact. No Kubernetes application
+image was eligible after accounting for workloads, retained ReplicaSets, and containers.
+
+The Cargo command now accepts `--older-than-hours`, with the same seven-day default
+expressed as 168 hours. A six-hour pass removed 16 executable copies and 240 older
+incremental variants, reclaiming 18.4 GiB while retaining dependency libraries and
+current executable links. Tests cover same-day age boundaries, current links, redirected
+directories, newest variants, and Cargo lock interoperability.
+
+Free space increased from approximately 347 to 426 GiB. The 20 GiB growth preflight
+passed with 38 GiB beyond its retained reserve. Restaging the previously measured UAV
+revision took 4.433 s, executed zero compilation and filesystem extraction, and retained
+runnable digest `sha256:2beef03e6ed1b4e811f6f82c61d3ef9c89f5692cf970cd1bab6dd91657d45a46`.
+The next uncached SBOM qualification must materialize the expanded filesystem again.
+Separate build storage remains useful for that cost and for isolation; it is no longer
+a capacity prerequisite for the next 20 GiB local experiment. Second-worker reuse still
+requires another worker.
+
+The current evidence is `output/development/cargo-cache-hourly-maintenance.json`,
+`output/development/cleanup-normalized-parent-preserved.json`, and
+`output/development/uav-after-cache-cleanup.stage.json`. Image command
+`1788802461571092011-stage-14415` records the complete staging duration.
 
 The common Stream/Reason compiler family remains unadmitted. Its candidate executable
 must pass ELF, startup, and hardware workload checks in both runtime images. A controlled

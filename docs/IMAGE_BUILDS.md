@@ -476,11 +476,14 @@ Installation Git remains responsible for choosing the resulting OCI digest.
 
 `cargo xtask release cache-prune` inspects this worktree’s `target/debug` directory
 under Cargo’s build-directory lock. `--apply` removes the listed regenerable outputs.
-The seven-day default applies to modification time. The command selects ELF executable
+`--older-than-hours` applies to modification time and defaults to 168 hours. A shorter
+window can reclaim superseded outputs from several iterations within one day. The
+minimum is one hour. The command selects ELF executable
 copies with Cargo hash names and a single hard link, and older incremental variants
 while retaining the newest variant for each crate. It preserves running executables,
 current executable hard links, dependency libraries, and recent output. The JSON report
 lists candidates and estimates reclaimable blocks after accounting for hard links.
+Its `veoveo.io/cargo-cache-maintenance/v2` report records the retention window in hours.
 
 This is host Cargo maintenance. It does not prune BuildKit state, Docker images,
 registry artifacts, Kubernetes storage, or another worktree’s target directory.
