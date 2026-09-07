@@ -34,7 +34,7 @@ struct Candidate {
 struct CachePlan {
     schema_version: &'static str,
     root: PathBuf,
-    minimum_age_days: u64,
+    minimum_age_hours: u64,
     candidates: Vec<Candidate>,
     reclaimable_bytes: u64,
     applied: bool,
@@ -42,8 +42,8 @@ struct CachePlan {
 
 pub(crate) fn run(repository: &RepositoryContext, args: &ReleaseCacheArgs) -> Result<()> {
     ensure!(
-        args.older_than_days >= 1,
-        "cache retention must be at least one day"
+        args.older_than_hours >= 1,
+        "cache retention must be at least one hour"
     );
     let root = fs::canonicalize(repository.root().join("target/debug"))
         .context("locating this worktree's Cargo debug output")?;
@@ -55,7 +55,7 @@ pub(crate) fn run(repository: &RepositoryContext, args: &ReleaseCacheArgs) -> Re
         .open(root.join(".cargo-lock"))?;
     // Cargo uses this same advisory lock for mutations of the profile directory.
     File::lock(&lock).context("waiting for Cargo build-directory lock before cache maintenance")?;
-    let mut plan = plan(&root, args.older_than_days, SystemTime::now())?;
+    let mut plan = plan(&root, args.older_than_hours, SystemTime::now())?;
     println!(
         "Cargo cache: {} older executable copies, {} older incremental variants, {:.2} GiB reclaimable",
         plan.candidates
@@ -132,7 +132,7 @@ fn write_plan(path: &Path, plan: &CachePlan) -> Result<()> {
     Ok(())
 }
 
-fn plan(root: &Path, age_days: u64, now: SystemTime) -> Result<CachePlan> {
+fn plan(root: &Path, age_hours: u64, now: SystemTime) -> Result<CachePlan> {
     for name in ["deps", "incremental"] {
         let path = root.join(name);
         match fs::symlink_metadata(&path) {
@@ -146,8 +146,8 @@ fn plan(root: &Path, age_days: u64, now: SystemTime) -> Result<CachePlan> {
         }
     }
     let age = Duration::from_secs(
-        age_days
-            .checked_mul(86400)
+        age_hours
+            .checked_mul(3600)
             .context("cache age is too large")?,
     );
     let cutoff = now
@@ -205,9 +205,9 @@ fn plan(root: &Path, age_days: u64, now: SystemTime) -> Result<CachePlan> {
     candidates.sort_by(|left, right| left.path.cmp(&right.path));
     let reclaimable_bytes = reclaimable_bytes(root, &candidates)?;
     Ok(CachePlan {
-        schema_version: "veoveo.io/cargo-cache-maintenance/v1",
+        schema_version: "veoveo.io/cargo-cache-maintenance/v2",
         root: root.to_owned(),
-        minimum_age_days: age_days,
+        minimum_age_hours: age_hours,
         candidates,
         reclaimable_bytes,
         applied: false,
@@ -353,7 +353,7 @@ mod tests {
                 .set_times(fs::FileTimes::new().set_modified(modified))
                 .unwrap();
         }
-        let plan = plan(root, 7, now).unwrap();
+        let plan = plan(root, 168, now).unwrap();
         assert_eq!(
             plan.candidates
                 .iter()
@@ -367,12 +367,44 @@ mod tests {
     }
 
     #[test]
+    fn hourly_retention_reclaims_superseded_same_day_executables() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let now = UNIX_EPOCH + Duration::from_secs(2_000_000_000);
+        fs::create_dir(root.join("deps")).unwrap();
+        for (name, age_minutes) in [
+            ("older-aaaaaaaaaaaaaaaa", 90),
+            ("boundary-bbbbbbbbbbbbbbbb", 60),
+            ("recent-cccccccccccccccc", 30),
+        ] {
+            let path = root.join("deps").join(name);
+            fs::write(&path, b"\x7fELFfixture").unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+            File::open(path)
+                .unwrap()
+                .set_times(
+                    fs::FileTimes::new().set_modified(now - Duration::from_secs(age_minutes * 60)),
+                )
+                .unwrap();
+        }
+        assert!(plan(root, 24, now).unwrap().candidates.is_empty());
+        let hourly = plan(root, 1, now).unwrap();
+        assert_eq!(hourly.minimum_age_hours, 1);
+        assert_eq!(hourly.candidates.len(), 1);
+        assert_eq!(
+            hourly.candidates[0].path,
+            Path::new("deps/older-aaaaaaaaaaaaaaaa")
+        );
+        assert!(plan(root, u64::MAX, now).is_err());
+    }
+
+    #[test]
     fn refuses_redirected_cache_directories() {
         let root = tempfile::tempdir().unwrap();
         let other = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(other.path(), root.path().join("deps")).unwrap();
         assert!(
-            plan(root.path(), 7, SystemTime::now())
+            plan(root.path(), 168, SystemTime::now())
                 .err()
                 .unwrap()
                 .to_string()

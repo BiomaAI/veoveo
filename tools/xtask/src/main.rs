@@ -257,9 +257,9 @@ impl From<RegistryTransportArg> for veoveo_deploy_contract::RegistryTransport {
 
 #[derive(Debug, Args)]
 struct ReleaseCacheArgs {
-    /// Keep outputs modified within this many days and each crate's newest incremental variant.
-    #[arg(long, default_value_t = 7)]
-    older_than_days: u64,
+    /// Keep outputs modified within this many hours and each crate's newest incremental variant.
+    #[arg(long, default_value_t = 168)]
+    older_than_hours: u64,
     /// Apply the scoped removal plan after taking Cargo's build-directory lock.
     #[arg(long)]
     apply: bool,
