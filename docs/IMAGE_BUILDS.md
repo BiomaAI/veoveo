@@ -14,7 +14,8 @@
 | `veoveo.io/image-affected-plan/v1` | changed-path to image-consumer closure |
 | `veoveo.io/image-stage-evidence/v2` | non-release runnable identity from a staged registry publication with explicit host-push and cluster-pull endpoints |
 | `veoveo.io/development-image-lock/v1` | complete development-only image closure derived from a qualified lock |
-| Cargo metadata version 1 | package and production-binary discovery |
+| Cargo metadata version 1 | package, target, and normal/build dependency discovery |
+| `veoveo.io/rust-source-context/v1` | content identity for a metadata-derived Rust source context |
 
 ## Build-System Boundary
 
@@ -32,9 +33,9 @@ evidence. `cargo xtask smoke` dispatches the typed Rust acceptance harness; one-
 native tool commands remain native.
 
 `xtask` is not a replacement compiler or a second image graph. It contains no fixed
-package list and does not interpret Dockerfiles. The planner discovers the complete
-builder family from labels on every Bake target, while the command selection controls
-which runtime images BuildKit exports. Bazel, Buck2, Pants, Earthly, and a custom
+package list. The planner discovers builder families from Bake labels and derives
+compilation inputs from Cargo metadata. The command selection controls which binaries
+are compiled and which runtime images BuildKit exports. Bazel, Buck2, Pants, Earthly, and a custom
 remote-execution service are outside this design. They would add another graph and cache
 authority without addressing a requirement that Cargo, Bake, and the typed planner
 leave unmet.
@@ -279,10 +280,9 @@ rejects an index without both SPDX SBOM and SLSA provenance statements.
 
 ## Rust Builder Families
 
-The trixie and bookworm families each execute one Cargo action for their complete
-discovered production-binary catalog. This keeps Cargo's unified feature graph stable
-when a developer moves between a direct target, `platform-core`, `platform-full`, and a
-showcase. Runtime Dockerfiles consume the resulting scratch artifact target through the
+The trixie and bookworm families each execute one Cargo action for the selected
+production binaries in that family. Moving between selections can change Cargo’s
+unified feature graph; the plan records the exact selected package and binary set. Runtime Dockerfiles consume the resulting scratch artifact target through the
 `veoveo-rust-artifacts` named context, while Bake exports only the selected runtime
 images.
 
@@ -323,14 +323,23 @@ an overlay therefore have identical build arguments and share BuildKit layers.
 
 Heavy server-only dependency graphs do not become the default library graph. The
 Recording MCP binary requires its package-qualified `redap` feature, and the trixie
-image family consistently enables it because Recording MCP belongs to that family.
+image family enables it when Recording MCP is selected.
 Stream, Reason, video, and smoke builds outside the trixie image family still avoid the
 DataFusion-backed Redap server dependencies. The all-feature Rust gate compiles and
 tests the production surface.
 
-Every Rust family, including the isolated DeepStream, vLLM, and SUMO families, reads the
-complete workspace through the canonical read-only BuildKit source mount. UAV MCP uses
-the shared trixie family.
+Shared Rust artifact targets receive a Cargo-derived source context. It preserves every
+local package manifest and real target entrypoint, then includes complete package
+sources for the selected normal/build dependency closure. A Console frontend edit
+therefore leaves the BFF’s Rust input identity unchanged. Embedded assets inside a
+selected package participate in that identity. Packages declare additional
+repository-relative files or directories under
+`[package.metadata.veoveo].image-build-inputs` when compilation reads outside the
+package boundary. The planner validates the generated workspace before BuildKit runs.
+See [the image input design](../tools/image-build/DESIGN.md) for identity and filesystem
+rules. The isolated DeepStream, vLLM, and SUMO families still read the complete
+repository through the canonical read-only source mount. UAV MCP uses the shared
+trixie family.
 Standalone Dockerfiles do not copy a handwritten subset of workspace members. The
 planner rejects a standalone builder that omits the source mount or introduces a
 builder-stage `COPY`, which prevents a new workspace crate from breaking an otherwise
