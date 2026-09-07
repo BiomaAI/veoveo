@@ -168,9 +168,9 @@ struct CertificationCachePruneArgs {
 
 #[derive(Clone, Debug, Args)]
 struct ImageSelectionArgs {
-    /// One Docker Bake image target.
+    /// Docker Bake image target; repeat to select an exact set.
     #[arg(long, conflicts_with = "group", required_unless_present = "group")]
-    target: Option<String>,
+    target: Vec<String>,
     /// One Docker Bake image group.
     #[arg(long, conflicts_with = "target", required_unless_present = "target")]
     group: Option<String>,
@@ -261,9 +261,9 @@ struct ReleaseImagesArgs {
     /// Exact configuration-repository revision containing the deployment profile.
     #[arg(long, requires = "profile", conflicts_with = "revision")]
     profile_revision: Option<String>,
-    /// One Docker Bake image target.
+    /// Docker Bake image target; repeat to select an exact set.
     #[arg(long, conflicts_with_all = ["profile", "group"])]
-    target: Option<String>,
+    target: Vec<String>,
     /// One Docker Bake image group.
     #[arg(long, conflicts_with_all = ["profile", "target"])]
     group: Option<String>,

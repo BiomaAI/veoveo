@@ -1,10 +1,24 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4765d409137fcc6683f9ff4a57c50a94aea56f1f0df0b5b79a394b84558c4f22",
-  "updatedAt": "2026-09-07T02:56:38Z",
+  "buildDigest": "sha256:cc30b0bf139f859b0a888e531b1195c32bde8ee4f8e7993c74acd90c2a63290d",
+  "updatedAt": "2026-09-07T03:03:44Z",
   "checks": [
     {
-      "name": "rollout-clippy",
+      "name": "image-selection",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "--quiet"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T03:00:58Z",
+      "durationSeconds": 2.844342896,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "tooling-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -16,22 +30,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T02:56:38Z",
-      "durationSeconds": 13.604226755,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rollout-contracts",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask",
-        "commands::helm::rollout_tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T02:56:05Z",
-      "durationSeconds": 4.799505168,
+      "finishedAt": "2026-09-07T03:03:44Z",
+      "durationSeconds": 2.942003384,
       "detail": "completed successfully"
     }
   ]

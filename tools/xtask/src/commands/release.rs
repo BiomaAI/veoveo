@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
     DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentProfile,
@@ -525,11 +525,8 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
         .revision
         .as_deref()
         .context("a direct image release requires --revision")?;
-    let selection = match (&args.target, &args.group) {
-        (Some(target), None) => Selection::target(target)?,
-        (None, Some(group)) => Selection::group(group)?,
-        _ => bail!("release images requires --profile or exactly one --target/--group"),
-    };
+    let selection = Selection::from_targets(&args.target, args.group.as_deref())?;
+    let selection_name = selection.name.clone();
     let push_registry = args
         .push_registry
         .as_deref()
@@ -578,13 +575,7 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
             .root()
             .join("output/releases/images")
             .join(publication.revision())
-            .join(format!(
-                "{}.release-evidence.json",
-                args.group
-                    .as_deref()
-                    .or(args.target.as_deref())
-                    .expect("selection was validated")
-            ))
+            .join(format!("{}.release-evidence.json", selection_name))
     });
     write_json(
         &absolute_output(repository, &output),
@@ -613,7 +604,7 @@ fn release_profile_images(
     args: &ReleaseImagesArgs,
 ) -> Result<()> {
     ensure!(
-        args.target.is_none()
+        args.target.is_empty()
             && args.group.is_none()
             && args.push_registry.is_none()
             && args.pull_registry.is_none()
