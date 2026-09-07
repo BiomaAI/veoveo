@@ -3,6 +3,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, bail, ensure};
@@ -10,15 +11,19 @@ use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 use veoveo_deploy_contract::RegistryTransport;
 
+mod resources;
+
+pub use resources::{BuilderResources, CpuSnapshot, RESOURCES, cpu_snapshot};
+
 pub const BUILDER_NAME: &str = "veoveo";
-pub const BUILDX_VERSION: &str = "v0.35.0";
+pub const BUILDX_VERSION: &str = "v0.37.0";
 pub const CERTIFICATION_CACHE_REPOSITORY: &str = "veoveo-simulation-certify-cache";
 const BUILDX_LINUX_AMD64_SHA256: &str =
-    "d41ece72044243b4f58b343441ae37446d9c29a7d6b5e11c61847bbcf8f7dfda";
+    "ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba";
 const BUILDX_LINUX_ARM64_SHA256: &str =
-    "c4248d6cbc4a619a7e0b4609c11e509ad4ac0b475e1c64817c0ac20c5d90c766";
-const BUILDKIT_VERSION: &str = "v0.31.2";
-const BUILDKIT_IMAGE: &str = "docker.io/moby/buildkit:v0.31.2@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec";
+    "d263ce31bd2c9e9210aaa2c7537c67802bccabcd342e4c9fe4907085ddb41aa5";
+const BUILDKIT_VERSION: &str = "v0.33.0";
+const BUILDKIT_IMAGE: &str = "docker.io/moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3";
 const BUILDER_CONTAINER: &str = "buildx_buildkit_veoveo0";
 
 #[derive(Debug, Eq, PartialEq)]
@@ -34,6 +39,7 @@ struct BuilderConfiguration {
 
 pub struct BuilderLease {
     _lock: File,
+    pub wait: Duration,
 }
 
 pub fn status(repository: &Path) -> Result<()> {
@@ -51,6 +57,7 @@ pub fn status(repository: &Path) -> Result<()> {
                 "BuildKit: {}",
                 inspection.buildkit_version.as_deref().unwrap_or("inactive")
             );
+            resources::print_status(repository)?;
             validate_identity(repository, &inspection)?;
             println!(
                 "Configuration: sha256:{}",
@@ -122,10 +129,17 @@ pub fn reconfigure(repository: &Path, confirmation: &str) -> Result<()> {
         confirmation == BUILDER_NAME,
         "refusing to reconfigure builder: pass --confirm {BUILDER_NAME}"
     );
+    RESOURCES.validate_host(repository)?;
     let lease = acquire_lease(repository)?;
     ensure_buildx(repository)?;
     if let Some(inspection) = inspect(repository)? {
-        validate_identity(repository, &inspection)?;
+        ensure!(
+            inspection.driver == "docker-container",
+            "refusing to replace a builder with driver {}",
+            inspection.driver
+        );
+        active_config_digest(repository)
+            .context("refusing to replace a builder without managed configuration identity")?;
         buildx_status(repository, ["rm", "--keep-state", BUILDER_NAME])?;
     }
     let configuration = base_configuration(repository)?;
@@ -286,6 +300,8 @@ fn ensure_buildx(repository: &Path) -> Result<()> {
 }
 
 fn create(repository: &Path, configuration: &BuilderConfiguration) -> Result<()> {
+    RESOURCES.validate_host(repository)?;
+    let resources = RESOURCES.driver_options();
     let config_arg = configuration
         .path
         .to_str()
@@ -306,6 +322,14 @@ fn create(repository: &Path, configuration: &BuilderConfiguration) -> Result<()>
             "network=host",
             "--driver-opt",
             identity.as_str(),
+            "--driver-opt",
+            &resources[0],
+            "--driver-opt",
+            &resources[1],
+            "--driver-opt",
+            &resources[2],
+            "--driver-opt",
+            &resources[3],
             "--buildkitd-config",
             config_arg,
         ],
@@ -356,13 +380,13 @@ struct ManagedBuildx {
 
 fn managed_buildx(repository: &Path) -> Result<ManagedBuildx> {
     let (release_name, sha256) = match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("linux", "x86_64") => ("buildx-v0.35.0.linux-amd64", BUILDX_LINUX_AMD64_SHA256),
-        ("linux", "aarch64") => ("buildx-v0.35.0.linux-arm64", BUILDX_LINUX_ARM64_SHA256),
+        ("linux", "x86_64") => ("buildx-v0.37.0.linux-amd64", BUILDX_LINUX_AMD64_SHA256),
+        ("linux", "aarch64") => ("buildx-v0.37.0.linux-arm64", BUILDX_LINUX_ARM64_SHA256),
         _ => ("", ""),
     };
     let root = managed_root(repository)?.join("docker-config");
     Ok(ManagedBuildx {
-        binary: root.join("cli-plugins/docker-buildx"),
+        binary: root.join(format!("cli-plugins/{BUILDX_VERSION}/docker-buildx")),
         config: root.join("buildx"),
         release_name,
         sha256,
@@ -486,6 +510,7 @@ fn active_config_digest(repository: &Path) -> Result<String> {
 
 fn validate_identity(repository: &Path, inspection: &BuilderInspection) -> Result<()> {
     require_buildx(repository)?;
+    resources::validate(repository)?;
     ensure!(
         inspection.driver == "docker-container",
         "builder {BUILDER_NAME} uses driver {}; expected docker-container",
@@ -610,8 +635,12 @@ fn acquire_lease(repository: &Path) -> Result<BuilderLease> {
         .write(true)
         .open(&path)
         .with_context(|| format!("opening managed builder lock {}", path.display()))?;
+    let started = Instant::now();
     File::lock(&lock).with_context(|| format!("locking managed builder {}", path.display()))?;
-    Ok(BuilderLease { _lock: lock })
+    Ok(BuilderLease {
+        _lock: lock,
+        wait: started.elapsed(),
+    })
 }
 
 fn managed_root(repository: &Path) -> Result<PathBuf> {
@@ -706,23 +735,23 @@ mod tests {
     fn reads_buildx_release() {
         assert_eq!(
             parse_buildx_version(
-                "github.com/docker/buildx v0.35.0 1707acde5c8b6a2e8b4b62c4613b1d7e5f4de154"
+                "github.com/docker/buildx v0.37.0 1707acde5c8b6a2e8b4b62c4613b1d7e5f4de154"
             ),
-            Some("v0.35.0".to_owned())
+            Some("v0.37.0".to_owned())
         );
     }
 
     #[test]
     fn reads_builder_contract() {
         let inspection = parse_inspection(
-            "Name: veoveo\nDriver: docker-container\n\nNodes:\nName: veoveo0\nBuildKit version: v0.31.2\n",
+            "Name: veoveo\nDriver: docker-container\n\nNodes:\nName: veoveo0\nBuildKit version: v0.33.0\n",
         )
         .expect("parse builder");
         assert_eq!(
             inspection,
             BuilderInspection {
                 driver: "docker-container".to_owned(),
-                buildkit_version: Some("v0.31.2".to_owned()),
+                buildkit_version: Some("v0.33.0".to_owned()),
             }
         );
     }
@@ -776,7 +805,7 @@ mod tests {
         assert_eq!(main.config, linked.config);
         assert_eq!(
             main.binary,
-            repository.join("target/veoveo-xtask/docker-config/cli-plugins/docker-buildx")
+            repository.join("target/veoveo-xtask/docker-config/cli-plugins/v0.37.0/docker-buildx")
         );
     }
 

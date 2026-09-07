@@ -4,7 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
-| Docker Buildx 0.35.0 and BuildKit 0.31.2 | repository-managed Bake execution and cache worker |
+| Docker Buildx 0.37.0 and BuildKit 0.33.0 | repository-managed Bake execution and cache worker |
 | OCI Image Spec | immutable `linux/amd64` runnable manifests and attested publication indexes |
 | Git commit identity | exact source revision and reproducible source timestamp |
 | Helm values | complete registry and image-digest map consumed by GitOps |

@@ -6,8 +6,8 @@
 |---|---|
 | `veoveo.io/image-build-plan/v2` | resolved targets, Cargo units, builder family, cache identity, and source epoch |
 | `veoveo.io/image-build-run/v2` | operation, elapsed time, result, raw BuildKit events, and phase timings |
-| Docker Buildx 0.35.0 | Bake client and local Docker exporter |
-| Docker BuildKit 0.31.2 | digest-pinned OCI worker with checked-in garbage-collection policy |
+| Docker Buildx 0.37.0 | Bake client and local Docker exporter |
+| Docker BuildKit 0.33.0 | digest-pinned OCI worker with checked-in garbage-collection policy |
 | OCI image manifest digest | artifact-identity comparison |
 | Git commit timestamp | reproducible output timestamp input that preserves older inherited layers |
 
