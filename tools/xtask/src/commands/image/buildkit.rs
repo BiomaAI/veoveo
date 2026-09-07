@@ -153,7 +153,10 @@ impl TraceSummary {
                     .and_then(Value::as_bool)
                     .unwrap_or(false);
                 self.completed_vertices.insert(digest.to_owned(), cached);
-                self.observe_window(name, started, completed);
+                self.all.include(started, completed);
+                if !cached {
+                    self.observe_window(name, started, completed);
+                }
             }
         }
         if let Some(statuses) = value.get("statuses").and_then(Value::as_array) {
@@ -214,7 +217,8 @@ impl TraceSummary {
             timestamp_normalization_millis: self.timestamp_normalization.duration_millis(),
             export_millis: self.export.duration_millis(),
             push_millis: self.push.duration_millis(),
-            executed_vertices: u64::try_from(self.completed_vertices.len()).unwrap_or(u64::MAX),
+            executed_vertices: u64::try_from(self.completed_vertices.len() - cached_vertices)
+                .unwrap_or(u64::MAX),
             cached_vertices: u64::try_from(cached_vertices).unwrap_or(u64::MAX),
         }
     }
@@ -344,9 +348,25 @@ mod tests {
         assert_eq!(result.buildkit_millis, 5_000);
         assert_eq!(result.compile_millis, 2_000);
         assert_eq!(result.timestamp_normalization_millis, 1_500);
-        assert_eq!(result.export_millis, 3_000);
-        assert_eq!(result.executed_vertices, 2);
+        assert_eq!(result.export_millis, 0);
+        assert_eq!(result.executed_vertices, 1);
         assert_eq!(result.cached_vertices, 1);
+    }
+
+    #[test]
+    fn cached_compile_updates_do_not_report_compiler_execution() {
+        let mut summary = TraceSummary::default();
+        for time in ["00:00:00Z", "00:00:01Z"] {
+            summary.observe(&serde_json::json!({"vertexes":[{
+                "digest":"compile", "name":"RUN cargo build --release", "cached":true,
+                "started":format!("2026-08-04T{time}"), "completed":format!("2026-08-04T{time}")
+            }]}));
+        }
+        let result = summary.finish();
+        assert_eq!(result.compile_millis, 0);
+        assert_eq!(result.executed_vertices, 0);
+        assert_eq!(result.cached_vertices, 1);
+        assert_eq!(result.buildkit_millis, 1000);
     }
 
     #[test]
