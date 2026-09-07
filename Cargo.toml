@@ -173,3 +173,8 @@ veoveo-image-build-control = { path = "tools/image-build/control" }
 veoveo-platform-store = { path = "platform/store" }
 veoveo-recording-protocol = { path = "platform/recordings/protocol" }
 veoveo-rrd = { path = "platform/recordings/rrd" }
+
+# Image commands hash large pinned tools and source closures on every invocation.
+# Optimize the hash implementation while retaining complete integrity checks.
+[profile.dev.package.sha2]
+opt-level = 3
