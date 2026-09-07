@@ -2,13 +2,13 @@ use crate::{
     charts::validate_locked_charts,
     images::locked_image_digests,
     process::{output_checked, path_str, status_checked},
+    snapshot::SnapshotInputs,
 };
 use anyhow::{Context, Result, ensure};
 use std::{
     collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
 };
 use url::Url;
 use veoveo_deploy_contract::{DeploymentLock, DeploymentSource, LoadedProfile, SourceRepository};
@@ -140,38 +140,10 @@ pub(crate) fn validate_locked_profile(
 }
 
 pub(crate) fn validate_installation_inputs(profile: &LoadedProfile) -> Result<()> {
+    let revision = resolve_revision(&profile.repository, "HEAD")?;
+    let snapshot = SnapshotInputs::new(&profile.repository, &revision)?;
     for path in profile.installation_inputs()? {
-        let relative = path.strip_prefix(&profile.repository).with_context(|| {
-            format!(
-                "installation input {} is outside installation repository {}",
-                path.display(),
-                profile.repository.display()
-            )
-        })?;
-        let tracked = Command::new("git")
-            .args(["ls-files", "--error-unmatch", "--"])
-            .arg(relative)
-            .current_dir(&profile.repository)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .with_context(|| format!("checking tracked installation input {}", path.display()))?;
-        ensure!(
-            tracked.success(),
-            "installation input {} is not tracked at profile revision",
-            path.display()
-        );
-        let unchanged = Command::new("git")
-            .args(["diff", "--quiet", "HEAD", "--"])
-            .arg(relative)
-            .current_dir(&profile.repository)
-            .status()
-            .with_context(|| format!("checking installation input {}", path.display()))?;
-        ensure!(
-            unchanged.success(),
-            "installation input {} differs from locked profile revision",
-            path.display()
-        );
+        snapshot.file(&path)?;
     }
     Ok(())
 }

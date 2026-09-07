@@ -144,6 +144,7 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/` | shared operational deployment library consumed by the focused Rust smoke harness and release publisher; component-selected execution remains pending |
 | `deploy/runtime/src/profile.rs` | profile validation and ordered lifecycle operations |
 | `deploy/runtime/src/sources.rs` and `src/images.rs` | immutable checkouts, installation input checks, source-owned Bake selection, and image inventories |
+| `deploy/runtime/src/snapshot.rs` | exact Git blob, file inventory, and executable-mode verification for source charts, source values, and installation inputs; `snapshot/tests.rs` exercises index hints, filters, ignored files, and path confinement |
 | `deploy/runtime/src/charts.rs` | shared chart-lock construction and validation, ordered values, rendering, and Helm release commands |
 | `deploy/runtime/src/configuration.rs` and `src/cluster.rs` | pre-mutation Secret closure, gateway activation, public resources, and disposable cluster lifecycle |
 | `deploy/runtime/src/gpu.rs` | managed NVIDIA DRA orchestration, ResourceSlice inventory, persistent-claim preservation, and workload placement proof |

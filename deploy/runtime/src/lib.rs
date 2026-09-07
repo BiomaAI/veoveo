@@ -10,6 +10,7 @@ mod gpu;
 mod images;
 mod process;
 mod profile;
+mod snapshot;
 mod sources;
 
 pub use charts::lock_source_charts;

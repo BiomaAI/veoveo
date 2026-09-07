@@ -28,6 +28,22 @@ const DIGEST_B: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 #[test]
 fn publisher_and_installer_share_chart_inventory_and_content_validation() {
     let repository = tempfile::tempdir().unwrap();
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(repository.path())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_owned()
+    };
+    git(&["init", "--quiet"]);
+    git(&["config", "user.name", "Deployment Test"]);
+    git(&["config", "user.email", "deployment@example.invalid"]);
     let chart = repository.path().join("chart");
     std::fs::create_dir(&chart).unwrap();
     std::fs::write(
@@ -36,13 +52,22 @@ fn publisher_and_installer_share_chart_inventory_and_content_validation() {
     )
     .unwrap();
     std::fs::write(chart.join("values.yaml"), "replicas: 1\n").unwrap();
+    git(&["add", "chart"]);
+    git(&[
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "--quiet",
+        "-m",
+        "initial chart",
+    ]);
     let mut source = DeploymentSource {
         name: "platform".into(),
         role: DeploymentSourceRole::Platform,
         repository: SourceRepository::Local {
             path: repository.path().into(),
         },
-        revision: "a".repeat(40),
+        revision: git(&["rev-parse", "HEAD"]),
         image_groups: Vec::new(),
         releases: vec![ReleaseSpec {
             name: "platform".into(),
@@ -69,6 +94,21 @@ fn publisher_and_installer_share_chart_inventory_and_content_validation() {
         lock_source_charts(&source, repository.path()).unwrap()
     );
     std::fs::write(chart.join("values.yaml"), "replicas: 2\n").unwrap();
+    assert!(
+        lock_source_charts(&source, repository.path())
+            .unwrap_err()
+            .to_string()
+            .contains("differs from its immutable revision")
+    );
+    git(&["add", "chart"]);
+    git(&[
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "--quiet",
+        "-m",
+        "changed chart",
+    ]);
     let error = validate_locked_charts(&source, &locked, repository.path()).unwrap_err();
     assert!(error.to_string().contains("chart digest"));
     assert_ne!(

@@ -2,7 +2,8 @@ use crate::{
     configuration::prepare_gateway_activation,
     gpu::prepare_gpu_placement,
     process::{output_checked, path_str, status_checked},
-    sources::ResolvedSource,
+    snapshot::SnapshotInputs,
+    sources::{ResolvedSource, resolve_revision},
 };
 use anyhow::{Context, Result, ensure};
 use std::{
@@ -412,11 +413,14 @@ pub(crate) fn rendered_container_images(rendered: &str) -> Result<Vec<String>> {
     Ok(images)
 }
 
-/// Locks source charts from a caller-verified immutable checkout.
+/// Locks source charts after checking their actual input bytes against Git.
+/// The caller retains the immutable checkout through subsequent rendering.
 pub fn lock_source_charts(
     source: &DeploymentSource,
     repository: &Path,
 ) -> Result<Vec<LockedChart>> {
+    let revision = resolve_revision(repository, "HEAD")?;
+    let snapshot = SnapshotInputs::new(repository, &revision)?;
     let mut releases = BTreeSet::new();
     source
         .releases
@@ -427,13 +431,9 @@ pub fn lock_source_charts(
                 "duplicate Helm release {}",
                 release.name
             );
+            snapshot.tree(&release.chart)?;
             for values in &release.source_values {
-                ensure!(
-                    repository.join(values).is_file(),
-                    "source-owned Helm values for release {} do not exist at {}",
-                    release.name,
-                    repository.join(values).display()
-                );
+                snapshot.file(values)?;
             }
             Ok(LockedChart {
                 release: release.name.clone(),
