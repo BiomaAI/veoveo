@@ -138,6 +138,38 @@ The current pins were verified against the official
 shared builder lease across configuration and execution, preventing linked worktrees
 from changing the daemon underneath another build.
 
+`image builder benchmark` compares source-edit compilation at bounded CPU quotas.
+Select targets from one admitted shared Rust family and name the Rust files whose
+compilation should be repeated. The command prepares the normal Cargo-derived context,
+warms its dependencies, and appends a unique fixed-length trailing comment to independent temporary
+copies for each sample. The working tree is unchanged. The default sample order is
+four, twelve, twelve, four CPUs. Repeated `--cpus` options select another order within
+the declared resource budget.
+
+```sh
+cargo xtask test-report run --name builder-cpu-comparison -- \
+  cargo xtask image builder benchmark \
+    --target console-bff --target mcp-gateway \
+    --source apps/console/bff/src/main.rs \
+    --source platform/gateway/src/bin/gateway.rs \
+    --output output/development/compiler-cpu-comparison
+```
+
+The output directory must be new. It retains the baseline plan, each source variant's
+SHA-256, exported binary digests, BuildKit traces and phase timings, and per-sample
+cgroup CPU deltas in `comparison.json`. A measured sample must execute Cargo
+compilation. All measured samples must compile the same package set and produce the
+same binary digests. Warmup is recorded
+separately and excluded from the comparison. These are compiler-only artifacts with
+no image release eligibility.
+
+The benchmark holds the shared builder lease through quota changes and restores the
+declared quota before returning, including ordinary errors. A forcibly killed process
+can leave resource drift; `image builder status` detects it and `image builder
+reconfigure --confirm veoveo` restores the declared configuration. Keep the usual disk
+preflight and live-workload observations alongside a comparison. Compiler timing alone
+does not establish GPU workload performance or deployment latency.
+
 Simulation certification holds the same lease. A deployment lock may authorize one
 `insecure-http` registry at its exact host and port; otherwise TLS applies. Image
 configuration, attestation inspection, and digest-addressed materialization all select

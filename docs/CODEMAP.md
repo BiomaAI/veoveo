@@ -615,6 +615,7 @@ Simulation runtime ownership:
 | `platform/runtimes/simulation/probes/` | import-identity and hardware-GPU conformance evidence |
 | `tools/xtask/src/commands/release_cache.rs` | scoped Cargo executable and incremental-cache retention under the build-directory lock |
 | `tools/image-build/control/` | shared pinned Buildx, BuildKit registry configuration, declared resource limits and CPU telemetry, and cross-worktree builder lease used by image release and certification |
+| `tools/xtask/src/commands/image/benchmark.rs` | controlled compiler source-edit comparisons, temporary input variants, CPU quota experiments under the shared lease, and compiler-only evidence |
 | `testing/smoke/src/bin/smoke/scenarios/simulation.rs` | deployment-lock registry authorization, published environment invariants, local image materialization, GPU certification, and retained transcripts |
 
 Authoritative simulation live-view ownership:

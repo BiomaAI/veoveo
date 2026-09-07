@@ -19,6 +19,7 @@ use crate::{
 };
 
 mod affected;
+pub(crate) mod benchmark;
 mod buildkit;
 mod normalized;
 pub(crate) mod operation;

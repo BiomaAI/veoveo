@@ -10,6 +10,7 @@
 | Docker BuildKit Syft scanner 1.12.0 | digest-pinned release generator; Syft 1.51.0 emits SPDX SBOM attestations |
 | `veoveo.io/rust-source-context/v1` | repository-owned SHA-256 source identity, separate from an OCI artifact digest |
 | `veoveo.io/normalized-parent/v1` | immutable dependency publication receipt, recipe identity and OCI runtime digest |
+| `veoveo.io/compiler-cpu-comparison/v1` | compiler-only quota experiment, warmup, source variants, observed Cargo packages, binary digests and cgroup deltas |
 | Git | exact committed publication source; local builds also admit non-ignored working-tree files |
 
 ## Ownership
@@ -17,6 +18,9 @@
 `tools/xtask/src/commands/image/source_context.rs` derives source contexts for every Rust compiler family.
 The checked-in Bake catalog owns compiler images and runtime assembly. Managed worker
 identity, resource limits, and cache-preserving maintenance belong to `control/`.
+The xtask image benchmark owns controlled source-edit comparisons. It operates on
+temporary Cargo-derived contexts and holds a control-library quota lease through
+restoration. Its local artifacts grant no compiler-family or image-release admission.
 The [image-build runbook](../../docs/IMAGE_BUILDS.md) defines commands and receipts.
 
 ## Context Construction
