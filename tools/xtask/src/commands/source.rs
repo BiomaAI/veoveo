@@ -1,12 +1,14 @@
 use std::{
     fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
+    time::Instant,
 };
 
 use anyhow::{Context, Result, bail, ensure};
 use sha2::{Digest, Sha256};
 use url::Url;
 
+use super::image::operation::{self, Phase};
 use crate::{context::RepositoryContext, process};
 
 // Publication materializes an exact revision, not every LFS payload in that
@@ -23,6 +25,7 @@ pub(crate) struct PublicationSource {
 
 impl PublicationSource {
     pub(crate) fn prepare(repository: &RepositoryContext, revision: &str) -> Result<Self> {
+        let _timing = operation::span(Phase::SourcePreparation);
         let revision = resolve_revision(repository.root(), revision)?;
         let layout = PublicationLayout::discover(repository)?;
         fs::create_dir_all(&layout.directory).with_context(|| {
@@ -38,9 +41,11 @@ impl PublicationSource {
             .write(true)
             .open(&layout.lock)
             .with_context(|| format!("opening publication lock {}", layout.lock.display()))?;
+        let lock_started = Instant::now();
         File::lock(&lock)
             .with_context(|| format!("locking publication source identity {}", layout.source_id))?;
 
+        operation::source_lock_wait(lock_started.elapsed());
         let registered = registered_worktrees(repository.root())?;
         let source_exists = layout.source.exists();
         let source_registered = registered.iter().any(|path| path == &layout.source);
@@ -90,6 +95,7 @@ impl PublicationSource {
             head.trim()
         );
 
+        operation::source(&layout.source, &revision);
         Ok(Self {
             path: layout.source,
             revision,

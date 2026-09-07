@@ -5,6 +5,7 @@ use veoveo_deploy_contract::RegistryTransport;
 
 /// Proves that the publication host can reach the selected OCI Distribution endpoint.
 pub(crate) fn preflight(address: &str, transport: RegistryTransport) -> Result<()> {
+    let _timing = super::image::operation::span(super::image::operation::Phase::RegistryPreflight);
     let scheme = match transport {
         RegistryTransport::Tls => "https",
         RegistryTransport::InsecureHttp => "http",

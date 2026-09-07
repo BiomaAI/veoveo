@@ -382,6 +382,7 @@ struct ReleaseCompatibilityArgs {
 }
 
 fn main() -> Result<()> {
+    let clock = image::operation::CommandClock::start();
     let cli = Cli::parse();
     let repository = RepositoryContext::discover(&PathBuf::from("."))?;
     match cli.command {
@@ -408,15 +409,27 @@ fn main() -> Result<()> {
             ImageCommand::Affected(args) => {
                 image::affected_command(&repository, &args.since, args.format)
             }
-            ImageCommand::Build(selection) => image::build_command(&repository, &selection),
-            ImageCommand::Stage(args) => release::stage_images(&repository, &args),
+            ImageCommand::Build(selection) => {
+                image::operation::record(&repository, "build", clock, || {
+                    image::build_command(&repository, &selection)
+                })
+            }
+            ImageCommand::Stage(args) => {
+                image::operation::record(&repository, "stage", clock, || {
+                    release::stage_images(&repository, &args)
+                })
+            }
             ImageCommand::DevelopmentLock(args) => {
                 release::development_image_lock(&repository, &args)
             }
         },
         Command::Release { command } => match command {
             ReleaseCommand::Preflight(args) => release_preflight::run(&repository, &args),
-            ReleaseCommand::Images(args) => release::images(&repository, &args),
+            ReleaseCommand::Images(args) => {
+                image::operation::record(&repository, "release", clock, || {
+                    release::images(&repository, &args)
+                })
+            }
             ReleaseCommand::PythonSdk(args) => release::python_sdk(&repository, &args),
             ReleaseCommand::HelmCharts(args) => release::helm_charts(&repository, &args),
             ReleaseCommand::SimulationRuntime(args) => {

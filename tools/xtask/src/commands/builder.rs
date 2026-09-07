@@ -4,6 +4,7 @@ use anyhow::Result;
 use veoveo_deploy_contract::RegistryTransport;
 pub(crate) use veoveo_image_build_control::{BUILDER_NAME, BUILDX_VERSION, BuilderLease};
 
+use super::image::operation::{self, Phase};
 use crate::context::RepositoryContext;
 
 pub(crate) fn status(repository: &RepositoryContext) -> Result<()> {
@@ -11,7 +12,10 @@ pub(crate) fn status(repository: &RepositoryContext) -> Result<()> {
 }
 
 pub(crate) fn ensure(repository: &RepositoryContext) -> Result<BuilderLease> {
-    veoveo_image_build_control::ensure(repository.root())
+    let _timing = operation::span(Phase::BuilderSetup);
+    let lease = veoveo_image_build_control::ensure(repository.root())?;
+    operation::builder_lock_wait(lease.wait);
+    Ok(lease)
 }
 
 pub(crate) fn ensure_for_registry(
@@ -19,7 +23,11 @@ pub(crate) fn ensure_for_registry(
     registry: &str,
     transport: RegistryTransport,
 ) -> Result<BuilderLease> {
-    veoveo_image_build_control::ensure_for_registry(repository.root(), registry, transport)
+    let _timing = operation::span(Phase::BuilderSetup);
+    let lease =
+        veoveo_image_build_control::ensure_for_registry(repository.root(), registry, transport)?;
+    operation::builder_lock_wait(lease.wait);
+    Ok(lease)
 }
 
 pub(crate) fn reconfigure(repository: &RepositoryContext, confirmation: &str) -> Result<()> {

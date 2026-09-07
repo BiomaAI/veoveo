@@ -1314,6 +1314,7 @@ fn lock_source_charts(
 }
 
 fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
+    let _timing = image::operation::span(image::operation::Phase::ReceiptWrite);
     let parent = path
         .parent()
         .context("deployment lock output has no parent directory")?;
@@ -1332,6 +1333,7 @@ fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
 }
 
 fn write_create_only_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
+    let _timing = image::operation::span(image::operation::Phase::ReceiptWrite);
     let parent = path
         .parent()
         .context("evidence output has no parent directory")?;

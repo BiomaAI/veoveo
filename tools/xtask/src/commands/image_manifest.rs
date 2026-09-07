@@ -59,6 +59,7 @@ pub(crate) fn inspect(
     platform: &str,
     allow_insecure_registry: bool,
 ) -> Result<PublishedImageDigests> {
+    let _timing = super::image::operation::span(super::image::operation::Phase::ManifestInspection);
     let reference = format!("{repository}@{publication_digest}");
     let mut arguments = vec!["manifest", "inspect"];
     if allow_insecure_registry {
@@ -76,6 +77,7 @@ pub(crate) fn inspect_staged(
     platform: &str,
     allow_insecure_registry: bool,
 ) -> Result<PublishedImageDigests> {
+    let _timing = super::image::operation::span(super::image::operation::Phase::ManifestInspection);
     let reference = format!("{repository}@{staging_digest}");
     let mut arguments = vec!["manifest", "inspect"];
     if allow_insecure_registry {

@@ -1,50 +1,39 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:99441afe62a65163cf7ffb1e67a53fb1a75a8092a678b40a5f0d54595ab18221",
-  "updatedAt": "2026-09-07T03:08:54Z",
+  "buildDigest": "sha256:afd7e074ee990a3a5f0e5a7f5adf92517103df9bec814593b3e63b2f070f4ca2",
+  "updatedAt": "2026-09-07T03:13:46Z",
   "checks": [
     {
-      "name": "builder-control",
+      "name": "command-timing",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-image-build-control",
+        "veoveo-xtask",
         "--quiet"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:07:11Z",
-      "durationSeconds": 8.958193142,
+      "finishedAt": "2026-09-07T03:13:15Z",
+      "durationSeconds": 2.822344517,
       "detail": "completed successfully"
     },
     {
-      "name": "builder-reconfigure",
+      "name": "timing-clippy",
       "command": [
         "cargo",
-        "xtask",
-        "image",
-        "builder",
-        "reconfigure",
-        "--confirm",
-        "veoveo"
+        "clippy",
+        "-p",
+        "veoveo-image-build-control",
+        "-p",
+        "veoveo-xtask",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:08:07Z",
-      "durationSeconds": 35.704529478,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "builder-status",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "builder",
-        "status"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T03:08:54Z",
-      "durationSeconds": 5.119550017,
+      "finishedAt": "2026-09-07T03:13:46Z",
+      "durationSeconds": 2.9473607299999998,
       "detail": "completed successfully"
     }
   ]
