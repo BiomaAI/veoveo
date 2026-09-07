@@ -11,8 +11,10 @@ use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 use veoveo_deploy_contract::RegistryTransport;
 
+mod quota;
 mod resources;
 
+pub use quota::CpuQuotaLease;
 pub use resources::{BuilderResources, CpuSnapshot, RESOURCES, cpu_snapshot};
 
 pub const BUILDER_NAME: &str = "veoveo";

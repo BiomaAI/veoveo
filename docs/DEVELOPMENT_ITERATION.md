@@ -282,13 +282,15 @@ labels, content-derived rollout triggers, declared worker resources, exact stagi
 complete timing, normalized UAV parents, and isolated presentation inputs are now
 implemented. Shared recording libraries exclude service lifecycle dependencies.
 The authenticated local Console supports source refresh without a document reload.
+Controlled BFF/gateway source edits now compile 2.29× faster at twelve CPUs than at
+four, with identical measured binary digests and warm dependencies.
 The following acceptance work remains separate from those delivered changes.
 
 | Priority | Boundary | Owning component | Acceptance condition |
 |---:|---|---|---|
 | 1 | Passive GitOps activation | Bioma GitOps and release charts | publish the changed charts and values through their owner; measure exact commit-to-ready latency without requesting Helm reconciliation; verify unchanged workloads retain their Pods |
-| 2 | Builder throughput and durable storage | managed builder control | compare controlled CPU allocations while observing the live GPU workload; admit a dedicated disk or host without consuming the existing host reserve |
-| 3 | Common Rust compiler ABI | Stream/Reason image graphs | compare candidate ELF requirements, runtime startup, and hardware GPU execution before sharing one compiler family across the NVIDIA runtime images |
+| 2 | Dedicated storage and second-worker reuse | managed builder control | compare a separate build disk or host against the measured twelve-CPU baseline without consuming the existing host reserve |
+| 3 | Common Rust compiler ABI | Stream/Reason image graphs | complete service startup and hardware GPU acceptance before sharing one compiler family; candidate ELF and CLI checks pass, while Reason's CPU video preprocessing requires its declared NVDEC/CUDA migration |
 | 4 | Component release ownership | deployment contract | implement the complete object ownership and migration boundary in `DEPLOY-SCOPE-023` before splitting an atomic Helm release; selected publication and per-release image locks are already available |
 | 5 | Focused composed-flight harness closure | smoke harness ownership | a verifier-only edit neither compiles nor links store, task, recording, or unrelated server runtimes, and dispatch remains below 2 s warm |
 

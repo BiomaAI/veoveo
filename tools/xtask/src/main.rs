@@ -145,6 +145,24 @@ enum BuilderCommand {
     Reconfigure(BuilderConfirmationArgs),
     /// Remove and recreate the managed builder.
     Recreate(BuilderConfirmationArgs),
+    /// Compare warm dependency source-edit compilation at bounded CPU quotas.
+    Benchmark(BuilderBenchmarkArgs),
+}
+
+#[derive(Debug, Args)]
+struct BuilderBenchmarkArgs {
+    /// Image targets from one admitted shared Rust compiler family.
+    #[arg(long, required = true)]
+    target: Vec<String>,
+    /// Rust input paths to vary in the temporary compiler context.
+    #[arg(long, required = true)]
+    source: Vec<PathBuf>,
+    /// CPU counts in execution order; duplicates provide repeated samples.
+    #[arg(long, default_values = ["4", "12", "12", "4"], value_parser = clap::value_parser!(u32).range(1..=12))]
+    cpus: Vec<u32>,
+    /// New directory for artifact, log, and comparison evidence.
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -420,6 +438,7 @@ fn main() -> Result<()> {
                     builder::reconfigure(&repository, &args.confirm)
                 }
                 BuilderCommand::Recreate(args) => builder::recreate(&repository, &args.confirm),
+                BuilderCommand::Benchmark(args) => image::benchmark::run(&repository, &args),
             },
             ImageCommand::CertificationCachePrune(args) => {
                 builder::prune_certification_cache(&repository, &args.confirm)

@@ -1,24 +1,81 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d5530a467c4468cff25843b8a38dca01deb18f0d81179ba7bed4e6296e657138",
-  "updatedAt": "2026-09-07T18:01:43Z",
+  "buildDigest": "sha256:1d1d0a005c44caf85d01b1306154fa3845f3c2edc33164fd41152067052475cb",
+  "updatedAt": "2026-09-07T18:29:31Z",
   "checks": [
     {
-      "name": "reason-runner-contract",
+      "name": "builder-cpu-comparison",
       "command": [
-        "uv",
-        "run",
-        "--project",
-        "servers/reason-mcp/runner",
-        "--frozen",
-        "--extra",
-        "dev",
-        "pytest",
-        "servers/reason-mcp/runner/tests"
+        "cargo",
+        "xtask",
+        "image",
+        "builder",
+        "benchmark",
+        "--target",
+        "console-bff",
+        "--target",
+        "mcp-gateway",
+        "--source",
+        "apps/console/bff/src/main.rs",
+        "--source",
+        "platform/gateway/src/bin/gateway.rs",
+        "--output",
+        "output/development/compiler-cpu-identical-artifacts"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T18:01:43Z",
-      "durationSeconds": 0.761755998,
+      "finishedAt": "2026-09-07T18:29:31Z",
+      "durationSeconds": 261.04997676,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "compiler-benchmark-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-image-build-control",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T18:22:52Z",
+      "durationSeconds": 2.930584321,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "compiler-benchmark-restoration",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "rejected_measurement_restores_the_declared_worker_quota",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T18:24:07Z",
+      "durationSeconds": 10.618281253,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "compiler-benchmark-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-image-build-control"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T18:23:50Z",
+      "durationSeconds": 6.021654847,
       "detail": "completed successfully"
     }
   ]
