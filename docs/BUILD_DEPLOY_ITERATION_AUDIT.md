@@ -1,6 +1,7 @@
 # Build And Deployment Iteration Audit
 
-Status: implementation authorized on September 6, 2026; delivery is in progress.
+Status: implementation authorized on September 6, 2026; core changes are committed
+and locally verified. Remaining large-build experiments await additional build capacity.
 The findings below retain the pre-change evidence. The delivery record identifies
 implemented changes and their verification.
 
@@ -10,7 +11,7 @@ implemented changes and their verification.
 |---|---|---|
 | Rollout triggers | Removed platform, UAV, and SUMO chart-version Pod annotations; Stream hashes runtime files; UAV bootstrap requires its content digest; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled throughput comparison remains pending |
-| Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
+| Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; initial maintenance recovered 107 GiB; a final scoped pass recovered another 1.76 GiB, while the 20 GiB experiment still fails the reserve gate |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin with a private MCP transport | Production TypeScript/Vite build passes; authenticated headed hardware-WebGL refresh preserves the document and signed-in session |
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
@@ -486,6 +487,16 @@ The retained BuildKit cache measured 191.92 GB. The available host has one NVMe 
 with the live cluster; no separate build disk or second builder was available for this
 implementation cycle. Large compiler-family and second-worker experiments need that
 capacity before they can proceed without displacing the warm GPU cache again.
+
+This constraint recurred across three consecutive goal turns. A fresh scoped Cargo
+plan identified one superseded gateway executable copy and 16 older incremental
+variants. Applying it reclaimed 1.76 GiB while retaining dependency libraries, current
+executables, and the newest incremental variants. The post-maintenance preflight still
+reported 368 GiB available against 386 GiB required. No additional build volume is
+mounted. The maintenance record is
+`output/development/cargo-cache-final-maintenance.json`. Further execution needs a
+separate build disk or build host. Further cache reclamation cannot establish independent
+build storage or reuse across workers.
 
 The common Stream/Reason compiler family remains unadmitted. Its candidate executable
 must pass ELF, startup, and hardware workload checks in both runtime images. A controlled
