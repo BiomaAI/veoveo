@@ -11,6 +11,7 @@
 | `veoveo.io/component-mutation-plan/v1` | internal preflight evidence for exact atomic targets; it records allowed actions and does not attest to executed writes |
 | `veoveo.io/atomic-deployment-unit/v1` | repository-owned SHA-256 identity over typed source, target, input closure, and sorted rendered object digests |
 | `veoveo.io/atomic-deployment-content/v1` | repository-owned SHA-256 identity of the same deployable contents with source revisions and extension release provenance excluded; used only after exact lock validation |
+| `veoveo.io/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
 | `veoveo.io/extension-release/v1` and Semantic Versioning 2.0.0 | component references retain the extension ID, exact release version, and manifest digest using the shared extension contract's validated types |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.2.3 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
@@ -151,6 +152,28 @@ by one release invocation. Local development may use source charts; production
 composition replaces source coordinates with digest-addressed private OCI chart
 coordinates.
 
+Source chart digests use `source_chart_content_digest` in both publication and
+installation. The resolver first creates the verified immutable source checkout. The
+digest then covers every regular file under the declared chart directory, including
+files that Git export attributes would omit from an archive. Symlinks and special
+files fail validation. Source-relative chart paths cannot traverse outside that tree.
+The caller preserves the verified checkout through rendering.
+
+The encoding starts with `veoveo.io/source-chart-content/v1` and a zero byte. Files are
+sorted by their UTF-8 chart-relative path. Each record contains the path's unsigned
+64-bit big-endian byte length, the path bytes, one executable-mode byte, the file's
+unsigned 64-bit big-endian byte length, and its exact bytes. The mode byte is one when
+any Unix executable permission is set and zero otherwise. Filesystem timestamps,
+owner IDs, and read/write permission bits do not affect the digest. `Chart.yaml` is
+required. The digest implementation requires a filesystem that retains executable
+modes; it cannot silently invent those modes on another host.
+
+This replaces the previous commit-archive hashing rule. Existing source-chart lock
+entries must be regenerated from their recorded source revisions. The installer rejects
+archive-derived digests rather than accepting two encodings. The profile and lock field
+shapes remain unchanged. OCI chart digests continue to identify their published
+artifacts and do not use the source-tree encoding.
+
 Deployment v6 also carries the complete managed GPU allocator closure. The profile and
 lock name the standalone NVIDIA chart, its OCI manifest digest, the downloaded archive
 digest, the multi-platform driver image index, and each admitted platform manifest.
@@ -244,7 +267,7 @@ target name.
 Local installation consumes that lock as an explicit input. The installer requires the
 checked-out installation repository to match the locked revision and rejects changed or
 untracked profile inputs. It checks out each recorded source revision, confirms the
-normalized source origin, recomputes every source-chart archive digest, and compares the
+normalized source origin, recomputes every source-chart content digest, and compares the
 locked image repositories with the exact Bake selection. Helm applies source values
 first and installation values second. Platform and Veoveo-source values contracts
 receive only their chart-owning source's digest map. An extension values contract

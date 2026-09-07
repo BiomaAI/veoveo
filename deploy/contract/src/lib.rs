@@ -3,8 +3,10 @@
 pub mod components;
 mod gateway_bundle;
 mod secret_closure;
+mod source_chart;
 
 pub use gateway_bundle::gateway_bundle_digest;
+pub use source_chart::source_chart_content_digest;
 
 pub use secret_closure::{
     CustomSecretReferenceRegistry, CustomSecretReferenceSpec, KubernetesObjectKey, SecretClosure,
@@ -753,6 +755,7 @@ pub struct LockedImage {
 pub struct LockedChart {
     pub release: String,
     pub coordinate: String,
+    /// Source-chart content identity, or the artifact digest for an OCI coordinate.
     pub digest: String,
 }
 

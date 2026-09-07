@@ -561,6 +561,17 @@ exercise a platform documentation commit and an extension values update: the pla
 receives an unchanged action while the extension receives the upgrade. These are pure
 planning tests; they do not establish live Helm or Kubernetes zero-write evidence.
 
+Tracing those inputs into the publisher found another false invalidation. Revisions
+`f973a98a` and `3712cbca` share Veoveo chart tree
+`545f89c2e6a246735f1b359a1afd88043dc82e0b`, but the existing `git archive` command produced
+different archive hashes. Git places commit identity and timestamps in that archive,
+as described in its [archive documentation](https://git-scm.com/docs/git-archive).
+Publication and installation now share `source_chart_content_digest`, which hashes the
+actual chart files in the verified source checkout. It covers file paths, executable
+modes, and exact bytes, including files excluded by Git export attributes. Commit
+metadata and checkout timestamps no longer change chart identity. Existing source-chart
+lock entries require regeneration with this encoding; OCI artifact digests are unchanged.
+
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
 cache family, explicitly selected both packages and binaries, and exported a local
