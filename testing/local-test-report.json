@@ -1,30 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:fa0c0becb39782ba838afc56a7bfae91600e741d3a967af07439905fd1ee4b6c",
-  "updatedAt": "2026-09-07T04:09:32Z",
+  "buildDigest": "sha256:1adec4ca19feda129d734db67aeccc6a7403030d73f93ce1a9ce52481a1dae5b",
+  "updatedAt": "2026-09-07T04:11:27Z",
   "checks": [
     {
-      "name": "normalized-parent-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "-p",
-        "veoveo-xtask",
-        "-p",
-        "veoveo-image-build-control",
-        "--all-targets",
-        "--no-deps",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T04:08:31Z",
-      "durationSeconds": 2.3683369340000002,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "normalized-parent-contract",
+      "name": "accurate-cache-timing",
       "command": [
         "cargo",
         "test",
@@ -33,57 +13,26 @@
         "--quiet"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:08:17Z",
-      "durationSeconds": 3.694470048,
+      "finishedAt": "2026-09-07T04:11:01Z",
+      "durationSeconds": 3.966766109,
       "detail": "completed successfully"
     },
     {
-      "name": "normalized-parent-helm",
+      "name": "accurate-cache-timing-clippy",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "clippy",
+        "-p",
+        "veoveo-xtask",
+        "--all-targets",
+        "--no-deps",
+        "--",
+        "-D",
+        "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:08:43Z",
-      "durationSeconds": 4.832831229,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "normalized-parent-plan",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "plan",
-        "--target",
-        "uav-sim-runtime",
-        "--format",
-        "json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T04:09:11Z",
-      "durationSeconds": 3.533399933,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "normalized-parent-preflight",
-      "command": [
-        "cargo",
-        "xtask",
-        "release",
-        "preflight",
-        "--expected-growth-gib",
-        "2",
-        "--kubernetes-node",
-        "k3d-veoveo-bioma-server-0",
-        "--namespace",
-        "veoveo"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T04:09:32Z",
-      "durationSeconds": 0.799645746,
+      "finishedAt": "2026-09-07T04:11:27Z",
+      "durationSeconds": 2.430671549,
       "detail": "completed successfully"
     }
   ]
