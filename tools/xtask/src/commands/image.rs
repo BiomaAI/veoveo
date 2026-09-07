@@ -20,6 +20,9 @@ use crate::{
 
 mod affected;
 mod buildkit;
+mod selection;
+
+pub(crate) use selection::{Selection, SelectionKind};
 
 const PLAN_SCHEMA: &str = "veoveo.io/image-build-plan/v2";
 const RUN_SCHEMA: &str = "veoveo.io/image-build-run/v2";
@@ -32,72 +35,6 @@ const AUXILIARY_LABEL: &str = "io.veoveo.build.auxiliary";
 // every stage's cache key. Keep it stable across source revisions. Bump this
 // cache ABI only when an admitted pinned parent image contains newer metadata.
 const REPRODUCIBLE_BUILD_EPOCH: u64 = 1_786_076_699;
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct Selection {
-    pub(crate) kind: SelectionKind,
-    pub(crate) name: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(crate) targets: Vec<String>,
-}
-
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub(crate) enum SelectionKind {
-    Target,
-    Group,
-    Exact,
-}
-
-impl Selection {
-    pub(crate) fn from_args(args: &ImageSelectionArgs) -> Result<Self> {
-        match (&args.target, &args.group) {
-            (Some(target), None) => Self::target(target),
-            (None, Some(group)) => Self::group(group),
-            _ => bail!("select exactly one --target or --group"),
-        }
-    }
-
-    pub(crate) fn target(target: &str) -> Result<Self> {
-        validate_identifier("Bake target", target)?;
-        Ok(Self {
-            kind: SelectionKind::Target,
-            name: target.to_owned(),
-            targets: Vec::new(),
-        })
-    }
-
-    pub(crate) fn group(group: &str) -> Result<Self> {
-        validate_identifier("Bake group", group)?;
-        Ok(Self {
-            kind: SelectionKind::Group,
-            name: group.to_owned(),
-            targets: Vec::new(),
-        })
-    }
-
-    pub(crate) fn exact(name: &str, targets: impl IntoIterator<Item = String>) -> Result<Self> {
-        validate_identifier("exact Bake selection", name)?;
-        let targets = targets.into_iter().collect::<BTreeSet<_>>();
-        ensure!(!targets.is_empty(), "exact Bake selection cannot be empty");
-        for target in &targets {
-            validate_identifier("Bake target", target)?;
-        }
-        Ok(Self {
-            kind: SelectionKind::Exact,
-            name: name.to_owned(),
-            targets: targets.into_iter().collect(),
-        })
-    }
-
-    fn bake_patterns(&self) -> Vec<&str> {
-        match self.kind {
-            SelectionKind::Target | SelectionKind::Group => vec![self.name.as_str()],
-            SelectionKind::Exact => self.targets.iter().map(String::as_str).collect(),
-        }
-    }
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

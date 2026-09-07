@@ -18,6 +18,12 @@
 
 ## Build-System Boundary
 
+`image plan`, `image build`, `image stage`, and direct `release images` accept repeated
+`--target` flags for one exact Bake selection. A selected set is sorted and deduplicated
+before graph resolution. `--group` remains mutually exclusive with explicit targets.
+Runtime affected planning follows normal and build Cargo dependencies; dev-only edges
+belong to test acceptance and do not select consumers' runtime images.
+
 Veoveo keeps the build engines that already own their domains. Cargo compiles, tests,
 lints, and documents Rust. Bake declares the OCI target graph and delegates execution
 to BuildKit. `xtask` resolves repository policy, validates Cargo and Bake agreement,

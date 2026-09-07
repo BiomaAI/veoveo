@@ -61,6 +61,19 @@ struct MetadataNode {
 #[derive(Debug, Deserialize)]
 struct MetadataDependency {
     pkg: String,
+    dep_kinds: Vec<MetadataDependencyKind>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MetadataDependencyKind {
+    kind: Option<CargoDependencyKind>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum CargoDependencyKind {
+    Dev,
+    Build,
 }
 
 pub(super) fn command(
@@ -371,10 +384,13 @@ fn dependent_package_closure(metadata: &Metadata, changed: &BTreeSet<String>) ->
         let before = closure.len();
         for node in &resolve.nodes {
             if workspace.contains(&node.id)
-                && node
-                    .deps
-                    .iter()
-                    .any(|dependency| closure.contains(&dependency.pkg))
+                && node.deps.iter().any(|dependency| {
+                    closure.contains(&dependency.pkg)
+                        && dependency
+                            .dep_kinds
+                            .iter()
+                            .any(|kind| kind.kind != Some(CargoDependencyKind::Dev))
+                })
             {
                 closure.insert(node.id.clone());
             }
@@ -657,6 +673,30 @@ mod tests {
             "platform/gateway/Cargo.toml",
             "platform/gateway"
         ));
+    }
+
+    #[test]
+    fn runtime_closure_excludes_dev_only_edges_but_retains_build_dependencies() {
+        let metadata: Metadata = serde_json::from_value(serde_json::json!({
+            "packages": [],
+            "workspace_members": ["optimization", "map", "uav", "generator", "runtime", "dual"],
+            "resolve": { "nodes": [
+                {"id": "optimization", "deps": []},
+                {"id": "map", "deps": [{"pkg": "optimization", "dep_kinds": [{"kind": "dev"}]}]},
+                {"id": "uav", "deps": [{"pkg": "map", "dep_kinds": [{"kind": null}]}]},
+                {"id": "generator", "deps": [{"pkg": "optimization", "dep_kinds": [{"kind": "build"}]}]},
+                {"id": "runtime", "deps": [{"pkg": "generator", "dep_kinds": [{"kind": null}]}]},
+                {"id": "dual", "deps": [{"pkg": "optimization", "dep_kinds": [{"kind": "dev"}, {"kind": null}]}]}
+            ]}
+        })).unwrap();
+        let closure =
+            dependent_package_closure(&metadata, &BTreeSet::from(["optimization".to_owned()]));
+        assert_eq!(
+            closure,
+            BTreeSet::from_iter(
+                ["optimization", "generator", "runtime", "dual"].map(str::to_owned)
+            )
+        );
     }
 
     #[test]

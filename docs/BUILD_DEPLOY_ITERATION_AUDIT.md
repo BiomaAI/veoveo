@@ -9,6 +9,7 @@ implemented changes and their verification.
 | Concern | Implementation | Verification |
 |---|---|---|
 | Rollout triggers | Removed chart-version Pod annotations; Stream hashes its rendered runtime files; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
+| Exact image selection | Repeated `--target` flags select one sorted Bake solve for planning, local builds, staging, and qualification; affected planning excludes dev-only Cargo edges | CLI selection tests and dependency-closure fixtures cover staging/qualification parity and retained build dependencies |
 
 ## Standards And Protocols
 

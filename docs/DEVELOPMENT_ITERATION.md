@@ -55,22 +55,23 @@ cargo xtask image affected --since origin/main --format json \
   > output/development/affected.json
 ```
 
-Inspect `imageTargets` and every broadening reason. Stage each selected target to the
-profile registry. Multiple stage evidence files may be merged into one closure.
+Inspect `imageTargets` and every broadening reason. Repeat `--target` to stage the
+exact selected set in one Bake solve. Compatible Rust targets share compilation, and
+the stage receipt records each runnable digest. Multiple receipts may also be merged.
 
 ```bash
 revision="$(git rev-parse HEAD)"
 cargo xtask image stage \
-  --target <affected-target> \
+  --target <affected-target> --target <another-affected-target> \
   --push-registry <host-reachable-registry> \
   --pull-registry <cluster-reachable-registry> \
   --registry-transport <tls-or-insecure-http> \
   --revision "$revision" \
-  --evidence-output output/development/<affected-target>.stage.json
+  --evidence-output output/development/selected.stage.json
 
 cargo xtask image development-lock \
   --base-lock <qualified-deployment-lock> \
-  --stage-evidence output/development/<affected-target>.stage.json \
+  --stage-evidence output/development/selected.stage.json \
   --output output/development/image-lock.json \
   --values-output output/development/images.values.json
 ```
