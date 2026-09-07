@@ -17,6 +17,8 @@ implemented changes and their verification.
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
+| Cargo source freshness | Added a content-aware input mirror under each locked target cache, with disposable source timestamp synchronization for every Rust family | An old-timestamp edit/revert regression passes; the corrected ordinary BFF/gateway artifacts equal clean-target outputs; 40 focused tests, strict Clippy, formatting and standalone-family planning pass |
+| Compiler-cache experiment | Added an existing-family sccache 0.17.0 comparison with empty Cargo targets, bounded cache storage, CPU timing and full compiled-artifact identity | All 955 cacheable operations hit on recovery, but the solve takes 333.7 s versus 328.4 s without the wrapper; the wrapper remains outside normal builds; all experiment cache mounts were removed |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidate binaries passed loader inspection and CLI execution in the deployed runtime containers; family admission remains pending service and GPU acceptance |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
@@ -616,3 +618,62 @@ Evidence is under `output/development/compiler-cpu-identical-artifacts/`; its
 phase windows and cgroup deltas. Before/after simulator observations are
 `output/development/compiler-cpu-fixed-uav-{before,after}.json`. The worktree's BFF and
 gateway source files remained byte-identical throughout both experiments.
+
+
+### Content-Aware Cargo Freshness
+
+The compiler-cache comparison exposed a correctness defect in the shared target
+cache. An ordinary artifact solve returned the previous CPU benchmark's binaries
+while Cargo reported freshness in 0.54 s. The current source files had older
+timestamps than those cached outputs. A build with an empty target directory returned
+the original BFF and gateway bytes instead. The native DuckDB library matched.
+
+`tools/image-build/source-freshness.rs` now compares the admitted source tree with an
+input mirror inside the locked Cargo target cache. Changed bytes receive a fresh
+source timestamp. Unchanged inputs retain their previous compilation timestamp.
+The helper also tracks modes, deletions and symlinks. It adjusts only the disposable
+BuildKit source mount and leaves the worktree unchanged. Each Rust builder family
+compiles and executes this helper using its existing pinned compiler.
+
+The first corrected ordinary solve rebuilt nine local packages in a 65.3 s BuildKit
+compiler window. Both binaries then matched the clean-target build. A real Cargo
+regression changes and reverts equal-length source with deliberately old timestamps,
+executes the resulting binary each time, and verifies unchanged input timestamps.
+Cargo's upstream documentation describes the
+[timestamp freshness mechanism](https://doc.rust-lang.org/stable/nightly-rustc/cargo/core/compiler/fingerprint/index.html).
+
+### Compiler-Cache Recovery Result
+
+The completed experiment uses the existing Rust 1.97.1 Trixie compiler environment
+with exactly `console-bff` and `mcp-gateway`. Every measured case starts with an empty
+Cargo target directory and disables incremental compilation. The wrapper is pinned
+to sccache 0.17.0 with the upstream archive checksum. Its client-side mode is enabled,
+and its private cache has an 8 GiB limit.
+
+| Case | Solve elapsed | Compiler action | Builder CPU time |
+|---|---:|---:|---:|
+| No compiler wrapper | 328.4 s | 325.8 s | 2,652.9 s |
+| Populate compiler cache | 446.8 s | 443.4 s | 2,882.1 s |
+| Recover into an empty target | 333.7 s | 331.3 s | 1,718.4 s |
+
+All cases compile the same 476 package names. Both server binaries and `libduckdb.so`
+match each other and the ordinary artifact target byte for byte. Recovery records
+522 Rust hits, 290 C/C++ hits and 143 assembler hits, with zero misses or cache
+errors. The native build scripts still perform five unsuccessful configuration
+probes inside successful Cargo actions; their failure counter remains in evidence.
+The cache occupies 341 MiB after recovery.
+
+Recovery reduces builder CPU consumption by 35.2 percent but provides no elapsed-time
+improvement in this sample. A Rust compiler process for `surrealdb_core` remained
+active for more than two minutes during recovery. This observation warrants a
+representative action-cache experiment that measures work before cache lookup, in
+addition to Rust linking and procedural macros. It does not establish second-host
+performance. The normal build path retains its persistent Cargo targets without a
+compiler wrapper.
+
+The accepted comparison is
+`output/development/compiler-cache-recovery/comparison.json`; adjacent case directories
+retain compiler identity, input gates, cache statistics, artifact hashes and BuildKit
+traces. The three experiment cache mounts, including the interrupted comparisons,
+were removed under the builder lease after inspection. The cleanup recovered
+728,788,992 bytes and retained all fourteen existing execution cache mounts.

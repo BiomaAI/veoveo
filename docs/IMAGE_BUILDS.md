@@ -170,6 +170,32 @@ reconfigure --confirm veoveo` restores the declared configuration. Keep the usua
 preflight and live-workload observations alongside a comparison. Compiler timing alone
 does not establish GPU workload performance or deployment latency.
 
+`image builder cache-benchmark` measures recovery when a Cargo target directory is
+empty. It selects Linux amd64 Rust binaries and their compiled auxiliary artifacts
+from one shared family. The compiler and system libraries come from the existing family's
+compile stage. The experiment pins
+[sccache 0.17.0](https://github.com/mozilla/sccache/releases/tag/v0.17.0) and its archive
+SHA-256; it uses the upstream-recommended client-side mode with incremental compilation
+disabled. Ordinary image builds retain their existing compiler invocation.
+
+```sh
+cargo xtask test-report run --name compiler-cache-comparison -- \
+  cargo xtask image builder cache-benchmark \
+    --target console-bff --target mcp-gateway \
+    --output output/development/compiler-cache-comparison
+```
+
+The three cases build the same sources with no wrapper, populate an empty compiler
+cache, and restore from that cache into another empty target directory. The compiler
+cache has its own experiment identity and an 8G limit. The temporary target trees are
+removed inside their build steps. Evidence retains cache size and counters before
+and after each case, compiler identity, package observations and compiled-artifact digests.
+Acceptance requires identical artifact bundles across all three cases and the ordinary
+artifact target. Rust cache hits must be observed in the restore case. This measures
+local dependency recovery, not second-host transfer or changed-binary link reuse.
+The [upstream Rust profile](https://github.com/mozilla/sccache/blob/v0.17.0/docs/Rust.md)
+does not cache crates that invoke the system linker.
+
 Simulation certification holds the same lease. A deployment lock may authorize one
 `insecure-http` registry at its exact host and port; otherwise TLS applies. Image
 configuration, attestation inspection, and digest-addressed materialization all select
@@ -373,7 +399,10 @@ repository-relative files or directories under
 package boundary. The planner validates the generated workspace before BuildKit runs.
 See [the image input design](../tools/image-build/DESIGN.md) for identity and filesystem
 rules. The isolated DeepStream, vLLM, and SUMO families still read the complete
-repository through the canonical read-only source mount. UAV MCP uses the shared
+repository through the canonical disposable writable source mount. The content-aware
+freshness helper reconciles timestamps with the locked Cargo target cache before Rust
+compilation. A source revert or older checkout therefore rebuilds changed inputs while
+unchanged files retain their previous compilation timestamp. UAV MCP uses the shared
 trixie family.
 Every Rust family receives a Cargo-derived context. Standalone NVIDIA and SUMO recipes
 keep their native/runtime package inputs and all real Cargo workspace metadata. They

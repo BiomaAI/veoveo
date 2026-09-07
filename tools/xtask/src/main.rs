@@ -147,6 +147,18 @@ enum BuilderCommand {
     Recreate(BuilderConfirmationArgs),
     /// Compare warm dependency source-edit compilation at bounded CPU quotas.
     Benchmark(BuilderBenchmarkArgs),
+    /// Compare fresh Cargo targets with and without a reusable compiler cache.
+    CacheBenchmark(BuilderCacheBenchmarkArgs),
+}
+
+#[derive(Debug, Args)]
+struct BuilderCacheBenchmarkArgs {
+    /// Rust images from one shared compiler family.
+    #[arg(long, required = true)]
+    target: Vec<String>,
+    /// New directory for compiler artifacts, cache statistics, and comparison evidence.
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -439,6 +451,9 @@ fn main() -> Result<()> {
                 }
                 BuilderCommand::Recreate(args) => builder::recreate(&repository, &args.confirm),
                 BuilderCommand::Benchmark(args) => image::benchmark::run(&repository, &args),
+                BuilderCommand::CacheBenchmark(args) => {
+                    image::cache_benchmark::run(&repository, &args)
+                }
             },
             ImageCommand::CertificationCachePrune(args) => {
                 builder::prune_certification_cache(&repository, &args.confirm)
