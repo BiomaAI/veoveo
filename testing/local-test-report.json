@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:e51e019576c193b020f65e22bd8c34c545f518f069aee30b947a998d4ac2de07",
-  "updatedAt": "2026-09-07T05:15:17Z",
+  "buildDigest": "sha256:86c82594583266c15ec51807962f7cf8fdca85dfacee6670dea54782ed0f039c",
+  "updatedAt": "2026-09-07T05:33:07Z",
   "checks": [
     {
-      "name": "rust-source-boundaries",
+      "name": "pinned-qualification",
       "command": [
         "cargo",
         "test",
@@ -12,12 +12,12 @@
         "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T05:13:30Z",
-      "durationSeconds": 4.814192254,
+      "finishedAt": "2026-09-07T05:32:36Z",
+      "durationSeconds": 4.910668051,
       "detail": "completed successfully"
     },
     {
-      "name": "rust-source-clippy",
+      "name": "pinned-qualification-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -30,29 +30,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T05:14:43Z",
-      "durationSeconds": 2.710433406,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "standalone-source-plan",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "plan",
-        "--target",
-        "stream-mcp",
-        "--target",
-        "reason-mcp",
-        "--target",
-        "sumo-mcp",
-        "--format",
-        "json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T05:15:17Z",
-      "durationSeconds": 2.09511672,
+      "finishedAt": "2026-09-07T05:33:07Z",
+      "durationSeconds": 5.449658298,
       "detail": "completed successfully"
     }
   ]

@@ -269,7 +269,10 @@ same runnable platform-manifest digest. Build cache remains an optimization and 
 supplies the source identity or release tag.
 
 Every qualified registry release attaches BuildKit SBOM and maximum-mode provenance
-attestations. Qualification supplied with stage evidence must produce the same runnable
+attestations. Its SBOM generator is Docker BuildKit Syft scanner 1.12.0 (Syft 1.51.0),
+pinned by OCI digest in the image command. This pin was verified against the
+[upstream stable release](https://github.com/docker/buildkit-syft-scanner/releases/tag/v1.12.0)
+and its published registry manifest. Qualification supplied with stage evidence must produce the same runnable
 digest; a mismatch fails before evidence is accepted. Staging never attaches these
 release attestations.
 Those attestations contain run identity and build timestamps, so their enclosing OCI
