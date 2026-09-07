@@ -4,8 +4,8 @@
 
 | Boundary | Supported profile |
 |---|---|
-| Docker Buildx 0.35.0 | canonical Bake execution client |
-| Docker BuildKit 0.31.2 | digest-pinned `docker-container` worker |
+| Docker Buildx 0.37.0 | canonical Bake execution client |
+| Docker BuildKit 0.33.0 | digest-pinned `docker-container` worker |
 | Dockerfile frontend 1.25.0 | digest-pinned Dockerfile parser for touched Rust images |
 | Docker Buildx Bake | checked-in image catalog and named-context graph |
 | OCI images | `linux/amd64` release output with immutable Git revision tags |
@@ -104,14 +104,15 @@ Cache deletion requires the separate destructive command:
 cargo xtask image builder recreate --confirm veoveo
 ```
 
-Buildx 0.35.0 is exact. An exact host plugin is accepted. On Linux amd64 and arm64,
+Buildx 0.37.0 is exact. An exact host plugin is accepted. On Linux amd64 and arm64,
 `ensure` can instead download the matching official binary into the main Git
-worktree's ignored `target` directory and verifies its checked-in SHA-256 before use.
+worktree's ignored `target` directory and verifies its checked-in SHA-256 before use. Managed binaries live in version-specific directories, allowing a
+verified upgrade without replacing another worktree’s executable.
 All linked worktrees, including the publication worktree, resolve that same binary and
 Buildx state through Git's common directory. Docker credentials remain in the
 operator's ordinary Docker configuration.
 
-The builder runs the digest-pinned BuildKit 0.31.2 image. Its checked-in base daemon
+The builder runs the digest-pinned BuildKit 0.33.0 image. Its checked-in base daemon
 configuration contains no registry hostname. An `insecure-http` profile adds only its
 selected registry stanza in a content-addressed generated file; a `tls` profile uses
 the base configuration and host trust roots. The configuration preserves source-local
@@ -122,7 +123,17 @@ to total worker usage, not merely the records selected by its filter; using a lo
 trigger there would evict Cargo cache mounts before the general image-lineage limit.
 These bounds accommodate the simultaneous Isaac, DeepStream, and ordinary Rust image
 lineages used by the acceptance suite. `status` verifies the driver, daemon version,
-image digest, and reports the active configuration digest. Image operations hold one
+image digest, and resource limits, and reports the active configuration digest.
+`tools/image-build/control/src/resources.rs` declares the shared-host budget: 12 CPU
+cores through a 1,200,000 µs quota per 100,000 µs period, 36 GiB RAM, and no swap.
+Creation checks Docker host capacity. Every solve rejects changed CPU, memory, swap,
+or CPU-pinning limits. Reconfiguration restores the budget while retaining the worker
+volume. The status command prints effective cgroup v2 limits and lifetime CPU counters;
+subtract snapshots around a measured build to assess quota pressure. Throttled CPU
+time is aggregated across execution threads and is not elapsed build time.
+The current pins were verified against the official
+[Buildx release](https://github.com/docker/buildx/releases/tag/v0.37.0) and
+[BuildKit release](https://github.com/moby/buildkit/releases/tag/v0.33.0). Image operations hold one
 shared builder lease across configuration and execution, preventing linked worktrees
 from changing the daemon underneath another build.
 
