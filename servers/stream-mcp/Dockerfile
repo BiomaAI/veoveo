@@ -65,13 +65,14 @@ RUN mkdir -p /opt/veoveo \
     && ln -s "${driver_lib_dir}" /opt/veoveo/host-libraries
 
 COPY --from=builder /out/bin/stream-mcp /usr/local/bin/stream-mcp
-COPY --from=veoveo-image-assets --chmod=0444 servers/stream-mcp/assets/live.html /opt/veoveo/stream/assets/live.html
 COPY --from=builder /out/bin/stream-gst-runner \
     /usr/local/bin/stream-gst-runner
 
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,video \
     LD_LIBRARY_PATH=/opt/veoveo/host-libraries:/usr/local/cuda/lib64:/opt/veoveo/host-libraries/deepstream \
     USE_NEW_NVSTREAMMUX=no
+COPY --from=veoveo-image-assets --chmod=0444 servers/stream-mcp/assets/live.html /opt/veoveo/stream/assets/live.html
+
 USER veoveo
 EXPOSE 8797
 ENTRYPOINT ["/usr/local/bin/stream-mcp"]
