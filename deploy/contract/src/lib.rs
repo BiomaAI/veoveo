@@ -1,5 +1,6 @@
 //! Typed repository deployment profiles and local registry declarations.
 
+pub mod components;
 mod secret_closure;
 
 pub use secret_closure::{

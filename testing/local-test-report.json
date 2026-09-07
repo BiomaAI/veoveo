@@ -1,61 +1,52 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b44cb0425ea8741dc8046f243b46e358abb9f1079e2bae84225cf187891b3f80",
-  "updatedAt": "2026-09-07T20:15:56Z",
+  "buildDigest": "sha256:ac82cbaf6e7876fada74f777ab0cb803c007bef80356f8bf4c7bee5a4799727b",
+  "updatedAt": "2026-09-07T20:56:31Z",
   "checks": [
     {
-      "name": "builder-reserve-preflight",
+      "name": "deploy-component-clippy",
       "command": [
         "cargo",
-        "xtask",
-        "release",
-        "preflight",
-        "--expected-growth-gib",
-        "20",
-        "--kubernetes-node",
-        "k3d-veoveo-bioma-server-0"
+        "clippy",
+        "--locked",
+        "-p",
+        "veoveo-deploy-contract",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T20:15:56Z",
-      "durationSeconds": 0.698328478,
+      "finishedAt": "2026-09-07T20:56:28Z",
+      "durationSeconds": 2.227768233,
       "detail": "completed successfully"
     },
     {
-      "name": "builder-reserve-stage",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "stage",
-        "--target",
-        "uav-sim-runtime",
-        "--push-registry",
-        "127.0.0.1:5001",
-        "--pull-registry",
-        "k3d-veoveo-registry.localhost:5000",
-        "--registry-transport",
-        "insecure-http",
-        "--revision",
-        "ad605a21d433b93bd931dc99b9bc6d736b2a17dd",
-        "--evidence-output",
-        "output/development/builder-reserve-uav-stage.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T20:14:44Z",
-      "durationSeconds": 6.029246107,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "builder-reserve-tests",
+      "name": "deploy-component-contract",
       "command": [
         "cargo",
         "test",
+        "--locked",
         "-p",
-        "veoveo-image-build-control"
+        "veoveo-deploy-contract"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T20:14:19Z",
-      "durationSeconds": 0.45755792,
+      "finishedAt": "2026-09-07T20:56:25Z",
+      "durationSeconds": 4.759085116,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "deploy-component-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T20:56:31Z",
+      "durationSeconds": 2.176747981,
       "detail": "completed successfully"
     }
   ]

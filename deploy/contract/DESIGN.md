@@ -7,6 +7,9 @@
 | `veoveo.io/deployment/v6` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
 | `veoveo.io/deployment-lock/v6` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
+| `veoveo.io/component-mutation-plan/v1` | internal preflight evidence for exact atomic targets; it records allowed actions and does not attest to executed writes |
+| `veoveo.io/atomic-deployment-unit/v1` | repository-owned SHA-256 identity over typed source, target, input closure, and sorted rendered object digests |
+| `veoveo.io/extension-release/v1` and Semantic Versioning 2.0.0 | component references retain the extension ID, exact release version, and manifest digest using the shared extension contract's validated types |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.2.3 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
 | Kubernetes core `v1`, apps `v1`, and batch `v1` | Secret references in Pods and pod templates, including environment variables, image pulls, and volume projections |
@@ -21,6 +24,65 @@ This crate owns the typed multi-source deployment profile, immutable deployment 
 local registry declaration, controlled path resolution, platform component graph, and
 pure validation used by operational tooling. It does not execute Git, Docker, Buildx,
 k3d, Kubernetes, or Helm commands.
+
+## Atomic Ownership Planner
+
+`src/components/` implements the pure preflight boundary for `DEPLOY-SCOPE-023`.
+The disposable profile installer still consumes deployment v6. Integration will advance
+the profile and lock schemas together before exposing component-selected installation.
+The internal planner is not an alternative installer or an enterprise mutation owner.
+
+Each component declares its immutable source, role, dependencies, exact Helm release
+identities or explicit manifest sets, namespaces, permitted objects, and complete input
+closure. Extension components also carry an exact extension-release identity. Source
+revisions and artifact digests use the existing extension contract's validated types.
+The SHA-256 implementation uses `sha2 =0.11.0`, the latest stable version verified from
+the [upstream crate release metadata](https://crates.io/api/v1/crates/sha2) on September 7,
+2026. This adds no new algorithm or wire digest format.
+
+The catalog owns every object by API group, kind, namespace, and name. Served API
+versions do not create different identities. Reserved identities remain owned when an
+object is absent from the current render. The validator rejects overlapping owners and
+targets across the complete catalog before selection. One immutable input has one
+content digest, and every image repository retains one source-qualified owner even when
+several components consume it.
+
+Selection names exact component IDs and expands dependencies in deterministic order.
+The renderer supplies every expanded atomic target and must not render unselected
+targets. Preflight compares each complete rendering with the lock. Its unit digest binds
+source identity, extension identity, target, complete inputs, and sorted object digests.
+An omitted input or changed object cannot reuse a previous digest. Catalog validation
+also recomputes stored unit digests instead of trusting them.
+
+Every expanded target needs an explicit current-state observation. The observation
+distinguishes absence from a verified installed digest and object inventory. An unchanged
+dependency receives an `unchanged` action only when both match. Previous Helm objects
+remain part of the ownership check because an upgrade may delete them. Ownership cannot
+move between atomic targets during an update, including targets within one component.
+Such a release split needs a separate explicit migration.
+An absence observation covers both the release and its desired objects. A missing Helm
+release does not authorize adopting an existing object's ownership.
+The plan records retired Helm objects that an upgrade may remove. Raw apply has no
+removal verb, so a raw manifest set that retires existing objects requires an explicit
+removal migration instead of silently leaving an incomplete desired state.
+
+The renderer and executor retain responsibilities that pure types cannot prove. They
+resolve namespace and scope through Kubernetes discovery, hash complete manifest bytes,
+verify all actual image and values inputs, and preserve checked inputs through execution.
+Hooks, CRDs, generated resources, allocator releases, node bootstrap, and raw installation
+objects must enter the same ownership boundary. Secret-reference preflight remains a
+separate mandatory gate; components cannot declare Secret objects. The executor must
+establish actual current state, prevent concurrent ownership changes, invoke only planned
+atomic targets, and record actual writes and Helm revision changes. A stored label alone
+does not prove that current objects match a unit digest.
+
+`ComponentMutationPlan` contains source identities, object digests, planned verbs, and
+unselected object identities. It contains no manifests or Secret values. Its unselected
+inventory describes the ownership boundary; it is not zero-write evidence. Focused tests
+prove selection and rejection rules. The independent Git-history deployment scenarios,
+actual mutation receipt, and live zero-write acceptance remain installer integration work.
+
+## Deployment Profile
 
 The installation repository owns the profile, registry selection, Kubernetes
 destination, pre-Helm resources, and `installationValues` files. Each named source owns
