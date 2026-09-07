@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
     process::Stdio,
     time::Instant,
 };
@@ -23,6 +23,8 @@ mod buildkit;
 pub(crate) mod operation;
 mod run_evidence;
 mod selection;
+mod source_context;
+use source_context::CargoPackage;
 
 use run_evidence::BuildRunResult;
 #[cfg(test)]
@@ -181,11 +183,15 @@ struct FamilyPlan {
     cargo_cache_id: String,
     target_cache_epoch: &'static str,
     target_cache_id: String,
+    source_inputs: Option<source_context::InputIdentity>,
+    #[serde(skip)]
+    context_path: Option<PathBuf>,
 }
 
 pub(crate) struct PreparedPlan {
     pub(crate) plan: BuildPlanV1,
     override_file: NamedTempFile,
+    _source_contexts: Vec<source_context::SourceContext>,
 }
 
 #[derive(Clone, Debug)]
@@ -248,23 +254,6 @@ struct BakeTarget {
     tags: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct CargoMetadata {
-    packages: Vec<CargoPackage>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CargoPackage {
-    name: String,
-    targets: Vec<CargoTarget>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CargoTarget {
-    name: String,
-    kind: Vec<String>,
-}
-
 #[derive(Debug, Serialize)]
 struct BakeOverride {
     target: BTreeMap<String, BakeTargetOverride>,
@@ -272,6 +261,8 @@ struct BakeOverride {
 
 #[derive(Debug, Serialize)]
 struct BakeTargetOverride {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context: Option<String>,
     args: BTreeMap<String, String>,
 }
 
@@ -369,7 +360,7 @@ pub(crate) fn prepare_with_builder(
     planning.validation_millis = elapsed_millis(validation_started);
     let metadata_started = Instant::now();
     let metadata = needs_cargo_metadata
-        .then(|| cargo_metadata(source_repository.root()))
+        .then(|| source_context::metadata(source_repository.root()))
         .transpose()?;
     planning.cargo_metadata_millis = elapsed_millis(metadata_started);
     let identity_started = Instant::now();
@@ -443,6 +434,7 @@ pub(crate) fn prepare_with_builder(
     }
 
     let mut families = Vec::new();
+    let mut source_contexts = Vec::new();
     for (family, selected_units) in &family_units {
         validate_family_modes(*family, selected_units)?;
         let mut packages = BTreeSet::new();
@@ -453,14 +445,32 @@ pub(crate) fn prepare_with_builder(
             binaries.extend(unit.binaries.iter().cloned());
             auxiliary.extend(unit.auxiliary.iter().copied());
         }
+        let packages = packages.into_iter().collect::<Vec<_>>();
+        let context = family
+            .shared_artifact_target()
+            .map(|_| {
+                source_context::prepare(
+                    source_repository.root(),
+                    metadata
+                        .as_ref()
+                        .expect("Rust family requires Cargo metadata"),
+                    &packages,
+                )
+            })
+            .transpose()?;
+        let context_path = context.as_ref().map(|context| context.path().to_owned());
+        let source_inputs = context.as_ref().map(|context| context.identity.clone());
+        source_contexts.extend(context);
         families.push(FamilyPlan {
             family: *family,
-            packages: packages.into_iter().collect(),
+            packages,
             binaries: binaries.into_iter().collect(),
             auxiliary: auxiliary.into_iter().collect(),
             cargo_cache_id: family.cargo_cache_id(),
             target_cache_epoch: family.target_cache_epoch(),
             target_cache_id: family.target_cache_id(&source_hash),
+            source_inputs,
+            context_path,
         });
     }
 
@@ -505,6 +515,7 @@ pub(crate) fn prepare_with_builder(
     Ok(PreparedPlan {
         plan,
         override_file,
+        _source_contexts: source_contexts,
     })
 }
 
@@ -873,6 +884,7 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
             (
                 name.clone(),
                 BakeTargetOverride {
+                    context: None,
                     args: BTreeMap::from([(
                         "SOURCE_REVISION".to_owned(),
                         plan.source.revision.clone(),
@@ -911,13 +923,23 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                     family.target_cache_id.clone(),
                 ),
             ]);
-            target
-                .entry(artifact.to_owned())
-                .or_insert_with(|| BakeTargetOverride {
-                    args: BTreeMap::new(),
+            let artifact =
+                target
+                    .entry(artifact.to_owned())
+                    .or_insert_with(|| BakeTargetOverride {
+                        context: None,
+                        args: BTreeMap::new(),
+                    });
+            artifact.context = family
+                .context_path
+                .as_ref()
+                .map(|path| {
+                    path.to_str()
+                        .context("Rust source context path is not UTF-8")
+                        .map(ToOwned::to_owned)
                 })
-                .args
-                .extend(args);
+                .transpose()?;
+            artifact.args.extend(args);
             continue;
         } else {
             BTreeMap::from([
@@ -988,6 +1010,11 @@ fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()
             family.family.name()
         );
         if family.family.shared_artifact_target().is_some() {
+            ensure!(
+                family.context_path.as_deref() == Some(Path::new(&target.context)),
+                "resolved Bake graph changed Rust source input context for {}",
+                family.family.name()
+            );
             ensure!(
                 target.args.get("VEOVEO_CARGO_PACKAGES") == Some(&family.packages.join(",")),
                 "resolved Bake graph changed package membership for {}",
@@ -1062,15 +1089,6 @@ fn bake_print_patterns(
         String::from_utf8_lossy(&output.stderr)
     );
     serde_json::from_slice(&output.stdout).context("decoding resolved Docker Bake graph")
-}
-
-fn cargo_metadata(repository: &Path) -> Result<CargoMetadata> {
-    let output = process::output(
-        "cargo",
-        ["metadata", "--no-deps", "--format-version", "1", "--locked"],
-        Some(repository),
-    )?;
-    serde_json::from_slice(&output.stdout).context("decoding Cargo metadata")
 }
 
 fn git_output<const N: usize>(repository: &Path, args: [&str; N]) -> Result<String> {
