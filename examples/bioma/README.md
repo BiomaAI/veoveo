@@ -39,7 +39,8 @@ examples/bioma/
   values.yaml                   public identity and platform values
   k3d-values.yaml               local capacity and storage values
   uav-sim-values.yaml           UAV extension values
-  images.lock.yaml              production image digests
+  images/veoveo.lock.yaml        platform image digests
+  images/uav-sim.lock.yaml       UAV and pilot image digests
   gateway.json                  MCP catalog, OAuth, policy, and routes
   acceptance/                   owner-local compiled composition checks
   recording-producer-jwks.json  public producer key
@@ -62,7 +63,8 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 ## Release publication
 
-Production workloads use the repository and digest map in `images.lock.yaml`. The
+Production workloads use the repository and digest maps under `images/`. Each release
+receives only the images consumed by its rendered objects. The
 platform and UAV OCI sources select immutable chart manifest digests independently in
 `gitops/sources/`. Chart metadata retains the human-readable release version. Those
 files and the lock, rather than a copied revision in this manual, define the current
@@ -93,7 +95,7 @@ cargo xtask release helm-charts \
 
 BuildKit pushes only missing layers and does not load release images into the host
 Docker store. Record the manifest digest for every published image in
-images.lock.yaml, then update the selected chart manifest digests in `gitops/sources/`
+the owning release’s lock under `images/`, then update the selected chart manifest digests in `gitops/sources/`
 in one release-input commit. The root Flux artifact carries those chart selections and
 all generated values from one Git revision.
 
@@ -469,3 +471,12 @@ k3d cluster delete veoveo-bioma
 
 Deleting the cluster disconnects the tunnel. It does not delete the remote Cloudflare
 Tunnel, DNS records, or the shared registry volume.
+
+A platform image edit updates `images/veoveo.lock.yaml`; a simulator, UAV MCP, pilot,
+or pilot-forwarder edit updates `images/uav-sim.lock.yaml`. The generated values
+ConfigMaps keep the `images.lock.yaml` data key while reading distinct files. A release
+therefore receives a values event only when one of its own inputs changes. Rendered
+chart tests require each lock to match the images actually consumed by that release.
+Publish a changed chart with `cargo xtask release helm-charts --chart veoveo` or
+`--chart uav-sim`, together with its required revision and version arguments. An
+image-only digest update needs no chart publication.

@@ -1,10 +1,23 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:afd7e074ee990a3a5f0e5a7f5adf92517103df9bec814593b3e63b2f070f4ca2",
-  "updatedAt": "2026-09-07T03:13:46Z",
+  "buildDigest": "sha256:b1e86c913521d011df7f642c5636a1e1862a501ab50265aaeccf242b994bde09",
+  "updatedAt": "2026-09-07T03:22:47Z",
   "checks": [
     {
-      "name": "command-timing",
+      "name": "helm-smoke",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T03:21:45Z",
+      "durationSeconds": 23.963824308,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "release-inputs",
       "command": [
         "cargo",
         "test",
@@ -13,17 +26,15 @@
         "--quiet"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:13:15Z",
-      "durationSeconds": 2.822344517,
+      "finishedAt": "2026-09-07T03:22:18Z",
+      "durationSeconds": 1.079895051,
       "detail": "completed successfully"
     },
     {
-      "name": "timing-clippy",
+      "name": "release-inputs-clippy",
       "command": [
         "cargo",
         "clippy",
-        "-p",
-        "veoveo-image-build-control",
         "-p",
         "veoveo-xtask",
         "--all-targets",
@@ -32,8 +43,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:13:46Z",
-      "durationSeconds": 2.9473607299999998,
+      "finishedAt": "2026-09-07T03:22:47Z",
+      "durationSeconds": 4.009554596,
       "detail": "completed successfully"
     }
   ]

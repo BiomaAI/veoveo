@@ -2,7 +2,6 @@ global:
   veoveoRegistry: k3d-veoveo-registry.localhost:5000
   veoveoTag: ""
   imageDigests:
-    veoveo/agent-kernel: sha256:c295bdf5799f68f638a5b2e10da2ecf656a40cda6dd7559d9dbb8038f02146ec
     veoveo/artifact-mcp: sha256:1eb76e5e819053702f6fd55c77fd7b759c904fa4d1168f78018833aa91c3eedf
     veoveo/artifact-service: sha256:27b90a018e8b67460ef0b60c5d6a4ac7543d0633feafc1083ad8c6ba137c9261
     veoveo/chart-mcp: sha256:996b9ebe1b78acc789e0fc92025557fe5b3a598df1c68a79ee3e13f3c85c3fc4
@@ -14,17 +13,12 @@ global:
     veoveo/map-mcp: sha256:3bdd409d4c3df668a2d64fb507f01d62ea79bff3ced4511f49beb34b76df5bf4
     veoveo/mcp-gateway: sha256:d1f825f980b71a8b65530d1fb3e067a5e8667d05ef2e7b5b5fd540e26f7f4662
     veoveo/mcp-legacy-bridge: sha256:84b99fd50c39c368854d4144b53f19d56bade3d5337a615a4f3a272913a23dfc
-    veoveo/mcp-stdio-bridge: sha256:13630f929a57849f0856320572e40499907ef498535b90fb56cb9251d870a398
     veoveo/media-mcp: sha256:4098b643ed58fa0888edd6fe3c4ccc283b5fc829331a2ebd2efd8cf180c64cf5
     veoveo/optimization-mcp: sha256:eee4d18dc3bff20ab9bd9954cf6d199c0fff76ad1f2f0cd019a6f13d7e0dadb5
-    veoveo/stream-mcp: sha256:c4f4d278073e42c554b77a19caa860c406211770dcc7e6664d7bb3723e544786
     veoveo/reason-mcp: sha256:68996967c16dc65f4e8d0156c4f48b90357a3b8bb20a27d7534eacc4217ee125
-    veoveo/recording-forwarder: sha256:c3a71d509c936dc153127551f099abdcc25fae4f4c5c37de86c821068ac9e99e
     veoveo/recording-hub: sha256:694cc67f53e680273d096912f29747753ccc347ff2c194242be33fdf78149ef4
     veoveo/recording-mcp: sha256:daf2af0ada9964c288e7891d5703400e7549121286804c65928c945c40714b8e
-    veoveo/simulation-runtime: sha256:7f0991a0adb8e108ef43bd52641140171bc09c9790471b511b18bc5734f11bae
+    veoveo/stream-mcp: sha256:c4f4d278073e42c554b77a19caa860c406211770dcc7e6664d7bb3723e544786
     veoveo/time-mcp: sha256:c8db5930583033cc88bdf36e86cde7568d8a53a2036f4056a27f3ce18742b4d6
     veoveo/timeseries-mcp: sha256:91542c6a385aff8353ff5068d791f7909b84a68a0289834d4b848216facf7de9
-    veoveo/uav-sim-mcp: sha256:10dbe83f6dcb04340944783ef13127e04becadae71dbc8e4e9483e47008ab60e
-    veoveo/uav-sim-runtime: sha256:248a8f1f28ed1c37aa8bff37e0bb95798ad762acb5789adcc9d75be805130282
     veoveo/view-mcp: sha256:cbbad1b673ad352f4c75a1aa6e707e7d96866a9b50d73a8f8d8e1686b19072aa

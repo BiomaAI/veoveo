@@ -420,7 +420,7 @@ pub(crate) async fn helm_config() -> Result<()> {
             "--values".into(),
             "examples/bioma/k3d-values.yaml".into(),
             "--values".into(),
-            "examples/bioma/images.lock.yaml".into(),
+            "examples/bioma/images/veoveo.lock.yaml".into(),
         ],
         [],
     )?;
@@ -507,7 +507,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         } else {
             contains(deployment, "strategy:\n    type: Recreate")?;
         }
-        contains(deployment, "veoveo.ai/chart-revision: \"0.1.0\"")?;
+        not_contains(deployment, "veoveo.ai/chart-revision")?;
         let required_driver_capabilities = match component {
             "reason-mcp" | "stream-mcp" => Some("compute,utility,video"),
             "optimization-mcp" => Some("compute,utility"),
@@ -559,7 +559,7 @@ pub(crate) async fn helm_config() -> Result<()> {
             "--values".into(),
             "examples/bioma/lan-values.yaml".into(),
             "--values".into(),
-            "examples/bioma/images.lock.yaml".into(),
+            "examples/bioma/images/veoveo.lock.yaml".into(),
         ],
         [],
     )?;
@@ -577,7 +577,7 @@ pub(crate) async fn helm_config() -> Result<()> {
             "--values".into(),
             "examples/bioma/uav-sim-values.yaml".into(),
             "--values".into(),
-            "examples/bioma/images.lock.yaml".into(),
+            "examples/bioma/images/uav-sim.lock.yaml".into(),
         ],
         [],
     )?;
@@ -626,11 +626,11 @@ pub(crate) async fn helm_config() -> Result<()> {
         "nvidia.com/gpu: 1",
         "name: uav-sim-runtime",
         "value: \"http://uav-sim-runtime:8810/\"",
-        "veoveo.ai/chart-revision: \"0.1.0\"",
     ] {
         contains(&uav_sim, expected)?;
     }
     for forbidden in [
+        "veoveo.ai/chart-revision",
         "GOOGLE_MAPS_API_KEY",
         "UAV_SIM_POSE_",
         "simulation-view",

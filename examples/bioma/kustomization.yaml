@@ -24,12 +24,12 @@ configMapGenerator:
     files:
       - values.yaml=values.yaml
       - k3d-values.yaml=k3d-values.yaml
-      - images.lock.yaml=images.lock.yaml
+      - images.lock.yaml=images/veoveo.lock.yaml
   - name: bioma-uav-sim-values
     namespace: flux-system
     files:
       - uav-sim-values.yaml=uav-sim-values.yaml
-      - images.lock.yaml=images.lock.yaml
+      - images.lock.yaml=images/uav-sim.lock.yaml
 generatorOptions:
   disableNameSuffixHash: true
   labels:

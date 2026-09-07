@@ -311,6 +311,9 @@ struct ReleasePythonSdkArgs {
 
 #[derive(Debug, Args)]
 struct ReleaseHelmChartsArgs {
+    /// Chart to publish; repeat for an exact set. Omit to publish all charts.
+    #[arg(long, value_enum)]
+    chart: Vec<commands::helm::Chart>,
     /// Exact Git revision or ref to resolve.
     #[arg(long)]
     revision: String,

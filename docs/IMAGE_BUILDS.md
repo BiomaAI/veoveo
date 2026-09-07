@@ -446,3 +446,13 @@ resets and unavailable telemetry appear as diagnostics instead of fabricated zer
 The existing `image-build-run/v2` receipt remains the detailed BuildKit solve record.
 Its success describes that solve; command success additionally requires digest inspection
 and the final staging or release receipt.
+
+## Selected Helm Publication
+
+`cargo xtask release helm-charts --chart veoveo --revision <commit> --version <version>`
+packages and optionally pushes the selected chart. Repeat `--chart` for an exact set;
+omitting it publishes all three charts. Duplicates are removed before packaging.
+Receipts and archives live under
+`output/releases/helm/<revision>/<version>/<selected-chart-names>/`, which keeps
+independent chart publications from overwriting one another’s immutable evidence.
+Installation Git remains responsible for choosing the resulting OCI digest.

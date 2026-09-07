@@ -39,13 +39,13 @@ fn render(chart: &Path, extension: bool, settings: &[&str]) -> Vec<Value> {
     let values = if extension {
         &[
             "examples/bioma/uav-sim-values.yaml",
-            "examples/bioma/images.lock.yaml",
+            "examples/bioma/images/uav-sim.lock.yaml",
         ][..]
     } else {
         &[
             "examples/bioma/values.yaml",
             "examples/bioma/k3d-values.yaml",
-            "examples/bioma/images.lock.yaml",
+            "examples/bioma/images/veoveo.lock.yaml",
         ][..]
     };
     for path in values {
@@ -206,4 +206,79 @@ fn generated_helm_values_are_selected_by_flux_watch_labels() {
                 .is_none()
         );
     }
+}
+
+#[test]
+fn each_release_receives_exactly_its_consumed_image_digests() {
+    fn images(value: &Value, references: &mut std::collections::BTreeSet<String>) {
+        match value {
+            Value::Object(object) => {
+                if let Some(image) = object.get("image").and_then(Value::as_str)
+                    && image.starts_with("k3d-veoveo-registry.localhost:5000/veoveo/")
+                {
+                    references.insert(image.to_owned());
+                }
+                for child in object.values() {
+                    images(child, references);
+                }
+            }
+            Value::Array(array) => {
+                for child in array {
+                    images(child, references);
+                }
+            }
+            _ => {}
+        }
+    }
+    let rendered = objects(&output(
+        Command::new("kubectl")
+            .current_dir(repository())
+            .args(["kustomize", "examples/bioma"]),
+    ));
+    for (name, chart, extension) in [
+        ("bioma-veoveo-values", "deploy/helm/veoveo", false),
+        ("bioma-uav-sim-values", "showcase/uav-sim/deploy/helm", true),
+    ] {
+        let config = rendered
+            .iter()
+            .find(|object| object["kind"] == "ConfigMap" && object["metadata"]["name"] == name)
+            .unwrap();
+        let values: Value =
+            serde_yaml_ng::from_str(config["data"]["images.lock.yaml"].as_str().unwrap()).unwrap();
+        let registry = values["global"]["veoveoRegistry"].as_str().unwrap();
+        let declared = values["global"]["imageDigests"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(repository, digest)| {
+                format!("{registry}/{repository}@{}", digest.as_str().unwrap())
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut consumed = std::collections::BTreeSet::new();
+        for object in render(&repository().join(chart), extension, &[]) {
+            images(&object, &mut consumed);
+        }
+        assert_eq!(
+            declared, consumed,
+            "{name} must not receive unrelated image-lock keys"
+        );
+    }
+}
+
+#[test]
+fn chart_selection_packages_only_the_requested_chart_once() {
+    let output = tempfile::tempdir().unwrap();
+    let selection = [super::Chart::UavSim, super::Chart::UavSim];
+    let release = super::build(
+        repository(),
+        output.path(),
+        "0.1.0-selection",
+        "selected-source",
+        &selection,
+    )
+    .unwrap();
+    assert_eq!(release.artifacts.len(), 1);
+    assert_eq!(release.artifacts[0].name, "uav-sim");
+    assert_eq!(super::selection_name(&selection), "uav-sim");
+    assert!(!output.path().join("veoveo-0.1.0-selection.tgz").exists());
 }
