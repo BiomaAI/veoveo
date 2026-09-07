@@ -160,7 +160,11 @@ installation. The resolver first creates the verified immutable source checkout.
 digest then covers every regular file under the declared chart directory, including
 files that Git export attributes would omit from an archive. Symlinks and special
 files fail validation. Source-relative chart paths cannot traverse outside that tree.
-The caller preserves the verified checkout through rendering.
+The shared deployment runtime compares the complete chart inventory, actual file
+bytes, and executable modes with the Git tree before constructing a lock. It also
+checks source-owned values files. Git index hints and clean filters cannot substitute
+committed bytes for files Helm will read. The caller preserves the verified checkout
+through rendering.
 
 The encoding starts with `veoveo.io/source-chart-content/v1` and a zero byte. Files are
 sorted by their UTF-8 chart-relative path. Each record contains the path's unsigned

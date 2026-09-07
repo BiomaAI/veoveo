@@ -38,6 +38,7 @@ for an enterprise installation governed by GitOps.
 |---|---|
 | `profile.rs` | Ordered profile validation, install, uninstall, and GPU verification |
 | `sources.rs` | Installation input checks, immutable source checkouts, and Git identity |
+| `snapshot.rs` | Exact Git blob and executable-mode verification of deployment inputs, independent of index hints and clean filters |
 | `charts.rs` | Shared source-chart locks, ordered Helm values, rendering, and release commands |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
 | `configuration.rs` | Rendered Secret-reference closure, bounded Secret observations, public ConfigMaps, and gateway activation |
@@ -50,6 +51,23 @@ before profile installation writes and mandatory GPU qualification. Profile inst
 still processes the complete deployment. Component-selected execution remains the
 `DEPLOY-SCOPE-023` migration: it must use the contract's complete ownership catalog and
 cover every installation mutation before exposing a component selector.
+
+## Immutable Render Inputs
+
+The chart lock constructor verifies the complete chart directory and each source-owned
+values file against the checkout's Git tree. Installation preflight uses the same
+verifier for every declared profile input. It hashes actual files with Git filters
+disabled and compares their executable modes with the committed entries. An
+`assume-unchanged` or `skip-worktree` index flag cannot hide local edits from this check.
+Ignored files inside a chart fail the complete inventory comparison because Helm can
+read them. Unrelated edits and build outputs outside the declared inputs do not
+participate.
+
+Input paths use literal Git pathspecs. Traversal must stay in the owning repository,
+and every visited path segment must be free of symlinks. The caller retains the
+immutable checkout through rendering; verification does not lock a user-editable
+filesystem against concurrent writers. This check changes no image or chart digest
+encoding and performs no Kubernetes operation.
 
 ## Dependencies
 

@@ -580,6 +580,15 @@ and installer use one source-chart lock constructor and content check. This esta
 the shared execution boundary for component compilation; v6 still installs the complete
 profile, and component-selected mutation and live zero-write evidence remain open.
 
+The shared chart constructor now verifies actual input bytes and executable modes
+against the Git tree before publication builds begin. Installation preflight uses the
+same verifier for profile inputs. Tests reproduced two ways an ordinary Git difference
+check can hide edited values: index freshness hints and a clean filter that rewrites
+content. Both fail the new check. An ignored file added inside a chart also fails its
+complete inventory check, while unrelated working files remain outside the deployment
+input boundary. This establishes the file provenance needed by component compilation;
+it does not activate component-selected deployment or change artifact digest encodings.
+
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
 cache family, explicitly selected both packages and binaries, and exported a local
