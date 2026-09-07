@@ -5,7 +5,7 @@ use veoveo_mcp_contract::{
     DataLabelId, GatewayInternalIdentity, PlaneCaller, PrincipalId, PrincipalKind, TenantId,
     TokenIssuer, TokenSubject,
 };
-use veoveo_recording_mcp::RecordingReadAuthority;
+use veoveo_recording_reader::RecordingReadAuthority;
 use veoveo_task_runtime::TaskOwner;
 
 use super::app_state::AppState;

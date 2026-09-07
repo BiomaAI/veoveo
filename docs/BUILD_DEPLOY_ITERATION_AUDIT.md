@@ -14,6 +14,7 @@ implemented changes and their verification.
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin | Production TypeScript/Vite build passes; authenticated headed-browser acceptance remains pending |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Input tests exclude application files and invalidate on patches, build options, and parent pins; two source-only revisions staged in 14.6 s and 15.6 s with identical inherited layer blobs |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
+| Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; container source isolation is the next delivery step |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
 | Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, and per-solve CPU deltas | Failure-path tests retain errors before BuildKit starts; command and solve records have distinct outcomes |
@@ -347,3 +348,21 @@ digest `sha256:2beef03e6ed1b4e811f6f82c61d3ef9c89f5692cf970cd1bab6dd91657d45a46`
 This warm repeat measures the tooling improvement; the two distinct source revisions
 above establish application-edit reuse. GPU runtime and qualification acceptance are
 separate and have not been claimed from these assembly measurements.
+
+The recording extraction keeps service lifecycle and Blueprint interpretation in their
+owners. The new reader crate has no Hub, forwarder, or Recording MCP dependency. Its
+cache still verifies downloads and cache hits and retains leases until readers release
+them. The existing missing-Artifact-credential rejection remains in place.
+
+Thirty reader, video and Recording MCP library tests passed, including the moved
+Blueprint identity checks and new cache-hit, lease and unverified-source checks. The
+consuming binaries compile with Recording Redap enabled. The first focused test attempt
+was canceled when disk preflight showed insufficient reserve. Removing exactly 43 old
+worker-only vLLM snapshot records recovered 29.83 GB; Cargo cache mounts, registry images
+and deployed workloads were retained. A 20 GiB growth preflight then passed. The next
+Reason runtime assembly may fetch its base again.
+
+Read-only probes found glibc 2.39 in both deployed Stream and Reason images. Their Rust
+executables resolve libc, libm, libgcc_s and the amd64 ELF loader; Stream also inherits
+its runtime's preloaded driver-support libraries. This supports investigating a common
+older-glibc compiler, but it does not establish candidate-binary or GPU compatibility.

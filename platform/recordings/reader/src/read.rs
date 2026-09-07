@@ -17,10 +17,9 @@ use veoveo_rrd::ingest_parts::{
 };
 use veoveo_rrd::segment::inspect_segment;
 
-use super::{
-    MAX_LAYERS, RecordingService, authorized_live_layer_path, labels_visible, record_uuid,
-};
-use crate::layer_cache::CachedLayer;
+use super::{MAX_LAYERS, RecordingReader};
+use crate::access::{authorized_live_layer_path, labels_visible, record_uuid};
+use crate::cache::CachedLayer;
 
 /// Stable identity and clearance used to reopen a governed recording.
 ///
@@ -275,7 +274,7 @@ impl RecordingReadPlan {
     }
 }
 
-impl RecordingService {
+impl RecordingReader {
     pub async fn materialize_analysis_snapshot(
         &self,
         _authority: &RecordingReadAuthority,
@@ -424,5 +423,46 @@ impl RecordingService {
             labels: recording.labels,
             layers,
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn committed_analysis_sources_require_a_verified_cache_lease() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("unverified.rrd");
+        std::fs::write(&path, b"unverified archive").unwrap();
+        let plan = RecordingReadPlan {
+            recording_id: RecordingId::new(),
+            dataset_id: RecordingDatasetId::new(),
+            dataset_key: "test".to_owned(),
+            application_id: "test".to_owned(),
+            recording_key: "test".to_owned(),
+            state: RecordingState::Ready,
+            classification: "unclassified".to_owned(),
+            labels: Vec::new(),
+            layers: vec![RecordingReadLayer {
+                layer_id: RecordingLayerId::new(),
+                layer_name: "capture".to_owned(),
+                kind: RecordingLayerKind::Capture,
+                ordinal: Some(0),
+                state: RecordingLayerState::Committed,
+                byte_len: 18,
+                sha256: Some("0".repeat(64)),
+                started_at: None,
+                ended_at: None,
+                path,
+                cached: None,
+            }],
+        };
+        let error = plan.analysis_snapshot().unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("not pinned in the verified cache")
+        );
     }
 }

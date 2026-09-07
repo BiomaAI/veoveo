@@ -1,0 +1,23 @@
+[package]
+name = "veoveo-recording-reader"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+fs4 = "=1.1.0"
+futures.workspace = true
+hex.workspace = true
+serde.workspace = true
+sha2.workspace = true
+tempfile = "=3.27.0"
+tokio = { workspace = true, features = ["rt", "fs", "io-util", "sync"] }
+uuid.workspace = true
+veoveo-artifact-client = { path = "../../artifacts/client" }
+veoveo-mcp-contract.workspace = true
+veoveo-platform-store.workspace = true
+veoveo-rrd.workspace = true
+
+[dev-dependencies]
+rustls.workspace = true

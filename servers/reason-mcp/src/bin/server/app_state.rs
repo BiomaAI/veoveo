@@ -4,14 +4,14 @@ use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_reason_mcp::{
     artifacts::ArtifactRepository, catalog::PipelineCatalog, executor::ReasonExecutor,
 };
-use veoveo_recording_mcp::RecordingService;
+use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::VideoSourceLimits;
 use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 
 pub(super) struct AppState {
     pub(super) tasks: TaskRuntime,
     pub(super) artifacts: ArtifactRepository,
-    pub(super) recordings: Arc<RecordingService>,
+    pub(super) recordings: Arc<RecordingReader>,
     pub(super) catalog: Arc<PipelineCatalog>,
     pub(super) executor: ReasonExecutor,
     pub(super) source_limits: VideoSourceLimits,

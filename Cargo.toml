@@ -19,6 +19,7 @@ members = [
     "platform/recordings/protocol",
     "platform/recordings/hub",
     "platform/recordings/rrd",
+    "platform/recordings/reader",
     "platform/recordings/video",
     "platform/runtimes/duckdb",
     "platform/store",
@@ -173,6 +174,7 @@ veoveo-image-build-control = { path = "tools/image-build/control" }
 veoveo-platform-store = { path = "platform/store" }
 veoveo-recording-protocol = { path = "platform/recordings/protocol" }
 veoveo-rrd = { path = "platform/recordings/rrd" }
+veoveo-recording-reader = { path = "platform/recordings/reader" }
 
 # Image commands hash large pinned tools and source closures on every invocation.
 # Optimize the hash implementation while retaining complete integrity checks.

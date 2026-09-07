@@ -256,10 +256,18 @@ deterministic properties layers, and bounded Arrow IPC projection.
 [`DESIGN.md`](../platform/recordings/rrd/DESIGN.md) governs these shared file operations. Domain results that do not overlap Rerun
 concepts stay local to their MCP crate.
 
+### `platform/recordings/reader`
+
+[`DESIGN.md`](../platform/recordings/reader/DESIGN.md) governs the shared analysis reader.
+`read.rs` owns authorized plans and snapshots; `access.rs` owns shared visibility and
+confined paths; `cache.rs` owns verified bounded Artifact materialization and leases.
+It depends on neither Hub nor Recording MCP. Server-only Blueprint validation remains
+in Recording MCP. Stream and Reason consume this library through the video materializer.
+
 ### `platform/recordings/video`
 
 Owns governed video selection and task-start materialization shared by Stream replay and
-Reason. It consumes Recording MCP read plans, combines immutable Artifact-backed layers with
+Reason. It consumes shared Recording reader plans, combines immutable Artifact-backed layers with
 complete acknowledged live ingest parts, and remuxes the bounded H.264 range without
 re-encoding.
 
@@ -683,8 +691,9 @@ instead of a private video path.
 `contract.rs` owns recording, layer, seal, playback-manifest v9, Blueprint, and live
 descriptor types. `service.rs` resolves authorized MCP and playback plans and publishes
 properties layers. `service/projection.rs` owns projection receipts, concurrency,
-scratch, and Arrow downloads. `layer_cache.rs` owns verified bounded Artifact-to-PVC
-materialization and eviction. `playback.rs` owns durable grants, dataset-scoped virtual
+scratch, and Arrow downloads. `platform/recordings/reader/src/cache.rs` owns verified
+bounded Artifact-to-PVC materialization and eviction. `blueprint_cache.rs` supplies
+the server-owned Blueprint identity validator. `playback.rs` owns durable grants, dataset-scoped virtual
 Rerun catalogs, finite governed Blueprint sources, and the scoped read-only Redap service.
 `live_playback.rs` retains recording-scoped static context across ingest generations, filters
 bounded temporal history, and rewrites messages to the stable playback identity.
@@ -711,7 +720,7 @@ and Artifact publication.
 | `gst-runner/` | native operator-admitted GStreamer graph execution with NVIDIA decode/inference and typed event output |
 | `Dockerfile` | DeepStream 9 development/runtime multi-stage image |
 
-`recording-mcp::service::read` owns the reusable governed Artifact-backed read plan, and
+`platform/recordings/reader` owns the reusable governed Artifact-backed read plan, and
 `platform/recordings/video` owns selection and materialization over it;
 Recording-based durable Stream replay remains fail-closed until its own design supplies
 a fresh Artifact-read capability after restart. Live Stream sessions consume their

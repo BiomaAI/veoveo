@@ -31,7 +31,6 @@ use rmcp::{
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_apps_extension::{
     UiVisibility, app_html_contents, app_resource, extend_capabilities, link_tool_to_app,
 };
@@ -41,7 +40,7 @@ use veoveo_mcp_contract::{
     init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_platform_store::TaskStatus;
-use veoveo_recording_mcp::RecordingService;
+use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::VideoSourceLimits;
 use veoveo_stream_mcp::{
     artifacts::ArtifactRepository,
@@ -953,10 +952,10 @@ async fn main() -> anyhow::Result<()> {
     } else {
         std::env::current_dir()?.join(&args.spool_dir)
     };
-    let recordings = Arc::new(RecordingService::new(
+    let recordings = Arc::new(RecordingReader::new(
         tasks.platform_store().clone(),
-        HttpArtifactPlane::new(&args.artifact_service_url),
         spool_dir,
+        None,
     )?);
     let catalog = Arc::new(PipelineCatalog::load(&args.pipeline_catalog)?);
     let executor = StreamExecutor::new(

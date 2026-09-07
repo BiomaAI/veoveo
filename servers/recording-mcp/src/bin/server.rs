@@ -50,13 +50,13 @@ use veoveo_recording_mcp::{
     RecordingService,
     admin::{self, SERVER_DOCS},
     contract::{CreateCatalogGrantRequest, SealRecordingOutput, SealRecordingRequest},
-    layer_cache::LayerCacheLimits,
     playback::{
         PlaybackManager, RECORDING_GRANT_HEADER, playback_application_id, playback_store_id,
     },
     service::{PlaybackArchiveSelection, ProjectionRuntimeLimits},
     uris,
 };
+use veoveo_recording_reader::cache::LayerCacheLimits;
 
 #[path = "server/auth.rs"]
 mod auth;
@@ -415,7 +415,7 @@ impl ServerHandler for RecordingMcp {
                     .ok_or_else(|| McpError::resource_not_found("recording not found", None))?;
                 return json_resource(uri, &layers);
             }
-            if let Some(value) = uris::parse_recording_uri(uri) {
+            if let Some(value) = veoveo_recording_reader::uris::parse_recording_uri(uri) {
                 let recording_id = parse_recording_id(value)?;
                 let recording = self
                     .state
@@ -578,7 +578,7 @@ fn parse_recording_id(value: &str) -> Result<RecordingId, McpError> {
 
 fn subscribable_recording_id(uri: &str) -> Result<RecordingId, McpError> {
     uris::parse_layers_uri(uri)
-        .or_else(|| uris::parse_recording_uri(uri))
+        .or_else(|| veoveo_recording_reader::uris::parse_recording_uri(uri))
         .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))
         .and_then(parse_recording_id)
 }
@@ -607,7 +607,7 @@ async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
 #[serde(rename_all = "camelCase")]
 struct RecordingStorageDiagnostics {
     schema: &'static str,
-    layer_cache: Option<veoveo_recording_mcp::layer_cache::LayerCacheStats>,
+    layer_cache: Option<veoveo_recording_reader::cache::LayerCacheStats>,
     projection_scratch: Option<veoveo_recording_mcp::service::ProjectionRuntimeStats>,
 }
 

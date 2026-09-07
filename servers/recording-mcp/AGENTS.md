@@ -40,9 +40,10 @@ and reactive Rerun live following.
 
 - `contract.rs` owns recording, layer, seal, and playback-manifest types.
 - `service.rs` owns visibility, playback plans, sealing, and properties publication.
-- `service/read.rs` owns governed Artifact-backed analysis plans.
+- [`platform/recordings/reader`](../../platform/recordings/reader/DESIGN.md) owns governed Artifact-backed analysis plans.
 - `service/projection.rs` owns projection receipts and bounded scratch.
-- `layer_cache.rs` owns verified Artifact-to-PVC materialization and eviction.
+- The shared reader cache owns verified Artifact-to-PVC materialization and eviction;
+  `blueprint_cache.rs` supplies Blueprint identity validation.
 - `playback.rs` owns durable grants, virtual catalogs, scoped Redap, and manifest assembly.
 - `live_playback.rs` and `live_stream.rs` own the Rerun live adapter and framed transport.
 - `bin/server.rs` owns transport composition, readiness, and diagnostics.
