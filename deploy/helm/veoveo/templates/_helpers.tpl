@@ -6,6 +6,18 @@ veoveo
 {{- printf "%s-veoveo" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
+{{- define "veoveo.controlPlaneRevision" -}}
+{{- required "gateway.controlPlaneRevision must identify the complete mounted control-plane bundle" .Values.gateway.controlPlaneRevision -}}
+{{- end }}
+
+{{- define "veoveo.revisionedJobName" -}}
+{{- $root := index . 0 -}}
+{{- $purpose := index . 1 -}}
+{{- $revision := index . 2 -}}
+{{- $prefixLength := int (sub 49 (len $purpose)) -}}
+{{- printf "%s-%s-%s" (include "veoveo.fullname" $root | trunc $prefixLength | trimSuffix "-") $purpose ($revision | trunc 12) -}}
+{{- end }}
+
 {{- define "veoveo.labels" -}}
 app.kubernetes.io/name: {{ include "veoveo.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}

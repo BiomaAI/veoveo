@@ -1,7 +1,10 @@
 //! Typed repository deployment profiles and local registry declarations.
 
 pub mod components;
+mod gateway_bundle;
 mod secret_closure;
+
+pub use gateway_bundle::gateway_bundle_digest;
 
 pub use secret_closure::{
     CustomSecretReferenceRegistry, CustomSecretReferenceSpec, KubernetesObjectKey, SecretClosure,

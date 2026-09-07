@@ -253,7 +253,9 @@ helm upgrade --install veoveo \
 ~~~
 
 The operator must apply the gateway ConfigMap and provision every referenced Secret
-before Helm starts workloads. Another GitOps system should express those same ordering
+before Helm starts workloads. `values/veoveo.yaml` supplies the explicit
+`gateway.controlPlaneRevision` digest for the complete mounted public bundle. Another
+GitOps system should express those same ordering
 and ownership boundaries rather than translating them into a Veoveo-specific
 orchestrator.
 

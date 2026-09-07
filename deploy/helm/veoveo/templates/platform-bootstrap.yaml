@@ -1,11 +1,12 @@
 {{- if include "veoveo.componentEnabled" (list . "gateway") }}
-{{- $controlPlaneRevision := default (printf "release-%d" .Release.Revision) .Values.gateway.controlPlaneRevision -}}
-{{- $gatewayImage := include "veoveo.ownedImage" (list . .Values.gateway.image) -}}
-{{- $bootstrapRevision := printf "%s:%s" $controlPlaneRevision $gatewayImage | sha256sum -}}
+{{- $controlPlaneRevision := include "veoveo.controlPlaneRevision" . -}}
+{{- $spec := include "veoveo.platformBootstrapSpec" . | fromYaml -}}
+{{- $bootstrapRevision := $spec | toJson | sha256sum -}}
+{{- $_ := set $spec.template.metadata.annotations "veoveo.ai/bootstrap-revision" $bootstrapRevision -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ printf "%s-bootstrap-%s" (include "veoveo.fullname" .) ($bootstrapRevision | trunc 12) | trunc 63 | trimSuffix "-" }}
+  name: {{ include "veoveo.revisionedJobName" (list . "bootstrap" $bootstrapRevision) }}
   labels:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: installation-bootstrap
@@ -13,78 +14,83 @@ metadata:
     veoveo.ai/control-plane-revision: {{ $controlPlaneRevision | quote }}
     veoveo.ai/bootstrap-revision: {{ $bootstrapRevision | quote }}
 spec:
-  backoffLimit: 12
-  ttlSecondsAfterFinished: 3600
-  template:
-    metadata:
-      labels:
-        {{- include "veoveo.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: installation-bootstrap
-      annotations:
-        {{- include "veoveo.podAnnotations" . | nindent 8 }}
-        veoveo.ai/control-plane-revision: {{ $controlPlaneRevision | quote }}
-        veoveo.ai/bootstrap-revision: {{ $bootstrapRevision | quote }}
-    spec:
-      restartPolicy: OnFailure
-      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
-      automountServiceAccountToken: false
-      imagePullSecrets:
-        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
-      securityContext:
-        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
-      containers:
-        - name: bootstrap
-          image: {{ $gatewayImage }}
-          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
-          args:
-            - installation-bootstrap
-            - --control-plane
-            - /etc/veoveo/gateway/{{ .Values.gateway.controlPlaneKey }}
-            - --applied-by
-            - installation-bootstrap
-          env:
-            - name: VEOVEO_SURREAL_ENDPOINT
-              value: ws://surrealdb:8000
-            - name: VEOVEO_SURREAL_NAMESPACE
-              value: {{ .Values.surrealdb.namespace | quote }}
-            - name: VEOVEO_SURREAL_DATABASE
-              value: {{ .Values.surrealdb.database | quote }}
-            - name: VEOVEO_SURREAL_AUTH_LEVEL
-              value: root
-            - name: VEOVEO_SURREAL_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.surrealdb.adminExistingSecret }}
-                  key: username
-            - name: VEOVEO_SURREAL_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.surrealdb.adminExistingSecret }}
-                  key: password
-            - name: VEOVEO_SURREAL_RUNTIME_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.surrealdb.runtimeExistingSecret }}
-                  key: username
-            - name: VEOVEO_SURREAL_RUNTIME_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.surrealdb.runtimeExistingSecret }}
-                  key: password
-          securityContext:
-            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
-          resources:
-            {{- toYaml .Values.gateway.resources | nindent 12 }}
-          volumeMounts:
-            - name: control-plane
-              mountPath: /etc/veoveo/gateway
-              readOnly: true
-            - name: tmp
-              mountPath: /tmp
-      volumes:
-        - name: control-plane
-          configMap:
-            name: {{ .Values.gateway.existingControlPlaneConfigMap }}
-        - name: tmp
-          emptyDir: {}
+  {{- toYaml $spec | nindent 2 }}
+{{- end }}
+
+{{- define "veoveo.platformBootstrapSpec" -}}
+{{- $controlPlaneRevision := include "veoveo.controlPlaneRevision" . -}}
+{{- $gatewayImage := include "veoveo.ownedImage" (list . .Values.gateway.image) -}}
+backoffLimit: 12
+ttlSecondsAfterFinished: 3600
+template:
+  metadata:
+    labels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: installation-bootstrap
+    annotations:
+      {{- include "veoveo.podAnnotations" . | nindent 6 }}
+      veoveo.ai/control-plane-revision: {{ $controlPlaneRevision | quote }}
+  spec:
+    restartPolicy: OnFailure
+    serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+    automountServiceAccountToken: false
+    imagePullSecrets:
+      {{- toYaml .Values.global.imagePullSecrets | nindent 6 }}
+    securityContext:
+      {{- include "veoveo.podSecurityContext" . | nindent 6 }}
+    containers:
+      - name: bootstrap
+        image: {{ $gatewayImage }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        args:
+          - installation-bootstrap
+          - --control-plane
+          - /etc/veoveo/gateway/{{ .Values.gateway.controlPlaneKey }}
+          - --applied-by
+          - installation-bootstrap
+        env:
+          - name: VEOVEO_SURREAL_ENDPOINT
+            value: ws://surrealdb:8000
+          - name: VEOVEO_SURREAL_NAMESPACE
+            value: {{ .Values.surrealdb.namespace | quote }}
+          - name: VEOVEO_SURREAL_DATABASE
+            value: {{ .Values.surrealdb.database | quote }}
+          - name: VEOVEO_SURREAL_AUTH_LEVEL
+            value: root
+          - name: VEOVEO_SURREAL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.surrealdb.adminExistingSecret }}
+                key: username
+          - name: VEOVEO_SURREAL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.surrealdb.adminExistingSecret }}
+                key: password
+          - name: VEOVEO_SURREAL_RUNTIME_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.surrealdb.runtimeExistingSecret }}
+                key: username
+          - name: VEOVEO_SURREAL_RUNTIME_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.surrealdb.runtimeExistingSecret }}
+                key: password
+        securityContext:
+          {{- include "veoveo.containerSecurityContext" . | nindent 10 }}
+        resources:
+          {{- toYaml .Values.gateway.resources | nindent 10 }}
+        volumeMounts:
+          - name: control-plane
+            mountPath: /etc/veoveo/gateway
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+    volumes:
+      - name: control-plane
+        configMap:
+          name: {{ .Values.gateway.existingControlPlaneConfigMap }}
+      - name: tmp
+        emptyDir: {}
 {{- end }}

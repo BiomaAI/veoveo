@@ -1,0 +1,4 @@
+# Explicit render-only identity for this anonymous contract fixture.
+# It does not establish a running gateway or a verified mounted bundle.
+gateway:
+  controlPlaneRevision: "1111111111111111111111111111111111111111111111111111111111111111"

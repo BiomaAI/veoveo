@@ -19,7 +19,7 @@ use veoveo_deploy_contract::{
     PlannedImage, PlatformComponent, ReleaseSpec, ReleaseValuesContract, SecretClosure,
     SecretClosureStatus, SecretObjectKey, SecretObservation, SecretObservationStatus,
     SecretReferenceKind, SecretReferenceRequirement, SourceRepository, collect_secret_requirements,
-    load_local_registry,
+    gateway_bundle_digest, load_local_registry,
 };
 use veoveo_mcp_contract::GatewayControlPlane;
 
@@ -1440,23 +1440,12 @@ fn prepare_gateway_activation(
         data.insert(key.clone(), text);
     }
 
-    let mut hasher = Sha256::new();
-    hasher.update(b"veoveo.io/gateway-activation/v1\0");
-    for (key, value) in &data {
-        hasher.update(
-            u64::try_from(key.len())
-                .expect("ConfigMap key length fits u64")
-                .to_be_bytes(),
-        );
-        hasher.update(key.as_bytes());
-        hasher.update(
-            u64::try_from(value.len())
-                .expect("ConfigMap value length fits u64")
-                .to_be_bytes(),
-        );
-        hasher.update(value.as_bytes());
-    }
-    let digest = hex::encode(hasher.finalize());
+    let bundle_digest = gateway_bundle_digest(&data)?;
+    let digest = bundle_digest
+        .as_str()
+        .strip_prefix("sha256:")
+        .expect("validated SHA-256 digest")
+        .to_owned();
     Ok(Some(PreparedGatewayActivation {
         config_map_name: format!("{}-{}", activation.config_map_name_prefix, &digest[..12]),
         revision: digest,

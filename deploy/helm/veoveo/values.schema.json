@@ -413,6 +413,7 @@
             },
             "controlPlaneRevision": {
               "type": "string",
+              "description": "SHA-256 of the complete mounted public control-plane bundle; required by rendering when gateway is selected.",
               "pattern": "^$|^[a-f0-9]{64}$"
             },
             "refreshDeliveryWindowSeconds": {

@@ -22,7 +22,7 @@
           "name": "veoveo",
           "chart": "deploy/helm/veoveo",
           "sourceValues": [],
-          "installationValues": [],
+          "installationValues": ["platform-values.yaml"],
           "valuesContract": "platform",
           "createNamespace": true,
           "timeoutSeconds": 720

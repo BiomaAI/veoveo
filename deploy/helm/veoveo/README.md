@@ -19,6 +19,12 @@ and domain bootstrap configuration retains its own checksum. Installation-owned
 ConfigMaps and Secrets require an installation-managed content revision or immutable
 name when their consumers need a restart.
 
+Initialization Jobs derive their names from their complete rendered specs. A chart or
+Helm revision change preserves both names when their inputs match. Changing a bucket,
+bootstrap image, database, resource limit, or service-account reference produces a new
+Job identity and avoids attempting to patch an immutable Pod template. The name always
+retains its digest suffix, including when the Helm release name is long.
+
 `installationPreset` owns the first-party deployment graph. `full` selects the
 supported complete surface, `extension-foundation` selects the platform foundation
 with Artifact MCP, Frames MCP, and Recording MCP, and `custom` consumes the typed
@@ -229,6 +235,10 @@ The chart mounts the complete gateway ConfigMap at `/etc/veoveo/gateway` in both
 the bootstrap Job and the running gateway. File references in the control plane
 must resolve beneath that directory. This keeps revision validation and runtime
 authentication on the same immutable input set.
+When gateway is selected, `gateway.controlPlaneRevision` must contain the SHA-256 of
+that complete public bundle. The installation supplies this value with the ConfigMap
+reference. Offline rendering and cluster installation therefore use the same explicit
+revision for gateway rollout and bootstrap identity.
 
 The control plane must define a Work Context for every tenant in active use.
 Each OAuth client selects a default context and a direct, delegated, or automated
@@ -238,15 +248,16 @@ by tasks, recordings, agents, and artifact outputs. The neutral enterprise model
 and identity-provider mapping guidance are in
 [`../../../docs/WORK_CONTEXT_GOVERNANCE.md`](../../../docs/WORK_CONTEXT_GOVERNANCE.md).
 
-Each Helm revision runs installation bootstrap against the mounted control
-plane. Bootstrap validates the seed and publishes a new immutable database
+Installation bootstrap runs against the mounted control plane when its Job inputs
+change. A later Helm upgrade also recreates the Job if its one-hour TTL has removed
+the completed object. Bootstrap validates the seed and publishes a new immutable database
 revision when its hash differs from the active revision. This is also the
 gateway schema upgrade path: an older active payload does not need to satisfy
 the new schema before the current seed replaces it. A matching hash still
 requires the stored active revision to pass full typed validation.
 
-Deployment v4 installations should declare `gatewayActivation` in their profile instead
-of applying the gateway ConfigMap separately. The profile names the composed document,
+Disposable deployment profiles declare `gatewayActivation` to publish the gateway
+bundle and its explicit revision. The profile names the composed document,
 its public JWKS and CA files, the pre-existing confidential Secret, and the Secret keys
 required for rollout. `cargo xtask smoke profile-validate` checks the typed document and
 public material. `cargo xtask smoke profile-up` creates an immutable content-addressed

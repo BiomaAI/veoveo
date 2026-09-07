@@ -6,6 +6,7 @@
 |---|---|
 | Flux source and Kustomization APIs `v1`, HelmRelease API `v2` | exact Git artifact and applied revision, observed generation, readiness, terminal Helm failure, and release inventory |
 | Kubernetes apps `v1` | Deployment rollout status and Available condition through kubectl |
+| Kubernetes batch `v1` | initialization Job names bound to their complete rendered specs, including immutable Pod templates |
 | Kubernetes JSON watch events | initial resource observation followed by bounded watch output |
 | `veoveo.io/gitops-convergence-evidence/v3` | repository-owned JSON evidence with reconciliation mode, wall-clock start and observation times, elapsed phases, and terminal outcome |
 | Deployment profile and lock `v6` | shared disposable-profile execution from the smoke owner; schema belongs to `deploy/contract` |
@@ -42,6 +43,13 @@ unchanged Pod identity merely from Ready status. Activation acceptance must comp
 those installation inputs and Pod identities separately.
 
 ## Acceptance
+
+`src/helm_config/jobs.rs` renders the actual platform chart with changed Helm revision
+contexts and chart metadata. It requires unchanged initialization Job names and specs,
+then changes individual runtime inputs and checks the exact affected Job identities.
+The cases also cover long release names, explicit gateway bundle revisions, and an
+unrelated Console image change. This is rendered configuration acceptance; it does not
+claim that a live Job ran or that a workload used a hardware GPU.
 
 `tests/gitops_convergence.rs` executes the real CLI against a Rust kubectl fixture.
 It records every command and rejects mutation in observation mode. Cases cover default
