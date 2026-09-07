@@ -121,10 +121,13 @@ cargo xtask smoke gitops-converge \
   --evidence-output output/development/gitops-convergence.json
 ~~~
 
-The command requests reconciliation and watches the exact Git artifact, root apply,
-Helm release inventories, rollout, and readiness. Re-running with the same output path
-is rejected because convergence evidence is create-only. The full procedure and
-production registry requirements are in the enterprise deployment guide.
+The command passively observes the exact Git artifact, root apply, Helm release
+inventories, rollout, and readiness. Add `--reconciliation request` to explicitly wake
+the selected Flux controllers. For passive publication latency, start observation
+before pushing the prepared commit and retain the publication timestamp; an observer
+started after convergence measures only verification overhead. Reusing an evidence
+path is rejected because records are create-only. The full procedure and production
+registry requirements are in the enterprise deployment guide.
 
 ## Create the local platform
 

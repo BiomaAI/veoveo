@@ -12,7 +12,7 @@
 | Rerun 0.36.3 RRD | bounded live history and governed archive playback |
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
-| `veoveo.io/gitops-convergence-evidence/v2` | repository-owned exact Flux source revision, root apply, Helm inventory, rollout, and readiness evidence |
+| `veoveo.io/gitops-convergence-evidence/v3` | repository-owned reconciliation mode, observation start, exact Flux source revision, root apply, Helm inventory, rollout, and readiness evidence |
 | `veoveo.io/console-apps-browser-acceptance/v1` | composed signed-in Console App catalog, server grouping, per-App headed render, and hardware adapter evidence |
 | `veoveo.io/uav-live-view-browser-evidence/v8` | focused authoritative-camera pixels, event-derived source-to-render and motion-to-photon p95, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
 | `veoveo.io/uav-recording-browser-evidence/v2` | source-clock and camera-pane evidence for one live governed recording |
@@ -108,10 +108,17 @@ cargo xtask smoke gitops-converge \
   --evidence-output output/development/gitops-convergence.json
 ```
 
-The command requests reconciliation, then consumes Kubernetes watch events. It does
-not sleep between status reads. Source fetch, desired-state apply, Helm release,
-Deployment rollout, and readiness retain separate elapsed times. A timeout writes
-failed evidence for the exact phase that did not converge.
+The command defaults to passive observation and issues no reconciliation annotations.
+Use `--reconciliation request` when the operation should explicitly wake the named
+Flux controllers. Evidence records the mode, verification start time, and separate
+source, apply, Helm, rollout, and readiness phases. A timeout records the failed phase.
+Source and Helm readiness use Kubernetes watches; the root phase checks status and
+terminal Helm failures at intervals of at most two seconds.
+
+For passive publication latency, start the observer against the prepared local commit
+before pushing it and retain the publication timestamp. A run against an already-active
+revision measures observer overhead. It does not measure event-driven deployment latency.
+The [verifier design](../testing/deployment-smoke/DESIGN.md) defines the evidence boundary.
 
 ## Release Readiness Checklist
 
