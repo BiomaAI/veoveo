@@ -587,7 +587,7 @@ async fn main() -> Result<()> {
             control_plane,
             smoke_control_plane,
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
-        Cmd::HelmConfig => helm_config().await,
+        Cmd::HelmConfig => helm_config(),
         Cmd::ExternalSimulationFixture => external_simulation_fixture(),
         Cmd::GpuAllocationVerify {
             context,

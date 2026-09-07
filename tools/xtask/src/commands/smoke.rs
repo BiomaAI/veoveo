@@ -148,7 +148,8 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
         .context("smoke scenario is not valid UTF-8")?;
     if matches!(
         scenario,
-        "profile-validate"
+        "helm-config"
+            | "profile-validate"
             | "profile-registry-up"
             | "profile-cluster-up"
             | "profile-cluster-stop"
@@ -526,7 +527,7 @@ mod tests {
     }
 
     #[test]
-    fn real_scenarios_keep_the_smoke_conformance_build_unit_stable() {
+    fn helm_configuration_uses_only_the_focused_deployment_harness() {
         let arguments = [OsString::from("helm-config")];
         assert_eq!(
             cargo_build_arguments(&arguments).unwrap(),
@@ -534,13 +535,9 @@ mod tests {
                 "build",
                 "--locked",
                 "--package",
-                "veoveo-smoke",
+                "veoveo-deployment-smoke",
                 "--bin",
-                "smoke",
-                "--package",
-                "veoveo-mcp-conformance",
-                "--bin",
-                "conformance",
+                "deployment-smoke",
             ]
         );
     }

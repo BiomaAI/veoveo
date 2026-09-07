@@ -5,6 +5,9 @@ use super::*;
 mod agent_kernel;
 #[path = "scenarios/basic.rs"]
 mod basic;
+#[path = "../../../../deployment-smoke/src/helm_config.rs"]
+mod helm;
+pub(crate) use helm::helm_config;
 #[path = "scenarios/bioma.rs"]
 mod bioma;
 #[path = "scenarios/datasheet.rs"]
@@ -114,7 +117,7 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
     )?;
 
     suite_step("Helm deployment configuration");
-    helm_config().await?;
+    helm_config()?;
 
     suite_step("gateway HTTP and OAuth boundary");
     gateway_http(conformance, gateway, smoke_control_plane).await?;
