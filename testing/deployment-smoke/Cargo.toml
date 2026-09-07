@@ -20,4 +20,5 @@ sha2.workspace = true
 tempfile = "3"
 url.workspace = true
 veoveo-deploy-contract.workspace = true
+veoveo-extension-contract.workspace = true
 veoveo-mcp-contract.workspace = true

@@ -6,6 +6,7 @@ use clap::{Parser, Subcommand};
 #[path = "../../smoke/src/bin/smoke/deployment.rs"]
 mod deployment;
 mod gitops;
+mod helm_config;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -19,6 +20,8 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Render and validate Helm, image packaging, and GitOps configuration.
+    HelmConfig,
     /// Validate one typed deployment profile and every selected build and Helm surface.
     ProfileValidate {
         #[arg(long)]
@@ -84,6 +87,7 @@ enum Command {
 
 fn run() -> Result<()> {
     match Args::parse().command {
+        Command::HelmConfig => helm_config::helm_config(),
         Command::ProfileValidate { profile } => deployment::profile_validate(&profile),
         Command::ProfileRegistryUp { profile } => deployment::profile_registry_up(&profile),
         Command::ProfileClusterUp { profile } => deployment::profile_cluster_up(&profile),

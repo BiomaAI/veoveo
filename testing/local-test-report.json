@@ -1,10 +1,32 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b1e86c913521d011df7f642c5636a1e1862a501ab50265aaeccf242b994bde09",
-  "updatedAt": "2026-09-07T03:22:47Z",
+  "buildDigest": "sha256:6119c68f0b8bea6d310744cf0326edc61d06890c068556c1e73ae764662a65f0",
+  "updatedAt": "2026-09-07T03:29:44Z",
   "checks": [
     {
-      "name": "helm-smoke",
+      "name": "focused-harness-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-deployment-smoke",
+        "-p",
+        "veoveo-smoke",
+        "--all-targets",
+        "--no-deps",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T03:29:24Z",
+      "durationSeconds": 10.746099225,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "focused-helm",
       "command": [
         "cargo",
         "xtask",
@@ -12,39 +34,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:21:45Z",
-      "durationSeconds": 23.963824308,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "release-inputs",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask",
-        "--quiet"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T03:22:18Z",
-      "durationSeconds": 1.079895051,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "release-inputs-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "-p",
-        "veoveo-xtask",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T03:22:47Z",
-      "durationSeconds": 4.009554596,
+      "finishedAt": "2026-09-07T03:29:44Z",
+      "durationSeconds": 4.726885972,
       "detail": "completed successfully"
     }
   ]

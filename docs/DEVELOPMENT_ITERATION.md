@@ -515,3 +515,9 @@ cargo xtask release images \
 Qualification fails if rebuilding changes the runnable digest. A complete release then
 regenerates the deployment lock, performs the profile acceptance selected by its
 contract, and records SBOM and provenance on every publication index.
+
+`cargo xtask smoke helm-config` builds only the focused `veoveo-deployment-smoke`
+binary. Helm and GitOps configuration edits therefore avoid the full smoke harness’s
+Rerun, recording-service, and Stream dependency graph. The full gateway suite includes
+the same owner-local assertion module. This changes dispatch cost without weakening
+the configuration checks.
