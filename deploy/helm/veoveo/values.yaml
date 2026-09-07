@@ -100,6 +100,7 @@ gateway:
   replicas: 2
   existingControlPlaneConfigMap: veoveo-gateway-control-plane
   controlPlaneKey: gateway.json
+  # Required when gateway is selected: SHA-256 of its complete mounted public bundle.
   controlPlaneRevision: ""
   refreshDeliveryWindowSeconds: 5
   resources:

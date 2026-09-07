@@ -19,7 +19,7 @@ spec:
       port: 8788
       targetPort: http
 ---
-{{- $controlPlane := lookup "v1" "ConfigMap" .Release.Namespace .Values.gateway.existingControlPlaneConfigMap }}
+{{- $controlPlaneRevision := include "veoveo.controlPlaneRevision" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,13 +43,7 @@ spec:
         {{- end }}
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
-        {{- if .Values.gateway.controlPlaneRevision }}
-        checksum/control-plane: {{ .Values.gateway.controlPlaneRevision | quote }}
-        {{- else if $controlPlane }}
-        checksum/control-plane: {{ get $controlPlane.data .Values.gateway.controlPlaneKey | sha256sum | quote }}
-        {{- else }}
-        checksum/control-plane: "unresolved"
-        {{- end }}
+        checksum/control-plane: {{ $controlPlaneRevision | quote }}
     spec:
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false

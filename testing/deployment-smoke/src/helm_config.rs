@@ -1,13 +1,16 @@
 //! Configuration-only Helm and GitOps smoke assertions, shared with the full suite.
-use std::{fs, path::Path, process::Command};
+use std::{collections::BTreeMap, fs, path::Path, process::Command};
 
 use anyhow::{Context, Result, bail, ensure};
+use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use veoveo_extension_contract::SimulationRuntimeBuildLock;
 
 #[path = "helm_config/commands.rs"]
 mod commands;
+#[path = "helm_config/jobs.rs"]
+mod jobs;
 use commands::{contains, not_contains, run_checked};
 
 fn assert_revision_metadata_follows_payload(path: &str) -> Result<()> {
@@ -40,6 +43,7 @@ fn assert_revision_metadata_follows_payload(path: &str) -> Result<()> {
 }
 
 pub(crate) fn helm_config() -> Result<()> {
+    jobs::check()?;
     for chart in [
         "deploy/helm/veoveo-extension",
         "deploy/helm/veoveo",
@@ -149,6 +153,8 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
+            "--values".into(),
+            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
@@ -226,6 +232,8 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
+            "--values".into(),
+            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
@@ -285,6 +293,8 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
+            "--values".into(),
+            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
             "--set".into(),
             "consoleBff.rerunMap.provider=mapbox".into(),
             "--set".into(),
@@ -318,6 +328,8 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
+            "--values".into(),
+            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
             "--set".into(),
             "consoleBff.rerunMap.provider=mapbox".into(),
         ],
@@ -338,6 +350,8 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "bioma".into(),
             "deploy/helm/veoveo".into(),
+            "--values".into(),
+            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
@@ -376,8 +390,31 @@ pub(crate) fn helm_config() -> Result<()> {
     }
     not_contains(&bioma, "name: frames-mcp-bootstrap")?;
     not_contains(&bioma, "frames://frame/")?;
-    let control_plane = fs::read("examples/bioma/gateway.json")?;
-    let control_plane_revision = hex::encode(Sha256::digest(control_plane));
+    let installation = run_checked(
+        Path::new("kubectl"),
+        ["kustomize".into(), "examples/bioma".into()],
+        [],
+    )?;
+    let mut bundles = Vec::new();
+    for document in serde_yaml_ng::Deserializer::from_str(&installation) {
+        let object = Value::deserialize(document)?;
+        if object["kind"] == "ConfigMap"
+            && object["metadata"]["name"] == "bioma-gateway-control-plane"
+        {
+            bundles.push(serde_json::from_value::<BTreeMap<String, String>>(
+                object["data"].clone(),
+            )?);
+        }
+    }
+    ensure!(
+        bundles.len() == 1,
+        "expected one complete Bioma gateway ConfigMap"
+    );
+    let bundle_digest = veoveo_deploy_contract::gateway_bundle_digest(&bundles[0])?;
+    let control_plane_revision = bundle_digest
+        .as_str()
+        .strip_prefix("sha256:")
+        .expect("validated SHA-256 digest");
     let bioma_values = fs::read_to_string("examples/bioma/values.yaml")?;
     contains(
         &bioma_values,
@@ -475,6 +512,8 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "bioma".into(),
             "deploy/helm/veoveo".into(),
+            "--values".into(),
+            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
@@ -1184,7 +1223,8 @@ pub(crate) fn helm_config() -> Result<()> {
             .with_context(|| format!("{dockerfile} must not copy the Cargo workspace"))?;
     }
     for expected in [
-        "type=bind,source=.,target=/src,readonly",
+        "type=bind,source=.,target=/src,rw",
+        "veoveo-source-freshness /src /target/.veoveo-inputs",
         "id=${VEOVEO_CARGO_CACHE_ID}-registry-v1",
         "id=${VEOVEO_CARGO_CACHE_ID}-git-v1",
         "id=${VEOVEO_TARGET_CACHE_ID}",

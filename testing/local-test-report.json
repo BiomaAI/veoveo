@@ -1,28 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ac82cbaf6e7876fada74f777ab0cb803c007bef80356f8bf4c7bee5a4799727b",
-  "updatedAt": "2026-09-07T20:56:31Z",
+  "buildDigest": "sha256:2898d847ea268374b27bc2afd6c275b5941904f51c52a4ed87e3e78de291f2f7",
+  "updatedAt": "2026-09-07T21:21:20Z",
   "checks": [
     {
-      "name": "deploy-component-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "-p",
-        "veoveo-deploy-contract",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T20:56:28Z",
-      "durationSeconds": 2.227768233,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "deploy-component-contract",
+      "name": "gateway-bundle-contract",
       "command": [
         "cargo",
         "test",
@@ -31,12 +13,32 @@
         "veoveo-deploy-contract"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T20:56:25Z",
-      "durationSeconds": 4.759085116,
+      "finishedAt": "2026-09-07T21:20:58Z",
+      "durationSeconds": 5.25527185,
       "detail": "completed successfully"
     },
     {
-      "name": "deploy-component-format",
+      "name": "helm-job-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "veoveo-deploy-contract",
+        "-p",
+        "veoveo-deployment-smoke",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T21:21:17Z",
+      "durationSeconds": 18.112325365,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "helm-job-format",
       "command": [
         "cargo",
         "fmt",
@@ -45,8 +47,21 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T20:56:31Z",
-      "durationSeconds": 2.176747981,
+      "finishedAt": "2026-09-07T21:21:20Z",
+      "durationSeconds": 2.116996867,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stable-helm-jobs",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T21:20:52Z",
+      "durationSeconds": 8.765723904,
       "detail": "completed successfully"
     }
   ]

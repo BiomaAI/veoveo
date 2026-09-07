@@ -7,6 +7,7 @@
 | `veoveo.io/deployment/v6` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
 | `veoveo.io/deployment-lock/v6` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
+| `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
 | `veoveo.io/component-mutation-plan/v1` | internal preflight evidence for exact atomic targets; it records allowed actions and does not attest to executed writes |
 | `veoveo.io/atomic-deployment-unit/v1` | repository-owned SHA-256 identity over typed source, target, input closure, and sorted rendered object digests |
 | `veoveo.io/extension-release/v1` and Semantic Versioning 2.0.0 | component references retain the extension ID, exact release version, and manifest digest using the shared extension contract's validated types |
@@ -113,6 +114,16 @@ Secret and every required key enter the same rendered closure. After that gate s
 `profile-up` creates one immutable digest-qualified ConfigMap and supplies the exact
 activation revision to the platform Helm release. Repeating the command reuses the same
 public bundle. A changed document or trust file creates a new bundle before rollout.
+The platform chart requires the explicit bundle digest when gateway is selected.
+The same value determines gateway rollout and participates in the complete bootstrap
+Job spec digest. Helm release counters and cluster reads do not determine those inputs.
+`gateway_bundle_digest` owns the encoding for disposable profiles and GitOps
+installations. The domain prefix is `veoveo.io/gateway-activation/v1` followed by a zero
+byte. Each sorted UTF-8 key and value is preceded by its byte length as an unsigned
+64-bit big-endian integer. `gateway.controlPlaneRevision` contains the resulting 64
+lowercase hexadecimal characters without the `sha256:` prefix. Exact file bytes,
+including final newlines, participate. Bioma acceptance hashes the complete rendered
+ConfigMap data with this function and compares its declared revision.
 
 The lock records the exact installation-repository revision, host-push endpoint,
 cluster-pull endpoint, and registry transport

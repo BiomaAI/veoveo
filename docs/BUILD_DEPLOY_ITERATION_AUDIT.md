@@ -719,3 +719,34 @@ The observation is in `output/development/builder-reserve-observation.json` with
 native worker policies and retained cache identities. Staging evidence is in
 `output/development/builder-reserve-uav-stage.json`. These are build and operational
 observations, not a replacement for the pending live release and headed GPU acceptance.
+
+### Stable Initialization And Complete Gateway Inputs
+
+Veoveo installer integration found two remaining render dependencies on Helm release counters.
+The object-store initialization Job used the release number in its name. Gateway
+bootstrap also used that number when its control-plane revision was omitted. The
+gateway Deployment could additionally read a live ConfigMap while offline rendering
+emitted an unresolved checksum. These inputs prevented one immutable render from
+describing both preflight and installation.
+
+Both Job names now hash their complete rendered specs. Chart and Helm metadata changes
+preserve their names and Pod templates. Changes to a bucket, database, bootstrap
+resource limit, image, or service-account reference produce a new Job identity. The
+digest suffix survives Kubernetes name truncation. The gateway chart requires an
+explicit public bundle revision and performs no ConfigMap lookup during rendering.
+
+In the Bioma reference configuration, the prior revision covered only `gateway.json` while the mounted ConfigMap also
+contained five public key files. The declared revision now covers all six files through
+the existing `veoveo.io/gateway-activation/v1` length-prefixed encoding. The shared
+deployment contract owns that digest function. Acceptance hashes the actual rendered
+ConfigMap and compares the declared value; no Secret values participate.
+
+The Rust Helm configuration harness checks the actual chart at Helm revisions 2 and
+29, different chart metadata, 53-character release names, individual Job input changes,
+an unrelated Console image change, and absent or malformed gateway revisions. It also
+validates both disposable profiles. Completed Jobs retain their one-hour TTL; a later
+Helm upgrade can recreate a Job after that cleanup. Component selection must still
+prevent an unrelated upgrade from being invoked. These changes have rendered acceptance
+and await live activation of Veoveo with the reference configuration. The chart,
+digest contract, and installer remain shared Veoveo components; Bioma supplies one
+installation configuration used for acceptance.
