@@ -36,6 +36,7 @@ authorize implementation:
 | [`SELF_IMPROVING_HARNESS.md`](SELF_IMPROVING_HARNESS.md) | auth-aware profile strategies, MCP dynamics evidence, evaluation, measured acceptance through the scorer primitive, and possible self-improving harness boundaries |
 | [`HARNESS_MEDIATED_MODEL_POST_TRAINING.md`](HARNESS_MEDIATED_MODEL_POST_TRAINING.md) | exact-call trajectories through the deployed harness, rollout-level post-training semantics, governed evaluation, and candidate-model admission boundaries |
 | [`FACTORY_ISOLATION.md`](FACTORY_ISOLATION.md) | harness-neutral software-factory product plan: developer specification and deployment journey, staged author/verifier/broker architecture, OpenShell isolation, typed contracts, implementation sequence, trial acceptance, and adoption path |
+| [`BUILD_DEPLOY_ITERATION_AUDIT.md`](BUILD_DEPLOY_ITERATION_AUDIT.md) | measured build and rollout investigation, builder resource limits, artifact reuse, GPU image assembly, and proposed component release boundaries |
 | [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
 | [`ARTIFACT_PREVIEW_AND_APP_HANDOFF.md`](ARTIFACT_PREVIEW_AND_APP_HANDOFF.md) | artifact catalog, preview dispatch, producer and external-App registration paths, governed App handoff constraints, handler models, and open design questions |
 
