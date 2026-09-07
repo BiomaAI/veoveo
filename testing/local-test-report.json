@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:976b288eeace8555aae7b596c93801bc8ac8bc1cfa4e81b6a119d7f38496da3e",
-  "updatedAt": "2026-09-07T05:35:33Z",
+  "updatedAt": "2026-09-07T05:37:40Z",
   "checks": [
     {
       "name": "image-extraction-clippy",
@@ -32,6 +32,33 @@
       "status": "passed",
       "finishedAt": "2026-09-07T05:34:49Z",
       "durationSeconds": 4.694517372,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "uav-pinned-qualification",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "images",
+        "--target",
+        "uav-sim-runtime",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "ad605a21d433b93bd931dc99b9bc6d736b2a17dd",
+        "--stage-evidence",
+        "output/development/uav-after-raw-cache-eviction.json",
+        "--evidence-output",
+        "output/development/uav-pinned-qualified.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T05:37:40Z",
+      "durationSeconds": 10.856948415,
       "detail": "completed successfully"
     }
   ]
