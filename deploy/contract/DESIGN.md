@@ -10,6 +10,7 @@
 | `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
 | `veoveo.io/component-mutation-plan/v1` | internal preflight evidence for exact atomic targets; it records allowed actions and does not attest to executed writes |
 | `veoveo.io/atomic-deployment-unit/v1` | repository-owned SHA-256 identity over typed source, target, input closure, and sorted rendered object digests |
+| `veoveo.io/atomic-deployment-content/v1` | repository-owned SHA-256 identity of the same deployable contents with source revisions and extension release provenance excluded; used only after exact lock validation |
 | `veoveo.io/extension-release/v1` and Semantic Versioning 2.0.0 | component references retain the extension ID, exact release version, and manifest digest using the shared extension contract's validated types |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.2.3 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
@@ -45,8 +46,11 @@ The catalog owns every object by API group, kind, namespace, and name. Served AP
 versions do not create different identities. Reserved identities remain owned when an
 object is absent from the current render. The validator rejects overlapping owners and
 targets across the complete catalog before selection. One immutable input has one
-content digest, and every image repository retains one source-qualified owner even when
-several components consume it.
+content digest at each source revision, and every image repository retains one
+source-qualified owner even when several components consume it. A source name identifies
+one repository throughout the catalog. Components and inputs from that repository can
+retain different immutable revisions. Advancing a component does not change the recorded
+provenance of an unchanged image built from an earlier commit.
 
 Selection names exact component IDs and expands dependencies in deterministic order.
 The renderer supplies every expanded atomic target and must not render unselected
@@ -55,9 +59,21 @@ source identity, extension identity, target, complete inputs, and sorted object 
 An omitted input or changed object cannot reuse a previous digest. Catalog validation
 also recomputes stored unit digests instead of trusting them.
 
+Each unit also records a content digest. This digest retains the component ID and role,
+source name and repository, atomic target, extension ID, complete input contents, and
+sorted object digests. It omits source revisions and the extension release version and
+manifest digest. Any release metadata that affects deployment must enter the actual
+input closure or rendered objects. Input projections are sorted after removing revisions,
+and identical projections are deduplicated. The full unit digest preserves all exact
+provenance for lock validation and receipts. Both digests must match the desired render
+before an executor can use the content comparison to skip an upgrade.
+
 Every expanded target needs an explicit current-state observation. The observation
-distinguishes absence from a verified installed digest and object inventory. An unchanged
-dependency receives an `unchanged` action only when both match. Previous Helm objects
+distinguishes absence from verified installed provenance, content digest, and object
+inventory. A dependency receives an `unchanged` action when its content digest and
+complete object inventory match, including when its desired provenance has advanced.
+Matching provenance with a conflicting content digest fails as an inconsistent
+observation. Previous Helm objects
 remain part of the ownership check because an upgrade may delete them. Ownership cannot
 move between atomic targets during an update, including targets within one component.
 Such a release split needs a separate explicit migration.
@@ -80,8 +96,9 @@ does not prove that current objects match a unit digest.
 `ComponentMutationPlan` contains source identities, object digests, planned verbs, and
 unselected object identities. It contains no manifests or Secret values. Its unselected
 inventory describes the ownership boundary; it is not zero-write evidence. Focused tests
-prove selection and rejection rules. The independent Git-history deployment scenarios,
-actual mutation receipt, and live zero-write acceptance remain installer integration work.
+prove selection and rejection rules. Independent temporary platform and extension Git
+histories exercise revision reuse and committed input reads in the pure planner. Actual
+mutation receipts and live zero-write acceptance remain installer integration work.
 
 ## Deployment Profile
 

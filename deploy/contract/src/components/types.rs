@@ -154,6 +154,8 @@ pub struct LockedAtomicUnit {
     pub inputs: BTreeSet<ComponentInput>,
     /// Identity of the complete locked inputs and rendered objects for this unit.
     pub digest: ArtifactDigest,
+    /// Deployable contents with immutable source revisions retained in `digest`.
+    pub content_digest: ArtifactDigest,
     pub objects: Vec<RenderedObject>,
 }
 
@@ -183,7 +185,7 @@ pub enum AtomicToolScope {
 }
 
 /// Executor-verified current unit state, including objects a Helm upgrade could delete.
-/// The digest must describe the installed inputs, not a copy of the desired lock.
+/// Both digests must describe the installed inputs, not a copy of the desired lock.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObservedAtomicUnit {
     pub component: ComponentId,
@@ -198,6 +200,7 @@ pub enum ObservedUnitState {
     Absent,
     Present {
         digest: ArtifactDigest,
+        content_digest: ArtifactDigest,
         objects: Vec<RenderedObject>,
     },
 }
@@ -217,6 +220,7 @@ pub struct ComponentMutation {
     pub source: ComponentSource,
     pub target: AtomicTarget,
     pub digest: ArtifactDigest,
+    pub content_digest: ArtifactDigest,
     pub objects: Vec<RenderedObject>,
     /// Previous Helm objects omitted from the new render, which Helm may remove.
     pub retired_objects: Vec<RenderedObject>,

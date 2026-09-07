@@ -552,6 +552,15 @@ inputs and objects produce an unchanged action for a dependency. These tests est
 the preflight contract; the profile schema migration, installer integration, and actual
 zero-write deployment acceptance remain open.
 
+The planner now distinguishes immutable provenance from deployable content. Components
+from the same repository can retain different source revisions, and a newer component
+revision can consume an unchanged image from an earlier commit. Exact provenance still
+has to match the desired lock. A separate content digest decides whether the installed
+inputs and object inventory require an upgrade. Independent temporary Git histories
+exercise a platform documentation commit and an extension values update: the platform
+receives an unchanged action while the extension receives the upgrade. These are pure
+planning tests; they do not establish live Helm or Kubernetes zero-write evidence.
+
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
 cache family, explicitly selected both packages and binaries, and exported a local
