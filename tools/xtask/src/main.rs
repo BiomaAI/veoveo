@@ -105,6 +105,8 @@ enum ImageCommand {
 enum ReleaseCommand {
     /// Check host and optional Kubernetes headroom before an expensive release.
     Preflight(ReleasePreflightArgs),
+    /// Inspect or reclaim older regenerable host Cargo outputs.
+    CachePrune(ReleaseCacheArgs),
     /// Publish images from one exact committed revision.
     Images(ReleaseImagesArgs),
     /// Build, verify, and optionally publish the Python SDK.
@@ -251,6 +253,22 @@ impl From<RegistryTransportArg> for veoveo_deploy_contract::RegistryTransport {
             RegistryTransportArg::InsecureHttp => Self::InsecureHttp,
         }
     }
+}
+
+#[derive(Debug, Args)]
+struct ReleaseCacheArgs {
+    /// Keep outputs modified within this many days and each crate's newest incremental variant.
+    #[arg(long, default_value_t = 7)]
+    older_than_days: u64,
+    /// Apply the scoped removal plan after taking Cargo's build-directory lock.
+    #[arg(long)]
+    apply: bool,
+    /// JSON record of exact candidates and estimated reclaimable blocks.
+    #[arg(
+        long,
+        default_value = "output/development/cargo-cache-maintenance.json"
+    )]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -428,6 +446,7 @@ fn main() -> Result<()> {
         },
         Command::Release { command } => match command {
             ReleaseCommand::Preflight(args) => release_preflight::run(&repository, &args),
+            ReleaseCommand::CachePrune(args) => commands::release_cache::run(&repository, &args),
             ReleaseCommand::Images(args) => {
                 image::operation::record(&repository, "release", clock, || {
                     release::images(&repository, &args)

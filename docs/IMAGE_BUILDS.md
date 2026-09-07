@@ -465,3 +465,18 @@ Receipts and archives live under
 `output/releases/helm/<revision>/<version>/<selected-chart-names>/`, which keeps
 independent chart publications from overwriting one another’s immutable evidence.
 Installation Git remains responsible for choosing the resulting OCI digest.
+
+## Host Cargo Cache Retention
+
+`cargo xtask release cache-prune` inspects this worktree’s `target/debug` directory
+under Cargo’s build-directory lock. `--apply` removes the listed regenerable outputs.
+The seven-day default applies to modification time. The command selects ELF executable
+copies with Cargo hash names and a single hard link, and older incremental variants
+while retaining the newest variant for each crate. It preserves running executables,
+current executable hard links, dependency libraries, and recent output. The JSON report
+lists candidates and estimates reclaimable blocks after accounting for hard links.
+
+This is host Cargo maintenance. It does not prune BuildKit state, Docker images,
+registry artifacts, Kubernetes storage, or another worktree’s target directory.
+Rerunning a pruned test may relink its executable from retained dependency libraries.
+Run the resource preflight again after reclamation to verify actual filesystem space.

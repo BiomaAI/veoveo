@@ -598,6 +598,7 @@ Simulation runtime ownership:
 | `platform/runtimes/simulation/simulation-runtime.lock.json` | typed exact compatibility identity, source revisions, immutable components, GPU boundary, and driver floor |
 | `platform/runtimes/simulation/requirements.lock` | hash-locked Python dependency closure for the selected Isaac Lab profile |
 | `platform/runtimes/simulation/probes/` | import-identity and hardware-GPU conformance evidence |
+| `tools/xtask/src/commands/release_cache.rs` | scoped Cargo executable and incremental-cache retention under the build-directory lock |
 | `tools/image-build/control/` | shared pinned Buildx, BuildKit registry configuration, declared resource limits and CPU telemetry, and cross-worktree builder lease used by image release and certification |
 | `testing/smoke/src/bin/smoke/scenarios/simulation.rs` | deployment-lock registry authorization, published environment invariants, local image materialization, GPU certification, and retained transcripts |
 

@@ -1,38 +1,57 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:f4fdfe74fc8dc8538ea400f66a2ce646d181922f314bf5e63d78dd3f56ebf13e",
-  "updatedAt": "2026-09-07T03:40:22Z",
+  "buildDigest": "sha256:da18b4f33e1ab9ae20dbbdef942df46c4319ba984c12514c764facc95c149b87",
+  "updatedAt": "2026-09-07T03:54:12Z",
   "checks": [
     {
-      "name": "console-input-plan",
+      "name": "cache-retention",
       "command": [
         "cargo",
-        "xtask",
-        "image",
-        "plan",
-        "--target",
-        "console-bff"
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "--quiet"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:40:22Z",
-      "durationSeconds": 4.535131811,
+      "finishedAt": "2026-09-07T03:50:14Z",
+      "durationSeconds": 3.29714191,
       "detail": "completed successfully"
     },
     {
-      "name": "source-context-clippy",
+      "name": "cache-retention-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
         "veoveo-xtask",
         "--all-targets",
+        "--no-deps",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:39:49Z",
-      "durationSeconds": 3.153370128,
+      "finishedAt": "2026-09-07T03:53:47Z",
+      "durationSeconds": 9.868105434,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "restored-build-reserve",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "preflight",
+        "--expected-growth-gib",
+        "2",
+        "--kubernetes-node",
+        "k3d-veoveo-bioma-server-0",
+        "--namespace",
+        "veoveo"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T03:54:12Z",
+      "durationSeconds": 0.89390107,
       "detail": "completed successfully"
     }
   ]
