@@ -73,6 +73,7 @@ world:
   cesiumIonAssetId: 2275207
   bootstrap:
     existingConfigMap: ""
+    contentSha256: ""
     key: world.json
   streaming:
     maximumScreenSpaceError: 32

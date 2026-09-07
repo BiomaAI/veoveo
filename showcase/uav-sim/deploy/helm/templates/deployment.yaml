@@ -118,6 +118,10 @@ spec:
       labels:
         {{- include "uav-sim.mcpSelectorLabels" . | nindent 8 }}
         veoveo.ai/mcp-server: "true"
+      {{- if .Values.world.bootstrap.existingConfigMap }}
+      annotations:
+        checksum/world-bootstrap: {{ required "world.bootstrap.contentSha256 is required with an existing ConfigMap" .Values.world.bootstrap.contentSha256 | quote }}
+      {{- end }}
     spec:
       automountServiceAccountToken: false
       securityContext:

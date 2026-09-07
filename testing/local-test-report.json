@@ -1,10 +1,23 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:da18b4f33e1ab9ae20dbbdef942df46c4319ba984c12514c764facc95c149b87",
-  "updatedAt": "2026-09-07T03:54:12Z",
+  "buildDigest": "sha256:8bd207042e414c094d8b1b6aaa5e9c032b03e7850f68f8163be07b00ce6eb0f1",
+  "updatedAt": "2026-09-07T03:59:15Z",
   "checks": [
     {
-      "name": "cache-retention",
+      "name": "complete-helm-contract",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T03:58:37Z",
+      "durationSeconds": 6.327962275,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "remaining-rollout-contracts",
       "command": [
         "cargo",
         "test",
@@ -13,17 +26,19 @@
         "--quiet"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:50:14Z",
-      "durationSeconds": 3.29714191,
+      "finishedAt": "2026-09-07T03:59:07Z",
+      "durationSeconds": 1.053667527,
       "detail": "completed successfully"
     },
     {
-      "name": "cache-retention-clippy",
+      "name": "rollout-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
         "veoveo-xtask",
+        "-p",
+        "veoveo-deployment-smoke",
         "--all-targets",
         "--no-deps",
         "--",
@@ -31,27 +46,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T03:53:47Z",
-      "durationSeconds": 9.868105434,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "restored-build-reserve",
-      "command": [
-        "cargo",
-        "xtask",
-        "release",
-        "preflight",
-        "--expected-growth-gib",
-        "2",
-        "--kubernetes-node",
-        "k3d-veoveo-bioma-server-0",
-        "--namespace",
-        "veoveo"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T03:54:12Z",
-      "durationSeconds": 0.89390107,
+      "finishedAt": "2026-09-07T03:59:15Z",
+      "durationSeconds": 2.338312506,
       "detail": "completed successfully"
     }
   ]

@@ -554,6 +554,13 @@ pub(crate) fn helm_config() -> Result<()> {
     ] {
         contains(&uav_sim, expected)?;
     }
+    let world_digest = hex::encode(Sha256::digest(fs::read(
+        "examples/bioma/uav-sim-world.json",
+    )?));
+    contains(
+        &uav_sim,
+        &format!("checksum/world-bootstrap: \"{world_digest}\""),
+    )?;
     for forbidden in [
         "veoveo.ai/chart-revision",
         "GOOGLE_MAPS_API_KEY",
@@ -681,10 +688,10 @@ pub(crate) fn helm_config() -> Result<()> {
         "name: sumo-recording-forwarder",
         "claimName: sumo-recording-forwarder",
         "runAsUser: 10001",
-        "veoveo.ai/chart-revision: \"0.1.0\"",
     ] {
         contains(&sumo, expected)?;
     }
+    not_contains(&sumo, "veoveo.ai/chart-revision")?;
     if sumo.contains("tcpSocket:") {
         bail!("SUMO chart must not probe the single-client TraCI socket");
     }
