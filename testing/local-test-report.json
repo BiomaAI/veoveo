@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:2d80f60660dda453c41fe08d0768e206ddc041cadac65fe84684ad9f954eca89",
-  "updatedAt": "2026-09-07T06:35:14Z",
+  "updatedAt": "2026-09-07T06:39:14Z",
   "checks": [
     {
       "name": "authenticated-console-binaries",
@@ -38,6 +38,52 @@
       "status": "passed",
       "finishedAt": "2026-09-07T06:35:14Z",
       "durationSeconds": 5.60800808,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "iteration-core-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-image-build-control",
+        "-p",
+        "veoveo-mcp-apps-extension",
+        "-p",
+        "veoveo-recording-reader",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T06:37:53Z",
+      "durationSeconds": 142.104137235,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "iteration-helm-contract",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T06:39:14Z",
+      "durationSeconds": 22.989928129,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "iteration-planner-tests",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T06:38:09Z",
+      "durationSeconds": 2.1102418099999998,
       "detail": "completed successfully"
     }
   ]

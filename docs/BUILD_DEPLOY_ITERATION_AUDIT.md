@@ -9,7 +9,7 @@ implemented changes and their verification.
 | Concern | Implementation | Verification |
 |---|---|---|
 | Rollout triggers | Removed platform, UAV, and SUMO chart-version Pod annotations; Stream hashes runtime files; UAV bootstrap requires its content digest; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
-| Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
+| Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled throughput comparison remains pending |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin with a private MCP transport | Production TypeScript/Vite build passes; authenticated headed hardware-WebGL refresh preserves the document and signed-in session |
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
@@ -465,3 +465,26 @@ The temporary browser tab, local services, database container, and private key f
 were removed. No production authentication state changed. The record is
 `output/development/console-vite-authenticated-hmr.json`. This verifies the local
 authenticated UI loop; it does not accept a hosted GPU workload or the staged images.
+
+## Remaining Experiment Boundary
+
+The final 20 GiB growth preflight found 368 GiB available against 386 GiB required,
+including the 366 GiB reserve. The Kubernetes node remained Ready with no disk pressure.
+The retained BuildKit cache measured 191.92 GB. The available host has one NVMe shared
+with the live cluster; no separate build disk or second builder was available for this
+implementation cycle. Large compiler-family and second-worker experiments need that
+capacity before they can proceed without displacing the warm GPU cache again.
+
+The common Stream/Reason compiler family remains unadmitted. Its candidate executable
+must pass ELF, startup, and hardware workload checks in both runtime images. A controlled
+CPU comparison also remains pending; raising the declared quota establishes capacity
+but does not itself measure a throughput gain. Evaluate sccache and a second-worker
+action cache on the corrected narrow-input baseline when a separate worker is available.
+A Bazel migration has no measured advantage from this work and has not been introduced.
+
+The changed Flux configuration and charts have rendered acceptance, but were not
+published or activated in Bioma. Passive commit-to-ready timing therefore remains
+unmeasured. Selected chart publication and separate release image closures are delivered;
+splitting atomic Helm ownership still belongs to the complete `DEPLOY-SCOPE-023` migration.
+These boundaries remain explicit in the
+[iteration register](DEVELOPMENT_ITERATION.md#active-follow-ups-worth-fixing-next).
