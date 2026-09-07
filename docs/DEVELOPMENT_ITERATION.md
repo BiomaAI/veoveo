@@ -521,3 +521,10 @@ binary. Helm and GitOps configuration edits therefore avoid the full smoke harne
 Rerun, recording-service, and Stream dependency graph. The full gateway suite includes
 the same owner-local assertion module. This changes dispatch cost without weakening
 the configuration checks.
+
+## Console Frontend Feedback
+
+The [Console development runbook](../apps/console/web/README.md) defines the loopback
+Vite, BFF, and gateway ports and the required authentication origin. Use this loop for
+presentation edits before staging an immutable image. Vite proxies API and OAuth
+requests to the running local services while React refresh updates frontend modules.

@@ -7,9 +7,12 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 4173,
+    strictPort: true,
     proxy: {
-      "/console/api": "http://127.0.0.1:8796",
-      "/auth": "http://127.0.0.1:8796"
+      "/console/api": "http://127.0.0.1:8786",
+      "/auth": "http://127.0.0.1:8786",
+      "/oauth": "http://127.0.0.1:8788",
+      "/.well-known": "http://127.0.0.1:8788"
     }
   },
   build: {

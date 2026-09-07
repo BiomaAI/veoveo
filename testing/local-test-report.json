@@ -1,38 +1,20 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:1adec4ca19feda129d734db67aeccc6a7403030d73f93ce1a9ce52481a1dae5b",
-  "updatedAt": "2026-09-07T04:11:27Z",
+  "buildDigest": "sha256:2286eaa33ce800f4d31fdde75002bdb86fa0f85d33e921075a2c462deced3d51",
+  "updatedAt": "2026-09-07T04:14:07Z",
   "checks": [
     {
-      "name": "accurate-cache-timing",
+      "name": "console-dev-production-build",
       "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask",
-        "--quiet"
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:11:01Z",
-      "durationSeconds": 3.966766109,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "accurate-cache-timing-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "-p",
-        "veoveo-xtask",
-        "--all-targets",
-        "--no-deps",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T04:11:27Z",
-      "durationSeconds": 2.430671549,
+      "finishedAt": "2026-09-07T04:14:07Z",
+      "durationSeconds": 14.441612895,
       "detail": "completed successfully"
     }
   ]
