@@ -53,6 +53,7 @@ use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig, TaskSnapsho
 
 #[path = "server/admin.rs"]
 mod admin;
+#[cfg(test)]
 #[path = "server/app.rs"]
 mod app;
 #[path = "server/app_state.rs"]
@@ -493,7 +494,7 @@ impl ServerHandler for StreamMcp {
             if uri == uris::LIVE_APP_URI {
                 return Ok(ReadResourceResult::new(vec![app_html_contents(
                     uri,
-                    app::LIVE_APP_HTML,
+                    self.state.live_app.as_str(),
                 )]));
             }
             // Well-known surface (contract C18, C19): readable by any identity
@@ -926,6 +927,7 @@ async fn main() -> anyhow::Result<()> {
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-stream-mcp", "info,veoveo_stream_mcp=debug")?;
     let args = Args::parse();
+    let live_app = veoveo_mcp_apps_extension::AppHtml::load(&args.live_app)?;
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let verifier = GatewayInternalTokenVerifier::new(
@@ -997,6 +999,7 @@ async fn main() -> anyhow::Result<()> {
         subscribers.clone(),
     )?);
     let state = Arc::new(AppState {
+        live_app,
         tasks,
         artifacts: ArtifactRepository::new(args.artifact_service_url.clone()),
         recordings,

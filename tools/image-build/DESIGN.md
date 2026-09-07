@@ -56,6 +56,16 @@ through the solve and are removed with the prepared plan.
 
 ## Reuse And Evidence
 
+`package.metadata.veoveo.image-asset-inputs` declares repository-relative runtime
+asset paths within the declaring package. The planner removes those files from the
+compiler context and binds a separate `veoveo-image-assets` context to the selected
+runtime images. It records both identities in the family plan. Cargo manifests,
+target entrypoints, Rust source and explicit compiler inputs cannot be declared as
+assets. An accidental production `include_str!` of an excluded asset fails compilation.
+Map's App generator sources and generated HTML use this boundary; Stream declares its
+live App HTML. The runtime Dockerfiles consume the named context supplied by
+`cargo xtask image`.
+
 The source digest covers ordered paths, modes, file/link kinds, and bytes with a schema
 domain separator. The plan also records file count and the complete-source package
 set. This digest identifies source inputs; it is not a substitute for the compiled

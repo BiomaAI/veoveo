@@ -46,6 +46,8 @@ struct PackageMetadata {
 struct VeoveoMetadata {
     #[serde(default)]
     image_build_inputs: Vec<PathBuf>,
+    #[serde(default)]
+    image_asset_inputs: Vec<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,6 +92,11 @@ pub(super) struct SourceContext {
     directory: TempDir,
 }
 
+pub(super) struct PreparedSources {
+    pub compilation: SourceContext,
+    pub assets: Option<SourceContext>,
+}
+
 impl SourceContext {
     pub fn path(&self) -> &Path {
         self.directory.path()
@@ -119,8 +126,9 @@ pub(super) fn prepare(
     repository: &Path,
     metadata: &CargoMetadata,
     packages: &[String],
-) -> Result<SourceContext> {
+) -> Result<PreparedSources> {
     let files = tracked_files(repository)?;
+    let asset_files = asset_files(repository, metadata, packages, &files)?;
     let selected = input_files(repository, metadata, packages, &files)?;
     let context = materialize(repository, selected, source_packages(metadata, packages)?)?;
     process::output(
@@ -136,7 +144,19 @@ pub(super) fn prepare(
         Some(context.path()),
     )
     .context("validating the generated Cargo workspace before image compilation")?;
-    Ok(context)
+    let assets = (!asset_files.is_empty())
+        .then(|| {
+            materialize(
+                repository,
+                asset_files,
+                source_packages(metadata, packages)?,
+            )
+        })
+        .transpose()?;
+    Ok(PreparedSources {
+        compilation: context,
+        assets,
+    })
 }
 
 pub(super) fn tracked_files(repository: &Path) -> Result<BTreeSet<PathBuf>> {
@@ -317,7 +337,76 @@ fn input_files(
             .filter(|path| roots.iter().any(|root| path.starts_with(root)))
             .cloned(),
     );
+    for path in asset_files(repository, metadata, packages, available)? {
+        ensure!(
+            !metadata
+                .packages
+                .iter()
+                .flat_map(|package| package.metadata.iter())
+                .flat_map(|metadata| &metadata.veoveo.image_build_inputs)
+                .any(|input| path.starts_with(input)),
+            "image asset is also an explicit compiler input: {}",
+            path.display()
+        );
+        ensure!(
+            !metadata.packages.iter().any(|package| {
+                package.manifest_path == repository.join(&path)
+                    || package
+                        .targets
+                        .iter()
+                        .any(|target| target.src_path == repository.join(&path))
+            }) && path.extension().is_none_or(|extension| extension != "rs"),
+            "image-asset-inputs cannot remove Cargo metadata or Rust source: {}",
+            path.display()
+        );
+        required.remove(&path);
+    }
     Ok(required)
+}
+
+fn asset_files(
+    repository: &Path,
+    metadata: &CargoMetadata,
+    packages: &[String],
+    available: &BTreeSet<PathBuf>,
+) -> Result<BTreeSet<PathBuf>> {
+    let selected = closure(metadata, packages)?;
+    let mut assets = BTreeSet::new();
+    for package in metadata
+        .packages
+        .iter()
+        .filter(|package| package.source.is_none() && selected.contains(&package.id))
+    {
+        let manifest = relative(repository, &package.manifest_path)?;
+        let directory = manifest.parent().context("Cargo manifest has no parent")?;
+        for input in package
+            .metadata
+            .iter()
+            .flat_map(|metadata| &metadata.veoveo.image_asset_inputs)
+        {
+            ensure!(
+                input
+                    .components()
+                    .all(|part| matches!(part, Component::Normal(_)))
+                    && input.starts_with(directory)
+                    && input != directory,
+                "image-asset-inputs must name repository-relative paths inside the declaring package: {}",
+                input.display()
+            );
+            let matching = available
+                .iter()
+                .filter(|path| path.starts_with(input))
+                .cloned()
+                .collect::<Vec<_>>();
+            ensure!(
+                !matching.is_empty(),
+                "declared image asset {} is absent or ignored",
+                input.display()
+            );
+            assets.extend(matching);
+        }
+    }
+    Ok(assets)
 }
 
 pub(super) fn materialize(
@@ -470,6 +559,7 @@ mod tests {
         metadata.packages[1].metadata = Some(PackageMetadata {
             veoveo: VeoveoMetadata {
                 image_build_inputs: vec![PathBuf::from("configs/shared.json")],
+                ..Default::default()
             },
         });
         assert_eq!(
@@ -507,6 +597,80 @@ mod tests {
                 .unwrap()
                 .contains(Path::new("configs/shared.json"))
         );
+    }
+
+    #[test]
+    fn packaged_app_edits_change_only_the_asset_context() {
+        let root = tempfile::tempdir().unwrap();
+        let mut metadata = graph(root.path());
+        metadata.packages[0].metadata = Some(PackageMetadata {
+            veoveo: VeoveoMetadata {
+                image_asset_inputs: vec![PathBuf::from("bff/assets")],
+                ..Default::default()
+            },
+        });
+        let mut files = BTreeSet::from(
+            [
+                "Cargo.toml",
+                "Cargo.lock",
+                "rust-toolchain.toml",
+                ".dockerignore",
+                "tools/image-build/rust-workspace.Dockerfile",
+                "bff/assets/view.html",
+            ]
+            .map(PathBuf::from),
+        );
+        for package in &metadata.packages {
+            files.insert(relative(root.path(), &package.manifest_path).unwrap());
+            files.extend(
+                package
+                    .targets
+                    .iter()
+                    .map(|target| relative(root.path(), &target.src_path).unwrap()),
+            );
+        }
+        for path in &files {
+            fs::create_dir_all(root.path().join(path).parent().unwrap()).unwrap();
+            fs::write(root.path().join(path), "original").unwrap();
+        }
+        let packages = ["bff".to_owned()];
+        let inputs = input_files(root.path(), &metadata, &packages, &files).unwrap();
+        let assets = asset_files(root.path(), &metadata, &packages, &files).unwrap();
+        let compiler_before = materialize(root.path(), inputs.clone(), vec![]).unwrap();
+        let assets_before = materialize(root.path(), assets.clone(), vec![]).unwrap();
+        assert!(!compiler_before.path().join("bff/assets/view.html").exists());
+        fs::write(root.path().join("bff/assets/view.html"), "edited App").unwrap();
+        assert_eq!(
+            compiler_before.identity.digest,
+            materialize(root.path(), inputs, vec![])
+                .unwrap()
+                .identity
+                .digest
+        );
+        assert_ne!(
+            assets_before.identity.digest,
+            materialize(root.path(), assets, vec![])
+                .unwrap()
+                .identity
+                .digest
+        );
+        for forbidden in [
+            "bff/Cargo.toml",
+            "bff/src/lib.rs",
+            "shared/assets",
+            "bff/../shared",
+        ] {
+            metadata.packages[0]
+                .metadata
+                .as_mut()
+                .unwrap()
+                .veoveo
+                .image_asset_inputs = vec![PathBuf::from(forbidden)];
+            assert!(
+                input_files(root.path(), &metadata, &packages, &files).is_err(),
+                "accepted {forbidden}"
+            );
+        }
     }
 
     #[cfg(unix)]
@@ -552,9 +716,17 @@ mod tests {
                 "veoveo-recording-mcp" | "veoveo-recording-hub" | "veoveo-recording-forwarder"
             )));
             match package {
-                "veoveo-stream-mcp" => assert!(
-                    inputs.contains(Path::new("servers/stream-mcp/gst-runner/CMakeLists.txt"))
-                ),
+                "veoveo-stream-mcp" => {
+                    assert!(
+                        inputs.contains(Path::new("servers/stream-mcp/gst-runner/CMakeLists.txt"))
+                    );
+                    assert!(!inputs.contains(Path::new("servers/stream-mcp/assets/live.html")));
+                    assert!(
+                        asset_files(&repository, &metadata, &[package.to_owned()], &files)
+                            .unwrap()
+                            .contains(Path::new("servers/stream-mcp/assets/live.html"))
+                    );
+                }
                 "veoveo-reason-mcp" => {
                     assert!(inputs.contains(Path::new("servers/reason-mcp/runner/pyproject.toml")))
                 }

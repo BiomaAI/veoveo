@@ -120,6 +120,12 @@ runner cannot retain the pipeline's exclusive UDP port.
 it from the server's MCP resources and grants only its linked
 `start_live_session` and `stop_live_session` tools.
 
+The runtime image packages the document at `/opt/veoveo/stream/assets/live.html`.
+Startup loads a bounded immutable `AppHtml` snapshot. A local process can select
+`--live-app servers/stream-mcp/assets/live.html` alongside its normal configuration;
+restart it after an HTML edit. The image planner puts this file in the assembly
+context, keeping presentation bytes outside the Rust compiler action.
+
 The App reads:
 
 ```text

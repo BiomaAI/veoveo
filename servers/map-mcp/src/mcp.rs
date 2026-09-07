@@ -1042,7 +1042,7 @@ impl ServerHandler for MapMcp {
                 return Ok(ReadResourceResult::new(vec![
                     veoveo_mcp_apps_extension::app_html_contents(
                         uri,
-                        include_str!("../assets/workspace-app.html"),
+                        self.state.workspace_app.as_str(),
                     ),
                 ]));
             }

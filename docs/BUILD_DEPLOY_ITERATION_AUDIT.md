@@ -12,6 +12,7 @@ implemented changes and their verification.
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin | Production TypeScript/Vite build passes; authenticated headed-browser acceptance remains pending |
+| Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks, strict Clippy and resolved Bake context checks pass; a fixture HTML edit preserves the compiler digest and changes the asset digest |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
@@ -403,3 +404,16 @@ and it again preserved the staged runnable digest. Receipts are
 they do not establish GPU workload or headed-browser acceptance. Image evidence now
 records extraction separately, and progress reports aggregate phase windows only after
 the solve ends instead of calling a phase complete when its first layer finishes.
+
+Map and Stream now package App HTML separately from their Rust executables. The
+shared loader rejects missing, empty, non-UTF-8 and oversized assets before service
+startup. Resource reads retain their existing authorization and return a fixed startup
+snapshot. The Cargo-derived planner gives runtime assembly a separate asset context;
+Map's context contains seven presentation files and Stream's contains one. All Cargo
+metadata and native runner inputs remain in the compiler boundary.
+
+Fourteen App-helper tests and 85 xtask tests passed. Both servers passed all-target
+compilation checks, and strict Clippy passed across the helper, planner and consumers.
+The real two-image plan resolved in 2.5 s. A fixture presentation edit changes only the
+asset digest. This is input-isolation evidence; a packaged-image build and headed
+visual acceptance remain separate checks.

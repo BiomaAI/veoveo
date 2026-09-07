@@ -38,6 +38,9 @@ provider-neutral.
 - `cargo test -p veoveo-stream-mcp --all-targets`
 - `cargo xtask image build --target stream-mcp`
 - `cargo xtask smoke stream-gpu`
+- Local processes pass `--live-app servers/stream-mcp/assets/live.html` alongside
+  their runtime configuration. Restart after HTML edits. Image assembly supplies
+  the App through a separate declared asset context, preserving Rust compilation.
 
 The C++ runner lives in `gst-runner/` and builds inside the exact DeepStream
 image. GPU acceptance requires NVIDIA Container Toolkit and a model engine

@@ -11,6 +11,9 @@ use veoveo_task_runtime::StoreAuthLevel;
 pub(super) struct Args {
     #[arg(long, default_value_t = 8797)]
     pub(super) port: u16,
+    /// Image-owned App document; use a source asset path for local development.
+    #[arg(long, default_value = "/opt/veoveo/stream/assets/live.html")]
+    pub(super) live_app: PathBuf,
     #[arg(long, env = "PUBLIC_BASE_URL")]
     pub(super) public_base_url: String,
     #[arg(long, default_value = "http://artifact-service:8790")]

@@ -189,8 +189,11 @@ struct FamilyPlan {
     target_cache_epoch: &'static str,
     target_cache_id: String,
     source_inputs: source_context::InputIdentity,
+    asset_inputs: Option<source_context::InputIdentity>,
     #[serde(skip)]
     context_path: PathBuf,
+    #[serde(skip)]
+    asset_context_path: Option<PathBuf>,
 }
 
 pub(crate) struct PreparedPlan {
@@ -271,6 +274,8 @@ struct BakeOverride {
 struct BakeTargetOverride {
     #[serde(skip_serializing_if = "Option::is_none")]
     context: Option<String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    contexts: BTreeMap<String, String>,
     args: BTreeMap<String, String>,
 }
 
@@ -456,13 +461,23 @@ pub(crate) fn prepare_with_builder(
             auxiliary.extend(unit.auxiliary.iter().copied());
         }
         let packages = packages.into_iter().collect::<Vec<_>>();
-        let context = source_context::prepare(
+        let sources = source_context::prepare(
             source_repository.root(),
             metadata
                 .as_ref()
                 .expect("Rust family requires Cargo metadata"),
             &packages,
         )?;
+        let context = sources.compilation;
+        let asset_inputs = sources
+            .assets
+            .as_ref()
+            .map(|assets| assets.identity.clone());
+        let asset_context_path = sources
+            .assets
+            .as_ref()
+            .map(|assets| assets.path().to_owned());
+        source_contexts.extend(sources.assets);
         let context_path = context.path().to_owned();
         let source_inputs = context.identity.clone();
         source_contexts.push(context);
@@ -476,6 +491,8 @@ pub(crate) fn prepare_with_builder(
             target_cache_id: family.target_cache_id(&source_hash),
             source_inputs,
             context_path,
+            asset_inputs,
+            asset_context_path,
         });
     }
 
@@ -921,6 +938,7 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                 name.clone(),
                 BakeTargetOverride {
                     context: None,
+                    contexts: BTreeMap::new(),
                     args: BTreeMap::from([(
                         "SOURCE_REVISION".to_owned(),
                         plan.source.revision.clone(),
@@ -930,6 +948,25 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
         })
         .collect::<BTreeMap<_, _>>();
     for family in &plan.families {
+        if let Some(path) = &family.asset_context_path {
+            for image in plan.targets.iter().filter(|image| {
+                image
+                    .rust
+                    .as_ref()
+                    .is_some_and(|unit| unit.family == family.family)
+            }) {
+                target
+                    .get_mut(&image.name)
+                    .expect("direct image target was seeded")
+                    .contexts
+                    .insert(
+                        "veoveo-image-assets".to_owned(),
+                        path.to_str()
+                            .context("image asset context is not UTF-8")?
+                            .to_owned(),
+                    );
+            }
+        }
         let args = if let Some(artifact) = family.family.shared_artifact_target() {
             let args = BTreeMap::from([
                 (
@@ -964,6 +1001,7 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                     .entry(artifact.to_owned())
                     .or_insert_with(|| BakeTargetOverride {
                         context: None,
+                        contexts: BTreeMap::new(),
                         args: BTreeMap::new(),
                     });
             artifact.context = Some(source_context_path(family)?);
@@ -1020,6 +1058,24 @@ fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()
         );
     }
     for family in &plan.families {
+        if let Some(path) = &family.asset_context_path {
+            for image in plan.targets.iter().filter(|image| {
+                image
+                    .rust
+                    .as_ref()
+                    .is_some_and(|unit| unit.family == family.family)
+            }) {
+                ensure!(
+                    definition
+                        .target
+                        .get(&image.name)
+                        .and_then(|image| image.contexts.get("veoveo-image-assets"))
+                        .is_some_and(|context| Path::new(context) == path),
+                    "resolved Bake graph changed image asset context for {}",
+                    image.name
+                );
+            }
+        }
         let target_name = family.family.shared_artifact_target().unwrap_or_else(|| {
             plan.targets
                 .iter()

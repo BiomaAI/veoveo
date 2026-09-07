@@ -192,7 +192,10 @@ MCP Apps (SEP-1865 / ext-apps "2026-01-26") support: pinned protocol
 constants (`io.modelcontextprotocol/ui`, `text/html;profile=mcp-app`), typed
 `_meta.ui` shapes, server helpers (capability declaration, `ui://` app
 resources, tool links), and host helpers (capability declaration, app
-detection, and visibility checks). The Console owns the generic reactive-resource
+detection, and visibility checks).
+`asset.rs` owns bounded immutable startup snapshots of packaged App HTML. Map and
+Stream declare their image asset inputs separately from Rust compiler sources.
+The Console owns the generic reactive-resource
 adapter that carries final-profile `subscriptions/listen` wakes across the pinned Apps
 bridge without exposing domain payloads. `mcp/apps-extension/DESIGN.md` is the
 canonical server↔core↔UI contract: domain reads are resources, domain
