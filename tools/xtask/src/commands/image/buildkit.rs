@@ -17,6 +17,7 @@ use serde_json::Value;
 pub(crate) struct PhaseTimings {
     pub(crate) buildkit_millis: u64,
     pub(crate) compile_millis: u64,
+    pub(crate) extraction_millis: u64,
     pub(crate) sbom_millis: u64,
     pub(crate) provenance_millis: u64,
     pub(crate) timestamp_normalization_millis: u64,
@@ -62,6 +63,7 @@ impl TimeWindow {
 struct TraceSummary {
     all: TimeWindow,
     compile: TimeWindow,
+    extraction: TimeWindow,
     sbom: TimeWindow,
     provenance: TimeWindow,
     timestamp_normalization: TimeWindow,
@@ -74,7 +76,6 @@ struct TraceSummary {
 struct ProgressEmitter {
     completed_vertices: BTreeSet<String>,
     active_phases: BTreeSet<&'static str>,
-    completed_phases: BTreeSet<&'static str>,
 }
 
 impl ProgressEmitter {
@@ -85,7 +86,12 @@ impl ProgressEmitter {
                     continue;
                 };
                 let name = vertex.get("name").and_then(Value::as_str).unwrap_or("");
-                if let Some(phase) = build_phase(name)
+                let cached = vertex
+                    .get("cached")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                if !cached
+                    && let Some(phase) = build_phase(name)
                     && vertex.get("started").is_some()
                     && self.active_phases.insert(phase)
                 {
@@ -106,11 +112,6 @@ impl ProgressEmitter {
                     "completed"
                 };
                 eprintln!("BuildKit {result}: {}", bounded_name(name));
-                if let Some(phase) = build_phase(name)
-                    && self.completed_phases.insert(phase)
-                {
-                    eprintln!("BuildKit phase completed: {phase}");
-                }
             }
         }
         if let Some(statuses) = value.get("statuses").and_then(Value::as_array) {
@@ -126,9 +127,27 @@ impl ProgressEmitter {
                 if status.get("started").is_some() && self.active_phases.insert(phase) {
                     eprintln!("BuildKit phase started: {phase}");
                 }
-                if status.get("completed").is_some() && self.completed_phases.insert(phase) {
-                    eprintln!("BuildKit phase completed: {phase}");
-                }
+            }
+        }
+    }
+
+    fn finish(timings: &PhaseTimings) {
+        // A completed vertex or layer does not finish a whole phase: other
+        // layers and selected targets can still be working in that phase.
+        for (phase, millis) in [
+            ("compile", timings.compile_millis),
+            ("extraction", timings.extraction_millis),
+            ("sbom", timings.sbom_millis),
+            ("provenance", timings.provenance_millis),
+            (
+                "timestamp-normalization",
+                timings.timestamp_normalization_millis,
+            ),
+            ("export", timings.export_millis),
+            ("push", timings.push_millis),
+        ] {
+            if millis > 0 {
+                eprintln!("BuildKit observed phase window: {phase} {millis} ms");
             }
         }
     }
@@ -189,6 +208,9 @@ impl TraceSummary {
         if name.contains("sbom") || name.contains("spdx") {
             self.sbom.include(started, completed);
         }
+        if name.starts_with("extracting") {
+            self.extraction.include(started, completed);
+        }
         if name.contains("provenance") || name.contains("slsa") {
             self.provenance.include(started, completed);
         }
@@ -212,6 +234,7 @@ impl TraceSummary {
         PhaseTimings {
             buildkit_millis: self.all.duration_millis(),
             compile_millis: self.compile.duration_millis(),
+            extraction_millis: self.extraction.duration_millis(),
             sbom_millis: self.sbom.duration_millis(),
             provenance_millis: self.provenance.duration_millis(),
             timestamp_normalization_millis: self.timestamp_normalization.duration_millis(),
@@ -257,7 +280,9 @@ pub(crate) fn execute(
         }
     }
     let status = child.wait().context("waiting for Docker Buildx Bake")?;
-    Ok((status, summary.finish()))
+    let timings = summary.finish();
+    ProgressEmitter::finish(&timings);
+    Ok((status, timings))
 }
 
 fn build_phase(name: &str) -> Option<&'static str> {
@@ -267,6 +292,8 @@ fn build_phase(name: &str) -> Option<&'static str> {
         || name.contains("veoveo_cargo_packages")
     {
         Some("compile")
+    } else if name.starts_with("extracting") {
+        Some("extraction")
     } else if name.contains("sbom") || name.contains("spdx") {
         Some("sbom")
     } else if name.contains("provenance") || name.contains("slsa") {
@@ -367,6 +394,48 @@ mod tests {
         assert_eq!(result.executed_vertices, 0);
         assert_eq!(result.cached_vertices, 1);
         assert_eq!(result.buildkit_millis, 1000);
+    }
+
+    #[test]
+    fn cached_image_extraction_remains_visible_before_sbom() {
+        let mut summary = TraceSummary::default();
+        let mut progress = ProgressEmitter::default();
+        // BuildKit reopens a cached LINK vertex when an SBOM scanner needs its
+        // filesystem. Layer statuses carry the actual extraction intervals.
+        for event in [
+            serde_json::json!({"vertexes":[{
+                "digest":"compile", "name":"RUN cargo build --release", "cached":true,
+                "started":"2026-09-07T05:22:00Z", "completed":"2026-09-07T05:22:00Z"
+            }]}),
+            serde_json::json!({"vertexes":[{
+                "digest":"overlay", "name":"LINK COPY --link app/ /opt/app/", "cached":true,
+                "started":"2026-09-07T05:22:00Z", "completed":"2026-09-07T05:22:00Z"
+            }]}),
+            serde_json::json!({"statuses":[{
+                "id":"extracting sha256:first", "vertex":"overlay", "name":"extracting",
+                "started":"2026-09-07T05:22:00Z", "completed":"2026-09-07T05:23:00Z"
+            }]}),
+            serde_json::json!({"statuses":[{
+                "id":"extracting sha256:second", "vertex":"overlay", "name":"extracting",
+                "started":"2026-09-07T05:23:00Z", "completed":"2026-09-07T05:25:00Z"
+            }]}),
+            serde_json::json!({"vertexes":[{
+                "digest":"scan", "name":"generating sbom using scanner",
+                "started":"2026-09-07T05:26:00Z", "completed":"2026-09-07T05:27:00Z"
+            }]}),
+        ] {
+            // Duplicate updates must not add a second copy of a layer's time.
+            summary.observe(&event);
+            summary.observe(&event);
+            progress.observe(&event);
+        }
+        let result = summary.finish();
+        assert_eq!(result.buildkit_millis, 300_000);
+        assert_eq!(result.extraction_millis, 180_000);
+        assert_eq!(result.sbom_millis, 60_000);
+        assert_eq!(result.compile_millis, 0);
+        assert!(!progress.active_phases.contains("compile"));
+        assert!(progress.active_phases.contains("extraction"));
     }
 
     #[test]

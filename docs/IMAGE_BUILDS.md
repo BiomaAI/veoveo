@@ -245,7 +245,7 @@ target/veoveo-xtask/evidence/<revision>/
 `plan.json` records the resolved source, dirty state, source commit timestamp, targets,
 packages, binaries, families, cache identities, tags, and platform. `run.json` records
 the operation, output mode, start time, duration, exit status, raw BuildKit trace, and
-phase windows for compilation, SBOM, provenance, timestamp normalization, export, and
+phase windows for compilation, filesystem extraction, SBOM, provenance, timestamp normalization, export, and
 push. The Buildx file
 contains the exporter result and attested publication-index digests reported by
 BuildKit. A failed execution also retains its plan and terminal record. Publication
