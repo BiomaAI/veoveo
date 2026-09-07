@@ -23,7 +23,7 @@ const BUILDX_LINUX_AMD64_SHA256: &str =
 const BUILDX_LINUX_ARM64_SHA256: &str =
     "d263ce31bd2c9e9210aaa2c7537c67802bccabcd342e4c9fe4907085ddb41aa5";
 const BUILDKIT_VERSION: &str = "v0.33.0";
-const BUILDKIT_IMAGE: &str = "docker.io/moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3";
+pub const BUILDKIT_IMAGE: &str = "docker.io/moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3";
 const BUILDER_CONTAINER: &str = "buildx_buildkit_veoveo0";
 
 #[derive(Debug, Eq, PartialEq)]

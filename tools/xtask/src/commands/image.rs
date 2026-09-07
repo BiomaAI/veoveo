@@ -20,6 +20,7 @@ use crate::{
 
 mod affected;
 mod buildkit;
+mod normalized;
 pub(crate) mod operation;
 mod run_evidence;
 mod selection;
@@ -55,6 +56,7 @@ pub(crate) struct BuildPlanV1 {
     source_revision_targets: Vec<String>,
     targets: Vec<ImageTarget>,
     families: Vec<FamilyPlan>,
+    normalized_parents: Vec<normalized::ParentPlan>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -192,6 +194,7 @@ pub(crate) struct PreparedPlan {
     pub(crate) plan: BuildPlanV1,
     override_file: NamedTempFile,
     _source_contexts: Vec<source_context::SourceContext>,
+    parents: Vec<normalized::PreparedParent>,
 }
 
 #[derive(Clone, Debug)]
@@ -236,7 +239,7 @@ struct BakeGroup {
     targets: Vec<String>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct BakeTarget {
     #[serde(default)]
     args: BTreeMap<String, String>,
@@ -252,6 +255,8 @@ struct BakeTarget {
     platforms: Vec<String>,
     #[serde(default)]
     tags: Vec<String>,
+    #[serde(flatten)]
+    options: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -316,6 +321,7 @@ pub(crate) fn build_command(
         &BTreeMap::new(),
         OutputMode::Load,
         &evidence,
+        false,
     )?;
     println!("Build evidence: {}", evidence.directory().display());
     Ok(())
@@ -350,6 +356,7 @@ pub(crate) fn prepare_with_builder(
     let validation_started = Instant::now();
     let direct_targets = selected_targets(&checked, &selection)?;
     let source_revision_targets = target_dependency_closure(&checked, &direct_targets)?;
+    let parents = normalized::prepare(source_repository.root(), &checked, &direct_targets)?;
     let needs_cargo_metadata = direct_targets.iter().try_fold(false, |needed, name| {
         let target = checked
             .target
@@ -487,6 +494,7 @@ pub(crate) fn prepare_with_builder(
         source_revision_targets,
         targets,
         families,
+        normalized_parents: parents.iter().map(|parent| parent.plan.clone()).collect(),
     };
     let override_definition = make_override(&plan)?;
     let mut override_file = NamedTempFile::new().context("creating Bake override")?;
@@ -516,6 +524,7 @@ pub(crate) fn prepare_with_builder(
         plan,
         override_file,
         _source_contexts: source_contexts,
+        parents,
     })
 }
 
@@ -550,7 +559,33 @@ pub(crate) fn execute(
     environment: &BTreeMap<String, String>,
     mode: OutputMode,
     evidence: &EvidenceRun,
+    allow_insecure_registry: bool,
 ) -> Result<()> {
+    let parent_override = if matches!(mode, OutputMode::Load) {
+        None
+    } else {
+        match normalized::resolve(
+            builder_repository,
+            source_repository,
+            prepared,
+            environment,
+            evidence,
+            allow_insecure_registry,
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                evidence.finish(
+                    &prepared.plan,
+                    mode,
+                    BuildRunResult::Failed,
+                    None,
+                    Some(&format!("normalized parent resolution failed: {error:#}")),
+                    buildkit::PhaseTimings::default(),
+                )?;
+                return Err(error);
+            }
+        }
+    };
     let bake = source_repository.root().join("docker-bake.hcl");
     let mut attestation_override = match mode {
         OutputMode::Load | OutputMode::Staged => None,
@@ -583,6 +618,9 @@ pub(crate) fn execute(
         .arg(&bake)
         .arg("-f")
         .arg(prepared.override_file.path());
+    if let Some(override_file) = &parent_override {
+        command.arg("-f").arg(override_file.path());
+    }
     if let Some(override_file) = attestation_override.as_mut() {
         command.arg("-f").arg(override_file.path());
     }

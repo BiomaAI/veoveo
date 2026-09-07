@@ -42,6 +42,8 @@ pub(crate) enum Phase {
     BuilderSetup,
     Planning,
     Solve,
+    ParentResolution,
+    ParentPublication,
     ManifestInspection,
     ReceiptWrite,
 }

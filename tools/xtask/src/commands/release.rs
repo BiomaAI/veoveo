@@ -320,6 +320,7 @@ pub(crate) fn stage_images(repository: &RepositoryContext, args: &ImageStageArgs
         &environment,
         OutputMode::Staged,
         &evidence,
+        allow_insecure_registry,
     )?;
     let staging_digests = evidence.publication_index_digests(&prepared)?;
     let staged = prepared
@@ -871,6 +872,7 @@ fn publish_prepared_source(
             &environment,
             OutputMode::Qualified,
             &evidence,
+            allow_insecure_registry,
         )?;
         let digests = evidence.publication_index_digests(&phase.plan)?;
         for output in phase.plan.image_outputs() {
@@ -971,6 +973,7 @@ fn publish_image_selections(
             &environment,
             OutputMode::Qualified,
             &evidence,
+            allow_insecure_registry,
         )?;
         let digests = evidence.publication_index_digests(&phase.plan)?;
         for output in phase.plan.image_outputs() {
