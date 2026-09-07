@@ -1,23 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:86c82594583266c15ec51807962f7cf8fdca85dfacee6670dea54782ed0f039c",
-  "updatedAt": "2026-09-07T05:33:07Z",
+  "buildDigest": "sha256:976b288eeace8555aae7b596c93801bc8ac8bc1cfa4e81b6a119d7f38496da3e",
+  "updatedAt": "2026-09-07T05:35:33Z",
   "checks": [
     {
-      "name": "pinned-qualification",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T05:32:36Z",
-      "durationSeconds": 4.910668051,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "pinned-qualification-clippy",
+      "name": "image-extraction-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -30,8 +17,21 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T05:33:07Z",
-      "durationSeconds": 5.449658298,
+      "finishedAt": "2026-09-07T05:35:33Z",
+      "durationSeconds": 2.662188813,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "image-extraction-timing",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T05:34:49Z",
+      "durationSeconds": 4.694517372,
       "detail": "completed successfully"
     }
   ]
