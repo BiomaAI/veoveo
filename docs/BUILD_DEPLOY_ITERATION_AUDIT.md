@@ -13,6 +13,7 @@ implemented changes and their verification.
 | Rollout triggers | Removed platform, UAV, and SUMO chart-version Pod annotations; Stream hashes runtime files; UAV bootstrap requires its content digest; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins; added a controlled source-edit benchmark | Identical BFF/gateway binaries compile in 84.9 s at four CPUs versus 37.0 s at twelve; a live failure-path test verifies quota restoration; strict Clippy and 99 unit/worker tests pass |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants; hourly retention can reclaim superseded outputs within one day | Candidate and Cargo-lock interoperability tests pass; the broader pass recovered 18.4 GiB of Cargo outputs and about 61 GiB of image cache; the 20 GiB experiment now passes the reserve gate |
+| Automatic cache capacity | Reduced the protected BuildKit cache floor to 80 GiB and set a 22% collection trigger that covers the 20% host reserve after the pinned daemon’s percentage rounding | Native worker policy reports 404,000,000,000 bytes of free-space protection; all 14 Cargo mounts survive reconfiguration; UAV staging takes 5.6 s including reconfiguration with the same runnable digest; the 20 GiB growth preflight passes |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin with a private MCP transport | Production TypeScript/Vite build passes; authenticated headed hardware-WebGL refresh preserves the document and signed-in session |
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
@@ -677,3 +678,34 @@ retain compiler identity, input gates, cache statistics, artifact hashes and Bui
 traces. The three experiment cache mounts, including the interrupted comparisons,
 were removed under the builder lease after inspection. The cleanup recovered
 728,788,992 bytes and retained all fourteen existing execution cache mounts.
+
+
+### Automatic Cache Capacity
+
+The reduced worker cache occupies about 124 GiB after the cleanup and compiler
+experiments. Its former 240 GiB protected floor prevented automatic collection from
+responding to host disk pressure. Both collection policies now use an 80 GiB floor
+and retain the 320 GiB worker ceiling.
+
+The live daemon also exposed a percentage conversion issue. BuildKit 0.33.0 turns its
+20% setting into 367,000,000,000 bytes on this filesystem, below the release preflight
+reserve. Its
+[pinned conversion](https://github.com/moby/buildkit/blob/v0.33.0/cmd/buildkitd/config/gcpolicy.go#L127)
+divides by binary GiB and multiplies by decimal GB. The configured 22% trigger resolves
+to 404,000,000,000 bytes, about 376 GiB, and covers preflight's exact 20% reserve of
+about 366 GiB. This is a collection target subject to the cache floor; planned build
+growth still needs separate headroom.
+
+The registry-aware builder transition retained the existing worker volume and all
+fourteen Cargo execution cache mounts. The UAV staging command, including that
+transition, completed in 5.577 s. It performed no compilation or filesystem extraction
+and retained runnable digest
+`sha256:2beef03e6ed1b4e811f6f82c61d3ef9c89f5692cf970cd1bab6dd91657d45a46`.
+The 20 GiB growth preflight passed with 24 GiB above the retained reserve. The Kubernetes
+node remained Ready without DiskPressure, and the existing UAV readiness endpoint
+reported simulation and visual readiness.
+
+The observation is in `output/development/builder-reserve-observation.json` with the
+native worker policies and retained cache identities. Staging evidence is in
+`output/development/builder-reserve-uav-stage.json`. These are build and operational
+observations, not a replacement for the pending live release and headed GPU acceptance.

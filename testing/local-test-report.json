@@ -1,89 +1,61 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:5cfe422e3ad51fed69e462def824eb3617e639c495641604d36823570a3b002c",
-  "updatedAt": "2026-09-07T20:08:05Z",
+  "buildDigest": "sha256:b44cb0425ea8741dc8046f243b46e358abb9f1079e2bae84225cf187891b3f80",
+  "updatedAt": "2026-09-07T20:15:56Z",
   "checks": [
     {
-      "name": "compiler-cache-comparison",
+      "name": "builder-reserve-preflight",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "preflight",
+        "--expected-growth-gib",
+        "20",
+        "--kubernetes-node",
+        "k3d-veoveo-bioma-server-0"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T20:15:56Z",
+      "durationSeconds": 0.698328478,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "builder-reserve-stage",
       "command": [
         "cargo",
         "xtask",
         "image",
-        "builder",
-        "cache-benchmark",
+        "stage",
         "--target",
-        "console-bff",
-        "--target",
-        "mcp-gateway",
-        "--output",
-        "output/development/compiler-cache-recovery"
+        "uav-sim-runtime",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "ad605a21d433b93bd931dc99b9bc6d736b2a17dd",
+        "--evidence-output",
+        "output/development/builder-reserve-uav-stage.json"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T20:06:31Z",
-      "durationSeconds": 1114.623119701,
+      "finishedAt": "2026-09-07T20:14:44Z",
+      "durationSeconds": 6.029246107,
       "detail": "completed successfully"
     },
     {
-      "name": "compiler-family-planning",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "plan",
-        "--target",
-        "stream-mcp",
-        "--target",
-        "reason-mcp",
-        "--target",
-        "sumo-mcp"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T20:08:05Z",
-      "durationSeconds": 2.172734668,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "compiler-input-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "-p",
-        "veoveo-xtask",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T20:07:11Z",
-      "durationSeconds": 2.469754388,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "compiler-input-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T20:07:40Z",
-      "durationSeconds": 2.16220996,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "compiler-input-tests",
+      "name": "builder-reserve-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-xtask",
-        "commands::image"
+        "veoveo-image-build-control"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T19:47:25Z",
-      "durationSeconds": 3.9888499509999997,
+      "finishedAt": "2026-09-07T20:14:19Z",
+      "durationSeconds": 0.45755792,
       "detail": "completed successfully"
     }
   ]

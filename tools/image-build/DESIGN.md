@@ -162,3 +162,20 @@ Plans retain parent recipes and input counts. Each publication run writes
 when it publishes a missing parent. Command evidence includes parent resolution and
 publication time. Local admission receipts live below
 `target/veoveo-xtask/normalized/<registry-hash>/<recipe-hash>/`.
+
+
+## Shared-Host Cache Capacity
+
+The managed worker retains an 80 GiB cache floor and targets at least 20% free space
+on its filesystem. Its configured collection trigger is 22%. BuildKit 0.33.0 divides by
+binary GiB and multiplies by decimal GB when resolving percentages, so an unadjusted
+20% setting undershoots an exact 20% reserve. The 22% trigger covers that reserve with
+additional headroom; a future upstream rounding correction only increases the headroom. Collection also begins above 320 GiB of worker cache. The aged-input and
+broader pressure policies share these thresholds. The first policy gives old source
+and compiler-cache mounts a seven-day retention window. The broader policy can reclaim
+other unused state when the host needs space, subject to the cache floor.
+
+The effective threshold must cover release preflight's default 20% reserve. Each build must still
+budget its peak additional storage. Garbage collection cannot guarantee that reserve
+when other host owners consume more space than the reclaimable cache can cover.
+Registry artifacts and Kubernetes persistent data belong to their own storage owners.

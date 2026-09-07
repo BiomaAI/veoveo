@@ -1,15 +1,19 @@
 [worker.oci]
   gc = true
 
+# Release preflight retains 20% free space. Start GC earlier: BuildKit v0.33.0
+# resolves percentages with binary division followed by decimal multiplication.
+# Its 22% setting still covers that reserve after this rounding. The 80 GiB
+# cache floor lets collection respond when other host users consume disk.
 [[worker.oci.gcpolicy]]
   filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
   keepDuration = "168h"
-  reservedSpace = "240GB"
+  reservedSpace = "80GB"
   maxUsedSpace = "320GB"
-  minFreeSpace = "80GB"
+  minFreeSpace = "22%"
 
 [[worker.oci.gcpolicy]]
   all = true
-  reservedSpace = "240GB"
+  reservedSpace = "80GB"
   maxUsedSpace = "320GB"
-  minFreeSpace = "80GB"
+  minFreeSpace = "22%"

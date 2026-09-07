@@ -117,13 +117,19 @@ The builder runs the digest-pinned BuildKit 0.33.0 image. Its checked-in base da
 configuration contains no registry hostname. An `insecure-http` profile adds only its
 selected registry stanza in a content-addressed generated file; a `tls` profile uses
 the base configuration and host trust roots. The configuration preserves source-local
-and Cargo cache mounts for seven days. The
-filtered and general policies both retain at least 240 GB, begin collection above
-320 GB, and protect 80 GB of host free space. A filtered policy's space trigger applies
-to total worker usage, not merely the records selected by its filter; using a lower
-trigger there would evict Cargo cache mounts before the general image-lineage limit.
-These bounds accommodate the simultaneous Isaac, DeepStream, and ordinary Rust image
-lineages used by the acceptance suite. `status` verifies the driver, daemon version,
+and Cargo cache mounts for seven days in its first collection policy. Both policies
+retain an 80 GiB cache floor, collect above 320 GiB of worker usage, and target at least 20%
+free space on the worker filesystem after accounting for the pinned daemon's rounding.
+The configured cleanup trigger is 22%: BuildKit 0.33.0's
+[pinned percentage conversion](https://github.com/moby/buildkit/blob/v0.33.0/cmd/buildkitd/config/gcpolicy.go#L127)
+produces fewer bytes than an exact percentage calculation. On the qualified host this
+resolves to about 376 GiB, above release preflight's 366 GiB reserve. Build growth
+remains an additional preflight requirement. The broader pressure policy can reclaim recently used cache when older candidates do not
+provide enough space; the cache floor still takes priority over free-space recovery.
+A filtered policy's space trigger applies to total worker usage, so both policies use
+the same thresholds. These settings follow BuildKit's
+[garbage-collection threshold semantics](https://docs.docker.com/build/cache/garbage-collection/).
+`status` verifies the driver, daemon version,
 image digest, and resource limits, and reports the active configuration digest.
 `tools/image-build/control/src/resources.rs` declares the shared-host budget: 12 CPU
 cores through a 1,200,000 µs quota per 100,000 µs period, 36 GiB RAM, and no swap.
