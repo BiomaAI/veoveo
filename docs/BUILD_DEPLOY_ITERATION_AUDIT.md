@@ -8,10 +8,10 @@ implemented changes and their verification.
 
 | Concern | Implementation | Verification |
 |---|---|---|
-| Rollout triggers | Removed chart-version Pod annotations; Stream hashes its rendered runtime files; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
+| Rollout triggers | Removed platform, UAV, and SUMO chart-version Pod annotations; Stream hashes runtime files; UAV bootstrap requires its content digest; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
-| Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Tests distinguish web-only edits from shared asset changes; the real BFF plan resolves 206 input files from three production packages |
+| Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
 | Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, and per-solve CPU deltas | Failure-path tests retain errors before BuildKit starts; command and solve records have distinct outcomes |
@@ -290,3 +290,24 @@ The affected planner also needs dependency-kind precision: it discards Cargo
 `dep_kinds`. Optimization is a dev-dependency of Map, which makes Optimization source
 changes reach Map and UAV through the planner's closure. Exclude dev-only edges from
 runtime-image invalidation while retaining their test acceptance closure.
+
+## Implementation Measurements
+
+The September 7 Console benchmark used baseline `40a34ecb` and isolated frontend-only
+revision `78b065d6`. The latter changes the page title and its recorded build evidence.
+Both selected exactly `console-bff` with the same Rust compiler inputs.
+
+| Measurement | Baseline | Frontend-only revision |
+|---|---:|---:|
+| Command entry through staged receipt | 29.348 s | 25.996 s |
+| Builder setup | 16.758 s, including registry reconfiguration | included in the command record |
+| BuildKit solve evidence duration | 6.564 s command span | 11.637 s run window |
+| Rust compilation | Cargo freshness check, 2.09 s | cached BuildKit action; zero Cargo execution |
+
+The first three runtime layers are identical. The BFF binary layer is
+`sha256:fbe5c7854e76a01e30ebca9295100d9c0fc4bb5432d0227c000dda8e71864dd1`.
+Only the frontend layer changes. Qualification took 21.214 s and retained runnable
+digest `sha256:d287b9f7ff9f5b62caa595fc3787d6c059f148df9251112847bcf57ddee61afd`.
+These are single-run measurements, not latency distributions. No benchmark image was
+installed into the running cluster. Receipts are retained under
+`output/development/bff-input-cache-{baseline,web-only,qualified}.json`.

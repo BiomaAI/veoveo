@@ -165,12 +165,16 @@
         "bootstrap": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["existingConfigMap", "key"],
+          "required": ["existingConfigMap", "contentSha256", "key"],
+          "if": {"properties": {"existingConfigMap": {"minLength": 1}}},
+          "then": {"properties": {"contentSha256": {"pattern": "^[a-f0-9]{64}$"}}},
+          "else": {"properties": {"contentSha256": {"const": ""}}},
           "properties": {
             "existingConfigMap": {
               "type": "string",
               "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
             },
+            "contentSha256": {"type": "string"},
             "key": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"}
           }
         },

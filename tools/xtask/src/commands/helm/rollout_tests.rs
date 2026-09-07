@@ -282,3 +282,66 @@ fn chart_selection_packages_only_the_requested_chart_once() {
     assert_eq!(super::selection_name(&selection), "uav-sim");
     assert!(!output.path().join("veoveo-0.1.0-selection.tgz").exists());
 }
+
+#[test]
+fn external_world_content_rolls_only_its_bootstrap_consumer() {
+    let chart = repository().join("showcase/uav-sim/deploy/helm");
+    let before = render(&chart, true, &[]);
+    let digest = "b".repeat(64);
+    let after = render(
+        &chart,
+        true,
+        &[&format!("world.bootstrap.contentSha256={digest}")],
+    );
+    assert_eq!(changed_pods(&before, &after), ["uav-sim-mcp"]);
+    assert_eq!(
+        pod_templates(&after)["uav-sim-mcp"]["metadata"]["annotations"]["checksum/world-bootstrap"],
+        digest
+    );
+    for digest in ["", "invalid"] {
+        let output = Command::new("helm")
+            .current_dir(repository())
+            .args([
+                "template",
+                "uav-sim",
+                "showcase/uav-sim/deploy/helm",
+                "-f",
+                "examples/bioma/uav-sim-values.yaml",
+                "--set",
+                &format!("world.bootstrap.contentSha256={digest}"),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            !output.status.success(),
+            "an external bootstrap requires its exact content digest"
+        );
+    }
+}
+
+#[test]
+fn sumo_chart_metadata_preserves_pod_templates() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut renders = Vec::new();
+    for version in ["0.1.0-rollout.1", "0.1.0-rollout.2"] {
+        output(
+            Command::new("helm")
+                .current_dir(repository())
+                .args([
+                    "package",
+                    "showcase/sumo/deploy/helm",
+                    "--version",
+                    version,
+                    "--destination",
+                ])
+                .arg(directory.path()),
+        );
+        renders.push(objects(&output(
+            Command::new("helm")
+                .args(["template", "sumo"])
+                .arg(directory.path().join(format!("veoveo-sumo-{version}.tgz"))),
+        )));
+    }
+    assert_eq!(pod_templates(&renders[0]).len(), 2);
+    assert!(changed_pods(&renders[0], &renders[1]).is_empty());
+}

@@ -390,3 +390,8 @@ Restart evidence is written beneath
 pod, immutable image, before-and-after container IDs and restart counts, the unchanged
 headed App document and viewer identity, fresh authorization IDs, advancing video, hardware
 graphics proof, screenshots, and digests.
+
+The Helm value `world.bootstrap.existingConfigMap` admits an installation-owned
+world JSON file. Set `world.bootstrap.contentSha256` to the SHA-256 of that exact
+file and update the digest with every content change. Its Pod annotation restarts
+the MCP bootstrap consumer; chart metadata alone preserves running Pods.
