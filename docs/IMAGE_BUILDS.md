@@ -496,3 +496,8 @@ builds that parent before assembling the application image. Parent timing and re
 are retained with the main solve evidence. See the
 [compilation and parent design](../tools/image-build/DESIGN.md) for the complete input
 and failure contract.
+
+The development profile optimizes SHA-256 because image commands verify the complete
+managed Buildx executable on every invocation and hash source closures. Every tool
+call retains its full checksum check; filesystem timestamps cannot stand in for the
+content digest. Other development crates keep their normal optimization settings.

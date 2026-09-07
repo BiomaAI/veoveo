@@ -1,15 +1,17 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:67eb9862361c264c31a357dee37d4cca4fe5dbcea238d09d33b854a0cbc4bb2c",
-  "updatedAt": "2026-09-07T04:24:45Z",
+  "buildDigest": "sha256:395b57f6ae7be31e5339d1f51e4ec34ca6ff2c5e38920e52b69e0bb969419433",
+  "updatedAt": "2026-09-07T04:39:15Z",
   "checks": [
     {
-      "name": "independent-entrypoint-clippy",
+      "name": "buildx-integrity-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-deployment-smoke",
+        "veoveo-image-build-control",
+        "-p",
+        "veoveo-xtask",
         "--all-targets",
         "--no-deps",
         "--",
@@ -17,40 +19,23 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:24:15Z",
-      "durationSeconds": 1.602595343,
+      "finishedAt": "2026-09-07T04:39:15Z",
+      "durationSeconds": 11.887536308,
       "detail": "completed successfully"
     },
     {
-      "name": "independent-entrypoint-helm",
+      "name": "buildx-integrity-tests",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "test",
+        "-p",
+        "veoveo-image-build-control",
+        "-p",
+        "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:22:39Z",
-      "durationSeconds": 6.885049936,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "independent-entrypoint-reserve",
-      "command": [
-        "cargo",
-        "xtask",
-        "release",
-        "preflight",
-        "--expected-growth-gib",
-        "1",
-        "--kubernetes-node",
-        "k3d-veoveo-bioma-server-0",
-        "--namespace",
-        "veoveo"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T04:24:45Z",
-      "durationSeconds": 0.870355001,
+      "finishedAt": "2026-09-07T04:38:44Z",
+      "durationSeconds": 5.947756378,
       "detail": "completed successfully"
     }
   ]

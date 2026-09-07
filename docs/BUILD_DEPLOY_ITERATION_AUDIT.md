@@ -12,7 +12,7 @@ implemented changes and their verification.
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin | Production TypeScript/Vite build passes; authenticated headed-browser acceptance remains pending |
-| Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Input tests exclude application files and invalidate on patches, build options, and parent pins; actual overlay measurements are in progress |
+| Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Input tests exclude application files and invalidate on patches, build options, and parent pins; two source-only revisions staged in 14.6 s and 15.6 s with identical inherited layer blobs |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
@@ -327,3 +327,23 @@ uses the ordinary file action in Dockerfile frontend 1.27.0, forcing parent extr
 The corrected recipe applies the entrypoint mode in a scratch stage and links its
 result without `--chmod`. The two canceled assembly runs are retained as failed
 evidence rather than presented as successful overlay measurements.
+
+The corrected UAV baseline `c179bb8e` staged in 23.064 s. Two isolated source-only
+revisions, `2081d3e8` and `ad605a21`, staged in 14.565 s and 15.648 s. All 37 inherited
+layer blobs remained identical (17,571,096,830 compressed bytes). Only layer 39, the
+entrypoint layer, changed. Its file bytes matched each source revision, with mode
+0555 and owner/group 10001. Timestamp normalization took 21 ms and 45 ms. These runs
+retain about 77 KiB of application overlay data and execute no compiler actions.
+
+The remaining command floor is mostly control work: the first source-only command
+spent 9.235 s in builder setup and 3.088 s in planning. Both repeatedly hashed the same
+63 MiB managed Buildx executable with unoptimized SHA-256. The development profile
+now optimizes that hash implementation while retaining every full checksum check.
+A timestamp-keyed verification cache was rejected after a same-timestamp mutation
+test showed that filesystem metadata could not reliably identify changed bytes.
+
+With optimized SHA-256, repeating `ad605a21` staged in 2.789 s and retained runtime
+digest `sha256:2beef03e6ed1b4e811f6f82c61d3ef9c89f5692cf970cd1bab6dd91657d45a46`.
+This warm repeat measures the tooling improvement; the two distinct source revisions
+above establish application-edit reuse. GPU runtime and qualification acceptance are
+separate and have not been claimed from these assembly measurements.
