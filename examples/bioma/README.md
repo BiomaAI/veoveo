@@ -56,6 +56,10 @@ upgrading the UAV HelmRelease does not replace the core platform release. A cust
 MCP server follows the same independent-release pattern after its image and chart are
 published and its server contract is registered in the gateway control plane.
 
+Generated Helm values ConfigMaps carry the `reconcile.fluxcd.io/watch: Enabled`
+label. A values update therefore wakes the owning Helm controller immediately after
+Flux applies it. Chart publication alone does not replace unchanged Pod templates.
+
 ## Release publication
 
 Production workloads use the repository and digest map in `images.lock.yaml`. The

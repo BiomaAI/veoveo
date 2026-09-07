@@ -1,0 +1,209 @@
+//! Rendered rollout contracts, including the installation-owned Flux handoff.
+
+use std::{collections::BTreeMap, path::Path, process::Command};
+
+use serde::Deserialize;
+use serde_json::Value;
+
+fn repository() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("xtask lives in tools/xtask")
+}
+
+fn output(command: &mut Command) -> Vec<u8> {
+    let output = command.output().expect("run chart tool");
+    assert!(
+        output.status.success(),
+        "{command:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output.stdout
+}
+
+fn objects(bytes: &[u8]) -> Vec<Value> {
+    serde_yaml_ng::Deserializer::from_slice(bytes)
+        .map(|document| Value::deserialize(document).expect("rendered YAML object"))
+        .filter(|object| !object.is_null())
+        .collect()
+}
+
+fn render(chart: &Path, extension: bool, settings: &[&str]) -> Vec<Value> {
+    let mut command = Command::new("helm");
+    command
+        .current_dir(repository())
+        .args(["template", "veoveo"])
+        .arg(chart)
+        .args(["--namespace", "veoveo"]);
+    let values = if extension {
+        &[
+            "examples/bioma/uav-sim-values.yaml",
+            "examples/bioma/images.lock.yaml",
+        ][..]
+    } else {
+        &[
+            "examples/bioma/values.yaml",
+            "examples/bioma/k3d-values.yaml",
+            "examples/bioma/images.lock.yaml",
+        ][..]
+    };
+    for path in values {
+        command.args(["-f", path]);
+    }
+    for setting in settings {
+        command.args(["--set", setting]);
+    }
+    objects(&output(&mut command))
+}
+
+fn pod_templates(objects: &[Value]) -> BTreeMap<String, Value> {
+    objects
+        .iter()
+        .filter(|object| object["kind"] == "Deployment")
+        .map(|object| {
+            (
+                object["metadata"]["name"].as_str().unwrap().to_owned(),
+                object["spec"]["template"].clone(),
+            )
+        })
+        .collect()
+}
+
+fn changed_pods(before: &[Value], after: &[Value]) -> Vec<String> {
+    let before = pod_templates(before);
+    let after = pod_templates(after);
+    assert_eq!(
+        before.keys().collect::<Vec<_>>(),
+        after.keys().collect::<Vec<_>>()
+    );
+    before
+        .into_iter()
+        .filter_map(|(name, template)| (after[&name] != template).then_some(name))
+        .collect()
+}
+
+#[test]
+fn chart_publication_metadata_preserves_every_bioma_pod_template() {
+    for (chart, name, extension, expected_pods) in [
+        ("deploy/helm/veoveo", "veoveo", false, 18),
+        ("showcase/uav-sim/deploy/helm", "uav-sim", true, 6),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut renders = Vec::new();
+        for (version, revision) in [
+            ("0.1.0-rollout.1", "source-one"),
+            ("0.1.0-rollout.2", "source-two"),
+        ] {
+            output(
+                Command::new("helm")
+                    .current_dir(repository())
+                    .args([
+                        "package",
+                        chart,
+                        "--version",
+                        version,
+                        "--app-version",
+                        revision,
+                        "--destination",
+                    ])
+                    .arg(directory.path()),
+            );
+            renders.push(render(
+                &directory.path().join(format!("{name}-{version}.tgz")),
+                extension,
+                &[],
+            ));
+        }
+        assert_eq!(pod_templates(&renders[0]).len(), expected_pods);
+        assert!(
+            changed_pods(&renders[0], &renders[1]).is_empty(),
+            "{name} restarts Pods for chart metadata"
+        );
+    }
+}
+
+#[test]
+fn runtime_catalog_updates_roll_only_their_consumer() {
+    let chart = repository().join("deploy/helm/veoveo");
+    let before = render(&chart, false, &[]);
+    for (setting, name, checksum, configmap) in [
+        (
+            "stream.liveInput.width=1920",
+            "stream-mcp",
+            "checksum/stream-runtime",
+            "stream-runtime",
+        ),
+        (
+            "reason.model.title=Changed model",
+            "reason-mcp",
+            "checksum/reason-runtime",
+            "reason-runtime",
+        ),
+    ] {
+        let after = render(&chart, false, &[setting]);
+        assert_eq!(changed_pods(&before, &after), [name]);
+        let find_data = |objects: &[Value]| {
+            objects
+                .iter()
+                .find(|object| {
+                    object["kind"] == "ConfigMap" && object["metadata"]["name"] == configmap
+                })
+                .unwrap()["data"]
+                .clone()
+        };
+        assert_ne!(find_data(&before), find_data(&after));
+        let before = pod_templates(&before);
+        let after = pod_templates(&after);
+        assert_ne!(
+            before[name]["metadata"]["annotations"][checksum],
+            after[name]["metadata"]["annotations"][checksum]
+        );
+    }
+}
+
+#[test]
+fn one_image_digest_rolls_only_its_workload() {
+    for (chart, extension, image, deployment) in [
+        ("deploy/helm/veoveo", false, "console-bff", "console-bff"),
+        (
+            "showcase/uav-sim/deploy/helm",
+            true,
+            "uav-sim-mcp",
+            "uav-sim-mcp",
+        ),
+    ] {
+        let chart = repository().join(chart);
+        let before = render(&chart, extension, &[]);
+        let setting = format!(
+            "global.imageDigests.veoveo/{image}=sha256:{}",
+            "a".repeat(64)
+        );
+        let after = render(&chart, extension, &[&setting]);
+        assert_eq!(changed_pods(&before, &after), [deployment]);
+    }
+}
+
+#[test]
+fn generated_helm_values_are_selected_by_flux_watch_labels() {
+    let rendered = objects(&output(
+        Command::new("kubectl")
+            .current_dir(repository())
+            .args(["kustomize", "examples/bioma"]),
+    ));
+    for name in ["bioma-veoveo-values", "bioma-uav-sim-values"] {
+        let values = rendered
+            .iter()
+            .find(|object| object["kind"] == "ConfigMap" && object["metadata"]["name"] == name)
+            .unwrap();
+        assert_eq!(
+            values["metadata"]["labels"]["reconcile.fluxcd.io/watch"],
+            "Enabled"
+        );
+        assert!(
+            values["metadata"]["annotations"]
+                .get("reconcile.fluxcd.io/watch")
+                .is_none()
+        );
+    }
+}

@@ -20,8 +20,6 @@ spec:
       {{- include "uav-sim.runtimeSelectorLabels" . | nindent 6 }}
   template:
     metadata:
-      annotations:
-        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
       labels:
         {{- include "uav-sim.runtimeSelectorLabels" . | nindent 8 }}
         veoveo.ai/simulator-hosted-live-view: "true"
@@ -117,8 +115,6 @@ spec:
       {{- include "uav-sim.mcpSelectorLabels" . | nindent 6 }}
   template:
     metadata:
-      annotations:
-        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
       labels:
         {{- include "uav-sim.mcpSelectorLabels" . | nindent 8 }}
         veoveo.ai/mcp-server: "true"

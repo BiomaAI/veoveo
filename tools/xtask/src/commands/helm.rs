@@ -12,6 +12,9 @@ use veoveo_extension_contract::{EXTENSION_HELM_LIBRARY_API, ReleaseVersion};
 
 use crate::process;
 
+#[cfg(test)]
+mod rollout_tests;
+
 const EVIDENCE_SCHEMA: &str = "veoveo.io/helm-chart-release-evidence/v1";
 const CHARTS: [(&str, &str); 3] = [
     ("veoveo-extension", "deploy/helm/veoveo-extension"),

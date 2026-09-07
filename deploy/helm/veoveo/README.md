@@ -13,6 +13,12 @@ Separately installed extension releases use the same
 impersonate this chart's Helm release. `global.production=true` requires an immutable
 digest for every rendered Veoveo-owned image.
 
+Pod templates depend on runtime inputs. Publishing a new chart version leaves an
+unchanged workload running. Stream and Reason hash their rendered runtime catalogs,
+and domain bootstrap configuration retains its own checksum. Installation-owned
+ConfigMaps and Secrets require an installation-managed content revision or immutable
+name when their consumers need a restart.
+
 `installationPreset` owns the first-party deployment graph. `full` selects the
 supported complete surface, `extension-foundation` selects the platform foundation
 with Artifact MCP, Frames MCP, and Recording MCP, and `custom` consumes the typed
