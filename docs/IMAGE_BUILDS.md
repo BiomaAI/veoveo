@@ -423,3 +423,26 @@ Multi-source composition passes an explicit source context and immutable artifac
 identity into the same typed planner model. It coordinates independently published
 graphs; it does not merge external packages into the core Cargo workspace or one
 universal builder command.
+
+## Command Latency Evidence
+
+Every `image build`, `image stage`, and `release images` invocation writes
+`target/veoveo-xtask/operations/<invocation>/command.json` using
+`veoveo.io/image-command/v1`. Timing begins when the xtask executable enters `main`,
+before CLI parsing and repository discovery, and finishes after the command writes its
+artifact receipt. Cargo's compilation or startup of xtask is outside this clock.
+
+The initial record has outcome `running`; normal completion atomically replaces it
+with `succeeded` or `failed`. An interrupted process leaves the initial record visible.
+Failures before source resolution or BuildKit execution still have a terminal record.
+Phase spans cover source preparation, registry checks, builder setup, planning, solves,
+manifest inspection, and receipt writing. Successful lock acquisition reports source
+and builder wait totals. These waits are contained in preparation/setup spans; do not
+add them again. Multiple source and solve entries support profile publication.
+
+The command record links exact source revisions and per-solve evidence directories.
+Each solve samples worker cgroup CPU counters before and after execution. Counter
+resets and unavailable telemetry appear as diagnostics instead of fabricated zeros.
+The existing `image-build-run/v2` receipt remains the detailed BuildKit solve record.
+Its success describes that solve; command success additionally requires digest inspection
+and the final staging or release receipt.
