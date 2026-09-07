@@ -10,6 +10,7 @@ implemented changes and their verification.
 |---|---|---|
 | Rollout triggers | Removed chart-version Pod annotations; Stream hashes its rendered runtime files; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
+| Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
 | Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, and per-solve CPU deltas | Failure-path tests retain errors before BuildKit starts; command and solve records have distinct outcomes |
 | Exact image selection | Repeated `--target` flags select one sorted Bake solve for planning, local builds, staging, and qualification; affected planning excludes dev-only Cargo edges | CLI selection tests and dependency-closure fixtures cover staging/qualification parity and retained build dependencies |
 

@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     ffi::OsString,
     fs,
     path::{Path, PathBuf},
@@ -16,11 +17,40 @@ use crate::process;
 mod rollout_tests;
 
 const EVIDENCE_SCHEMA: &str = "veoveo.io/helm-chart-release-evidence/v1";
-const CHARTS: [(&str, &str); 3] = [
-    ("veoveo-extension", "deploy/helm/veoveo-extension"),
-    ("veoveo", "deploy/helm/veoveo"),
-    ("uav-sim", "showcase/uav-sim/deploy/helm"),
-];
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, clap::ValueEnum)]
+pub(crate) enum Chart {
+    VeoveoExtension,
+    Veoveo,
+    UavSim,
+}
+
+impl Chart {
+    fn definition(self) -> (&'static str, &'static str) {
+        match self {
+            Self::VeoveoExtension => ("veoveo-extension", "deploy/helm/veoveo-extension"),
+            Self::Veoveo => ("veoveo", "deploy/helm/veoveo"),
+            Self::UavSim => ("uav-sim", "showcase/uav-sim/deploy/helm"),
+        }
+    }
+}
+
+fn selected_charts(selection: &[Chart]) -> BTreeSet<Chart> {
+    if selection.is_empty() {
+        [Chart::VeoveoExtension, Chart::Veoveo, Chart::UavSim]
+            .into_iter()
+            .collect()
+    } else {
+        selection.iter().copied().collect()
+    }
+}
+
+pub(crate) fn selection_name(selection: &[Chart]) -> String {
+    selected_charts(selection)
+        .into_iter()
+        .map(|chart| chart.definition().0)
+        .collect::<Vec<_>>()
+        .join("+")
+}
 
 #[derive(Debug)]
 pub(crate) struct HelmRelease {
@@ -70,6 +100,7 @@ pub(crate) fn build(
     output: &Path,
     version: &str,
     revision: &str,
+    selection: &[Chart],
 ) -> Result<HelmRelease> {
     ReleaseVersion::new(version).context("validating Helm release version")?;
     let helm_version = process::output_text("helm", ["version", "--short"], Some(source))?;
@@ -77,15 +108,20 @@ pub(crate) fn build(
     ensure!(!helm_version.is_empty(), "Helm did not report a version");
 
     let workspace = TempDir::new().context("creating Helm release workspace")?;
-    let library_chart = fs::read_to_string(source.join("deploy/helm/veoveo-extension/Chart.yaml"))?;
-    ensure!(
-        library_chart.contains(&format!(
-            "veoveo.ai/library-api: {EXTENSION_HELM_LIBRARY_API}"
-        )),
-        "extension Helm chart must declare library API {EXTENSION_HELM_LIBRARY_API}"
-    );
-    let mut artifacts = Vec::with_capacity(CHARTS.len());
-    for (name, relative) in CHARTS {
+    let selected = selected_charts(selection);
+    if selected.contains(&Chart::VeoveoExtension) {
+        let library_chart =
+            fs::read_to_string(source.join("deploy/helm/veoveo-extension/Chart.yaml"))?;
+        ensure!(
+            library_chart.contains(&format!(
+                "veoveo.ai/library-api: {EXTENSION_HELM_LIBRARY_API}"
+            )),
+            "extension Helm chart must declare library API {EXTENSION_HELM_LIBRARY_API}"
+        );
+    }
+    let mut artifacts = Vec::with_capacity(selected.len());
+    for selected in selected {
+        let (name, relative) = selected.definition();
         let chart = source.join(relative);
         ensure!(chart.is_dir(), "missing Helm chart {}", chart.display());
         process::status("helm", ["lint", path_text(&chart)?], Some(source))?;

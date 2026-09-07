@@ -551,7 +551,7 @@ provenance, and DuckDB persistence.
 | `servers/optimization-mcp/src/bin/server/index.rs` | authority-scoped exact domain lookup, compact stable pages, opaque collection cursors, bounded completion search, and usage discovery |
 | `deploy/contract/src/lib.rs` | portable Optimization capability, exact Optimization image closure, and mandatory `cuopt-executor` GPU scheduling declaration |
 | `deploy/helm/veoveo/definitions/domain-services.yaml` | single Optimization Pod, CPU control container, one-GPU cuOpt sidecar, shared socket, memory-backed shared memory, and persistent workspace |
-| `examples/bioma/images.lock.yaml` | immutable Bioma release digests for both Optimization control and cuOpt executor images |
+| `examples/bioma/images/` | independent platform and UAV image locks, each matching its release’s rendered image closure |
 | `testing/smoke/src/bin/smoke/scenarios/agent_kernel.rs` | full Pilot mission flow through gateway task dispatch, cuOpt MILP execution, independent verification, wake delivery, and durable memory |
 
 ### Temporal Domain

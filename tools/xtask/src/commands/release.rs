@@ -204,12 +204,16 @@ pub(crate) fn helm_charts(
     } else {
         repository.root().join(&args.output_dir)
     };
-    let output = output_root.join(publication.revision()).join(&args.version);
+    let output = output_root
+        .join(publication.revision())
+        .join(&args.version)
+        .join(helm::selection_name(&args.chart));
     let mut release = helm::build(
         publication.path(),
         &output,
         &args.version,
         publication.revision(),
+        &args.chart,
     )?;
     if let Some(registry) = &args.registry {
         helm::push(

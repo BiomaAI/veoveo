@@ -96,7 +96,7 @@ cargo xtask release compatibility \
   --platform-version 0.1.0 \
   --python-evidence output/releases/python-sdk/"$REVISION"/release-evidence.json \
   --python-artifact-base python://packages.internal.example/veoveo \
-  --helm-evidence output/releases/helm/"$REVISION"/0.1.0/release-evidence.json \
+  --helm-evidence output/releases/helm/"$REVISION"/0.1.0/veoveo-extension/release-evidence.json \
   --image-evidence output/releases/images/"$REVISION"/extension-support.release-evidence.json \
   --simulation-evidence output/releases/simulation-runtime/"$REVISION"/0.1.0/release-evidence.json
 ```
@@ -161,8 +161,8 @@ out of band and never serialized into the profile or report.
 `veoveo.io/extension-helm-library/v1`. It exports stable installation and component
 labels, production image resolution, restricted security contexts, platform
 environment, HTTP probes, bootstrap mounts, the recording forwarder, and declared
-network policy. `cargo xtask release helm-charts --revision <commit> --version
-<version>` packages the library with the application charts from a clean exact
+network policy. `cargo xtask release helm-charts --chart veoveo-extension
+--revision <commit> --version <version>` packages the library from a clean exact
 revision and writes SHA-256 release evidence. Supplying `--registry
 <private-host/repository>` publishes them through the authenticated Helm OCI client
 and records each returned manifest digest.
