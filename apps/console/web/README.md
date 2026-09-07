@@ -24,6 +24,10 @@ public origin. Set `VEOVEO_GATEWAY_URL=http://127.0.0.1:8788` for the BFF's inte
 requests. Its OAuth resource must identify the local gateway's admitted admin profile;
 for that origin it is `http://127.0.0.1:4173/mcp/admin`.
 
+Set `VEOVEO_CONSOLE_MCP_TRANSPORT_URL=http://127.0.0.1:8788/mcp/admin` for the
+BFF's MCP connection. The OAuth resource remains the public identity above; the
+transport reaches the gateway directly because Vite does not proxy `/mcp`.
+
 The local gateway control plane must register the BFF client's exact
 `http://127.0.0.1:4173/auth/callback` redirect. Its configured identity provider must
 also admit the gateway's `http://127.0.0.1:4173/oauth/callback`. Keep client identifiers,

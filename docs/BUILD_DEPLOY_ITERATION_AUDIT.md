@@ -11,7 +11,7 @@ implemented changes and their verification.
 | Rollout triggers | Removed platform, UAV, and SUMO chart-version Pod annotations; Stream hashes runtime files; UAV bootstrap requires its content digest; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
-| Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin | Production TypeScript/Vite build passes; headed hardware-WebGL error-screen HMR preserves the document; authenticated local acceptance remains pending |
+| Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin with a private MCP transport | Production TypeScript/Vite build passes; authenticated headed hardware-WebGL refresh preserves the document and signed-in session |
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
@@ -449,3 +449,19 @@ This browser check exercised the error screen because the local BFF and gateway 
 were unbound. It does not verify authenticated local login or application data flows.
 The temporary tab and Vite process were closed. Evidence is retained in
 `output/development/console-vite-{gpu-probe,hmr-inspection}.json`.
+
+The subsequent authenticated check used fresh native gateway, BFF, and conformance
+binaries, an isolated in-memory SurrealDB 3.2.4 container, and the repository's fake
+OIDC provider. Vite became ready in 146 ms. The browser followed both authorization
+callbacks through port 4173 and reached the Overview as the fixture principal.
+The BFF established its MCP session directly on port 8788. Snapshot, App catalog,
+App events, and snapshot events returned HTTP 200. The fixture's absent media upstream
+remained visible as unavailable.
+
+Changing and restoring an Overview heading preserved the document and signed-in
+session. Hardware WebGL remained available on the RTX 4090; SwiftShader WebGPU was
+again excluded from hardware evidence. The source returned to its committed bytes.
+The temporary browser tab, local services, database container, and private key files
+were removed. No production authentication state changed. The record is
+`output/development/console-vite-authenticated-hmr.json`. This verifies the local
+authenticated UI loop; it does not accept a hosted GPU workload or the staged images.
