@@ -1,7 +1,14 @@
 # Build And Deployment Iteration Audit
 
-Status: investigation and proposed implementation sequence, September 6, 2026.
-The existing image and installation contracts remain authoritative.
+Status: implementation authorized on September 6, 2026; delivery is in progress.
+The findings below retain the pre-change evidence. The delivery record identifies
+implemented changes and their verification.
+
+## Delivery Record
+
+| Concern | Implementation | Verification |
+|---|---|---|
+| Rollout triggers | Removed chart-version Pod annotations; Stream hashes its rendered runtime files; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
 
 ## Standards And Protocols
 

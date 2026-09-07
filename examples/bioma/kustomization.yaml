@@ -32,8 +32,7 @@ configMapGenerator:
       - images.lock.yaml=images.lock.yaml
 generatorOptions:
   disableNameSuffixHash: true
-  annotations:
-    reconcile.fluxcd.io/watch: Enabled
   labels:
+    reconcile.fluxcd.io/watch: Enabled
     app.kubernetes.io/part-of: veoveo
     app.kubernetes.io/managed-by: flux

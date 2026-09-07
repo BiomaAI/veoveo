@@ -1,57 +1,37 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:3ed31bdee57137ac1f04845eb0decf29033cc1f76e2c9671df9d25457ced64fb",
-  "updatedAt": "2026-08-29T21:31:11Z",
+  "buildDigest": "sha256:4765d409137fcc6683f9ff4a57c50a94aea56f1f0df0b5b79a394b84558c4f22",
+  "updatedAt": "2026-09-07T02:56:38Z",
   "checks": [
     {
-      "name": "bioma-platform-helm",
+      "name": "rollout-clippy",
       "command": [
-        "helm",
-        "template",
-        "veoveo",
-        "deploy/helm/veoveo",
-        "--namespace",
-        "veoveo",
-        "-f",
-        "examples/bioma/values.yaml",
-        "-f",
-        "examples/bioma/images.lock.yaml"
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-xtask",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-29T21:30:49Z",
-      "durationSeconds": 0.188758196,
+      "finishedAt": "2026-09-07T02:56:38Z",
+      "durationSeconds": 13.604226755,
       "detail": "completed successfully"
     },
     {
-      "name": "bioma-uav-helm",
-      "command": [
-        "helm",
-        "template",
-        "uav-sim",
-        "showcase/uav-sim/deploy/helm",
-        "--namespace",
-        "veoveo",
-        "-f",
-        "examples/bioma/uav-sim-values.yaml",
-        "-f",
-        "examples/bioma/images.lock.yaml"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-08-29T21:30:50Z",
-      "durationSeconds": 0.060187322,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-forwarder",
+      "name": "rollout-contracts",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-recording-forwarder"
+        "veoveo-xtask",
+        "commands::helm::rollout_tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-08-29T21:31:11Z",
-      "durationSeconds": 20.090996988,
+      "finishedAt": "2026-09-07T02:56:05Z",
+      "durationSeconds": 4.799505168,
       "detail": "completed successfully"
     }
   ]
