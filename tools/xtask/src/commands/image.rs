@@ -185,9 +185,9 @@ struct FamilyPlan {
     cargo_cache_id: String,
     target_cache_epoch: &'static str,
     target_cache_id: String,
-    source_inputs: Option<source_context::InputIdentity>,
+    source_inputs: source_context::InputIdentity,
     #[serde(skip)]
-    context_path: Option<PathBuf>,
+    context_path: PathBuf,
 }
 
 pub(crate) struct PreparedPlan {
@@ -453,21 +453,16 @@ pub(crate) fn prepare_with_builder(
             auxiliary.extend(unit.auxiliary.iter().copied());
         }
         let packages = packages.into_iter().collect::<Vec<_>>();
-        let context = family
-            .shared_artifact_target()
-            .map(|_| {
-                source_context::prepare(
-                    source_repository.root(),
-                    metadata
-                        .as_ref()
-                        .expect("Rust family requires Cargo metadata"),
-                    &packages,
-                )
-            })
-            .transpose()?;
-        let context_path = context.as_ref().map(|context| context.path().to_owned());
-        let source_inputs = context.as_ref().map(|context| context.identity.clone());
-        source_contexts.extend(context);
+        let context = source_context::prepare(
+            source_repository.root(),
+            metadata
+                .as_ref()
+                .expect("Rust family requires Cargo metadata"),
+            &packages,
+        )?;
+        let context_path = context.path().to_owned();
+        let source_inputs = context.identity.clone();
+        source_contexts.push(context);
         families.push(FamilyPlan {
             family: *family,
             packages,
@@ -968,15 +963,7 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                         context: None,
                         args: BTreeMap::new(),
                     });
-            artifact.context = family
-                .context_path
-                .as_ref()
-                .map(|path| {
-                    path.to_str()
-                        .context("Rust source context path is not UTF-8")
-                        .map(ToOwned::to_owned)
-                })
-                .transpose()?;
+            artifact.context = Some(source_context_path(family)?);
             artifact.args.extend(args);
             continue;
         } else {
@@ -1001,13 +988,21 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                     .is_some_and(|unit| unit.family == family.family)
             })
             .context("standalone family has no image target")?;
-        target
+        let image = target
             .get_mut(&image.name)
-            .expect("direct image target was seeded")
-            .args
-            .extend(args);
+            .expect("direct image target was seeded");
+        image.context = Some(source_context_path(family)?);
+        image.args.extend(args);
     }
     Ok(BakeOverride { target })
+}
+
+fn source_context_path(family: &FamilyPlan) -> Result<String> {
+    family
+        .context_path
+        .to_str()
+        .context("Rust source context path is not UTF-8")
+        .map(ToOwned::to_owned)
 }
 
 fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()> {
@@ -1047,12 +1042,12 @@ fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()
             "resolved Bake graph changed Cargo download cache identity for {}",
             family.family.name()
         );
+        ensure!(
+            family.context_path == Path::new(&target.context),
+            "resolved Bake graph changed Rust source input context for {}",
+            family.family.name()
+        );
         if family.family.shared_artifact_target().is_some() {
-            ensure!(
-                family.context_path.as_deref() == Some(Path::new(&target.context)),
-                "resolved Bake graph changed Rust source input context for {}",
-                family.family.name()
-            );
             ensure!(
                 target.args.get("VEOVEO_CARGO_PACKAGES") == Some(&family.packages.join(",")),
                 "resolved Bake graph changed package membership for {}",

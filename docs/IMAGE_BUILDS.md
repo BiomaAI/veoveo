@@ -340,7 +340,10 @@ See [the image input design](../tools/image-build/DESIGN.md) for identity and fi
 rules. The isolated DeepStream, vLLM, and SUMO families still read the complete
 repository through the canonical read-only source mount. UAV MCP uses the shared
 trixie family.
-Standalone Dockerfiles do not copy a handwritten subset of workspace members. The
+Every Rust family receives a Cargo-derived context. Standalone NVIDIA and SUMO recipes
+keep their native/runtime package inputs and all real Cargo workspace metadata. They
+exclude unrelated service implementation sources. Standalone Dockerfiles do not copy a
+handwritten subset of workspace members. The
 planner rejects a standalone builder that omits the source mount or introduces a
 builder-stage `COPY`, which prevents a new workspace crate from breaking an otherwise
 unrelated image late in a release.
