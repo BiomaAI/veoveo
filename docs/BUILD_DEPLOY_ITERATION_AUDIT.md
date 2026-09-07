@@ -11,7 +11,7 @@ implemented changes and their verification.
 | Rollout triggers | Removed platform, UAV, and SUMO chart-version Pod annotations; Stream hashes runtime files; UAV bootstrap requires its content digest; Flux values ConfigMaps carry the watch label | Rendered chart tests cover metadata-only publication, scoped catalog changes, image-only changes, and generated Flux watch labels |
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
-| Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin | Production TypeScript/Vite build passes; authenticated headed-browser acceptance remains pending |
+| Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin | Production TypeScript/Vite build passes; headed hardware-WebGL error-screen HMR preserves the document; authenticated local acceptance remains pending |
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
@@ -438,3 +438,14 @@ manifest and archive inspection is in
 `output/development/packaged-apps-layer-inspection.json`. These are packaging and
 input-reuse measurements. The benchmark images were not deployed, and headed visual
 acceptance remains pending.
+
+A local Vite process became ready in 255 ms. Headed Chrome 151 exposed hardware WebGL
+through ANGLE on the RTX 4090. Its exposed WebGPU adapter reported SwiftShader and was
+rejected as hardware evidence; WebGL remained hardware-backed. A temporary React
+heading edit appeared without a document reload, and restoring the source produced a
+second update in the same document. The source file returned to its exact Git blob.
+
+This browser check exercised the error screen because the local BFF and gateway ports
+were unbound. It does not verify authenticated local login or application data flows.
+The temporary tab and Vite process were closed. Evidence is retained in
+`output/development/console-vite-{gpu-probe,hmr-inspection}.json`.
