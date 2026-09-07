@@ -321,3 +321,9 @@ and temporary disk use. The assembly was canceled with a recorded failed outcome
 The corrected overlay uses independent COPY layers. A read-only inspection of the
 running UAV container confirmed `/opt`, `/opt/veoveo`, the application directory, and
 the overlay identity directory are regular directories. No workload was restarted.
+
+A second experiment identified an upstream condition: `COPY --link --chmod=0555`
+uses the ordinary file action in Dockerfile frontend 1.27.0, forcing parent extraction.
+The corrected recipe applies the entrypoint mode in a scratch stage and links its
+result without `--chmod`. The two canceled assembly runs are retained as failed
+evidence rather than presented as successful overlay measurements.

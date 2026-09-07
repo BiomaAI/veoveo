@@ -104,9 +104,10 @@ The runtime solve replaces the dependency target context with a digest-pinned
 `docker-image://` input. It therefore consumes the already normalized filesystem.
 The UAV overlay uses Dockerfile frontend 1.27.0 and independent `COPY --link` layers.
 Its numeric ownership and regular destination directories permit assembly without
-reading or unpacking the parent filesystem. Application source revisions keep their
-exact OCI revision labels and separate image
-receipts. Local Docker-load builds retain the direct dependency graph because that
+reading or unpacking the parent filesystem. The entrypoint receives its mode in a
+scratch stage, since combining `--chmod` with `--link` disables BuildKit’s merge
+optimization. The runtime copies that prepared file without a chmod flag. Application
+source revisions keep their exact OCI revision labels and separate image receipts. Local Docker-load builds retain the direct dependency graph because that
 exporter does not rewrite inherited timestamps or require a publication registry.
 
 Plans retain parent recipes and input counts. Each publication run writes
