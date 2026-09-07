@@ -847,6 +847,23 @@ pub(crate) fn helm_config() -> Result<()> {
     ] {
         contains(&uav_runtime_dockerfile, expected)?;
     }
+    let overlay = fs::read_to_string("showcase/uav-sim/runtime/Dockerfile")?;
+    contains(
+        &overlay,
+        "docker/dockerfile:1.27.0@sha256:bde3983e9c939224420ddaf6b784cc30e09b035a4dea01f581230c50809f372e",
+    )?;
+    ensure!(
+        overlay
+            .lines()
+            .filter(|line| line.starts_with("COPY "))
+            .count()
+            == 4
+            && overlay
+                .lines()
+                .filter(|line| line.starts_with("COPY "))
+                .all(|line| line.starts_with("COPY --link ")),
+        "UAV source overlay must use independent COPY layers to avoid unpacking its normalized parent"
+    );
     for removed in [
         "UAV_SIM_BASE_IMAGE",
         "ISAAC_SIM_IMAGE",
