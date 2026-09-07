@@ -313,3 +313,11 @@ digest `sha256:d287b9f7ff9f5b62caa595fc3787d6c059f148df9251112847bcf57ddee61afd`
 These are single-run measurements, not latency distributions. No benchmark image was
 installed into the running cluster. Receipts are retained under
 `output/development/bff-input-cache-{baseline,web-only,qualified}.json`.
+
+The first normalized UAV parent published successfully as
+`sha256:b9cb0b3be283b5593da465653f7f9f99aa57a7f314e10ec3b85c6fc2a5737120`.
+The subsequent ordinary-COPY overlay started unpacking that parent, adding latency
+and temporary disk use. The assembly was canceled with a recorded failed outcome.
+The corrected overlay uses independent COPY layers. A read-only inspection of the
+running UAV container confirmed `/opt`, `/opt/veoveo`, the application directory, and
+the overlay identity directory are regular directories. No workload was restarted.

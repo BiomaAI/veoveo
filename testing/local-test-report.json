@@ -1,20 +1,37 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2286eaa33ce800f4d31fdde75002bdb86fa0f85d33e921075a2c462deced3d51",
-  "updatedAt": "2026-09-07T04:14:07Z",
+  "buildDigest": "sha256:c9cd78f7b0e22e9247366b1d965839b7049fe2f5309bbfa4fdf5a7df3733ba45",
+  "updatedAt": "2026-09-07T04:16:51Z",
   "checks": [
     {
-      "name": "console-dev-production-build",
+      "name": "independent-overlay-clippy",
       "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-deployment-smoke",
+        "--all-targets",
+        "--no-deps",
+        "--",
+        "-D",
+        "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:14:07Z",
-      "durationSeconds": 14.441612895,
+      "finishedAt": "2026-09-07T04:16:51Z",
+      "durationSeconds": 8.032902107,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "independent-overlay-helm",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T04:16:04Z",
+      "durationSeconds": 6.086604033,
       "detail": "completed successfully"
     }
   ]
