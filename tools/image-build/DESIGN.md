@@ -7,6 +7,7 @@
 | Cargo metadata v1 | locked Linux amd64 graph, all features for conservative input discovery, normal and build edges |
 | Docker Buildx Bake | typed target selection and generated context overrides |
 | BuildKit source mounts | read-only compilation inputs, persistent locked Cargo caches |
+| Docker BuildKit Syft scanner 1.12.0 | digest-pinned release generator; Syft 1.51.0 emits SPDX SBOM attestations |
 | `veoveo.io/rust-source-context/v1` | repository-owned SHA-256 source identity, separate from an OCI artifact digest |
 | `veoveo.io/normalized-parent/v1` | immutable dependency publication receipt, recipe identity and OCI runtime digest |
 | Git | exact committed publication source; local builds also admit non-ignored working-tree files |

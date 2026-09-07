@@ -43,6 +43,9 @@ const AUXILIARY_LABEL: &str = "io.veoveo.build.auxiliary";
 // every stage's cache key. Keep it stable across source revisions. Bump this
 // cache ABI only when an admitted pinned parent image contains newer metadata.
 const REPRODUCIBLE_BUILD_EPOCH: u64 = 1_786_076_699;
+// Docker's stable-1 scanner tag moves independently of the admitted worker.
+// v1.12.0 is the stable scanner release, carrying Syft 1.51.0.
+const SBOM_ATTESTATION: &str = "type=sbom,generator=docker.io/docker/buildkit-syft-scanner:1.12.0@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -594,7 +597,7 @@ pub(crate) fn execute(
                         (
                             target.name.clone(),
                             BakeTargetAttestation {
-                                attest: ["type=provenance,mode=max", "type=sbom"],
+                                attest: ["type=provenance,mode=max", SBOM_ATTESTATION],
                             },
                         )
                     })
