@@ -50,6 +50,9 @@ cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 
 The locked deployment verifies every source revision, chart, values file, and image
 digest before Helm. It never resolves a moving source expression during installation.
+Source-chart lock digests use Veoveo's canonical file-content encoding. The checked-in
+chart entries were regenerated from their recorded source revision when that encoding
+replaced Git archive hashing; image and publication digests retain their existing identities.
 The fixture is intentionally contract-only: its declared synthetic product does not
 qualify GPU rendering, NVENC, advancing H.264 media, or browser playback. Each real external
 simulation implementation owns that hardware evidence; the first-party UAV showcase

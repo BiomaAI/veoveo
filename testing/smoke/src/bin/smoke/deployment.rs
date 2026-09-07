@@ -19,7 +19,7 @@ use veoveo_deploy_contract::{
     PlannedImage, PlatformComponent, ReleaseSpec, ReleaseValuesContract, SecretClosure,
     SecretClosureStatus, SecretObjectKey, SecretObservation, SecretObservationStatus,
     SecretReferenceKind, SecretReferenceRequirement, SourceRepository, collect_secret_requirements,
-    gateway_bundle_digest, load_local_registry,
+    gateway_bundle_digest, load_local_registry, source_chart_content_digest,
 };
 use veoveo_mcp_contract::GatewayControlPlane;
 
@@ -618,7 +618,7 @@ fn resolve_locked_sources(
                 source.name
             )
         })?;
-        validate_locked_charts(source, locked, destination, &revision)?;
+        validate_locked_charts(source, locked, destination)?;
         resolved.push(ResolvedSource {
             definition: source.clone(),
             repository: destination.to_path_buf(),
@@ -635,7 +635,6 @@ fn validate_locked_charts(
     source: &DeploymentSource,
     locked: &LockedSource,
     repository: &Path,
-    revision: &str,
 ) -> Result<()> {
     ensure!(
         locked.charts.len() == source.releases.len(),
@@ -667,29 +666,7 @@ fn validate_locked_charts(
             chart.coordinate,
             coordinate
         );
-        let archive = Command::new("git")
-            .args([
-                "archive",
-                "--format=tar",
-                revision,
-                path_str(&release.chart)?,
-            ])
-            .current_dir(repository)
-            .output()
-            .with_context(|| {
-                format!(
-                    "archiving locked chart {} from source {}",
-                    release.chart.display(),
-                    source.name
-                )
-            })?;
-        ensure!(
-            archive.status.success(),
-            "git archive failed for locked chart {}:\n{}",
-            release.chart.display(),
-            String::from_utf8_lossy(&archive.stderr)
-        );
-        let digest = format!("sha256:{}", hex::encode(Sha256::digest(&archive.stdout)));
+        let digest = source_chart_content_digest(repository, &release.chart)?.to_string();
         ensure!(
             chart.digest == digest,
             "deployment lock chart digest for release {} is {}, source produced {}",

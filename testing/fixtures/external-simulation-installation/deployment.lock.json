@@ -31,7 +31,7 @@
         {
           "release": "veoveo",
           "coordinate": "source://veoveo/deploy/helm/veoveo",
-          "digest": "sha256:8497fd3d259308c26c1da292b8462877980652a4db1e531385d702671ff84bac"
+          "digest": "sha256:4ac42e9557c2677a470c26f22d9d439d7966a280a4dc8b538f54418d1d0fba19"
         }
       ]
     },
@@ -52,7 +52,7 @@
         {
           "release": "anonymous-simulation",
           "coordinate": "source://anonymous-simulation/testing/fixtures/external-simulation-extension/deploy/helm",
-          "digest": "sha256:b31dbade0052d8e103007d6d830bf6b4cbf5707bac93912bde744a08c23ccb58"
+          "digest": "sha256:0f1d8053d786e40697d429fcb209c3a9a03effa99a1570cb784c3a058ada3507"
         }
       ]
     }

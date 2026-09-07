@@ -4,7 +4,6 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
-    process::Command,
     sync::Arc,
 };
 
@@ -14,7 +13,7 @@ use veoveo_deploy_contract::{
     DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentProfile,
     DeploymentSource, DeploymentSourceRole, DevelopmentImageLock, DevelopmentImageOrigin,
     DevelopmentLockedImage, LoadedProfile, LockedChart, LockedImage, LockedRegistry, LockedSource,
-    PlannedImage, RegistryTransport, SourceRepository,
+    PlannedImage, RegistryTransport, SourceRepository, source_chart_content_digest,
 };
 
 const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v2";
@@ -833,7 +832,7 @@ fn prepare_profile_source(
         }
         phases.push(PreparedImagePhase { name, plan });
     }
-    let charts = lock_source_charts(source, publication.path(), &revision)?;
+    let charts = lock_source_charts(source, publication.path())?;
     Ok(PreparedSourceRelease {
         definition: source.clone(),
         origin,
@@ -1262,11 +1261,7 @@ fn prepare_remote_repository(repository: &RepositoryContext, url: &str) -> Resul
     Ok(checkout)
 }
 
-fn lock_source_charts(
-    source: &DeploymentSource,
-    repository: &Path,
-    revision: &str,
-) -> Result<Vec<LockedChart>> {
+fn lock_source_charts(source: &DeploymentSource, repository: &Path) -> Result<Vec<LockedChart>> {
     let mut releases = BTreeSet::new();
     source
         .releases
@@ -1285,28 +1280,6 @@ fn lock_source_charts(
                     repository.join(values).display()
                 );
             }
-            let archive = Command::new("git")
-                .args([
-                    "archive",
-                    "--format=tar",
-                    revision,
-                    path_text(&release.chart)?,
-                ])
-                .current_dir(repository)
-                .output()
-                .with_context(|| {
-                    format!(
-                        "archiving chart {} from source {}",
-                        release.chart.display(),
-                        source.name
-                    )
-                })?;
-            ensure!(
-                archive.status.success(),
-                "git archive failed for chart {}:\n{}",
-                release.chart.display(),
-                String::from_utf8_lossy(&archive.stderr)
-            );
             Ok(LockedChart {
                 release: release.name.clone(),
                 coordinate: format!(
@@ -1314,7 +1287,7 @@ fn lock_source_charts(
                     source.name,
                     release.chart.to_string_lossy()
                 ),
-                digest: format!("sha256:{}", hex::encode(Sha256::digest(&archive.stdout))),
+                digest: source_chart_content_digest(repository, &release.chart)?.to_string(),
             })
         })
         .collect()

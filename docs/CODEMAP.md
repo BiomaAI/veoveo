@@ -124,6 +124,7 @@ Hub, administration, and GPU policy.
 | `deploy/contract/` | multi-source deployment v6 profiles and locks, platform/workload/extension ownership, exact platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
 | `deploy/contract/src/components/` | atomic ownership catalog, exact provenance and deployable-content digests, dependency expansion, and pure mutation planning for the component-selection migration; installer integration remains pending |
 | `deploy/contract/src/gateway_bundle.rs` | canonical complete public ConfigMap content digest shared by disposable gateway activation and GitOps acceptance |
+| `deploy/contract/src/source_chart.rs` | source chart content identity shared by release publication and installation; hashes actual files independently of commit and archive metadata |
 | `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
@@ -165,6 +166,7 @@ Hub, administration, and GPU policy.
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `deploy/contract/tests/component_ownership.rs` | pure component selection, unchanged dependencies, mixed-release rejection, previous Helm inventory checks, and immutable input ownership tests |
 | `deploy/contract/tests/component_reuse.rs` and `tests/support/components.rs` | independent Git-history input reuse, content-based upgrade decisions, and shared atomic component fixtures; these tests do not execute Kubernetes mutations |
+| `deploy/contract/tests/source_chart_content.rs` | real Git-history and separate-checkout chart identity tests, export-attribute coverage, executable modes, and source path boundaries |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/source-freshness.rs` | content comparison and timestamp synchronization for Cargo inputs under the target-cache lock |
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
