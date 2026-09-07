@@ -9,10 +9,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{CrsId, DatumId, EllipsoidId, FrameKind, GeofenceId, GeofenceRule};
 
+pub mod ingest_parts;
 pub mod projection;
 pub mod properties_layer;
 pub mod recording_layer;
+pub mod segment;
 pub mod video;
+pub mod video_clip;
 
 fn validate_rrd_id(value: &str, kind: &'static str) -> Result<(), RrdIdError> {
     if value.is_empty() || value.len() > 512 {

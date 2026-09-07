@@ -19,11 +19,12 @@ use veoveo_recording_forwarder::{
 };
 use veoveo_recording_hub::{
     BlueprintMapProviderSelection, RecordingLayerFileScope, collect_recording_layer_files,
-    inspect_segment, validate_blueprint_rrd,
+    validate_blueprint_rrd,
 };
 use veoveo_recording_protocol::v1::{
     OpenRecordingStreamRequest, RecordingStreamFinishMode, RecordingStreamState,
 };
+use veoveo_rrd::segment::inspect_segment;
 
 use super::*;
 

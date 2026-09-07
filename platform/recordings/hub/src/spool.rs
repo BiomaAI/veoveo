@@ -514,7 +514,7 @@ impl Spooler {
             crate::materialize_archive_shard(&[source], &writer.path).with_context(|| {
                 format!("materializing archive shard {}", writer.path.display())
             })?;
-            let inspection = crate::catalog::inspect_segment(&writer.path)?;
+            let inspection = veoveo_rrd::segment::inspect_segment(&writer.path)?;
             anyhow::ensure!(
                 inspection.application_id == key.application_id
                     && inspection.recording_key == key.recording,

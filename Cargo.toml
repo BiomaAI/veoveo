@@ -81,7 +81,7 @@ hex = "0.4.3"
 hmac = "0.13.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
 hifitime = { version = "4.3.1", default-features = false, features = ["std"] }
-h264-reader = "0.8.0"
+h264-reader = "=0.8.0"
 jsonschema = "=0.51.0"
 jiff = { version = "0.2.35", features = ["tz-system"] }
 jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto", "use_pem"] }
@@ -95,7 +95,7 @@ opentelemetry-appender-tracing = "0.32.0"
 # reqwest client is also enabled.
 opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "reqwest-client", "trace", "logs"] }
 opentelemetry_sdk = "0.32.1"
-mp4 = "0.14.0"
+mp4 = "=0.14.0"
 nix = { version = "0.31.3", features = ["process", "signal"] }
 notify = "8.2.0"
 parking_lot = "0.12.5"

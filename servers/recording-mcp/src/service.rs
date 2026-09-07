@@ -15,9 +15,9 @@ use veoveo_platform_store::{
     RecordingReadGrantRecord, RecordingRecord, RecordingSeal, RecordingState,
 };
 use veoveo_recording_hub::{
-    GatewayLayerPublisher, ingest_segment_parts_directory, invocation_authority_record,
-    live_segment_byte_len,
+    GatewayLayerPublisher, invocation_authority_record, live_segment_byte_len,
 };
+use veoveo_rrd::ingest_parts::ingest_segment_parts_directory;
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
 
 use crate::contract::{
@@ -1029,7 +1029,7 @@ impl RecordingService {
                 &sha256,
             )
             .await?;
-        match std::fs::remove_file(&path) {
+        match std::fs::remove_file(path) {
             Ok(()) => File::open(&directory)?.sync_all()?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
@@ -1164,7 +1164,7 @@ impl RecordingService {
             path.starts_with(&self.spool_root),
             "recording staging file escapes the configured spool root"
         );
-        match std::fs::remove_file(&path) {
+        match std::fs::remove_file(path) {
             Ok(()) => {
                 File::open(path.parent().context("staging file has no parent")?)?.sync_all()?
             }

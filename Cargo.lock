@@ -16183,12 +16183,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "base64 0.23.1",
  "chrono",
  "clap",
  "fs4",
  "futures",
- "h264-reader",
  "hex",
  "mp4",
  "prost",
@@ -16306,8 +16304,8 @@ dependencies = [
  "tokio",
  "uuid",
  "veoveo-platform-store",
- "veoveo-recording-hub",
  "veoveo-recording-mcp",
+ "veoveo-rrd",
 ]
 
 [[package]]
@@ -16315,7 +16313,9 @@ name = "veoveo-rrd"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "h264-reader",
  "hex",
+ "mp4",
  "re_chunk",
  "re_chunk_store",
  "re_dataframe",

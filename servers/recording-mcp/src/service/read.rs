@@ -12,9 +12,10 @@ use veoveo_platform_store::{
     PrincipalKind as StorePrincipalKind, RecordingDatasetId, RecordingId, RecordingLayerId,
     RecordingLayerKind, RecordingLayerState, RecordingState,
 };
-use veoveo_recording_hub::{
-    ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory, inspect_segment,
+use veoveo_rrd::ingest_parts::{
+    ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory,
 };
+use veoveo_rrd::segment::inspect_segment;
 
 use super::{
     MAX_LAYERS, RecordingService, authorized_live_layer_path, labels_visible, record_uuid,
