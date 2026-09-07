@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Context, Result, ensure};
 
 use super::{
-    COMPONENT_MUTATION_PLAN_SCHEMA, atomic_unit_digest,
+    COMPONENT_MUTATION_PLAN_SCHEMA, atomic_unit_content_digest, atomic_unit_digest,
     types::*,
     validate_component_catalog,
     validation::{dependency_order, validate_owned_object},
@@ -154,13 +154,23 @@ pub fn component_mutation_plan(
                 digest == locked.digest,
                 "prepared rendering differs from locked atomic unit"
             );
+            let content_digest = atomic_unit_content_digest(&component.declaration, prepared)?;
+            ensure!(
+                content_digest == locked.content_digest,
+                "prepared contents differ from locked atomic unit"
+            );
             let unchanged = match state {
                 ObservedUnitState::Absent => false,
                 ObservedUnitState::Present {
                     digest: installed_digest,
+                    content_digest: installed_content_digest,
                     objects,
                 } => {
-                    if installed_digest == &digest {
+                    ensure!(
+                        installed_digest != &digest || installed_content_digest == &content_digest,
+                        "installed provenance matches but content digest differs"
+                    );
+                    if installed_content_digest == &content_digest {
                         ensure!(
                             same_objects(objects, &locked.objects),
                             "installed digest matches but object inventory has drifted"
@@ -202,6 +212,7 @@ pub fn component_mutation_plan(
                 source: component.declaration.source.clone(),
                 target: locked.target.clone(),
                 digest,
+                content_digest,
                 objects: prepared.objects.clone(),
                 retired_objects,
                 verb,

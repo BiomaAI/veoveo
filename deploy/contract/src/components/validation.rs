@@ -1,53 +1,8 @@
 use std::{collections::BTreeMap, path::Path};
 
-use anyhow::{Context, Result, ensure};
-use serde::Serialize;
-use sha2::{Digest, Sha256};
-use veoveo_extension_contract::ArtifactDigest;
-
-use super::types::*;
+use super::{atomic_unit_content_digest, atomic_unit_digest, types::*};
 use crate::validate_name;
-
-/// Hashes a unit's complete input closure and sorted rendered object digests.
-///
-/// This is a repository-owned typed encoding, not JSON canonicalization of arbitrary
-/// Kubernetes manifests. The renderer hashes each complete manifest independently.
-pub fn atomic_unit_digest(
-    component: &DeploymentComponent,
-    unit: &PreparedAtomicUnit,
-) -> Result<ArtifactDigest> {
-    validate_declaration(component)?;
-    validate_prepared(component, unit)?;
-    let mut objects = unit.objects.iter().collect::<Vec<_>>();
-    objects.sort_by(|left, right| left.identity.cmp(&right.identity));
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Identity<'a> {
-        format: &'static str,
-        component: &'a ComponentId,
-        role: ComponentRole,
-        source: &'a ComponentSource,
-        extension_release: &'a Option<ComponentExtensionRelease>,
-        target: &'a AtomicTarget,
-        inputs: &'a std::collections::BTreeSet<ComponentInput>,
-        objects: Vec<&'a RenderedObject>,
-    }
-    let bytes = serde_json::to_vec(&Identity {
-        format: "veoveo.io/atomic-deployment-unit/v1",
-        component: &component.id,
-        role: component.role,
-        source: &component.source,
-        extension_release: &component.extension_release,
-        target: &unit.target,
-        inputs: &unit.inputs,
-        objects,
-    })?;
-    let hex = Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    Ok(ArtifactDigest::new(format!("sha256:{hex}"))?)
-}
+use anyhow::{Context, Result, ensure};
 
 /// Seals complete renderings into a component lock. Cross-owner checks follow when
 /// the complete installation catalog is passed to [`validate_component_catalog`].
@@ -61,6 +16,7 @@ pub fn lock_component(
         .map(|unit| {
             Ok(LockedAtomicUnit {
                 digest: atomic_unit_digest(&declaration, &unit)?,
+                content_digest: atomic_unit_content_digest(&declaration, &unit)?,
                 target: unit.target,
                 inputs: unit.inputs,
                 objects: unit.objects,
@@ -94,9 +50,9 @@ pub fn validate_component_catalog(catalog: &[LockedComponent]) -> Result<()> {
         for source in
             std::iter::once(&declaration.source).chain(declaration.inputs.iter().map(input_source))
         {
-            if let Some(previous) = sources.insert(&source.name, source) {
+            if let Some(previous) = sources.insert(&source.name, &source.repository) {
                 ensure!(
-                    previous == source,
+                    previous == &source.repository,
                     "source {} has conflicting identities",
                     source.name
                 );
@@ -205,6 +161,10 @@ fn validate_locked_component(component: &LockedComponent) -> Result<()> {
             atomic_unit_digest(declaration, &prepared)? == unit.digest,
             "locked atomic unit digest differs from its complete contents"
         );
+        ensure!(
+            atomic_unit_content_digest(declaration, &prepared)? == unit.content_digest,
+            "locked atomic unit content digest differs from its complete contents"
+        );
         for object in &unit.objects {
             ensure!(
                 objects.insert(&object.identity),
@@ -282,7 +242,7 @@ pub(super) fn validate_owned_object(
     Ok(())
 }
 
-fn validate_declaration(component: &DeploymentComponent) -> Result<()> {
+pub(super) fn validate_declaration(component: &DeploymentComponent) -> Result<()> {
     validate_source(&component.source)?;
     ensure!(
         !component.targets.is_empty(),
@@ -402,13 +362,13 @@ fn input_source(input: &ComponentInput) -> &ComponentSource {
     }
 }
 
-fn input_identity(input: &ComponentInput) -> (&'static str, &str, &str) {
+fn input_identity(input: &ComponentInput) -> (&'static str, &ComponentSource, &str) {
     match input {
-        ComponentInput::File { source, path, .. } => ("file", &source.name, path),
-        ComponentInput::Image { source, target, .. } => ("image", &source.name, target),
+        ComponentInput::File { source, path, .. } => ("file", source, path),
+        ComponentInput::Image { source, target, .. } => ("image", source, target),
         ComponentInput::Chart {
             source, coordinate, ..
-        } => ("chart", &source.name, coordinate),
+        } => ("chart", source, coordinate),
     }
 }
 
