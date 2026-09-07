@@ -13,8 +13,9 @@ use veoveo_deploy_contract::{
     DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentProfile,
     DeploymentSource, DeploymentSourceRole, DevelopmentImageLock, DevelopmentImageOrigin,
     DevelopmentLockedImage, LoadedProfile, LockedChart, LockedImage, LockedRegistry, LockedSource,
-    PlannedImage, RegistryTransport, SourceRepository, source_chart_content_digest,
+    PlannedImage, RegistryTransport, SourceRepository,
 };
+use veoveo_deploy_runtime::lock_source_charts;
 
 const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v2";
 const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-stage-evidence/v2";
@@ -1259,38 +1260,6 @@ fn prepare_remote_repository(repository: &RepositoryContext, url: &str) -> Resul
         )?;
     }
     Ok(checkout)
-}
-
-fn lock_source_charts(source: &DeploymentSource, repository: &Path) -> Result<Vec<LockedChart>> {
-    let mut releases = BTreeSet::new();
-    source
-        .releases
-        .iter()
-        .map(|release| {
-            ensure!(
-                releases.insert(release.name.clone()),
-                "duplicate Helm release {}",
-                release.name
-            );
-            for values in &release.source_values {
-                ensure!(
-                    repository.join(values).is_file(),
-                    "source-owned Helm values for release {} do not exist at {}",
-                    release.name,
-                    repository.join(values).display()
-                );
-            }
-            Ok(LockedChart {
-                release: release.name.clone(),
-                coordinate: format!(
-                    "source://{}/{}",
-                    source.name,
-                    release.chart.to_string_lossy()
-                ),
-                digest: source_chart_content_digest(repository, &release.chart)?.to_string(),
-            })
-        })
-        .collect()
 }
 
 fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {

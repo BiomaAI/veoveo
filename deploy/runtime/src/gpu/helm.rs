@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::ManagedGpuAllocatorInstallation;
 
 use super::{MANAGED_NODE_LABEL, MANAGED_NODE_LABEL_VALUE, path_str};
-use crate::deployment::{output_checked, status_checked};
+use crate::process::{output_checked, status_checked};
 
 pub(super) struct VerifiedChart {
     pub(super) archive: PathBuf,

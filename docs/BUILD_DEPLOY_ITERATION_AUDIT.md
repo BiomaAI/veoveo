@@ -572,6 +572,14 @@ modes, and exact bytes, including files excluded by Git export attributes. Commi
 metadata and checkout timestamps no longer change chart identity. Existing source-chart
 lock entries require regeneration with this encoding; OCI artifact digests are unchanged.
 
+Deployment execution now lives in `deploy/runtime`, a shared Veoveo library consumed by
+the release publisher and focused deployment smoke binary. The general smoke binary no
+longer compiles a second copy of the installer. Source resolution, Helm inputs, public
+configuration, cluster lifecycle, and GPU allocation have explicit modules. The publisher
+and installer use one source-chart lock constructor and content check. This establishes
+the shared execution boundary for component compilation; v6 still installs the complete
+profile, and component-selected mutation and live zero-write evidence remain open.
+
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
 cache family, explicitly selected both packages and binaries, and exported a local

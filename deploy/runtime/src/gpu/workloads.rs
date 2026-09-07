@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use veoveo_deploy_contract::GpuWorkloadPlacement;
 
-use crate::deployment::output_checked;
+use crate::process::output_checked;
 
 const DEPLOYMENT_REVISION_ANNOTATION: &str = "deployment.kubernetes.io/revision";
 

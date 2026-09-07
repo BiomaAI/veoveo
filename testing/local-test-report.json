@@ -1,16 +1,16 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:dc7c9cfd6a0da71a1077ee573afb052331bb9c2cb58064b91ead042e2e12c71f",
-  "updatedAt": "2026-09-07T21:59:20Z",
+  "buildDigest": "sha256:97faa34583e0b53ab4fa1727810349164cdfcf56b0a8f9825580c10659de08b2",
+  "updatedAt": "2026-09-07T22:56:58Z",
   "checks": [
     {
-      "name": "source-chart-clippy",
+      "name": "deploy-runtime-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-deploy-contract",
+        "veoveo-deploy-runtime",
         "-p",
         "veoveo-deployment-smoke",
         "-p",
@@ -21,28 +21,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T21:57:36Z",
-      "durationSeconds": 9.857669285,
+      "finishedAt": "2026-09-07T22:56:47Z",
+      "durationSeconds": 0.51535502,
       "detail": "completed successfully"
     },
     {
-      "name": "source-chart-contract",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-deploy-contract",
-        "-p",
-        "veoveo-deployment-smoke"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T21:56:19Z",
-      "durationSeconds": 28.653816867,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "source-chart-format",
+      "name": "deploy-runtime-format",
       "command": [
         "cargo",
         "fmt",
@@ -51,12 +35,12 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T21:59:20Z",
-      "durationSeconds": 2.1546436509999998,
+      "finishedAt": "2026-09-07T22:56:58Z",
+      "durationSeconds": 2.094129154,
       "detail": "completed successfully"
     },
     {
-      "name": "source-chart-helm-config",
+      "name": "deploy-runtime-helm-config",
       "command": [
         "cargo",
         "xtask",
@@ -64,23 +48,42 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T21:58:50Z",
-      "durationSeconds": 15.28685847,
+      "finishedAt": "2026-09-07T22:56:55Z",
+      "durationSeconds": 6.153259149,
       "detail": "completed successfully"
     },
     {
-      "name": "source-chart-release",
+      "name": "deploy-runtime-smoke-binary",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "veoveo-smoke",
+        "--bin",
+        "smoke"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T22:56:48Z",
+      "durationSeconds": 0.734822634,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "deploy-runtime-tests",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-xtask",
-        "commands::release::tests"
+        "veoveo-deploy-runtime",
+        "-p",
+        "veoveo-deployment-smoke",
+        "-p",
+        "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T21:56:45Z",
-      "durationSeconds": 3.582639064,
+      "finishedAt": "2026-09-07T22:56:45Z",
+      "durationSeconds": 1.96650168,
       "detail": "completed successfully"
     }
   ]

@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail, ensure};
 use serde_json::Value;
 
 use super::{MANAGED_NODE_LABEL, MANAGED_NODE_LABEL_POINTER, MANAGED_NODE_LABEL_VALUE};
-use crate::deployment::output_checked;
+use crate::process::output_checked;
 
 pub(super) fn validate_kubelet_daemon_set_contract(kubelet: &Value) -> Result<()> {
     let expected_selector = serde_json::json!({

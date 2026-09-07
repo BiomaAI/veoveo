@@ -3,8 +3,6 @@ use std::{path::PathBuf, process::ExitCode};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-#[path = "../../smoke/src/bin/smoke/deployment.rs"]
-mod deployment;
 mod gitops;
 mod helm_config;
 
@@ -91,14 +89,24 @@ enum Command {
 fn run() -> Result<()> {
     match Args::parse().command {
         Command::HelmConfig => helm_config::helm_config(),
-        Command::ProfileValidate { profile } => deployment::profile_validate(&profile),
-        Command::ProfileRegistryUp { profile } => deployment::profile_registry_up(&profile),
-        Command::ProfileClusterUp { profile } => deployment::profile_cluster_up(&profile),
-        Command::ProfileClusterStop { profile } => deployment::profile_cluster_stop(&profile),
-        Command::ProfileClusterDelete { profile } => deployment::profile_cluster_delete(&profile),
-        Command::ProfileUp { profile, lock } => deployment::profile_up(&profile, &lock),
-        Command::ProfileGpuVerify { profile } => deployment::profile_gpu_verify(&profile),
-        Command::ProfileDown { profile } => deployment::profile_down(&profile),
+        Command::ProfileValidate { profile } => veoveo_deploy_runtime::profile_validate(&profile),
+        Command::ProfileRegistryUp { profile } => {
+            veoveo_deploy_runtime::profile_registry_up(&profile)
+        }
+        Command::ProfileClusterUp { profile } => {
+            veoveo_deploy_runtime::profile_cluster_up(&profile)
+        }
+        Command::ProfileClusterStop { profile } => {
+            veoveo_deploy_runtime::profile_cluster_stop(&profile)
+        }
+        Command::ProfileClusterDelete { profile } => {
+            veoveo_deploy_runtime::profile_cluster_delete(&profile)
+        }
+        Command::ProfileUp { profile, lock } => veoveo_deploy_runtime::profile_up(&profile, &lock),
+        Command::ProfileGpuVerify { profile } => {
+            veoveo_deploy_runtime::profile_gpu_verify(&profile)
+        }
+        Command::ProfileDown { profile } => veoveo_deploy_runtime::profile_down(&profile),
         Command::GitopsConverge {
             reconciliation,
             context,
