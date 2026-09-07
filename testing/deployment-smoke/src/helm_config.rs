@@ -1104,8 +1104,8 @@ pub(crate) fn helm_config() -> Result<()> {
         !Path::new("examples/bioma/deployment.json").exists(),
         "Bioma must use its enterprise GitOps contract rather than a deployment profile"
     );
-    crate::deployment::profile_validate(Path::new("showcase/sumo/deploy/deployment.json"))?;
-    crate::deployment::profile_validate(Path::new(
+    veoveo_deploy_runtime::profile_validate(Path::new("showcase/sumo/deploy/deployment.json"))?;
+    veoveo_deploy_runtime::profile_validate(Path::new(
         "testing/fixtures/external-simulation-installation/deployment.json",
     ))?;
     let bioma_root = fs::read_to_string("examples/bioma/gitops/bootstrap.yaml")?;

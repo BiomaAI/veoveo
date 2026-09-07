@@ -16,7 +16,7 @@ use veoveo_deploy_contract::{
     NVIDIA_DRA_KUBERNETES_VERSION,
 };
 
-use super::{kubectl_apply_value, output_checked, status_checked};
+use crate::process::{kubectl_apply_value, output_checked, status_checked};
 
 #[path = "gpu/admission.rs"]
 mod admission;

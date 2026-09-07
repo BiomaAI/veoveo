@@ -15675,11 +15675,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "veoveo-deployment-smoke"
+name = "veoveo-deploy-runtime"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap",
  "hex",
  "jsonwebtoken 11.0.0",
  "reqwest 0.13.4",
@@ -15690,8 +15689,24 @@ dependencies = [
  "tempfile",
  "url",
  "veoveo-deploy-contract",
- "veoveo-extension-contract",
  "veoveo-mcp-contract",
+]
+
+[[package]]
+name = "veoveo-deployment-smoke"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "sha2 0.11.0",
+ "tempfile",
+ "veoveo-deploy-contract",
+ "veoveo-deploy-runtime",
+ "veoveo-extension-contract",
 ]
 
 [[package]]
@@ -16396,6 +16411,7 @@ dependencies = [
  "uuid",
  "veoveo-agent-runtime",
  "veoveo-deploy-contract",
+ "veoveo-deploy-runtime",
  "veoveo-extension-contract",
  "veoveo-image-build-control",
  "veoveo-mcp-contract",
@@ -16674,6 +16690,7 @@ dependencies = [
  "tempfile",
  "url",
  "veoveo-deploy-contract",
+ "veoveo-deploy-runtime",
  "veoveo-extension-contract",
  "veoveo-image-build-control",
  "veoveo-mcp-conformance",

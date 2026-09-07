@@ -1,25 +1,19 @@
 [package]
-name = "veoveo-deployment-smoke"
+name = "veoveo-deploy-runtime"
 version.workspace = true
 edition.workspace = true
-
-[[bin]]
-name = "deployment-smoke"
-path = "src/main.rs"
-
-[[test]]
-name = "gitops_convergence"
-harness = false
+publish = false
 
 [dependencies]
 anyhow.workspace = true
-clap.workspace = true
 hex.workspace = true
+jsonwebtoken.workspace = true
+reqwest = { workspace = true, features = ["rustls-no-provider"] }
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+url.workspace = true
 veoveo-deploy-contract.workspace = true
-veoveo-deploy-runtime.workspace = true
-veoveo-extension-contract.workspace = true
+veoveo-mcp-contract.workspace = true

@@ -34,9 +34,6 @@ use veoveo_mcp_contract::{
     parse_artifact_plane_uri,
 };
 
-#[allow(dead_code)]
-#[path = "smoke/deployment.rs"]
-mod deployment;
 #[path = "smoke/scenarios.rs"]
 mod scenarios;
 #[path = "smoke/support.rs"]
