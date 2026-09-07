@@ -317,7 +317,7 @@ struct LogData {
     data: String,
 }
 
-fn compiled_packages(trace: &str) -> Result<BTreeSet<String>> {
+pub(super) fn compiled_packages(trace: &str) -> Result<BTreeSet<String>> {
     let mut bytes = Vec::new();
     for line in trace.lines() {
         let Ok(event) = serde_json::from_str::<LogEvent>(line) else {

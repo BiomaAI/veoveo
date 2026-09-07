@@ -161,6 +161,7 @@ Hub, administration, and GPU policy.
 | `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, installation-owned gateway binding, and contract-only simulation deployment closure |
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
+| `tools/image-build/source-freshness.rs` | content comparison and timestamp synchronization for Cargo inputs under the target-cache lock |
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
 | `tools/xtask/` | compiled repository command, enforcement, local test reporting, typed smoke prerequisite builds and dispatch, exact image planning, profile-registry builder configuration, and release orchestration |
 
@@ -616,6 +617,7 @@ Simulation runtime ownership:
 | `tools/xtask/src/commands/release_cache.rs` | scoped Cargo executable and incremental-cache retention under the build-directory lock |
 | `tools/image-build/control/` | shared pinned Buildx, BuildKit registry configuration, declared resource limits and CPU telemetry, and cross-worktree builder lease used by image release and certification |
 | `tools/xtask/src/commands/image/benchmark.rs` | controlled compiler source-edit comparisons, temporary input variants, CPU quota experiments under the shared lease, and compiler-only evidence |
+| `tools/xtask/src/commands/image/cache_benchmark.rs` | fresh Cargo target comparisons against a pinned compiler cache, ordinary artifact identity, and typed cache hit/miss evidence |
 | `testing/smoke/src/bin/smoke/scenarios/simulation.rs` | deployment-lock registry authorization, published environment invariants, local image materialization, GPU certification, and retained transcripts |
 
 Authoritative simulation live-view ownership:

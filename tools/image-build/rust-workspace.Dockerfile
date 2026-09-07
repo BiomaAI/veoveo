@@ -22,11 +22,14 @@ ARG VEOVEO_CARGO_CACHE_ID
 ARG VEOVEO_TARGET_CACHE_ID
 
 WORKDIR /src
-RUN --mount=type=bind,source=.,target=/src,readonly \
+RUN --mount=type=bind,source=tools/image-build/source-freshness.rs,target=/tmp/source-freshness.rs,readonly \
+    rustc --edition=2024 -O /tmp/source-freshness.rs -o /usr/local/bin/veoveo-source-freshness
+RUN --mount=type=bind,source=.,target=/src,rw \
     --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-registry-v1,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-git-v1,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/target,sharing=locked \
     bash -euc '\
+        veoveo-source-freshness /src /target/.veoveo-inputs; \
         [[ -n "${VEOVEO_CARGO_PACKAGES}" ]] || { echo "no Cargo packages selected" >&2; exit 1; }; \
         [[ -n "${VEOVEO_CARGO_BINARIES}" ]] || { echo "no Cargo binaries selected" >&2; exit 1; }; \
         cargo_args=(build --release --locked); \

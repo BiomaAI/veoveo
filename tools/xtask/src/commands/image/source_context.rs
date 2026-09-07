@@ -281,6 +281,7 @@ fn input_files(
         PathBuf::from("rust-toolchain.toml"),
         PathBuf::from(".dockerignore"),
         PathBuf::from("tools/image-build/rust-workspace.Dockerfile"),
+        PathBuf::from("tools/image-build/source-freshness.rs"),
     ]);
     let mut roots = vec![PathBuf::from(".cargo")];
     for package in metadata
@@ -455,8 +456,8 @@ pub(super) fn materialize(
             let bytes = fs::read(&source)?;
             fs::write(&target, &bytes)?;
             fs::set_permissions(&target, metadata.permissions())?;
-            // Preserve mtimes across contexts: Cargo's freshness checks observe
-            // them even though BuildKit source keys exclude them.
+            // Retain checkout metadata here. The compiler action synchronizes
+            // timestamps against its executed-input mirror under the cache lock.
             fs::File::open(&target)?
                 .set_times(fs::FileTimes::new().set_modified(metadata.modified()?))?;
             bytes
@@ -509,6 +510,7 @@ mod tests {
             "rust-toolchain.toml",
             ".dockerignore",
             "tools/image-build/rust-workspace.Dockerfile",
+            "tools/image-build/source-freshness.rs",
             "web/app.tsx",
         ] {
             files.insert(PathBuf::from(path));
@@ -573,6 +575,7 @@ mod tests {
                 "rust-toolchain.toml",
                 ".dockerignore",
                 "tools/image-build/rust-workspace.Dockerfile",
+                "tools/image-build/source-freshness.rs",
             ]
             .map(PathBuf::from),
         );
@@ -616,6 +619,7 @@ mod tests {
                 "rust-toolchain.toml",
                 ".dockerignore",
                 "tools/image-build/rust-workspace.Dockerfile",
+                "tools/image-build/source-freshness.rs",
                 "bff/assets/view.html",
             ]
             .map(PathBuf::from),
@@ -735,3 +739,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../image-build/source-freshness.rs"]
+mod source_freshness;

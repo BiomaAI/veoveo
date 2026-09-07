@@ -21,6 +21,7 @@ use crate::{
 mod affected;
 pub(crate) mod benchmark;
 mod buildkit;
+pub(crate) mod cache_benchmark;
 mod normalized;
 pub(crate) mod operation;
 mod run_evidence;
@@ -920,8 +921,14 @@ fn validate_standalone_builder_stage(dockerfile: &str) -> Result<()> {
     ensure!(
         builder
             .iter()
-            .any(|line| line.contains("--mount=type=bind,source=.,target=/src,readonly")),
-        "builder must read the complete workspace through the canonical read-only source mount"
+            .any(|line| line.contains("--mount=type=bind,source=.,target=/src,rw")),
+        "builder must use the complete workspace through the canonical disposable writable source mount"
+    );
+    ensure!(
+        builder
+            .iter()
+            .any(|line| line.contains("veoveo-source-freshness /src /target/.veoveo-inputs")),
+        "builder must synchronize Cargo input freshness under the target-cache lock"
     );
     ensure!(
         !builder.iter().any(|line| line.starts_with("COPY ")),
@@ -1423,7 +1430,7 @@ mod tests {
         validate_standalone_builder_stage(
             "FROM rust:1 AS builder\n\
              WORKDIR /src\n\
-             RUN --mount=type=bind,source=.,target=/src,readonly cargo build\n\
+             RUN --mount=type=bind,source=.,target=/src,rw veoveo-source-freshness /src /target/.veoveo-inputs && cargo build\n\
              FROM scratch\n\
              COPY --from=builder /out/bin /bin\n",
         )
@@ -1438,9 +1445,9 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            error
-                .to_string()
-                .contains("complete workspace through the canonical read-only source mount")
+            error.to_string().contains(
+                "complete workspace through the canonical disposable writable source mount"
+            )
         );
     }
 }

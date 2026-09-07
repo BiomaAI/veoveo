@@ -6,11 +6,13 @@
 |---|---|
 | Cargo metadata v1 | locked Linux amd64 graph, all features for conservative input discovery, normal and build edges |
 | Docker Buildx Bake | typed target selection and generated context overrides |
-| BuildKit source mounts | read-only compilation inputs, persistent locked Cargo caches |
+| BuildKit source mounts | disposable writable compiler inputs for freshness synchronization, read-only native inputs, persistent locked Cargo caches |
 | Docker BuildKit Syft scanner 1.12.0 | digest-pinned release generator; Syft 1.51.0 emits SPDX SBOM attestations |
 | `veoveo.io/rust-source-context/v1` | repository-owned SHA-256 source identity, separate from an OCI artifact digest |
 | `veoveo.io/normalized-parent/v1` | immutable dependency publication receipt, recipe identity and OCI runtime digest |
 | `veoveo.io/compiler-cpu-comparison/v1` | compiler-only quota experiment, warmup, source variants, observed Cargo packages, binary digests and cgroup deltas |
+| sccache 0.17.0 | SHA-256-pinned Linux amd64 experiment tool; local disk cache and client-side compilation, incremental Rust disabled |
+| `veoveo.io/compiler-cache-comparison/v1` | fresh Cargo target comparison, exact compiler and binary identity, typed sccache counters, no release eligibility |
 | Git | exact committed publication source; local builds also admit non-ignored working-tree files |
 
 ## Ownership
@@ -22,6 +24,16 @@ The xtask image benchmark owns controlled source-edit comparisons. It operates o
 temporary Cargo-derived contexts and holds a control-library quota lease through
 restoration. Its local artifacts grant no compiler-family or image-release admission.
 The [image-build runbook](../../docs/IMAGE_BUILDS.md) defines commands and receipts.
+
+The compiler-cache experiment consumes the existing family's compile stage as a named
+BuildKit context. It introduces no alternative Rust toolchain or production wrapper.
+Its recipe installs the pinned sccache release and builds each case into an empty
+filesystem-backed `/target` directory, removed before that step commits. Only the
+experiment's bounded compiler-cache mount carries compiled results between cases.
+The Rust harness requires matching ordinary-artifact and experiment binary digests,
+records cache state before and after each case, and rejects failed Cargo actions or
+cache errors. Compiler-probe failures remain visible as diagnostics: native build
+scripts can deliberately test unsupported compiler inputs inside a successful build.
 
 ## Context Construction
 
@@ -52,11 +64,24 @@ closure. This prevents a local file outside the repository from silently influen
 published binary. Deleted working-tree files are omitted unless Cargo requires them
 as metadata inputs, in which case planning fails.
 
-The generated directory preserves file permissions and modification times. Preserving
-times matters because Cargo uses them for freshness even though BuildKit excludes
-mtime from source cache keys. The planner runs locked, offline Cargo metadata against
-the generated workspace before handing it to BuildKit. Temporary contexts remain alive
-through the solve and are removed with the prepared plan.
+The generated directory preserves source permissions and modification times. Before
+Cargo executes, `source-freshness.rs` compares the admitted bytes, modes and links with
+an input mirror inside the locked target cache. It gives changed files a fresh timestamp
+and retains the mirror's timestamp for unchanged files. Removal or changed symlink
+inputs conservatively refresh the local source tree. The source mount is writable for
+this timestamp adjustment; BuildKit discards its writes after the action. Original
+worktree files remain untouched. Registry and Git dependencies retain their Cargo cache.
+
+This bridge is necessary because Cargo's stable freshness checks use timestamps while
+BuildKit's source identity uses content. A checkout with older timestamps can otherwise
+reuse a binary compiled from newer, different bytes in the shared target cache. The
+mirror follows executed compilation, including failed attempts, rather than planner
+visits or BuildKit cache hits. The helper rejects a backwards freshness clock. Every
+Rust compiler family uses the same helper, compiled by its existing pinned compiler.
+
+The planner runs locked, offline Cargo metadata against the generated workspace before
+handing it to BuildKit. Temporary contexts remain alive through the solve and are removed
+with the prepared plan.
 
 ## Reuse And Evidence
 
