@@ -51,6 +51,9 @@ def sample_frames(
         total = sum(1 for packet in container.demux(stream) if packet.pts is not None)
     selected = set(uniform_indices(total, max_frames))
     frames: list[ObservedFrame] = []
+    # TODO(GPU): Replace PyAV's CPU decode and Pillow resize below with NVDEC
+    # surfaces and CUDA resize, retaining device frames through model input.
+    # This existing path cannot serve as hardware video-processing evidence.
     with av.open(str(input_mp4)) as container:
         stream = container.streams.video[0]
         time_base = Fraction(stream.time_base)

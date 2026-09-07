@@ -93,6 +93,9 @@ def _generate(request: RunnerRequest, prompt: str, frames: list[ObservedFrame]) 
 
 
 def _data_url(frame: ObservedFrame) -> str:
+    # TODO(GPU): Pass the shared CUDA observation tensor into the admitted vLLM
+    # multimodal input path instead of encoding CPU images as PNG data URLs.
+    # Keep that adapter paired with the NVDEC/CUDA migration in video.py.
     buffer = io.BytesIO()
     frame.image.save(buffer, format="PNG")
     encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
