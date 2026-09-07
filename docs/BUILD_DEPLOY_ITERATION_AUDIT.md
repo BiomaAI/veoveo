@@ -12,12 +12,12 @@ implemented changes and their verification.
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins | Eight control tests and strict Clippy pass; the worker was reconfigured with its existing state volume; controlled timing remains in progress |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants, retaining dependency libraries and newest variants | Candidate and Cargo-lock interoperability tests pass; applied maintenance recovered 107 GiB; the 2 GiB growth preflight now passes with 378 GiB available |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin | Production TypeScript/Vite build passes; authenticated headed-browser acceptance remains pending |
-| Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Input tests exclude application files and invalidate on patches, build options, and parent pins; two source-only revisions staged in 14.6 s and 15.6 s with identical inherited layer blobs |
+| Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
-| Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, and per-solve CPU deltas | Failure-path tests retain errors before BuildKit starts; command and solve records have distinct outcomes |
+| Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, per-solve CPU deltas, and filesystem extraction windows | Failure-path tests retain errors before BuildKit starts; cached compiler actions report no execution; extraction remains visible when a scanner materializes cached layers |
 | Exact image selection | Repeated `--target` flags select one sorted Bake solve for planning, local builds, staging, and qualification; affected planning excludes dev-only Cargo edges | CLI selection tests and dependency-closure fixtures cover staging/qualification parity and retained build dependencies |
 
 ## Standards And Protocols
@@ -373,3 +373,33 @@ including the new reader, while excluding Hub, forwarder and Recording MCP imple
 sources. Their native and Python runner files remain available. The three-target plan
 completed in 2.1 seconds, and 83 xtask tests plus strict Clippy passed. Compiler ABI
 families remain separate pending candidate runtime acceptance.
+
+An isolated Hub implementation edit at `3e2905cc` leaves Stream and Reason's source
+identities unchanged from `1548fa57`. Stream retains
+`sha256:4fb70582913e456bc4074f66cacd77044eb3710ed217cfaa929127948eef5ac0`;
+Reason retains `sha256:a1c44e2559b7c1522d6cfdc7c285d91938d15563d1812b891aeb4719bae81521`.
+This verifies the planned input isolation with a real source revision. It does not
+claim a measured compiler or linker duration.
+
+The normalized parent's manifest and all 37 layer blobs were verified in the local
+registry before retiring 61 exact worker cache records rooted in the original UAV
+dependency build. That maintenance recovered 52.1 GB and retained registry artifacts
+and Cargo execution caches. Staging `ad605a21` after eviction took 3.100 s and preserved
+its runtime digest. The published dependency boundary therefore works without the
+original dependency snapshots.
+
+Cold qualification after that eviction took 885.574 s. The raw trace records a
+434.704 s extraction window, 55.015 s of SBOM scanning, 59 ms of timestamp normalization,
+and a 153.038 s export window. These windows are not a partition of total duration.
+The run retained the staged runnable digest and published SPDX and SLSA attestations
+in index `sha256:9851a29a5e38ce63d9b8297b8061f92517de86ffdac9f88b7901d574842b02d8`.
+The host remained above its 366 GiB disk reserve.
+
+The subsequent warm qualification took 10.342 s with the scanner explicitly pinned
+to Docker BuildKit Syft scanner 1.12.0 and its OCI digest. Its SBOM action was cached,
+and it again preserved the staged runnable digest. Receipts are
+`output/development/uav-normalized-qualified.json` and
+`output/development/uav-pinned-qualified.json`. These establish artifact promotion;
+they do not establish GPU workload or headed-browser acceptance. Image evidence now
+records extraction separately, and progress reports aggregate phase windows only after
+the solve ends instead of calling a phase complete when its first layer finishes.
