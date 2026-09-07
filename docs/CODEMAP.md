@@ -122,6 +122,7 @@ Hub, administration, and GPU policy.
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `deploy/contract/` | multi-source deployment v6 profiles and locks, platform/workload/extension ownership, exact platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
+| `deploy/contract/src/components/` | atomic ownership catalog, complete input and object digest validation, dependency expansion, and pure mutation planning for the component-selection migration; installer integration remains pending |
 | `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
@@ -160,6 +161,7 @@ Hub, administration, and GPU policy.
 | `testing/fixtures/external-simulation-extension/` | isolated contract-only Python simulation extension with typed authoritative camera and render-product declarations; it is never visual GPU evidence |
 | `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, installation-owned gateway binding, and contract-only simulation deployment closure |
 | `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
+| `deploy/contract/tests/component_ownership.rs` | pure component selection, unchanged dependencies, mixed-release rejection, previous Helm inventory checks, and immutable input ownership tests |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/source-freshness.rs` | content comparison and timestamp synchronization for Cargo inputs under the target-cache lock |
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |

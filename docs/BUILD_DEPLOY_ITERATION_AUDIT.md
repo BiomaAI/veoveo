@@ -531,9 +531,10 @@ The current evidence is `output/development/cargo-cache-hourly-maintenance.json`
 
 The common Stream/Reason compiler family remains unadmitted. Its candidate executable
 must pass service startup and hardware workload checks in both runtime images. The
-controlled CPU comparison below measures one warm source-edit workload. Evaluate sccache and a second-worker
-action cache on the corrected narrow-input baseline when a separate worker is available.
-A Bazel migration has no measured advantage from this work and has not been introduced.
+controlled CPU comparison below measures one warm source-edit workload. The completed
+compiler-cache recovery comparison below provides no elapsed-time gain. Second-worker
+portability remains unmeasured. A Bazel migration has no measured advantage from this
+work and has not been introduced.
 
 The changed Flux configuration and charts have rendered acceptance, but were not
 published or activated in Bioma. Passive commit-to-ready timing therefore remains
@@ -541,6 +542,15 @@ unmeasured. Selected chart publication and separate release image closures are d
 splitting atomic Helm ownership still belongs to the complete `DEPLOY-SCOPE-023` migration.
 These boundaries remain explicit in the
 [iteration register](DEVELOPMENT_ITERATION.md#active-follow-ups-worth-fixing-next).
+
+The component migration now has a pure ownership planner in
+`deploy/contract/src/components/`. It expands exact component IDs, compares complete
+rendered units with locked inputs and object inventories, and rejects cross-owner
+overlap before producing any allowed mutation. It also checks the previous Helm
+inventory because an upgrade can delete objects removed from a chart. Matching installed
+inputs and objects produce an unchanged action for a dependency. These tests establish
+the preflight contract; the profile schema migration, installer integration, and actual
+zero-write deployment acceptance remain open.
 
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
