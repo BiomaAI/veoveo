@@ -269,21 +269,21 @@ than a general request to make builds faster.
 
 ### Active Follow-Ups Worth Fixing Next
 
-The [September 6 build and deployment audit](BUILD_DEPLOY_ITERATION_AUDIT.md) adds
-fresh source, render, and live-configuration evidence. Its architectural proposals
-remain proposals until their owning contracts and acceptance checks change.
+The [build and deployment audit](BUILD_DEPLOY_ITERATION_AUDIT.md#delivery-record)
+records the September 7 implementation and measured image boundaries. Flux watch
+labels, content-derived rollout triggers, declared worker resources, exact staging,
+complete timing, normalized UAV parents, and isolated presentation inputs are now
+implemented. Shared recording libraries exclude service lifecycle dependencies.
+The authenticated local Console supports source refresh without a document reload.
+The following acceptance work remains separate from those delivered changes.
 
 | Priority | Boundary | Owning component | Acceptance condition |
 |---:|---|---|---|
-| 1 | Values reconciliation and unnecessary Pod replacement | Bioma GitOps and platform/UAV charts | generated values carry the Flux watch label; chart-metadata-only publication changes zero Pod templates; runtime-config edits still replace the affected Pods |
-| 2 | Builder CPU and storage budget | managed builder control | effective CPU and memory limits are declared and reported, disk reserve passes, and measured throughput improves without degrading the live GPU workload |
-| 3 | Large-image normalized export and push tail | OCI exporter and UAV image graph | two committed source-only UAV runtime revisions reuse normalized dependency layers and each stage in under 30 s with unchanged dependency payload digests |
-| 4 | Console static presentation updates | Console image graph | a web-only edit performs zero Rust compiler actions, preserves the BFF artifact digest, and stages in under 30 s |
-| 5 | Shared multi-target staging and complete timing | image orchestration | one exact Bake solve publishes selected targets with independent digest receipts; evidence includes queue, preparation, solve, and inspection time |
-| 6 | Rust dependency and SDK boundaries | recording libraries and Stream/Reason image graphs | shared recording client contracts exclude service lifecycle dependencies; ABI-compatible Rust artifacts are reused without rebuilding NVIDIA runtime dependencies |
-| 7 | Map source-isolated Rust cache and dependency closure | Map image graph and affected planner | a Map-only warm stage completes in under 30 s; dev-only dependency edges do not select runtime images |
-| 8 | Stream native and Rust cache boundaries | Stream image graph | catalog or presentation edits preserve the native runner artifact and exclude unrelated Rust compilation |
-| 9 | Focused composed-flight harness closure | smoke harness ownership | a verifier-only edit neither compiles nor links store, task, recording, or unrelated server runtimes, and dispatch remains below 2 s warm |
+| 1 | Passive GitOps activation | Bioma GitOps and release charts | publish the changed charts and values through their owner; measure exact commit-to-ready latency without requesting Helm reconciliation; verify unchanged workloads retain their Pods |
+| 2 | Builder throughput and durable storage | managed builder control | compare controlled CPU allocations while observing the live GPU workload; admit a dedicated disk or host without consuming the existing host reserve |
+| 3 | Common Rust compiler ABI | Stream/Reason image graphs | compare candidate ELF requirements, runtime startup, and hardware GPU execution before sharing one compiler family across the NVIDIA runtime images |
+| 4 | Component release ownership | deployment contract | implement the complete object ownership and migration boundary in `DEPLOY-SCOPE-023` before splitting an atomic Helm release; selected publication and per-release image locks are already available |
+| 5 | Focused composed-flight harness closure | smoke harness ownership | a verifier-only edit neither compiles nor links store, task, recording, or unrelated server runtimes, and dispatch remains below 2 s warm |
 
 ### Deferred Or Separately Owned Work
 
@@ -321,9 +321,9 @@ unrelated crates is a partitioning problem.
 
 ### Current Warm Checkpoints
 
-These measurements were taken after the current improvement cycle. They validate the
-control-plane budgets without claiming that the still-open large-image export tail has
-met its 30-second target.
+The earlier control-plane measurements below remain useful baselines. The September 7
+image experiments now meet the warm 30-second staging budget, including two distinct
+UAV source revisions. Single runs establish these checkpoints, not latency distributions.
 
 | Checkpoint | Measured | Budget | Result |
 |---|---:|---:|---|
@@ -333,6 +333,10 @@ met its 30-second target.
 | Recording ingest diagnostics test | 4.11 s | 10 s | pass |
 | GitOps controller convergence against a healthy fixture | under 1 s | 30 s | pass |
 | Managed builder ensure without replacement | 7.57 s | diagnostic only | stable worker retained |
+| Console frontend-only revision | 26.0 s | 30 s | zero Rust execution; binary layer retained |
+| Two distinct UAV source-only revisions | 14.6 s and 15.6 s | 30 s | all 37 dependency layer blobs retained |
+| UAV unchanged stage after integrity-hash optimization | 2.8 s | 30 s | same runnable digest |
+| Map and Stream presentation-only revision, one solve | 12.1 s | 30 s | both binary layers retained; zero Cargo execution |
 | Source-only UAV runtime stage | not remeasured | 30 s | open pending exporter correction |
 
 ## Recorded Iteration Sinks
