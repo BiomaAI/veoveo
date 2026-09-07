@@ -79,17 +79,31 @@ impl fmt::Debug for CachedLayer {
     }
 }
 
-#[derive(Clone)]
-enum RrdCacheValidation {
-    RecordingLayer {
-        dataset_id: uuid::Uuid,
-        recording_id: uuid::Uuid,
-    },
-    Blueprint {
-        application_id: String,
-        blueprint_id: String,
-        message_count: u64,
-    },
+/// Trusted in-process identity validator for a cached RRD kind.
+/// Implementations must verify the complete expected length and SHA-256 as well as
+/// their domain identity. They run for downloads and every cache hit.
+pub trait RrdIdentityValidator: Send + Sync {
+    fn validate(&self, path: &Path, byte_len: u64, sha256: &str) -> Result<()>;
+}
+
+struct RecordingLayerIdentity {
+    dataset_id: uuid::Uuid,
+    recording_id: uuid::Uuid,
+}
+
+impl RrdIdentityValidator for RecordingLayerIdentity {
+    fn validate(&self, path: &Path, byte_len: u64, sha256: &str) -> Result<()> {
+        let inspected = veoveo_rrd::recording_layer::inspect_canonical_recording_layer(
+            path,
+            self.dataset_id,
+            self.recording_id,
+        )?;
+        ensure!(
+            inspected.byte_len == byte_len && inspected.sha256 == sha256,
+            "cached layer identity mismatch"
+        );
+        Ok(())
+    }
 }
 
 impl Clone for CachedLayer {
@@ -198,52 +212,26 @@ impl LayerCache {
         dataset_id: uuid::Uuid,
         recording_id: uuid::Uuid,
     ) -> Result<CachedLayer> {
-        self.materialize_rrd(
+        self.materialize_with_validator(
             caller,
             artifact_id,
             expected_byte_len,
             expected_sha256,
-            RrdCacheValidation::RecordingLayer {
+            Arc::new(RecordingLayerIdentity {
                 dataset_id,
                 recording_id,
-            },
+            }),
         )
         .await
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn materialize_blueprint(
+    pub async fn materialize_with_validator(
         &self,
         caller: &PlaneCaller,
         artifact_id: ArtifactId,
         expected_byte_len: u64,
         expected_sha256: &str,
-        application_id: &str,
-        blueprint_id: &str,
-        message_count: u64,
-    ) -> Result<CachedLayer> {
-        ensure!(message_count > 0, "recording Blueprint must not be empty");
-        self.materialize_rrd(
-            caller,
-            artifact_id,
-            expected_byte_len,
-            expected_sha256,
-            RrdCacheValidation::Blueprint {
-                application_id: application_id.to_owned(),
-                blueprint_id: blueprint_id.to_owned(),
-                message_count,
-            },
-        )
-        .await
-    }
-
-    async fn materialize_rrd(
-        &self,
-        caller: &PlaneCaller,
-        artifact_id: ArtifactId,
-        expected_byte_len: u64,
-        expected_sha256: &str,
-        validation: RrdCacheValidation,
+        validation: Arc<dyn RrdIdentityValidator>,
     ) -> Result<CachedLayer> {
         ensure!(expected_byte_len > 0, "recording layer must not be empty");
         ensure!(
@@ -348,7 +336,7 @@ impl LayerCache {
         key: &str,
         byte_len: u64,
         sha256: &str,
-        validation: &RrdCacheValidation,
+        validation: &Arc<dyn RrdIdentityValidator>,
     ) -> Result<Option<CachedLayer>> {
         let path = {
             let state = self
@@ -452,7 +440,7 @@ impl LayerCache {
         artifact_id: ArtifactId,
         expected_byte_len: u64,
         expected_sha256: &str,
-        validation: RrdCacheValidation,
+        validation: Arc<dyn RrdIdentityValidator>,
         partial: &Path,
         final_path: &Path,
     ) -> Result<()> {
@@ -513,48 +501,13 @@ fn validate_file(
     path: &Path,
     byte_len: u64,
     sha256: &str,
-    validation: &RrdCacheValidation,
+    validation: &Arc<dyn RrdIdentityValidator>,
 ) -> Result<()> {
     ensure!(
         std::fs::metadata(path)?.len() == byte_len,
         "cached layer length mismatch"
     );
-    match validation {
-        RrdCacheValidation::RecordingLayer {
-            dataset_id,
-            recording_id,
-        } => {
-            let inspected = veoveo_rrd::recording_layer::inspect_canonical_recording_layer(
-                path,
-                *dataset_id,
-                *recording_id,
-            )?;
-            ensure!(
-                inspected.byte_len == byte_len && inspected.sha256 == sha256,
-                "cached layer identity mismatch"
-            );
-        }
-        RrdCacheValidation::Blueprint {
-            application_id,
-            blueprint_id,
-            message_count,
-        } => {
-            let bytes = std::fs::read(path)?;
-            ensure!(
-                hex::encode(Sha256::digest(&bytes)) == sha256,
-                "cached Blueprint digest mismatch"
-            );
-            let blueprint = veoveo_recording_hub::validate_blueprint_rrd(
-                &bytes,
-                *message_count,
-                application_id,
-            )?;
-            ensure!(
-                blueprint.store_id.recording_id().as_str() == blueprint_id,
-                "cached Blueprint identity mismatch"
-            );
-        }
-    }
+    validation.validate(path, byte_len, sha256)?;
     Ok(())
 }
 
@@ -582,12 +535,8 @@ fn sync_directory(path: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use re_build_info::CrateVersion;
-    use re_log_encoding::{EncodingOptions, rrd::Encoder};
-    use re_log_types::StoreKind;
-    use re_sdk::{RecordingStreamBuilder, blueprint::Blueprint};
-
     use super::*;
+    use std::fs;
 
     fn cache(root: PathBuf) -> Result<LayerCache> {
         let _ = rustls::crypto::ring::default_provider().install_default();
@@ -622,69 +571,56 @@ mod tests {
         std::fs::write(directory.path().join("unexpected"), b"bad").unwrap();
         assert!(cache(directory.path().to_path_buf()).is_err());
     }
-
     #[test]
-    fn blueprint_cache_validation_binds_application_identity_and_message_count() {
-        let (recording, storage) = RecordingStreamBuilder::new("cache-blueprint-app")
-            .recording_id("cache-recording")
-            .memory()
-            .unwrap();
-        Blueprint::auto()
-            .send(&recording, Default::default())
-            .unwrap();
-        let messages = storage
-            .take()
-            .into_iter()
-            .filter(|message| message.store_id().kind() == StoreKind::Blueprint)
-            .collect::<Vec<_>>();
-        let blueprint_id = messages[0].store_id().recording_id().as_str().to_owned();
-        let mut encoder = Encoder::new_eager(
-            CrateVersion::LOCAL,
-            EncodingOptions::PROTOBUF_COMPRESSED,
-            Vec::new(),
-        )
-        .unwrap();
-        for message in &messages {
-            encoder.append(message).unwrap();
+    fn cache_hits_revalidate_identity_and_release_their_pins() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct FixtureIdentity(Arc<AtomicUsize>);
+        impl RrdIdentityValidator for FixtureIdentity {
+            fn validate(&self, path: &Path, byte_len: u64, sha256: &str) -> Result<()> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                let bytes = fs::read(path)?;
+                ensure!(
+                    bytes.len() as u64 == byte_len && hex::encode(Sha256::digest(&bytes)) == sha256,
+                    "fixture byte identity mismatch"
+                );
+                Ok(())
+            }
         }
-        encoder.finish().unwrap();
-        let bytes = encoder.into_inner().unwrap();
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("blueprint.rrd");
-        std::fs::write(&path, &bytes).unwrap();
-        let digest = hex::encode(Sha256::digest(&bytes));
-        let validation = RrdCacheValidation::Blueprint {
-            application_id: "cache-blueprint-app".to_owned(),
-            blueprint_id: blueprint_id.clone(),
-            message_count: messages.len() as u64,
-        };
-
-        validate_file(&path, bytes.len() as u64, &digest, &validation).unwrap();
-        assert!(
-            validate_file(
-                &path,
-                bytes.len() as u64,
-                &digest,
-                &RrdCacheValidation::Blueprint {
-                    application_id: "other-app".to_owned(),
-                    blueprint_id,
-                    message_count: messages.len() as u64,
-                },
-            )
-            .is_err()
-        );
-        assert!(
-            validate_file(
-                &path,
-                bytes.len() as u64,
-                &digest,
-                &RrdCacheValidation::Blueprint {
-                    application_id: "cache-blueprint-app".to_owned(),
-                    blueprint_id: messages[0].store_id().recording_id().as_str().to_owned(),
-                    message_count: messages.len() as u64 + 1,
-                },
-            )
-            .is_err()
-        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let directory = tempfile::tempdir().unwrap();
+            let digest = hex::encode(Sha256::digest(b"valid"));
+            let key = format!("{}-{digest}.rrd", uuid::Uuid::now_v7());
+            let path = directory.path().join(&key);
+            fs::write(&path, b"valid").unwrap();
+            let cache = cache(directory.path().to_owned()).unwrap();
+            let calls = Arc::new(AtomicUsize::new(0));
+            let validator: Arc<dyn RrdIdentityValidator> = Arc::new(FixtureIdentity(calls.clone()));
+            for count in 1..=2 {
+                let lease = cache
+                    .existing(&key, 5, &digest, &validator)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(cache.stats().unwrap().pinned_bytes, 5);
+                assert_eq!(calls.load(Ordering::SeqCst), count);
+                drop(lease);
+                assert_eq!(cache.stats().unwrap().pinned_bytes, 0);
+            }
+            fs::write(&path, b"other").unwrap();
+            assert!(
+                cache
+                    .existing(&key, 5, &digest, &validator)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert_eq!(calls.load(Ordering::SeqCst), 3);
+            assert!(!path.exists());
+            assert_eq!(cache.stats().unwrap().entries, 0);
+        });
     }
 }

@@ -16135,7 +16135,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
- "veoveo-recording-mcp",
+ "veoveo-recording-reader",
  "veoveo-recording-video",
  "veoveo-task-runtime",
 ]
@@ -16276,6 +16276,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-recording-hub",
+ "veoveo-recording-reader",
  "veoveo-rrd",
 ]
 
@@ -16288,6 +16289,27 @@ dependencies = [
  "protoc-bin-vendored",
  "sha2 0.11.0",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "veoveo-recording-reader"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "fs4",
+ "futures",
+ "hex",
+ "rustls",
+ "serde",
+ "sha2 0.11.0",
+ "tempfile",
+ "tokio",
+ "uuid",
+ "veoveo-artifact-client",
+ "veoveo-mcp-contract",
+ "veoveo-platform-store",
+ "veoveo-rrd",
 ]
 
 [[package]]
@@ -16304,7 +16326,7 @@ dependencies = [
  "tokio",
  "uuid",
  "veoveo-platform-store",
- "veoveo-recording-mcp",
+ "veoveo-recording-reader",
  "veoveo-rrd",
 ]
 
@@ -16415,7 +16437,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
- "veoveo-recording-mcp",
+ "veoveo-recording-reader",
  "veoveo-recording-video",
  "veoveo-task-runtime",
 ]

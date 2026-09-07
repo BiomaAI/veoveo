@@ -1,21 +1,23 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:077716d74aee8cc2ef2983e6cfa3d80f1089eba594d725c0dbb7a2f919fa53cb",
-  "updatedAt": "2026-09-07T04:49:50Z",
+  "buildDigest": "sha256:7147ca1b9a9fbd196118195aa4420f31855abe9485108c3c8fde6cbd1c728101",
+  "updatedAt": "2026-09-07T05:10:40Z",
   "checks": [
     {
-      "name": "recording-primitives-clippy",
+      "name": "recording-reader-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-rrd",
-        "-p",
-        "veoveo-recording-hub",
+        "veoveo-recording-reader",
         "-p",
         "veoveo-recording-video",
         "-p",
         "veoveo-recording-mcp",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-reason-mcp",
         "--lib",
         "--no-deps",
         "--",
@@ -23,42 +25,50 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:49:06Z",
-      "durationSeconds": 4.097350524,
+      "finishedAt": "2026-09-07T04:58:06Z",
+      "durationSeconds": 10.924073192,
       "detail": "completed successfully"
     },
     {
-      "name": "recording-primitives-targets",
+      "name": "recording-reader-targets",
       "command": [
         "cargo",
         "check",
         "-p",
-        "veoveo-rrd",
-        "-p",
-        "veoveo-recording-hub",
+        "veoveo-recording-reader",
         "-p",
         "veoveo-recording-video",
         "-p",
         "veoveo-recording-mcp",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-reason-mcp",
+        "--features",
+        "veoveo-recording-mcp/redap",
         "--all-targets"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:49:50Z",
-      "durationSeconds": 3.787203537,
+      "finishedAt": "2026-09-07T05:10:40Z",
+      "durationSeconds": 71.777559506,
       "detail": "completed successfully"
     },
     {
-      "name": "shared-rrd-tests",
+      "name": "recording-reader-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-rrd",
+        "veoveo-recording-reader",
+        "-p",
+        "veoveo-recording-video",
+        "-p",
+        "veoveo-recording-mcp",
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:48:53Z",
-      "durationSeconds": 3.732819881,
+      "finishedAt": "2026-09-07T05:07:27Z",
+      "durationSeconds": 112.162204726,
       "detail": "completed successfully"
     }
   ]

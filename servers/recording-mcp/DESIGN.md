@@ -47,7 +47,7 @@ prevents live-only context from accumulating after a successful seal.
 
 ## Layer Cache
 
-`layer_cache.rs` owns Artifact-to-PVC materialization. It reserves capacity before the
+The [shared reader cache](../../platform/recordings/reader/DESIGN.md) owns Artifact-to-PVC materialization. It reserves capacity before the
 download, uses a partial file, verifies length and SHA-256, checks the canonical RRD Store
 ID, and atomically installs the result. Capture and properties layers bind the durable
 dataset and recording UUIDs. Blueprints bind the application ID, Blueprint ID, and exact
@@ -143,9 +143,9 @@ durable capture bytes are not modified by this browser adapter.
 |---|---|
 | `contract.rs` | recording, layer, seal, manifest v9, and manifest-occurrence views |
 | `service.rs` | visibility, playback plans, sealing, properties publication, and catalog revision |
-| `service/read.rs` | governed Artifact-backed analysis plans and task-local live-part snapshots |
+| `platform/recordings/reader` | shared governed analysis plans, task-local live-part snapshots and bounded cache |
 | `service/projection.rs` | request validation, receipts, concurrency, scratch, and Arrow download |
-| `layer_cache.rs` | verified bounded Artifact-backed RRD cache |
+| `blueprint_cache.rs` | server-owned Blueprint validation for the shared RRD cache |
 | `playback.rs` | durable grants, virtual Rerun handlers, scoped Redap, and manifest composition |
 | `live_playback.rs` | bounded reactive Rerun message projection for writing layers |
 | `live_stream.rs` | authenticated framed RRD transport |

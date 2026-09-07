@@ -26,11 +26,6 @@ pub fn layers_uri(recording_id: &str) -> String {
     format!("recording://recordings/{recording_id}/layers")
 }
 
-pub fn parse_recording_uri(uri: &str) -> Option<&str> {
-    let value = uri.strip_prefix("recording://recordings/")?;
-    (!value.is_empty() && !value.contains('/')).then_some(value)
-}
-
 pub fn parse_layers_uri(uri: &str) -> Option<&str> {
     let value = uri
         .strip_prefix("recording://recordings/")?
@@ -41,6 +36,7 @@ pub fn parse_layers_uri(uri: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use veoveo_recording_reader::uris::parse_recording_uri;
 
     #[test]
     fn well_known_uris_match_the_shared_contract_conventions() {

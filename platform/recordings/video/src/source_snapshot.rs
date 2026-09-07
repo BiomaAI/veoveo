@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use veoveo_recording_mcp::{RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind};
+use veoveo_recording_reader::{
+    RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
+};
 
 /// Exact immutable recording inputs captured for one analysis run.
 ///

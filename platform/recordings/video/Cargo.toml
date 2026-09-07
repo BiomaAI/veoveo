@@ -19,4 +19,4 @@ tokio = { workspace = true, features = ["rt"] }
 uuid.workspace = true
 veoveo-platform-store.workspace = true
 veoveo-rrd.workspace = true
-veoveo-recording-mcp = { path = "../../../servers/recording-mcp" }
+veoveo-recording-reader.workspace = true

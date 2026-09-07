@@ -87,7 +87,7 @@ struct DerivedCatalog {
     recordings: BTreeMap<String, BTreeMap<String, CatalogLayer>>,
     revision: String,
     byte_len: u64,
-    _leases: Vec<crate::layer_cache::CachedLayer>,
+    _leases: Vec<veoveo_recording_reader::cache::CachedLayer>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

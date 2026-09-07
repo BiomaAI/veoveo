@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use veoveo_mcp_contract::SubscriptionHub;
-use veoveo_recording_mcp::RecordingService;
+use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::VideoSourceLimits;
 use veoveo_stream_mcp::{
     artifacts::ArtifactRepository, catalog::PipelineCatalog, executor::StreamExecutor,
@@ -13,7 +13,7 @@ use super::live::LiveSessionManager;
 pub(super) struct AppState {
     pub(super) tasks: TaskRuntime,
     pub(super) artifacts: ArtifactRepository,
-    pub(super) recordings: Arc<RecordingService>,
+    pub(super) recordings: Arc<RecordingReader>,
     pub(super) catalog: Arc<PipelineCatalog>,
     pub(super) executor: StreamExecutor,
     pub(super) source_limits: VideoSourceLimits,

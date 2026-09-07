@@ -73,6 +73,7 @@ veoveo-mcp-contract.workspace = true
 veoveo-platform-store.workspace = true
 veoveo-recording-hub = { path = "../../platform/recordings/hub" }
 veoveo-rrd.workspace = true
+veoveo-recording-reader.workspace = true
 
 [dev-dependencies]
 re_sdk.workspace = true

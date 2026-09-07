@@ -164,7 +164,7 @@ async fn schedule_task(
     state: Arc<AppState>,
     snapshot: TaskSnapshot,
     request: DurableReasonRequest,
-    authority: veoveo_recording_mcp::RecordingReadAuthority,
+    authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
 ) -> Result<TaskSnapshot> {
     let task_id = snapshot.task_id.to_string();
@@ -189,7 +189,7 @@ async fn run_task(
     state: Arc<AppState>,
     task_id: String,
     request: DurableReasonRequest,
-    authority: veoveo_recording_mcp::RecordingReadAuthority,
+    authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
     cancellation: CancellationToken,
 ) {
@@ -223,7 +223,7 @@ async fn run_task_inner(
     state: Arc<AppState>,
     task_id: String,
     request: DurableReasonRequest,
-    authority: veoveo_recording_mcp::RecordingReadAuthority,
+    authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
     cancellation: CancellationToken,
 ) {

@@ -14,7 +14,7 @@ use anyhow::{Context, Result, bail, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_platform_store::RecordingId;
-use veoveo_recording_mcp::{RecordingReadAuthority, RecordingReadSnapshot, RecordingService};
+use veoveo_recording_reader::{RecordingReadAuthority, RecordingReadSnapshot, RecordingReader};
 use veoveo_rrd::video_clip::{
     EncodedVideoClip, VideoClipRequest, VideoIndexKind, extract_video_clip, remux_h264_mp4,
 };
@@ -104,7 +104,7 @@ pub struct MaterializedVideo {
 }
 
 pub async fn materialize_video(
-    recordings: Arc<RecordingService>,
+    recordings: Arc<RecordingReader>,
     authority: RecordingReadAuthority,
     selection: RecordingVideoSelection,
     limits: VideoSourceLimits,
@@ -190,7 +190,7 @@ pub fn validate_video_selection(selection: &RecordingVideoSelection) -> Result<(
 }
 
 pub fn recording_id_from_uri(uri: &str) -> Result<RecordingId> {
-    let value = veoveo_recording_mcp::uris::parse_recording_uri(uri)
+    let value = veoveo_recording_reader::uris::parse_recording_uri(uri)
         .context("recording_uri must match recording://recordings/{recording_id}")?;
     let value = uuid::Uuid::parse_str(value).context("recording URI id must be a UUIDv7")?;
     ensure!(

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs::File;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use chrono::{TimeDelta, Utc};
@@ -8,8 +8,8 @@ use sha2::{Digest as _, Sha256};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{DataLabelId, GatewayInternalIdentity, PlaneCaller, PutArtifactRequest};
 use veoveo_platform_store::{
-    ArtifactId as PlatformArtifactId, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
-    RecordIdKey, RecordingBlueprintRecord, RecordingDatasetId, RecordingId, RecordingLayerDraft,
+    ArtifactId as PlatformArtifactId, PlatformIdentity, PlatformStore, PrincipalKind,
+    RecordingBlueprintRecord, RecordingDatasetId, RecordingId, RecordingLayerDraft,
     RecordingLayerId, RecordingLayerKind, RecordingLayerRecord, RecordingLayerState,
     RecordingReadGrantClass, RecordingReadGrantDraft, RecordingReadGrantId,
     RecordingReadGrantRecord, RecordingRecord, RecordingSeal, RecordingState,
@@ -17,24 +17,21 @@ use veoveo_platform_store::{
 use veoveo_recording_hub::{
     GatewayLayerPublisher, invocation_authority_record, live_segment_byte_len,
 };
-use veoveo_rrd::ingest_parts::ingest_segment_parts_directory;
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
 
 use crate::contract::{
     LayerView, ManifestBlueprint, ManifestLayer, PlaybackLiveReceiver, RecordingManifest,
     RecordingView, SealRecordingOutput,
 };
-use crate::layer_cache::{CachedLayer, LayerCache, LayerCacheLimits, LayerCacheStats};
+use veoveo_recording_reader::cache::{CachedLayer, LayerCache, LayerCacheLimits, LayerCacheStats};
 
 mod projection;
-mod read;
 pub use projection::{ProjectionDownload, ProjectionRuntimeLimits, ProjectionRuntimeStats};
-pub use read::{
-    MaterializedRecordingReadSnapshot, RecordingReadAuthority, RecordingReadLayer,
-    RecordingReadPlan, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,
-};
 
-const MAX_LAYERS: u32 = 10_000;
+use veoveo_recording_reader::{
+    MAX_LAYERS,
+    access::{authorized_live_layer_path, confined_layer_path, labels_visible, record_uuid},
+};
 const DEFAULT_LIVE_HISTORY_SECONDS: u64 = 1;
 const LIVE_VIDEO_PREROLL_SECONDS: u64 = 2;
 const MANIFEST_MIME: &str = "application/vnd.veoveo.recording-manifest+json";
@@ -499,16 +496,18 @@ impl RecordingService {
                 .as_ref()
                 .context("recording layer cache is not configured")?;
             let cached = cache
-                .materialize_blueprint(
+                .materialize_with_validator(
                     artifact_caller,
                     veoveo_mcp_contract::ArtifactId::parse(
                         record_uuid(artifact, "artifact_occurrence")?.to_string(),
                     )?,
                     byte_len,
                     &blueprint.sha256,
-                    &recording.application_id,
-                    &blueprint.blueprint_id,
-                    message_count,
+                    std::sync::Arc::new(crate::blueprint_cache::BlueprintIdentity {
+                        application_id: recording.application_id.clone(),
+                        blueprint_id: blueprint.blueprint_id.clone(),
+                        message_count,
+                    }),
                 )
                 .await?;
             (cached.path().to_path_buf(), Some(cached))
@@ -1175,52 +1174,6 @@ impl RecordingService {
     }
 }
 
-fn authorized_live_layer_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
-    let path = confined_layer_path(spool_root, relative)?;
-    if path.exists() {
-        let canonical = path
-            .canonicalize()
-            .with_context(|| format!("canonicalizing live layer {}", path.display()))?;
-        ensure!(
-            canonical.starts_with(spool_root) && canonical.is_file(),
-            "live layer escapes the configured spool root"
-        );
-        return Ok(canonical);
-    }
-    let parts = ingest_segment_parts_directory(&path);
-    if parts.exists() {
-        let canonical_parts = parts
-            .canonicalize()
-            .with_context(|| format!("canonicalizing live layer parts {}", parts.display()))?;
-        ensure!(
-            canonical_parts.starts_with(spool_root) && canonical_parts.is_dir(),
-            "live layer parts escape the configured spool root"
-        );
-        return Ok(path);
-    }
-    let parent = path.parent().context("live layer path has no parent")?;
-    let canonical_parent = parent
-        .canonicalize()
-        .with_context(|| format!("canonicalizing live layer parent {}", parent.display()))?;
-    ensure!(
-        canonical_parent.starts_with(spool_root) && canonical_parent.is_dir(),
-        "live layer parent escapes the configured spool root"
-    );
-    Ok(path)
-}
-
-fn confined_layer_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
-    let relative = Path::new(relative);
-    ensure!(
-        !relative.as_os_str().is_empty()
-            && relative
-                .components()
-                .all(|component| matches!(component, Component::Normal(_))),
-        "recording layer path must be a normalized relative path"
-    );
-    Ok(spool_root.join(relative))
-}
-
 fn recording_static_context_path(
     spool_root: &Path,
     dataset_key: &str,
@@ -1239,17 +1192,6 @@ fn visible(recording: &RecordingRecord, identity: &GatewayInternalIdentity) -> b
             .iter()
             .map(|label| label.as_str()),
     )
-}
-
-pub(super) fn labels_visible<'a>(
-    recording: &RecordingRecord,
-    clearance: impl IntoIterator<Item = &'a str>,
-) -> bool {
-    let clearance: BTreeSet<&str> = clearance.into_iter().collect();
-    recording
-        .labels
-        .iter()
-        .all(|label| clearance.contains(label.as_str()))
 }
 
 fn ensure_seal_scope(identity: &GatewayInternalIdentity) -> Result<()> {
@@ -1394,21 +1336,6 @@ pub fn parse_recording_id(value: &str) -> Result<RecordingId> {
     Ok(RecordingId::from_uuid(value))
 }
 
-pub(super) fn record_uuid(record: &RecordId, table: &str) -> Result<uuid::Uuid> {
-    ensure!(
-        record.table.as_str() == table,
-        "record has unexpected table"
-    );
-    let raw = match &record.key {
-        RecordIdKey::Uuid(value) => value.to_string(),
-        RecordIdKey::String(value) => value.clone(),
-        other => anyhow::bail!("record key is not UUID: {other:?}"),
-    };
-    let value = uuid::Uuid::parse_str(&raw)?;
-    ensure!(value.get_version_num() == 7, "record key is not UUIDv7");
-    Ok(value)
-}
-
 fn artifact_uri(id: PlatformArtifactId) -> String {
     format!("artifact://{id}")
 }
@@ -1452,36 +1379,11 @@ fn layer_state(state: RecordingLayerState) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
 
     #[test]
     fn external_recording_ids_require_uuid_v7() {
         assert!(parse_recording_id(&uuid::Uuid::now_v7().to_string()).is_ok());
         assert!(parse_recording_id(&uuid::Uuid::new_v4().to_string()).is_err());
-    }
-
-    #[test]
-    fn live_layer_path_authorizes_confined_parts_before_rollover() {
-        let directory = tempfile::tempdir().unwrap();
-        let root = directory.path().canonicalize().unwrap();
-        let relative = "recordings/live.ingest-stream-r0.rrd";
-        let final_path = root.join(relative);
-        let parts = ingest_segment_parts_directory(&final_path);
-        fs::create_dir_all(&parts).unwrap();
-
-        assert_eq!(
-            authorized_live_layer_path(&root, relative).unwrap(),
-            final_path
-        );
-    }
-
-    #[test]
-    fn live_layer_path_rejects_traversal() {
-        let directory = tempfile::tempdir().unwrap();
-        let root = directory.path().canonicalize().unwrap();
-
-        assert!(authorized_live_layer_path(&root, "../outside.rrd").is_err());
-        assert!(authorized_live_layer_path(&root, "/outside.rrd").is_err());
     }
 
     #[test]
