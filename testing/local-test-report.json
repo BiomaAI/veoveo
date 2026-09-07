@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c9cd78f7b0e22e9247366b1d965839b7049fe2f5309bbfa4fdf5a7df3733ba45",
-  "updatedAt": "2026-09-07T04:16:51Z",
+  "buildDigest": "sha256:67eb9862361c264c31a357dee37d4cca4fe5dbcea238d09d33b854a0cbc4bb2c",
+  "updatedAt": "2026-09-07T04:24:45Z",
   "checks": [
     {
-      "name": "independent-overlay-clippy",
+      "name": "independent-entrypoint-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -17,12 +17,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:16:51Z",
-      "durationSeconds": 8.032902107,
+      "finishedAt": "2026-09-07T04:24:15Z",
+      "durationSeconds": 1.602595343,
       "detail": "completed successfully"
     },
     {
-      "name": "independent-overlay-helm",
+      "name": "independent-entrypoint-helm",
       "command": [
         "cargo",
         "xtask",
@@ -30,8 +30,27 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T04:16:04Z",
-      "durationSeconds": 6.086604033,
+      "finishedAt": "2026-09-07T04:22:39Z",
+      "durationSeconds": 6.885049936,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "independent-entrypoint-reserve",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "preflight",
+        "--expected-growth-gib",
+        "1",
+        "--kubernetes-node",
+        "k3d-veoveo-bioma-server-0",
+        "--namespace",
+        "veoveo"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-07T04:24:45Z",
+      "durationSeconds": 0.870355001,
       "detail": "completed successfully"
     }
   ]

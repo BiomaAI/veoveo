@@ -852,18 +852,29 @@ pub(crate) fn helm_config() -> Result<()> {
         &overlay,
         "docker/dockerfile:1.27.0@sha256:bde3983e9c939224420ddaf6b784cc30e09b035a4dea01f581230c50809f372e",
     )?;
+    let runtime_overlay = overlay
+        .split_once("FROM uav-sim-dependencies AS runtime")
+        .context("UAV runtime stage is missing")?
+        .1;
+    let copies = runtime_overlay
+        .lines()
+        .filter(|line| line.starts_with("COPY "))
+        .collect::<Vec<_>>();
     ensure!(
-        overlay
-            .lines()
-            .filter(|line| line.starts_with("COPY "))
-            .count()
-            == 4
-            && overlay
-                .lines()
-                .filter(|line| line.starts_with("COPY "))
-                .all(|line| line.starts_with("COPY --link ")),
-        "UAV source overlay must use independent COPY layers to avoid unpacking its normalized parent"
+        copies.len() == 4
+            && copies
+                .iter()
+                .all(|line| line.starts_with("COPY --link ") && !line.contains("--chmod")),
+        "UAV runtime copies must retain BuildKit's independent-layer optimization; chmod belongs in the scratch entrypoint stage"
     );
+    contains(
+        &overlay,
+        "FROM scratch AS entrypoint\nCOPY --chmod=0555 entrypoint.py /entrypoint.py",
+    )?;
+    contains(
+        runtime_overlay,
+        "COPY --link --from=entrypoint --chown=10001:10001 /entrypoint.py",
+    )?;
     for removed in [
         "UAV_SIM_BASE_IMAGE",
         "ISAAC_SIM_IMAGE",
