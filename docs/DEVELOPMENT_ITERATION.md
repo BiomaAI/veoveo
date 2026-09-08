@@ -304,6 +304,7 @@ than a general request to make builds faster.
 | Long-running build visibility | BuildKit evidence adapter | bounded phase and vertex transitions stream while Bake runs; the complete machine event trace remains in immutable evidence | formatter and image-orchestration tests cover progress reduction and bounded emission |
 | Deterministic GitOps convergence | focused deployment harness | the harness requests Flux reconciliation, consumes Kubernetes watch events, verifies the exact source and applied revision plus populated Helm inventories, then attributes fetch, apply, release, rollout, and readiness time | typed unit tests reject stale generations, wrong revisions, and empty inventories; failed phases still produce create-only evidence |
 | Recording ingress visibility | Recording Hub | the authenticated ingest path exposes accepted traffic, duplicates, materialization backlog, and last-success state without logging identities or secrets | all 32 Hub unit tests, five spool integration tests, and strict Clippy pass; the focused diagnostics test completes in 4.11 s |
+| Focused composed-flight harness | smoke harness ownership | flight scenarios compile the client and conformance helper; server-owned Stream response types no longer import its runtime | Cargo graph rejection tests exclude database, task and recording implementations; a verifier comment edit rebuilds only `flight-smoke` in 2.66 s, and three warm dispatches take 0.87–0.90 s |
 
 ### Active Follow-Ups Worth Fixing Next
 
@@ -327,7 +328,6 @@ The following acceptance work remains separate from those delivered changes.
 | 1 | Dedicated build storage and remote-host comparison | managed builder control | compare a separate build disk or host against the twelve-CPU baseline while retaining durable compiler caches; same-host fresh-worker reuse is measured |
 | 2 | Common Rust compiler ABI | Stream/Reason image graphs | Stream candidate service startup passes; wire fresh Artifact-read authority and the bounded recording cache into durable video execution, then complete hardware workload acceptance for both consumers; Reason also requires an admitted NVDEC/CUDA model-input path |
 | 3 | Component release ownership | deployment contract | implement the complete object ownership and migration boundary in `DEPLOY-SCOPE-023` before splitting an atomic Helm release; selected publication and per-release image locks are already available |
-| 4 | Focused composed-flight harness closure | smoke harness ownership | a verifier-only edit neither compiles nor links store, task, recording, or unrelated server runtimes, and dispatch remains below 2 s warm |
 
 ### Deferred Or Separately Owned Work
 

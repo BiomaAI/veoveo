@@ -450,67 +450,6 @@ enum Cmd {
         #[arg(long, default_value = "k3d-veoveo-sumo")]
         context: String,
     },
-    /// Verify the independent UAV domain path through flight, live Stream, recording replay, and Reason.
-    UavDomainVerify {
-        #[arg(long, default_value = "target/debug/conformance")]
-        conformance_bin: PathBuf,
-        /// Runtime-loaded mission and acceptance parameters.
-        #[arg(
-            long,
-            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
-        )]
-        scenario: PathBuf,
-        /// Kubernetes context containing the UAV showcase.
-        #[arg(long)]
-        context: String,
-        /// Public installation base URL used for OAuth and MCP.
-        #[arg(long)]
-        public_base_url: String,
-    },
-    /// Converge the always-on UAV loop and its simulator-hosted operator cameras.
-    UavShowcaseUp {
-        #[arg(long, default_value = "target/debug/conformance")]
-        conformance_bin: PathBuf,
-        #[arg(
-            long,
-            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
-        )]
-        scenario: PathBuf,
-        /// Kubernetes context containing the composed showcase.
-        #[arg(long)]
-        context: String,
-        /// Namespace containing the platform and showcase releases.
-        #[arg(long, default_value = "veoveo")]
-        namespace: String,
-        /// Public installation base URL used by MCP.
-        #[arg(long)]
-        public_base_url: String,
-    },
-    /// Run UAV flight and prove its authoritative live camera in the real Console.
-    UavShowcaseVerify {
-        #[arg(long, default_value = "target/debug/conformance")]
-        conformance_bin: PathBuf,
-        #[arg(
-            long,
-            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
-        )]
-        scenario: PathBuf,
-        /// Kubernetes context containing the composed showcase.
-        #[arg(long)]
-        context: String,
-        /// Namespace containing the platform and showcase releases.
-        #[arg(long, default_value = "veoveo")]
-        namespace: String,
-        /// Public installation base URL used by MCP and the authenticated Console.
-        #[arg(long)]
-        public_base_url: String,
-        /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        /// Root for revision- and run-qualified JSON and PNG evidence.
-        #[arg(long, default_value = "output/acceptance/uav")]
-        evidence_root: PathBuf,
-    },
     /// Certify an immutable simulation overlay and base on NVIDIA hardware.
     SimulationCertify {
         /// Validated deployment lock authorizing the registry identity and transport.
@@ -838,48 +777,6 @@ async fn main() -> Result<()> {
             conformance_bin,
             context,
         } => sumo_verify(&conformance_bin, &context).await,
-        Cmd::UavDomainVerify {
-            conformance_bin,
-            scenario,
-            context,
-            public_base_url,
-        } => uav_sim_verify(&conformance_bin, &scenario, &context, &public_base_url).await,
-        Cmd::UavShowcaseUp {
-            conformance_bin,
-            scenario,
-            context,
-            namespace,
-            public_base_url,
-        } => {
-            uav_showcase_up(
-                &conformance_bin,
-                &scenario,
-                &context,
-                &namespace,
-                &public_base_url,
-            )
-            .await
-        }
-        Cmd::UavShowcaseVerify {
-            conformance_bin,
-            scenario,
-            context,
-            namespace,
-            public_base_url,
-            chrome_cdp_url,
-            evidence_root,
-        } => {
-            uav_showcase_verify(
-                &conformance_bin,
-                &scenario,
-                &context,
-                &namespace,
-                &public_base_url,
-                &chrome_cdp_url,
-                &evidence_root,
-            )
-            .await
-        }
         Cmd::SimulationCertify {
             deployment_lock,
             base_image,

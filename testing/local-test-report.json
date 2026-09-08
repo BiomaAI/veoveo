@@ -1,14 +1,35 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c1b814486dbd11080159fcaa31ca14545115c381aad037b8f9c90c540ea51efb",
-  "updatedAt": "2026-09-08T12:38:35Z",
+  "buildDigest": "sha256:1a206e5e64a8216ef1d31b41d94fe33d3f7d042d33c0943d89ed61e7eed44dbd",
+  "updatedAt": "2026-09-08T12:58:50Z",
   "checks": [
     {
-      "name": "compiler-probe-clippy",
+      "name": "browser-source-move-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-browser-smoke",
+        "--all-targets"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T12:56:56Z",
+      "durationSeconds": 3.873865817,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "flight-boundary-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
+        "-p",
+        "veoveo-flight-smoke",
+        "-p",
+        "veoveo-browser-smoke",
+        "-p",
+        "veoveo-stream-mcp",
         "-p",
         "veoveo-smoke",
         "-p",
@@ -19,62 +40,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T12:33:00Z",
-      "durationSeconds": 24.895033401,
+      "finishedAt": "2026-09-08T12:55:35Z",
+      "durationSeconds": 2.789845127,
       "detail": "completed successfully"
     },
     {
-      "name": "compiler-probe-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T12:34:52Z",
-      "durationSeconds": 2.222088913,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-candidate-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-smoke",
-        "--bin",
-        "smoke",
-        "scenarios::stream::candidate"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T12:38:35Z",
-      "durationSeconds": 0.641400581,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-compiler-startup",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "stream-compiler-startup",
-        "--candidate-binary",
-        "output/development/common-rust-artifacts/bin/stream-mcp",
-        "--candidate-app",
-        "output/development/common-rust-artifacts/live.html",
-        "--work-dir",
-        "output/development/stream-compiler-startup"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T12:34:01Z",
-      "durationSeconds": 4.394419751,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "video-smoke-build-selection",
+      "name": "flight-dispatch-tests",
       "command": [
         "cargo",
         "test",
@@ -84,8 +55,92 @@
         "commands::smoke::tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T12:31:58Z",
-      "durationSeconds": 3.145336909,
+      "finishedAt": "2026-09-08T12:57:00Z",
+      "durationSeconds": 2.416021865,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "flight-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T12:58:45Z",
+      "durationSeconds": 2.219585861,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "flight-source-edit",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--package",
+        "veoveo-flight-smoke",
+        "--bin",
+        "flight-smoke",
+        "--package",
+        "veoveo-mcp-conformance",
+        "--bin",
+        "conformance",
+        "--message-format=json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T12:54:56Z",
+      "durationSeconds": 2.717206611,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "focused-flight-dispatch",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-flight-smoke",
+        "--test",
+        "dispatch",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T12:58:50Z",
+      "durationSeconds": 4.066519587,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "focused-flight-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-flight-smoke",
+        "--all-targets"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T12:56:52Z",
+      "durationSeconds": 4.038598583,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-contract-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-stream-mcp",
+        "--all-targets"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T12:58:42Z",
+      "durationSeconds": 101.711273054,
       "detail": "completed successfully"
     }
   ]
