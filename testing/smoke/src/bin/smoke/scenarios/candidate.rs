@@ -1,4 +1,4 @@
-//! Qualify a compiler candidate through the installed Stream runtime and GPU.
+//! Qualify a compiler candidate through its installed NVIDIA runtime and GPU.
 //!
 //! The additional server is a normal task-runtime replica. Its HTTP listener is
 //! private to this harness; Kubernetes workload specifications stay untouched.
@@ -14,8 +14,33 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use veoveo_stream_mcp::contract::RunRecordingOutput;
 
-pub(super) const PORT: u16 = 18797;
-const CONTAINER: &str = "stream-mcp";
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Service {
+    Stream,
+    Reason,
+}
+
+impl Service {
+    fn container(self) -> &'static str {
+        match self {
+            Self::Stream => "stream-mcp",
+            Self::Reason => "reason-mcp",
+        }
+    }
+    pub(crate) fn port(self) -> u16 {
+        match self {
+            Self::Stream => 18797,
+            Self::Reason => 18803,
+        }
+    }
+    fn asset_flag(self) -> &'static str {
+        match self {
+            Self::Stream => "--live-app",
+            Self::Reason => "--reason-runner",
+        }
+    }
+}
 
 #[derive(Deserialize)]
 struct Deployment {
@@ -95,10 +120,9 @@ struct Receipt {
     runtime_image: String,
     runtime_image_id: String,
     candidate_sha256: String,
-    app_sha256: String,
+    payload_sha256: String,
+    service: Service,
     gpu: String,
-    processed_frames: u64,
-    detection_count: u64,
     original_restart_count: u64,
     candidate_removed: bool,
     cache_removed: bool,
@@ -107,14 +131,22 @@ struct Receipt {
 
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub(super) enum ProbeOutcome {
+pub(crate) enum ProbeOutcome {
     Started,
     StartupVerified,
-    GpuQualified { result: Box<RunRecordingOutput> },
-    WorkloadFailed { message: String },
+    GpuQualified {
+        result: Box<RunRecordingOutput>,
+    },
+    ReasonGpuQualified {
+        result: Box<super::reason::ReasonOutput>,
+    },
+    WorkloadFailed {
+        message: String,
+    },
 }
 
-pub(super) struct Candidate {
+pub(crate) struct Candidate {
+    service: Service,
     namespace: String,
     pod: String,
     remote: String,
@@ -128,10 +160,11 @@ pub(super) struct Candidate {
 }
 
 impl Candidate {
-    pub(super) fn start(
+    pub(crate) fn start(
         namespace: &str,
+        service: Service,
         binary: &Path,
-        app: &Path,
+        asset: &Path,
         work_dir: &Path,
     ) -> Result<Self> {
         let deployment: Deployment =
@@ -139,7 +172,7 @@ impl Candidate {
                 "-n",
                 namespace,
                 "get",
-                "deployment/stream-mcp",
+                &format!("deployment/{}", service.container()),
                 "-o",
                 "json",
             ]))?)?;
@@ -153,7 +186,7 @@ impl Candidate {
             .join(",");
         ensure!(
             !selector.is_empty(),
-            "Stream Deployment has no label selector"
+            "candidate Deployment has no label selector"
         );
         let pods: Pods = serde_json::from_slice(&checked(Command::new("kubectl").args([
             "-n", namespace, "get", "pods", "-l", &selector, "-o", "json",
@@ -165,21 +198,21 @@ impl Candidate {
                 pod.status
                     .container_statuses
                     .iter()
-                    .any(|container| container.name == CONTAINER && container.ready)
+                    .any(|container| container.name == service.container() && container.ready)
             })
-            .context("Stream has no ready runtime container")?;
+            .context("candidate has no ready runtime container")?;
         let container = pod
             .spec
             .containers
             .iter()
-            .find(|container| container.name == CONTAINER)
-            .context("Stream runtime container is missing")?;
+            .find(|container| container.name == service.container())
+            .context("candidate runtime container is missing")?;
         let status = pod
             .status
             .container_statuses
             .iter()
-            .find(|container| container.name == CONTAINER)
-            .context("Stream runtime status is missing")?;
+            .find(|container| container.name == service.container())
+            .context("candidate runtime status is missing")?;
         ensure!(
             container
                 .resources
@@ -187,16 +220,17 @@ impl Candidate {
                 .get("nvidia.com/gpu")
                 .and_then(|value| value.parse::<u32>().ok())
                 .is_some_and(|count| count > 0),
-            "candidate qualification requires the Stream container's NVIDIA GPU resource"
+            "candidate qualification requires the candidate container's NVIDIA GPU resource"
         );
         let candidate_sha256 = format!("sha256:{}", hex::encode(Sha256::digest(fs::read(binary)?)));
-        let deployment_spec = deployment_spec(namespace)?;
+        let deployment_spec = deployment_spec(namespace, service)?;
         let remote = format!("/tmp/veoveo-compiler-{}", uuid::Uuid::new_v4().simple());
-        let remote_app = format!("{remote}-app.html");
+        let remote_app = format!("{remote}-payload");
         let remote_cache = format!("{remote}-cache");
-        let mut arguments = candidate_arguments(&container.args, &remote_cache)?;
-        arguments.extend(["--live-app".to_owned(), remote_app.clone()]);
+        let mut arguments = candidate_arguments(service, &container.args, &remote_cache)?;
+        arguments.extend([service.asset_flag().to_owned(), remote_app.clone()]);
         let mut candidate = Self {
+            service,
             namespace: namespace.to_owned(),
             pod: pod.metadata.name,
             remote,
@@ -205,15 +239,14 @@ impl Candidate {
             process: None,
             process_group: None,
             receipt: Receipt {
-                schema: "veoveo.io/stream-compiler-acceptance/v2",
+                schema: "veoveo.io/compiler-acceptance/v3",
                 pod_uid: pod.metadata.uid,
                 runtime_image: container.image.clone(),
                 runtime_image_id: status.image_id.clone(),
                 candidate_sha256,
-                app_sha256: format!("sha256:{}", hex::encode(Sha256::digest(fs::read(app)?))),
+                payload_sha256: format!("sha256:{}", hex::encode(Sha256::digest(fs::read(asset)?))),
+                service,
                 gpu: String::new(),
-                processed_frames: 0,
-                detection_count: 0,
                 original_restart_count: status.restart_count,
                 candidate_removed: false,
                 cache_removed: false,
@@ -246,7 +279,7 @@ impl Candidate {
             "-i",
             &candidate.pod,
             "-c",
-            CONTAINER,
+            service.container(),
             "--",
             "tee",
             &candidate.remote,
@@ -273,12 +306,12 @@ impl Candidate {
                 "-i",
                 &candidate.pod,
                 "-c",
-                CONTAINER,
+                service.container(),
                 "--",
                 "tee",
                 &candidate.remote_app,
             ])
-            .stdin(File::open(app)?)
+            .stdin(File::open(asset)?)
             .stdout(Stdio::null())
             .stderr(Stdio::piped());
         checked(&mut copy_app)?;
@@ -287,9 +320,16 @@ impl Candidate {
         )?)?;
         ensure!(
             app_hash.split_whitespace().next()
-                == candidate.receipt.app_sha256.strip_prefix("sha256:"),
-            "candidate App copy differs from local asset"
+                == candidate.receipt.payload_sha256.strip_prefix("sha256:"),
+            "candidate payload copy differs from local asset"
         );
+        if matches!(service, Service::Reason) {
+            checked(
+                candidate
+                    .exec()
+                    .args(["chmod", "0700", &candidate.remote_app]),
+            )?;
+        }
         fs::create_dir_all(work_dir)?;
         let log = File::create(work_dir.join("compiler-candidate.log"))?;
         candidate.process = Some(
@@ -349,11 +389,11 @@ impl Candidate {
         Ok(candidate)
     }
 
-    pub(super) fn resource(&self) -> String {
+    pub(crate) fn resource(&self) -> String {
         format!("pod/{}", self.pod)
     }
 
-    pub(super) fn check_running(&mut self, work_dir: &Path) -> Result<()> {
+    pub(crate) fn check_running(&mut self, work_dir: &Path) -> Result<()> {
         if let Some(exit) = self
             .process
             .as_mut()
@@ -368,7 +408,7 @@ impl Candidate {
         Ok(())
     }
 
-    pub(super) fn verify_listener(&self) -> Result<()> {
+    pub(crate) fn verify_listener(&self) -> Result<()> {
         let pid = self
             .process_group
             .context("candidate process identity is missing")?;
@@ -390,7 +430,7 @@ impl Candidate {
             &format!("/proc/{pid}/fd"),
         ]))?)?;
         ensure!(
-            owns_listener(&sockets, &descriptors, PORT),
+            owns_listener(&sockets, &descriptors, self.service.port()),
             "the candidate process does not own the accepted HTTP listener"
         );
         Ok(())
@@ -404,7 +444,7 @@ impl Candidate {
             "exec",
             &self.pod,
             "-c",
-            CONTAINER,
+            self.service.container(),
             "--",
         ]);
         command
@@ -499,7 +539,7 @@ impl Candidate {
                 .output()?
                 .status
                 .success(),
-            "candidate App file survived cleanup"
+            "candidate payload file survived cleanup"
         );
         checked(self.exec().args(["rm", "-rf", "--", &self.remote_cache]))?;
         ensure!(
@@ -516,12 +556,12 @@ impl Candidate {
         Ok(())
     }
 
-    pub(super) fn finish(&mut self, work_dir: &Path, outcome: ProbeOutcome) -> Result<()> {
+    pub(crate) fn finish(&mut self, work_dir: &Path, outcome: ProbeOutcome) -> Result<()> {
         self.verify_listener()?;
         self.remove()?;
         ensure!(
-            deployment_spec(&self.namespace)? == self.deployment_spec,
-            "Stream Deployment changed during qualification"
+            deployment_spec(&self.namespace, self.service)? == self.deployment_spec,
+            "candidate Deployment changed during qualification"
         );
         let pod: Pod = serde_json::from_slice(&checked(Command::new("kubectl").args([
             "-n",
@@ -535,19 +575,15 @@ impl Candidate {
             .status
             .container_statuses
             .iter()
-            .find(|container| container.name == CONTAINER)
-            .context("Stream runtime status disappeared")?;
+            .find(|container| container.name == self.service.container())
+            .context("candidate runtime status disappeared")?;
         ensure!(
             pod.metadata.uid == self.receipt.pod_uid
                 && status.ready
                 && status.restart_count == self.receipt.original_restart_count
                 && status.image_id == self.receipt.runtime_image_id,
-            "original Stream runtime changed during qualification"
+            "original candidate runtime changed during qualification"
         );
-        if let ProbeOutcome::GpuQualified { result } = &outcome {
-            self.receipt.processed_frames = result.summary.processed_frames;
-            self.receipt.detection_count = result.summary.detection_count;
-        }
         self.receipt.outcome = outcome;
         fs::write(
             work_dir.join("compiler-candidate.json"),
@@ -582,35 +618,39 @@ fn checked(command: &mut Command) -> Result<Vec<u8>> {
     Ok(stdout)
 }
 
-fn deployment_spec(namespace: &str) -> Result<Vec<u8>> {
+fn deployment_spec(namespace: &str, service: Service) -> Result<Vec<u8>> {
     checked(Command::new("kubectl").args([
         "-n",
         namespace,
         "get",
-        "deployment/stream-mcp",
+        &format!("deployment/{}", service.container()),
         "-o",
         "jsonpath={.spec}",
     ]))
 }
 
-fn candidate_arguments(original: &[String], cache: &str) -> Result<Vec<String>> {
+fn candidate_arguments(service: Service, original: &[String], cache: &str) -> Result<Vec<String>> {
     let mut arguments = Vec::new();
     let mut original = original.iter();
     while let Some(argument) = original.next() {
-        if ["--port", "--live-app", "--catalog-cache-dir"].contains(&argument.as_str()) {
+        if ["--port", service.asset_flag(), "--catalog-cache-dir"].contains(&argument.as_str()) {
             original
                 .next()
-                .with_context(|| format!("installed Stream {argument} argument has no value"))?;
-        } else if !["--port=", "--live-app=", "--catalog-cache-dir="]
-            .iter()
-            .any(|prefix| argument.starts_with(prefix))
+                .with_context(|| format!("installed candidate {argument} argument has no value"))?;
+        } else if ![
+            "--port=".to_owned(),
+            format!("{}=", service.asset_flag()),
+            "--catalog-cache-dir=".to_owned(),
+        ]
+        .iter()
+        .any(|prefix| argument.starts_with(prefix.as_str()))
         {
             arguments.push(argument.clone());
         }
     }
     arguments.extend([
         "--port".to_owned(),
-        PORT.to_string(),
+        service.port().to_string(),
         "--catalog-cache-dir".to_owned(),
         cache.to_owned(),
     ]);
@@ -639,6 +679,7 @@ fn owns_listener(sockets: &str, descriptors: &str, port: u16) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    const PORT: u16 = 18797;
 
     #[test]
     fn candidate_isolates_listener_and_cache_preserving_site_limits() {
@@ -656,7 +697,7 @@ mod tests {
         ]
         .map(str::to_owned);
         assert_eq!(
-            candidate_arguments(&args, "/tmp/candidate-cache").unwrap(),
+            candidate_arguments(Service::Stream, &args, "/tmp/candidate-cache").unwrap(),
             [
                 "--allowed-host",
                 "stream-mcp:8797",
@@ -672,6 +713,7 @@ mod tests {
         );
         assert_eq!(
             candidate_arguments(
+                Service::Stream,
                 &[
                     "--port=8797".into(),
                     "--catalog-cache-dir=/recording-cache".into()
@@ -687,8 +729,41 @@ mod tests {
             ]
         );
         for flag in ["--port", "--live-app", "--catalog-cache-dir"] {
-            assert!(candidate_arguments(&[flag.into()], "/tmp/candidate-cache").is_err());
+            assert!(
+                candidate_arguments(Service::Stream, &[flag.into()], "/tmp/candidate-cache")
+                    .is_err()
+            );
         }
+    }
+
+    #[test]
+    fn reason_candidate_replaces_runner_and_isolates_its_listener() {
+        let args = [
+            "--port=8803",
+            "--reason-runner=/usr/local/bin/reason-runner",
+            "--pipeline-catalog",
+            "/site/catalog.json",
+            "--catalog-cache-dir",
+            "/recording-cache",
+            "--catalog-cache-managed-bytes=8589934592",
+        ]
+        .map(str::to_owned);
+        assert_eq!(
+            candidate_arguments(Service::Reason, &args, "/tmp/candidate-cache").unwrap(),
+            [
+                "--pipeline-catalog",
+                "/site/catalog.json",
+                "--catalog-cache-managed-bytes=8589934592",
+                "--port",
+                "18803",
+                "--catalog-cache-dir",
+                "/tmp/candidate-cache",
+            ]
+        );
+        assert!(
+            candidate_arguments(Service::Reason, &["--reason-runner".into()], "/tmp/cache")
+                .is_err()
+        );
     }
 
     #[test]

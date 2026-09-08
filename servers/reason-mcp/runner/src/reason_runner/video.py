@@ -10,9 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import av
-from PIL import Image
+
+if TYPE_CHECKING:
+    import torch
 
 
 @dataclass(frozen=True)
@@ -20,7 +23,7 @@ class ObservedFrame:
     """One observation frame with its original recording timeline index."""
 
     index: int
-    image: Image.Image
+    image: torch.Tensor
 
 
 def uniform_indices(total: int, maximum: int) -> list[int]:
@@ -45,31 +48,71 @@ def sample_frames(
     observation_width: int,
     observation_height: int,
     decode_start_index: int,
+    input_width: int,
+    input_height: int,
 ) -> list[ObservedFrame]:
+    import PyNvVideoCodec as nvc
+    import torch
+    from torchvision.transforms.v2 import functional as transforms
+    from torchvision.transforms import InterpolationMode
+
+    if not torch.cuda.is_available():
+        raise RuntimeError("Reason frame extraction requires an NVIDIA CUDA device")
+    if min(max_frames, observation_width, observation_height, input_width, input_height) <= 0:
+        raise ValueError("frame counts and dimensions must be positive")
+    # Demuxing reads container metadata only. Do not open a software decoder:
+    # exact packet PTS, rather than an estimated frame rate, retains Rerun time.
     with av.open(str(input_mp4)) as container:
+        if len(container.streams.video) != 1:
+            raise ValueError("Reason input must contain exactly one video stream")
         stream = container.streams.video[0]
-        total = sum(1 for packet in container.demux(stream) if packet.pts is not None)
-    selected = set(uniform_indices(total, max_frames))
-    frames: list[ObservedFrame] = []
-    # TODO(GPU): Replace PyAV's CPU decode and Pillow resize below with NVDEC
-    # surfaces and CUDA resize, retaining device frames through model input.
-    # This existing path cannot serve as hardware video-processing evidence.
-    with av.open(str(input_mp4)) as container:
-        stream = container.streams.video[0]
+        if (stream.width, stream.height) != (input_width, input_height):
+            raise ValueError("input dimensions differ from the bounded runner request")
         time_base = Fraction(stream.time_base)
-        position = 0
-        for frame in container.decode(stream):
-            if position in selected and frame.pts is not None:
-                image = frame.to_image().resize(
-                    (observation_width, observation_height), Image.BILINEAR
-                )
-                frames.append(
-                    ObservedFrame(
-                        index=frame_index(int(frame.pts), time_base, decode_start_index),
-                        image=image,
-                    )
-                )
-            position += 1
-    if not frames:
-        raise ValueError(f"no decodable frames in {input_mp4}")
+        timestamps = [int(packet.pts) for packet in container.demux(stream) if packet.pts is not None]
+    if not timestamps or any(a >= b for a, b in zip(timestamps, timestamps[1:])):
+        raise ValueError("Reason requires increasing presentation timestamps without B-frames")
+    selected = uniform_indices(len(timestamps), max_frames)
+    frames: list[ObservedFrame] = []
+    cuda_stream = torch.cuda.current_stream()
+    decoder = nvc.SimpleDecoder(
+        str(input_mp4),
+        output_color_type=nvc.OutputColorType.RGB,
+        use_device_memory=True,
+        need_scanned_stream_metadata=True,
+        gpu_id=torch.cuda.current_device(),
+        cuda_stream=cuda_stream.cuda_stream,
+        decoder_cache_size=1,
+    )
+    try:
+        # One surface at a time bounds source-resolution retention. Each resized
+        # tensor owns its CUDA allocation before the decoder can reuse a surface.
+        for position in selected:
+            decoded = decoder.get_batch_frames_by_index([position])
+            if len(decoded) != 1:
+                raise ValueError(f"NVDEC did not return selected frame {position}")
+            tensor = torch.from_dlpack(decoded[0])
+            if not tensor.is_cuda or tensor.dtype != torch.uint8:
+                raise RuntimeError("NVDEC must return CUDA uint8 RGB surfaces")
+            if tuple(tensor.shape) == (input_height, input_width, 3):
+                tensor = tensor.permute(2, 0, 1)
+            if tuple(tensor.shape) != (3, input_height, input_width):
+                raise ValueError("NVDEC surface shape differs from the input contract")
+            resized = transforms.resize(
+                tensor,
+                [observation_height, observation_width],
+                interpolation=InterpolationMode.BILINEAR,
+                antialias=True,
+            ).clone()
+            frames.append(ObservedFrame(
+                index=frame_index(timestamps[position], time_base, decode_start_index),
+                image=resized,
+            ))
+            # DLPack owns the decoded view until its consuming CUDA work ends.
+            # This stream wait does not read image data back to the CPU.
+            cuda_stream.synchronize()
+            del tensor, decoded
+    finally:
+        cuda_stream.synchronize()
+        del decoder
     return frames

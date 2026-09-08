@@ -7,9 +7,11 @@ the runtime installed.
 
 from __future__ import annotations
 
-import base64
-import io
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from vllm import LLM
 
 from .prompting import (
     build_prompt,
@@ -35,15 +37,20 @@ def run(request: RunnerRequest) -> RunnerResponse:
     from pathlib import Path
 
     started = time.monotonic()
+    from .gpu_model import create_model
+
+    model = create_model(request, observation_frame_limit(request))
     frames = sample_frames(
         Path(request.input_mp4),
         observation_frame_limit(request),
         request.pipeline.observation.width,
         request.pipeline.observation.height,
         request.decode_start_index,
+        request.input_width,
+        request.input_height,
     )
     prompt = build_prompt(request, [frame.index for frame in frames])
-    raw_text = _generate(request, prompt, frames)
+    raw_text = _generate(model, request, prompt, frames)
     answer_kind = answer_kind_for(request.task)
     if answer_kind == "events":
         grounded = request.grounding.track_ids() if request.grounding else set()
@@ -56,9 +63,9 @@ def run(request: RunnerRequest) -> RunnerResponse:
     return RunnerResponse(answer=answer, observed_frames=len(frames), elapsed_ms=elapsed_ms)
 
 
-def _generate(request: RunnerRequest, prompt: str, frames: list[ObservedFrame]) -> str:
-    from vllm import LLM
+def _generate(model: LLM, request: RunnerRequest, prompt: str, frames: list[ObservedFrame]) -> str:
     from vllm.sampling_params import SamplingParams, StructuredOutputsParams
+    from .gpu_model import generate
 
     decode = request.decode
     parameters = {
@@ -74,29 +81,4 @@ def _generate(request: RunnerRequest, prompt: str, frames: list[ObservedFrame]) 
         parameters["structured_outputs"] = StructuredOutputsParams(
             json=events_json_schema(request.requested_range, request.max_events)
         )
-    model = LLM(
-        model=request.model.model_path,
-        trust_remote_code=True,
-        limit_mm_per_prompt={"image": len(frames)},
-        gpu_memory_utilization=request.model.engine.gpu_memory_utilization,
-        max_model_len=request.model.engine.max_model_len,
-    )
-    content: list[dict] = [
-        {"type": "image_url", "image_url": {"url": _data_url(frame)}} for frame in frames
-    ]
-    content.append({"type": "text", "text": prompt})
-    outputs = model.chat(
-        [{"role": "user", "content": content}],
-        sampling_params=SamplingParams(**parameters),
-    )
-    return outputs[0].outputs[0].text
-
-
-def _data_url(frame: ObservedFrame) -> str:
-    # TODO(GPU): Pass the shared CUDA observation tensor into the admitted vLLM
-    # multimodal input path instead of encoding CPU images as PNG data URLs.
-    # Keep that adapter paired with the NVDEC/CUDA migration in video.py.
-    buffer = io.BytesIO()
-    frame.image.save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
+    return generate(model, request, prompt, frames, SamplingParams(**parameters))

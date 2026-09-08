@@ -108,7 +108,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     ));
 
     let (grpc_stop_signal, grpc_shutdown) = shutdown::shutdown();
-    let (receiver, _grpc_handle) = re_grpc_server::spawn_with_recv(
+    let (receiver, grpc_handle) = re_grpc_server::spawn_with_recv(
         config.bind,
         ServerOptions {
             playback_behavior: PlaybackBehavior::NewestFirst,
@@ -173,10 +173,11 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     }
 
     grpc_stop_signal.stop();
-    receiver_task
-        .await
-        .context("Rerun receiver task panicked")??;
-    while let Ok(burst) = message_rx.try_recv() {
+    // The proxy handle owns an event sender. Retaining it keeps the receiver
+    // alive after listener shutdown. Drain concurrently with the receiver so
+    // its bounded channel cannot deadlock while its final messages are sent.
+    drop(grpc_handle);
+    while let Some(burst) = message_rx.recv().await {
         for message in burst {
             handle_rerun_message(
                 message,
@@ -190,6 +191,9 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
             .await?;
         }
     }
+    receiver_task
+        .await
+        .context("Rerun receiver task panicked")??;
     for (store_id, _) in blueprint_accumulators.drain() {
         warn!(store_id = ?store_id, "discarding incomplete Rerun Blueprint at shutdown");
     }

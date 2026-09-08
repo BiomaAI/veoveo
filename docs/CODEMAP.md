@@ -806,6 +806,8 @@ admitted ingress directly and do not depend on Recording Hub.
 | `src/uris.rs` | canonical `reason://` identities |
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
 | `runner/` | Python world-model runner: typed protocol, frame sampling, vLLM inference |
+| `runner/src/reason_runner/video.py` | exact packet timestamps, NVDEC device surfaces, and owned CUDA observation tensors |
+| `runner/src/reason_runner/gpu_model.py` | single-process Qwen3-VL embedding adapter, decoder memory reservation, and CUDA handoff to vLLM |
 | `Dockerfile` | vLLM runtime image with the server binary and installed runner |
 
 Reason embeds a bounded grounding subset in the durable request at submission time. Its
@@ -926,7 +928,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
-| `testing/smoke/src/bin/smoke/scenarios/stream/candidate.rs` | Stream compiler candidate execution in the installed NVIDIA runtime, binary and Pod identity evidence, and process cleanup |
+| `testing/smoke/src/bin/smoke/scenarios/candidate.rs` | Stream and Reason compiler candidates in their installed NVIDIA runtimes, executable and payload identities, private listeners, and verified process cleanup |
+| `testing/smoke/src/bin/smoke/scenarios/recording_fixture.rs` | authenticated completion of explicitly selected video-test recording fixtures; production recordings are rejected |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
 | `testing/smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |

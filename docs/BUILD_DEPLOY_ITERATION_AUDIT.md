@@ -32,9 +32,9 @@ implemented changes and their verification.
 | Bazel integration and cache trial | Builds Stream Rust, the native CMake runner, and OCI assembly in the existing SDK environment | A restored workspace reuses all 780 Rust compilation actions; both edited builds execute the same six actions and produce identical artifacts; inherited-image materialization remains costly; Cargo/BuildKit stays in production |
 | Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
-| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | The current Stream candidate passes a real RTX 4090 recording task: 55 processed frames, 277 detections, and published artifacts; Reason and production family admission remain pending |
+| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | Both candidates pass RTX 4090 recording tasks with published artifacts; Stream is now active on its separated compiler, while Reason's new family and image still require publication and activation |
 | Stream compiler separation | Shared Bookworm control artifact recipe with Rust 1.98.1; DeepStream compiles only the C++ runner from its own directory | Warm Rust edits take 16.7 s and 15.9 s; a committed edit stages in 26.2 s with the native action cached. The qualified image is active and passes RTX 4090 replay; all 28 other running Pods preserve identity and restart count |
-| Compiler runtime probes | Added a Rust candidate probe with explicit App input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream startup and hardware replay preserve the installed Deployment, Pod identity, and restart count; the v2 receipt also verifies temporary cache removal |
+| Compiler runtime probes | Added a Rust candidate probe with explicit App or runner input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream and Reason hardware replay preserve the installed Deployment, Pod identity, and restart count; the v3 receipt binds each payload and verifies temporary cache removal |
 | Focused flight acceptance | Routes composed-flight scenarios through `veoveo-flight-smoke`, using shared browser source and Stream-owned wire types | Resolved client/helper graphs exclude service implementations, SurrealDB, DuckDB and Rerun; original flight assertions remain in the focused harness |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
@@ -1379,7 +1379,7 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 | Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Separate physical build disk or host is unavailable; that comparison remains unmeasured |
 | Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
 | Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
-| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, focused harnesses, cache/build-engine trials, and Stream's active separated compiler with hardware replay and 26.2 s source-edit staging | Stream migration is verified; Reason's accelerated model-input path prevents its admission |
+| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, focused harnesses, cache/build-engine trials, and Stream's active separated compiler with hardware replay and 26.2 s source-edit staging | Stream migration is verified; Reason's new GPU input adapter passes candidate replay, with compiler-family migration and image publication still pending |
 | Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Complete for the existing independently owned releases; general ownership transfer is outside this build/deploy goal |
 
 The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
@@ -1572,3 +1572,75 @@ passes with 10 GiB of projected growth above the retained reserve. No registry i
 or Kubernetes volume is removed. The inventory, cleanup log, and final preflight are
 under `output/development/stream-retired-cache-*20260908.*` and
 `output/development/stream-separated-final-preflight-20260908.log`.
+
+
+## Reason GPU Input Acceptance
+
+Reason's runner now demuxes exact presentation timestamps without decoding on the CPU.
+NVDEC exports device RGB surfaces and CUDA resizes the observations. The internal
+Qwen3-VL adapter reuses the already loaded vLLM vision tower, including its deepstack
+features, then submits those GPU embeddings through the supported precomputed-image
+input. The offline engine and single worker share the runner process. Explicit
+observation IDs avoid tensor-content hashing, and the configured engine budget
+reserves decoder and observation memory before inference begins.
+
+The native candidate probe now supports both Stream and Reason. It packages Reason's
+runner source into an executable archive and records its digest beside the Rust
+executable digest. Both candidates retain private listeners, isolated process groups,
+and temporary recording caches. The probe verifies their removal and the original
+installed Pod's identity, runtime identity, readiness, and restart count. The Reason
+smoke consumes the installed catalog and checkpoint; its obsolete requirement for
+host-side `REASON_CONFIG_DIR` and `REASON_MODEL_DIR` copies has been removed.
+
+Candidate task `01a0820a-6711-7281-b72f-6721061d8b41` processes six frames on the RTX
+4090 and publishes typed reasoning results and a Rerun annotation artifact. The
+runner reports 123.9 s including model initialization. Rust executable
+`2fe11129dfbc9448356ec1479b479768ad6bb81a0aa222ed023b23e797b904a9`
+comes from the existing Bookworm compiler experiment at source `696cb831`.
+The installed vLLM runtime remains
+`sha256:b7f2a35a670b7f723f22f0d1945f3c150b2a44c272130abdc9e0b7cc3dc458c2`.
+The receipt is `output/development/reason-gpu-admission/candidate-02/compiler-candidate.json`.
+
+This proves the candidate executable and new GPU input adapter in that installed
+runtime. It does not qualify a newer runtime image or activate Reason's shared
+compiler family. Those publication and activation steps remain required.
+
+## Repeatable GPU Recording Fixtures
+
+The video fixtures now wait for the forwarder's complete upload and the Hub's
+materialized sequence before submitting analysis. Catalog creation alone did not
+establish a readable source. Each fixture requests graceful forwarder shutdown after
+its task completes, which finishes ingestion through the normal producer API.
+
+That shutdown exposed an ownership error in the forwarder: retaining the gRPC proxy
+handle kept its receiver open, and joining the receiver before draining its bounded
+channel could deadlock. Shutdown now releases the handle and drains the channel before
+joining. The successful Stream candidate run processes 71 frames and returns 360
+detections, then finishes its producer and removes its private candidate process.
+Its receipt is under
+`output/development/reason-gpu-admission/stream-candidate-live-drain/`.
+
+Three explicitly selected stale video-test ingest streams were completed through the
+authenticated producer API. The native `recording-fixture-finish` command accepts exact
+stream IDs and rejects recordings outside the video-test application. Existing catalog
+records and recorded bytes remain intact.
+
+An additional experiment finished ingestion before requesting analysis. The forwarder
+exited successfully, but task `01a0822a-c697-7a50-b7a0-580b79510fb7` failed with
+`authorized segment set does not contain the requested Rerun recording`. The cause is
+unresolved. Its diagnostic log is
+`output/development/reason-gpu-admission/stream-candidate-drain-fixed.log`.
+GPU compiler acceptance retains the smoke's original acknowledged live-snapshot
+workflow; it does not establish that sealed-recording reads pass.
+
+Final recorded acceptance processes six Reason observations in task
+`01a08238-c77a-74b0-8052-de68246b54f0` and 75 Stream frames with 383 detections in
+task `01a0823a-234d-75c2-b6cf-ece21f060f4c`. Both finish ingestion and verify candidate
+cleanup. The source-bound test report also records Python and Rust unit checks,
+forwarder tests, smoke dispatcher checks, strict Clippy, and formatting. Receipts and
+logs use the `final-reason-01` and `final-stream-01` prefixes under
+`output/development/reason-gpu-admission/`. All 25 deployed services remain Ready.
+
+Scoped host maintenance removes another 2.24 GiB of superseded incremental variants.
+Its exact removal record is
+`output/development/reason-gpu-admission/cargo-cache-applied.json`.

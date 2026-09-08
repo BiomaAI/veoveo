@@ -2,6 +2,7 @@ use super::*;
 
 pub(crate) struct ChildGuard {
     child: Child,
+    drain_on_drop: Option<Duration>,
 }
 
 impl ChildGuard {
@@ -23,12 +24,58 @@ impl ChildGuard {
             .stderr(Stdio::from(stderr))
             .spawn()
             .with_context(|| format!("failed to spawn {}", program.display()))?;
-        Ok(Self { child })
+        Ok(Self {
+            child,
+            drain_on_drop: None,
+        })
+    }
+
+    pub(crate) fn with_drain_on_drop(mut self, timeout: Duration) -> Self {
+        self.drain_on_drop = Some(timeout);
+        self
     }
 
     pub(crate) fn stop(&mut self) {
+        if self.child.try_wait().is_ok_and(|status| status.is_some()) {
+            return;
+        }
+        if let Some(timeout) = self.drain_on_drop {
+            let _ = Command::new("kill")
+                .args(["-INT", "--", &self.child.id().to_string()])
+                .status();
+            let deadline = std::time::Instant::now() + timeout;
+            while std::time::Instant::now() < deadline {
+                if self.child.try_wait().is_ok_and(|status| status.is_some()) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+
+    pub(crate) async fn drain(&mut self, timeout: Duration) -> Result<()> {
+        if let Some(status) = self.child.try_wait()? {
+            anyhow::ensure!(status.success(), "child exited before shutdown: {status}");
+            return Ok(());
+        }
+        let signal = Command::new("kill")
+            .args(["-INT", "--", &self.child.id().to_string()])
+            .status()?;
+        anyhow::ensure!(signal.success(), "could not request child shutdown");
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            if let Some(status) = self.child.try_wait()? {
+                anyhow::ensure!(status.success(), "child shutdown failed: {status}");
+                return Ok(());
+            }
+            anyhow::ensure!(
+                tokio::time::Instant::now() < deadline,
+                "child shutdown timed out"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
     }
 }
 

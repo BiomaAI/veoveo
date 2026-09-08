@@ -32,8 +32,7 @@ const STREAM_READY_URL: &str = "http://127.0.0.1:8797/stream/readyz";
 const STREAM_HOST: &str = "stream-mcp:8797";
 const DEFAULT_KUBERNETES_NAMESPACE: &str = "veoveo";
 
-#[path = "stream/candidate.rs"]
-mod candidate;
+use super::candidate;
 
 pub(crate) async fn stream_compiler_startup(
     namespace: &str,
@@ -42,10 +41,19 @@ pub(crate) async fn stream_compiler_startup(
     work_dir: &Path,
 ) -> Result<()> {
     let mut candidate = Some(candidate::Candidate::start(
-        namespace, binary, app, work_dir,
+        namespace,
+        candidate::Service::Stream,
+        binary,
+        app,
+        work_dir,
     )?);
     let resource = candidate.as_ref().context("candidate missing")?.resource();
-    let _forward = PortForwardGuard::spawn(namespace, &resource, 8797, candidate::PORT)?;
+    let _forward = PortForwardGuard::spawn(
+        namespace,
+        &resource,
+        8797,
+        candidate::Service::Stream.port(),
+    )?;
     wait_for_stream(namespace, &mut candidate, work_dir).await?;
     candidate
         .as_mut()
@@ -102,9 +110,17 @@ pub(crate) async fn stream_gpu(
     )
     .context("Stream GPU smoke requires the active k3d Stream profile")?;
     let mut candidate = candidate_inputs
-        .map(|(binary, app)| candidate::Candidate::start(namespace, binary, app, work_dir))
+        .map(|(binary, app)| {
+            candidate::Candidate::start(
+                namespace,
+                candidate::Service::Stream,
+                binary,
+                app,
+                work_dir,
+            )
+        })
         .transpose()?;
-    let _recording_forwarder = ChildGuard::spawn(
+    let mut recording_forwarder = ChildGuard::spawn(
         Path::new(RECORDING_FORWARDER),
         [
             "--gateway-url".into(),
@@ -120,7 +136,7 @@ pub(crate) async fn stream_gpu(
             "--queue-dir".into(),
             queue_dir.as_os_str().to_os_string(),
         ],
-        [],
+        [("RUST_LOG", "veoveo_recording_forwarder=info".into())],
         &forwarder_log,
     )
     .with_context(|| {
@@ -128,10 +144,11 @@ pub(crate) async fn stream_gpu(
             "starting authenticated recording forwarder; logs: {}",
             forwarder_log.display()
         )
-    })?;
+    })?
+    .with_drain_on_drop(Duration::from_secs(40));
     wait_for_recording_forwarder(&forwarder_log).await?;
     let remote_port = if candidate.is_some() {
-        candidate::PORT
+        candidate::Service::Stream.port()
     } else {
         8797
     };
@@ -148,7 +165,7 @@ pub(crate) async fn stream_gpu(
 
     let recording_key = uuid::Uuid::now_v7().to_string();
     publish_h264_recording(&recording_key, &sample_h264).await?;
-    let recording_id = wait_for_recording_catalog(&environment, &recording_key).await?;
+    let recording_id = wait_for_recording_source(&environment, &recording_key, &queue_dir).await?;
     let arguments = json!({
         "video": {
             "recording_uri": format!("recording://recordings/{recording_id}"),
@@ -222,6 +239,7 @@ pub(crate) async fn stream_gpu(
             },
         )?;
     }
+    recording_forwarder.drain(Duration::from_secs(40)).await?;
     cleanup.remove_on_drop();
     Ok(())
 }
@@ -323,9 +341,10 @@ pub(crate) async fn wait_for_recording_forwarder(log: &Path) -> Result<()> {
     bail!("recording forwarder did not accept loopback Rerun traffic\n{output}")
 }
 
-pub(crate) async fn wait_for_recording_catalog(
+pub(crate) async fn wait_for_recording_source(
     environment: &BTreeMap<String, String>,
     recording_key: &str,
+    queue_dir: &Path,
 ) -> Result<RecordingId> {
     let store = recording_store(environment).await?;
     let tenant_id =
@@ -349,14 +368,56 @@ pub(crate) async fn wait_for_recording_catalog(
                 uuid.get_version_num() == 7,
                 "catalog recording id is not UUIDv7"
             );
-            return Ok(RecordingId::from_uuid(uuid));
+            let id = RecordingId::from_uuid(uuid);
+            for entry in std::fs::read_dir(queue_dir)? {
+                let path = entry?.path().join("stream.json");
+                let bytes = match std::fs::read(&path) {
+                    Ok(bytes) => bytes,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                    Err(error) => return Err(error.into()),
+                };
+                let queued: veoveo_recording_forwarder::queue::QueueStream =
+                    serde_json::from_slice(&bytes)?;
+                if queued.recording_id != recording_key
+                    || queued.application_id != "veoveo-video-test"
+                    || queued.next_enqueue_sequence <= queued.remote_first_local_sequence
+                    || queued.next_upload_sequence != queued.next_enqueue_sequence
+                {
+                    continue;
+                }
+                let Some(remote_id) = queued.remote_stream_id else {
+                    continue;
+                };
+                let remote_id = veoveo_platform_store::RecordingIngestStreamId::from_uuid(
+                    uuid::Uuid::parse_str(&remote_id)?,
+                );
+                let Some(remote) = store.recording_ingest_stream(tenant_id, remote_id).await?
+                else {
+                    continue;
+                };
+                let expected = queued
+                    .next_upload_sequence
+                    .checked_sub(queued.remote_first_local_sequence)
+                    .context("forwarder upload sequence precedes its remote generation")?;
+                if remote.recording == id.record_id()
+                    && remote
+                        .materialized_through_sequence
+                        .is_some_and(|sequence| {
+                            u64::try_from(sequence).is_ok_and(|value| value >= expected)
+                        })
+                {
+                    return Ok(id);
+                }
+            }
         }
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
-    bail!("Recording Hub did not catalog recording key {recording_key}")
+    bail!("Recording Hub did not publish a durable source for recording key {recording_key}")
 }
 
-async fn recording_store(environment: &BTreeMap<String, String>) -> Result<PlatformStore> {
+pub(super) async fn recording_store(
+    environment: &BTreeMap<String, String>,
+) -> Result<PlatformStore> {
     let username = required_environment(environment, "VEOVEO_SURREAL_RUNTIME_USERNAME")?;
     let password = required_environment(environment, "VEOVEO_SURREAL_RUNTIME_PASSWORD")?;
     let namespace = required_environment(environment, "VEOVEO_SURREAL_NAMESPACE")?;

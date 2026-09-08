@@ -130,7 +130,7 @@ fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
             .context("smoke scenario is not valid UTF-8")?;
         if !matches!(
             scenario,
-            "stream-gpu" | "reason-gpu" | "stream-compiler-startup"
+            "stream-gpu" | "reason-gpu" | "stream-compiler-startup" | "recording-fixture-finish"
         ) {
             binaries.push(CONFORMANCE);
         }
@@ -243,7 +243,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         ],
         "agent-gateway" => &[CONFORMANCE, DUCKDB, GATEWAY, ARTIFACT_SERVICE],
         "stream-gpu" | "reason-gpu" => &[RECORDING_FORWARDER],
-        "stream-compiler-startup" => &[],
+        "stream-compiler-startup" | "recording-fixture-finish" => &[],
         "helm-config"
         | "external-simulation-fixture"
         | "profile-validate"

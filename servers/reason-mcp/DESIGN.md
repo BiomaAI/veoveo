@@ -36,6 +36,8 @@ inference service, and no agent framework.
 | OAuth bearer and signed JWT identity | Source recording, grounding artifacts, results, and derived artifacts retain gateway-resolved Work Context authority and labels. |
 | vLLM official Muse Glimmer launch image | Hardware-GPU execution through the upstream model launch image. Upstream publishes this model profile under an unversioned tag; Veoveo pins the 2026-08-11 snapshot built from vLLM commit `99a10304dce8945119bd0b1a072297803c52a749` by OCI manifest digest. |
 | Hugging Face checkpoint | A site-supplied, revision- and digest-pinned checkpoint in native Transformers layout. |
+| NVDEC, CUDA, and DLPack | Internal image-input adapter: PyNvVideoCodec exports device RGB surfaces, Torch owns resized CUDA observations, and Transformers produces CUDA pixel patches. These libraries belong to the digest-pinned runtime. |
+| vLLM precomputed image embeddings | Internal Qwen3-VL profile with base and deepstack features. The offline engine and its single worker share the runner process; embeddings never enter the RPC tensor serializer. |
 
 ## Data path
 
@@ -134,6 +136,23 @@ writes the typed answer. Frame indices are reconstructed as
 original recording timeline. The runner writes nothing to stdout; its
 diagnostics go to stderr and its answer goes only to the typed response
 file.
+
+PyAV demuxes packet timestamps without decoding frames. NVDEC decodes one selected
+surface at a time, and CUDA performs observation resizing and model preprocessing.
+Each resized observation owns its device allocation before its decoder surface is
+released. Packet timestamps must increase in decode order and the encoded dimensions
+must match the bounded request.
+
+The internal model adapter admits `Qwen3VLForConditionalGeneration`. It uses the
+engine's loaded vision tower to produce base and deepstack embeddings on CUDA. The
+engine runs in the same process with one worker; the adapter checks that ownership
+before handing tensors to generation. Unique per-observation IDs avoid content hashing
+of GPU tensors. Grid dimensions and prompt tokens remain host metadata.
+
+The engine reserves decoder and observation storage from its configured memory budget.
+Its normal vision profiling accounts for the admitted observation dimensions and frame
+count. The adapter rejects software surfaces, a CPU image processor, unsupported model
+architectures, and process configurations that would serialize the CUDA payload.
 
 The runner belongs to the deployable image, not to site configuration. The
 checkpoint is the opposite: a site-supplied deployment input in Hugging Face
@@ -243,6 +262,15 @@ task with a fixed prompt, and typed result plus Rerun annotation publication
 through the shared artifact plane. It asserts result structure and retained
 invocation provenance rather than exact generated text. The scenario runs
 only on a deployment whose checkpoint is present in the model cache.
+
+`cargo xtask smoke reason-gpu` also accepts `--candidate-binary` and
+`--candidate-runner`. The latter names the source root containing `reason_runner/`.
+The Rust harness packages that source, launches the candidate on a private listener
+inside the installed NVIDIA container, and records executable and runner-payload
+digests. It verifies listener ownership, process cleanup, temporary cache removal,
+and unchanged installed Pod identity and restart count. The installed catalog and
+checkpoint supply the site inputs; the smoke needs no host-side configuration copy.
+This candidate check does not qualify a different runtime image.
 
 ## Deliberate limits
 
