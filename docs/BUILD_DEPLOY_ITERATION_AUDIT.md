@@ -1669,3 +1669,24 @@ Before the cold runtime build, cleanup removes the forty exact cache records in 
 retired vLLM base/SDK chain and its three Cargo mounts. The ordinary and current
 control-family Cargo caches remain. Plans and removal logs use the `retired-vllm-cache`
 and `retired-reason-cargo` prefixes under `output/development/reason-gpu-admission/`.
+
+The first image stages in 318.5 s, including 44.2 s of Rust compilation and a
+182.9 s extraction window for the new GPU base. Rust benchmark revision `d92a1095`
+stages in 32.6 s. Python benchmark revision `d6719d9a` stages in 11.1 s with no
+Cargo execution. Each image has 37 filesystem layers: only layer 35 changes for the
+Rust edit, and only layer 34 changes for the Python edit, using zero-based positions.
+The benchmark revisions are isolated and are not deployment candidates.
+
+Qualification of source `19d005ec` takes 143.9 s and preserves runnable manifest
+`sha256:0b559467373b4a2669d6f3b044da2f323c7db99b5b8bdb0a87f5863d680d5166`.
+The SBOM phase takes 49.3 s. Stage, release, benchmark, and manifest records use
+`output/development/reason-{shared,rust-edit,python-edit}-*20260908.*`.
+
+The node's first pull requires a second local copy of the new GPU runtime. The
+temporary build-cache eviction removes only the new Reason runtime's 42 regular
+records; Cargo caches remain. The observed snapshot set occupies 27.2 GiB, and new
+compressed blobs total 8.0 GiB before crediting reusable node snapshots. Activation
+therefore budgets 37 GiB above the retained filesystem reserve. Native uv maintenance
+also removes unused and downloaded wheel-cache entries; existing environments retain
+their installed files. This storage transition leaves published rollback images and
+application volumes intact.

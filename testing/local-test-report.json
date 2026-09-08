@@ -1,30 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2d9df46b23f82ec3f793df3193a507ef0e9cc292c784d76034f362804fe2f857",
-  "updatedAt": "2026-09-08T18:21:24Z",
+  "buildDigest": "sha256:97d3dcac055315ecb26fe886c4f5058943efac9d16912270448a96a0a620eaa6",
+  "updatedAt": "2026-09-08T18:37:23Z",
   "checks": [
     {
-      "name": "reason-shared-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "-p",
-        "veoveo-xtask",
-        "-p",
-        "veoveo-deployment-smoke",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T18:21:06Z",
-      "durationSeconds": 2.474857795,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "reason-shared-format",
+      "name": "reason-activation-format",
       "command": [
         "cargo",
         "fmt",
@@ -32,12 +12,12 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T18:21:14Z",
-      "durationSeconds": 2.363037948,
+      "finishedAt": "2026-09-08T18:37:23Z",
+      "durationSeconds": 2.516947849,
       "detail": "completed successfully"
     },
     {
-      "name": "reason-shared-helm",
+      "name": "reason-image-lock",
       "command": [
         "cargo",
         "xtask",
@@ -45,42 +25,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T18:21:24Z",
-      "durationSeconds": 9.224425175,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "reason-shared-image-planner",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-xtask",
-        "commands::image::"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T18:21:10Z",
-      "durationSeconds": 3.087951363,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "reason-shared-runner",
-      "command": [
-        "uv",
-        "run",
-        "--project",
-        "servers/reason-mcp/runner",
-        "--locked",
-        "--extra",
-        "dev",
-        "pytest",
-        "servers/reason-mcp/runner/tests",
-        "-q"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T18:21:11Z",
-      "durationSeconds": 0.276788723,
+      "finishedAt": "2026-09-08T18:37:19Z",
+      "durationSeconds": 7.930031333,
       "detail": "completed successfully"
     }
   ]
