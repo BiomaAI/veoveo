@@ -111,6 +111,148 @@ fn receipt_store_is_atomic_cluster_bound_and_exclusively_locked() {
 }
 
 #[test]
+#[ignore = "requires VEOVEO_OWNERSHIP_TEST_CONTEXT; verifies Kubernetes normalization without starting workload Pods"]
+fn live_reuse_accepts_server_normalization_without_changing_resource_versions() {
+    let context =
+        std::env::var("VEOVEO_OWNERSHIP_TEST_CONTEXT").expect("explicit live test context");
+    let name = format!(
+        "veoveo-normalize-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    status_checked(
+        "kubectl",
+        ["--context", &context, "create", "namespace", &name],
+        &[],
+        None,
+    )
+    .unwrap();
+    let namespace = Namespace { context, name };
+    let root = tempfile::tempdir().unwrap();
+    status_checked("git", ["init", "--quiet"], &[], Some(root.path())).unwrap();
+    let state = InstalledState::open(root.path(), &namespace.context, &[]).unwrap();
+    let mut compiled = component(&namespace.name, "normalized", &["normalized"]);
+    // This fixture tests API serialization. Zero replicas means its explicitly
+    // synthetic image is never pulled or executed; it grants no runtime acceptance.
+    compiled.units[0].objects.push(json!({
+        "apiVersion":"apps/v1", "kind":"Deployment", "metadata":{"name":"normalized","namespace":namespace.name},
+        "spec":{"replicas":0,"selector":{"matchLabels":{"app":"normalized"}},"template":{
+            "metadata":{"labels":{"app":"normalized"},"annotations":{}},
+            "spec":{"imagePullSecrets":[],"containers":[{"name":"fixture","image":format!("example.invalid/fixture@sha256:{}", "a".repeat(64)),"resources":{"requests":{"memory":"1024Mi","cpu":"0.1"}}}]}
+        }}
+    }));
+    let inventory = ObjectScopes::default()
+        .rendered(
+            &compiled.units[0].objects,
+            &namespace.name,
+            &BTreeSet::new(),
+        )
+        .unwrap();
+    compiled.locked.declaration.permitted_objects = inventory
+        .iter()
+        .map(|object| object.identity.clone())
+        .collect();
+    reseal(&mut compiled);
+    assert_eq!(
+        state.apply(&compiled, &compiled.units[0]).unwrap(),
+        InstallOutcome::Applied { recorded: true }
+    );
+    let identity = compiled.units[0].prepared.objects[1].identity.clone();
+    let observed = read_objects(
+        &namespace.context,
+        &BTreeSet::from([identity.clone()]),
+        None,
+    )
+    .unwrap();
+    let before = &observed[&identity];
+    assert!(
+        before
+            .pointer("/spec/template/spec/imagePullSecrets")
+            .is_none()
+    );
+    assert_eq!(
+        before
+            .pointer("/spec/template/spec/containers/0/resources/requests/memory")
+            .unwrap(),
+        "1Gi"
+    );
+    assert_eq!(
+        before
+            .pointer("/spec/template/spec/containers/0/resources/requests/cpu")
+            .unwrap(),
+        "100m"
+    );
+    // Project a real spec change to prove that normalization never persists it.
+    let mut changed = compiled.units[0].objects[1].clone();
+    changed["spec"]["template"]["spec"]["containers"][0]["resources"]["requests"]["memory"] =
+        json!("2048Mi");
+    let projected = normalize::project(
+        &namespace.context,
+        &compiled.units[0].prepared.target,
+        &changed,
+    )
+    .unwrap();
+    assert_eq!(
+        projected
+            .pointer("/spec/template/spec/containers/0/resources/requests/memory")
+            .unwrap(),
+        "2Gi"
+    );
+    assert_ne!(
+        objects::fingerprint(&projected).unwrap(),
+        objects::fingerprint(before).unwrap()
+    );
+    assert_eq!(
+        state.apply(&compiled, &compiled.units[0]).unwrap(),
+        InstallOutcome::Reused
+    );
+    assert_eq!(
+        read_objects(
+            &namespace.context,
+            &BTreeSet::from([identity.clone()]),
+            None
+        )
+        .unwrap()[&identity]["metadata"]["resourceVersion"],
+        before["metadata"]["resourceVersion"]
+    );
+    assert_eq!(
+        state
+            .helm(&compiled, &compiled.units[0])
+            .unwrap()
+            .unwrap()
+            .revision
+            .revision,
+        1
+    );
+    println!(
+        "Kubernetes normalization: a changed-spec dry-run persists nothing; empty Pod fields and canonical quantities reuse without a new resource version or Helm revision."
+    );
+    let context = namespace.context.clone();
+    let name = namespace.name.clone();
+    drop(namespace);
+    let remaining = output_checked(
+        "kubectl",
+        [
+            "--context",
+            &context,
+            "get",
+            "namespace",
+            &name,
+            "--ignore-not-found",
+            "--output=name",
+        ],
+        None,
+    )
+    .unwrap();
+    assert!(
+        remaining.iter().all(u8::is_ascii_whitespace),
+        "normalization namespace was not removed"
+    );
+}
+
+#[test]
 #[ignore = "requires VEOVEO_OWNERSHIP_TEST_CONTEXT; creates isolated ConfigMap releases to verify reuse"]
 fn live_installed_reuse_detects_drift_and_preserves_unchanged_revisions() {
     let context =
