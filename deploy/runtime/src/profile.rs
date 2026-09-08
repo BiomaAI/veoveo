@@ -24,6 +24,9 @@ use std::{
 };
 use veoveo_deploy_contract::{DeploymentSourceRole, components::InstallationInput};
 
+mod execution;
+use execution::ExecutionScope;
+
 pub fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
     validate_node_bootstrap_secret_boundary(&profile)?;
@@ -59,7 +62,6 @@ pub fn profile_validate(path: &Path) -> Result<()> {
 
 pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
-    let gateway_activation = prepare_gateway_activation(&profile)?;
     let lock = load_deployment_lock(lock_path)?;
     validate_locked_profile(&profile, &lock)?;
     validate_locked_images(&profile, &lock)?;
@@ -108,10 +110,10 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
                 .flat_map(|unit| unit.objects.iter().cloned())
         })
         .collect::<Vec<_>>();
-    let platform = profile.resolved_platform()?;
+    let execution = ExecutionScope::prepare(&compiled, &lock.components)?;
     let context = profile.definition.kubernetes.context.as_str();
     let installed = InstalledState::open(&profile.repository, context, &compiled)?;
-    let gpu_migration = platform
+    let gpu_migration = execution
         .gpu_scheduling
         .as_ref()
         .map(|scheduling| {
@@ -129,29 +131,19 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
         .map(|migration| migration.quiesced_workloads())
         .unwrap_or_default();
     let mutation_plan = installed.plan(&lock.components, &selected, &compiled, &invalidated)?;
-    let gpu_placement = prepare_gpu_placement(&profile)?;
-    if let Some(placement) = &gpu_placement {
-        let (_, claim) = installation_units(&compiled, InstallationInput::GpuPlacement)
-            .next()
-            .context("GPU placement has no prepared claim operation")?;
-        ensure!(
-            claim.objects.as_slice() == std::slice::from_ref(&placement.manifest),
-            "GPU placement configuration differs from the compiled claim"
-        );
-    }
     let secret_closure = prepare_secret_closure(
         path,
         lock_path,
         &profile,
         &objects,
-        gateway_activation.as_ref(),
+        execution.gateway_activation,
     )?;
 
     after_secret_closure(secret_closure, |_closure| {
         for (component, unit) in installation_units(&compiled, InstallationInput::NodeBootstrap) {
             installed.apply_planned(component, unit, &mutation_plan)?;
         }
-        if platform.gpu_scheduling.is_some() {
+        if execution.gpu_scheduling.is_some() {
             wait_for_cluster_nodes(context, Duration::from_secs(120))?;
         } else {
             wait_for_cluster_gpu(context, Duration::from_secs(120))?;
@@ -161,8 +153,8 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             installed.apply_planned(component, unit, &mutation_plan)?;
         }
 
-        if let Some(placement) = &gpu_placement {
-            let scheduling = platform
+        if let Some(placement) = execution.gpu_placement {
+            let scheduling = execution
                 .gpu_scheduling
                 .as_ref()
                 .context("prepared GPU placement has no resolved scheduling profile")?;
@@ -222,15 +214,18 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
                 installed.apply_planned(component, prepared, &mutation_plan)?;
             }
         }
-        for deployment in &profile.definition.wait_for_deployments {
-            let target = format!("deployment/{deployment}");
+        for deployment in &execution.deployments {
+            let target = format!("deployment/{}", deployment.name);
             status_checked(
                 "kubectl",
                 [
                     "--context",
                     context,
                     "--namespace",
-                    profile.definition.namespace.as_str(),
+                    deployment
+                        .namespace
+                        .as_deref()
+                        .context("wait Deployment has no namespace")?,
                     "rollout",
                     "status",
                     target.as_str(),
@@ -240,7 +235,7 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
                 None,
             )?;
         }
-        if let Some(scheduling) = &platform.gpu_scheduling {
+        if let Some(scheduling) = execution.gpu_scheduling {
             verify_gpu_placement(context, &profile.definition.namespace, scheduling)?;
         }
         println!(

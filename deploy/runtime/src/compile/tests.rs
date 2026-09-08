@@ -11,6 +11,7 @@ use veoveo_deploy_contract::{LoadedProfile, LockedImage, LockedSource};
 use super::{compile_component_lock, compile_components, compile_locked_components};
 use crate::charts::lock_source_charts;
 
+mod execution;
 mod publication;
 
 fn git(root: &Path, args: &[&str]) -> String {

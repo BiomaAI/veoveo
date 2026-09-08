@@ -153,6 +153,8 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/compile.rs` and `src/compile/objects.rs` | component render preparation, exact non-secret input closure, offline object scope, and sealed inventories for the v7 migration |
 | `deploy/runtime/src/compile/inputs.rs` | publication and installation source snapshots keyed by component identity, including retained chart revisions within one repository |
 | `deploy/runtime/src/compile/configuration.rs` | component-owned installation document snapshots and exact retained configuration files across installation commits |
+| `deploy/runtime/src/compile/execution.rs` and `src/compile/tests/execution.rs` | Snapshot-bound operational inputs and native Git/Helm regression for retained gateway Secret requirements and owner-specific rollout waits |
+| `deploy/runtime/src/profile/execution.rs` | Compiled gateway/GPU helper inputs and rejection of incompatible retained GPU configurations before installation writes |
 | `deploy/runtime/src/compile/images.rs` | atomic release image values and exact rendered input closure, including retained versions of shared targets |
 | `deploy/runtime/src/publication.rs` and `tools/xtask/src/commands/release/components.rs` | exact component chart, configuration, and image updates, qualified OCI evidence checks, retained dependencies, and publication receipts |
 | `deploy/runtime/src/compile/tests/publication.rs` | independent Git/Helm publication regressions for chart-only, configuration-only, and combined updates while unrequested repositories are unavailable |

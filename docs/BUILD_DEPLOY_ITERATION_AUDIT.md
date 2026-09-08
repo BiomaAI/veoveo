@@ -850,6 +850,16 @@ All six native deployment regressions pass together, including installed reuse,
 normalization, ownership rejection, planned updates, and GPU transition lifecycle.
 Every fixture verifies removal of its temporary namespace.
 
+Installation helpers now consume operational inputs from each component's immutable
+configuration snapshot. Replacing the current gateway file or changing its required
+Secret keys cannot change a retained gateway's activation or preflight requirements.
+Rollout waits belong to the compiled Deployment owner. Selected GPU consumers and their
+allocator must agree on retained settings before installation writes. The native Git/Helm
+regression replaces the gateway file and refreshes only extension configuration, then
+verifies the retained bundle, Secret key names, and waits. GPU policy disagreement has a
+focused preflight regression. These checks establish input retention, not selected live
+deployment acceptance or GPU qualification.
+
 Planned GPU quiesce invalidates affected release reuse, which allows Helm to restore
 desired replicas after the migration. The native restoration test exposed an additional
 lifecycle gap: rollout completion at zero replicas can leave terminating Pods alive.

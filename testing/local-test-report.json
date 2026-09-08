@@ -1,17 +1,17 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b6e50cdebaffb85963066b627fe89841edf2a8cc7ac57fa03e7d45852643a028",
-  "updatedAt": "2026-09-08T08:32:51Z",
+  "buildDigest": "sha256:60753d54974dc4baee5cda234797bf4e62955d3fb1c2c397f72375be623c5017",
+  "updatedAt": "2026-09-08T08:48:24Z",
   "checks": [
     {
-      "name": "deployment-plan-clippy",
+      "name": "retained-execution-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-deploy-contract",
-        "-p",
         "veoveo-deploy-runtime",
+        "-p",
+        "veoveo-deploy-contract",
         "-p",
         "veoveo-xtask",
         "--all-targets",
@@ -20,12 +20,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:32:19Z",
-      "durationSeconds": 5.916278011,
+      "finishedAt": "2026-09-08T08:47:26Z",
+      "durationSeconds": 3.561068942,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-plan-format",
+      "name": "retained-execution-format",
       "command": [
         "cargo",
         "fmt",
@@ -34,33 +34,12 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:32:51Z",
-      "durationSeconds": 2.165996783,
+      "finishedAt": "2026-09-08T08:48:24Z",
+      "durationSeconds": 2.115589941,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-plan-live",
-      "command": [
-        "env",
-        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
-        "VEOVEO_SCOPE_TEST_IMAGE=k3d-veoveo-registry.localhost:5000/veoveo/console-bff@sha256:5def84365bd9b532ca329207950a3f0dd03dbc129e0294553d46c41215d9aac6",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-deploy-runtime",
-        "live_",
-        "--",
-        "--ignored",
-        "--nocapture",
-        "--test-threads=2"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T08:32:00Z",
-      "durationSeconds": 79.658950721,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "deployment-plan-smoke",
+      "name": "retained-execution-smoke",
       "command": [
         "cargo",
         "xtask",
@@ -68,25 +47,25 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:32:43Z",
-      "durationSeconds": 12.378468836,
+      "finishedAt": "2026-09-08T08:47:56Z",
+      "durationSeconds": 10.657070538,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-plan-tests",
+      "name": "retained-execution-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-deploy-contract",
-        "-p",
         "veoveo-deploy-runtime",
+        "-p",
+        "veoveo-deploy-contract",
         "-p",
         "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:30:21Z",
-      "durationSeconds": 13.273779828,
+      "finishedAt": "2026-09-08T08:46:54Z",
+      "durationSeconds": 9.501887212,
       "detail": "completed successfully"
     }
   ]
