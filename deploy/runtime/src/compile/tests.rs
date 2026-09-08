@@ -80,6 +80,8 @@ fn source(root: &Path, name: &str) -> String {
 kind: Deployment
 metadata:
   name: {{{{ .Release.Name }}}}
+  annotations:
+    test.example/selectedImages: "{{{{ len {digests} }}}}"
 spec:
   selector:
     matchLabels:
@@ -176,6 +178,44 @@ fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_rend
         .iter()
         .find(|component| component.declaration.id.as_str() == "platform")
         .unwrap();
+    let fresh = veoveo_deploy_contract::DeploymentLock {
+        schema_version: veoveo_deploy_contract::DEPLOYMENT_LOCK_SCHEMA.into(),
+        profile: profile.definition.name.clone(),
+        profile_revision: profile_revision.clone(),
+        registry: profile.definition.registry.locked(),
+        sources: sources.clone(),
+        components: initial.clone(),
+        platform: profile.resolved_platform().unwrap(),
+    };
+    let exact_roots = initial
+        .iter()
+        .filter_map(|component| {
+            let owner = &component.declaration.source;
+            roots
+                .get(&owner.name)
+                .map(|root| (owner.clone(), root.clone()))
+        })
+        .collect();
+    let all = initial
+        .iter()
+        .map(|component| component.declaration.id.clone())
+        .collect();
+    let prepared = compile_locked_components(&profile, &fresh, &exact_roots, &all).unwrap();
+    assert_eq!(
+        prepared
+            .iter()
+            .map(|component| component.locked.clone())
+            .collect::<Vec<_>>(),
+        initial
+    );
+    let extension_render = prepared
+        .iter()
+        .find(|component| component.locked.declaration.id.as_str() == "extension")
+        .unwrap();
+    assert_eq!(
+        extension_render.units[0].objects[0]["metadata"]["annotations"]["test.example/selectedImages"],
+        "1"
+    );
     let requested = BTreeSet::from(["platform".to_owned().try_into().unwrap()]);
     let selected = veoveo_deploy_contract::components::select_components(&initial, &requested)
         .unwrap()
@@ -320,6 +360,27 @@ fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_rend
 
 #[test]
 fn components_from_one_source_retain_distinct_chart_revisions() {
+    retained_component_inputs(InputChange::Chart);
+}
+
+#[test]
+fn component_image_update_retains_another_consumers_previous_digest() {
+    retained_component_inputs(InputChange::Image);
+}
+
+#[test]
+fn identical_image_bytes_retain_each_consumers_exact_build_provenance() {
+    retained_component_inputs(InputChange::ImageProvenance);
+}
+
+#[derive(Clone, Copy)]
+enum InputChange {
+    Chart,
+    Image,
+    ImageProvenance,
+}
+
+fn retained_component_inputs(change: InputChange) {
     use veoveo_deploy_contract::{DeploymentLock, components::ComponentId};
     use veoveo_extension_contract::SourceRevision;
 
@@ -380,14 +441,31 @@ fn components_from_one_source_retain_distinct_chart_revisions() {
     }];
     let roots = BTreeMap::from([("platform".into(), platform.clone())]);
     let initial = compile_component_lock(&profile, &profile_revision, &sources, &roots).unwrap();
-    let template = platform.join("chart/templates/workload.yaml");
-    let content = fs::read_to_string(&template).unwrap().replace(
-        "metadata:\n  name:",
-        "metadata:\n  annotations:\n    test.example/revision: updated\n  name:",
-    );
-    fs::write(template, content).unwrap();
-    let new_revision = commit(&platform, "advance only the current component chart");
+    let previous_image = sources[0].images[0].clone();
+    if matches!(change, InputChange::Chart) {
+        let template = platform.join("chart/templates/workload.yaml");
+        let content = fs::read_to_string(&template).unwrap().replace(
+            "test.example/selectedImages:",
+            "test.example/revision: updated\n    test.example/selectedImages:",
+        );
+        fs::write(template, content).unwrap();
+    } else {
+        fs::write(
+            platform.join("image-source.txt"),
+            "new image build snapshot",
+        )
+        .unwrap();
+    }
+    let new_revision = commit(&platform, "advance only the current component input");
     sources[0].revision = new_revision.clone();
+    if !matches!(change, InputChange::Chart) {
+        let image = &mut sources[0].images[0];
+        image.source_revision = SourceRevision::new(&new_revision).unwrap();
+        image.publication_digest = format!("sha256:{}", "d".repeat(64));
+        if matches!(change, InputChange::Image) {
+            image.digest = format!("sha256:{}", "c".repeat(64));
+        }
+    }
     let updated_chart = lock_source_charts(definition, &platform)
         .unwrap()
         .into_iter()
@@ -404,6 +482,9 @@ fn components_from_one_source_retain_distinct_chart_revisions() {
     ]);
     let updated =
         compile_components(&profile, &profile_revision, &sources, &roots, &selection).unwrap();
+    if !matches!(change, InputChange::Chart) {
+        sources[0].images.push(previous_image);
+    }
     let mut catalog = initial.clone();
     for component in updated {
         let previous = catalog
@@ -430,6 +511,7 @@ fn components_from_one_source_retain_distinct_chart_revisions() {
         platform: profile.resolved_platform().unwrap(),
     };
     lock.validate().unwrap();
+    crate::images::validate_locked_images(&profile, &lock).unwrap();
     crate::sources::validate_locked_profile(&profile, &lock).unwrap();
     let all = lock
         .components

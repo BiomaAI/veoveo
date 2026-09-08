@@ -42,6 +42,7 @@ for an enterprise installation governed by GitOps.
 | `charts.rs` | Shared source-chart locks, ordered Helm values, rendering, and release commands |
 | `compile.rs` and `compile/objects.rs` | Complete prepared component objects, non-secret inputs, and offline scope declarations |
 | `compile/inputs.rs` | Publication and locked-installation snapshots keyed by component source name, repository, and revision |
+| `compile/images.rs` | Per-release image selection, exact build provenance, and rendered image closure checks |
 | `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
 | `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
@@ -72,10 +73,8 @@ source revision records publication resolution and does not override retained co
 revisions. Preparation verifies the actual checkout commit before rendering. Release
 execution retains the profile's declaration order, independent of checkout ordering.
 
-This supports retained chart revisions within the existing image catalog. Multiple
-qualified versions of one image target and retained installation-file snapshots still
-require their own input-resolution work before component-selected publication can be
-exposed.
+Retained installation-file snapshots still require input-resolution work before
+component-selected publication can be exposed.
 
 The complete locked artifact and ownership catalogs still validate before resolution.
 Installation checks platform image completeness, registry ownership, image provenance,
@@ -109,6 +108,20 @@ Each locked image records the immutable commit that produced it. The component's
 chart snapshot may advance while that image remains unchanged. Compilation and
 development image locks preserve the image's original source revision and publication
 digest. Deployable-content hashes stay stable when only source provenance advances.
+Installation builds each Helm release's image values from that atomic unit's locked
+inputs. A newer image in another unit cannot replace its retained version. The renderer
+rejects missing images, changed digests, and source images outside the unit's closure.
+One release selects one build provenance per image repository; two versions in that
+scalar values entry are ambiguous even if their runnable digests match. Source checkouts
+carry no image selection.
+
+Fresh publication still derives candidates from its qualified source artifacts, then
+records only the images consumed by each render. When candidates remain unused,
+publication renders again with the exact selection that installation will receive.
+That render must consume precisely the same images; template-dependent image expansion
+fails qualification. Platform and Veoveo-source values use
+their source's candidates; extension values can consume platform-owned images as well.
+Component-selected publication and development-lock promotion remain migration work.
 The reserved source name `installation` identifies installation-owned inputs; a
 platform, workload, or extension source cannot use that name.
 

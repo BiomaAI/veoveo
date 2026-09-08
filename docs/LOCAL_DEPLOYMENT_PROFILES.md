@@ -106,8 +106,10 @@ revision and referenced profile files, checks out the sources that supply its re
 at their recorded revisions, and verifies their origins and source-chart content digests.
 Image validation consumes the qualified lock and complete platform image closure;
 installation does not evaluate Docker Bake or inspect mutable working chart files.
-Compilation applies source values followed by installation-owned overrides and the
-source-owned digest map in production mode. Helm consumes that complete prepared render.
+Compilation applies source values followed by installation-owned overrides and each
+atomic release's locked image selection in production mode. Components can retain
+different qualified builds of a shared image target. Helm consumes the complete
+prepared render.
 Installation never re-resolves `HEAD`, a branch, or
 another mutable source expression.
 

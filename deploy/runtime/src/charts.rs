@@ -100,6 +100,7 @@ pub(crate) fn helm_render_locked(
     profile: &LoadedProfile,
     source: &ResolvedSource,
     release: &ReleaseSpec,
+    image_digests: &BTreeMap<String, String>,
     components: &BTreeSet<PlatformComponent>,
     mcp_servers: &BTreeSet<FirstPartyMcpServer>,
 ) -> Result<String> {
@@ -116,11 +117,6 @@ pub(crate) fn helm_render_locked(
         args.push("--values".to_owned());
         args.push(path_str(&values)?.to_owned());
     }
-    let image_digests = release_image_digests(
-        release.values_contract,
-        &source.image_digests,
-        &source.deployment_image_digests,
-    );
     append_release_values(
         &mut args,
         profile,
@@ -134,17 +130,6 @@ pub(crate) fn helm_render_locked(
     let rendered = output_checked("helm", refs, None)
         .with_context(|| format!("rendering locked Helm release {}", release.name))?;
     String::from_utf8(rendered).context("Helm output is not UTF-8")
-}
-
-pub(crate) fn release_image_digests<'a>(
-    values_contract: ReleaseValuesContract,
-    source: &'a BTreeMap<String, String>,
-    deployment: &'a BTreeMap<String, String>,
-) -> &'a BTreeMap<String, String> {
-    match values_contract {
-        ReleaseValuesContract::Extension => deployment,
-        ReleaseValuesContract::Platform | ReleaseValuesContract::VeoveoSource => source,
-    }
 }
 
 pub(crate) fn helm_render(

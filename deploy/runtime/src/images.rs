@@ -2,9 +2,7 @@ use crate::sources::ResolvedSource;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use std::{collections::BTreeMap, process::Command};
-use veoveo_deploy_contract::{
-    DeploymentLock, DeploymentSourceRole, LoadedProfile, LockedSource, PlannedImage,
-};
+use veoveo_deploy_contract::{DeploymentLock, DeploymentSourceRole, LoadedProfile, PlannedImage};
 
 #[derive(Debug, Deserialize)]
 struct BakePrint {
@@ -23,55 +21,23 @@ struct BakeImageTarget {
     tags: Vec<String>,
 }
 
-pub(crate) fn locked_image_digests(
-    profile: &LoadedProfile,
-    sources: &[LockedSource],
-) -> Result<BTreeMap<String, String>> {
-    locked_image_digests_for_registry(&profile.definition.registry.pull_address, sources)
-}
-
-pub(crate) fn locked_image_digests_for_registry(
-    registry: &str,
-    sources: &[LockedSource],
-) -> Result<BTreeMap<String, String>> {
-    let prefix = format!("{registry}/");
-    let mut image_digests = BTreeMap::new();
-    for source in sources {
+pub(crate) fn validate_locked_images(profile: &LoadedProfile, lock: &DeploymentLock) -> Result<()> {
+    lock.validate()?;
+    // Validate target ownership and platform completeness once per target. Actual
+    // artifact selection comes from each atomic unit, including retained versions.
+    let mut targets = BTreeMap::new();
+    for source in &lock.sources {
         for image in &source.images {
-            let repository = image.repository.strip_prefix(&prefix).with_context(|| {
-                format!(
-                    "locked image {} repository {} is outside profile registry {}",
-                    image.name, image.repository, registry
-                )
-            })?;
-            ensure!(
-                image_digests
-                    .insert(repository.to_owned(), image.digest.clone())
-                    .is_none(),
-                "locked image repository {} is owned by more than one deployment source",
-                image.repository
-            );
+            targets
+                .entry((&source.name, &image.name))
+                .or_insert_with(|| PlannedImage {
+                    source: source.name.clone(),
+                    target: image.name.clone(),
+                    reference: format!("{}@{}", image.repository, image.digest),
+                });
         }
     }
-    Ok(image_digests)
-}
-
-pub(crate) fn validate_locked_images(profile: &LoadedProfile, lock: &DeploymentLock) -> Result<()> {
-    // Publication validates Bake target ownership. Installation consumes those
-    // immutable artifacts, including images built before the chart snapshot.
-    locked_image_digests(profile, &lock.sources)?;
-    let images = lock
-        .sources
-        .iter()
-        .flat_map(|source| {
-            source.images.iter().map(|image| PlannedImage {
-                source: source.name.clone(),
-                target: image.name.clone(),
-                reference: format!("{}@{}", image.repository, image.digest),
-            })
-        })
-        .collect::<Vec<_>>();
-    profile.validate_image_plan(&images)
+    profile.validate_image_plan(&targets.into_values().collect::<Vec<_>>())
 }
 
 pub(crate) fn validate_bake_selections(

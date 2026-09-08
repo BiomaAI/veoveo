@@ -91,6 +91,117 @@ fn retained_image_provenance_is_bound_even_when_the_catalog_is_resealed() {
 }
 
 #[test]
+fn image_variants_bind_exact_build_revisions_instead_of_catalog_order() {
+    for same_bytes in [false, true] {
+        let mut lock = fixture();
+        let mut newer = lock.sources[0].images[0].clone();
+        newer.source_revision = SourceRevision::new("4".repeat(40)).unwrap();
+        newer.publication_digest = format!("sha256:{}", "5".repeat(64));
+        if !same_bytes {
+            newer.digest = format!("sha256:{}", "6".repeat(64));
+        }
+        lock.sources[0].images.push(newer.clone());
+        lock.components[1].units[0].inputs = lock.components[1].units[0]
+            .inputs
+            .iter()
+            .cloned()
+            .map(|mut input| {
+                if let ComponentInput::Image {
+                    source,
+                    target,
+                    digest,
+                    ..
+                } = &mut input
+                    && target == &newer.name
+                {
+                    source.revision = newer.source_revision.clone();
+                    *digest = ArtifactDigest::new(&newer.digest).unwrap();
+                }
+                input
+            })
+            .collect();
+        relock(&mut lock, 1);
+        lock.validate().unwrap();
+        lock.sources[0].images.reverse();
+        lock.validate().unwrap();
+
+        lock.sources[0]
+            .images
+            .retain(|image| image.source_revision != newer.source_revision);
+        assert!(
+            lock.validate()
+                .unwrap_err()
+                .to_string()
+                .contains("build provenance")
+        );
+    }
+}
+
+#[test]
+fn retained_versions_do_not_relax_image_ownership_or_publication_identity() {
+    let original = fixture();
+    let mut newer = original.sources[0].images[0].clone();
+    newer.source_revision = SourceRevision::new("4".repeat(40)).unwrap();
+
+    let mut repeated = original.clone();
+    repeated.sources[0]
+        .images
+        .push(original.sources[0].images[0].clone());
+    assert!(
+        repeated
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("repeats a build revision")
+    );
+
+    let mut moved = original.clone();
+    let mut moved_image = newer.clone();
+    moved_image.repository.push_str("-moved");
+    moved.sources[0].images.push(moved_image);
+    assert!(
+        moved
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("changes repository")
+    );
+
+    let mut stolen = original.clone();
+    stolen.sources[1].images.push(newer.clone());
+    assert!(
+        stolen
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("owned by both")
+    );
+
+    let mut renamed = original.clone();
+    let mut renamed_image = newer.clone();
+    renamed_image.name = "different-target".into();
+    renamed.sources[0].images.push(renamed_image);
+    assert!(
+        renamed
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("owned by both")
+    );
+
+    let mut unqualified = original;
+    newer.publication_digest = newer.digest.clone();
+    unqualified.sources[0].images.push(newer);
+    assert!(
+        unqualified
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("attested publication")
+    );
+}
+
+#[test]
 fn resealed_chart_or_removed_artifact_cannot_escape_the_complete_lock() {
     let mut changed = fixture();
     changed.components[1].units[0].inputs = changed.components[1].units[0]

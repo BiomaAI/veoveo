@@ -163,9 +163,10 @@ pub(crate) fn validate_artifact_bindings(lock: &DeploymentLock) -> Result<()> {
                             let image = locked
                                 .images
                                 .iter()
-                                .find(|image| &image.name == target)
+                                .find(|image| &image.name == target
+                                    && image.source_revision == source.revision)
                                 .context(
-                                    "component image target is outside the artifact closure",
+                                    "component image target or build provenance is outside the artifact closure",
                                 )?;
                             ensure!(
                                 source.repository == locked.repository

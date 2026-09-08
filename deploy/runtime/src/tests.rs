@@ -1,24 +1,20 @@
 use std::{
     cell::Cell,
-    collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
 use veoveo_deploy_contract::{
-    DeploymentSource, DeploymentSourceRole, LoadedProfile, LockedImage, LockedSource, ReleaseSpec,
+    DeploymentSource, DeploymentSourceRole, LoadedProfile, LockedSource, ReleaseSpec,
     ReleaseValuesContract, SecretClosure, SecretClosureStatus, SecretObjectKey,
     SecretObservationStatus, SourceRepository,
 };
 
 use crate::{
-    charts::{
-        lock_source_charts, ordered_release_values, release_image_digests, validate_locked_charts,
-    },
+    charts::{lock_source_charts, ordered_release_values, validate_locked_charts},
     configuration::{
         after_secret_closure, decode_secret_observation, gateway_mount_key,
         prepare_gateway_activation, validate_gateway_public_file,
     },
-    images::locked_image_digests_for_registry,
     sources::normalize_origin,
 };
 
@@ -140,78 +136,6 @@ fn publisher_and_installer_share_chart_inventory_and_content_validation() {
             .unwrap_err()
             .to_string()
             .contains("duplicate Helm release")
-    );
-}
-
-#[test]
-fn deployment_image_closure_spans_sources() {
-    let sources = [
-        LockedSource {
-            name: "platform".to_owned(),
-            role: DeploymentSourceRole::Platform,
-            repository: "https://example.invalid/platform".to_owned(),
-            revision: "a".repeat(40),
-            images: vec![LockedImage {
-                name: "agent-kernel".to_owned(),
-                repository: "registry.example/veoveo/agent-kernel".to_owned(),
-                source_revision: veoveo_extension_contract::SourceRevision::new("a".repeat(40))
-                    .unwrap(),
-                digest: DIGEST_A.to_owned(),
-                publication_digest: DIGEST_B.to_owned(),
-            }],
-            charts: vec![],
-        },
-        LockedSource {
-            name: "extension".to_owned(),
-            role: DeploymentSourceRole::Extension,
-            repository: "https://example.invalid/extension".to_owned(),
-            revision: "b".repeat(40),
-            images: vec![LockedImage {
-                name: "runtime".to_owned(),
-                repository: "registry.example/extension/runtime".to_owned(),
-                source_revision: veoveo_extension_contract::SourceRevision::new("b".repeat(40))
-                    .unwrap(),
-                digest: DIGEST_B.to_owned(),
-                publication_digest: DIGEST_A.to_owned(),
-            }],
-            charts: vec![],
-        },
-    ];
-
-    assert_eq!(
-        locked_image_digests_for_registry("registry.example", &sources).unwrap(),
-        [
-            ("extension/runtime".to_owned(), DIGEST_B.to_owned()),
-            ("veoveo/agent-kernel".to_owned(), DIGEST_A.to_owned()),
-        ]
-        .into_iter()
-        .collect()
-    );
-}
-
-#[test]
-fn external_values_receive_platform_images_without_polluting_platform_values() {
-    let source = [("veoveo/gateway".to_owned(), DIGEST_A.to_owned())]
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
-    let deployment = [
-        ("extension/runtime".to_owned(), DIGEST_B.to_owned()),
-        ("veoveo/gateway".to_owned(), DIGEST_A.to_owned()),
-    ]
-    .into_iter()
-    .collect::<BTreeMap<_, _>>();
-
-    assert_eq!(
-        release_image_digests(ReleaseValuesContract::Platform, &source, &deployment),
-        &source
-    );
-    assert_eq!(
-        release_image_digests(ReleaseValuesContract::VeoveoSource, &source, &deployment),
-        &source
-    );
-    assert_eq!(
-        release_image_digests(ReleaseValuesContract::Extension, &source, &deployment),
-        &deployment
     );
 }
 
