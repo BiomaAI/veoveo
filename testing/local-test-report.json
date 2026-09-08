@@ -1,56 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:fbd547471cc31f7b605f7faeb43006312e8e184d6d0abb75edb3ad5ec2a7643e",
-  "updatedAt": "2026-09-08T15:05:32Z",
+  "buildDigest": "sha256:a47f2c48eb65e4b7d3619040b0e7439c3b28e023d6a50515f019bae27c24ead1",
+  "updatedAt": "2026-09-08T15:12:42Z",
   "checks": [
     {
-      "name": "stream-candidate-cache-clippy",
+      "name": "task-read-activation-helm",
       "command": [
         "cargo",
-        "clippy",
-        "--locked",
-        "-p",
-        "veoveo-smoke",
-        "--bin",
+        "xtask",
         "smoke",
-        "--",
-        "-D",
-        "warnings"
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T15:04:42Z",
-      "durationSeconds": 26.086432155,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-candidate-cache-fmt",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T15:05:32Z",
-      "durationSeconds": 2.949754868,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-candidate-cache-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-smoke",
-        "--bin",
-        "smoke",
-        "candidate::tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T15:03:32Z",
-      "durationSeconds": 1.271909827,
+      "finishedAt": "2026-09-08T15:12:42Z",
+      "durationSeconds": 7.758852089,
       "detail": "completed successfully"
     }
   ]
