@@ -9,6 +9,8 @@ use veoveo_extension_contract::SimulationRuntimeBuildLock;
 
 #[path = "helm_config/commands.rs"]
 mod commands;
+#[path = "helm_config/gitops.rs"]
+mod gitops;
 #[path = "helm_config/jobs.rs"]
 mod jobs;
 use commands::{contains, not_contains, run_checked};
@@ -43,6 +45,7 @@ fn assert_revision_metadata_follows_payload(path: &str) -> Result<()> {
 }
 
 pub(crate) fn helm_config() -> Result<()> {
+    gitops::check()?;
     jobs::check()?;
     for chart in [
         "deploy/helm/veoveo-extension",

@@ -1,5 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+configurations:
+  - gitops/name-references.yaml
 resources:
   - gitops/namespace.yaml
   - gitops/sources
@@ -8,6 +10,8 @@ resources:
 configMapGenerator:
   - name: bioma-gateway-control-plane
     namespace: veoveo
+    options:
+      disableNameSuffixHash: true
     files:
       - gateway.json
       - recording-producer-jwks.json
@@ -17,21 +21,26 @@ configMapGenerator:
       - uav-pilot-jwks.json
   - name: uav-sim-world-binding
     namespace: veoveo
+    options:
+      disableNameSuffixHash: true
     files:
       - world.json=uav-sim-world.json
   - name: bioma-veoveo-values
     namespace: flux-system
+    options:
+      immutable: true
     files:
       - values.yaml=values.yaml
       - k3d-values.yaml=k3d-values.yaml
       - images.lock.yaml=images/veoveo.lock.yaml
   - name: bioma-uav-sim-values
     namespace: flux-system
+    options:
+      immutable: true
     files:
       - uav-sim-values.yaml=uav-sim-values.yaml
       - images.lock.yaml=images/uav-sim.lock.yaml
 generatorOptions:
-  disableNameSuffixHash: true
   labels:
     reconcile.fluxcd.io/watch: Enabled
     app.kubernetes.io/part-of: veoveo

@@ -100,8 +100,16 @@ cargo xtask release helm-charts \
 BuildKit pushes only missing layers and does not load release images into the host
 Docker store. Record the manifest digest for every published image in
 the owning release’s lock under `images/`, then update the selected chart manifest digests in `gitops/sources/`
-in one release-input commit. The root Flux artifact carries those chart selections and
+in one release-input commit. Each source object's name ends in its complete manifest
+digest without the `sha256:` prefix. Update its HelmRelease `chartRef.name` in
+`gitops/releases/` to the same name. Kustomize generates immutable values ConfigMaps
+with content suffixes and rewrites every Helm values reference through
+`gitops/name-references.yaml`. The root Flux artifact carries those chart selections and
 all generated values from one Git revision.
+
+The HelmRelease update selects its chart and values together. A new values schema
+therefore waits for its matching chart source. This also prevents an intermediate
+upgrade that would otherwise combine new image pins with the previous chart.
 
 After pushing that parent commit, observe the exact rollout through the focused typed
 harness. Pass every Deployment whose digest changed; do not list an unchanged simulator

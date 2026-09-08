@@ -1,6 +1,25 @@
-use std::{ffi::OsString, path::Path, process::Command};
+use std::{ffi::OsString, fs, path::Path, process::Command};
 
 use anyhow::{Context, Result, ensure};
+
+pub(super) fn copy_fixture(source: &Path, destination: &Path) -> Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        ensure!(
+            !kind.is_symlink(),
+            "configuration fixture cannot follow a symlink"
+        );
+        let target = destination.join(entry.file_name());
+        if kind.is_dir() {
+            copy_fixture(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
 
 pub(super) fn run_checked(
     program: &Path,
