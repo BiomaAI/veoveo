@@ -697,6 +697,62 @@ mod tests {
         );
     }
     #[test]
+    fn gpu_control_consumers_do_not_enable_unneeded_analytics() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .unwrap();
+        // Metadata's all-feature graph is intentionally conservative for file
+        // discovery. Cargo tree resolves the requested production feature set.
+        let output = std::process::Command::new("cargo")
+            .args([
+                "tree",
+                "--locked",
+                "--package",
+                "veoveo-stream-mcp",
+                "--package",
+                "veoveo-reason-mcp",
+                "--target",
+                "x86_64-unknown-linux-gnu",
+                "--edges",
+                "normal,build",
+                "--prefix",
+                "none",
+                "--format",
+                "{p}",
+            ])
+            .current_dir(repository)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let tree = String::from_utf8(output.stdout).unwrap();
+        let packages = tree
+            .lines()
+            .filter_map(|line| line.split_whitespace().next())
+            .collect::<BTreeSet<_>>();
+        for expected in [
+            "veoveo-stream-mcp",
+            "veoveo-reason-mcp",
+            "veoveo-task-runtime",
+        ] {
+            assert!(
+                packages.contains(expected),
+                "missing expected consumer {expected}"
+            );
+        }
+        for unneeded in ["duckdb", "libduckdb-sys"] {
+            assert!(
+                !packages.contains(unneeded),
+                "GPU control consumers enabled {unneeded}"
+            );
+        }
+    }
+
+    #[test]
     fn real_recording_consumers_exclude_service_implementations_and_keep_native_inputs() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")

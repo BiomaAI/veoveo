@@ -74,6 +74,11 @@ closure. Selected local packages contribute all versioned and non-ignored packag
 files, including build scripts, native code, and embedded assets. Unselected packages
 contribute only the metadata files and target entrypoints Cargo needs for discovery.
 
+The shared task runtime consumes the workspace's feature-neutral MCP contract dependency.
+Analytics is enabled by its actual consumers. A native Cargo feature-graph regression
+requires Stream and Reason to retain the task runtime without DuckDB or its native
+build script. This production graph check is separate from conservative file discovery.
+
 A package that reads compilation inputs outside its own directory declares them as
 repository-relative files or directories:
 

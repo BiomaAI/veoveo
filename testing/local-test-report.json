@@ -1,41 +1,20 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:071d409dd42f3c6c8be395b705b5feb4bf107c741666f76fd255a44a089e4249",
-  "updatedAt": "2026-09-08T09:34:31Z",
+  "buildDigest": "sha256:0a5f733386df1a49b3d86349dcfdeeebe93088316dec21eaec37293583a9012a",
+  "updatedAt": "2026-09-08T10:16:32Z",
   "checks": [
     {
-      "name": "component-scope-api",
-      "command": [
-        "env",
-        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
-        "VEOVEO_SCOPE_TEST_IMAGE=k3d-veoveo-registry.localhost:5000/veoveo/console-bff@sha256:5def84365bd9b532ca329207950a3f0dd03dbc129e0294553d46c41215d9aac6",
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-deploy-runtime",
-        "--lib",
-        "--",
-        "--ignored",
-        "--test-threads=1"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T09:34:13Z",
-      "durationSeconds": 139.227628998,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "component-scope-clippy",
+      "name": "task-runtime-feature-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-deploy-contract",
+        "veoveo-task-runtime",
         "-p",
-        "veoveo-deploy-runtime",
+        "veoveo-stream-mcp",
         "-p",
-        "veoveo-deployment-smoke",
+        "veoveo-reason-mcp",
         "-p",
         "veoveo-xtask",
         "--all-targets",
@@ -44,12 +23,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T09:34:21Z",
-      "durationSeconds": 0.499093908,
+      "finishedAt": "2026-09-08T10:16:29Z",
+      "durationSeconds": 75.645415959,
       "detail": "completed successfully"
     },
     {
-      "name": "component-scope-format",
+      "name": "task-runtime-feature-format",
       "command": [
         "cargo",
         "fmt",
@@ -58,66 +37,41 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T09:34:31Z",
-      "durationSeconds": 2.164580858,
+      "finishedAt": "2026-09-08T10:16:32Z",
+      "durationSeconds": 2.146955131,
       "detail": "completed successfully"
     },
     {
-      "name": "component-scope-helm",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T09:34:28Z",
-      "durationSeconds": 6.521951728,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "component-scope-live",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "component-scope-verify",
-        "--repository",
-        "/home/rozgo/BiomaAI/veoveo",
-        "--context",
-        "k3d-veoveo-bioma",
-        "--push-registry",
-        "127.0.0.1:5001",
-        "--pull-registry",
-        "k3d-veoveo-registry.localhost:5000",
-        "--base-image",
-        "127.0.0.1:5001/veoveo/console-bff@sha256:5def84365bd9b532ca329207950a3f0dd03dbc129e0294553d46c41215d9aac6",
-        "--evidence-output",
-        "output/development/component-scope-20260908-recorded.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T09:31:53Z",
-      "durationSeconds": 39.718487828,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "component-scope-tests",
+      "name": "task-runtime-feature-graph",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-deploy-contract",
-        "-p",
-        "veoveo-deploy-runtime",
-        "-p",
-        "veoveo-deployment-smoke",
-        "-p",
         "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T09:34:20Z",
-      "durationSeconds": 6.28596807,
+      "finishedAt": "2026-09-08T10:15:13Z",
+      "durationSeconds": 5.371317834,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "task-runtime-feature-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-task-runtime",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-reason-mcp",
+        "--all-targets"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T10:12:32Z",
+      "durationSeconds": 124.305350323,
       "detail": "completed successfully"
     }
   ]
