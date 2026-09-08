@@ -10,8 +10,8 @@ use anyhow::{Context, Result, bail, ensure};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
-    ConflictingGpuDevicePluginRemoval, GpuIsolation, GpuSchedulingProfile, GpuTimeSliceInterval,
-    LoadedProfile, ManagedGpuAllocatorInstallation, NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION,
+    GpuIsolation, GpuSchedulingProfile, GpuTimeSliceInterval, LoadedProfile,
+    ManagedGpuAllocatorInstallation, NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION,
     NVIDIA_DRA_DRIVER_NAME, NVIDIA_DRA_HELM_VERSION, NVIDIA_DRA_HOST_DRIVER_VERSION,
     NVIDIA_DRA_KUBERNETES_VERSION,
 };
@@ -22,6 +22,7 @@ use crate::process::{kubectl_apply_value, output_checked, status_checked};
 mod admission;
 #[path = "gpu/helm.rs"]
 mod helm;
+pub(crate) mod migration;
 #[path = "gpu/workloads.rs"]
 mod workloads;
 
@@ -197,8 +198,8 @@ pub(crate) fn prepare_gpu_allocator_objects(
 
 pub(super) fn ensure_gpu_allocator(
     context: &str,
-    workload_namespace: &str,
     scheduling: &GpuSchedulingProfile,
+    migration: &migration::PreparedGpuMigration,
     install_allocator: impl FnOnce() -> Result<()>,
 ) -> Result<()> {
     let installation = &scheduling.allocator.installation;
@@ -223,7 +224,7 @@ pub(super) fn ensure_gpu_allocator(
         )
     })?;
     let nodes = select_eligible_nodes(context, installation)?;
-    remove_conflicting_device_plugin(context, workload_namespace, scheduling, installation)?;
+    migration.apply(context)?;
     ensure_no_conflicting_device_plugin(context, &nodes)?;
     install_allocator()?;
     verify_allocator_release(context, installation, &nodes)?;
@@ -331,156 +332,6 @@ fn select_eligible_nodes(
     }
     names.sort();
     Ok(names)
-}
-
-fn remove_conflicting_device_plugin(
-    context: &str,
-    workload_namespace: &str,
-    scheduling: &GpuSchedulingProfile,
-    installation: &ManagedGpuAllocatorInstallation,
-) -> Result<()> {
-    match &installation.conflicting_device_plugin_removal {
-        ConflictingGpuDevicePluginRemoval::RequireAbsent => Ok(()),
-        ConflictingGpuDevicePluginRemoval::DeleteDaemonSet { namespace, name } => {
-            if !kubernetes_resource_exists(context, namespace, "daemonset", name)? {
-                return Ok(());
-            }
-            quiesce_gpu_workloads(context, workload_namespace, scheduling)?;
-            status_checked(
-                "kubectl",
-                [
-                    "--context",
-                    context,
-                    "--namespace",
-                    namespace,
-                    "delete",
-                    "daemonset",
-                    name,
-                    "--wait=true",
-                    "--timeout=5m",
-                ],
-                &[],
-                None,
-            )
-            .context("removing declared conflicting NVIDIA device-plugin DaemonSet")
-        }
-        ConflictingGpuDevicePluginRemoval::UninstallHelmRelease {
-            namespace,
-            release_name,
-            expected_chart_version,
-        } => {
-            let Some(release) =
-                crate::helm_state::release_metadata(context, namespace, release_name)?
-            else {
-                return Ok(());
-            };
-            ensure!(
-                release
-                    .chart
-                    .ends_with(&format!("-{expected_chart_version}")),
-                "conflicting NVIDIA device-plugin release {namespace}/{release_name} runs chart {}, expected version {expected_chart_version}",
-                release.chart
-            );
-            quiesce_gpu_workloads(context, workload_namespace, scheduling)?;
-            status_checked(
-                "helm",
-                [
-                    "--kube-context",
-                    context,
-                    "uninstall",
-                    release_name,
-                    "--namespace",
-                    namespace,
-                    "--wait",
-                ],
-                &[],
-                None,
-            )
-            .context("uninstalling declared conflicting NVIDIA device-plugin Helm release")
-        }
-    }
-}
-
-fn kubernetes_resource_exists(
-    context: &str,
-    namespace: &str,
-    kind: &str,
-    name: &str,
-) -> Result<bool> {
-    let output = Command::new("kubectl")
-        .args([
-            "--context",
-            context,
-            "--namespace",
-            namespace,
-            "get",
-            kind,
-            name,
-            "-o",
-            "name",
-        ])
-        .output()
-        .with_context(|| format!("checking Kubernetes {kind} {namespace}/{name}"))?;
-    if output.status.success() {
-        return Ok(true);
-    }
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    if stderr.contains("NotFound") || stderr.contains("not found") {
-        return Ok(false);
-    }
-    bail!(
-        "kubectl failed while checking {kind} {namespace}/{name} with {}: {}",
-        output.status,
-        stderr.trim()
-    )
-}
-
-fn quiesce_gpu_workloads(
-    context: &str,
-    namespace: &str,
-    scheduling: &GpuSchedulingProfile,
-) -> Result<()> {
-    let deployments = scheduling
-        .same_physical_device_groups
-        .iter()
-        .flat_map(|group| group.workloads.iter().map(|workload| &workload.deployment))
-        .collect::<BTreeSet<_>>();
-    for deployment in deployments {
-        if !kubernetes_resource_exists(context, namespace, "deployment", deployment)? {
-            continue;
-        }
-        status_checked(
-            "kubectl",
-            [
-                "--context",
-                context,
-                "--namespace",
-                namespace,
-                "scale",
-                "deployment",
-                deployment,
-                "--replicas=0",
-            ],
-            &[],
-            None,
-        )?;
-        status_checked(
-            "kubectl",
-            [
-                "--context",
-                context,
-                "--namespace",
-                namespace,
-                "rollout",
-                "status",
-                format!("deployment/{deployment}").as_str(),
-                "--timeout=5m",
-            ],
-            &[],
-            None,
-        )?;
-    }
-    Ok(())
 }
 
 fn ensure_no_conflicting_device_plugin(context: &str, nodes: &[String]) -> Result<()> {

@@ -59,6 +59,7 @@ for an enterprise installation governed by GitOps.
 | `configuration.rs` | Rendered Secret-reference closure, bounded Secret observations, public ConfigMaps, and gateway activation |
 | `cluster.rs` | Local registry and k3d lifecycle, node bootstrap, and cluster readiness |
 | `gpu.rs` and `gpu/` | Qualified allocator orchestration, persistent claims, admission, and workload placement |
+| `gpu/migration.rs` | Preflight inventory of device-plugin retirement and workload quiesce effects, selected-owner checks, and version-bound execution |
 | `process.rs` | Native command invocation helpers and explicit JSON object application |
 
 The runtime retains the Secret gate before profile installation writes and mandatory GPU
@@ -213,9 +214,25 @@ ConfigMap identities and versions and both Helm revisions after rejection, then 
 and verifies removal of its namespace. These resources exercise ownership without
 claiming GPU workload or selected-deployment acceptance.
 
+Device-plugin migration resolves its removal and quiesce inventory before the first
+profile write. Every configured workload must belong to a selected locked component.
+Retiring objects cannot overlap any current component, and a retiring Helm release
+cannot be a current atomic target. Helm removal reads the exact stored manifest and
+hooks, verifies live owner metadata, and rejects deletion hooks or removal of a
+Namespace, Node, or CRD whose effects exceed that inventory.
+
+The executor consumes the prepared target set. It rechecks object UIDs and resource
+versions, observed absences, and the Helm revision before quiescing. Each scale operation carries its
+observed resource-version precondition. Retirement observations are checked again
+after quiescing. These checks detect drift; they do not fence another host between
+the final observation and deletion. The isolated Rust regression uses zero-replica
+Deployments and a ConfigMap-only retiring release. It verifies rejection of an
+unselected workload and changed retirement state, successful checked removal, preserved
+unselected object contents, and namespace cleanup. It executes no GPU workload.
+
 Installation still processes the full profile. Exact component selection,
-execution fencing, raw-resource adoption, conflicting-device-plugin transition
-inventories, and live zero-write acceptance remain unfinished. The NVIDIA DRA 0.5.0
+execution fencing, raw-resource adoption, complete mutation receipts,
+and live zero-write acceptance remain unfinished. The NVIDIA DRA 0.5.0
 artifact and render checks pass; hardware qualification of that release is pending.
 
 ## Verified Installation Reuse
