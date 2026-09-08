@@ -13,6 +13,8 @@
 | `veoveo.io/compiler-cpu-comparison/v1` | compiler-only quota experiment, warmup, source variants, observed Cargo packages, binary digests and cgroup deltas |
 | sccache 0.17.0 | SHA-256-pinned Linux amd64 experiment tool; local disk cache and client-side compilation, incremental Rust disabled |
 | `veoveo.io/compiler-cache-comparison/v1` | fresh Cargo target comparison, exact compiler and binary identity, typed sccache counters, no release eligibility |
+| BuildKit local cache export | OCI cache index pinned to one manifest digest, `mode=max` export, and import into an initially empty worker |
+| `veoveo.io/compiler-worker-comparison/v1` | same-host worker isolation, unchanged result reuse, matched source-edit inputs and artifacts, CPU/phase timing, and verified cleanup |
 | Git | exact committed publication source; local builds also admit non-ignored working-tree files |
 
 ## Ownership
@@ -34,6 +36,29 @@ The Rust harness requires matching ordinary-artifact and experiment binary diges
 records cache state before and after each case, and rejects failed Cargo actions or
 cache errors. Compiler-probe failures remain visible as diagnostics: native build
 scripts can deliberately test unsupported compiler inputs inside a successful build.
+
+The worker comparison uses the admitted shared compiler recipe without a compiler
+wrapper. It exports the primary worker's complete result cache, creates an isolated
+BuildKit worker with the declared CPU and memory limits, and proves that worker's cache
+starts empty. The control library owns that temporary worker and its state volume.
+Both workers remain under the common builder lease, and solves run sequentially.
+Buildx 0.37.0 and BuildKit 0.33.0 were reconfirmed as the latest stable upstream releases
+on September 8, 2026; the experiment reuses their existing exact pins.
+
+The comparison imports one exact OCI cache manifest, verifies an unchanged build with
+zero compilation and no Cargo cache mounts, then applies the same disposable Rust
+source edits on both workers. Each matched pair must produce identical compiled files.
+Logs record the actual compiled package sets. An unchanged BuildKit result can be
+portable even when the next edit recompiles dependencies because execution cache mounts
+were not transported. The measurements distinguish these outcomes. They do not claim
+network performance across hosts, a cold primary baseline, or GPU runtime acceptance.
+
+The command records cache export bytes, worker identity, CPU consumption, BuildKit phase
+windows, and command-entry timing. Storage preflight retains the existing 20% reserve.
+The temporary worker, volume, and exported cache are removed on completion; ordinary
+builder caches and local binary evidence remain. Cleanup failure makes the comparison
+fail. Normal scope exit also attempts worker cleanup after an error. An externally
+terminated process can leave its uniquely named worker for explicit recovery.
 
 ## Context Construction
 

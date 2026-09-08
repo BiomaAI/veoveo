@@ -11,9 +11,11 @@ use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 use veoveo_deploy_contract::RegistryTransport;
 
+mod experiment;
 mod quota;
 mod resources;
 
+pub use experiment::ExperimentWorker;
 pub use quota::CpuQuotaLease;
 pub use resources::{BuilderResources, CpuSnapshot, RESOURCES, cpu_snapshot};
 
@@ -659,9 +661,9 @@ fn managed_root(repository: &Path) -> Result<PathBuf> {
     Ok(worktree.join("target/veoveo-xtask"))
 }
 
-fn output_text<const N: usize>(
+fn output_text<'a>(
     program: &str,
-    args: [&str; N],
+    args: impl IntoIterator<Item = &'a str>,
     directory: Option<&Path>,
 ) -> Result<String> {
     let mut command = Command::new(program);
