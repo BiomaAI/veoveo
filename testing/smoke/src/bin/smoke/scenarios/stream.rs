@@ -62,6 +62,7 @@ pub(crate) async fn stream_gpu(
     work_dir: &Path,
     candidate_inputs: Option<(&Path, &Path)>,
     pipeline_id: &str,
+    producer_key_secret: &str,
 ) -> Result<()> {
     ensure!(
         env_file.is_file(),
@@ -69,19 +70,16 @@ pub(crate) async fn stream_gpu(
         env_file.display()
     );
     let environment = load_environment(env_file)?;
+    let namespace = kubernetes_namespace(&environment);
     let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
     let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
     let sample_h264 = prepare_sample_h264(work_dir, &environment)?;
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
-    let mut producer_key = tempfile::NamedTempFile::new_in(&tmpdir)?;
+    let producer_key = recording_producer_key(namespace, producer_key_secret, &tmpdir)?;
     let queue_dir = tmpdir.join("forwarder-queue");
     let forwarder_log = tmpdir.join("recording-forwarder.log");
     std::fs::create_dir_all(&queue_dir)?;
-    std::io::Write::write_all(
-        &mut producer_key,
-        required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM")?.as_bytes(),
-    )?;
     let gateway_url = required_environment(&environment, "PUBLIC_BASE_URL")?.trim_end_matches('/');
     let producer_client_id = optional_environment(
         &environment,
@@ -89,7 +87,6 @@ pub(crate) async fn stream_gpu(
         "recording-producer",
     );
     let producer_key_id = required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_KEY_ID")?;
-    let namespace = kubernetes_namespace(&environment);
 
     run_checked(
         Path::new("kubectl"),
@@ -169,9 +166,9 @@ pub(crate) async fn stream_gpu(
         signing_key_id,
         "stream",
         "stream-gpu-smoke",
-        required_environment(&environment, "RECORDING_TENANT_KEY")?,
-        required_environment(&environment, "RECORDING_WORK_CONTEXT")?,
-    )?;
+        &environment,
+    )
+    .await?;
     let task_client =
         FinalTaskSmokeClient::new(STREAM_MCP_URL, bearer_token).with_host(STREAM_HOST);
     let task = task_client
@@ -236,6 +233,50 @@ pub(crate) fn load_environment(path: &Path) -> Result<BTreeMap<String, String>> 
         .with_context(|| format!("parsing environment file {}", path.display()))
 }
 
+/// Keep the installed producer credential in a private file owned by the harness.
+/// `NamedTempFile` removes it on every return path, including failed acceptance.
+pub(crate) fn recording_producer_key(
+    namespace: &str,
+    secret_name: &str,
+    directory: &Path,
+) -> Result<tempfile::NamedTempFile> {
+    #[derive(serde::Deserialize)]
+    struct Secret {
+        data: KeyData,
+    }
+    #[derive(serde::Deserialize)]
+    struct KeyData {
+        #[serde(rename = "private-key.pem")]
+        private_key: String,
+    }
+
+    let document = run_checked(
+        Path::new("kubectl"),
+        [
+            "-n".into(),
+            namespace.into(),
+            "get".into(),
+            "secret".into(),
+            secret_name.into(),
+            "-o".into(),
+            "json".into(),
+        ],
+        [],
+    )?;
+    let secret: Secret = serde_json::from_str(&document)
+        .context("recording producer Secret must contain private-key.pem")?;
+    let key = BASE64_STANDARD
+        .decode(secret.data.private_key)
+        .context("recording producer Secret contains invalid base64")?;
+    ensure!(
+        !key.is_empty(),
+        "recording producer Secret contains an empty key"
+    );
+    let mut file = tempfile::NamedTempFile::new_in(directory)?;
+    std::io::Write::write_all(&mut file, &key)?;
+    Ok(file)
+}
+
 pub(crate) fn required_environment<'a>(
     environment: &'a BTreeMap<String, String>,
     name: &str,
@@ -286,20 +327,7 @@ pub(crate) async fn wait_for_recording_catalog(
     environment: &BTreeMap<String, String>,
     recording_key: &str,
 ) -> Result<RecordingId> {
-    let username = required_environment(environment, "VEOVEO_SURREAL_RUNTIME_USERNAME")?;
-    let password = required_environment(environment, "VEOVEO_SURREAL_RUNTIME_PASSWORD")?;
-    let namespace = required_environment(environment, "VEOVEO_SURREAL_NAMESPACE")?;
-    let database = required_environment(environment, "VEOVEO_SURREAL_DATABASE")?;
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            "ws://127.0.0.1:8000",
-            namespace,
-            database,
-            StoreCredentials::database(username, SecretString::from(password.to_owned())),
-        )
-        .build()?,
-    )
-    .await?;
+    let store = recording_store(environment).await?;
     let tenant_id =
         deterministic_tenant_id(required_environment(environment, "RECORDING_TENANT_KEY")?)?;
     for _ in 0..80 {
@@ -326,6 +354,24 @@ pub(crate) async fn wait_for_recording_catalog(
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
     bail!("Recording Hub did not catalog recording key {recording_key}")
+}
+
+async fn recording_store(environment: &BTreeMap<String, String>) -> Result<PlatformStore> {
+    let username = required_environment(environment, "VEOVEO_SURREAL_RUNTIME_USERNAME")?;
+    let password = required_environment(environment, "VEOVEO_SURREAL_RUNTIME_PASSWORD")?;
+    let namespace = required_environment(environment, "VEOVEO_SURREAL_NAMESPACE")?;
+    let database = required_environment(environment, "VEOVEO_SURREAL_DATABASE")?;
+    PlatformStore::connect(
+        StoreConfig::builder(
+            "ws://127.0.0.1:8000",
+            namespace,
+            database,
+            StoreCredentials::database(username, SecretString::from(password.to_owned())),
+        )
+        .build()?,
+    )
+    .await
+    .context("connecting to the installed recording catalog")
 }
 
 async fn wait_for_stream(
@@ -457,14 +503,20 @@ fn access_unit_is_idr(bytes: &[u8]) -> bool {
         .any(|index| bytes[index..].starts_with(&[0, 0, 0, 1]) && bytes[index + 4] & 0x1f == 5)
 }
 
-pub(crate) fn issue_internal_token(
+pub(crate) async fn issue_internal_token(
     private_key_der_b64: &str,
     key_id: &str,
     server: &str,
     subject: &str,
-    tenant: &str,
-    work_context: &str,
+    environment: &BTreeMap<String, String>,
 ) -> Result<String> {
+    let tenant = required_environment(environment, "RECORDING_TENANT_KEY")?;
+    let work_context = required_environment(environment, "RECORDING_WORK_CONTEXT")?;
+    let context = recording_store(environment)
+        .await?
+        .artifact_read_context_version(tenant, work_context)
+        .await?
+        .context("acceptance tenant and Work Context must exist in the installed catalog")?;
     let private_key_der = BASE64_STANDARD.decode(private_key_der_b64.trim())?;
     let issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
@@ -490,7 +542,7 @@ pub(crate) fn issue_internal_token(
         work_context: WorkContextId::new(work_context)?,
         tenant: TenantId::new(tenant)?,
         membership: WorkContextMembershipLevel::Owner,
-        policy_revision: PolicyVersion::new("r1")?,
+        policy_revision: PolicyVersion::new(context.policy_revision)?,
         output_policy: WorkContextOutputPolicy {
             owner: AccessSubject::Principal(principal.id.clone()),
             initial_grants: Vec::new(),

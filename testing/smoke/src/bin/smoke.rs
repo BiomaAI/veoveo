@@ -495,6 +495,9 @@ enum Cmd {
         /// Environment file used by the active k3d profile and direct assertion signer.
         #[arg(long, default_value = ".env")]
         env_file: PathBuf,
+        /// Installed Secret containing the recording producer's private-key.pem.
+        #[arg(long)]
+        producer_key_secret: String,
         /// Host workspace for the generated DeepStream sample.
         #[arg(long, default_value = "output/stream/work")]
         work_dir: PathBuf,
@@ -513,6 +516,9 @@ enum Cmd {
         /// Environment file used by the active k3d profile and direct assertion signer.
         #[arg(long, default_value = ".env")]
         env_file: PathBuf,
+        /// Installed Secret containing the recording producer's private-key.pem.
+        #[arg(long)]
+        producer_key_secret: String,
         /// Host workspace for the generated DeepStream sample.
         #[arg(long, default_value = "output/reason/work")]
         work_dir: PathBuf,
@@ -809,6 +815,7 @@ async fn main() -> Result<()> {
         }
         Cmd::StreamGpu {
             env_file,
+            producer_key_secret,
             work_dir,
             candidate_binary,
             candidate_app,
@@ -819,9 +826,14 @@ async fn main() -> Result<()> {
                 &work_dir,
                 candidate_binary.as_deref().zip(candidate_app.as_deref()),
                 &pipeline_id,
+                &producer_key_secret,
             )
             .await
         }
-        Cmd::ReasonGpu { env_file, work_dir } => reason_gpu(&env_file, &work_dir).await,
+        Cmd::ReasonGpu {
+            env_file,
+            work_dir,
+            producer_key_secret,
+        } => reason_gpu(&env_file, &work_dir, &producer_key_secret).await,
     }
 }
