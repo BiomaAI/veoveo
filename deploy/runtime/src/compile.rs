@@ -24,7 +24,7 @@ use crate::{
     sources::{normalize_origin, resolve_revision},
 };
 
-mod configuration;
+pub(crate) mod configuration;
 mod images;
 mod inputs;
 pub(crate) mod objects;
@@ -106,21 +106,22 @@ pub(crate) fn compile_locked_components(
     )
 }
 
-pub(crate) fn compile_image_update(
+pub(crate) fn compile_component_update(
     profile: &LoadedProfile,
-    lock: &DeploymentLock,
+    lock: &mut DeploymentLock,
     roots: &BTreeMap<ComponentSource, PathBuf>,
     requested: &BTreeSet<ComponentId>,
     updates: &BTreeMap<(String, String), LockedImage>,
+    publication: &crate::publication::ComponentUpdates,
 ) -> Result<Vec<CompiledComponent>> {
-    let mut inputs = inputs::locked_for_publication(profile, lock, roots, requested)?;
+    let mut inputs = inputs::component_update(profile, lock, roots, requested, publication)?;
     for component in lock
         .components
         .iter()
         .filter(|component| requested.contains(&component.declaration.id))
     {
         for unit in &component.units {
-            if inputs.images.contains_key(&unit.target) {
+            if inputs.snapshots.contains_key(&component.declaration.id) {
                 inputs.images.insert(
                     unit.target.clone(),
                     images::ImageInputs::updated(&lock.registry.pull_address, unit, updates)?,

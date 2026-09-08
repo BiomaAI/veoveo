@@ -12,6 +12,7 @@
 | Rerun 0.36.3 RRD | bounded live history and governed archive playback |
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
+| `veoveo.io/component-publication/v1` | exact component lock composition with retained artifact inputs; no cluster mutation claim |
 | `veoveo.io/gitops-convergence-evidence/v3` | repository-owned reconciliation mode, observation start, exact Flux source revision, root apply, Helm inventory, rollout, and readiness evidence |
 | `veoveo.io/console-apps-browser-acceptance/v1` | composed signed-in Console App catalog, server grouping, per-App headed render, and hardware adapter evidence |
 | `veoveo.io/uav-live-view-browser-evidence/v8` | focused authoritative-camera pixels, event-derived source-to-render and motion-to-photon p95, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
@@ -28,6 +29,35 @@ The immutable runnable manifest digest is the handoff between checkpoints. A sta
 image and its later qualified publication must share that digest. GitOps receives a
 complete digest map, while Kubernetes rolls only Deployments whose selected digest
 changed. Qualification adds supply-chain attestations after behavior is accepted.
+
+## Component Release Inputs
+
+Prepare a configuration-only update from a committed installation checkout:
+
+```sh
+cargo xtask release components \
+  --profile deployment.json \
+  --base-lock deployment.lock.json \
+  --component platform \
+  --refresh-configuration \
+  --lock-output output/releases/platform-config.lock.json
+```
+
+Use the component IDs declared by the installation profile. Repeat `--component` for
+an exact set. The output retains unrequested components and their dependency inputs;
+it does not rebuild images or contact Kubernetes. The output path must be new.
+
+| Input | Requested component behavior |
+|---|---|
+| `--refresh-configuration` | use the current committed installation values and public resource inputs |
+| `--source-revision SOURCE=COMMIT` | use an exact full Git commit for source charts and source values |
+| `--image-evidence SOURCE=PATH` | import qualified image evidence after checking its OCI publication and runnable digests |
+
+These inputs can be combined. Omitted inputs retain their locked identities. The base
+and current profiles must share their destination, component ownership, and platform
+selection. A complete publication handles changes to those boundaries. The adjacent
+publication receipt records the selected inputs and retained owners. Enterprise
+activation continues through its GitOps repository.
 
 ## Evidence And Defect Records
 

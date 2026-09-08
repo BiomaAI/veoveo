@@ -154,7 +154,8 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/compile/inputs.rs` | publication and installation source snapshots keyed by component identity, including retained chart revisions within one repository |
 | `deploy/runtime/src/compile/configuration.rs` | component-owned installation document snapshots and exact retained configuration files across installation commits |
 | `deploy/runtime/src/compile/images.rs` | atomic release image values and exact rendered input closure, including retained versions of shared targets |
-| `deploy/runtime/src/publication.rs` and `tools/xtask/src/commands/release/components.rs` | image-only component lock updates, qualified OCI evidence checks, retained dependencies, and publication receipts |
+| `deploy/runtime/src/publication.rs` and `tools/xtask/src/commands/release/components.rs` | exact component chart, configuration, and image updates, qualified OCI evidence checks, retained dependencies, and publication receipts |
+| `deploy/runtime/src/compile/tests/publication.rs` | independent Git/Helm publication regressions for chart-only, configuration-only, and combined updates while unrequested repositories are unavailable |
 | `deploy/runtime/src/discovery.rs` | read-only destination scope checks across all locked owners and proposed CRDs, before installation writes |
 | `deploy/runtime/src/helm_bundle.rs` | complete prepared Helm renders, literal configuration preservation, and digest-bound CRD retention policy |
 | `deploy/runtime/src/helm_state.rs` and `src/ownership.rs` | stored Helm manifest/hook inventories, possible recovery revisions, batched live metadata reads, and pre-write ownership checks |

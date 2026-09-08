@@ -744,8 +744,9 @@ two real source commits and verifies that preparation preserves both build prove
 The complete catalog still rejects duplicate build identities, changed repository owners,
 and unqualified artifacts. Publication narrows unused image candidates before sealing
 the render, which keeps image-map-dependent configuration identical during installation.
-These checks cover Git and Helm preparation; scoped chart/configuration
-publication, development-lock promotion, and actual zero-write execution remain open.
+These checks cover Git and Helm preparation. Component publication now includes the
+chart and configuration path below; development-lock promotion and actual zero-write
+execution remain open.
 
 Components now retain their installation document and configuration commit explicitly.
 Preparation restores older installation snapshots and checks their files against Git.
@@ -756,14 +757,25 @@ identity excludes revision-only changes. This completes another input prerequisi
 scoped publication. It does not expose a partial installation selector or establish live
 zero-write evidence.
 
-Image-only component publication now has a command:
-`cargo xtask release images --profile ... --base-lock ... --component ... --image-evidence SOURCE=PATH --lock-output ...`.
+Component publication now has a command:
+`cargo xtask release components --profile ... --base-lock ... --component ... --image-evidence SOURCE=PATH --lock-output ...`.
 It imports qualified image evidence, verifies the OCI publication and runnable digests,
 and renders only the requested components with their recorded charts and configuration.
 Every unrequested inventory, including dependency components, stays unchanged. The
 output lock retains prior image versions and records each updated consumer's new build
 provenance. Duplicate updates, unused evidence, repository ownership changes, and
 conflicting qualifications for an existing build revision fail before output publication.
+
+The same command accepts `--source-revision SOURCE=COMMIT` for chart inputs and
+`--refresh-configuration` for installation inputs. Either can run with no image evidence;
+all existing image identities remain fixed. Inputs can also be combined for one exact
+component set. The compiler restores the base installation commit and retains every
+unrequested component while the output records the current installation commit. Native
+Git and Helm tests cover both directions for chart-only, configuration-only, and combined
+updates with the other repository unavailable. They also reproduce retained values after
+the current checkout deletes them and reject a chart that overlaps an unselected owner.
+This closes scoped chart/configuration lock composition. Live selected execution and
+development-lock promotion remain open.
 
 Regression coverage uses independent installation, platform, and extension Git histories
 with real Helm renders. Each source update succeeds while the other source repository

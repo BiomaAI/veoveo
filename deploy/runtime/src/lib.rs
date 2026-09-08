@@ -26,7 +26,7 @@ pub use cluster::{
 };
 pub use compile::compile_component_lock;
 pub use profile::{profile_down, profile_gpu_verify, profile_up, profile_validate};
-pub use publication::update_component_images;
+pub use publication::{ComponentUpdates, update_components};
 
 #[cfg(test)]
 mod tests;

@@ -60,10 +60,11 @@ pub(super) fn publication(
         owners.insert(spec.id.clone(), owner);
     }
     let configuration = configuration::identity(profile, profile_revision)?;
-    let configurations = selected
+    let configurations: BTreeMap<_, _> = selected
         .iter()
         .map(|id| (id.clone(), configuration.clone()))
         .collect();
+    let installation = ConfigurationSnapshots::prepare(profile, configurations.values())?;
     let mut prepared = prepare(
         profile,
         sources,
@@ -71,6 +72,7 @@ pub(super) fn publication(
         selected,
         owners,
         configurations,
+        installation,
     )?;
     for snapshot in prepared.snapshots.values() {
         for release in &snapshot.definition.releases {
@@ -98,15 +100,6 @@ pub(super) fn locked(
     selected: &BTreeSet<ComponentId>,
 ) -> Result<CompilationInputs> {
     selected_source_releases(&profile.definition, selected)?;
-    locked_for_publication(profile, lock, roots, selected)
-}
-
-pub(super) fn locked_for_publication(
-    profile: &LoadedProfile,
-    lock: &DeploymentLock,
-    roots: &BTreeMap<ComponentSource, PathBuf>,
-    selected: &BTreeSet<ComponentId>,
-) -> Result<CompilationInputs> {
     lock.validate()?;
     let owners = lock
         .components
@@ -119,7 +112,7 @@ pub(super) fn locked_for_publication(
             )
         })
         .collect();
-    let configurations = lock
+    let configurations: BTreeMap<_, _> = lock
         .components
         .iter()
         .filter(|component| selected.contains(&component.declaration.id))
@@ -130,6 +123,7 @@ pub(super) fn locked_for_publication(
             )
         })
         .collect();
+    let installation = ConfigurationSnapshots::prepare(profile, configurations.values())?;
     let mut prepared = prepare(
         profile,
         &lock.sources,
@@ -137,6 +131,7 @@ pub(super) fn locked_for_publication(
         selected,
         owners,
         configurations,
+        installation,
     )?;
     for component in lock
         .components
@@ -153,6 +148,97 @@ pub(super) fn locked_for_publication(
     Ok(prepared)
 }
 
+pub(super) fn component_update(
+    profile: &LoadedProfile,
+    lock: &mut DeploymentLock,
+    roots: &BTreeMap<ComponentSource, PathBuf>,
+    selected: &BTreeSet<ComponentId>,
+    updates: &crate::publication::ComponentUpdates,
+) -> Result<CompilationInputs> {
+    let current = configuration::identity(profile, &lock.profile_revision)?;
+    let mut owners = BTreeMap::new();
+    let mut configurations = BTreeMap::new();
+    for component in lock
+        .components
+        .iter()
+        .filter(|component| selected.contains(&component.declaration.id))
+    {
+        let declaration = &component.declaration;
+        let configuration = if updates.refresh_configuration {
+            current.clone()
+        } else {
+            declaration.configuration.clone()
+        };
+        let mut owner = declaration.source.clone();
+        if declaration.role == ComponentRole::Installation {
+            owner = configuration.source.clone();
+        } else if let Some(revision) = updates.source_revisions.get(&owner.name) {
+            owner.revision = revision.clone();
+        }
+        owners.insert(declaration.id.clone(), owner);
+        configurations.insert(declaration.id.clone(), configuration);
+    }
+    let installation = ConfigurationSnapshots::prepare(profile, configurations.values())?;
+    for spec in profile
+        .definition
+        .components
+        .iter()
+        .filter(|spec| selected.contains(&spec.id))
+    {
+        let ComponentOwner::Source { name } = &spec.owner else {
+            continue;
+        };
+        let owner = &owners[&spec.id];
+        let configuration = installation.get(&configurations[&spec.id])?;
+        let mut definition = configuration
+            .definition
+            .sources
+            .iter()
+            .find(|source| source.name == *name)
+            .context("updated component has no configured source")?
+            .clone();
+        definition
+            .releases
+            .retain(|release| spec.releases.contains(&release.name));
+        let root = roots
+            .get(owner)
+            .context("updated chart source has no exact checkout")?;
+        let charts = crate::charts::lock_source_charts(&definition, root)?;
+        let source = lock
+            .sources
+            .iter_mut()
+            .find(|source| source.name == *name)
+            .context("updated chart source is outside the artifact catalog")?;
+        for chart in charts {
+            let previous = source
+                .charts
+                .iter_mut()
+                .find(|previous| previous.release == chart.release)
+                .context("updated chart release is outside the artifact catalog")?;
+            if !updates.refresh_configuration && !updates.source_revisions.contains_key(name) {
+                ensure!(
+                    previous == &chart,
+                    "retained chart inputs differ from their locked identity"
+                );
+            }
+            *previous = chart;
+        }
+        if let Some(revision) = updates.source_revisions.get(name) {
+            source.revision = revision.as_str().to_owned();
+        }
+    }
+    // All other releases keep their chart locks, even when they share this Git source.
+    prepare(
+        profile,
+        &lock.sources,
+        roots,
+        selected,
+        owners,
+        configurations,
+        installation,
+    )
+}
+
 fn prepare(
     profile: &LoadedProfile,
     sources: &[LockedSource],
@@ -160,6 +246,7 @@ fn prepare(
     selected: &BTreeSet<ComponentId>,
     owners: BTreeMap<ComponentId, ComponentSource>,
     configurations: BTreeMap<ComponentId, InstallationSnapshot>,
+    installation: ConfigurationSnapshots,
 ) -> Result<CompilationInputs> {
     ensure!(
         owners.keys().cloned().collect::<BTreeSet<_>>() == *selected,
@@ -169,7 +256,6 @@ fn prepare(
         configurations.keys().cloned().collect::<BTreeSet<_>>() == *selected,
         "component configurations do not cover the exact selection"
     );
-    let installation = ConfigurationSnapshots::prepare(profile, configurations.values())?;
     let mut snapshots = BTreeMap::new();
     for spec in profile
         .definition

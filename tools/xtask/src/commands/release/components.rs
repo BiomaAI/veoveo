@@ -1,4 +1,4 @@
-//! Compose qualified image evidence without rebuilding unrelated source artifacts.
+//! Compose selected chart, configuration, and image inputs without rebuilding images.
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -11,10 +11,12 @@ use veoveo_deploy_contract::{
     DeploymentLock, ImageReleaseEvidence, LoadedProfile, LockedImage,
     components::{ComponentId, select_components},
 };
+use veoveo_deploy_runtime::ComponentUpdates;
+use veoveo_extension_contract::SourceRevision;
 
 use super::{absolute_output, profile_location, translate_registry, write_create_only_json};
 use crate::{
-    ReleaseImagesArgs,
+    ReleaseComponentsArgs,
     commands::{image, image_manifest},
     context::RepositoryContext,
 };
@@ -43,20 +45,13 @@ struct PublicationReceipt<'a> {
     dependencies: Vec<ComponentId>,
     retained: Vec<ComponentId>,
     image_evidence: Vec<EvidenceInput>,
+    source_revisions: BTreeMap<String, SourceRevision>,
+    refresh_configuration: bool,
 }
 
-pub(super) fn publish(
-    repository: &RepositoryContext,
-    profile_path: &Path,
-    args: &ReleaseImagesArgs,
-) -> Result<()> {
+pub(crate) fn publish(repository: &RepositoryContext, args: &ReleaseComponentsArgs) -> Result<()> {
     let _timing = image::operation::span(image::operation::Phase::Planning);
-    let output = absolute_output(
-        repository,
-        args.lock_output
-            .as_deref()
-            .context("component publication requires --lock-output")?,
-    );
+    let output = absolute_output(repository, &args.lock_output);
     let receipt_path = output.with_file_name(format!(
         "{}.publication.json",
         output
@@ -68,12 +63,7 @@ pub(super) fn publish(
         !output.try_exists()? && !receipt_path.try_exists()?,
         "component publication outputs must be new files"
     );
-    let base_path = absolute_output(
-        repository,
-        args.base_lock
-            .as_deref()
-            .context("component publication requires --base-lock")?,
-    );
+    let base_path = absolute_output(repository, &args.base_lock);
     let base_bytes = fs::read(&base_path).context("reading base deployment lock")?;
     let base: DeploymentLock = serde_json::from_slice(&base_bytes)?;
     base.validate()?;
@@ -85,7 +75,7 @@ pub(super) fn publish(
         );
     }
     let expanded = select_components(&base.components, &requested)?;
-    let (profile_repository, profile_path, _) = profile_location(repository, profile_path)?;
+    let (profile_repository, profile_path, _) = profile_location(repository, &args.profile)?;
     let profile = LoadedProfile::load(&profile_path, profile_repository.root())?;
     let QualifiedInputs {
         images,
@@ -93,9 +83,13 @@ pub(super) fn publish(
     } = load_evidence(repository, &base, &args.image_evidence)?;
     // The runtime checks ownership and ignored evidence before opening source
     // snapshots. Registry qualification is read-only and precedes file publication.
-    let updated =
-        veoveo_deploy_runtime::update_component_images(&profile, &base, &requested, &images)?;
-    for image in images.values().flatten() {
+    let updates = ComponentUpdates {
+        images,
+        source_revisions: parse_source_revisions(&args.source_revision)?,
+        refresh_configuration: args.refresh_configuration,
+    };
+    let updated = veoveo_deploy_runtime::update_components(&profile, &base, &requested, &updates)?;
+    for image in updates.images.values().flatten() {
         let push = translate_registry(
             &image.repository,
             &base.registry.pull_address,
@@ -115,7 +109,7 @@ pub(super) fn publish(
     let mut output_bytes = serde_json::to_vec_pretty(&updated)?;
     output_bytes.push(b'\n');
     let receipt = PublicationReceipt {
-        schema_version: "veoveo.io/component-image-publication/v1",
+        schema_version: "veoveo.io/component-publication/v1",
         base_lock_digest: digest(&base_bytes),
         output_lock_digest: digest(&output_bytes),
         requested: &requested,
@@ -131,6 +125,8 @@ pub(super) fn publish(
             .cloned()
             .collect(),
         image_evidence: evidence_inputs,
+        source_revisions: updates.source_revisions,
+        refresh_configuration: updates.refresh_configuration,
     };
     // Both files are create-only. The receipt records lock assembly, not cluster
     // execution; the existing command recorder includes total wall time and OCI reads.
@@ -151,10 +147,6 @@ fn load_evidence(
     base: &DeploymentLock,
     inputs: &[String],
 ) -> Result<QualifiedInputs> {
-    ensure!(
-        !inputs.is_empty(),
-        "component publication requires --image-evidence SOURCE=PATH"
-    );
     let mut images = BTreeMap::<String, Vec<LockedImage>>::new();
     let mut receipts = Vec::new();
     for input in inputs {
@@ -190,6 +182,23 @@ fn load_evidence(
     Ok(QualifiedInputs { images, receipts })
 }
 
+fn parse_source_revisions(inputs: &[String]) -> Result<BTreeMap<String, SourceRevision>> {
+    let mut revisions = BTreeMap::new();
+    for input in inputs {
+        let (source, revision) = input
+            .split_once('=')
+            .context("chart source revision must use SOURCE=COMMIT")?;
+        ensure!(!source.is_empty(), "chart source name is empty");
+        ensure!(
+            revisions
+                .insert(source.to_owned(), SourceRevision::new(revision)?)
+                .is_none(),
+            "duplicate chart source {source}"
+        );
+    }
+    Ok(revisions)
+}
+
 fn digest(bytes: &[u8]) -> String {
     format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
 }
@@ -200,11 +209,11 @@ mod tests {
     use clap::Parser;
 
     #[test]
-    fn component_flags_require_a_complete_image_composition_and_reject_build_modes() {
+    fn component_flags_require_an_update_and_reject_build_modes() {
         let args = [
             "xtask",
             "release",
-            "images",
+            "components",
             "--profile",
             "deployment.json",
             "--base-lock",
@@ -217,6 +226,20 @@ mod tests {
             "new.json",
         ];
         assert!(crate::Cli::try_parse_from(args).is_ok());
+        let mut config = args.to_vec();
+        let index = config
+            .iter()
+            .position(|arg| *arg == "--image-evidence")
+            .unwrap();
+        config.splice(index..index + 2, ["--refresh-configuration"]);
+        assert!(crate::Cli::try_parse_from(&config).is_ok());
+        let mut chart = args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>();
+        chart[index] = "--source-revision".into();
+        chart[index + 1] = format!("platform={}", "a".repeat(40));
+        assert!(crate::Cli::try_parse_from(&chart).is_ok());
+        let mut removed = args.to_vec();
+        removed[2] = "images";
+        assert!(crate::Cli::try_parse_from(removed).is_err());
         for flag in [
             "--base-lock",
             "--profile",
@@ -246,6 +269,25 @@ mod tests {
                 crate::Cli::try_parse_from(conflicting).is_err(),
                 "{flag} must conflict"
             );
+        }
+    }
+
+    #[test]
+    fn chart_sources_require_exact_commits_and_unique_names() {
+        let exact = format!("platform={}", "a".repeat(40));
+        assert_eq!(
+            parse_source_revisions(std::slice::from_ref(&exact))
+                .unwrap()
+                .len(),
+            1
+        );
+        for invalid in [
+            vec![exact.clone(), exact],
+            vec!["platform=HEAD".into()],
+            vec!["platform".into()],
+            vec![format!("={}", "a".repeat(40))],
+        ] {
+            assert!(parse_source_revisions(&invalid).is_err());
         }
     }
 
