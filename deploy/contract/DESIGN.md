@@ -89,6 +89,15 @@ locked inventory. These checks also cover unselected owners without evaluating t
 templates or cloning their repositories. Source origin and actual selected input bytes
 remain runtime checks.
 
+Historical Helm manifests and hooks also belong to the mutation boundary, including
+the deployed and successful revisions Helm may use during recovery. Their namespaced
+objects can retire within the original component's declared namespaces. Historical
+cluster objects still require explicit permission. The complete current catalog
+rejects a historical object reserved by another owner or assigned to another atomic
+target. This permits ordinary Helm deletion of an obsolete object without authorizing
+an ownership transfer. The runtime must establish the stored release provenance before
+passing historical identities to this pure check.
+
 Dependency closure includes the namespace owner before source releases and namespaced
 installation operations. Placement depends on the allocator owner. When node bootstrap
 is declared, the allocator also depends on that owner. A component may own its own

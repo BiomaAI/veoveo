@@ -6,9 +6,9 @@ use crate::{
         after_secret_closure, prepare_gateway_activation, prepare_secret_closure,
         validate_node_bootstrap_secret_boundary,
     },
-    discovery::validate_cluster_scopes,
     gpu::{apply_gpu_placement, ensure_gpu_allocator, prepare_gpu_placement, verify_gpu_placement},
     images::{validate_bake_selections, validate_locked_images},
+    ownership::validate_live_ownership,
     process::{kubectl_apply_value, status_checked},
     sources::{
         load_deployment_lock, load_profile, resolve_locked_sources, resolve_sources,
@@ -110,7 +110,7 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
         .collect::<Vec<_>>();
     let platform = profile.resolved_platform()?;
     let context = profile.definition.kubernetes.context.as_str();
-    validate_cluster_scopes(context, &lock.components, &objects)?;
+    validate_live_ownership(context, &lock.components, &compiled)?;
     let secret_closure = prepare_secret_closure(
         path,
         lock_path,

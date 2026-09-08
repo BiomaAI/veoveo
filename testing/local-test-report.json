@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c275a03e74443006acca3eb15e1f9f697ee819aa963f32d0e6a51d84411836d8",
-  "updatedAt": "2026-09-08T05:26:30Z",
+  "buildDigest": "sha256:9a857c858fe635ef1dab0dd53896b108a6b992fc6471c69d9ac90aad4356ced2",
+  "updatedAt": "2026-09-08T05:50:50Z",
   "checks": [
     {
-      "name": "component-image-clippy",
+      "name": "component-ownership-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -20,12 +20,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T05:26:14Z",
-      "durationSeconds": 2.702792005,
+      "finishedAt": "2026-09-08T05:48:09Z",
+      "durationSeconds": 3.192596331,
       "detail": "completed successfully"
     },
     {
-      "name": "component-image-helm-config",
+      "name": "component-ownership-helm-config",
       "command": [
         "cargo",
         "xtask",
@@ -33,12 +33,31 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T05:26:30Z",
-      "durationSeconds": 6.821772919,
+      "finishedAt": "2026-09-08T05:49:22Z",
+      "durationSeconds": 12.162151419,
       "detail": "completed successfully"
     },
     {
-      "name": "component-image-publication",
+      "name": "component-ownership-live",
+      "command": [
+        "env",
+        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deploy-runtime",
+        "ownership::live_tests::live_preflight_rejects_historical_transfer_and_raw_adoption_without_mutation",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T05:50:50Z",
+      "durationSeconds": 16.028821687,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "component-ownership-preflight",
       "command": [
         "cargo",
         "test",
@@ -50,8 +69,8 @@
         "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T05:26:22Z",
-      "durationSeconds": 7.266771585,
+      "finishedAt": "2026-09-08T05:50:34Z",
+      "durationSeconds": 3.475578751,
       "detail": "completed successfully"
     }
   ]

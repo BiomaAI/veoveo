@@ -157,6 +157,8 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/publication.rs` and `tools/xtask/src/commands/release/components.rs` | image-only component lock updates, qualified OCI evidence checks, retained dependencies, and publication receipts |
 | `deploy/runtime/src/discovery.rs` | read-only destination scope checks across all locked owners and proposed CRDs, before installation writes |
 | `deploy/runtime/src/helm_bundle.rs` | complete prepared Helm renders, literal configuration preservation, and digest-bound CRD retention policy |
+| `deploy/runtime/src/helm_state.rs` and `src/ownership.rs` | stored Helm manifest/hook inventories, possible recovery revisions, batched live metadata reads, and pre-write ownership checks |
+| `deploy/contract/src/components/history.rs` | historical Helm retirement within declared namespaces and rejection of cross-component or cross-target ownership transfer |
 | `deploy/runtime/src/charts.rs` | shared chart-lock construction and validation, ordered values, rendering, and Helm release commands |
 | `deploy/runtime/src/configuration.rs` and `src/cluster.rs` | pre-mutation Secret closure, gateway activation, public resources, and disposable cluster lifecycle |
 | `deploy/runtime/src/gpu.rs` | managed NVIDIA DRA orchestration, ResourceSlice inventory, persistent-claim preservation, and workload placement proof |

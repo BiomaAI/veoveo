@@ -123,7 +123,7 @@ pub(crate) fn validate_cluster_scopes(
     context: &str,
     catalog: &[LockedComponent],
     objects: &[Value],
-) -> Result<()> {
+) -> Result<BTreeSet<(String, String)>> {
     let identities = catalog
         .iter()
         .flat_map(|component| {
@@ -138,6 +138,11 @@ pub(crate) fn validate_cluster_scopes(
     let needed = identities
         .iter()
         .map(|object| object.group.as_str())
+        .chain(objects.iter().filter_map(|object| {
+            object["apiVersion"]
+                .as_str()
+                .map(|version| version.split_once('/').map_or("", |(group, _)| group))
+        }))
         .chain(objects.iter().filter_map(|object| {
             (object["apiVersion"] == "apiextensions.k8s.io/v1"
                 && object["kind"] == "CustomResourceDefinition")
@@ -175,6 +180,7 @@ pub(crate) fn validate_cluster_scopes(
     }
     // Merge only after loading authoritative scopes, so a prepared declaration
     // cannot hide a mismatch by short-circuiting live discovery.
+    let served = scopes.kinds.keys().cloned().collect();
     scopes.crds(objects)?;
     for identity in identities {
         scopes.identity(identity)?;
@@ -189,7 +195,7 @@ pub(crate) fn validate_cluster_scopes(
             "rendered object uses unserved Kubernetes API {version} {kind}"
         );
     }
-    Ok(())
+    Ok(served)
 }
 
 fn read_discovery<T: serde::de::DeserializeOwned>(context: &str, path: &str) -> Result<T> {

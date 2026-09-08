@@ -770,6 +770,24 @@ identical runnable bytes. These compiler fixtures use synthetic image digests; t
 not qualify a new live OCI rollout. The command adds a publication receipt and reuses
 command-level timing. Selective cluster execution remains unfinished.
 
+The installation path now checks Helm's historical deletion and recovery boundary
+before its first write. Stored manifests and hooks are bound to exact release revisions,
+including a different deployed revision or successful rollback candidate. Historical
+objects cannot transfer into another component or release. Live reads batch exact
+object names by kind and namespace, then check Helm ownership and known GitOps markers.
+Release metadata is checked again after those reads. Helm hooks receive explicit owner
+metadata during compilation, and installation now uses the canonical Helm 4 rollback
+flag. Installed-content observations, execution fencing, general raw adoption, and
+selected execution remain open.
+
+A live Rust ownership test passed against the reference cluster in its own temporary
+namespace. Two ConfigMap-only releases installed successfully through the corrected
+Helm invocation. The preflight then rejected cross-component transfer of a historical
+manifest and hook, and raw application over a Helm-owned ConfigMap. ConfigMap UIDs and
+resource versions and both Helm revisions remained unchanged after rejection. Namespace
+removal was verified. This establishes the ownership preflight's live behavior; full
+selected execution and GPU workload acceptance remain separate requirements.
+
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
 cache family, explicitly selected both packages and binaries, and exported a local

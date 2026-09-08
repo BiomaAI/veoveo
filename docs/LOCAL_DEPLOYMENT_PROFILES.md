@@ -145,6 +145,12 @@ configuration snapshot and v2 unit digests must be regenerated.
 Installation never re-resolves `HEAD`, a branch, or
 another mutable source expression.
 
+Installation preflight includes stored Helm manifests and hooks from revisions that an
+upgrade or rollback may use. It rejects historical ownership transfers and existing
+objects owned by another Helm release before namespace or bootstrap writes. Helm hooks
+now carry explicit release ownership in the locked render; older locks containing hooks
+must be regenerated. Installation uses Helm 4's `--rollback-on-failure` flag.
+
 The component compiler checks the entire ownership and artifact catalog before
 installation writes. The current installer still applies the complete profile. Exact
 component selection, installed-state receipts, and verified unchanged-component skipping

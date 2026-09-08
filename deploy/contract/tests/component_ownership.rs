@@ -8,6 +8,63 @@ mod support;
 use support::*;
 
 #[test]
+fn stored_helm_inventory_keeps_retired_objects_inside_the_original_owner() {
+    let platform = fixture("platform", ComponentRole::Platform);
+    let extension = fixture("extension", ComponentRole::Extension);
+    let catalog = [platform.clone(), extension.clone()];
+    let target = &platform.units[0].target;
+    let mut retired = platform.units[0].objects[0].identity.clone();
+    retired.name = "retired-job".into();
+    assert!(!platform.declaration.permitted_objects.contains(&retired));
+    validate_helm_inventory(&catalog, &id("platform"), target, &[retired.clone()]).unwrap();
+    let mut previous = platform.clone();
+    previous.units[0].objects.push(RenderedObject {
+        identity: retired.clone(),
+        digest: digest('d'),
+    });
+    previous
+        .declaration
+        .permitted_objects
+        .insert(retired.clone());
+    let previous = relock(&previous);
+    let plan = component_mutation_plan(
+        &catalog,
+        &BTreeSet::from([id("platform")]),
+        &prepared(&platform),
+        &observed(&previous),
+    )
+    .unwrap();
+    assert_eq!(plan.mutations[0].retired_objects[0].identity, retired);
+    assert!(
+        validate_helm_inventory(
+            &catalog,
+            &id("platform"),
+            target,
+            &[extension.units[0].objects[0].identity.clone()]
+        )
+        .is_err()
+    );
+    retired.namespace = Some("unrelated".into());
+    assert!(
+        validate_helm_inventory(&catalog, &id("platform"), target, &[retired.clone()]).is_err()
+    );
+    retired.namespace = None;
+    assert!(validate_helm_inventory(&catalog, &id("platform"), target, &[retired]).is_err());
+    assert!(
+        validate_helm_inventory(
+            &catalog,
+            &id("platform"),
+            target,
+            &[
+                platform.units[0].objects[0].identity.clone(),
+                platform.units[0].objects[0].identity.clone()
+            ]
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn platform_only_image_update_has_no_extension_mutation() {
     let previous = fixture("platform", ComponentRole::Platform);
     let extension = fixture("extension", ComponentRole::Extension);

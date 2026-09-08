@@ -11,12 +11,12 @@ use veoveo_extension_contract::ArtifactDigest;
 /// The installer must check these declarations against destination API discovery
 /// before its first write. Publication never contacts the destination cluster.
 #[derive(Default)]
-pub(super) struct ObjectScopes {
+pub(crate) struct ObjectScopes {
     declared: BTreeMap<(String, String), bool>,
 }
 
 impl ObjectScopes {
-    pub(super) fn declare_crds(&mut self, objects: &[Value]) -> Result<()> {
+    pub(crate) fn declare_crds(&mut self, objects: &[Value]) -> Result<()> {
         for object in objects {
             if object.get("apiVersion").and_then(Value::as_str) != Some("apiextensions.k8s.io/v1")
                 || object.get("kind").and_then(Value::as_str) != Some("CustomResourceDefinition")
@@ -56,7 +56,7 @@ impl ObjectScopes {
         Ok(())
     }
 
-    pub(super) fn rendered(
+    pub(crate) fn rendered(
         &self,
         objects: &[Value],
         namespace: &str,

@@ -369,7 +369,9 @@ fn remove_conflicting_device_plugin(
             release_name,
             expected_chart_version,
         } => {
-            let Some(release) = helm::release_metadata(context, namespace, release_name)? else {
+            let Some(release) =
+                crate::helm_state::release_metadata(context, namespace, release_name)?
+            else {
                 return Ok(());
             };
             ensure!(
