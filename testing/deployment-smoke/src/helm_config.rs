@@ -1213,6 +1213,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "servers/media-mcp/Dockerfile",
         "servers/optimization-mcp/Dockerfile",
         "servers/recording-mcp/Dockerfile",
+        "servers/stream-mcp/Dockerfile",
         "servers/timeseries-mcp/Dockerfile",
         "servers/time-mcp/Dockerfile",
         "servers/uav-sim-mcp/Dockerfile",
@@ -1243,7 +1244,6 @@ pub(crate) fn helm_config() -> Result<()> {
     }
     not_contains(&workspace_builder, "--jobs 4")?;
     for dockerfile in [
-        "servers/stream-mcp/Dockerfile",
         "servers/reason-mcp/Dockerfile",
         "showcase/sumo/sumo-mcp/Dockerfile",
     ] {
