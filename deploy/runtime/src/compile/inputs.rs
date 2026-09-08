@@ -30,6 +30,7 @@ pub(super) fn publication(
     roots: &BTreeMap<String, PathBuf>,
     selected: &BTreeSet<ComponentId>,
 ) -> Result<CompilationInputs> {
+    selected_source_releases(&profile.definition, selected)?;
     let mut owners = BTreeMap::new();
     let mut snapshots = BTreeMap::new();
     for spec in profile
@@ -96,6 +97,16 @@ pub(super) fn locked(
     roots: &BTreeMap<ComponentSource, PathBuf>,
     selected: &BTreeSet<ComponentId>,
 ) -> Result<CompilationInputs> {
+    selected_source_releases(&profile.definition, selected)?;
+    locked_for_publication(profile, lock, roots, selected)
+}
+
+pub(super) fn locked_for_publication(
+    profile: &LoadedProfile,
+    lock: &DeploymentLock,
+    roots: &BTreeMap<ComponentSource, PathBuf>,
+    selected: &BTreeSet<ComponentId>,
+) -> Result<CompilationInputs> {
     lock.validate()?;
     let owners = lock
         .components
@@ -150,7 +161,6 @@ fn prepare(
     owners: BTreeMap<ComponentId, ComponentSource>,
     configurations: BTreeMap<ComponentId, InstallationSnapshot>,
 ) -> Result<CompilationInputs> {
-    selected_source_releases(&profile.definition, selected)?;
     ensure!(
         owners.keys().cloned().collect::<BTreeSet<_>>() == *selected,
         "component source identities do not cover the exact selection"

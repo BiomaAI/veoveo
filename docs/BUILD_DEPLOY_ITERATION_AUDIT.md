@@ -741,7 +741,7 @@ two real source commits and verifies that preparation preserves both build prove
 The complete catalog still rejects duplicate build identities, changed repository owners,
 and unqualified artifacts. Publication narrows unused image candidates before sealing
 the render, which keeps image-map-dependent configuration identical during installation.
-These checks cover Git and Helm preparation; component-selected
+These checks cover Git and Helm preparation; scoped chart/configuration
 publication, development-lock promotion, and actual zero-write execution remain open.
 
 Components now retain their installation document and configuration commit explicitly.
@@ -752,6 +752,23 @@ original values. Exact unit identity includes configuration provenance; the cont
 identity excludes revision-only changes. This completes another input prerequisite for
 scoped publication. It does not expose a partial installation selector or establish live
 zero-write evidence.
+
+Image-only component publication now has a command:
+`cargo xtask release images --profile ... --base-lock ... --component ... --image-evidence SOURCE=PATH --lock-output ...`.
+It imports qualified image evidence, verifies the OCI publication and runnable digests,
+and renders only the requested components with their recorded charts and configuration.
+Every unrequested inventory, including dependency components, stays unchanged. The
+output lock retains prior image versions and records each updated consumer's new build
+provenance. Duplicate updates, unused evidence, repository ownership changes, and
+conflicting qualifications for an existing build revision fail before output publication.
+
+Regression coverage uses independent installation, platform, and extension Git histories
+with real Helm renders. Each source update succeeds while the other source repository
+is unavailable. The result can be prepared again from its lock with identical inventories.
+Shared-target cases preserve another consumer's image version, including builds with
+identical runnable bytes. These compiler fixtures use synthetic image digests; they do
+not qualify a new live OCI rollout. The command adds a publication receipt and reuses
+command-level timing. Selective cluster execution remains unfinished.
 
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and

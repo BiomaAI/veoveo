@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
-use veoveo_deploy_contract::{LockedSource, ReleaseValuesContract, components::*};
+use veoveo_deploy_contract::{LockedImage, LockedSource, ReleaseValuesContract, components::*};
 use veoveo_extension_contract::ArtifactDigest;
 
 use super::objects::container_images;
@@ -48,6 +48,38 @@ impl ImageInputs {
                 .iter()
                 .filter(|input| matches!(input, ComponentInput::Image { .. }))
                 .cloned(),
+            true,
+        )
+    }
+
+    pub fn updated(
+        registry: &str,
+        unit: &LockedAtomicUnit,
+        updates: &BTreeMap<(String, String), LockedImage>,
+    ) -> Result<Self> {
+        let mut inputs = unit.inputs.clone();
+        inputs = inputs
+            .into_iter()
+            .map(|mut input| {
+                if let ComponentInput::Image {
+                    source,
+                    target,
+                    digest,
+                    ..
+                } = &mut input
+                    && let Some(image) = updates.get(&(source.name.clone(), target.clone()))
+                {
+                    source.revision = image.source_revision.clone();
+                    *digest = ArtifactDigest::new(&image.digest)?;
+                }
+                Ok(input)
+            })
+            .collect::<Result<_>>()?;
+        Self::new(
+            registry,
+            inputs
+                .into_iter()
+                .filter(|input| matches!(input, ComponentInput::Image { .. })),
             true,
         )
     }

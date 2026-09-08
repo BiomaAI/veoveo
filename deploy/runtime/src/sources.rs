@@ -168,6 +168,16 @@ pub(crate) fn resolve_locked_sources(
     selected: &BTreeSet<ComponentId>,
 ) -> Result<BTreeMap<ComponentSource, ResolvedSource>> {
     selected_source_releases(&profile.definition, selected)?;
+    resolve_component_sources(profile, lock, selected)
+}
+
+/// Publication retains dependencies unchanged. Its caller validates the complete
+/// catalog and exact requested IDs before opening these source repositories.
+pub(crate) fn resolve_component_sources(
+    profile: &LoadedProfile,
+    lock: &DeploymentLock,
+    selected: &BTreeSet<ComponentId>,
+) -> Result<BTreeMap<ComponentSource, ResolvedSource>> {
     let mut selected_releases = BTreeMap::<ComponentSource, BTreeSet<String>>::new();
     for spec in profile
         .definition

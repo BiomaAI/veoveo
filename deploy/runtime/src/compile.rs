@@ -7,7 +7,9 @@ use std::{
 
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
-use veoveo_deploy_contract::{DeploymentLock, LoadedProfile, LockedSource, components::*};
+use veoveo_deploy_contract::{
+    DeploymentLock, LoadedProfile, LockedImage, LockedSource, components::*,
+};
 use veoveo_extension_contract::{ArtifactDigest, SourceRevision};
 
 use crate::{
@@ -100,6 +102,37 @@ pub(crate) fn compile_locked_components(
         &lock.profile_revision,
         &lock.sources,
         selected,
+        inputs,
+    )
+}
+
+pub(crate) fn compile_image_update(
+    profile: &LoadedProfile,
+    lock: &DeploymentLock,
+    roots: &BTreeMap<ComponentSource, PathBuf>,
+    requested: &BTreeSet<ComponentId>,
+    updates: &BTreeMap<(String, String), LockedImage>,
+) -> Result<Vec<CompiledComponent>> {
+    let mut inputs = inputs::locked_for_publication(profile, lock, roots, requested)?;
+    for component in lock
+        .components
+        .iter()
+        .filter(|component| requested.contains(&component.declaration.id))
+    {
+        for unit in &component.units {
+            if inputs.images.contains_key(&unit.target) {
+                inputs.images.insert(
+                    unit.target.clone(),
+                    images::ImageInputs::updated(&lock.registry.pull_address, unit, updates)?,
+                );
+            }
+        }
+    }
+    compile_with_inputs(
+        profile,
+        &lock.profile_revision,
+        &lock.sources,
+        requested,
         inputs,
     )
 }

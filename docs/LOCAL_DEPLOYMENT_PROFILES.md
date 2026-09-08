@@ -101,6 +101,34 @@ digests, expanded platform graph, and compiled component inventories. Every imag
 the commit that built it independently of the chart snapshot. Installation locks are
 generated outputs; schema tests use explicitly synthetic fixtures.
 
+An image-only component update can reuse an existing qualified lock:
+
+```sh
+cargo xtask release images \
+  --profile /path/to/installation/deployment.json \
+  --base-lock /path/to/deployment.lock.json \
+  --component platform \
+  --image-evidence platform=/path/to/image-release.json \
+  --lock-output /path/to/updated.lock.json
+```
+
+The installation checkout must match the base lock's configuration commit. The
+`--image-evidence` value associates a direct release's qualified evidence with its
+declared source; repeat it for additional receipts. Every supplied image must already
+be consumed by a requested component. The command checks the attested OCI index and
+runnable digest at the host registry, then writes a new lock and an adjacent
+`.publication.json` receipt. Both output paths must be new. The standard image-operation
+record includes command timing and manifest inspection.
+
+This mode clones and renders only the requested components' chart sources. It retains
+their chart and configuration snapshots, reuses every other image input, and preserves
+all unrequested components verbatim, including dependencies. A release remains atomic
+when several images belong to it. Repeating a component ID, supplying unused evidence,
+changing image ownership, or replacing an existing build revision's qualification fails.
+The receipt records lock assembly; it does not report cluster mutations. The installation's
+existing owner applies the resulting artifacts. Chart and configuration updates still
+use full publication.
+
 `cargo xtask smoke profile-up` requires that lock. It verifies the installation
 revision and referenced profile files, checks out the sources that supply its releases
 at their recorded revisions, and verifies their origins and source-chart content digests.

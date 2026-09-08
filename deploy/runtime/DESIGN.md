@@ -7,6 +7,7 @@
 | `veoveo.io/deployment/v7` and `veoveo.io/deployment-lock/v7` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
 | `veoveo.io/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
+| `veoveo.io/component-image-publication/v1` | Internal xtask receipt for image-only lock composition; records inputs and retained owners, with no cluster execution claim |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.2.4 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
@@ -44,6 +45,7 @@ for an enterprise installation governed by GitOps.
 | `compile/inputs.rs` | Publication and locked-installation snapshots keyed by component source name, repository, and revision |
 | `compile/configuration.rs` | Exact installation profile snapshots, retained values files, and shared temporary checkouts for older configuration commits |
 | `compile/images.rs` | Per-release image selection, exact build provenance, and rendered image closure checks |
+| `publication.rs` | Qualified image-only updates for exact requested components, retaining all other inputs and inventories |
 | `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
 | `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
@@ -128,7 +130,22 @@ publication renders again with the exact selection that installation will receiv
 That render must consume precisely the same images; template-dependent image expansion
 fails qualification. Platform and Veoveo-source values use
 their source's candidates; extension values can consume platform-owned images as well.
-Component-selected publication and development-lock promotion remain migration work.
+Image-only publication accepts exact component IDs, a complete base lock, and qualified
+image evidence associated with declared sources. `cargo xtask release images --base-lock`
+is the concrete caller. The runtime validates the complete catalog and rejects images
+outside the requested consumer closure before opening source checkouts. It renders only
+requested components and retains dependency inventories unchanged. The compiler uses
+their locked charts and configuration; image selection replaces only explicitly supplied
+targets. Installation still requires the expanded dependency set.
+
+The command verifies each supplied OCI publication index and runnable manifest through
+the existing image qualification reader. Its create-only output includes a
+`veoveo.io/component-image-publication/v1` receipt with base and output lock digests,
+requested IDs, dependency IDs, retained IDs, and input evidence digests. The image-operation
+recorder captures command timing. Source association follows the declared evidence input;
+this does not add cryptographic publisher authentication. The receipt establishes lock
+composition, not live zero-write evidence. Scoped chart/configuration publication and
+development-lock promotion remain migration work.
 The reserved source name `installation` identifies installation-owned inputs; a
 platform, workload, or extension source cannot use that name.
 
