@@ -89,7 +89,7 @@ jsonschema = "=0.51.0"
 jiff = { version = "0.2.35", features = ["tz-system"] }
 jsonwebtoken = { version = "=11.0.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 memmap2 = "=0.9.11"
-object_store = { version = "0.14.1", default-features = false, features = ["aws"] }
+object_store = { version = "=0.14.1", default-features = false, features = ["aws"] }
 opentelemetry = "0.32.0"
 opentelemetry-appender-tracing = "0.32.0"
 # Rerun's official Redap tests bring `re_perf_telemetry`, which enables the

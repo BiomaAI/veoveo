@@ -13,6 +13,8 @@ use object_store::{
 use sha2::{Digest as _, Sha256};
 use tokio::io::AsyncWriteExt as _;
 
+pub mod multipart;
+
 pub type BlobStream = Pin<Box<dyn Stream<Item = Result<Bytes, BlobStoreError>> + Send + 'static>>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -103,11 +105,24 @@ impl std::error::Error for BlobStoreError {}
 #[derive(Clone)]
 pub struct ArtifactObjectStore {
     inner: Arc<dyn ObjectStore>,
+    multipart: Option<Arc<dyn object_store::multipart::MultipartStore>>,
 }
 
 impl ArtifactObjectStore {
     pub fn new(inner: Arc<dyn ObjectStore>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            multipart: None,
+        }
+    }
+
+    pub fn with_multipart<T: ObjectStore + object_store::multipart::MultipartStore>(
+        inner: Arc<T>,
+    ) -> Self {
+        Self {
+            inner: inner.clone(),
+            multipart: Some(inner),
+        }
     }
 
     fn path(object_key: &str) -> Result<Path, BlobStoreError> {

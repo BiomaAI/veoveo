@@ -1,10 +1,23 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:8de57de997c09d2b78c1c1d43b3cba7bf381853a5607b12d0a7453e60e5c43da",
-  "updatedAt": "2026-09-08T22:59:39Z",
+  "buildDigest": "sha256:14dda083ff104015a7bc777db3d39c1a009e4e3f217757ac3091100d9e8dd4bf",
+  "updatedAt": "2026-09-08T23:26:10Z",
   "checks": [
     {
-      "name": "artifact-upload-admission-native",
+      "name": "artifact-upload-parts-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T23:25:38Z",
+      "durationSeconds": 2.37335709,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-upload-parts-native",
       "command": [
         "env",
         "VEOVEO_SURREAL_BINARY=/home/rozgo/BiomaAI/veoveo/output/tools/surreal/3.2.4/surreal",
@@ -17,43 +30,25 @@
         "--include-ignored"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T22:57:40Z",
-      "durationSeconds": 6.180710122,
+      "finishedAt": "2026-09-08T23:19:07Z",
+      "durationSeconds": 8.603458378,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-upload-ledger-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "-p",
-        "veoveo-platform-store",
-        "-p",
-        "veoveo-artifact-service",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T22:59:38Z",
-      "durationSeconds": 0.258061688,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-upload-ledger-sql",
+      "name": "artifact-upload-parts-sql",
       "command": [
         "output/tools/surreal/3.2.4/surreal",
         "validate",
-        "platform/store/migrations/0050_artifact_uploads.surql",
-        "platform/store/src/artifact_uploads/admit.surql",
-        "platform/store/src/artifact_uploads/authority.surql",
-        "platform/store/src/artifacts/create.surql"
+        "platform/store/src/artifact_uploads/claim_part.surql",
+        "platform/store/src/artifact_uploads/finish_part.surql"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T22:59:39Z",
-      "durationSeconds": 0.215498993,
+      "finishedAt": "2026-09-08T23:26:10Z",
+      "durationSeconds": 0.206636936,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-upload-store-unit",
+      "name": "artifact-upload-parts-store",
       "command": [
         "cargo",
         "test",
@@ -62,8 +57,8 @@
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T22:58:48Z",
-      "durationSeconds": 11.04672246,
+      "finishedAt": "2026-09-08T23:25:21Z",
+      "durationSeconds": 5.550048256,
       "detail": "completed successfully"
     }
   ]

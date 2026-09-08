@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, anyhow};
-use object_store::ObjectStore;
 use secrecy::{ExposeSecret, SecretString};
 use veoveo_mcp_contract::gateway::ServerSlug;
 use veoveo_mcp_contract::internal_auth::GATEWAY_INTERNAL_TOKEN_ISSUER;
@@ -52,6 +51,14 @@ impl ObjectStoreConfig {
                 allow_http,
             } => {
                 let mut builder = object_store::aws::AmazonS3Builder::new()
+                    // A whole-object read may take longer than the SDK's 30 s
+                    // total timeout. Bound connection/idle time; upload handlers
+                    // enforce their independent per-part request deadlines.
+                    .with_client_options(
+                        object_store::ClientOptions::new()
+                            .with_timeout_disabled()
+                            .with_read_timeout(std::time::Duration::from_secs(30)),
+                    )
                     .with_bucket_name(bucket)
                     .with_region(region)
                     .with_access_key_id(access_key_id)
@@ -61,8 +68,7 @@ impl ObjectStoreConfig {
                     builder = builder.with_endpoint(endpoint);
                 }
                 let store = Arc::new(builder.build().context("building S3 artifact store")?);
-                let object_store: Arc<dyn ObjectStore> = store;
-                Ok(ArtifactObjectStore::new(object_store))
+                Ok(ArtifactObjectStore::with_multipart(store))
             }
         }
     }
