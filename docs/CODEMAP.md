@@ -202,6 +202,7 @@ Hub, administration, and GPU policy.
 | `deploy/contract/tests/source_chart_content.rs` | real Git-history and separate-checkout chart identity tests, export-attribute coverage, executable modes, and source path boundaries |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/source-freshness.rs` | content comparison and timestamp synchronization for Cargo inputs under the target-cache lock |
+| `tools/image-build/rust-control.Dockerfile` | pinned Bookworm Rust control compiler, consumed by the common artifact recipe independently of Stream's DeepStream C++ build |
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
 | `tools/xtask/` | compiled repository command, enforcement, local test reporting, typed smoke prerequisite builds and dispatch, exact image planning, profile-registry builder configuration, and release orchestration |
 

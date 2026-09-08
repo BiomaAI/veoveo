@@ -369,7 +369,7 @@ rejects an index without both SPDX SBOM and SLSA provenance statements.
 
 ## Rust Builder Families
 
-The trixie and bookworm families each execute one Cargo action for the selected
+The trixie, bookworm, and bookworm control families each execute one Cargo action for the selected
 production binaries in that family. Moving between selections can change Cargo’s
 unified feature graph; the plan records the exact selected package and binary set. Runtime Dockerfiles consume the resulting scratch artifact target through the
 `veoveo-rust-artifacts` named context, while Bake exports only the selected runtime
@@ -379,7 +379,7 @@ images.
 |---|---|
 | `rust-trixie-v1` | shared Rust 1.97.1 trixie builder |
 | `rust-bookworm-v1` | shared Rust 1.97.1 bookworm builder |
-| `rust-deepstream-v1` | standalone NVIDIA DeepStream SDK |
+| `rust-bookworm-control-v1` | shared Rust 1.98.1 Bookworm control builder; Stream's C++ runner compiles separately in DeepStream 9.1 |
 | `rust-vllm-v1` | standalone vLLM runtime ABI |
 | `rust-sumo-bullseye-v1` | standalone SUMO-compatible bullseye ABI |
 
@@ -426,19 +426,24 @@ repository-relative files or directories under
 `[package.metadata.veoveo].image-build-inputs` when compilation reads outside the
 package boundary. The planner validates the generated workspace before BuildKit runs.
 See [the image input design](../tools/image-build/DESIGN.md) for identity and filesystem
-rules. The isolated DeepStream, vLLM, and SUMO families still read the complete
-repository through the canonical disposable writable source mount. The content-aware
+rules. The isolated vLLM and SUMO families read their Cargo-derived workspace
+through the canonical disposable writable source mount. The content-aware
 freshness helper reconciles timestamps with the locked Cargo target cache before Rust
 compilation. A source revert or older checkout therefore rebuilds changed inputs while
 unchanged files retain their previous compilation timestamp. UAV MCP uses the shared
 trixie family.
-Every Rust family receives a Cargo-derived context. Standalone NVIDIA and SUMO recipes
+Every Rust family receives a Cargo-derived context. Standalone vLLM and SUMO recipes
 keep their native/runtime package inputs and all real Cargo workspace metadata. They
 exclude unrelated service implementation sources. Standalone Dockerfiles do not copy a
 handwritten subset of workspace members. The
 planner rejects a standalone builder that omits the source mount or introduces a
 builder-stage `COPY`, which prevents a new workspace crate from breaking an otherwise
 unrelated image late in a release.
+
+Stream consumes the shared Bookworm control artifact and builds its native runner
+from a separate, read-only `gst-runner` mount. That family remains separate from
+Map's analytics feature selection. Rust source changes can reuse the C++ action;
+HTML changes preserve both compiler actions.
 
 ### Stream Compiler Runtime Acceptance
 

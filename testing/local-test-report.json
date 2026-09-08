@@ -1,29 +1,28 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:3cdc2ae8a55668668f33c355eb926a236442611c1e2e22a005feb2c5bd224c1e",
-  "updatedAt": "2026-09-08T15:36:58Z",
+  "buildDigest": "sha256:2e33787c18c67c64f68b8aa39f4f1d16e8cf5ee3f8ac62fd3ca34ae217ef5cc7",
+  "updatedAt": "2026-09-08T16:14:18Z",
   "checks": [
     {
-      "name": "stream-acceptance-clippy",
+      "name": "stream-compiler-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-smoke",
-        "--bin",
-        "smoke",
+        "veoveo-xtask",
+        "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T15:34:21Z",
-      "durationSeconds": 5.591457704,
+      "finishedAt": "2026-09-08T16:14:11Z",
+      "durationSeconds": 16.173921937,
       "detail": "completed successfully"
     },
     {
-      "name": "stream-acceptance-fmt",
+      "name": "stream-compiler-fmt",
       "command": [
         "cargo",
         "fmt",
@@ -32,28 +31,77 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T15:36:58Z",
-      "durationSeconds": 2.325028078,
+      "finishedAt": "2026-09-08T16:14:18Z",
+      "durationSeconds": 2.287786904,
       "detail": "completed successfully"
     },
     {
-      "name": "stream-acceptance-unit",
+      "name": "stream-compiler-native-build",
+      "command": [
+        "flock",
+        "target/veoveo-xtask/builder.lock",
+        "env",
+        "BUILDX_CONFIG=/home/rozgo/BiomaAI/veoveo/target/veoveo-xtask/docker-config/buildx",
+        "target/veoveo-xtask/docker-config/cli-plugins/v0.37.0/docker-buildx",
+        "build",
+        "--builder",
+        "veoveo",
+        "--target",
+        "builder",
+        "--file",
+        "servers/stream-mcp/Dockerfile",
+        "--output",
+        "type=cacheonly",
+        "--metadata-file",
+        "output/development/stream-separated-native-20260908.json",
+        "."
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T16:10:02Z",
+      "durationSeconds": 14.852500058,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-compiler-plan-tests",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-smoke",
-        "--bin",
-        "smoke"
+        "veoveo-xtask",
+        "commands::image"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T15:35:35Z",
-      "durationSeconds": 7.422634891,
+      "finishedAt": "2026-09-08T16:13:02Z",
+      "durationSeconds": 3.106679672,
       "detail": "completed successfully"
     },
     {
-      "name": "stream-common-compiler-gpu",
+      "name": "stream-compiler-source-edit",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "builder",
+        "benchmark",
+        "--target",
+        "stream-mcp",
+        "--source",
+        "servers/stream-mcp/src/bin/server.rs",
+        "--cpus",
+        "12",
+        "--cpus",
+        "12",
+        "--output",
+        "output/development/stream-separated-final-20260908"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T16:12:18Z",
+      "durationSeconds": 65.290622792,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-separated-compiler-gpu",
       "command": [
         "cargo",
         "xtask",
@@ -66,15 +114,15 @@
         "--pipeline-id",
         "traffic-object-detection",
         "--candidate-binary",
-        "output/development/common-rust-artifacts-696cb831/bin/stream-mcp",
+        "output/development/stream-separated-final-20260908/warmup/artifacts/bin/stream-mcp",
         "--candidate-app",
-        "output/development/common-compiler-696cb831/servers/stream-mcp/assets/live.html",
+        "servers/stream-mcp/assets/live.html",
         "--work-dir",
-        "output/development/stream-common-gpu-696cb831"
+        "output/development/stream-separated-gpu-20260908"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T15:33:13Z",
-      "durationSeconds": 19.699329409,
+      "finishedAt": "2026-09-08T16:12:41Z",
+      "durationSeconds": 10.487908758,
       "detail": "completed successfully"
     }
   ]

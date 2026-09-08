@@ -42,7 +42,8 @@ provider-neutral.
   their runtime configuration. Restart after HTML edits. Image assembly supplies
   the App through a separate declared asset context, preserving Rust compilation.
 
-The C++ runner lives in `gst-runner/` and builds inside the exact DeepStream
+The Rust executable uses the shared Bookworm control artifact target. The C++ runner
+lives in `gst-runner/` and builds separately inside the exact DeepStream
 image. GPU acceptance requires NVIDIA Container Toolkit and a model engine
 compiled for the deployment GPU.
 

@@ -170,6 +170,28 @@ target "rust-bookworm-artifacts" {
   }
 }
 
+target "rust-control-compiler" {
+  inherits   = ["base"]
+  dockerfile = "tools/image-build/rust-control.Dockerfile"
+}
+
+target "rust-bookworm-control-artifacts" {
+  inherits   = ["base"]
+  dockerfile = "tools/image-build/rust-workspace.Dockerfile"
+  target     = "artifacts"
+  contexts = {
+    veoveo-control-compiler = "target:rust-control-compiler"
+  }
+  args = {
+    RUST_IMAGE            = "veoveo-control-compiler"
+    VEOVEO_CARGO_PACKAGES  = ""
+    VEOVEO_CARGO_BINARIES  = ""
+    VEOVEO_AUXILIARY       = ""
+    VEOVEO_CARGO_CACHE_ID  = "veoveo-cargo-rust-bookworm-control-v1"
+    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-bookworm-control-v1-linux-amd64-release"
+  }
+}
+
 target "_rust-trixie-runtime" {
   inherits = ["base"]
   contexts = {
@@ -454,15 +476,14 @@ target "stream-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/stream-mcp/Dockerfile"
   tags       = [image_ref("stream-mcp")]
-  args = {
-    VEOVEO_CARGO_CACHE_ID  = "veoveo-cargo-rust-deepstream-v1"
-    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-deepstream-v1-linux-amd64-release"
+  contexts = {
+    veoveo-rust-artifacts = "target:rust-bookworm-control-artifacts"
   }
   labels = {
-    "io.veoveo.build.mode"      = "rust-standalone"
+    "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-stream-mcp"
     "io.veoveo.build.binaries"  = "stream-mcp"
-    "io.veoveo.build.family"    = "rust-deepstream-v1"
+    "io.veoveo.build.family"    = "rust-bookworm-control-v1"
     "io.veoveo.build.auxiliary" = ""
   }
 }
