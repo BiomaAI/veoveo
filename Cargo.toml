@@ -129,7 +129,7 @@ re_log_encoding = { version = "=0.36.3", features = ["encoder", "decoder"] }
 re_log_types = "=0.36.3"
 re_auth = "=0.36.3"
 re_protos = "=0.36.3"
-re_server = "=0.36.3"
+re_server = "=0.37.1"
 re_redap_tests = "=0.36.3"
 re_tuid = "=0.36.3"
 re_uri = "=0.36.3"
