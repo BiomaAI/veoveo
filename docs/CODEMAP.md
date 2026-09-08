@@ -339,6 +339,7 @@ The only durable platform persistence layer.
 | `identity.rs` | tenant/principal/group resolution |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
+| `artifact_reads.rs`, `artifact_reads/` | task-bound read delegation, current policy identity, and atomic distinct-occurrence quotas; governed by the Artifact service design |
 | `coordinates.rs`, `frame_worlds.rs` | coordinate-operation persistence plus authored frame worlds and immutable tree revisions |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
@@ -420,11 +421,16 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 
 ### `platform/artifacts/service`
 
+[`DESIGN.md`](../platform/artifacts/service/DESIGN.md) governs the internal Artifact
+plane and its bounded durable task-read delegation.
+
 | File | Responsibility |
 |---|---|
 | `service.rs` | policy enforcement, grants, release, shares, quotas, retention |
 | `ledger.rs` | repository contract and in-memory test implementation |
 | `ledger/surreal.rs` | canonical SurrealDB repository adapter |
+| `service/read_capability.rs`, `ledger/read_capability.rs`, `ledger/surreal/read_capability.rs` | delegated read policy, focused repository contract, and durable adapter |
+| `http/read_capability.rs` | task-read routes and gateway-authenticated issuance/revocation |
 | `store.rs` | memory/S3 blob storage and signed download behavior |
 | `auth.rs` | internal assertion verification and plane caller |
 | `http.rs` | internal artifact API plus `/s/{token}` redemption |
@@ -434,6 +440,8 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 
 HTTP implementation of the `ArtifactPlane` interface used by domain servers and the
 gateway. It forwards the caller's existing signed identity; it never signs one.
+`read_capability.rs` also consumes explicitly issued task-read authority through
+the dedicated internal read routes.
 
 ### `servers/artifact-mcp`
 

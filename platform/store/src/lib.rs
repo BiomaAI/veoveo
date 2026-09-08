@@ -6,6 +6,7 @@
 
 mod administration;
 mod artifact_access_requests;
+mod artifact_reads;
 mod artifacts;
 mod changefeed;
 mod config;
@@ -35,6 +36,10 @@ mod usage;
 
 pub use artifact_access_requests::{
     ArtifactAccessRequestDecisionDraft, ArtifactAccessRequestDraft, ArtifactAccessRequestQuery,
+};
+pub use artifact_reads::{
+    ArtifactReadAdmission, ArtifactReadCapabilityDraft, ArtifactReadCapabilityRecord,
+    ArtifactReadContextVersion, ArtifactReadMembership,
 };
 pub use artifacts::{
     ArtifactAggregate, ArtifactAuditDraft, ArtifactGrantDraft, ArtifactOccurrenceDraft,

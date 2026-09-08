@@ -1370,7 +1370,28 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 | Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
 | Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
 | Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, narrow flight harness, controlled sccache and Bazel trials | Stream/Reason common-family candidates require actual hardware workload acceptance; fresh recording-read authority and Reason's accelerated model-input path currently prevent admission |
-| Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Existing atomic Helm releases retain their ownership; general raw adoption and ownership transfer remain unimplemented |
+| Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Complete for the existing independently owned releases; general ownership transfer is outside this build/deploy goal |
 
 The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
 migration has no demonstrated overall advantage from the measured local cases.
+
+## Durable Read Prerequisite Checkpoint
+
+Artifact task-read delegation now has typed service, client and Store APIs, with
+explicit expiry, revocation and atomic input quotas. Current Artifact grants and
+labels are checked for every read. Work Context policy content binds the delegation;
+metadata-only timestamp changes preserve it. The component contract lives beside
+the [Artifact service](../platform/artifacts/service/DESIGN.md).
+
+This change addresses the authority prerequisite discovered during common-compiler
+workload acceptance. It is not a measured build speedup or an activated replay path.
+Stream/Reason task-state and recording-cache integration remain separate work, as
+does Reason's hardware-accelerated model-input path. Those application changes grew
+the investigation beyond the already measured build and deployment improvements.
+Their incomplete acceptance must not obscure the delivered iteration checkpoints.
+
+`DEPLOY-SCOPE-023` requires splitting a Helm release only when it mixes independently
+selected owners. The current reference installation already has independent releases.
+The earlier acceptance checklist incorrectly made general raw adoption and ownership
+transfer a completion requirement. Veoveo remains the product under improvement;
+Bioma supplies its reference installation configuration and GitOps owner.

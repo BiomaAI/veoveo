@@ -1,5 +1,7 @@
 //! HTTP transport for the artifact plane.
 
+mod read_capability;
+
 use std::sync::Arc;
 
 use axum::body::{Body, Bytes};
@@ -114,6 +116,7 @@ where
             "/artifact-write-capabilities/{capability_id}/redeem",
             post(redeem_write_capability::<R, S>),
         )
+        .merge(read_capability::routes::<R, S>())
         .route("/resolve", get(resolve_artifact::<R, S>))
         .route("/s/{token}", get(redeem_public_share::<R, S>))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_BODY_BYTES))
@@ -710,6 +713,7 @@ async fn redeem_public_share<R: ArtifactRepository, S: BlobStore>(
 
 #[cfg(test)]
 mod tests {
+    mod read_capability;
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};
 
@@ -807,12 +811,18 @@ mod tests {
     async fn spawn_service() -> (String, PlaneCaller) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
-        let service = ArtifactService::with_options(
-            InMemoryRepository::default(),
-            InMemoryBlobStore::default(),
-            &base,
-            1024,
+        let repository = InMemoryRepository::default();
+        let caller = signed_caller();
+        repository.set_read_context(
+            caller.tenant().unwrap().clone(),
+            caller.identity.authority.work_context.clone(),
+            crate::ledger::ReadContextVersion {
+                policy_revision: caller.identity.authority.policy_revision.clone(),
+                digest: "a".repeat(64),
+            },
         );
+        let service =
+            ArtifactService::with_options(repository, InMemoryBlobStore::default(), &base, 1024);
         let auth = PlaneAuthenticator::new(
             TokenIssuer::new("veoveo-internal").unwrap(),
             vec![ServerSlug::new("media").unwrap()],
@@ -820,7 +830,7 @@ mod tests {
         );
         let app = router(AppState::new(service, auth));
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        (base, signed_caller())
+        (base, caller)
     }
 
     #[tokio::test]

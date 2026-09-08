@@ -15,6 +15,9 @@ use veoveo_mcp_contract::{
     InvocationAuthority, WorkContextId,
 };
 
+pub mod read_capability;
+pub use read_capability::*;
+
 /// Full verified identity needed to create stable platform records and audit actors.
 #[derive(Debug, Clone)]
 pub struct RepositoryActor {
@@ -193,7 +196,7 @@ impl std::fmt::Display for RepositoryError {
 impl std::error::Error for RepositoryError {}
 
 /// Authoritative state operations. Counter redemptions are atomic in each implementation.
-pub trait ArtifactRepository: Send + Sync {
+pub trait ArtifactRepository: Send + Sync + ReadCapabilityRepository {
     fn create_artifact(
         &self,
         artifact: NewArtifact,
@@ -300,6 +303,8 @@ pub(crate) mod testing {
 
     use super::*;
 
+    mod read_capability;
+
     #[derive(Clone, Default)]
     pub struct InMemoryRepository {
         state: Arc<Mutex<State>>,
@@ -309,6 +314,11 @@ pub(crate) mod testing {
     struct State {
         artifacts: HashMap<ArtifactId, StoredArtifact>,
         capabilities: HashMap<ArtifactWriteCapabilityId, CapabilityState>,
+        read_capabilities: HashMap<
+            veoveo_mcp_contract::ArtifactReadCapabilityId,
+            read_capability::CapabilityState,
+        >,
+        read_contexts: HashMap<(TenantId, WorkContextId), ReadContextVersion>,
         redemptions: HashMap<(ArtifactWriteCapabilityId, String), RedemptionState>,
         shares: HashMap<String, ShareState>,
         access_requests: HashMap<ArtifactAccessRequestId, ArtifactAccessRequest>,

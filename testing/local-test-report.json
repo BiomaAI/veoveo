@@ -1,66 +1,34 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:05f7dc82b5662e5f19eea84c770f66d4766019c3f04f118624ba7af563f0d0e7",
-  "updatedAt": "2026-09-08T13:42:01Z",
+  "buildDigest": "sha256:0d0b5026896f6090fb07ec009150d7c8f3460ddfc151f67dd81b62a790399dc4",
+  "updatedAt": "2026-09-08T14:23:07Z",
   "checks": [
     {
-      "name": "recording-cache-authority",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-recording-reader",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T13:35:51Z",
-      "durationSeconds": 3.770570868,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-cache-clippy",
+      "name": "artifact-read-delegation-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-recording-reader",
+        "veoveo-artifact-service",
         "-p",
-        "veoveo-recording-video",
+        "veoveo-artifact-client",
         "-p",
-        "veoveo-recording-mcp",
+        "veoveo-mcp-contract",
+        "-p",
+        "veoveo-platform-store",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T13:39:26Z",
-      "durationSeconds": 18.925450591,
+      "finishedAt": "2026-09-08T14:23:03Z",
+      "durationSeconds": 66.517714516,
       "detail": "completed successfully"
     },
     {
-      "name": "recording-cache-consumers",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-recording-reader",
-        "-p",
-        "veoveo-recording-video",
-        "-p",
-        "veoveo-recording-mcp",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T13:38:44Z",
-      "durationSeconds": 111.641399446,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-cache-format",
+      "name": "artifact-read-delegation-fmt",
       "command": [
         "cargo",
         "fmt",
@@ -69,8 +37,63 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T13:42:01Z",
-      "durationSeconds": 2.228432681,
+      "finishedAt": "2026-09-08T14:23:06Z",
+      "durationSeconds": 2.188154369,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-read-delegation-native",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-artifact-service",
+        "artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T14:21:56Z",
+      "durationSeconds": 1.9624375299999999,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-read-delegation-sql",
+      "command": [
+        "output/tools/surreal/3.2.4/surreal",
+        "validate",
+        "platform/store/src/artifact_reads/admit.surql",
+        "platform/store/src/artifact_reads/authorize.surql",
+        "platform/store/src/artifact_reads/context.surql",
+        "platform/store/src/artifact_reads/create.surql",
+        "platform/store/migrations/0049_artifact_read_delegation.surql"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T14:23:07Z",
+      "durationSeconds": 0.23027453,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-read-delegation-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-artifact-service",
+        "-p",
+        "veoveo-artifact-client",
+        "-p",
+        "veoveo-mcp-contract",
+        "-p",
+        "veoveo-platform-store",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T14:21:33Z",
+      "durationSeconds": 110.175563121,
       "detail": "completed successfully"
     }
   ]

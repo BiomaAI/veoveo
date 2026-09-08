@@ -117,6 +117,11 @@ macro_rules! artifact_uuid_id {
 }
 
 artifact_uuid_id!(ArtifactWriteCapabilityId, "artifact write capability id");
+artifact_uuid_id!(ArtifactReadCapabilityId, "artifact read capability id");
+artifact_uuid_id!(ArtifactTaskId, "artifact task id");
+
+mod read_capability;
+pub use read_capability::*;
 
 /// Stable caller-selected identity for one asynchronous artifact write.
 ///

@@ -29,6 +29,8 @@ pub struct AuthorizedArtifactDownload {
     pub response: reqwest::Response,
 }
 
+mod read_capability;
+
 /// A plane client bound to one artifact-service base URL.
 #[derive(Clone)]
 pub struct HttpArtifactPlane {
