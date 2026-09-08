@@ -1,4 +1,3 @@
-use crate::{charts::helm_render_locked, process::kubectl_apply_value, sources::ResolvedSource};
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::Value;
@@ -10,9 +9,9 @@ use std::{
     process::Command,
 };
 use veoveo_deploy_contract::{
-    ConfigMapSpec, CustomSecretReferenceRegistry, FirstPartyMcpServer, KubernetesObjectKey,
-    LoadedProfile, PlatformComponent, SecretClosure, SecretClosureStatus, SecretObjectKey,
-    SecretObservation, SecretObservationStatus, SecretReferenceKind, SecretReferenceRequirement,
+    ConfigMapSpec, CustomSecretReferenceRegistry, KubernetesObjectKey, LoadedProfile,
+    SecretClosure, SecretClosureStatus, SecretObjectKey, SecretObservation,
+    SecretObservationStatus, SecretReferenceKind, SecretReferenceRequirement,
     collect_secret_requirements, gateway_bundle_digest,
 };
 use veoveo_mcp_contract::GatewayControlPlane;
@@ -27,11 +26,10 @@ pub(crate) struct PreparedGatewayActivation {
     pub(crate) data: BTreeMap<String, String>,
 }
 
-pub(crate) fn apply_config_map(
+pub(crate) fn config_map_manifest(
     profile: &LoadedProfile,
-    context: &str,
     config_map: &ConfigMapSpec,
-) -> Result<()> {
+) -> Result<Value> {
     let mut data = BTreeMap::new();
     for (key, path) in &config_map.files {
         data.insert(
@@ -40,18 +38,15 @@ pub(crate) fn apply_config_map(
                 .with_context(|| format!("reading ConfigMap source {}", path.display()))?,
         );
     }
-    kubectl_apply_value(
-        context,
-        &serde_json::json!({
-            "apiVersion": "v1",
-            "kind": "ConfigMap",
-            "metadata": {
-                "name": config_map.name,
-                "namespace": profile.definition.namespace
-            },
-            "data": data
-        }),
-    )
+    Ok(serde_json::json!({
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+            "name": config_map.name,
+            "namespace": profile.definition.namespace
+        },
+        "data": data
+    }))
 }
 
 pub(crate) fn after_secret_closure<T>(
@@ -70,33 +65,11 @@ pub(crate) fn prepare_secret_closure(
     profile_path: &Path,
     lock_path: &Path,
     profile: &LoadedProfile,
-    sources: &[ResolvedSource],
-    components: &BTreeSet<PlatformComponent>,
-    mcp_servers: &BTreeSet<FirstPartyMcpServer>,
+    objects: &[Value],
     gateway_activation: Option<&PreparedGatewayActivation>,
 ) -> Result<SecretClosure> {
-    let mut objects = Vec::new();
-    if let Some(cluster) = &profile.definition.kubernetes.local_cluster {
-        for manifest in &cluster.node_bootstrap_manifests {
-            append_yaml_objects(&profile.resolve(manifest), &mut objects)?;
-        }
-    }
-    for manifest in &profile.definition.resources.manifests {
-        append_yaml_objects(&profile.resolve(manifest), &mut objects)?;
-    }
-    for source in sources {
-        for release in &source.definition.releases {
-            let rendered = helm_render_locked(profile, source, release, components, mcp_servers)?;
-            append_yaml_bytes(
-                rendered.as_bytes(),
-                &format!("Helm release {}", release.name),
-                &mut objects,
-            )?;
-        }
-    }
-
     let mut requirements = collect_secret_requirements(
-        &objects,
+        objects,
         &profile.definition.namespace,
         &CustomSecretReferenceRegistry::default(),
     )?;
@@ -368,29 +341,25 @@ pub(crate) fn validate_gateway_public_file(
     Ok(())
 }
 
-pub(crate) fn apply_gateway_activation(
-    context: &str,
+pub(crate) fn gateway_activation_manifest(
     namespace: &str,
     activation: &PreparedGatewayActivation,
-) -> Result<()> {
-    kubectl_apply_value(
-        context,
-        &serde_json::json!({
-            "apiVersion": "v1",
-            "kind": "ConfigMap",
-            "metadata": {
-                "name": activation.config_map_name,
-                "namespace": namespace,
-                "labels": {
-                    "app.kubernetes.io/managed-by": "veoveo-profile",
-                    "veoveo.ai/gateway-activation": "true"
-                },
-                "annotations": {
-                    "veoveo.ai/gateway-activation-revision": activation.revision
-                }
+) -> Value {
+    serde_json::json!({
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+            "name": activation.config_map_name,
+            "namespace": namespace,
+            "labels": {
+                "app.kubernetes.io/managed-by": "veoveo-profile",
+                "veoveo.ai/gateway-activation": "true"
             },
-            "immutable": true,
-            "data": activation.data
-        }),
-    )
+            "annotations": {
+                "veoveo.ai/gateway-activation-revision": activation.revision
+            }
+        },
+        "immutable": true,
+        "data": activation.data
+    })
 }

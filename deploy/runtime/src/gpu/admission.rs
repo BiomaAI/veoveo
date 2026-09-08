@@ -1,21 +1,21 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, bail, ensure};
 use serde_json::Value;
 
-use super::{MANAGED_NODE_LABEL, MANAGED_NODE_LABEL_POINTER, MANAGED_NODE_LABEL_VALUE};
 use crate::process::output_checked;
 
-pub(super) fn validate_kubelet_daemon_set_contract(kubelet: &Value) -> Result<()> {
-    let expected_selector = serde_json::json!({
-        MANAGED_NODE_LABEL: MANAGED_NODE_LABEL_VALUE
-    });
+pub(super) fn validate_kubelet_daemon_set_contract(
+    kubelet: &Value,
+    declared_selector: &BTreeMap<String, String>,
+) -> Result<()> {
+    let expected_selector = serde_json::to_value(declared_selector)?;
     let selector = kubelet
         .pointer("/spec/template/spec/nodeSelector")
         .context("NVIDIA DRA kubelet-plugin has no nodeSelector")?;
     ensure!(
         selector == &expected_selector,
-        "NVIDIA DRA kubelet-plugin nodeSelector is {selector}, expected the sole platform-managed selector {expected_selector}"
+        "NVIDIA DRA kubelet-plugin nodeSelector is {selector}, expected the installation-declared selector {expected_selector}"
     );
     let required_affinity = kubelet.pointer(
         "/spec/template/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution",
@@ -91,10 +91,20 @@ fn selected_node_admission_diagnostics(
             continue;
         }
         reported_nodes.insert(name);
-        let managed_label = node
-            .pointer(MANAGED_NODE_LABEL_POINTER)
-            .and_then(Value::as_str)
-            .unwrap_or("<missing>");
+        let selector = kubelet
+            .pointer("/spec/template/spec/nodeSelector")
+            .and_then(Value::as_object)
+            .context("kubelet-plugin omits node selector")?;
+        let mismatched_labels = selector
+            .iter()
+            .filter_map(|(key, value)| {
+                let actual = node
+                    .pointer("/metadata/labels")
+                    .and_then(|labels| labels.get(key));
+                (actual != Some(value))
+                    .then(|| format!("{key}: expected={value} actual={actual:?}"))
+            })
+            .collect::<Vec<_>>();
         let ready = node
             .pointer("/status/conditions")
             .and_then(Value::as_array)
@@ -124,7 +134,7 @@ fn selected_node_admission_diagnostics(
             .map(format_taint)
             .collect::<Vec<_>>();
         reports.push(format!(
-            "node={name} {MANAGED_NODE_LABEL}={managed_label} ready={ready} unschedulable={unschedulable} untoleratedTaints={untolerated:?}"
+            "node={name} selectorMismatches={mismatched_labels:?} ready={ready} unschedulable={unschedulable} untoleratedTaints={untolerated:?}"
         ));
     }
     for missing in selected_nodes {
@@ -232,10 +242,19 @@ mod tests {
     fn kubelet_daemon_set_rejects_discovery_affinity() {
         let managed = json!({
             "spec": {"template": {"spec": {
-                "nodeSelector": {"nvidia.com/dra-kubelet-plugin": "true"}
+                "nodeSelector": {"kubernetes.io/hostname": "gpu-node"}
             }}}
         });
-        validate_kubelet_daemon_set_contract(&managed).unwrap();
+        let selector = std::collections::BTreeMap::from([(
+            "kubernetes.io/hostname".into(),
+            "gpu-node".into(),
+        )]);
+        validate_kubelet_daemon_set_contract(&managed, &selector).unwrap();
+        let wrong = std::collections::BTreeMap::from([(
+            "kubernetes.io/hostname".into(),
+            "other-node".into(),
+        )]);
+        assert!(validate_kubelet_daemon_set_contract(&managed, &wrong).is_err());
 
         let mut unmanaged = managed;
         unmanaged["spec"]["template"]["spec"]["affinity"] = json!({
@@ -247,7 +266,7 @@ mod tests {
                 }]}]
             }}
         });
-        let error = validate_kubelet_daemon_set_contract(&unmanaged)
+        let error = validate_kubelet_daemon_set_contract(&unmanaged, &selector)
             .unwrap_err()
             .to_string();
         assert!(error.contains("required node-admission predicate"));

@@ -16,13 +16,22 @@ use veoveo_deploy_contract::{DeploymentLock, DeploymentSource, LoadedProfile, So
 const GIT_SKIP_LFS_SMUDGE: &[(&str, &str)] = &[("GIT_LFS_SKIP_SMUDGE", "1")];
 
 #[derive(Debug)]
+pub(crate) enum SourceCheckout {
+    Temporary {
+        _directory: tempfile::TempDir,
+    },
+    /// The synchronous lock compiler borrows a publisher-owned immutable snapshot.
+    Publication,
+}
+
+#[derive(Debug)]
 pub(crate) struct ResolvedSource {
     pub(crate) definition: DeploymentSource,
     pub(crate) repository: PathBuf,
     pub(crate) revision: String,
     pub(crate) image_digests: BTreeMap<String, String>,
     pub(crate) deployment_image_digests: BTreeMap<String, String>,
-    pub(crate) _checkout: tempfile::TempDir,
+    pub(crate) _checkout: SourceCheckout,
 }
 
 pub(crate) fn load_profile(path: &Path) -> Result<LoadedProfile> {
@@ -86,7 +95,9 @@ pub(crate) fn resolve_sources(profile: &LoadedProfile) -> Result<Vec<ResolvedSou
             revision,
             image_digests: BTreeMap::new(),
             deployment_image_digests: BTreeMap::new(),
-            _checkout: checkout,
+            _checkout: SourceCheckout::Temporary {
+                _directory: checkout,
+            },
         });
     }
     Ok(resolved)
@@ -118,6 +129,10 @@ pub(crate) fn validate_locked_profile(
         lock.platform == profile.resolved_platform()?,
         "deployment lock platform selection does not match the profile"
     );
+    veoveo_deploy_contract::components::validate_profile_component_bindings(
+        &profile.definition,
+        lock,
+    )?;
     ensure!(
         lock.sources.len() == profile.definition.sources.len(),
         "deployment lock contains {} sources, profile declares {}",
@@ -228,7 +243,9 @@ pub(crate) fn resolve_locked_sources(
             revision,
             image_digests: locked_image_digests(profile, std::slice::from_ref(locked))?,
             deployment_image_digests: deployment_image_digests.clone(),
-            _checkout: checkout,
+            _checkout: SourceCheckout::Temporary {
+                _directory: checkout,
+            },
         });
     }
     Ok(resolved)

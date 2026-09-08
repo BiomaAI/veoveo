@@ -4,9 +4,10 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v6` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v6` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
+| `veoveo.io/deployment/v7` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v7` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
+| `veoveo.io/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by publication and compatibility generation |
 | `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
 | `veoveo.io/component-mutation-plan/v1` | internal preflight evidence for exact atomic targets; it records allowed actions and does not attest to executed writes |
 | `veoveo.io/atomic-deployment-unit/v1` | repository-owned SHA-256 identity over typed source, target, input closure, and sorted rendered object digests |
@@ -19,7 +20,7 @@
 | Kubernetes Ingress `networking.k8s.io/v1` | TLS Secret references |
 | Kubernetes Gateway API `gateway.networking.k8s.io/v1` | listener certificate references to core Secrets; other certificate kinds remain outside this profile |
 | Kubernetes Dynamic Resource Allocation `resource.k8s.io/v1` | persistent `ResourceClaim` allocation, named requests, per-container claims, and distinct-device constraints |
-| NVIDIA DRA Driver for GPUs Helm chart `0.4.1` and `resource.nvidia.com/v1beta1` | digest-locked standalone GPU allocation, full-GPU and MIG DeviceClasses, CDI preparation, and measured time-slicing configuration; GPU allocation and `TimeSlicingSettings` remain upstream technology-preview features |
+| NVIDIA DRA Driver for GPUs Helm chart `0.5.0` and `resource.nvidia.com/v1beta1` | digest-locked standalone GPU allocation, full-GPU and MIG DeviceClasses, CDI preparation, and measured time-slicing configuration; GPU allocation and `TimeSlicingSettings` remain upstream technology-preview features |
 
 ## Responsibility
 
@@ -34,8 +35,9 @@ disposable profile installer. It consumes this crate's contracts and digest enco
 ## Atomic Ownership Planner
 
 `src/components/` implements the pure preflight boundary for `DEPLOY-SCOPE-023`.
-The disposable profile installer still consumes deployment v6. Integration will advance
-the profile and lock schemas together before exposing component-selected installation.
+The disposable profile compiler and installer consume deployment v7 with mandatory
+component ownership and compiled inventories. Installation still processes the complete
+profile; component selection and installed-state receipts remain unfinished.
 The internal planner is not an alternative installer or an enterprise mutation owner.
 
 Each component declares its immutable source, role, dependencies, exact Helm release
@@ -55,6 +57,23 @@ source-qualified owner even when several components consume it. A source name id
 one repository throughout the catalog. Components and inputs from that repository can
 retain different immutable revisions. Advancing a component does not change the recorded
 provenance of an unchanged image built from an earlier commit.
+
+The complete lock binds each component image to its source repository, target, runnable
+digest, and per-image `sourceRevision`. Charts bind to the source-owned release and
+artifact digest. Values come from the component's source snapshot or the installation
+repository. Every Helm unit consumes exactly one chart. Managed allocator inputs match
+the installation's pinned chart and image closure.
+
+Profile binding checks every owner's role, dependencies, extension identity, namespaces,
+atomic operations, and cluster permissions. Namespaced permissions come from the complete
+locked inventory. These checks also cover unselected owners without evaluating their
+templates or cloning their repositories. Source origin and actual selected input bytes
+remain runtime checks.
+
+Dependency closure includes the namespace owner before source releases and namespaced
+installation operations. Placement depends on the allocator owner. When node bootstrap
+is declared, the allocator also depends on that owner. A component may own its own
+prerequisites; otherwise the dependency must be reachable in the declared graph.
 
 Selection names exact component IDs and expands dependencies in deterministic order.
 The renderer supplies every expanded atomic target and must not render unselected
@@ -115,9 +134,7 @@ selected Veoveo applications use `workload`; independently owned integrations us
 
 The installation owner supplies every Secret through its own reconciliation path.
 Deployment profiles do not create, patch, replace, copy, or transfer ownership of a
-Secret. The v6 `resources.secrets` shape remains reserved and validation requires it to
-be empty. Raw profile and rendered Helm objects that define a Secret fail before
-mutation.
+Secret. Raw profile and rendered Helm objects that define a Secret fail before mutation.
 
 `profile-up` renders the complete locked Helm and raw-manifest closure before its first
 Kubernetes or Helm write. The pure contract extracts Secret references from container
@@ -186,7 +203,7 @@ lock name the standalone NVIDIA chart, its OCI manifest digest, the downloaded a
 digest, the multi-platform driver image index, and each admitted platform manifest.
 They select eligible nodes, a host driver root, a bounded Helm timeout, and one typed
 removal of a conflicting device plugin. Validation accepts only the qualified
-`0.4.1` release. This is a hard cut from deployment v5; an installation replaces
+`0.5.0` release. This is a hard cut from deployment v5; an installation replaces
 `registry.address` with `registry.pushAddress` and `registry.pullAddress`, then
 regenerates its lock.
 

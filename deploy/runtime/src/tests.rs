@@ -75,7 +75,6 @@ fn publisher_and_installer_share_chart_inventory_and_content_validation() {
             source_values: vec![PathBuf::from("chart/values.yaml")],
             installation_values: Vec::new(),
             values_contract: ReleaseValuesContract::Platform,
-            create_namespace: false,
             timeout_seconds: 60,
         }],
     };
@@ -135,6 +134,8 @@ fn deployment_image_closure_spans_sources() {
             images: vec![LockedImage {
                 name: "agent-kernel".to_owned(),
                 repository: "registry.example/veoveo/agent-kernel".to_owned(),
+                source_revision: veoveo_extension_contract::SourceRevision::new("a".repeat(40))
+                    .unwrap(),
                 digest: DIGEST_A.to_owned(),
                 publication_digest: DIGEST_B.to_owned(),
             }],
@@ -148,6 +149,8 @@ fn deployment_image_closure_spans_sources() {
             images: vec![LockedImage {
                 name: "runtime".to_owned(),
                 repository: "registry.example/extension/runtime".to_owned(),
+                source_revision: veoveo_extension_contract::SourceRevision::new("b".repeat(40))
+                    .unwrap(),
                 digest: DIGEST_B.to_owned(),
                 publication_digest: DIGEST_A.to_owned(),
             }],
@@ -211,7 +214,6 @@ fn installation_values_override_source_values_in_helm_order() {
             PathBuf::from("site.yaml"),
         ],
         values_contract: ReleaseValuesContract::Platform,
-        create_namespace: false,
         timeout_seconds: 60,
     };
 

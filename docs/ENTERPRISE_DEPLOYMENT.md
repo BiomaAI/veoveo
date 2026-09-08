@@ -18,8 +18,8 @@ changing the chart, image, configuration, or Secret contracts.
 | Helm and Kubernetes | separately reconciled platform and extension application charts |
 | Flux 2.9.4 / GitOps Toolkit | maintained reference using `source.toolkit.fluxcd.io/v1`, `kustomize.toolkit.fluxcd.io/v1`, and `helm.toolkit.fluxcd.io/v2`; other controllers consume the same Helm and configuration contract |
 | `veoveo.io/extension-release/v1` | independently published extension image, chart, fragment, conformance, and source identity |
-| `veoveo.io/deployment/v6` | optional repository-development publication profile with exact platform selection, installation-owned Helm values, and managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v6` | immutable installation, source, and managed allocator evidence from the repository-development publication flow |
+| `veoveo.io/deployment/v7` | optional repository-development publication profile with exact platform selection, installation-owned Helm values, and managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v7` | immutable installation, source, and managed allocator evidence from the repository-development publication flow |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server contribution |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, tenant, producer, and authorization policy |
 | `veoveo.io/compatibility-manifest/v1` | supported SDK, chart library, standalone tools, schemas, and optional simulation tuple |
@@ -161,7 +161,7 @@ ownership. Keep `consoleBff.oauthResource` at the public protected-resource URL 
 `consoleBff.mcpTransportUrl` to the endpoint reachable by the BFF pod. Corporate roots
 belong in a non-secret installation ConfigMap selected by
 `consoleBff.outboundCa.existingConfigMap`; the chart mounts its configured PEM key and
-the BFF adds those roots to the standard verifier. A deployment/v6 source lists the
+the BFF adds those roots to the standard verifier. A deployment/v7 source lists the
 owning values file under the platform release's `installationValues`. Missing ConfigMap
 data blocks the pod mount, while malformed trust material blocks BFF startup.
 

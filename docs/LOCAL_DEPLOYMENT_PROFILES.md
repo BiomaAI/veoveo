@@ -13,7 +13,7 @@ The current complete profile is the SUMO development environment:
 | Local image destination | Profile-selected registry host and port with revision-addressed image tags |
 | Platform workload graph | deploy/helm/veoveo |
 | Showcase workload graph | Its adjacent Helm chart |
-| Development composition | A `veoveo.io/deployment/v6` installation-repository JSON profile |
+| Development composition | A `veoveo.io/deployment/v7` installation-repository JSON profile |
 | Local registry lifecycle | deploy/local/k3d/registry.json |
 
 ## Workflow
@@ -62,7 +62,7 @@ paths resolve inside that source's exact checkout. The fields are:
 
 | Field | Meaning |
 |---|---|
-| schemaVersion | `veoveo.io/deployment/v6` |
+| schemaVersion | `veoveo.io/deployment/v7` |
 | name | Stable local environment identity |
 | registry.pushAddress | OCI host and port reachable from the publication host |
 | registry.pullAddress | OCI host and port reachable from Kubernetes nodes |
@@ -72,12 +72,12 @@ paths resolve inside that source's exact checkout. The fields are:
 | sources[].imageGroups | Ordered source-owned phases for workload and extension sources; prohibited on the platform source |
 | sources[].releases[].sourceValues | Helm values resolved from the exact source checkout |
 | sources[].releases[].installationValues | Later Helm overrides resolved from the installation repository |
+| components | Mandatory owners, atomic release or installation operations, dependency IDs, namespaces, and exact cluster object permissions |
 | kubernetes.context | Explicit kubectl and Helm context |
 | kubernetes.localCluster | k3d configuration and node bootstrap manifests |
 | namespace | Namespace for local resources |
 | resources.manifests | Non-Secret Kubernetes resources applied before Helm; rendered Secrets are rejected |
 | resources.configMaps | File-backed development ConfigMaps |
-| resources.secrets | Reserved v6 field that must remain empty; profiles do not own Secrets |
 | gatewayActivation.controlPlane | Complete installation-owned composed gateway document |
 | gatewayActivation.publicFiles | Exact public JWKS and CA files referenced by that document |
 | gatewayActivation.confidentialSecret | Pre-existing Secret that `profile-up` verifies but never rewrites |
@@ -95,16 +95,24 @@ commit, then resolves each source revision independently.
 The publisher derives only the required platform targets, rejects missing or
 unnecessary platform images and duplicate repository/tag references, and executes the
 platform set once. Workload and extension groups remain source-owned. It writes one
-`veoveo.io/deployment-lock/v6` document with the installation revision, registry
+`veoveo.io/deployment-lock/v7` document with the installation revision, registry
 endpoints and transport, source repositories and revisions, image manifest digests, chart-content
-digests, and expanded platform graph.
+digests, expanded platform graph, and compiled component inventories. Every image records
+the commit that built it independently of the chart snapshot. Installation locks are
+generated outputs; schema tests use explicitly synthetic fixtures.
 
 `cargo xtask smoke profile-up` requires that lock. It verifies the installation
 revision and referenced profile files, checks out each source at the recorded revision,
-and verifies its origin, exact Bake repositories, and source-chart archive digest. Helm
-receives source values followed by installation-owned overrides and the source-owned
-digest map in production mode. Installation never re-resolves `HEAD`, a branch, or
+and verifies its origin, exact Bake repositories, and source-chart content digest.
+Compilation applies source values followed by installation-owned overrides and the
+source-owned digest map in production mode. Helm consumes that complete prepared render.
+Installation never re-resolves `HEAD`, a branch, or
 another mutable source expression.
+
+The component compiler checks the entire ownership and artifact catalog before
+installation writes. The current installer still applies the complete profile. Exact
+component selection, installed-state receipts, and verified unchanged-component skipping
+remain under implementation.
 
 When `gatewayActivation` is present, profile validation parses the control plane, checks
 that its complete file reference set exactly matches `publicFiles`, and validates each

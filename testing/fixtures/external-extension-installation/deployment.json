@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v6",
+  "schemaVersion": "veoveo.io/deployment/v7",
   "name": "anonymous-extension",
   "registry": {
     "pushAddress": "registry.example.internal:5002",
@@ -22,9 +22,10 @@
           "name": "veoveo",
           "chart": "deploy/helm/veoveo",
           "sourceValues": [],
-          "installationValues": ["platform-values.yaml"],
+          "installationValues": [
+            "platform-values.yaml"
+          ],
           "valuesContract": "platform",
-          "createNamespace": true,
           "timeoutSeconds": 720
         }
       ]
@@ -37,8 +38,7 @@
   "namespace": "veoveo",
   "resources": {
     "manifests": [],
-    "configMaps": [],
-    "secrets": []
+    "configMaps": []
   },
   "platform": {
     "installationPreset": "custom",
@@ -63,5 +63,51 @@
   "gatewayRequirements": [
     "gateway-requirements.json"
   ],
-  "waitForDeployments": []
+  "waitForDeployments": [],
+  "components": [
+    {
+      "id": "installation",
+      "owner": {
+        "kind": "installation"
+      },
+      "role": "installation",
+      "dependencies": [],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [
+        {
+          "group": "",
+          "kind": "Namespace",
+          "namespace": null,
+          "name": "veoveo"
+        }
+      ],
+      "releases": [],
+      "installationInputs": [
+        "namespace"
+      ],
+      "extensionRelease": null
+    },
+    {
+      "id": "veoveo",
+      "owner": {
+        "kind": "source",
+        "name": "veoveo"
+      },
+      "role": "platform",
+      "dependencies": [
+        "installation"
+      ],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [],
+      "releases": [
+        "veoveo"
+      ],
+      "installationInputs": [],
+      "extensionRelease": null
+    }
+  ]
 }

@@ -15689,6 +15689,7 @@ dependencies = [
  "tempfile",
  "url",
  "veoveo-deploy-contract",
+ "veoveo-extension-contract",
  "veoveo-mcp-contract",
 ]
 

@@ -1,22 +1,28 @@
 use crate::{
-    charts::{helm_up, validate_helm_releases},
-    cluster::{apply_local_cluster_bootstrap, wait_for_cluster_gpu, wait_for_cluster_nodes},
+    charts::validate_helm_releases,
+    cluster::{wait_for_cluster_gpu, wait_for_cluster_nodes},
+    compile::compile_components,
     configuration::{
-        after_secret_closure, apply_config_map, apply_gateway_activation,
-        prepare_gateway_activation, prepare_secret_closure,
+        after_secret_closure, prepare_gateway_activation, prepare_secret_closure,
         validate_node_bootstrap_secret_boundary,
     },
+    discovery::validate_cluster_scopes,
     gpu::{apply_gpu_placement, ensure_gpu_allocator, prepare_gpu_placement, verify_gpu_placement},
     images::{validate_bake_selections, validate_locked_images},
-    process::{kubectl_apply_value, path_str, status_checked},
+    process::{kubectl_apply_value, status_checked},
     sources::{
         load_deployment_lock, load_profile, resolve_locked_sources, resolve_sources,
         validate_locked_profile,
     },
 };
-use anyhow::{Context, Result};
-use std::{path::Path, process::Command, time::Duration};
-use veoveo_deploy_contract::DeploymentSourceRole;
+use anyhow::{Context, Result, ensure};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+    process::Command,
+    time::Duration,
+};
+use veoveo_deploy_contract::{DeploymentSourceRole, components::InstallationInput};
 
 pub fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
@@ -60,42 +66,98 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let selected_images = validate_bake_selections(&profile, &sources)?;
     profile.validate_image_plan(&selected_images)?;
     validate_locked_images(&profile, &lock, &sources, &selected_images)?;
-    validate_helm_releases(&profile, &sources)?;
+    let source_roots = sources
+        .iter()
+        .map(|source| (source.definition.name.clone(), source.repository.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let selected = lock
+        .components
+        .iter()
+        .map(|component| component.declaration.id.clone())
+        .collect::<BTreeSet<_>>();
+    let compiled = compile_components(
+        &profile,
+        &lock.profile_revision,
+        &lock.sources,
+        &source_roots,
+        &selected,
+    )?;
+    ensure!(
+        compiled.len() == lock.components.len(),
+        "prepared component catalog differs from the deployment lock"
+    );
+    for component in &compiled {
+        let locked = lock
+            .components
+            .iter()
+            .find(|locked| locked.declaration.id == component.locked.declaration.id)
+            .context("prepared component has no locked owner")?;
+        ensure!(
+            &component.locked == locked,
+            "prepared component {} differs from its locked ownership, inputs, or objects",
+            locked.declaration.id
+        );
+        ensure!(
+            component
+                .units
+                .iter()
+                .map(|unit| &unit.prepared.target)
+                .collect::<BTreeSet<_>>()
+                == locked.declaration.targets.iter().collect::<BTreeSet<_>>(),
+            "prepared executable targets differ from their locked inventory"
+        );
+    }
+    let objects = compiled
+        .iter()
+        .flat_map(|component| {
+            component
+                .units
+                .iter()
+                .flat_map(|unit| unit.objects.iter().cloned())
+        })
+        .collect::<Vec<_>>();
     let platform = profile.resolved_platform()?;
     let context = profile.definition.kubernetes.context.as_str();
+    validate_cluster_scopes(context, &lock.components, &objects)?;
     let secret_closure = prepare_secret_closure(
         path,
         lock_path,
         &profile,
-        &sources,
-        &platform.components,
-        &platform.mcp_servers,
+        &objects,
         gateway_activation.as_ref(),
     )?;
 
     after_secret_closure(secret_closure, |_closure| {
-        apply_local_cluster_bootstrap(&profile)?;
+        for object in installation_objects(&compiled, InstallationInput::NodeBootstrap) {
+            kubectl_apply_value(context, object)?;
+        }
         if platform.gpu_scheduling.is_some() {
             wait_for_cluster_nodes(context, Duration::from_secs(120))?;
         } else {
             wait_for_cluster_gpu(context, Duration::from_secs(120))?;
         }
 
-        kubectl_apply_value(
-            context,
-            &serde_json::json!({
-                "apiVersion": "v1",
-                "kind": "Namespace",
-                "metadata": {"name": profile.definition.namespace}
-            }),
-        )?;
+        for object in installation_objects(&compiled, InstallationInput::Namespace) {
+            kubectl_apply_value(context, object)?;
+        }
 
         if let Some(placement) = prepare_gpu_placement(&profile)? {
             let scheduling = platform
                 .gpu_scheduling
                 .as_ref()
                 .context("prepared GPU placement has no resolved scheduling profile")?;
-            ensure_gpu_allocator(context, &profile.definition.namespace, scheduling)?;
+            let allocator = compiled
+                .iter()
+                .flat_map(|component| &component.units)
+                .find(|unit| unit.installation_input == Some(InstallationInput::GpuAllocator))
+                .and_then(|unit| unit.helm.as_ref())
+                .context("GPU allocator has no prepared Helm operation")?;
+            ensure_gpu_allocator(
+                context,
+                &profile.definition.namespace,
+                scheduling,
+                allocator,
+            )?;
             apply_gpu_placement(
                 context,
                 &profile.definition.namespace,
@@ -104,40 +166,28 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             )?;
         }
 
-        for manifest in &profile.definition.resources.manifests {
-            let manifest = profile.resolve(manifest);
-            status_checked(
-                "kubectl",
-                [
-                    "--context",
-                    context,
-                    "--namespace",
-                    profile.definition.namespace.as_str(),
-                    "apply",
-                    "-f",
-                    path_str(&manifest)?,
-                ],
-                &[],
-                None,
-            )?;
-        }
-        for config_map in &profile.definition.resources.config_maps {
-            apply_config_map(&profile, context, config_map)?;
-        }
-        if let Some(activation) = &gateway_activation {
-            apply_gateway_activation(context, &profile.definition.namespace, activation)?;
+        for input in [
+            InstallationInput::PublicResources,
+            InstallationInput::GatewayActivation,
+        ] {
+            for object in installation_objects(&compiled, input) {
+                kubectl_apply_value(context, object)?;
+            }
         }
 
         for source in &sources {
             for release in &source.definition.releases {
-                helm_up(
-                    &profile,
-                    source,
-                    context,
-                    release,
-                    &platform.components,
-                    &platform.mcp_servers,
-                )?;
+                let target = veoveo_deploy_contract::components::AtomicTarget::HelmRelease {
+                    namespace: profile.definition.namespace.clone(),
+                    name: release.name.clone(),
+                };
+                let prepared = compiled
+                    .iter()
+                    .flat_map(|component| &component.units)
+                    .find(|unit| unit.prepared.target == target)
+                    .and_then(|unit| unit.helm.as_ref())
+                    .context("source release has no prepared Helm operation")?;
+                prepared.install(context, &profile.definition.namespace, &release.name)?;
             }
         }
         for deployment in &profile.definition.wait_for_deployments {
@@ -167,6 +217,19 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             sources.len()
         );
         Ok(())
+    })
+}
+
+fn installation_objects(
+    components: &[crate::compile::CompiledComponent],
+    input: InstallationInput,
+) -> impl Iterator<Item = &serde_json::Value> {
+    components.iter().flat_map(move |component| {
+        component
+            .units
+            .iter()
+            .filter(move |unit| unit.installation_input == Some(input))
+            .flat_map(|unit| &unit.objects)
     })
 }
 

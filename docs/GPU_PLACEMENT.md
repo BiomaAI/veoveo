@@ -1,7 +1,7 @@
 # GPU placement
 
 Deployment profiles can own a restart-stable physical-GPU topology through Kubernetes
-Dynamic Resource Allocation. The regular `profile-up` workflow installs the qualified
+Dynamic Resource Allocation. The regular `profile-up` workflow installs the pinned
 allocator, creates one durable claim, deploys its consumers, and proves each
 in-container physical UUID. Direct Helm installation is not part of this workflow.
 
@@ -10,7 +10,7 @@ in-container physical UUID. Direct Helm installation is not part of this workflo
 | Standard or protocol | Supported profile |
 |---|---|
 | Kubernetes Dynamic Resource Allocation | `resource.k8s.io/v1` on the qualified Kubernetes/K3s v1.36.2 runtime |
-| NVIDIA DRA Driver for GPUs | Standalone Helm chart `dra-driver-nvidia-gpu` v0.4.1; GPU allocation and configurable time slicing are accepted as upstream technology-preview features |
+| NVIDIA DRA Driver for GPUs | Standalone Helm chart `dra-driver-nvidia-gpu` v0.5.0; GPU allocation and configurable time slicing are accepted as upstream technology-preview features |
 | NVIDIA resource configuration | `resource.nvidia.com/v1beta1` `GpuConfig` with exact `TimeSlicing` intervals |
 | Container Device Interface | GPU injection through a CDI-enabled container runtime |
 | OCI Distribution and SHA-256 | Exact chart manifest, chart archive, driver image index, and platform image manifests |
@@ -23,12 +23,19 @@ validated in Rust rather than copied from arbitrary profile input.
 
 | Artifact | Exact identity |
 |---|---|
-| Helm chart | `oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu:0.4.1` |
-| Chart OCI manifest | `sha256:7a00373fdef1025f27ebb1d353719446bbbe6ec4697e9a503c5ffd7e4f1525dd` |
-| Downloaded chart archive | `sha256:c1c316f6bdcfe5fed3ff649cff1b43be50d27d0cb1aaf9d29e7bdca1eaa331ce` |
-| Driver image index | `registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu:v0.4.1@sha256:eefe67396dedea4df74f68a94d5883f33204888b83979babd42b91501a2de1d8` |
-| Linux AMD64 image | `sha256:ad86983849542f6ef22f02e963ecbf545706e037455e0c265889ace137863556` |
-| Linux ARM64 image | `sha256:b51290bbc1ee6745adf8ffff040d2b917d3e07dbd5cd36fd444b0e371ccc9166` |
+| Helm chart | `oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu:0.5.0` |
+| Chart OCI manifest | `sha256:47e43e3fbcaf525accef5b5ad14d87e80e19ef1549839495dcb0eabd06ff3bbe` |
+| Downloaded chart archive | `sha256:c7ca3dc31a6fa8b85c6fd5ee40948cf8d9162e32f20db9fc085113b4035e8b35` |
+| Driver image index | `registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu:v0.5.0@sha256:e1f104e64383ee693e982a5e6b7cf0b750023aaa5cc9b7dcc37c8e0549232933` |
+| Linux AMD64 image | `sha256:e7f21f226f90dfc993caba2e851ce652ded6da8c18f11de4a7238f6bde1e4bc8` |
+| Linux ARM64 image | `sha256:a9a640a9cf9805a12c95daa57ad8d6338bac81484bf04b20c49df7da969ead2f` |
+
+The 0.5.0 artifacts were verified against the upstream OCI registry on September 7,
+2026. The focused render check verifies the complete chart inventory and the declared
+node selector. Hardware qualification of this upgrade remains pending. The upstream
+[0.5.0 release](https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/releases/tag/v0.5.0)
+is stable, while its GPU allocation features retain the explicit maturity acceptance
+described below.
 
 The GPU-only installation keeps a host-installed driver mounted at `/`. It does not
 install or upgrade the driver, Container Toolkit, container runtime, or Kubernetes.
@@ -62,11 +69,11 @@ The allocator section supplies:
 - `maturityAcceptance: technology-preview`; and
 - an atomic Helm timeout from 60 through 1,800 seconds.
 
-The platform labels every selected Ready node after proving it matches the
-installation-owned selector. It then renders the qualified chart with
-`kubeletPlugin.affinity=null`, making the managed
-`nvidia.com/dra-kubelet-plugin=true` selector the sole required scheduling predicate.
-No Node Feature Discovery, GPU Operator label, or manual presence label is required.
+The chart uses the installation's `eligibleNodeSelector` directly as its kubelet-plugin
+`nodeSelector`. The installer verifies the selected nodes are Ready and clears the
+chart's default discovery affinity with `kubeletPlugin.affinity=null`. It does not
+patch node labels. The declared selector is the complete required label predicate;
+node taints and tolerations still participate in admission.
 
 Use `require-absent` when selected nodes do not run the NVIDIA device plugin.
 Use `delete-daemon-set` for an installation-owned raw DaemonSet. Use

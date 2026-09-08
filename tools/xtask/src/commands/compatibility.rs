@@ -9,7 +9,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
-    PROFILE_SCHEMA, deployment_lock_schema, deployment_profile_schema,
+    ImageReleaseEvidence, PROFILE_SCHEMA, deployment_lock_schema, deployment_profile_schema,
     development_image_lock_schema,
 };
 use veoveo_extension_contract::{
@@ -34,7 +34,6 @@ use crate::ReleaseCompatibilityArgs;
 
 const PYTHON_EVIDENCE_SCHEMA: &str = "veoveo.io/python-sdk-release-evidence/v1";
 const HELM_EVIDENCE_SCHEMA: &str = "veoveo.io/helm-chart-release-evidence/v1";
-const IMAGE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v1";
 const RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/compatibility-release-evidence/v1";
 const PYTHON_RUNTIME: &str = ">=3.13,<3.14";
 
@@ -83,23 +82,6 @@ struct OciPublication {
     digest: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ImageEvidence {
-    schema_version: String,
-    source_revision: String,
-    registry: String,
-    images: Vec<ImageArtifact>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ImageArtifact {
-    name: String,
-    repository: String,
-    digest: String,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CompatibilityReleaseEvidence {
@@ -126,7 +108,7 @@ pub(crate) fn generate(
         .map(|path| resolve_input(invocation_root, path));
     let python = read_json::<PythonEvidence>(&python_path)?;
     let helm = read_json::<HelmEvidence>(&helm_path)?;
-    let images = read_json::<ImageEvidence>(&image_path)?;
+    let images = read_json::<ImageReleaseEvidence>(&image_path)?;
     let simulation = simulation_path
         .as_ref()
         .map(|path| read_json::<SimulationRuntimeReleaseEvidence>(path))
@@ -338,7 +320,7 @@ fn validate_evidence(
     revision: &str,
     python: &PythonEvidence,
     helm: &HelmEvidence,
-    images: &ImageEvidence,
+    images: &ImageReleaseEvidence,
     simulation: Option<&SimulationRuntimeReleaseEvidence>,
 ) -> Result<()> {
     ensure!(
@@ -349,10 +331,7 @@ fn validate_evidence(
         helm.schema_version == HELM_EVIDENCE_SCHEMA,
         "Helm evidence schemaVersion must be {HELM_EVIDENCE_SCHEMA}"
     );
-    ensure!(
-        images.schema_version == IMAGE_EVIDENCE_SCHEMA,
-        "image evidence schemaVersion must be {IMAGE_EVIDENCE_SCHEMA}"
-    );
+    images.validate()?;
     for (kind, evidence_revision) in [
         ("Python", python.source_revision.as_str()),
         ("Helm", helm.source_revision.as_str()),
@@ -371,10 +350,6 @@ fn validate_evidence(
     ensure!(
         !helm.helm_version.trim().is_empty(),
         "Helm evidence has no Helm version"
-    );
-    ensure!(
-        !images.registry.trim().is_empty(),
-        "image evidence has no registry"
     );
     let names = images
         .images
@@ -412,7 +387,7 @@ fn simulation_compatibility(
 }
 
 fn image_descriptor(
-    evidence: &ImageEvidence,
+    evidence: &ImageReleaseEvidence,
     target: &str,
     name: &str,
     kind: ArtifactKind,
@@ -528,7 +503,7 @@ mod tests {
                 "schemaVersion": "veoveo.io/helm-chart-release-evidence/v1",
                 "version": "0.1.0",
                 "sourceRevision": revision,
-                "helmVersion": "v4.0.4",
+                "helmVersion": format!("v{}", veoveo_deploy_contract::NVIDIA_DRA_HELM_VERSION),
                 "artifacts": [{
                     "name": "veoveo-extension",
                     "filename": "veoveo-extension-0.1.0.tgz",
@@ -543,28 +518,31 @@ mod tests {
             .expect("Helm evidence"),
         )
         .expect("write Helm evidence");
-        fs::write(
-            &images,
-            serde_json::to_vec(&json!({
-                "schemaVersion": "veoveo.io/image-release-evidence/v1",
-                "sourceRevision": revision,
-                "registry": "registry.internal",
-                "images": [
-                    {
-                        "name": "mcp-conformance",
-                        "repository": "registry.internal/veoveo/mcp-conformance",
-                        "digest": digest('5')
-                    },
-                    {
-                        "name": "gateway-composer",
-                        "repository": "registry.internal/veoveo/gateway-composer",
-                        "digest": digest('6')
-                    }
-                ]
-            }))
-            .expect("image evidence"),
-        )
-        .expect("write image evidence");
+        // Serialize the exact publisher contract instead of a separate hand-written
+        // consumer fixture that can continue passing after the producer changes.
+        let image_evidence = veoveo_deploy_contract::ImageReleaseEvidence {
+            schema_version: veoveo_deploy_contract::IMAGE_RELEASE_EVIDENCE_SCHEMA.into(),
+            source_revision: veoveo_extension_contract::SourceRevision::new(&revision).unwrap(),
+            registry: veoveo_deploy_contract::LockedRegistry {
+                push_address: "registry.internal".into(),
+                pull_address: "registry.internal".into(),
+                transport: veoveo_deploy_contract::RegistryTransport::Tls,
+            },
+            images: [("mcp-conformance", '5'), ("gateway-composer", '6')]
+                .into_iter()
+                .map(|(name, byte)| veoveo_deploy_contract::LockedImage {
+                    name: name.into(),
+                    repository: format!("registry.internal/veoveo/{name}"),
+                    source_revision: veoveo_extension_contract::SourceRevision::new(&revision)
+                        .unwrap(),
+                    digest: digest(byte),
+                    publication_digest: digest('7'),
+                })
+                .collect(),
+        };
+        image_evidence.validate().unwrap();
+        fs::write(&images, serde_json::to_vec(&image_evidence).unwrap())
+            .expect("write image evidence");
         let output = workspace.path().join("output");
         let args = ReleaseCompatibilityArgs {
             revision: revision.clone(),

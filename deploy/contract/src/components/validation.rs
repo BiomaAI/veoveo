@@ -372,7 +372,7 @@ fn input_identity(input: &ComponentInput) -> (&'static str, &ComponentSource, &s
     }
 }
 
-fn validate_object(object: &ObjectIdentity) -> Result<()> {
+pub(super) fn validate_object(object: &ObjectIdentity) -> Result<()> {
     // These are already discovery-resolved identities. API versions are intentionally
     // absent; the same object cannot gain a second owner through another served version.
     ensure!(

@@ -2,10 +2,12 @@
 
 pub mod components;
 mod gateway_bundle;
+mod image_release;
 mod secret_closure;
 mod source_chart;
 
 pub use gateway_bundle::gateway_bundle_digest;
+pub use image_release::{IMAGE_RELEASE_EVIDENCE_SCHEMA, ImageReleaseEvidence};
 pub use source_chart::source_chart_content_digest;
 
 pub use secret_closure::{
@@ -27,9 +29,9 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v6";
+pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v7";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v6";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v7";
 /// Canonical non-release image closure used by development GitOps deployments.
 pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.io/development-image-lock/v1";
 /// Canonical local OCI registry declaration.
@@ -40,26 +42,26 @@ pub const NVIDIA_DRA_DRIVER_NAME: &str = "gpu.nvidia.com";
 /// Canonical chart coordinate for the supported NVIDIA DRA driver release.
 pub const NVIDIA_DRA_CHART_COORDINATE: &str =
     "oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu";
-/// Latest stable NVIDIA DRA driver release qualified by this contract.
-pub const NVIDIA_DRA_VERSION: &str = "0.4.1";
-/// OCI manifest digest for the qualified NVIDIA DRA Helm chart.
+/// Pinned stable NVIDIA DRA release; hardware qualification of 0.5.0 is pending.
+pub const NVIDIA_DRA_VERSION: &str = "0.5.0";
+/// Verified OCI manifest digest for the pinned NVIDIA DRA Helm chart.
 pub const NVIDIA_DRA_CHART_DIGEST: &str =
-    "sha256:7a00373fdef1025f27ebb1d353719446bbbe6ec4697e9a503c5ffd7e4f1525dd";
-/// Digest of the exact qualified Helm chart archive.
+    "sha256:47e43e3fbcaf525accef5b5ad14d87e80e19ef1549839495dcb0eabd06ff3bbe";
+/// Verified digest of the exact pinned Helm chart archive.
 pub const NVIDIA_DRA_CHART_CONTENT_DIGEST: &str =
-    "sha256:c1c316f6bdcfe5fed3ff649cff1b43be50d27d0cb1aaf9d29e7bdca1eaa331ce";
-/// Canonical container repository used by the qualified NVIDIA DRA chart.
+    "sha256:c7ca3dc31a6fa8b85c6fd5ee40948cf8d9162e32f20db9fc085113b4035e8b35";
+/// Canonical container repository used by the pinned NVIDIA DRA chart.
 pub const NVIDIA_DRA_IMAGE_REPOSITORY: &str =
     "registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu";
-/// Multi-platform OCI index digest for the qualified NVIDIA DRA image.
+/// Verified multi-platform OCI index digest for the pinned NVIDIA DRA image.
 pub const NVIDIA_DRA_IMAGE_DIGEST: &str =
-    "sha256:eefe67396dedea4df74f68a94d5883f33204888b83979babd42b91501a2de1d8";
-/// Linux AMD64 manifest digest within the qualified NVIDIA DRA image index.
+    "sha256:e1f104e64383ee693e982a5e6b7cf0b750023aaa5cc9b7dcc37c8e0549232933";
+/// Linux AMD64 manifest digest within the verified NVIDIA DRA image index.
 pub const NVIDIA_DRA_IMAGE_AMD64_DIGEST: &str =
-    "sha256:ad86983849542f6ef22f02e963ecbf545706e037455e0c265889ace137863556";
-/// Linux ARM64 manifest digest within the qualified NVIDIA DRA image index.
+    "sha256:e7f21f226f90dfc993caba2e851ce652ded6da8c18f11de4a7238f6bde1e4bc8";
+/// Linux ARM64 manifest digest within the verified NVIDIA DRA image index.
 pub const NVIDIA_DRA_IMAGE_ARM64_DIGEST: &str =
-    "sha256:b51290bbc1ee6745adf8ffff040d2b917d3e07dbd5cd36fd444b0e371ccc9166";
+    "sha256:a9a640a9cf9805a12c95daa57ad8d6338bac81484bf04b20c49df7da969ead2f";
 /// Exact Kubernetes release qualified for the managed GPU allocator closure.
 pub const NVIDIA_DRA_KUBERNETES_VERSION: &str = "1.36.2";
 /// Exact Helm release qualified for the managed GPU allocator closure.
@@ -81,6 +83,8 @@ pub struct DeploymentProfile {
     pub registry: RegistryReference,
     /// Independently resolved and published source repositories.
     pub sources: Vec<DeploymentSource>,
+    /// Complete operation ownership, including installation prerequisites.
+    pub components: Vec<components::ProfileComponent>,
     /// Kubernetes destination.
     pub kubernetes: KubernetesTarget,
     /// Installation namespace.
@@ -262,9 +266,6 @@ pub struct ResourceSet {
     /// File-backed ConfigMaps.
     #[serde(default)]
     pub config_maps: Vec<ConfigMapSpec>,
-    /// Reserved legacy shape. Validation requires this collection to be empty.
-    #[serde(default)]
-    pub secrets: Vec<SecretSpec>,
 }
 
 /// A file-backed ConfigMap.
@@ -275,29 +276,6 @@ pub struct ConfigMapSpec {
     pub name: String,
     /// Data key to source path.
     pub files: BTreeMap<String, PathBuf>,
-}
-
-/// A prohibited legacy Secret declaration retained in the v6 serialized shape.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SecretSpec {
-    /// Kubernetes object name.
-    pub name: String,
-    /// Secret data entries.
-    pub data_from_env: Vec<SecretEnvironmentEntry>,
-}
-
-/// One prohibited legacy environment mapping retained in the v6 serialized shape.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SecretEnvironmentEntry {
-    /// Kubernetes Secret data key.
-    pub key: String,
-    /// Environment variable name.
-    pub environment: String,
-    /// Controlled value format.
-    #[serde(default)]
-    pub format: SecretFormat,
 }
 
 /// Installation-owned gateway document, public trust, and confidential Secret binding.
@@ -319,17 +297,6 @@ pub struct GatewayActivationSpec {
     pub required_secret_keys: BTreeSet<String>,
 }
 
-/// Controlled validation applied to a Secret value.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum SecretFormat {
-    /// Uninterpreted Secret text.
-    #[default]
-    Opaque,
-    /// Canonical gateway internal trust JWKS.
-    GatewayInternalTrustJwks,
-}
-
 /// A Helm release selected by a deployment profile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -346,9 +313,6 @@ pub struct ReleaseSpec {
     pub installation_values: Vec<PathBuf>,
     /// Typed values surface used for registry, revision, and platform injection.
     pub values_contract: ReleaseValuesContract,
-    /// Whether Helm creates the namespace.
-    #[serde(default)]
-    pub create_namespace: bool,
     /// Helm operation timeout.
     pub timeout_seconds: u64,
 }
@@ -541,7 +505,7 @@ pub struct ManagedOciImage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum GpuAllocatorMaturityAcceptance {
-    /// NVIDIA v0.4.1 marks GPU allocation as a technology-preview feature.
+    /// NVIDIA v0.5.0 marks GPU allocation as a technology-preview feature.
     TechnologyPreview,
 }
 
@@ -674,6 +638,8 @@ pub struct DeploymentLock {
     pub profile_revision: String,
     pub registry: LockedRegistry,
     pub sources: Vec<LockedSource>,
+    /// Exact atomic ownership and rendered inventories, retained for unselected owners.
+    pub components: Vec<components::LockedComponent>,
     pub platform: ResolvedPlatformSelection,
 }
 
@@ -743,9 +709,11 @@ pub struct PlannedImage {
 pub struct LockedImage {
     pub name: String,
     pub repository: String,
+    /// Commit that produced this image, independent of the current chart snapshot.
+    pub source_revision: veoveo_extension_contract::SourceRevision,
     /// Stable runnable platform-manifest digest consumed by Helm.
     pub digest: String,
-    /// Attested OCI image-index digest emitted by this publication run.
+    /// Attested OCI image-index digest emitted when this image was published.
     pub publication_digest: String,
 }
 
@@ -1069,10 +1037,7 @@ impl LoadedProfile {
                 require_file(&self.resolve(path), "ConfigMap source")?;
             }
         }
-        ensure!(
-            profile.resources.secrets.is_empty(),
-            "resources.secrets is not an installation authority; supply every Secret before profile-up"
-        );
+        components::validate_profile_components(profile, &profile.components)?;
         if let Some(activation) = &profile.gateway_activation {
             validate_name(
                 "gateway activation ConfigMap prefix",
@@ -1109,15 +1074,6 @@ impl LoadedProfile {
             for key in &activation.required_secret_keys {
                 validate_data_key(key)?;
             }
-            ensure!(
-                !profile
-                    .resources
-                    .secrets
-                    .iter()
-                    .any(|secret| secret.name == activation.confidential_secret),
-                "gateway activation confidential Secret {} must be installation-managed and must not be rewritten by profile resources",
-                activation.confidential_secret
-            );
         }
         for requirements in &profile.gateway_requirements {
             require_file(
@@ -1822,6 +1778,7 @@ impl DeploymentLock {
         validate_revision(&self.profile_revision)?;
         self.registry.validate()?;
         self.platform.validate_dependencies()?;
+        components::validate_component_catalog(&self.components)?;
         ensure!(!self.sources.is_empty(), "locked sources cannot be empty");
         ensure_unique("locked source", self.sources.iter().map(|item| &item.name))?;
         let platform_sources = self
@@ -1837,6 +1794,10 @@ impl DeploymentLock {
         let mut release_names = BTreeMap::new();
         for source in &self.sources {
             validate_name("locked source", &source.name)?;
+            ensure!(
+                source.name != components::INSTALLATION_SOURCE_NAME,
+                "source name installation is reserved for installation-owned inputs"
+            );
             ensure!(
                 !source.repository.trim().is_empty()
                     && !source.repository.chars().any(char::is_whitespace),
@@ -1904,6 +1865,7 @@ impl DeploymentLock {
                 validate_digest(&chart.digest)?;
             }
         }
+        components::validate_artifact_bindings(self)?;
         Ok(())
     }
 }
@@ -2550,15 +2512,14 @@ mod tests {
     }
 
     #[test]
-    fn loads_checked_multi_source_deployment_lock() {
+    fn loads_synthetic_multi_source_deployment_lock() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let path = repository
-            .join("testing/fixtures/external-simulation-installation/deployment.lock.json");
-        let bytes = fs::read(&path).expect("read checked deployment lock");
+        let path = repository.join("deploy/contract/tests/fixtures/deployment-lock.json");
+        let bytes = fs::read(&path).expect("read synthetic deployment lock");
         let lock = serde_json::from_slice::<DeploymentLock>(&bytes)
-            .expect("decode checked deployment lock");
+            .expect("decode synthetic deployment lock");
 
-        lock.validate().expect("validate checked deployment lock");
+        lock.validate().expect("validate synthetic deployment lock");
         assert!(
             lock.sources
                 .iter()

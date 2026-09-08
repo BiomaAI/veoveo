@@ -14,6 +14,9 @@ use veoveo_deploy_contract::{
 const DIGEST_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DIGEST_B: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
+#[path = "support/lock.rs"]
+mod lock_support;
+
 #[test]
 fn independent_git_sources_produce_one_validated_installation_lock() {
     let workspace = TempDir::new().expect("temporary multi-repository workspace");
@@ -52,7 +55,7 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
     );
 
     let profile = serde_json::json!({
-        "schemaVersion": "veoveo.io/deployment/v6",
+        "schemaVersion": "veoveo.io/deployment/v7",
         "name": "anonymous-installation",
         "registry": {
             "pushAddress": "registry.example.internal",
@@ -76,7 +79,6 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
                     "sourceValues": ["platform-chart/source-values.yaml"],
                     "installationValues": ["platform-values.yaml"],
                     "valuesContract": "platform",
-                    "createNamespace": true,
                     "timeoutSeconds": 600
                 }]
             },
@@ -95,10 +97,21 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
                     "sourceValues": ["extension-chart/source-values.yaml"],
                     "installationValues": ["extension-values.yaml"],
                     "valuesContract": "extension",
-                    "createNamespace": false,
                     "timeoutSeconds": 600
                 }]
             }
+        ],
+        "components": [
+            {"id":"installation", "owner":{"kind":"installation"}, "role":"installation",
+             "dependencies":[], "namespaces":["veoveo"], "clusterObjects":[{"group":"", "kind":"Namespace", "namespace":null, "name":"veoveo"}],
+             "releases":[], "installationInputs":["namespace"], "extensionRelease":null},
+            {"id":"platform", "owner":{"kind":"source", "name":"platform"}, "role":"platform",
+             "dependencies":["installation"], "namespaces":["veoveo"], "clusterObjects":[],
+             "releases":["platform"], "installationInputs":[], "extensionRelease":null},
+            {"id":"extension", "owner":{"kind":"source", "name":"extension"}, "role":"extension",
+             "dependencies":["installation"], "namespaces":["veoveo"], "clusterObjects":[],
+             "releases":["extension"], "installationInputs":[],
+             "extensionRelease":{"extension":"fixture.example", "version":"1.0.0", "manifestDigest":format!("sha256:{}", "e".repeat(64))}}
         ],
         "kubernetes": {
             "context": "anonymous",
@@ -107,8 +120,7 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
         "namespace": "veoveo",
         "resources": {
             "manifests": [],
-            "configMaps": [],
-            "secrets": []
+            "configMaps": []
         },
         "platform": {
             "installationPreset": "extension-foundation",
@@ -161,7 +173,7 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
         .expect("validate source-qualified plan");
 
     let resolved = loaded.resolved_platform().expect("resolve platform");
-    let lock = DeploymentLock {
+    let mut lock = DeploymentLock {
         schema_version: DEPLOYMENT_LOCK_SCHEMA.to_owned(),
         profile: loaded.definition.name.clone(),
         profile_revision: git_output(&installation, ["rev-parse", "HEAD"]),
@@ -171,11 +183,15 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
                 name: "platform".to_owned(),
                 role: DeploymentSourceRole::Platform,
                 repository: "https://git.example.internal/platform".to_owned(),
-                revision: platform_revision,
+                revision: platform_revision.clone(),
                 images: required
                     .into_iter()
                     .map(|name| LockedImage {
                         repository: format!("registry.example.internal/platform/{name}"),
+                        source_revision: veoveo_extension_contract::SourceRevision::new(
+                            &platform_revision,
+                        )
+                        .unwrap(),
                         name,
                         digest: DIGEST_A.to_owned(),
                         publication_digest: DIGEST_B.to_owned(),
@@ -191,9 +207,13 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
                 name: "extension".to_owned(),
                 role: DeploymentSourceRole::Extension,
                 repository: "https://git.example.internal/extension".to_owned(),
-                revision: extension_revision,
+                revision: extension_revision.clone(),
                 images: vec![LockedImage {
                     name: "anonymous-extension".to_owned(),
+                    source_revision: veoveo_extension_contract::SourceRevision::new(
+                        &extension_revision,
+                    )
+                    .unwrap(),
                     repository: "registry.example.internal/extensions/anonymous".to_owned(),
                     digest: DIGEST_B.to_owned(),
                     publication_digest: DIGEST_A.to_owned(),
@@ -206,7 +226,9 @@ fn independent_git_sources_produce_one_validated_installation_lock() {
             },
         ],
         platform: resolved,
+        components: Vec::new(),
     };
+    lock.components = lock_support::synthetic_catalog(&lock.sources, &lock.profile_revision);
     lock.validate()
         .expect("validate combined two-source deployment lock");
     assert_eq!(

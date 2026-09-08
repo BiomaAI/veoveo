@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v6",
+  "schemaVersion": "veoveo.io/deployment/v7",
   "name": "sumo",
   "registry": {
     "pushAddress": "127.0.0.1:5001",
@@ -28,7 +28,6 @@
             "platform-values.yaml"
           ],
           "valuesContract": "platform",
-          "createNamespace": true,
           "timeoutSeconds": 720
         }
       ]
@@ -51,7 +50,6 @@
           "sourceValues": [],
           "installationValues": [],
           "valuesContract": "veoveo-source",
-          "createNamespace": false,
           "timeoutSeconds": 720
         }
       ]
@@ -70,8 +68,7 @@
   "namespace": "veoveo",
   "resources": {
     "manifests": [],
-    "configMaps": [],
-    "secrets": []
+    "configMaps": []
   },
   "gatewayActivation": {
     "configMapNamePrefix": "veoveo-gateway",
@@ -123,5 +120,81 @@
     "gpuScheduling": null
   },
   "gatewayRequirements": [],
-  "waitForDeployments": []
+  "waitForDeployments": [],
+  "components": [
+    {
+      "id": "installation",
+      "owner": {
+        "kind": "installation"
+      },
+      "role": "installation",
+      "dependencies": [],
+      "namespaces": [
+        "kube-system",
+        "veoveo"
+      ],
+      "clusterObjects": [
+        {
+          "group": "",
+          "kind": "Namespace",
+          "namespace": null,
+          "name": "veoveo"
+        },
+        {
+          "group": "node.k8s.io",
+          "kind": "RuntimeClass",
+          "namespace": null,
+          "name": "nvidia"
+        }
+      ],
+      "releases": [],
+      "installationInputs": [
+        "namespace",
+        "node-bootstrap",
+        "gateway-activation"
+      ],
+      "extensionRelease": null
+    },
+    {
+      "id": "veoveo",
+      "owner": {
+        "kind": "source",
+        "name": "veoveo"
+      },
+      "role": "platform",
+      "dependencies": [
+        "installation"
+      ],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [],
+      "releases": [
+        "veoveo"
+      ],
+      "installationInputs": [],
+      "extensionRelease": null
+    },
+    {
+      "id": "sumo",
+      "owner": {
+        "kind": "source",
+        "name": "sumo"
+      },
+      "role": "workload",
+      "dependencies": [
+        "installation",
+        "veoveo"
+      ],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [],
+      "releases": [
+        "sumo"
+      ],
+      "installationInputs": [],
+      "extensionRelease": null
+    }
+  ]
 }

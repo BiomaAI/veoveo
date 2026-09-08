@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v6",
+  "schemaVersion": "veoveo.io/deployment/v7",
   "name": "anonymous-simulation-extension",
   "registry": {
     "pushAddress": "127.0.0.1:5001",
@@ -28,7 +28,6 @@
             "platform-values.yaml"
           ],
           "valuesContract": "platform",
-          "createNamespace": true,
           "timeoutSeconds": 1200
         }
       ]
@@ -51,7 +50,6 @@
           "sourceValues": [],
           "installationValues": [],
           "valuesContract": "extension",
-          "createNamespace": false,
           "timeoutSeconds": 600
         }
       ]
@@ -70,8 +68,7 @@
   "namespace": "veoveo",
   "resources": {
     "manifests": [],
-    "configMaps": [],
-    "secrets": []
+    "configMaps": []
   },
   "gatewayActivation": {
     "configMapNamePrefix": "veoveo-gateway",
@@ -108,5 +105,85 @@
   ],
   "waitForDeployments": [
     "anonymous-simulation-mcp"
+  ],
+  "components": [
+    {
+      "id": "installation",
+      "owner": {
+        "kind": "installation"
+      },
+      "role": "installation",
+      "dependencies": [],
+      "namespaces": [
+        "kube-system",
+        "veoveo"
+      ],
+      "clusterObjects": [
+        {
+          "group": "",
+          "kind": "Namespace",
+          "namespace": null,
+          "name": "veoveo"
+        },
+        {
+          "group": "node.k8s.io",
+          "kind": "RuntimeClass",
+          "namespace": null,
+          "name": "nvidia"
+        }
+      ],
+      "releases": [],
+      "installationInputs": [
+        "namespace",
+        "node-bootstrap",
+        "gateway-activation"
+      ],
+      "extensionRelease": null
+    },
+    {
+      "id": "veoveo",
+      "owner": {
+        "kind": "source",
+        "name": "veoveo"
+      },
+      "role": "platform",
+      "dependencies": [
+        "installation"
+      ],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [],
+      "releases": [
+        "veoveo"
+      ],
+      "installationInputs": [],
+      "extensionRelease": null
+    },
+    {
+      "id": "anonymous-simulation",
+      "owner": {
+        "kind": "source",
+        "name": "anonymous-simulation"
+      },
+      "role": "extension",
+      "dependencies": [
+        "installation",
+        "veoveo"
+      ],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [],
+      "releases": [
+        "anonymous-simulation"
+      ],
+      "installationInputs": [],
+      "extensionRelease": {
+        "extension": "anonymous-simulation.example",
+        "version": "0.1.0",
+        "manifestDigest": "sha256:94a64ba5ef5a8a6953f720f5fee930c6a1afc2de6d392ecdea71818f33aa6d0c"
+      }
+    }
   ]
 }

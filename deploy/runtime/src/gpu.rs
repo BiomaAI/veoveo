@@ -26,15 +26,8 @@ mod helm;
 mod workloads;
 
 use admission::{validate_kubelet_daemon_set_contract, validate_kubelet_daemon_set_readiness};
-use helm::{
-    install_allocator_chart, pull_and_verify_chart, verify_allocator_chart_render,
-    verify_allocator_release_metadata,
-};
+use helm::{pull_and_verify_chart, render_allocator_chart, verify_allocator_release_metadata};
 use workloads::ready_gpu_workload_pods;
-
-const MANAGED_NODE_LABEL: &str = "nvidia.com/dra-kubelet-plugin";
-const MANAGED_NODE_LABEL_VALUE: &str = "true";
-const MANAGED_NODE_LABEL_POINTER: &str = "/metadata/labels/nvidia.com~1dra-kubelet-plugin";
 
 #[derive(Debug)]
 pub(super) struct PreparedGpuPlacement {
@@ -194,10 +187,19 @@ fn canonical_resource_claim_devices(
     devices
 }
 
+/// Resolves the complete pinned chart inventory without contacting Kubernetes.
+pub(crate) fn prepare_gpu_allocator_objects(
+    installation: &ManagedGpuAllocatorInstallation,
+) -> Result<Vec<Value>> {
+    let chart = pull_and_verify_chart(installation)?;
+    render_allocator_chart(installation, &chart)
+}
+
 pub(super) fn ensure_gpu_allocator(
     context: &str,
     workload_namespace: &str,
     scheduling: &GpuSchedulingProfile,
+    compiled_release: &crate::helm_bundle::CompiledHelmRelease,
 ) -> Result<()> {
     let installation = &scheduling.allocator.installation;
     validate_kubernetes_version(context)?;
@@ -221,13 +223,9 @@ pub(super) fn ensure_gpu_allocator(
         )
     })?;
     let nodes = select_eligible_nodes(context, installation)?;
-    let chart = pull_and_verify_chart(installation)?;
-    verify_allocator_chart_render(installation, &chart)?;
-
     remove_conflicting_device_plugin(context, workload_namespace, scheduling, installation)?;
-    label_managed_nodes(context, &nodes)?;
     ensure_no_conflicting_device_plugin(context, &nodes)?;
-    install_allocator_chart(context, installation, &chart)?;
+    compiled_release.install(context, &installation.namespace, &installation.release_name)?;
     verify_allocator_release(context, installation, &nodes)?;
     verify_device_class(context, &scheduling.allocator.full_device_class_name, true)?;
     verify_resource_slices(
@@ -483,26 +481,6 @@ fn quiesce_gpu_workloads(
     Ok(())
 }
 
-fn label_managed_nodes(context: &str, nodes: &[String]) -> Result<()> {
-    for node in nodes {
-        status_checked(
-            "kubectl",
-            [
-                "--context",
-                context,
-                "label",
-                "node",
-                node,
-                &format!("{MANAGED_NODE_LABEL}={MANAGED_NODE_LABEL_VALUE}"),
-                "--overwrite",
-            ],
-            &[],
-            None,
-        )?;
-    }
-    Ok(())
-}
-
 fn ensure_no_conflicting_device_plugin(context: &str, nodes: &[String]) -> Result<()> {
     let output = output_checked(
         "kubectl",
@@ -586,7 +564,7 @@ fn verify_allocator_release(
                 .is_some_and(|name| name.contains("kubelet-plugin"))
         })
         .context("NVIDIA DRA release has no kubelet-plugin DaemonSet")?;
-    validate_kubelet_daemon_set_contract(kubelet)?;
+    validate_kubelet_daemon_set_contract(kubelet, &installation.eligible_node_selector)?;
 
     let expected_image = format!(
         "{}:{}@{}",
@@ -1296,7 +1274,7 @@ mod tests {
                 "metadata": {"namespace": "nvidia-dra-driver-gpu", "name": "dra"},
                 "spec": {"nodeName": "gpu-node", "containers": [{
                     "name": "gpu-kubelet-plugin",
-                    "image": "registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu:v0.4.1"
+                    "image": "registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu:v0.5.0"
                 }]}
             }
         ]});

@@ -1,0 +1,355 @@
+{
+  "schemaVersion": "veoveo.io/deployment-lock/v7",
+  "profile": "synthetic-contract-fixture",
+  "profileRevision": "dddddddddddddddddddddddddddddddddddddddd",
+  "registry": {
+    "pushAddress": "registry.example.invalid",
+    "pullAddress": "registry.example.invalid",
+    "transport": "tls"
+  },
+  "sources": [
+    {
+      "name": "platform",
+      "role": "platform",
+      "repository": "https://example.invalid/platform.git",
+      "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "images": [
+        {
+          "name": "mcp-gateway",
+          "repository": "registry.example.invalid/veoveo/mcp-gateway",
+          "sourceRevision": "1111111111111111111111111111111111111111",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publicationDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "name": "simulation-runtime",
+          "repository": "registry.example.invalid/veoveo/simulation-runtime",
+          "sourceRevision": "2222222222222222222222222222222222222222",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publicationDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "charts": [
+        {
+          "release": "platform",
+          "coordinate": "source://platform/chart",
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ]
+    },
+    {
+      "name": "extension",
+      "role": "extension",
+      "repository": "https://example.invalid/extension.git",
+      "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "images": [
+        {
+          "name": "fixture-extension",
+          "repository": "registry.example.invalid/veoveo/fixture-extension",
+          "sourceRevision": "3333333333333333333333333333333333333333",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publicationDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "charts": [
+        {
+          "release": "extension",
+          "coordinate": "source://extension/chart",
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "declaration": {
+        "id": "installation",
+        "role": "installation",
+        "source": {
+          "name": "installation",
+          "repository": "https://example.invalid/installation.git",
+          "revision": "dddddddddddddddddddddddddddddddddddddddd"
+        },
+        "namespaces": [
+          "veoveo"
+        ],
+        "targets": [
+          {
+            "kind": "manifest-set",
+            "name": "installation-namespace"
+          }
+        ],
+        "permittedObjects": [
+          {
+            "group": "",
+            "kind": "Namespace",
+            "namespace": null,
+            "name": "veoveo"
+          }
+        ],
+        "inputs": [],
+        "dependencies": [],
+        "extensionRelease": null
+      },
+      "units": [
+        {
+          "target": {
+            "kind": "manifest-set",
+            "name": "installation-namespace"
+          },
+          "inputs": [],
+          "digest": "sha256:8f2a30e2b28033c6304abde8ef428c438316f9771c1bc382148db95b90f4e211",
+          "contentDigest": "sha256:1b08afabf5a3f99b7938d376a01453832827b180c77209bc58b3cb249eba0e66",
+          "objects": [
+            {
+              "identity": {
+                "group": "",
+                "kind": "Namespace",
+                "namespace": null,
+                "name": "veoveo"
+              },
+              "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "declaration": {
+        "id": "platform",
+        "role": "platform",
+        "source": {
+          "name": "platform",
+          "repository": "https://example.invalid/platform.git",
+          "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "namespaces": [
+          "veoveo"
+        ],
+        "targets": [
+          {
+            "kind": "helm-release",
+            "namespace": "veoveo",
+            "name": "platform"
+          }
+        ],
+        "permittedObjects": [
+          {
+            "group": "apps",
+            "kind": "Deployment",
+            "namespace": "veoveo",
+            "name": "platform"
+          }
+        ],
+        "inputs": [
+          {
+            "kind": "image",
+            "source": {
+              "name": "platform",
+              "repository": "https://example.invalid/platform.git",
+              "revision": "1111111111111111111111111111111111111111"
+            },
+            "target": "mcp-gateway",
+            "repository": "registry.example.invalid/veoveo/mcp-gateway",
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "kind": "image",
+            "source": {
+              "name": "platform",
+              "repository": "https://example.invalid/platform.git",
+              "revision": "2222222222222222222222222222222222222222"
+            },
+            "target": "simulation-runtime",
+            "repository": "registry.example.invalid/veoveo/simulation-runtime",
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "kind": "chart",
+            "source": {
+              "name": "platform",
+              "repository": "https://example.invalid/platform.git",
+              "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "coordinate": "source://platform/chart",
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "dependencies": [
+          "installation"
+        ],
+        "extensionRelease": null
+      },
+      "units": [
+        {
+          "target": {
+            "kind": "helm-release",
+            "namespace": "veoveo",
+            "name": "platform"
+          },
+          "inputs": [
+            {
+              "kind": "image",
+              "source": {
+                "name": "platform",
+                "repository": "https://example.invalid/platform.git",
+                "revision": "1111111111111111111111111111111111111111"
+              },
+              "target": "mcp-gateway",
+              "repository": "registry.example.invalid/veoveo/mcp-gateway",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "kind": "image",
+              "source": {
+                "name": "platform",
+                "repository": "https://example.invalid/platform.git",
+                "revision": "2222222222222222222222222222222222222222"
+              },
+              "target": "simulation-runtime",
+              "repository": "registry.example.invalid/veoveo/simulation-runtime",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "kind": "chart",
+              "source": {
+                "name": "platform",
+                "repository": "https://example.invalid/platform.git",
+                "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "coordinate": "source://platform/chart",
+              "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            }
+          ],
+          "digest": "sha256:7df4a04fb46187334b03a36fd353127aa8e07e14f5fa29f83dd161bca1914710",
+          "contentDigest": "sha256:ae59bd9836b27bdc31e7bff00790d85a5219add063be937b89b24d7b8162ccf0",
+          "objects": [
+            {
+              "identity": {
+                "group": "apps",
+                "kind": "Deployment",
+                "namespace": "veoveo",
+                "name": "platform"
+              },
+              "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "declaration": {
+        "id": "extension",
+        "role": "extension",
+        "source": {
+          "name": "extension",
+          "repository": "https://example.invalid/extension.git",
+          "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "namespaces": [
+          "veoveo"
+        ],
+        "targets": [
+          {
+            "kind": "helm-release",
+            "namespace": "veoveo",
+            "name": "extension"
+          }
+        ],
+        "permittedObjects": [
+          {
+            "group": "apps",
+            "kind": "Deployment",
+            "namespace": "veoveo",
+            "name": "extension"
+          }
+        ],
+        "inputs": [
+          {
+            "kind": "image",
+            "source": {
+              "name": "extension",
+              "repository": "https://example.invalid/extension.git",
+              "revision": "3333333333333333333333333333333333333333"
+            },
+            "target": "fixture-extension",
+            "repository": "registry.example.invalid/veoveo/fixture-extension",
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "kind": "chart",
+            "source": {
+              "name": "extension",
+              "repository": "https://example.invalid/extension.git",
+              "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "coordinate": "source://extension/chart",
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "dependencies": [
+          "installation"
+        ],
+        "extensionRelease": {
+          "extension": "fixture.example",
+          "version": "1.0.0",
+          "manifestDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "units": [
+        {
+          "target": {
+            "kind": "helm-release",
+            "namespace": "veoveo",
+            "name": "extension"
+          },
+          "inputs": [
+            {
+              "kind": "image",
+              "source": {
+                "name": "extension",
+                "repository": "https://example.invalid/extension.git",
+                "revision": "3333333333333333333333333333333333333333"
+              },
+              "target": "fixture-extension",
+              "repository": "registry.example.invalid/veoveo/fixture-extension",
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "kind": "chart",
+              "source": {
+                "name": "extension",
+                "repository": "https://example.invalid/extension.git",
+                "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "coordinate": "source://extension/chart",
+              "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            }
+          ],
+          "digest": "sha256:37bd8152ca66f574f8392eafda8e198073b69292c39b1327755f28be700104b3",
+          "contentDigest": "sha256:83880b0806ac0696f26c5215720a81cae87a0513f479b73584345285f09bacd9",
+          "objects": [
+            {
+              "identity": {
+                "group": "apps",
+                "kind": "Deployment",
+                "namespace": "veoveo",
+                "name": "extension"
+              },
+              "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "platform": {
+    "components": [
+      "platform-store"
+    ],
+    "mcpServers": [],
+    "artifactAudiences": [],
+    "externalWorkloads": [],
+    "gpuScheduling": null
+  }
+}
