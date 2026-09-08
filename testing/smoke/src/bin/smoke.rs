@@ -511,6 +511,15 @@ enum Cmd {
         #[arg(long)]
         pipeline_id: String,
     },
+    /// Finish selected stale veoveo-video-test recordings through authenticated ingest.
+    RecordingFixtureFinish {
+        #[arg(long, default_value = ".env")]
+        env_file: PathBuf,
+        #[arg(long)]
+        producer_key_secret: String,
+        #[arg(long = "stream-id", required = true)]
+        stream_ids: Vec<uuid::Uuid>,
+    },
     /// Run the world-model GPU reasoner through Recording Hub and the final MCP task protocol.
     ReasonGpu {
         /// Environment file used by the active k3d profile and direct assertion signer.
@@ -522,6 +531,12 @@ enum Cmd {
         /// Host workspace for the generated DeepStream sample.
         #[arg(long, default_value = "output/reason/work")]
         work_dir: PathBuf,
+        /// Candidate server executable, run on a private listener in the installed GPU runtime.
+        #[arg(long, requires = "candidate_runner")]
+        candidate_binary: Option<PathBuf>,
+        /// Candidate runner source root containing the reason_runner Python package.
+        #[arg(long, requires = "candidate_binary")]
+        candidate_runner: Option<PathBuf>,
     },
 }
 
@@ -830,10 +845,25 @@ async fn main() -> Result<()> {
             )
             .await
         }
+        Cmd::RecordingFixtureFinish {
+            env_file,
+            producer_key_secret,
+            stream_ids,
+        } => recording_fixture_finish(&env_file, &producer_key_secret, &stream_ids).await,
         Cmd::ReasonGpu {
             env_file,
             work_dir,
             producer_key_secret,
-        } => reason_gpu(&env_file, &work_dir, &producer_key_secret).await,
+            candidate_binary,
+            candidate_runner,
+        } => {
+            reason_gpu(
+                &env_file,
+                &work_dir,
+                &producer_key_secret,
+                candidate_binary.as_deref().zip(candidate_runner.as_deref()),
+            )
+            .await
+        }
     }
 }

@@ -220,6 +220,12 @@ defers the durable queue entry and releases the uploader for retry; shutdown
 cancels an in-flight request before draining the remaining queue. No failed
 network request can wedge the producer, its queue, or pod termination.
 
+Graceful shutdown releases the Rerun proxy handle before waiting for the receive
+channel to close. It drains that bounded channel while the receiver finishes,
+then flushes remaining accumulators and completes the ingest streams. Retaining
+the proxy handle would keep the channel alive; joining its receiver before
+consuming queued messages could also block shutdown.
+
 The stream-byte quota bounds one ingest generation rather than one logical
 recording. When a generation reaches that limit, the forwarder closes it in
 continuation mode and resumes the same application and recording keys with a

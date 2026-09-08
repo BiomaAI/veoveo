@@ -45,6 +45,10 @@ appear in its public MCP identities.
   Helm workload ships disabled until that checkpoint is supplied.
 - The runner contract lives beside the crate in `runner/`; the runner ships
   with the deployable image.
+- Runner unit checks use `uv run --project servers/reason-mcp/runner --locked --extra dev pytest servers/reason-mcp/runner/tests`.
+- The internal GPU input adapter admits Qwen3-VL and requires NVDEC, CUDA
+  preprocessing, and an in-process vLLM embedding handoff. Model-neutral MCP
+  names do not imply admission of other checkpoint architectures.
 
 ## Contract Compliance
 
