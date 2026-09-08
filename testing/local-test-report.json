@@ -1,28 +1,41 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2e33787c18c67c64f68b8aa39f4f1d16e8cf5ee3f8ac62fd3ca34ae217ef5cc7",
-  "updatedAt": "2026-09-08T16:19:13Z",
+  "buildDigest": "sha256:1f501f1b5c5b53d5c8f3201fda947c2e9f4d296445c3aa64da3ec09bb976bf97",
+  "updatedAt": "2026-09-08T16:24:03Z",
   "checks": [
     {
-      "name": "stream-compiler-clippy",
+      "name": "stream-activation-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-xtask",
+        "veoveo-deployment-smoke",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T16:14:11Z",
-      "durationSeconds": 16.173921937,
+      "finishedAt": "2026-09-08T16:24:01Z",
+      "durationSeconds": 14.883355799,
       "detail": "completed successfully"
     },
     {
-      "name": "stream-compiler-fmt",
+      "name": "stream-activation-config",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T16:23:20Z",
+      "durationSeconds": 9.489307368,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-activation-fmt",
       "command": [
         "cargo",
         "fmt",
@@ -31,175 +44,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T16:14:18Z",
-      "durationSeconds": 2.287786904,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-compiler-native-build",
-      "command": [
-        "flock",
-        "target/veoveo-xtask/builder.lock",
-        "env",
-        "BUILDX_CONFIG=/home/rozgo/BiomaAI/veoveo/target/veoveo-xtask/docker-config/buildx",
-        "target/veoveo-xtask/docker-config/cli-plugins/v0.37.0/docker-buildx",
-        "build",
-        "--builder",
-        "veoveo",
-        "--target",
-        "builder",
-        "--file",
-        "servers/stream-mcp/Dockerfile",
-        "--output",
-        "type=cacheonly",
-        "--metadata-file",
-        "output/development/stream-separated-native-20260908.json",
-        "."
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T16:10:02Z",
-      "durationSeconds": 14.852500058,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-compiler-plan-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-xtask",
-        "commands::image"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T16:13:02Z",
-      "durationSeconds": 3.106679672,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-compiler-source-edit",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "builder",
-        "benchmark",
-        "--target",
-        "stream-mcp",
-        "--source",
-        "servers/stream-mcp/src/bin/server.rs",
-        "--cpus",
-        "12",
-        "--cpus",
-        "12",
-        "--output",
-        "output/development/stream-separated-final-20260908"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T16:12:18Z",
-      "durationSeconds": 65.290622792,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-separated-compiler-gpu",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "stream-gpu",
-        "--env-file",
-        ".env",
-        "--producer-key-secret",
-        "veoveo-recording-producer",
-        "--pipeline-id",
-        "traffic-object-detection",
-        "--candidate-binary",
-        "output/development/stream-separated-final-20260908/warmup/artifacts/bin/stream-mcp",
-        "--candidate-app",
-        "servers/stream-mcp/assets/live.html",
-        "--work-dir",
-        "output/development/stream-separated-gpu-20260908"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T16:12:41Z",
-      "durationSeconds": 10.487908758,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-separated-edit-stage",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "stage",
-        "--target",
-        "stream-mcp",
-        "--push-registry",
-        "127.0.0.1:5001",
-        "--pull-registry",
-        "k3d-veoveo-registry.localhost:5000",
-        "--registry-transport",
-        "insecure-http",
-        "--revision",
-        "2121a7c84ffac6372e8285cd8ee0112585e9caaf",
-        "--evidence-output",
-        "output/development/stream-separated-edit-stage-20260908.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T16:19:13Z",
-      "durationSeconds": 26.653108025999998,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-separated-qualified",
-      "command": [
-        "cargo",
-        "xtask",
-        "release",
-        "images",
-        "--target",
-        "stream-mcp",
-        "--push-registry",
-        "127.0.0.1:5001",
-        "--pull-registry",
-        "k3d-veoveo-registry.localhost:5000",
-        "--registry-transport",
-        "insecure-http",
-        "--revision",
-        "75347594985a0b511101b0a6d8e1e4fb87f2e91d",
-        "--stage-evidence",
-        "output/development/stream-separated-stage-20260908.json",
-        "--evidence-output",
-        "output/development/stream-separated-release-20260908.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T16:18:12Z",
-      "durationSeconds": 66.541941987,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-separated-stage",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "stage",
-        "--target",
-        "stream-mcp",
-        "--push-registry",
-        "127.0.0.1:5001",
-        "--pull-registry",
-        "k3d-veoveo-registry.localhost:5000",
-        "--registry-transport",
-        "insecure-http",
-        "--revision",
-        "75347594985a0b511101b0a6d8e1e4fb87f2e91d",
-        "--evidence-output",
-        "output/development/stream-separated-stage-20260908.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T16:15:58Z",
-      "durationSeconds": 11.081817437,
+      "finishedAt": "2026-09-08T16:24:03Z",
+      "durationSeconds": 2.30789419,
       "detail": "completed successfully"
     }
   ]
