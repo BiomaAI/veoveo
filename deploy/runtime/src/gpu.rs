@@ -199,7 +199,7 @@ pub(super) fn ensure_gpu_allocator(
     context: &str,
     workload_namespace: &str,
     scheduling: &GpuSchedulingProfile,
-    compiled_release: &crate::helm_bundle::CompiledHelmRelease,
+    install_allocator: impl FnOnce() -> Result<()>,
 ) -> Result<()> {
     let installation = &scheduling.allocator.installation;
     validate_kubernetes_version(context)?;
@@ -225,7 +225,7 @@ pub(super) fn ensure_gpu_allocator(
     let nodes = select_eligible_nodes(context, installation)?;
     remove_conflicting_device_plugin(context, workload_namespace, scheduling, installation)?;
     ensure_no_conflicting_device_plugin(context, &nodes)?;
-    compiled_release.install(context, &installation.namespace, &installation.release_name)?;
+    install_allocator()?;
     verify_allocator_release(context, installation, &nodes)?;
     verify_device_class(context, &scheduling.allocator.full_device_class_name, true)?;
     verify_resource_slices(

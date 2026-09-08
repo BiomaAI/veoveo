@@ -8,8 +8,9 @@ use crate::{
     },
     gpu::{apply_gpu_placement, ensure_gpu_allocator, prepare_gpu_placement, verify_gpu_placement},
     images::{validate_bake_selections, validate_locked_images},
+    installed::InstalledState,
     ownership::validate_live_ownership,
-    process::{kubectl_apply_value, status_checked},
+    process::status_checked,
     sources::{
         load_deployment_lock, load_profile, resolve_locked_sources, resolve_sources,
         validate_locked_profile,
@@ -110,6 +111,7 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
         .collect::<Vec<_>>();
     let platform = profile.resolved_platform()?;
     let context = profile.definition.kubernetes.context.as_str();
+    let installed = InstalledState::open(&profile.repository, context, &compiled)?;
     validate_live_ownership(context, &lock.components, &compiled)?;
     let secret_closure = prepare_secret_closure(
         path,
@@ -120,8 +122,8 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     )?;
 
     after_secret_closure(secret_closure, |_closure| {
-        for object in installation_objects(&compiled, InstallationInput::NodeBootstrap) {
-            kubectl_apply_value(context, object)?;
+        for (component, unit) in installation_units(&compiled, InstallationInput::NodeBootstrap) {
+            installed.apply(component, unit)?;
         }
         if platform.gpu_scheduling.is_some() {
             wait_for_cluster_nodes(context, Duration::from_secs(120))?;
@@ -129,8 +131,8 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             wait_for_cluster_gpu(context, Duration::from_secs(120))?;
         }
 
-        for object in installation_objects(&compiled, InstallationInput::Namespace) {
-            kubectl_apply_value(context, object)?;
+        for (component, unit) in installation_units(&compiled, InstallationInput::Namespace) {
+            installed.apply(component, unit)?;
         }
 
         if let Some(placement) = prepare_gpu_placement(&profile)? {
@@ -138,18 +140,13 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
                 .gpu_scheduling
                 .as_ref()
                 .context("prepared GPU placement has no resolved scheduling profile")?;
-            let allocator = compiled
-                .iter()
-                .flat_map(|component| &component.units)
-                .find(|unit| unit.installation_input == Some(InstallationInput::GpuAllocator))
-                .and_then(|unit| unit.helm.as_ref())
-                .context("GPU allocator has no prepared Helm operation")?;
-            ensure_gpu_allocator(
-                context,
-                &profile.definition.namespace,
-                scheduling,
-                allocator,
-            )?;
+            let (component, allocator) =
+                installation_units(&compiled, InstallationInput::GpuAllocator)
+                    .next()
+                    .context("GPU allocator has no prepared Helm operation")?;
+            ensure_gpu_allocator(context, &profile.definition.namespace, scheduling, || {
+                installed.apply(component, allocator).map(|_| ())
+            })?;
             apply_gpu_placement(
                 context,
                 &profile.definition.namespace,
@@ -162,8 +159,8 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             InstallationInput::PublicResources,
             InstallationInput::GatewayActivation,
         ] {
-            for object in installation_objects(&compiled, input) {
-                kubectl_apply_value(context, object)?;
+            for (component, unit) in installation_units(&compiled, input) {
+                installed.apply(component, unit)?;
             }
         }
 
@@ -173,13 +170,12 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
                     namespace: profile.definition.namespace.clone(),
                     name: release.name.clone(),
                 };
-                let prepared = compiled
+                let (component, prepared) = compiled
                     .iter()
-                    .flat_map(|component| &component.units)
-                    .find(|unit| unit.prepared.target == target)
-                    .and_then(|unit| unit.helm.as_ref())
+                    .flat_map(|component| component.units.iter().map(move |unit| (component, unit)))
+                    .find(|(_, unit)| unit.prepared.target == target)
                     .context("source release has no prepared Helm operation")?;
-                prepared.install(context, &profile.definition.namespace, &release.name)?;
+                installed.apply(component, prepared)?;
             }
         }
         for deployment in &profile.definition.wait_for_deployments {
@@ -212,16 +208,21 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     })
 }
 
-fn installation_objects(
+fn installation_units(
     components: &[crate::compile::CompiledComponent],
     input: InstallationInput,
-) -> impl Iterator<Item = &serde_json::Value> {
+) -> impl Iterator<
+    Item = (
+        &crate::compile::CompiledComponent,
+        &crate::compile::CompiledUnit,
+    ),
+> {
     components.iter().flat_map(move |component| {
         component
             .units
             .iter()
             .filter(move |unit| unit.installation_input == Some(input))
-            .flat_map(|unit| &unit.objects)
+            .map(move |unit| (component, unit))
     })
 }
 

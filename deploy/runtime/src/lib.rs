@@ -12,6 +12,7 @@ mod gpu;
 mod helm_bundle;
 mod helm_state;
 mod images;
+mod installed;
 mod ownership;
 mod process;
 mod profile;

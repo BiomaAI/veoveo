@@ -39,6 +39,14 @@ cargo xtask release images \
 cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
 ~~~
 
+Repeated `profile-up` runs reuse unchanged Helm releases and prepared manifest sets
+when the installed revision and live object contents match a local receipt. This avoids
+another Helm revision for an unchanged release. Receipts live under `veoveo-deployment/`
+in the installation repository's Git common directory and are bound to the cluster UID.
+A missing receipt causes a normal apply. GPU admission and readiness checks still run.
+The command processes the complete profile; component-selected execution is still in
+development. See the [runtime reuse contract](../deploy/runtime/DESIGN.md#verified-installation-reuse).
+
 BuildKit pushes images directly to the profile-selected OCI registry. It does not load
 release images into the host Docker image store. The publisher configures the managed
 builder from `registry.pushAddress` and `registry.transport`. Kubernetes receives

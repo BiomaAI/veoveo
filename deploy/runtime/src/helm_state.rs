@@ -4,6 +4,8 @@ use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 
+pub(crate) mod snapshot;
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub(crate) struct HelmReleaseMetadata {
     pub(crate) name: String,
