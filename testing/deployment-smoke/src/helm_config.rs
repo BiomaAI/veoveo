@@ -391,6 +391,7 @@ pub(crate) fn helm_config() -> Result<()> {
     ] {
         not_contains(&bioma, forbidden)?;
     }
+    recording_caches(&bioma)?;
     not_contains(&bioma, "name: frames-mcp-bootstrap")?;
     not_contains(&bioma, "frames://frame/")?;
     let installation = run_checked(
@@ -1262,5 +1263,66 @@ pub(crate) fn helm_config() -> Result<()> {
     contains(&dockerignore, "**/dist")?;
 
     println!("helm config smoke ok");
+    Ok(())
+}
+
+fn recording_caches(rendered: &str) -> Result<()> {
+    let objects = serde_yaml_ng::Deserializer::from_str(rendered)
+        .map(Value::deserialize)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    for server in ["stream", "reason"] {
+        let name = format!("{server}-mcp");
+        let claim = format!("{server}-recording-cache");
+        let deployment = objects
+            .iter()
+            .find(|object| object["kind"] == "Deployment" && object["metadata"]["name"] == name)
+            .with_context(|| format!("missing {name} deployment"))?;
+        let spec = &deployment["spec"]["template"]["spec"];
+        let container = spec["containers"]
+            .as_array()
+            .context("missing containers")?
+            .iter()
+            .find(|container| container["name"] == name)
+            .context("missing server container")?;
+        let args = container["args"].as_array().context("missing args")?;
+        for (flag, value) in [
+            ("--catalog-cache-dir", "/recording-cache"),
+            ("--catalog-cache-managed-bytes", "8589934592"),
+            ("--catalog-cache-minimum-free-bytes", "1073741824"),
+        ] {
+            ensure!(
+                args.windows(2)
+                    .any(|pair| pair[0] == flag && pair[1] == value),
+                "{name} cache configuration missing {flag}"
+            );
+        }
+        ensure!(
+            container["volumeMounts"]
+                .as_array()
+                .context("missing mounts")?
+                .iter()
+                .any(|mount| mount["name"] == "recording-cache"
+                    && mount["mountPath"] == "/recording-cache"
+                    && mount["readOnly"] != true),
+            "{name} cache mount is not writable"
+        );
+        ensure!(
+            spec["volumes"]
+                .as_array()
+                .context("missing volumes")?
+                .iter()
+                .any(|volume| volume["name"] == "recording-cache"
+                    && volume["persistentVolumeClaim"]["claimName"] == claim),
+            "{name} does not retain its cache across pod replacement"
+        );
+        ensure!(
+            objects
+                .iter()
+                .any(|object| object["kind"] == "PersistentVolumeClaim"
+                    && object["metadata"]["name"] == claim
+                    && object["spec"]["resources"]["requests"]["storage"] == "10Gi"),
+            "{name} cache PVC is missing"
+        );
+    }
     Ok(())
 }

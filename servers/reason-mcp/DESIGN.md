@@ -61,8 +61,23 @@ against its tenant and labels. It then re-resolves that identity and captures
 the complete acknowledged parts visible at task start with prior frozen or
 sealed segments. Live parts are copied into bounded task-local storage and
 checked against their captured byte length and SHA-256 identity before decode.
-No filesystem path or bearer token is persisted. The canonical video ingest
+No filesystem path or submitted gateway bearer token is persisted. The canonical video ingest
 profile is the one documented in `servers/stream-mcp/DESIGN.md`.
+
+The task obtains a bounded Artifact read capability while the gateway identity is
+valid and stores it beside its output-write capability. Recovery reuses that exact
+task binding. The shared reader checks current scope before catalog access and
+reauthorizes every committed Artifact occurrence, including cached layers. Expired
+or revoked capabilities fail the task. A persisted request missing a required field
+is claimed and failed without preventing other tasks or the service from starting.
+
+Each worker owns a persistent recording cache with an 8 GiB managed ceiling and
+1 GiB of free-space reserve on its default 10 GiB claim. The canonical CLI controls
+are `--catalog-cache-dir`, `--catalog-cache-managed-bytes`, and
+`--catalog-cache-minimum-free-bytes`; the chart exposes them under `catalogCache`.
+The recording spool remains read-only. Cancellation removes incomplete downloads
+and releases cache reservations. This integration needs hardware workload acceptance
+before the common compiler image can be admitted.
 
 ## Reasoning contract
 

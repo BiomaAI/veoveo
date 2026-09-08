@@ -68,3 +68,17 @@ pub enum ArtifactReadAuthority<'a> {
         task_id: ArtifactTaskId,
     },
 }
+
+/// Current task credential scope. This is delegated authority, not a gateway identity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactReadCapabilityScope {
+    pub task_id: ArtifactTaskId,
+    pub principal_id: PrincipalId,
+    pub principal_kind: crate::gateway::PrincipalKind,
+    pub issuer: crate::gateway::TokenIssuer,
+    pub subject: crate::gateway::TokenSubject,
+    pub tenant: TenantId,
+    pub data_labels: BTreeSet<DataLabelId>,
+    pub max_total_bytes: NonZeroU64,
+}

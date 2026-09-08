@@ -1,4 +1,21 @@
 {{- if include "veoveo.mcpServerEnabled" (list . "stream") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stream-recording-cache
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stream-mcp
+spec:
+  accessModes:
+    {{- toYaml .Values.stream.catalogCache.accessModes | nindent 4 }}
+  {{- if .Values.stream.catalogCache.storageClass }}
+  storageClassName: {{ .Values.stream.catalogCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.stream.catalogCache.size }}
+---
 {{- if and .Values.stream.recordingOutput.enabled (not (include "veoveo.componentEnabled" (list . "recording-data-plane"))) }}
 {{- fail "stream.recordingOutput.enabled requires the recording-data-plane component" }}
 {{- end }}
@@ -148,6 +165,12 @@ spec:
             - http://artifact-service:8790
             - --spool-dir
             - /recordings
+            - --catalog-cache-dir
+            - /recording-cache
+            - --catalog-cache-managed-bytes
+            - {{ .Values.stream.catalogCache.managedBytes | int64 | quote }}
+            - --catalog-cache-minimum-free-bytes
+            - {{ .Values.stream.catalogCache.minimumFreeBytes | int64 | quote }}
             - --pipeline-catalog
             - /etc/veoveo/stream/catalog.json
           env:
@@ -195,6 +218,8 @@ spec:
             - name: runtime-config
               mountPath: /etc/veoveo/stream
               readOnly: true
+            - name: recording-cache
+              mountPath: /recording-cache
             - name: recordings
               mountPath: /recordings
               readOnly: true
@@ -207,6 +232,9 @@ spec:
         - name: runtime-config
           configMap:
             name: stream-runtime
+        - name: recording-cache
+          persistentVolumeClaim:
+            claimName: stream-recording-cache
         - name: recordings
           {{- if include "veoveo.componentEnabled" (list . "recording-data-plane") }}
           persistentVolumeClaim:

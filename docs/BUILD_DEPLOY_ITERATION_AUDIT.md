@@ -1369,7 +1369,7 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 | Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Separate physical build disk or host is unavailable; that comparison remains unmeasured |
 | Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
 | Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
-| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, narrow flight harness, controlled sccache and Bazel trials | Stream/Reason common-family candidates require actual hardware workload acceptance; fresh recording-read authority and Reason's accelerated model-input path currently prevent admission |
+| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, narrow flight harness, controlled sccache and Bazel trials | Stream/Reason common-family candidates require actual hardware workload acceptance; recording-read integration needs live verification and Reason's accelerated model-input path currently prevents admission |
 | Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Complete for the existing independently owned releases; general ownership transfer is outside this build/deploy goal |
 
 The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
@@ -1395,3 +1395,28 @@ selected owners. The current reference installation already has independent rele
 The earlier acceptance checklist incorrectly made general raw adoption and ownership
 transfer a completion requirement. Veoveo remains the product under improvement;
 Bioma supplies its reference installation configuration and GitOps owner.
+
+## Task Read Consumer Integration
+
+Stream and Reason now issue and persist a bounded Artifact read capability, recover
+that task binding, and pass it through the shared video materializer. The reader
+requires a cache and explicit read authority. It checks current task scope before
+catalog access, including live-only recordings, and matches that scope to the stored
+task owner. The source byte ceiling applies before live-part copies. Each committed
+occurrence is authorized again during cache reuse or download.
+
+The shared Veoveo chart supplies separate persistent caches for both workers and
+passes their managed-byte and free-space limits explicitly. Cancelling an in-flight
+download now releases its reservation and removes the partial file. Invalid persisted
+request documents fail their claimed task instead of aborting service startup.
+
+These changes remove the identified missing-credential and missing-cache paths.
+Actual Stream/Reason hardware workload acceptance, common-compiler image admission,
+and Reason's accelerated model-input path remain outstanding. The integration is not
+by itself a measured compiler speedup or a live deployment receipt.
+
+The consumer test build created another combined dependency variant. Scoped hourly
+Cargo maintenance removed 26 superseded executables and 245 incremental variants,
+with 29.55 GiB of estimated reclaimable blocks. Current executable links and dependency
+libraries remained protected. Host availability returned to 386 GiB; the exact
+maintenance receipt is `output/development/task-read-cargo-cache-applied-20260908.json`.

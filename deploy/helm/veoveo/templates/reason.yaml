@@ -1,4 +1,21 @@
 {{- if include "veoveo.mcpServerEnabled" (list . "reason") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: reason-recording-cache
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reason-mcp
+spec:
+  accessModes:
+    {{- toYaml .Values.reason.catalogCache.accessModes | nindent 4 }}
+  {{- if .Values.reason.catalogCache.storageClass }}
+  storageClassName: {{ .Values.reason.catalogCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.reason.catalogCache.size }}
+---
 {{- if not .Values.reason.modelCache.existingClaim }}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -90,6 +107,12 @@ spec:
             - http://artifact-service:8790
             - --spool-dir
             - /recordings
+            - --catalog-cache-dir
+            - /recording-cache
+            - --catalog-cache-managed-bytes
+            - {{ .Values.reason.catalogCache.managedBytes | int64 | quote }}
+            - --catalog-cache-minimum-free-bytes
+            - {{ .Values.reason.catalogCache.minimumFreeBytes | int64 | quote }}
             - --pipeline-catalog
             - /etc/veoveo/reason/catalog.json
           env:
@@ -134,6 +157,8 @@ spec:
             - name: runtime-config
               mountPath: /etc/veoveo/reason
               readOnly: true
+            - name: recording-cache
+              mountPath: /recording-cache
             - name: recordings
               mountPath: /recordings
               readOnly: true
@@ -146,6 +171,9 @@ spec:
         - name: runtime-config
           configMap:
             name: reason-runtime
+        - name: recording-cache
+          persistentVolumeClaim:
+            claimName: reason-recording-cache
         - name: recordings
           persistentVolumeClaim:
             claimName: recording-spool

@@ -16368,6 +16368,7 @@ dependencies = [
  "sha2 0.11.0",
  "tokio",
  "uuid",
+ "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-recording-reader",
  "veoveo-rrd",

@@ -17,6 +17,12 @@ pub(super) struct Args {
     pub(super) artifact_service_url: String,
     #[arg(long, default_value = "/recordings")]
     pub(super) spool_dir: PathBuf,
+    #[arg(long, default_value = "/recording-cache")]
+    pub(super) catalog_cache_dir: PathBuf,
+    #[arg(long, default_value_t = 8 * 1024 * 1024 * 1024_u64)]
+    pub(super) catalog_cache_managed_bytes: u64,
+    #[arg(long, default_value_t = 1024 * 1024 * 1024_u64)]
+    pub(super) catalog_cache_minimum_free_bytes: u64,
     #[arg(long, default_value = "/etc/veoveo/reason/catalog.json")]
     pub(super) pipeline_catalog: PathBuf,
     #[arg(long, default_value = "/usr/local/bin/reason-runner")]

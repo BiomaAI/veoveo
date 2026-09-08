@@ -26,6 +26,14 @@ struct ArtifactEndpoint {
 
 impl ArtifactEndpoint {
     fn start(artifact_id: ArtifactId) -> Self {
+        Self::with_authority(
+            artifact_id,
+            format!("GET /artifacts/{artifact_id}/meta HTTP/1.1"),
+            "fixture-alice".into(),
+        )
+    }
+
+    fn with_authority(artifact_id: ArtifactId, request_line: String, secret: String) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let reply = Arc::new(Mutex::new(Reply::Allowed));
@@ -57,12 +65,12 @@ impl ArtifactEndpoint {
                     let headers = String::from_utf8(headers).unwrap();
                     assert_eq!(
                         headers.lines().next().unwrap(),
-                        format!("GET /artifacts/{artifact_id}/meta HTTP/1.1"),
+                        request_line,
                         "a warm cache must authorize metadata without downloading bytes"
                     );
                     requests.fetch_add(1, Ordering::SeqCst);
                     let authorized = headers.lines().any(|line| {
-                        line.eq_ignore_ascii_case("authorization: Bearer fixture-alice")
+                        line.eq_ignore_ascii_case(&format!("authorization: Bearer {secret}"))
                     });
                     let reply = if authorized {
                         *reply.lock().unwrap()
@@ -173,7 +181,13 @@ fn warm_cache_requires_current_artifact_read_permission_and_exact_metadata() {
         let alice = caller("alice");
         let bob = caller("bob");
         let read = |caller| {
-            cache.materialize_with_validator(caller, artifact_id, 5, &digest, validation.clone())
+            cache.materialize_with_validator(
+                ArtifactReadAuthority::Caller(caller),
+                artifact_id,
+                5,
+                &digest,
+                validation.clone(),
+            )
         };
 
         drop(read(&alice).await.unwrap());
@@ -259,4 +273,76 @@ fn caller(name: &str) -> PlaneCaller {
             expires_at: now + chrono::TimeDelta::minutes(5),
         },
     }
+}
+
+#[tokio::test]
+async fn task_capability_reauthorizes_a_reopened_cache_and_rejects_revoked_or_wrong_task() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let directory = tempfile::tempdir().unwrap();
+    let id = ArtifactId::new();
+    let digest = hex::encode(Sha256::digest(b"valid"));
+    std::fs::write(
+        directory.path().join(format!("{id}-{digest}.rrd")),
+        b"valid",
+    )
+    .unwrap();
+    let cap = IssuedArtifactReadCapability {
+        capability_id: ArtifactReadCapabilityId::new(),
+        task_id: ArtifactTaskId::new(),
+        secret: ArtifactReadCapabilitySecret::new("task-read-fixture-secret-0123456789").unwrap(),
+        expires_at: Utc::now() + chrono::TimeDelta::hours(1),
+    };
+    let endpoint = ArtifactEndpoint::with_authority(
+        id,
+        format!(
+            "GET /artifact-read-capabilities/{}/artifacts/{id}/meta?task_id={} HTTP/1.1",
+            cap.capability_id, cap.task_id
+        ),
+        cap.secret.expose_secret().to_owned(),
+    );
+    let cache = LayerCache::new(
+        directory.path().to_owned(),
+        LayerCacheLimits {
+            managed_bytes: 1024,
+            minimum_free_bytes: 1,
+        },
+        HttpArtifactPlane::new(format!("http://{}", endpoint.address)),
+    )
+    .unwrap();
+    let validations = Arc::new(AtomicUsize::new(0));
+    let validator: Arc<dyn RrdIdentityValidator> = Arc::new(FixtureIdentity(validations.clone()));
+    let authority = ArtifactReadAuthority::Task {
+        capability: &cap,
+        task_id: cap.task_id,
+    };
+    drop(
+        cache
+            .materialize_with_validator(authority, id, 5, &digest, validator.clone())
+            .await
+            .unwrap(),
+    );
+    assert_eq!(validations.load(Ordering::SeqCst), 1);
+    for status in [401, 403, 404] {
+        *endpoint.reply.lock().unwrap() = Reply::Denied(status);
+        assert!(
+            cache
+                .materialize_with_validator(authority, id, 5, &digest, validator.clone())
+                .await
+                .is_err()
+        );
+        assert_eq!(cache.stats().unwrap().pinned_bytes, 0);
+        assert_eq!(validations.load(Ordering::SeqCst), 1);
+    }
+    let wrong = ArtifactReadAuthority::Task {
+        capability: &cap,
+        task_id: ArtifactTaskId::new(),
+    };
+    let requests = endpoint.requests.load(Ordering::SeqCst);
+    assert!(
+        cache
+            .materialize_with_validator(wrong, id, 5, &digest, validator)
+            .await
+            .is_err()
+    );
+    assert_eq!(endpoint.requests.load(Ordering::SeqCst), requests);
 }

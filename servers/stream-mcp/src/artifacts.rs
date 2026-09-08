@@ -21,6 +21,17 @@ impl ArtifactRepository {
         }
     }
 
+    pub async fn issue_read_capability(
+        &self,
+        caller: &PlaneCaller,
+        request: &veoveo_mcp_contract::IssueArtifactReadCapabilityRequest,
+    ) -> Result<veoveo_mcp_contract::IssuedArtifactReadCapability> {
+        self.plane
+            .issue_read_capability(caller, request)
+            .await
+            .map_err(plane_err)
+    }
+
     pub async fn issue_write_capability(
         &self,
         caller: &PlaneCaller,

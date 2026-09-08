@@ -1,8 +1,8 @@
 use super::*;
 use crate::ledger::{ReadCapabilityAuthentication, ReadCapabilityDraft};
 use veoveo_mcp_contract::{
-    ArtifactReadCapabilityId, ArtifactReadCapabilitySecret, ArtifactTaskId,
-    IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
+    ArtifactReadCapabilityId, ArtifactReadCapabilityScope, ArtifactReadCapabilitySecret,
+    ArtifactTaskId, IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
 };
 
 const HASH_DOMAIN: &[u8] = b"veoveo.artifact-read.v1";
@@ -68,6 +68,38 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             secret: ArtifactReadCapabilitySecret::new(secret)?,
             task_id: request.task_id,
             expires_at: request.expires_at,
+        })
+    }
+
+    pub async fn read_capability_scope(
+        &self,
+        capability_id: ArtifactReadCapabilityId,
+        secret: &str,
+        task_id: ArtifactTaskId,
+    ) -> Result<ArtifactReadCapabilityScope, ArtifactPlaneError> {
+        ArtifactReadCapabilitySecret::new(secret)
+            .map_err(|_| ArtifactPlaneError::Unauthenticated)?;
+        let cap = self
+            .repository
+            .read_capability(&ReadCapabilityAuthentication {
+                capability_id,
+                token_hash: secret_hash(HASH_DOMAIN, secret),
+                task_id,
+            })
+            .await
+            .map_err(transport)?
+            .ok_or(ArtifactPlaneError::Unauthenticated)?;
+        Ok(ArtifactReadCapabilityScope {
+            task_id: cap.task_id,
+            principal_id: cap.actor.principal,
+            principal_kind: cap.actor.kind,
+            issuer: cap.actor.issuer,
+            subject: cap.actor.subject,
+            tenant: cap.actor.tenant,
+            data_labels: cap.labels,
+            max_total_bytes: NonZeroU64::new(cap.max_total_bytes).ok_or_else(|| {
+                ArtifactPlaneError::Transport("corrupt read capability byte limit".into())
+            })?,
         })
     }
 

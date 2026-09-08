@@ -13,6 +13,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result, bail, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use veoveo_mcp_contract::ArtifactReadAuthority;
 use veoveo_platform_store::RecordingId;
 use veoveo_recording_reader::{RecordingReadAuthority, RecordingReadSnapshot, RecordingReader};
 use veoveo_rrd::video_clip::{
@@ -106,6 +107,7 @@ pub struct MaterializedVideo {
 pub async fn materialize_video(
     recordings: Arc<RecordingReader>,
     authority: RecordingReadAuthority,
+    credential: ArtifactReadAuthority<'_>,
     selection: RecordingVideoSelection,
     limits: VideoSourceLimits,
 ) -> Result<MaterializedVideo> {
@@ -113,7 +115,12 @@ pub async fn materialize_video(
     validate_video_selection(&selection)?;
     let recording_id = recording_id_from_uri(&selection.recording_uri)?;
     let materialized = recordings
-        .materialize_analysis_snapshot(&authority, recording_id)
+        .materialize_analysis_snapshot(
+            &authority,
+            credential,
+            recording_id,
+            limits.max_segment_bytes,
+        )
         .await?
         .context("recording not found")?;
     let plan = &materialized.plan;

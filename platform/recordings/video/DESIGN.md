@@ -14,6 +14,7 @@ It validates selectors and limits, obtains the governed snapshot, extracts a bou
 range with decoder-reentrant preroll, and returns the original source identity beside
 its encoded clip and MP4 bytes. It owns no Recording Hub or MCP service implementation.
 
-Consumers own hardware decoding and inference. A missing fresh Artifact-read credential
-continues to reject materialization before any historical source can be used. This
-library does not authorize replay from an old spool path.
+Consumers own hardware decoding and inference. Materialization requires an explicit
+Artifact caller or task-read capability, verified by the shared reader. The source
+byte bound applies before copying live parts; committed layers use the bounded
+Artifact cache. The library never authorizes replay from an old spool path.
