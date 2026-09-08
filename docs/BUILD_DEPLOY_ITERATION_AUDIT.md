@@ -32,6 +32,8 @@ implemented changes and their verification.
 | Immutable GitOps inputs | OCI source names bind complete chart manifest digests; generated immutable Helm values ConfigMaps have content suffixes; one HelmRelease update selects both references | Rust configuration checks exercise updates in both release directions; live activation takes 116.1 s from push start with identical Pod identities, restart counts, Deployment revisions, and Helm histories |
 | Live chart publication | Activated the shared platform and UAV chart changes, then published a platform chart with only its version changed | The version-only update takes 40.5 s from push start; the platform Helm revision advances once while the UAV release and all 29 running Pods remain unchanged |
 | Recording recovery | Resolve accepted batch identity before checking whether a stream permits new appends | A regression reproduces the live finished-stream error; 57 store tests pass; the corrected Hub reconciles its journal and becomes Ready |
+| Map projection recovery | Read indexed canonical Map changesets through a transactional committed head; backfill populated installations while Map writers are stopped | All 164 Map/store tests pass; both migrations are verified live; the corrected image becomes Ready five seconds after container start with its existing checkpoint |
+| Runtime App permissions | Preserve traversal on asset directories and check readability as the runtime user during image assembly | Map and Stream image builds pass; the corrected Map image is active; the earlier 12.1 s presentation-only assembly measurement did not detect this runtime defect |
 
 ## Live Activation Evidence
 
@@ -75,7 +77,7 @@ limit. The integration test exercises sparse sequence gaps, a commit beyond the
 captured bound, reopening a partially projected DuckDB database, idempotent recovery,
 and failure without checkpoint advancement when a feature revision is missing.
 All 164 Map and store tests pass with real SurrealDB and the pinned Spatial extension,
-including both million-feature R-tree gates. This implementation is not activated.
+including both million-feature R-tree gates.
 SurrealDB allocates sequence values separately from the enclosing data transaction.
 A native 3.2.4 probe committed sequence 3 while sequence 2 remained in an open
 transaction, then committed sequence 2. The shared outbox maximum therefore cannot
@@ -83,6 +85,48 @@ serve as Map's recovery boundary. Migration `0047` also adds a transactional Map
 head: concurrent changesets contend on that record and a lower late sequence is
 rejected atomically. Activation requires stopping Map writers while the bootstrap
 seeds that head, then resuming the new image with its persisted projection.
+
+The activation exposed two additional defects. Migration `0047` seeded zero on the
+populated database despite two canonical changesets. Forward migration `0048` uses
+an explicit unindexed scan for this one-time backfill and preserves any higher head.
+A regression recreates the pre-migration schema around a real authored changeset,
+applies both migrations, and verifies the populated head and repeat application.
+The same 164 tests pass. Live bootstrap applied `0048` at 03:19:01 UTC and verified
+head 3,963,196 while preserving the existing projection checkpoint 16,803,961.
+
+The new image then failed before serving because `COPY --chmod=0444` also made its
+new asset directories non-traversable. Map and Stream now use `a=rX` and test asset
+readability as the declared runtime user during assembly. Both image builds pass;
+the corrected Map publication takes 27.6 s with all compilation cached. This image
+check does not qualify Stream's GPU runtime.
+
+Recovery also exposed a controller queue delay. The active Helm action waits up to
+20 minutes for the failed image, while the root Kustomization waits up to 30 minutes
+for release health. A later Git commit cannot interrupt those checks with the current
+controller settings. Both installed Flux controllers support the opt-in
+`CancelHealthCheckOnNewRevision` gate. The installed defaults leave it disabled.
+The [Helm controller's pinned implementation](https://github.com/fluxcd/helm-controller/blob/v1.6.3/internal/features/features.go)
+and [Kustomize controller's pinned implementation](https://github.com/fluxcd/kustomize-controller/blob/v1.9.4/internal/features/features.go)
+define the cancellation boundary. Enabling it must preserve release remediation and
+be verified against a superseded unhealthy revision.
+
+Revision `52c5afb3fff3d60937677d6c040b965bd942ac19` activates the corrected Map
+image, runnable manifest
+`sha256:e87b697b112a88b775b103289cbfed019f7110309691eddf2a0a2b660954eb4f`.
+Flux finished the obsolete revision after 20 minutes 51 seconds, then reconciled the
+corrected commit in 15.7 s. Map's Pod started at 03:41:37 UTC, its container started
+at 03:41:39, and it became Ready at 03:41:44 with zero restarts. The maintenance
+interruption, including the migration and failed package recovery, lasted about
+32 minutes. The requested observer retained the queue delay in its apply phase.
+
+All 25 Deployments are Ready. Only Map and the two Gateway Pods changed identity;
+the other 26 running Pods retained their identities and restart counts. The UAV
+Helm history stayed at 99. The canonical Map head and old projection checkpoint
+remain 3,963,196 and 16,803,961 respectively. This five-second startup uses an
+already caught-up persisted projection; it is not a like-for-like benchmark against
+the earlier 16.8-million-event backlog. The real database regression proves bounded
+recovery in the presence of unrelated events. Evidence is retained under
+`output/development/map-recovery-activation-20260908/`.
 
 The corrected Hub publication took 118.8 s end to end, including 34.9 s of Cargo
 compilation. Its image is pinned to runnable manifest
