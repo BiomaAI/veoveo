@@ -34,6 +34,7 @@ implemented changes and their verification.
 | Recording recovery | Resolve accepted batch identity before checking whether a stream permits new appends | A regression reproduces the live finished-stream error; 57 store tests pass; the corrected Hub reconciles its journal and becomes Ready |
 | Map projection recovery | Read indexed canonical Map changesets through a transactional committed head; backfill populated installations while Map writers are stopped | All 164 Map/store tests pass; both migrations are verified live; the corrected image becomes Ready five seconds after container start with its existing checkpoint |
 | Runtime App permissions | Preserve traversal on asset directories and check readability as the runtime user during image assembly | Map and Stream image builds pass; the corrected Map image is active; the earlier 12.1 s presentation-only assembly measurement did not detect this runtime defect |
+| Obsolete Flux health checks | Enable cancellation on both controllers; update Flux to 2.9.5 with exact controller image digests and preserve bounded rollback remediation | The isolated Rust regression holds the updated Pod unready for five seconds, then the corrected OCI revision converges in 21.6 s against five-minute controller timeouts; all 29 application Pods retain identity and restart count |
 
 ## Live Activation Evidence
 
@@ -102,13 +103,12 @@ check does not qualify Stream's GPU runtime.
 
 Recovery also exposed a controller queue delay. The active Helm action waits up to
 20 minutes for the failed image, while the root Kustomization waits up to 30 minutes
-for release health. A later Git commit cannot interrupt those checks with the current
-controller settings. Both installed Flux controllers support the opt-in
-`CancelHealthCheckOnNewRevision` gate. The installed defaults leave it disabled.
+for release health. A later Git commit could not interrupt those checks with the
+settings used during Map activation. Both installed Flux controllers supported the opt-in
+`CancelHealthCheckOnNewRevision` gate. The installed defaults left it disabled.
 The [Helm controller's pinned implementation](https://github.com/fluxcd/helm-controller/blob/v1.6.3/internal/features/features.go)
 and [Kustomize controller's pinned implementation](https://github.com/fluxcd/kustomize-controller/blob/v1.9.4/internal/features/features.go)
-define the cancellation boundary. Enabling it must preserve release remediation and
-be verified against a superseded unhealthy revision.
+define the cancellation boundary.
 
 Revision `52c5afb3fff3d60937677d6c040b965bd942ac19` activates the corrected Map
 image, runnable manifest
@@ -127,6 +127,24 @@ already caught-up persisted projection; it is not a like-for-like benchmark agai
 the earlier 16.8-million-event backlog. The real database regression proves bounded
 recovery in the presence of unrelated events. Evidence is retained under
 `output/development/map-recovery-activation-20260908/`.
+
+The Flux reference now enables that gate in both controllers and pins the stable
+2.9.5 distribution by release and controller OCI index digest. The native platform
+apply uses its existing `veoveo-flux-platform` field manager. Application release
+ownership stays with Flux. The controller update and isolated regression leave all
+29 application Pod identities and restart counts unchanged; platform and UAV Helm
+histories stay at 121 and 99.
+
+`cargo xtask smoke gitops-cancel-verify` creates a disposable namespace and publishes
+one immutable Helm chart with three distinct OCI configuration artifacts. It first
+establishes a healthy release. The broken revision must reach both controllers'
+health checks with an updated, unready Pod for at least five seconds before the fix
+is submitted. The corrected source, root, Helm release, and Deployment converge in
+21.6 s despite five-minute controller timeouts. The namespace is then removed.
+This is cancellation evidence for a controlled workload, not a repeat of Map's
+startup workload or a measurement of Git server delivery. The checked-in Rust harness
+owns lifecycle, assertions, timing, and cleanup. Evidence is retained in
+`output/development/flux-cancellation-20260908/stable-cancellation.json`.
 
 The corrected Hub publication took 118.8 s end to end, including 34.9 s of Cargo
 compilation. Its image is pinned to runnable manifest
@@ -694,7 +712,7 @@ the release publisher and focused deployment smoke binary. The general smoke bin
 longer compiles a second copy of the installer. Source resolution, Helm inputs, public
 configuration, cluster lifecycle, and GPU allocation have explicit modules. The publisher
 and installer use one source-chart lock constructor and content check. This establishes
-the shared execution boundary for component compilation; v6 still installs the complete
+the shared execution boundary for component compilation; the installer still applies the complete
 profile, and component-selected mutation and live zero-write evidence remain open.
 
 The shared chart constructor now verifies actual input bytes and executable modes

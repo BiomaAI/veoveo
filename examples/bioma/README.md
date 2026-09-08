@@ -28,7 +28,7 @@ The repository separates the local platform fixture from application desired sta
 ~~~text
 examples/bioma/
   platform/                     local cluster prerequisites
-    flux/                       pinned Flux 2.9.4 installation
+    flux/                       pinned Flux 2.9.5 installation
     registry/                   cluster-local loopback OCI registry address
   gitops/
     bootstrap.yaml              Git source and root Kustomization, applied once
@@ -191,7 +191,7 @@ Install the local platform fixture separately:
 
 ~~~bash
 kubectl --context k3d-veoveo-bioma apply \
-  --server-side --force-conflicts \
+  --server-side --field-manager=veoveo-flux-platform \
   -k examples/bioma/platform
 kubectl --context k3d-veoveo-bioma -n flux-system wait \
   --for=condition=Available deployment --all --timeout=5m
@@ -199,6 +199,14 @@ kubectl --context k3d-veoveo-bioma -n flux-system wait \
 
 The local OCI source explicitly admits the cluster-local HTTP registry. A fielded
 installation uses its authenticated TLS registry and removes that local exception.
+
+Controller images select exact release tags and immutable OCI index digests.
+The Kustomize and Helm controllers enable `CancelHealthCheckOnNewRevision`.
+A corrected source revision can interrupt an obsolete root health check, and the
+resulting release update can interrupt Helm's old health check. Releases retain
+their bounded rollback remediation. Verify this behavior with the isolated
+`cargo xtask smoke gitops-cancel-verify` scenario described in
+[`testing/deployment-smoke/DESIGN.md`](../../testing/deployment-smoke/DESIGN.md).
 
 ## Provision Secrets
 

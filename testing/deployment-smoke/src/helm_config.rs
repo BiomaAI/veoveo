@@ -1125,9 +1125,9 @@ pub(crate) fn helm_config() -> Result<()> {
     }
     let bioma_platform = fs::read_to_string("examples/bioma/platform/flux/kustomization.yaml")?;
     for expected in [
-        "manifests/bases/source-controller?ref=v2.9.4",
-        "manifests/bases/kustomize-controller?ref=v2.9.4",
-        "manifests/bases/helm-controller?ref=v2.9.4",
+        "manifests/bases/source-controller?ref=v2.9.5",
+        "manifests/bases/kustomize-controller?ref=v2.9.5",
+        "manifests/bases/helm-controller?ref=v2.9.5",
     ] {
         contains(&bioma_platform, expected)?;
     }

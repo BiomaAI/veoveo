@@ -9,7 +9,9 @@
 | Kubernetes batch `v1` | initialization Job names bound to their complete rendered specs, including immutable Pod templates |
 | Kubernetes JSON watch events | initial resource observation followed by bounded watch output |
 | `veoveo.io/gitops-convergence-evidence/v3` | repository-owned JSON evidence with reconciliation mode, wall-clock start and observation times, elapsed phases, and terminal outcome |
-| Deployment profile and lock `v6` | shared disposable-profile execution from the smoke owner; schema belongs to `deploy/contract` |
+| Deployment profile and lock `v7` | shared disposable-profile execution from the smoke owner; schema belongs to `deploy/contract` |
+| Flux CLI 2.9.5 and Helm 4.2.4 | native OCI configuration and chart publication for isolated controller verification |
+| `veoveo.io/flux-cancellation-evidence/v1` | repository-owned controller state, source digest, latency bound, failure, and fixture cleanup evidence |
 
 ## Responsibility
 
@@ -58,3 +60,37 @@ wrong source revision, stale source generation, and terminal Helm failure. Succe
 cases require all five phases and both selected Deployment readiness checks.
 The fixture establishes command and evidence behavior; it is not live Flux latency
 or GPU workload evidence.
+
+`gitops-cancel-verify` exercises live Kustomize and Helm health-check cancellation.
+The Rust harness publishes one immutable witness chart and three distinct OCI
+configuration artifacts. A newly created namespace contains every fixture resource.
+Flux owns the witness Deployment; the harness only changes its source digest.
+The witness runs `sleep` and an explicit readiness exit code in the supplied image.
+It performs no rendering, simulation, or perception work.
+
+The scenario establishes a healthy release, submits an unhealthy update, and requires
+generation-current evidence that both controllers are checking that revision and its
+updated Pod remains unready for at least five seconds before submitting the fix.
+Both controller timeouts are five minutes. The fixed source, root,
+Helm release, and Deployment must converge within 90 seconds. Evidence records source
+digests for the chart and every source, observed generations, the intermediate
+health-check state, fix latency, and
+cleanup errors. The root is deleted before the namespace so Flux can uninstall its
+release. Failure remains a failed result even when cleanup succeeds.
+
+Use an already available digest-pinned image with `/bin/sh` and `sleep`:
+
+```bash
+cargo xtask smoke gitops-cancel-verify \
+  --context <context> \
+  --push-registry <host-registry> \
+  --pull-registry <cluster-registry> \
+  --registry-transport <tls-or-insecure-http> \
+  --image <repository@sha256:digest> \
+  --evidence-output output/development/flux-cancellation.json
+```
+
+This proves cancellation across real OCI source changes and Helm upgrades. Git server
+delivery latency and GPU workload acceptance remain separate measurements. The
+installed Flux reference uses the latest stable 2.9.5 patch, verified against the
+[upstream release](https://github.com/fluxcd/flux2/releases/tag/v2.9.5).

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: witness
+  annotations:
+    veoveo.io/cancellation-phase: {{ .Values.phase | quote }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cancellation-witness
+  template:
+    metadata:
+      labels:
+        app: cancellation-witness
+      annotations:
+        veoveo.io/cancellation-phase: {{ .Values.phase | quote }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 1
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: witness
+          image: {{ .Values.image | quote }}
+          command: ["sleep", "3600"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", {{ ternary "exit 0" "exit 1" .Values.ready | quote }}]
+            periodSeconds: 1
+            failureThreshold: 1

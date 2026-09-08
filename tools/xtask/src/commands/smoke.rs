@@ -158,6 +158,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "profile-gpu-verify"
             | "profile-down"
             | "gitops-converge"
+            | "gitops-cancel-verify"
     ) {
         Ok(DEPLOYMENT_SMOKE)
     } else if matches!(
@@ -236,6 +237,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "profile-gpu-verify"
         | "profile-down"
         | "gitops-converge"
+        | "gitops-cancel-verify"
         | "gpu-allocation-verify"
         | "bioma-verify"
         | "surreal-integration"
@@ -341,6 +343,16 @@ mod tests {
                 "--bin",
                 "deployment-smoke",
             ]
+        );
+    }
+
+    #[test]
+    fn gitops_cancellation_uses_the_focused_harness() {
+        let arguments = [OsString::from("gitops-cancel-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), DEPLOYMENT_SMOKE);
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            cargo_build_arguments(&[OsString::from("gitops-converge")]).unwrap()
         );
     }
 

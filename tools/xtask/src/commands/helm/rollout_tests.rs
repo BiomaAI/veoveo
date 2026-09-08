@@ -29,6 +29,32 @@ fn objects(bytes: &[u8]) -> Vec<Value> {
         .collect()
 }
 
+fn release_values<'a>(rendered: &'a [Value], release_name: &str) -> &'a Value {
+    let release = rendered
+        .iter()
+        .find(|object| {
+            object["kind"] == "HelmRelease" && object["metadata"]["name"] == release_name
+        })
+        .unwrap();
+    let reference = release["spec"]["valuesFrom"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|reference| reference["valuesKey"] == "images.lock.yaml")
+        .unwrap();
+    assert_eq!(reference["kind"], "ConfigMap");
+    let config = rendered
+        .iter()
+        .find(|object| {
+            object["kind"] == "ConfigMap"
+                && object["metadata"]["namespace"] == release["metadata"]["namespace"]
+                && object["metadata"]["name"] == reference["name"]
+        })
+        .unwrap();
+    assert_eq!(config["immutable"], true);
+    config
+}
+
 fn render(chart: &Path, extension: bool, settings: &[&str]) -> Vec<Value> {
     let mut command = Command::new("helm");
     command
@@ -191,11 +217,8 @@ fn generated_helm_values_are_selected_by_flux_watch_labels() {
             .current_dir(repository())
             .args(["kustomize", "examples/bioma"]),
     ));
-    for name in ["bioma-veoveo-values", "bioma-uav-sim-values"] {
-        let values = rendered
-            .iter()
-            .find(|object| object["kind"] == "ConfigMap" && object["metadata"]["name"] == name)
-            .unwrap();
+    for name in ["veoveo", "uav-sim"] {
+        let values = release_values(&rendered, name);
         assert_eq!(
             values["metadata"]["labels"]["reconcile.fluxcd.io/watch"],
             "Enabled"
@@ -236,13 +259,10 @@ fn each_release_receives_exactly_its_consumed_image_digests() {
             .args(["kustomize", "examples/bioma"]),
     ));
     for (name, chart, extension) in [
-        ("bioma-veoveo-values", "deploy/helm/veoveo", false),
-        ("bioma-uav-sim-values", "showcase/uav-sim/deploy/helm", true),
+        ("veoveo", "deploy/helm/veoveo", false),
+        ("uav-sim", "showcase/uav-sim/deploy/helm", true),
     ] {
-        let config = rendered
-            .iter()
-            .find(|object| object["kind"] == "ConfigMap" && object["metadata"]["name"] == name)
-            .unwrap();
+        let config = release_values(&rendered, name);
         let values: Value =
             serde_yaml_ng::from_str(config["data"]["images.lock.yaml"].as_str().unwrap()).unwrap();
         let registry = values["global"]["veoveoRegistry"].as_str().unwrap();
