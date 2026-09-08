@@ -178,13 +178,28 @@ distribution. It keeps the MCP boundary portable across Console and external
 MCP Apps hosts. A future high-fanout transport would remain an internal adapter
 behind the same session resource contract.
 
+The task obtains a bounded Artifact read capability while the gateway identity is
+valid and stores it beside its output-write capability. Recovery reuses that exact
+task binding. The shared reader checks current scope before catalog access and
+reauthorizes every committed Artifact occurrence, including cached layers. Expired
+or revoked capabilities fail the task. A persisted request missing a required field
+is claimed and failed without preventing other tasks or the service from starting.
+
+Each worker owns a persistent recording cache with an 8 GiB managed ceiling and
+1 GiB of free-space reserve on its default 10 GiB claim. The canonical CLI controls
+are `--catalog-cache-dir`, `--catalog-cache-managed-bytes`, and
+`--catalog-cache-minimum-free-bytes`; the chart exposes them under `catalogCache`.
+The recording spool remains read-only. Cancellation removes incomplete downloads
+and releases cache reservations. This integration needs hardware workload acceptance
+before the common compiler image can be admitted.
+
 ## Recording Replay
 
 `run_recording` accepts a canonical
 `recording://recordings/{uuidv7}` video selection and an admitted pipeline ID.
 The durable task reauthorizes the recording under its stored owner, captures
 the complete acknowledged parts visible at task start, and materializes one
-bounded source range. Filesystem paths and bearer tokens are never durable
+bounded source range. Filesystem paths and submitted gateway bearer tokens are never durable
 task input.
 
 The replay extractor finds decoder-reentrant preroll, remuxes H.264 into MP4

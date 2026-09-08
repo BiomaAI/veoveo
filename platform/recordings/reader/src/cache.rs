@@ -13,7 +13,7 @@ use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use tokio::io::AsyncWriteExt as _;
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_mcp_contract::{ArtifactId, ArtifactPlane, PlaneCaller};
+use veoveo_mcp_contract::{ArtifactId, ArtifactReadAuthority};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LayerCacheLimits {
@@ -54,6 +54,25 @@ struct CacheState {
     reserved_bytes: u64,
     evictions: u64,
     headroom_rejections: u64,
+}
+
+// Cancellation can drop an in-flight download without returning an error.
+struct DownloadReservation {
+    cache: LayerCache,
+    bytes: u64,
+    partial: PathBuf,
+    final_path: PathBuf,
+    pending: bool,
+}
+
+impl Drop for DownloadReservation {
+    fn drop(&mut self) {
+        if self.pending {
+            let _ = std::fs::remove_file(&self.partial);
+            let _ = std::fs::remove_file(&self.final_path);
+            self.cache.release_reservation(self.bytes);
+        }
+    }
 }
 
 struct CacheEntry {
@@ -140,6 +159,10 @@ impl CachedLayer {
 }
 
 impl LayerCache {
+    pub(crate) fn artifacts(&self) -> &HttpArtifactPlane {
+        &self.inner.artifacts
+    }
+
     pub fn root(&self) -> &Path {
         &self.inner.root
     }
@@ -205,7 +228,7 @@ impl LayerCache {
     #[allow(clippy::too_many_arguments)]
     pub async fn materialize(
         &self,
-        caller: &PlaneCaller,
+        authority: ArtifactReadAuthority<'_>,
         artifact_id: ArtifactId,
         expected_byte_len: u64,
         expected_sha256: &str,
@@ -213,7 +236,7 @@ impl LayerCache {
         recording_id: uuid::Uuid,
     ) -> Result<CachedLayer> {
         self.materialize_with_validator(
-            caller,
+            authority,
             artifact_id,
             expected_byte_len,
             expected_sha256,
@@ -227,7 +250,7 @@ impl LayerCache {
 
     pub async fn materialize_with_validator(
         &self,
-        caller: &PlaneCaller,
+        authority: ArtifactReadAuthority<'_>,
         artifact_id: ArtifactId,
         expected_byte_len: u64,
         expected_sha256: &str,
@@ -255,7 +278,11 @@ impl LayerCache {
             // Byte integrity never grants authority. Artifact metadata requires
             // current Read access, including on a warm cache after revocation.
             // A cache miss uses the download client's existing authorization.
-            let metadata = self.inner.artifacts.head(caller, &artifact_id).await?;
+            let metadata = self
+                .inner
+                .artifacts
+                .read_metadata(authority, artifact_id)
+                .await?;
             ensure!(
                 metadata.artifact_id == artifact_id
                     && metadata.artifact_uri == artifact_id.plane_uri()
@@ -275,28 +302,30 @@ impl LayerCache {
             .root
             .join(format!("{key}.partial-{}", uuid::Uuid::now_v7()));
         let final_path = self.inner.root.join(&key);
-        let result = self
-            .download(
-                caller,
-                artifact_id,
-                expected_byte_len,
-                expected_sha256,
-                validation,
-                &partial,
-                &final_path,
-            )
-            .await;
-        if let Err(error) = result {
-            let _ = tokio::fs::remove_file(&partial).await;
-            self.release_reservation(expected_byte_len);
-            return Err(error);
-        }
+        let mut reservation = DownloadReservation {
+            cache: self.clone(),
+            bytes: expected_byte_len,
+            partial: partial.clone(),
+            final_path: final_path.clone(),
+            pending: true,
+        };
+        self.download(
+            authority,
+            artifact_id,
+            expected_byte_len,
+            expected_sha256,
+            validation,
+            &partial,
+            &final_path,
+        )
+        .await?;
         let mut state = self
             .inner
             .state
             .lock()
             .map_err(|_| anyhow::anyhow!("recording layer cache state is poisoned"))?;
         state.reserved_bytes = state.reserved_bytes.saturating_sub(expected_byte_len);
+        reservation.pending = false;
         state.entries.insert(
             key.clone(),
             CacheEntry {
@@ -455,7 +484,7 @@ impl LayerCache {
     #[allow(clippy::too_many_arguments)]
     async fn download(
         &self,
-        caller: &PlaneCaller,
+        authority: ArtifactReadAuthority<'_>,
         artifact_id: ArtifactId,
         expected_byte_len: u64,
         expected_sha256: &str,
@@ -466,7 +495,7 @@ impl LayerCache {
         let download = self
             .inner
             .artifacts
-            .download(caller, &artifact_id.plane_uri())
+            .download_with_authority(authority, artifact_id)
             .await?;
         ensure!(
             download.metadata.artifact_id == artifact_id
@@ -554,6 +583,8 @@ fn sync_directory(path: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod authorization_tests;
+#[cfg(test)]
+mod cancellation_tests;
 
 #[cfg(test)]
 mod tests {

@@ -23,7 +23,7 @@ provider-neutral.
   bounded non-blocking worker. Recording failure must remain visible without
   delaying live graph execution.
 - Recording replay authorizes canonical recording identities and captures one
-  bounded task-start snapshot. It never persists a bearer token or native
+  bounded task-start snapshot. It never persists a submitted gateway bearer token or native
   source path.
 - The C++ runner is a pod-private process boundary. Its closed request,
   response, and event schemas are repository-owned adapters, not public

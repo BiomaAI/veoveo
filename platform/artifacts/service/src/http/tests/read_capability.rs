@@ -27,6 +27,19 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
         )
         .await
         .unwrap();
+    let scope = plane
+        .read_capability_scope(&cap, cap.task_id)
+        .await
+        .unwrap();
+    assert_eq!(scope.principal_id, caller.identity.actor.id);
+    assert_eq!(Some(scope.tenant), caller.identity.actor.tenant);
+    assert_eq!(scope.data_labels, caller.identity.actor.data_labels);
+    assert!(
+        plane
+            .read_capability_scope(&cap, ArtifactTaskId::new())
+            .await
+            .is_err()
+    );
     let authority = ArtifactReadAuthority::Task {
         capability: &cap,
         task_id: cap.task_id,
@@ -110,6 +123,12 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
     assert!(
         plane
             .download_with_authority(authority, metadata.artifact_id)
+            .await
+            .is_err()
+    );
+    assert!(
+        plane
+            .read_capability_scope(&cap, cap.task_id)
             .await
             .is_err()
     );

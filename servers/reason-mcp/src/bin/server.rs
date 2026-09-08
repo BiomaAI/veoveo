@@ -751,6 +751,10 @@ async fn inline_artifact(
 }
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
+    if let Err(error) = state.recordings.readiness() {
+        tracing::warn!("recording cache readiness failure: {error}");
+        return StatusCode::SERVICE_UNAVAILABLE;
+    }
     if let Err(error) = state.tasks.platform_store().healthcheck().await {
         tracing::warn!("reason readiness database failure: {error}");
         return StatusCode::SERVICE_UNAVAILABLE;
@@ -802,7 +806,14 @@ async fn main() -> anyhow::Result<()> {
     let recordings = Arc::new(RecordingReader::new(
         tasks.platform_store().clone(),
         spool_dir,
-        None,
+        veoveo_recording_reader::cache::LayerCache::new(
+            args.catalog_cache_dir.clone(),
+            veoveo_recording_reader::cache::LayerCacheLimits {
+                managed_bytes: args.catalog_cache_managed_bytes,
+                minimum_free_bytes: args.catalog_cache_minimum_free_bytes,
+            },
+            veoveo_artifact_client::HttpArtifactPlane::new(&args.artifact_service_url),
+        )?,
     )?);
     let catalog = Arc::new(PipelineCatalog::load(&args.pipeline_catalog)?);
     let executor = ReasonExecutor::new(

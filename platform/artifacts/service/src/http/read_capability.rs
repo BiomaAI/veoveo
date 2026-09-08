@@ -1,7 +1,7 @@
 use super::*;
 use veoveo_mcp_contract::{
-    ArtifactReadCapabilityId, ArtifactTaskId, IssueArtifactReadCapabilityRequest,
-    IssuedArtifactReadCapability,
+    ArtifactReadCapabilityId, ArtifactReadCapabilityScope, ArtifactTaskId,
+    IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
 };
 
 pub(super) fn routes<R: ArtifactRepository + 'static, S: BlobStore + 'static>()
@@ -10,7 +10,7 @@ pub(super) fn routes<R: ArtifactRepository + 'static, S: BlobStore + 'static>()
         .route("/artifact-read-capabilities", post(issue::<R, S>))
         .route(
             "/artifact-read-capabilities/{capability}",
-            axum::routing::delete(revoke::<R, S>),
+            get(scope::<R, S>).delete(revoke::<R, S>),
         )
         .route(
             "/artifact-read-capabilities/{capability}/artifacts/{artifact}/meta",
@@ -102,4 +102,22 @@ async fn download<R: ArtifactRepository, S: BlobStore>(
         )
         .await?;
     download_response(download)
+}
+
+async fn scope<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(capability): Path<String>,
+    Query(query): Query<TaskQuery>,
+    headers: HeaderMap,
+) -> Result<Json<ArtifactReadCapabilityScope>, ApiError> {
+    Ok(Json(
+        state
+            .service
+            .read_capability_scope(
+                capability_id(&capability)?,
+                bearer(&headers)?,
+                query.task_id,
+            )
+            .await?,
+    ))
 }

@@ -33,6 +33,7 @@ values delegates the read; the task ID is a binding, not a second authenticator.
 | Operation | Internal route | Credential |
 |---|---|---|
 | Issue | `POST /artifact-read-capabilities` | Gateway assertion |
+| Current scope | `GET /artifact-read-capabilities/{capability}?task_id=…` | Task read secret |
 | Revoke | `DELETE /artifact-read-capabilities/{capability}` | Issuing tenant and actor's gateway assertion |
 | Metadata | `GET /artifact-read-capabilities/{capability}/artifacts/{artifact}/meta?task_id=…` | Task read secret |
 | Bytes | `GET` or `HEAD /artifact-read-capabilities/{capability}/artifacts/{artifact}/download?task_id=…` | Task read secret |
@@ -73,6 +74,9 @@ Its latest published `0.1.0-beta.2` formats the query files but corrupts dotted 
 paths in this migration. The migration therefore retains manually checked field
 paths and passes the native 3.2.4 parser and database application test.
 
-This API checkpoint does not activate Stream or Reason replay. Their durable task
-state and bounded recording caches still need to consume the capability. Hardware
-workload acceptance remains required before admitting their common compiler images.
+Stream and Reason persist the capability in protected task state and supply it to
+the recording reader. The scope endpoint checks current validity without admitting
+an occurrence. The reader uses that verified actor and byte ceiling before reading
+catalog state or copying live parts that have no Artifact occurrence yet. It does
+not convert that scope into a gateway identity. Hardware workload acceptance remains
+required before admitting the common compiler images.

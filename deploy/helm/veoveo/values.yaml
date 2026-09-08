@@ -211,6 +211,12 @@ recording:
 
 stream:
   runtimeClassName: nvidia
+  catalogCache:
+    size: 10Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    managedBytes: 8589934592
+    minimumFreeBytes: 1073741824
   image:
     repository: veoveo/stream-mcp
     tag: 0.1.0
@@ -278,6 +284,12 @@ stream:
 
 reason:
   runtimeClassName: nvidia
+  catalogCache:
+    size: 10Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    managedBytes: 8589934592
+    minimumFreeBytes: 1073741824
   image:
     repository: veoveo/reason-mcp
     tag: 0.1.0

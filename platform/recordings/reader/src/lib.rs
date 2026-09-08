@@ -18,14 +18,18 @@ pub const MAX_LAYERS: u32 = 10_000;
 pub struct RecordingReader {
     store: PlatformStore,
     spool_root: PathBuf,
-    layer_cache: Option<cache::LayerCache>,
+    layer_cache: cache::LayerCache,
 }
 
 impl RecordingReader {
+    pub fn readiness(&self) -> Result<()> {
+        self.layer_cache.readiness()
+    }
+
     pub fn new(
         store: PlatformStore,
         spool_root: PathBuf,
-        layer_cache: Option<cache::LayerCache>,
+        layer_cache: cache::LayerCache,
     ) -> Result<Self> {
         ensure!(
             spool_root.is_absolute(),

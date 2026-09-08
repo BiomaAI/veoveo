@@ -9,8 +9,9 @@ use rmcp::model::{CallToolResult, ContentBlock};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    ArtifactId, GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, PlaneCaller, ServerResourceUris,
+    ArtifactId, ArtifactReadAuthority, ArtifactTaskId, GatewayInternalIdentity,
+    IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactReadCapability, IssuedArtifactWriteCapability, PlaneCaller, ServerResourceUris,
 };
 use veoveo_reason_mcp::{
     annotation::write_annotation_rrd,
@@ -83,6 +84,7 @@ pub(super) struct DurableReasonRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) grounding: Option<GroundingDetections>,
     pub(super) artifact_write_capability: IssuedArtifactWriteCapability,
+    pub(super) artifact_read_capability: IssuedArtifactReadCapability,
 }
 
 pub(super) struct TaskProgress {
@@ -117,12 +119,29 @@ pub(super) async fn start_reason_task(
         )
         .await
         .map_err(|error| error.to_string())?;
+    let read_capability = state
+        .artifacts
+        .issue_read_capability(
+            &caller,
+            &IssueArtifactReadCapabilityRequest {
+                task_id: ArtifactTaskId::parse(task_id.to_string())
+                    .map_err(|error| error.to_string())?,
+                expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
+                max_artifact_count: NonZeroU32::new(veoveo_recording_reader::MAX_LAYERS)
+                    .expect("positive recording layer limit"),
+                max_total_bytes: NonZeroU64::new(state.source_limits.max_segment_bytes)
+                    .ok_or_else(|| "max segment bytes must be non-zero".to_owned())?,
+            },
+        )
+        .await
+        .map_err(|error| error.to_string())?;
     let recovery_class = input.recovery_class();
     let task_type = input.task_type().to_owned();
     let request = DurableReasonRequest {
         input,
         grounding,
         artifact_write_capability: capability,
+        artifact_read_capability: read_capability,
     };
     let created = state
         .tasks
@@ -152,7 +171,24 @@ pub(super) async fn start_reason_task(
 }
 
 pub(super) async fn resume_task(state: Arc<AppState>, snapshot: TaskSnapshot) -> Result<()> {
-    let request: DurableReasonRequest = serde_json::from_value(snapshot.request.clone())?;
+    let request: DurableReasonRequest = match serde_json::from_value(snapshot.request.clone()) {
+        Ok(request) => request,
+        Err(error) => {
+            let task_id = snapshot.task_id.to_string();
+            state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+            state
+                .tasks
+                .transition(
+                    &task_id,
+                    TaskTransition::Failed(TaskFailure::new(
+                        "invalid_task_request",
+                        error.to_string(),
+                    )),
+                )
+                .await?;
+            return Ok(());
+        }
+    };
     let authority =
         recording_authority_from_runtime(&snapshot.owner).map_err(anyhow::Error::msg)?;
     schedule_task(state, snapshot, request, authority, None)
@@ -267,6 +303,10 @@ async fn run_task_inner(
     let materialize = materialize_video(
         state.recordings.clone(),
         authority,
+        ArtifactReadAuthority::Task {
+            capability: &request.artifact_read_capability,
+            task_id: ArtifactTaskId::parse(&task_id).expect("durable task ID is UUIDv7"),
+        },
         input.video.clone(),
         state.source_limits.clone(),
     );

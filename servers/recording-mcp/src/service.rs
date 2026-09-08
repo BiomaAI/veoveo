@@ -396,7 +396,7 @@ impl RecordingService {
                     .context("committed recording layer has no digest")?;
                 let cached = cache
                     .materialize(
-                        artifact_caller,
+                        veoveo_mcp_contract::ArtifactReadAuthority::Caller(artifact_caller),
                         artifact_id,
                         byte_len,
                         &sha256,
@@ -497,7 +497,7 @@ impl RecordingService {
                 .context("recording layer cache is not configured")?;
             let cached = cache
                 .materialize_with_validator(
-                    artifact_caller,
+                    veoveo_mcp_contract::ArtifactReadAuthority::Caller(artifact_caller),
                     veoveo_mcp_contract::ArtifactId::parse(
                         record_uuid(artifact, "artifact_occurrence")?.to_string(),
                     )?,

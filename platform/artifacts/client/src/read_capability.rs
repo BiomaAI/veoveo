@@ -1,6 +1,6 @@
 use super::*;
 use veoveo_mcp_contract::{
-    ArtifactReadAuthority, ArtifactReadCapabilityId, ArtifactTaskId,
+    ArtifactReadAuthority, ArtifactReadCapabilityId, ArtifactReadCapabilityScope, ArtifactTaskId,
     IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
 };
 
@@ -23,6 +23,35 @@ impl HttpArtifactPlane {
         } else {
             response_error(response).await
         }
+    }
+
+    pub async fn read_capability_scope(
+        &self,
+        capability: &IssuedArtifactReadCapability,
+        task_id: ArtifactTaskId,
+    ) -> Result<ArtifactReadCapabilityScope, ArtifactPlaneError> {
+        if task_id != capability.task_id {
+            return Err(ArtifactPlaneError::Unauthenticated);
+        }
+        let response = self
+            .http
+            .get(self.url(&format!(
+                "/artifact-read-capabilities/{}",
+                capability.capability_id
+            )))
+            .query(&[("task_id", task_id.to_string())])
+            .bearer_auth(capability.secret.expose_secret())
+            .send()
+            .await
+            .map_err(transport)?;
+        if !response.status().is_success() {
+            return response_error(response).await;
+        }
+        let scope: ArtifactReadCapabilityScope = response.json().await.map_err(transport)?;
+        if scope.task_id != task_id {
+            return Err(ArtifactPlaneError::Unauthenticated);
+        }
+        Ok(scope)
     }
 
     pub async fn revoke_read_capability(

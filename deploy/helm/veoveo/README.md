@@ -342,3 +342,10 @@ plane is a configuration error, not a plaintext fallback.
 
 Apply `deploy/offline/values.offline.yaml` after importing an offline bundle to
 force `imagePullPolicy: Never`.
+
+Stream and Reason each mount a writable recording cache on a separate PVC. Their
+`catalogCache` values use the same schema as Recording MCP: claim size, storage
+class, access modes, managed bytes, and minimum free bytes. Defaults allocate 10 GiB,
+manage up to 8 GiB, and reserve 1 GiB of filesystem headroom. Cache files survive pod
+replacement; every reuse still requires current Artifact authorization. The shared
+recording spool mount stays read-only and GPU resource requirements remain mandatory.

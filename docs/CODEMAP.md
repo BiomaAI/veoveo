@@ -430,7 +430,7 @@ plane and its bounded durable task-read delegation.
 | `ledger.rs` | repository contract and in-memory test implementation |
 | `ledger/surreal.rs` | canonical SurrealDB repository adapter |
 | `service/read_capability.rs`, `ledger/read_capability.rs`, `ledger/surreal/read_capability.rs` | delegated read policy, focused repository contract, and durable adapter |
-| `http/read_capability.rs` | task-read routes and gateway-authenticated issuance/revocation |
+| `http/read_capability.rs` | current task scope, Artifact read routes and gateway-authenticated issuance/revocation |
 | `store.rs` | memory/S3 blob storage and signed download behavior |
 | `auth.rs` | internal assertion verification and plane caller |
 | `http.rs` | internal artifact API plus `/s/{token}` redemption |
@@ -788,8 +788,8 @@ and Artifact publication.
 
 `platform/recordings/reader` owns the reusable governed Artifact-backed read plan, and
 `platform/recordings/video` owns selection and materialization over it;
-Recording-based durable Stream replay remains fail-closed until its own design supplies
-a fresh Artifact-read capability after restart. Live Stream sessions consume their
+Durable Stream replay stores a bounded Artifact read capability and revalidates it
+through the shared reader after restart. Live Stream sessions consume their
 admitted ingress directly and do not depend on Recording Hub.
 
 ### `servers/reason-mcp`
@@ -808,8 +808,8 @@ admitted ingress directly and do not depend on Recording Hub.
 | `Dockerfile` | vLLM runtime image with the server binary and installed runner |
 
 Reason embeds a bounded grounding subset in the durable request at submission time. Its
-recording-video materialization remains fail-closed until a fresh Artifact-read
-capability can be recovered without persisting a caller bearer. The runner binary belongs to
+recording-video materialization uses a persisted bounded task-read capability and a
+verified recording cache without retaining the submitted gateway bearer. The runner binary belongs to
 the deployable image and the engine is a site-compiled deployment input, so the
 server fails readiness until both are present.
 

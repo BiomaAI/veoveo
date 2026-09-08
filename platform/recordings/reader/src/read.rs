@@ -5,8 +5,8 @@ use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    DataLabelId, GatewayInternalIdentity, PlaneCaller, PrincipalId, PrincipalKind, TenantId,
-    TokenIssuer, TokenSubject,
+    ArtifactReadAuthority, DataLabelId, GatewayInternalIdentity, PrincipalId, PrincipalKind,
+    TenantId, TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
     PrincipalKind as StorePrincipalKind, RecordingDatasetId, RecordingId, RecordingLayerId,
@@ -23,8 +23,8 @@ use crate::cache::CachedLayer;
 
 /// Stable identity and clearance used to reopen a governed recording.
 ///
-/// Bearer credentials are deliberately absent. Callers that need an Artifact
-/// download provide a fresh, short-lived Artifact-plane caller separately.
+/// Submitted bearer credentials are absent. Materialization requires a current
+/// Artifact caller or a bounded task-read capability with the same identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecordingReadAuthority {
     principal_id: PrincipalId,
@@ -222,8 +222,20 @@ impl RecordingReadPlan {
         })
     }
 
-    fn materialize_analysis_snapshot(self) -> Result<MaterializedRecordingReadSnapshot> {
+    fn materialize_analysis_snapshot(
+        self,
+        max_source_bytes: u64,
+    ) -> Result<MaterializedRecordingReadSnapshot> {
         let snapshot = self.analysis_snapshot()?;
+        let bytes = snapshot.sources.iter().try_fold(0_u64, |total, source| {
+            total
+                .checked_add(source.byte_len)
+                .context("recording source byte count overflow")
+        })?;
+        ensure!(
+            bytes <= max_source_bytes,
+            "recording snapshot exceeds its source byte limit"
+        );
         let mut temporary = None;
         let mut paths = Vec::with_capacity(snapshot.sources.len());
         for (index, source) in snapshot.sources.iter().enumerate() {
@@ -277,31 +289,60 @@ impl RecordingReadPlan {
 impl RecordingReader {
     pub async fn materialize_analysis_snapshot(
         &self,
-        _authority: &RecordingReadAuthority,
-        _recording_id: RecordingId,
-    ) -> Result<Option<MaterializedRecordingReadSnapshot>> {
-        anyhow::bail!("Artifact-backed recording reads require a fresh Artifact-read credential")
-    }
-
-    pub async fn materialize_analysis_snapshot_with_caller(
-        &self,
         authority: &RecordingReadAuthority,
-        caller: &PlaneCaller,
+        credential: ArtifactReadAuthority<'_>,
         recording_id: RecordingId,
+        max_source_bytes: u64,
     ) -> Result<Option<MaterializedRecordingReadSnapshot>> {
-        let Some(plan) = self.read_plan(authority, caller, recording_id).await? else {
+        ensure!(
+            max_source_bytes > 0,
+            "recording source byte limit must be positive"
+        );
+        let limit = match credential {
+            ArtifactReadAuthority::Caller(caller) => {
+                ensure!(
+                    *authority == RecordingReadAuthority::from_gateway(&caller.identity),
+                    "recording authority differs from Artifact caller"
+                );
+                max_source_bytes
+            }
+            ArtifactReadAuthority::Task {
+                capability,
+                task_id,
+            } => {
+                let scope = self
+                    .layer_cache
+                    .artifacts()
+                    .read_capability_scope(capability, task_id)
+                    .await?;
+                let delegated = RecordingReadAuthority::new(
+                    scope.principal_id,
+                    scope.principal_kind,
+                    scope.issuer,
+                    scope.subject,
+                    Some(scope.tenant),
+                    scope.data_labels,
+                );
+                ensure!(
+                    *authority == delegated,
+                    "recording authority differs from task read delegation"
+                );
+                max_source_bytes.min(scope.max_total_bytes.get())
+            }
+        };
+        let Some(plan) = self.read_plan(authority, credential, recording_id).await? else {
             return Ok(None);
         };
-        tokio::task::spawn_blocking(move || plan.materialize_analysis_snapshot())
+        tokio::task::spawn_blocking(move || plan.materialize_analysis_snapshot(limit))
             .await
             .context("recording analysis snapshot worker panicked")?
             .map(Some)
     }
 
-    pub async fn read_plan(
+    async fn read_plan(
         &self,
         authority: &RecordingReadAuthority,
-        caller: &PlaneCaller,
+        credential: ArtifactReadAuthority<'_>,
         recording_id: RecordingId,
     ) -> Result<Option<RecordingReadPlan>> {
         let tenant_key = authority
@@ -342,10 +383,7 @@ impl RecordingReader {
             .recording_dataset(platform_identity.tenant_id, dataset_id)
             .await?
             .context("recording dataset is missing")?;
-        let cache = self
-            .layer_cache
-            .as_ref()
-            .context("recording layer cache is not configured")?;
+        let cache = &self.layer_cache;
         let dataset_uuid = record_uuid(&dataset.id, "recording_dataset")?;
         let recording_uuid = record_uuid(&recording.id, "recording")?;
         let catalog_layers = self
@@ -375,7 +413,7 @@ impl RecordingReader {
                         .context("committed layer has no digest")?;
                     let cached = cache
                         .materialize(
-                            caller,
+                            credential,
                             artifact_id,
                             byte_len,
                             sha256,

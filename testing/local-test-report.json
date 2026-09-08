@@ -1,34 +1,38 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:0d0b5026896f6090fb07ec009150d7c8f3460ddfc151f67dd81b62a790399dc4",
-  "updatedAt": "2026-09-08T14:23:07Z",
+  "buildDigest": "sha256:02dbcfab711f73881d4c48129fb1c1b2604f213e7635e3c28f270fcccf681298",
+  "updatedAt": "2026-09-08T14:43:33Z",
   "checks": [
     {
-      "name": "artifact-read-delegation-clippy",
+      "name": "task-read-consumer-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
+        "veoveo-recording-reader",
+        "-p",
+        "veoveo-recording-video",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-reason-mcp",
+        "-p",
+        "veoveo-recording-mcp",
+        "-p",
         "veoveo-artifact-service",
-        "-p",
-        "veoveo-artifact-client",
-        "-p",
-        "veoveo-mcp-contract",
-        "-p",
-        "veoveo-platform-store",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T14:23:03Z",
-      "durationSeconds": 66.517714516,
+      "finishedAt": "2026-09-08T14:43:03Z",
+      "durationSeconds": 4.300073204,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-read-delegation-fmt",
+      "name": "task-read-consumer-fmt",
       "command": [
         "cargo",
         "fmt",
@@ -37,63 +41,75 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T14:23:06Z",
-      "durationSeconds": 2.188154369,
+      "finishedAt": "2026-09-08T14:43:33Z",
+      "durationSeconds": 2.240438489,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-read-delegation-native",
+      "name": "task-read-consumer-helm",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T14:43:30Z",
+      "durationSeconds": 25.997270552,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "task-read-consumer-native",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
+        "veoveo-recording-reader",
+        "-p",
+        "veoveo-recording-video",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-reason-mcp",
+        "-p",
+        "veoveo-recording-mcp",
+        "-p",
         "veoveo-artifact-service",
+        "--all-targets",
         "artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state",
         "--",
         "--ignored",
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T14:21:56Z",
-      "durationSeconds": 1.9624375299999999,
+      "finishedAt": "2026-09-08T14:42:58Z",
+      "durationSeconds": 2.412431901,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-read-delegation-sql",
-      "command": [
-        "output/tools/surreal/3.2.4/surreal",
-        "validate",
-        "platform/store/src/artifact_reads/admit.surql",
-        "platform/store/src/artifact_reads/authorize.surql",
-        "platform/store/src/artifact_reads/context.surql",
-        "platform/store/src/artifact_reads/create.surql",
-        "platform/store/migrations/0049_artifact_read_delegation.surql"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T14:23:07Z",
-      "durationSeconds": 0.23027453,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-read-delegation-tests",
+      "name": "task-read-consumer-tests",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
+        "veoveo-recording-reader",
+        "-p",
+        "veoveo-recording-video",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-reason-mcp",
+        "-p",
+        "veoveo-recording-mcp",
+        "-p",
         "veoveo-artifact-service",
-        "-p",
-        "veoveo-artifact-client",
-        "-p",
-        "veoveo-mcp-contract",
-        "-p",
-        "veoveo-platform-store",
-        "--lib"
+        "--all-targets"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T14:21:33Z",
-      "durationSeconds": 110.175563121,
+      "finishedAt": "2026-09-08T14:42:55Z",
+      "durationSeconds": 7.492895996,
       "detail": "completed successfully"
     }
   ]
