@@ -6,7 +6,7 @@ use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::commands::run_checked;
+use super::commands::{copy_fixture, run_checked};
 
 #[derive(Debug, PartialEq)]
 struct Job {
@@ -86,29 +86,13 @@ fn render(chart: &Path, release: &str, settings: &[&str]) -> Result<BTreeMap<Str
     Ok(jobs)
 }
 
-fn copy_chart(source: &Path, destination: &Path) -> Result<()> {
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let kind = entry.file_type()?;
-        ensure!(!kind.is_symlink(), "chart fixture cannot follow a symlink");
-        let target = destination.join(entry.file_name());
-        if kind.is_dir() {
-            copy_chart(&entry.path(), &target)?;
-        } else {
-            fs::copy(entry.path(), target)?;
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn check() -> Result<()> {
     let chart = Path::new("deploy/helm/veoveo");
     let before = render(chart, "bioma", &[])?;
     let temporary = tempfile::tempdir()?;
     for revision in [2, 29] {
         let variant = temporary.path().join(format!("revision-{revision}"));
-        copy_chart(chart, &variant)?;
+        copy_fixture(chart, &variant)?;
         let chart_path = variant.join("Chart.yaml");
         let mut metadata: Value = serde_yaml_ng::from_slice(&fs::read(&chart_path)?)?;
         metadata["version"] = format!("0.1.0-job-check.{revision}").into();

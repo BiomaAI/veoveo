@@ -203,6 +203,19 @@ ingress connectors, OCI sources, and HelmReleases. The platform chart is one rel
 Each optional private MCP extension is another release with its own chart version,
 values, health, rollback, and lifecycle.
 
+A HelmRelease selects immutable input objects. Its OCIRepository name includes the
+complete selected chart manifest digest. Generated Helm values ConfigMaps have content
+suffixes and `immutable: true`; Kustomize rewrites `spec.valuesFrom[].name` through its
+configured name references. A release-input commit changes the chart reference and the
+values references on the same HelmRelease object. Flux can then wait for the new chart
+source instead of combining its previous artifact with new values.
+
+This boundary matters when a chart changes its values schema. Updating a stable values
+ConfigMap and a stable OCIRepository separately can trigger an upgrade before the new
+chart artifact is available. The Bioma reference exercises the immutable-input pattern
+for Veoveo and its UAV extension. Other installation repositories use the same pattern.
+[Flux documents generated values references](https://fluxcd.io/flux/guides/helmreleases/#refer-to-values-in-configmaps-generated-with-kustomize).
+
 The controller reconciles drift continuously. Routine releases change Git and let the
 controller converge. kubectl apply and helm upgrade are bootstrap and recovery tools,
 not concurrent owners of the same application resources.

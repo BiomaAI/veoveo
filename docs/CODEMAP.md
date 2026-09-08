@@ -158,6 +158,7 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/gpu/admission.rs` | kubelet-plugin selector, DaemonSet readiness, node taint, and pod scheduling diagnostics |
 | `deploy/runtime/src/gpu/workloads.rs` | typed Deployment selector, current ReplicaSet ownership, Ready Pod/container, replica-count, and in-container GPU evidence targeting |
 | `testing/deployment-smoke/` | focused Helm configuration, deployment-profile, and exact-revision GitOps convergence CLI; passive observation issues no reconciliation requests; `src/helm_config.rs` owns configuration assertions shared with the full suite |
+| `testing/deployment-smoke/src/helm_config/gitops.rs` | immutable OCI source and generated Helm values references, checked against the Bioma reference in both component-update directions |
 | `testing/deployment-smoke/src/helm_config/jobs.rs` | rendered initialization Job identity checks across Helm and chart revisions, complete spec changes, and long release names |
 | `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and explicit native live-view container-restart recovery evidence |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |

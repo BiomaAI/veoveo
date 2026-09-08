@@ -1,10 +1,42 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:94d26ee36076b03041a5a4e19862b753394795ca36bceee5f8c663fa56896162",
-  "updatedAt": "2026-09-08T01:59:12Z",
+  "buildDigest": "sha256:6e7e7a745841a1cdde186bd34e4f42b64e3a71acf9bcc9048bc9debb20e334dd",
+  "updatedAt": "2026-09-08T02:17:56Z",
   "checks": [
     {
-      "name": "chart-activation-config",
+      "name": "immutable-gitops-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "veoveo-deployment-smoke",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T02:17:20Z",
+      "durationSeconds": 6.322051708,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "immutable-gitops-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T02:17:56Z",
+      "durationSeconds": 2.366281824,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "immutable-gitops-inputs",
       "command": [
         "cargo",
         "xtask",
@@ -12,8 +44,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T01:59:12Z",
-      "durationSeconds": 6.371016013,
+      "finishedAt": "2026-09-08T02:16:30Z",
+      "durationSeconds": 9.530347926,
       "detail": "completed successfully"
     }
   ]
