@@ -6,21 +6,20 @@ requires-python = ">=3.12"
 # vllm is supplied by the deployable image and is deliberately not declared;
 # installing it from PyPI here would shadow the image's CUDA-matched build.
 dependencies = [
-    "av>=15",
-    "num2words>=0.5.14",
-    "numpy>=2",
-    "pillow>=11",
-    "pydantic>=2.8",
+    "av==18.1.0",
+    "num2words==0.5.14",
+    "pydantic==2.13.5",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest==9.1.1"]
+gpu = ["pynvvideocodec==2.2.2"]
 
 [project.scripts]
 reason-runner = "reason_runner.main:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.32.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

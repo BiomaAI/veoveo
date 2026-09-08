@@ -492,15 +492,14 @@ target "reason-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/reason-mcp/Dockerfile"
   tags       = [image_ref("reason-mcp")]
-  args = {
-    VEOVEO_CARGO_CACHE_ID  = "veoveo-cargo-rust-vllm-v1"
-    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-vllm-v1-linux-amd64-release"
+  contexts = {
+    veoveo-rust-artifacts = "target:rust-bookworm-control-artifacts"
   }
   labels = {
-    "io.veoveo.build.mode"      = "rust-standalone"
+    "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-reason-mcp"
     "io.veoveo.build.binaries"  = "reason-mcp"
-    "io.veoveo.build.family"    = "rust-vllm-v1"
+    "io.veoveo.build.family"    = "rust-bookworm-control-v1"
     "io.veoveo.build.auxiliary" = ""
   }
 }

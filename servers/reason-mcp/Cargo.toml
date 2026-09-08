@@ -3,6 +3,9 @@ name = "veoveo-reason-mcp"
 version.workspace = true
 edition.workspace = true
 
+[package.metadata.veoveo]
+image-asset-inputs = ["servers/reason-mcp/runner"]
+
 [lib]
 name = "veoveo_reason_mcp"
 path = "src/lib.rs"

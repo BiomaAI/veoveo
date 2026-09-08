@@ -805,7 +805,7 @@ admitted ingress directly and do not depend on Recording Hub.
 | `src/artifacts.rs` | shared artifact-plane adapter |
 | `src/uris.rs` | canonical `reason://` identities |
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
-| `runner/` | Python world-model runner: typed protocol, frame sampling, vLLM inference |
+| `runner/` | Python world-model runner: typed protocol, GPU frame sampling, vLLM inference, and locked image assets outside Rust compilation |
 | `runner/src/reason_runner/video.py` | exact packet timestamps, NVDEC device surfaces, and owned CUDA observation tensors |
 | `runner/src/reason_runner/gpu_model.py` | single-process Qwen3-VL embedding adapter, decoder memory reservation, and CUDA handoff to vLLM |
 | `Dockerfile` | vLLM runtime image with the server binary and installed runner |

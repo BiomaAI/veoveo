@@ -123,7 +123,7 @@ runtime images. It records both identities in the family plan. Cargo manifests,
 target entrypoints, Rust source and explicit compiler inputs cannot be declared as
 assets. An accidental production `include_str!` of an excluded asset fails compilation.
 Map's App generator sources and generated HTML use this boundary; Stream declares its
-live App HTML. The runtime Dockerfiles consume the named context supplied by
+live App HTML, and Reason declares its Python runner. The runtime Dockerfiles consume the named context supplied by
 `cargo xtask image`.
 
 Runtime HTML copies use `--chmod=a=rX`: files remain read-only, while directories
@@ -152,7 +152,10 @@ artifact recipe. Its control family keeps Cargo feature unification separate fro
 Map's analytics family. The DeepStream development stage compiles only the C++ runner
 and mounts only `servers/stream-mcp/gst-runner`; Rust edits preserve that native action.
 Runtime assembly combines the two binaries with the digest-pinned DeepStream runtime.
-Reason retains its vLLM compiler boundary until its own GPU workload is qualified.
+Reason consumes the same control compiler and assembles its executable with the
+digest-pinned vLLM 0.28.0 runtime. Runner dependency manifests have their own build
+mounts, while Python source becomes an executable archive in a later layer. Rust and
+Python source edits reuse the large GPU runtime and dependency installation.
 
 `rust-control.Dockerfile` installs stable Rust 1.98.1 over the latest published
 official Bookworm Rust image, 1.98.0, then removes the bootstrap toolchain before any
@@ -162,9 +165,8 @@ has not published a 1.98.1 tag as of September 8, 2026, although the
 are available. Bookworm preserves a glibc baseline below DeepStream's Ubuntu 24.04
 runtime. The compiler image and target-cache epoch change together.
 
-Standalone vLLM and SUMO compiler families receive the same Cargo-derived source
-boundary. Their selected packages include native runner sources, Python runners, image
-recipes and runtime assets. They still use their existing compiler and runtime images.
+The standalone SUMO compiler family receives the same Cargo-derived source boundary.
+Its selected package includes its native inputs, image recipe and runtime assets.
 Moving a binary between ABI families requires independent compatibility and runtime
 evidence before changing that boundary.
 

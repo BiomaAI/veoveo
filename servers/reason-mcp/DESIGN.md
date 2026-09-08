@@ -34,12 +34,19 @@ inference service, and no agent framework.
 | ISO Base Media File Format / MP4 | A bounded source range is remuxed without re-encoding for the task-local decoder and world-model runner. |
 | Typed JSON process protocol | One schema-controlled request and response per isolated runner process. This boundary is private and does not replace MCP. |
 | OAuth bearer and signed JWT identity | Source recording, grounding artifacts, results, and derived artifacts retain gateway-resolved Work Context authority and labels. |
-| vLLM official Muse Glimmer launch image | Hardware-GPU execution through the upstream model launch image. Upstream publishes this model profile under an unversioned tag; Veoveo pins the 2026-08-11 snapshot built from vLLM commit `99a10304dce8945119bd0b1a072297803c52a749` by OCI manifest digest. |
+| [vLLM 0.28.0](https://github.com/vllm-project/vllm/releases/tag/v0.28.0) | Official CUDA 13.0 runtime, pinned by OCI index digest. The image supplies the matched Torch and Transformers stack. |
 | Hugging Face checkpoint | A site-supplied, revision- and digest-pinned checkpoint in native Transformers layout. |
-| NVDEC, CUDA, and DLPack | Internal image-input adapter: PyNvVideoCodec exports device RGB surfaces, Torch owns resized CUDA observations, and Transformers produces CUDA pixel patches. These libraries belong to the digest-pinned runtime. |
+| [PyNvVideoCodec 2.2.2](https://pypi.org/project/pynvvideocodec/2.2.2/), NVDEC, CUDA, and DLPack | Internal image-input adapter: NVDEC exports device RGB surfaces, Torch owns resized CUDA observations, and Transformers produces CUDA pixel patches. PyAV 18.1.0 reads container metadata only. |
 | vLLM precomputed image embeddings | Internal Qwen3-VL profile with base and deepstack features. The offline engine and its single worker share the runner process; embeddings never enter the RPC tensor serializer. |
 
 ## Data path
+
+The Rust executable comes from the shared Rust 1.98.1 Bookworm control compiler.
+Its family excludes analytics feature unification. The runtime image contains no
+Rust build stage. Cargo's declared asset inputs place the Python runner outside the
+Rust source context. Image assembly installs hash-locked runner dependencies from
+`runner/uv.lock`, then packages the source as an executable Python archive. A Python
+source edit reuses the compiler output and dependency layer.
 
 ```text
 recording-hub acknowledged live parts and frozen/sealed segments

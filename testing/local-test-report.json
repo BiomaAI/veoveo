@@ -1,10 +1,30 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:429b58f0990fe41c7b02b9c0d4efd46b0db027e974dc8a6e8b4ea48001bf2f43",
-  "updatedAt": "2026-09-08T18:14:08Z",
+  "buildDigest": "sha256:2d9df46b23f82ec3f793df3193a507ef0e9cc292c784d76034f362804fe2f857",
+  "updatedAt": "2026-09-08T18:21:24Z",
   "checks": [
     {
-      "name": "iteration-format",
+      "name": "reason-shared-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-deployment-smoke",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T18:21:06Z",
+      "durationSeconds": 2.474857795,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "reason-shared-format",
       "command": [
         "cargo",
         "fmt",
@@ -12,73 +32,40 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T18:12:13Z",
-      "durationSeconds": 2.327899371,
+      "finishedAt": "2026-09-08T18:21:14Z",
+      "durationSeconds": 2.363037948,
       "detail": "completed successfully"
     },
     {
-      "name": "iteration-gpu-input-clippy",
+      "name": "reason-shared-helm",
       "command": [
         "cargo",
-        "clippy",
-        "--locked",
-        "-p",
-        "veoveo-smoke",
-        "-p",
-        "veoveo-recording-forwarder",
-        "-p",
-        "veoveo-xtask",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T18:11:14Z",
-      "durationSeconds": 28.817052466,
+      "finishedAt": "2026-09-08T18:21:24Z",
+      "durationSeconds": 9.224425175,
       "detail": "completed successfully"
     },
     {
-      "name": "reason-candidate-tests",
+      "name": "reason-shared-image-planner",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-smoke",
-        "--bin",
-        "smoke"
+        "veoveo-xtask",
+        "commands::image::"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T18:05:46Z",
-      "durationSeconds": 8.120815391,
+      "finishedAt": "2026-09-08T18:21:10Z",
+      "durationSeconds": 3.087951363,
       "detail": "completed successfully"
     },
     {
-      "name": "reason-gpu-input",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "reason-gpu",
-        "--env-file",
-        ".env",
-        "--producer-key-secret",
-        "veoveo-recording-producer",
-        "--candidate-binary",
-        "output/development/common-rust-artifacts-696cb831/bin/reason-mcp",
-        "--candidate-runner",
-        "servers/reason-mcp/runner/src",
-        "--work-dir",
-        "output/development/reason-gpu-admission/final-reason-01"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T18:13:33Z",
-      "durationSeconds": 79.704447684,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "reason-input-python",
+      "name": "reason-shared-runner",
       "command": [
         "uv",
         "run",
@@ -92,62 +79,8 @@
         "-q"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T18:05:37Z",
-      "durationSeconds": 0.282617579,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-forwarder-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-recording-forwarder"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T18:11:53Z",
-      "durationSeconds": 28.269426797,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "smoke-dispatch",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-xtask",
-        "commands::smoke::tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T18:12:09Z",
-      "durationSeconds": 3.463172147,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "stream-candidate-regression",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "stream-gpu",
-        "--env-file",
-        ".env",
-        "--producer-key-secret",
-        "veoveo-recording-producer",
-        "--pipeline-id",
-        "traffic-object-detection",
-        "--candidate-binary",
-        "output/development/stream-separated-final-20260908/warmup/artifacts/bin/stream-mcp",
-        "--candidate-app",
-        "servers/stream-mcp/assets/live.html",
-        "--work-dir",
-        "output/development/reason-gpu-admission/final-stream-01"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T18:14:08Z",
-      "durationSeconds": 12.600669936,
+      "finishedAt": "2026-09-08T18:21:11Z",
+      "durationSeconds": 0.276788723,
       "detail": "completed successfully"
     }
   ]
