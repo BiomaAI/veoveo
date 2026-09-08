@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:3ef2d82465b1642b4bb8157efcf5e98d1b470d169f0017466ea399c59e8dc6d9",
-  "updatedAt": "2026-09-08T03:05:17Z",
+  "buildDigest": "sha256:71b0eec511c73144bdc19b15775b95982e32bf7b9e64dfd7ab2394a19d35ac28",
+  "updatedAt": "2026-09-08T03:08:26Z",
   "checks": [
     {
-      "name": "map-migration-gitops-config",
+      "name": "map-migration-image-config",
       "command": [
         "cargo",
         "xtask",
@@ -12,8 +12,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T03:05:17Z",
-      "durationSeconds": 8.765327374,
+      "finishedAt": "2026-09-08T03:08:26Z",
+      "durationSeconds": 6.666162858,
       "detail": "completed successfully"
     }
   ]
