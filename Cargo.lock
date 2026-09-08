@@ -15776,6 +15776,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-flight-smoke"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.23.1",
+ "chrono",
+ "clap",
+ "futures",
+ "hex",
+ "image",
+ "reqwest 0.13.4",
+ "rustls",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "url",
+ "uuid",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
 name = "veoveo-frames-mcp"
 version = "0.1.0"
 dependencies = [

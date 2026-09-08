@@ -31,6 +31,7 @@ implemented changes and their verification.
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidates pass loader/CLI checks and Stream passes initialized service startup; replay stops at the existing missing Artifact-read credential boundary, before GPU execution; family admission remains pending |
 | Compiler runtime probes | Added a Rust candidate probe with explicit App input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream startup preserves the installed Deployment, Pod identity, and restart count; GPU acceptance is a distinct receipt outcome and remains unverified |
+| Focused flight acceptance | Routes composed-flight scenarios through `veoveo-flight-smoke`, using shared browser source and Stream-owned wire types | Resolved client/helper graphs exclude service implementations, SurrealDB, DuckDB and Rerun; original flight assertions remain in the focused harness |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
 | Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, per-solve CPU deltas, and filesystem extraction windows | Failure-path tests retain errors before BuildKit starts; cached compiler actions report no execution; extraction remains visible when a scanner materializes cached layers |
@@ -1297,3 +1298,33 @@ the first-generation caches (6,822,387,712 bytes) and diagnostic second-generati
 (43,417,825,280 bytes). The normal Cargo retention command also reclaimed 16.33 GiB of
 superseded executables and incremental variants while retaining dependency libraries
 and current executable links.
+
+## Focused Flight Build Boundary
+
+The composed-flight commands now build `veoveo-flight-smoke` and the existing
+conformance client. They no longer select the broad smoke package. The flight
+workflow still performs world admission, authenticated Stream and Recording checks,
+Reason tasks, concurrent NVIDIA workload checks, and headed Console checkpoints.
+Its scenario validation and domain assertions are separated into focused modules.
+
+The former Stream service dependency supplied four live-session response types.
+Those types now have one pure source module owned by Stream. Both the server and
+flight client compile that module; the verifier no longer links the server's task,
+recording, or database implementation. Browser code and showcase checkpoint code
+were moved byte-for-byte. All eleven existing domain regression tests remain.
+
+A Cargo graph test checks the flight client alone, its exact combination with the
+conformance helper, and the independent browser client. It rejects any service
+implementation, SurrealDB, DuckDB, or Rerun dependency. Compilation and dispatch
+measurements are retained under `output/development/flight-iteration/`. They do not
+constitute flight or GPU inference acceptance.
+
+A comment-only verifier edit compiles only `flight-smoke` in 2.66 s; the recorded
+Cargo command takes 2.72 s end to end. The unchanged baseline performs no compilation. Three warm runs through `cargo xtask smoke
+uav-showcase-up` take 0.883, 0.874, and 0.901 s from command entry to typed scenario
+rejection. The deliberately absent scenario prevents cluster or credential activity;
+this measures build and dispatch cost. It does not measure flight execution.
+`comparison.json` records the source build digest and `dispatch.json` records each
+sample. The first test attempt inherited Cargo's package environment and caused
+spurious Ring rebuilds; the corrected test uses the repository's existing parent
+Cargo environment cleanup before starting the measured command.

@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[allow(dead_code)]
-#[path = "../../smoke/src/bin/smoke/scenarios/uav_sim/browser.rs"]
 mod browser;
 mod restart;
 

@@ -1,0 +1,28 @@
+[package]
+name = "veoveo-flight-smoke"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "flight-smoke"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
+clap.workspace = true
+futures.workspace = true
+hex.workspace = true
+image.workspace = true
+reqwest = { workspace = true, features = ["json", "rustls-no-provider"] }
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-tungstenite.workspace = true
+url.workspace = true
+uuid.workspace = true
+schemars.workspace = true
+veoveo-mcp-contract.workspace = true

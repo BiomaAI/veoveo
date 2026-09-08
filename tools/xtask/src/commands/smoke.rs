@@ -27,6 +27,10 @@ const BROWSER_SMOKE: CargoBinary = CargoBinary {
     package: "veoveo-browser-smoke",
     binary: "browser-smoke",
 };
+const FLIGHT_SMOKE: CargoBinary = CargoBinary {
+    package: "veoveo-flight-smoke",
+    binary: "flight-smoke",
+};
 const CONFORMANCE: CargoBinary = CargoBinary {
     package: "veoveo-mcp-conformance",
     binary: "conformance",
@@ -103,7 +107,9 @@ pub(crate) fn run(repository: &RepositoryContext, arguments: &[OsString]) -> Res
 fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
     let dispatcher = dispatcher_binary(arguments)?;
     let mut binaries = vec![dispatcher];
-    if !requests_help(arguments) && dispatcher == BROWSER_SMOKE {
+    if !requests_help(arguments) && dispatcher == FLIGHT_SMOKE {
+        binaries.push(CONFORMANCE);
+    } else if !requests_help(arguments) && dispatcher == BROWSER_SMOKE {
         if !matches!(
             arguments.first().and_then(|argument| argument.to_str()),
             Some(
@@ -180,6 +186,11 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "uav-recording-archive-browser-verify"
     ) {
         Ok(BROWSER_SMOKE)
+    } else if matches!(
+        scenario,
+        "uav-domain-verify" | "uav-showcase-up" | "uav-showcase-verify"
+    ) {
+        Ok(FLIGHT_SMOKE)
     } else {
         Ok(SMOKE)
     }
@@ -276,6 +287,43 @@ fn prepend_library_path(command: &mut Command, key: &str, path: &std::path::Path
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flight_scenarios_build_only_the_focused_client_and_conformance() {
+        for scenario in [
+            "uav-domain-verify",
+            "uav-showcase-up",
+            "uav-showcase-verify",
+        ] {
+            assert_eq!(dispatcher_binary(&[scenario.into()]).unwrap(), FLIGHT_SMOKE);
+            assert_eq!(
+                cargo_build_arguments(&[scenario.into()]).unwrap(),
+                [
+                    "build",
+                    "--locked",
+                    "--package",
+                    "veoveo-flight-smoke",
+                    "--bin",
+                    "flight-smoke",
+                    "--package",
+                    "veoveo-mcp-conformance",
+                    "--bin",
+                    "conformance",
+                ]
+            );
+            assert_eq!(
+                cargo_build_arguments(&[scenario.into(), "--help".into()]).unwrap(),
+                [
+                    "build",
+                    "--locked",
+                    "--package",
+                    "veoveo-flight-smoke",
+                    "--bin",
+                    "flight-smoke"
+                ]
+            );
+        }
+    }
 
     #[test]
     fn gpu_video_scenarios_build_only_their_used_binaries() {

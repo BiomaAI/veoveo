@@ -36,8 +36,6 @@ mod simulation;
 mod stream;
 #[path = "scenarios/sumo.rs"]
 mod sumo;
-#[path = "scenarios/uav_sim.rs"]
-mod uav_sim;
 #[path = "scenarios/view.rs"]
 mod view;
 
@@ -57,7 +55,6 @@ pub(crate) use secrets::*;
 pub(crate) use simulation::*;
 pub(crate) use stream::*;
 pub(crate) use sumo::*;
-pub(crate) use uav_sim::*;
 pub(crate) use view::*;
 
 pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Path) -> Result<()> {

@@ -44,6 +44,11 @@ review and rollout discipline as changing a container image. MCP clients cannot
 provide fragments, properties, element factories, filesystem paths, or model
 paths.
 
+The live-session wire types live in `src/contract/live.rs`. The server and focused
+flight acceptance client compile that same pure domain module with Serde
+and JSON Schema support. Acceptance does not link the Stream service to decode its
+public responses.
+
 ## Live Data Path
 
 ```text

@@ -520,12 +520,13 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, four identity- and storage-isolated generic pilot workloads, shared H.264 ingress, continuous camera products, versioned persistent cache, typed sensor configuration, and network policy |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | reference authoritative camera, product, public gateway origin, and recording tenant binding |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim/showcase.rs` | showcase-owned authoritative UAV cameras and products, real authenticated Console checkpoints, governed Rerun playback, and revision-qualified evidence |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser.rs` | shared headed Chrome attachment, hardware WebGPU-or-WebGL enforcement, opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
+| `testing/flight-smoke/src/domain.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
+| `testing/flight-smoke/src/domain/showcase.rs` | showcase-owned authoritative UAV cameras and products, real authenticated Console checkpoints, governed Rerun playback, and revision-qualified evidence |
+| `testing/browser-smoke/src/browser.rs` | shared headed Chrome attachment, hardware WebGPU-or-WebGL enforcement, opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
+| `testing/flight-smoke/src/cli.rs`, `src/domain/` | focused flight CLI, scenario validation, authenticated MCP client, world admission, live Stream assertions, and governed artifact checks; no service implementations |
 | `testing/browser-smoke/src/main.rs` | focused headed-browser commands and versioned evidence manifests for the Map workspace and UAV visual workflows |
 | `testing/browser-smoke/src/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
+| `testing/browser-smoke/src/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
 
 ### Geospatial Domains
 
@@ -763,7 +764,7 @@ and Artifact publication.
 
 | Path | Responsibility |
 |---|---|
-| `src/contract.rs` | live-session, replay, video, result, sampling, detection, timeline, and output types |
+| `src/contract.rs`, `src/contract/live.rs` | replay, video, result, sampling, detection, timeline, and output types; the pure live-session module is also compiled by the focused flight client |
 | `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |
 | `src/executor.rs` | bounded native replay-runner protocol and response validation |
 | `src/annotation.rs` | derived Rerun bounding-box annotation layers |
@@ -912,6 +913,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | Path | Responsibility |
 |---|---|
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
+| `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
 | `testing/smoke/src/bin/smoke/scenarios/stream/candidate.rs` | Stream compiler candidate execution in the installed NVIDIA runtime, binary and Pod identity evidence, and process cleanup |
