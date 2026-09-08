@@ -29,13 +29,13 @@ pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
     let sample_h264 = prepare_sample_h264(work_dir, &environment)?;
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
-    let producer_key = tmpdir.join("recording-producer.pem");
+    let mut producer_key = tempfile::NamedTempFile::new_in(&tmpdir)?;
     let queue_dir = tmpdir.join("forwarder-queue");
     let forwarder_log = tmpdir.join("recording-forwarder.log");
     std::fs::create_dir_all(&queue_dir)?;
-    std::fs::write(
-        &producer_key,
-        required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM")?,
+    std::io::Write::write_all(
+        &mut producer_key,
+        required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM")?.as_bytes(),
     )?;
     let gateway_url = required_environment(&environment, "PUBLIC_BASE_URL")?.trim_end_matches('/');
     let producer_client_id = optional_environment(
@@ -71,7 +71,7 @@ pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
             "--key-id".into(),
             producer_key_id.into(),
             "--private-key-pem-file".into(),
-            producer_key.as_os_str().to_os_string(),
+            producer_key.path().as_os_str().to_os_string(),
             "--queue-dir".into(),
             queue_dir.as_os_str().to_os_string(),
         ],
@@ -108,8 +108,14 @@ pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         "sampling": {"max_frames": 16}
     });
 
-    let bearer_token =
-        issue_internal_token(signing_key, signing_key_id, "reason", "reason-gpu-smoke")?;
+    let bearer_token = issue_internal_token(
+        signing_key,
+        signing_key_id,
+        "reason",
+        "reason-gpu-smoke",
+        required_environment(&environment, "RECORDING_TENANT_KEY")?,
+        required_environment(&environment, "RECORDING_WORK_CONTEXT")?,
+    )?;
     let task_client =
         FinalTaskSmokeClient::new(REASON_MCP_URL, bearer_token).with_host(REASON_HOST);
     let task = task_client

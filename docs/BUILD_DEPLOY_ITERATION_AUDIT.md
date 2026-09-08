@@ -29,7 +29,8 @@ implemented changes and their verification.
 | Bazel integration and cache trial | Builds Stream Rust, the native CMake runner, and OCI assembly in the existing SDK environment | A restored workspace reuses all 780 Rust compilation actions; both edited builds execute the same six actions and produce identical artifacts; inherited-image materialization remains costly; Cargo/BuildKit stays in production |
 | Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
-| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidate binaries passed loader inspection and CLI execution in the deployed runtime containers; family admission remains pending service and GPU acceptance |
+| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidates pass loader/CLI checks and Stream passes initialized service startup; replay stops at the existing missing Artifact-read credential boundary, before GPU execution; family admission remains pending |
+| Compiler runtime probes | Added a Rust candidate probe with explicit App input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream startup preserves the installed Deployment, Pod identity, and restart count; GPU acceptance is a distinct receipt outcome and remains unverified |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
 | Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, per-solve CPU deltas, and filesystem extraction windows | Failure-path tests retain errors before BuildKit starts; cached compiler actions report no execution; extraction remains visible when a scanner materializes cached layers |
@@ -1165,6 +1166,50 @@ of the dependency change. The staged image has not been deployed or GPU-qualifie
 Receipts are `output/development/stream-feature-closure.stage.json` and
 `output/development/stream-feature-closure-warm.stage.json`; adjacent logs identify the
 complete command and solve records.
+
+## Common Compiler Runtime Admission
+
+The Bookworm Stream candidate now passes initialized service readiness inside the
+installed DeepStream container. The Rust probe supplies the App HTML from the
+candidate's source revision, checks the executable through `/proc/<pid>/exe`, and
+binds the accepted HTTP listener to that process's socket descriptor. Its
+`startup_verified` receipt identifies the RTX 4090, runtime digest, binary and App
+digests, and Pod UID. The additional process and files are removed. The installed
+Deployment specification, Pod identity, runtime image, and zero restart count remain
+identical. This is service evidence, with zero GPU workload frames claimed.
+
+The authenticated recording attempt reaches task execution, then fails before the
+GPU runner. `platform/recordings/video/src/lib.rs::materialize_video` calls
+`RecordingReader::materialize_analysis_snapshot`, whose existing implementation
+unconditionally rejects reads without a fresh Artifact-read credential. Both Stream
+and Reason also construct that reader without a layer cache. Their durable execution
+paths need the credential-bearing reader boundary and bounded cache before replay can
+qualify either compiler. A bearer token must not be persisted in the durable request.
+The failed task is `01a080f8-7474-7f31-a640-acb90aaacf4e`; its candidate log is retained
+under `output/development/stream-compiler-acceptance/`. It supplies no GPU acceptance.
+
+The smoke harness now selects an installed pipeline explicitly and takes the recording
+tenant and Work Context from its environment. Its sample comes from the installed
+Stream image. Candidate startup fails promptly when the process exits, and private
+producer key files are removed even when a test fails. Stream and Reason scenarios
+no longer select the unused conformance CLI, which had expanded Cargo's feature graph
+and triggered another dependency compilation during this verification.
+
+Reason has an additional runtime constraint. Inspection of its pinned vLLM image
+confirms that `MultiModalConfig.validate_mm_processor_device` rejects CUDA preprocessing
+in an instance that also runs the language model. Its supported accelerated processor
+configuration requires an encode-only producer and a device-tensor transport.
+[vLLM documents that boundary](https://docs.vllm.ai/en/stable/configuration/engine_args/#--mm-processor-device).
+Replacing the existing CPU decode, resize, and PNG path therefore requires an admitted
+GPU model-input design, including memory ownership; enabling the installed NVIDIA
+decoder alone is insufficient. No Reason GPU inference was executed in this inspection.
+Version and source hashes are in `output/development/reason-gpu-admission/inspection.json`.
+
+The production compiler families remain separate. The initialized Stream receipt is
+`output/development/stream-compiler-startup/compiler-candidate.json`, and
+`output/development/common-rust-abi-experiment.json` retains the aggregate unadmitted
+status. These findings narrow the remaining implementation work without weakening
+the service, GPU, or durable-credential requirements.
 
 ## Bazel Integration Experiment
 

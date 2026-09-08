@@ -325,7 +325,7 @@ The following acceptance work remains separate from those delivered changes.
 | Priority | Boundary | Owning component | Acceptance condition |
 |---:|---|---|---|
 | 1 | Dedicated build storage and remote-host comparison | managed builder control | compare a separate build disk or host against the twelve-CPU baseline while retaining durable compiler caches; same-host fresh-worker reuse is measured |
-| 2 | Common Rust compiler ABI | Stream/Reason image graphs | complete service startup and hardware GPU acceptance before sharing one compiler family; candidate ELF and CLI checks pass, while Reason's CPU video preprocessing requires its declared NVDEC/CUDA migration |
+| 2 | Common Rust compiler ABI | Stream/Reason image graphs | Stream candidate service startup passes; wire fresh Artifact-read authority and the bounded recording cache into durable video execution, then complete hardware workload acceptance for both consumers; Reason also requires an admitted NVDEC/CUDA model-input path |
 | 3 | Component release ownership | deployment contract | implement the complete object ownership and migration boundary in `DEPLOY-SCOPE-023` before splitting an atomic Helm release; selected publication and per-release image locks are already available |
 | 4 | Focused composed-flight harness closure | smoke harness ownership | a verifier-only edit neither compiles nor links store, task, recording, or unrelated server runtimes, and dispatch remains below 2 s warm |
 

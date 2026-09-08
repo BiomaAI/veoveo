@@ -1,20 +1,16 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:0a5f733386df1a49b3d86349dcfdeeebe93088316dec21eaec37293583a9012a",
-  "updatedAt": "2026-09-08T10:16:32Z",
+  "buildDigest": "sha256:c1b814486dbd11080159fcaa31ca14545115c381aad037b8f9c90c540ea51efb",
+  "updatedAt": "2026-09-08T12:38:35Z",
   "checks": [
     {
-      "name": "task-runtime-feature-clippy",
+      "name": "compiler-probe-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-task-runtime",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-reason-mcp",
+        "veoveo-smoke",
         "-p",
         "veoveo-xtask",
         "--all-targets",
@@ -23,12 +19,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T10:16:29Z",
-      "durationSeconds": 75.645415959,
+      "finishedAt": "2026-09-08T12:33:00Z",
+      "durationSeconds": 24.895033401,
       "detail": "completed successfully"
     },
     {
-      "name": "task-runtime-feature-format",
+      "name": "compiler-probe-format",
       "command": [
         "cargo",
         "fmt",
@@ -37,41 +33,59 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T10:16:32Z",
-      "durationSeconds": 2.146955131,
+      "finishedAt": "2026-09-08T12:34:52Z",
+      "durationSeconds": 2.222088913,
       "detail": "completed successfully"
     },
     {
-      "name": "task-runtime-feature-graph",
+      "name": "stream-candidate-tests",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-xtask"
+        "veoveo-smoke",
+        "--bin",
+        "smoke",
+        "scenarios::stream::candidate"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T10:15:13Z",
-      "durationSeconds": 5.371317834,
+      "finishedAt": "2026-09-08T12:38:35Z",
+      "durationSeconds": 0.641400581,
       "detail": "completed successfully"
     },
     {
-      "name": "task-runtime-feature-tests",
+      "name": "stream-compiler-startup",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "stream-compiler-startup",
+        "--candidate-binary",
+        "output/development/common-rust-artifacts/bin/stream-mcp",
+        "--candidate-app",
+        "output/development/common-rust-artifacts/live.html",
+        "--work-dir",
+        "output/development/stream-compiler-startup"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T12:34:01Z",
+      "durationSeconds": 4.394419751,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "video-smoke-build-selection",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-task-runtime",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-reason-mcp",
-        "--all-targets"
+        "veoveo-xtask",
+        "commands::smoke::tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T10:12:32Z",
-      "durationSeconds": 124.305350323,
+      "finishedAt": "2026-09-08T12:31:58Z",
+      "durationSeconds": 3.145336909,
       "detail": "completed successfully"
     }
   ]
