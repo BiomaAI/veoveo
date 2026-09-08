@@ -113,7 +113,7 @@ enum BuildMode {
 enum BuilderFamily {
     RustTrixieV1,
     RustBookwormV1,
-    RustDeepstreamV1,
+    RustBookwormControlV1,
     RustVllmV1,
     RustSumoBullseyeV1,
 }
@@ -123,7 +123,7 @@ impl BuilderFamily {
         match self {
             Self::RustTrixieV1 => "rust-trixie-v1",
             Self::RustBookwormV1 => "rust-bookworm-v1",
-            Self::RustDeepstreamV1 => "rust-deepstream-v1",
+            Self::RustBookwormControlV1 => "rust-bookworm-control-v1",
             Self::RustVllmV1 => "rust-vllm-v1",
             Self::RustSumoBullseyeV1 => "rust-sumo-bullseye-v1",
         }
@@ -133,6 +133,7 @@ impl BuilderFamily {
         match self {
             Self::RustTrixieV1 => Some("rust-trixie-artifacts"),
             Self::RustBookwormV1 => Some("rust-bookworm-artifacts"),
+            Self::RustBookwormControlV1 => Some("rust-bookworm-control-artifacts"),
             _ => None,
         }
     }
@@ -150,7 +151,7 @@ impl BuilderFamily {
         match self {
             Self::RustTrixieV1 => "9b79bf6f1617",
             Self::RustBookwormV1 => "d793280d4d65",
-            Self::RustDeepstreamV1 => "33878ce751d7",
+            Self::RustBookwormControlV1 => "fdee4764c168",
             Self::RustVllmV1 => "b6332ab4fe25",
             Self::RustSumoBullseyeV1 => "79132306a5b6",
         }
@@ -833,7 +834,7 @@ fn parse_family(value: &str) -> Result<BuilderFamily> {
     match value {
         "rust-trixie-v1" => Ok(BuilderFamily::RustTrixieV1),
         "rust-bookworm-v1" => Ok(BuilderFamily::RustBookwormV1),
-        "rust-deepstream-v1" => Ok(BuilderFamily::RustDeepstreamV1),
+        "rust-bookworm-control-v1" => Ok(BuilderFamily::RustBookwormControlV1),
         "rust-vllm-v1" => Ok(BuilderFamily::RustVllmV1),
         "rust-sumo-bullseye-v1" => Ok(BuilderFamily::RustSumoBullseyeV1),
         _ => bail!("unknown builder family {value}"),
@@ -1261,7 +1262,7 @@ mod tests {
         let families = [
             BuilderFamily::RustTrixieV1,
             BuilderFamily::RustBookwormV1,
-            BuilderFamily::RustDeepstreamV1,
+            BuilderFamily::RustBookwormControlV1,
             BuilderFamily::RustVllmV1,
             BuilderFamily::RustSumoBullseyeV1,
         ];
@@ -1280,7 +1281,7 @@ mod tests {
         let families = [
             BuilderFamily::RustTrixieV1,
             BuilderFamily::RustBookwormV1,
-            BuilderFamily::RustDeepstreamV1,
+            BuilderFamily::RustBookwormControlV1,
             BuilderFamily::RustVllmV1,
             BuilderFamily::RustSumoBullseyeV1,
         ];
@@ -1293,6 +1294,50 @@ mod tests {
         assert_eq!(identities.len(), families.len());
         assert!(
             identities.contains("veoveo-target-v1-aaaaaaaaaaaa-9b79bf6f1617-linux-amd64-release")
+        );
+    }
+
+    #[test]
+    fn stream_control_compilation_stays_separate_from_analytics_and_vllm() {
+        let repository = crate::context::RepositoryContext::discover(std::path::Path::new(env!(
+            "CARGO_MANIFEST_DIR"
+        )))
+        .unwrap();
+        let selection = Selection::exact(
+            "compiler-boundaries",
+            ["stream-mcp", "map-mcp", "reason-mcp"].map(str::to_owned),
+        )
+        .unwrap();
+        let prepared = super::prepare(&repository, selection, &BTreeMap::new()).unwrap();
+        let control = prepared
+            .plan
+            .families
+            .iter()
+            .find(|family| family.family == BuilderFamily::RustBookwormControlV1)
+            .unwrap();
+        assert_eq!(control.packages, ["veoveo-stream-mcp"]);
+        assert_eq!(control.binaries, ["stream-mcp"]);
+        assert!(control.auxiliary.is_empty());
+        assert_eq!(prepared.plan.families.len(), 3);
+        let resolved = super::bake_print(
+            &repository,
+            repository.root(),
+            &prepared.plan.selection,
+            &BTreeMap::new(),
+            &[prepared.override_file.path()],
+        )
+        .unwrap();
+        assert_eq!(
+            resolved.target["stream-mcp"].contexts["veoveo-rust-artifacts"],
+            "target:rust-bookworm-control-artifacts"
+        );
+        assert_eq!(
+            resolved.target["rust-bookworm-control-artifacts"].contexts["veoveo-control-compiler"],
+            "target:rust-control-compiler"
+        );
+        assert_eq!(
+            resolved.target["rust-bookworm-control-artifacts"].args["VEOVEO_CARGO_PACKAGES"],
+            "veoveo-stream-mcp"
         );
     }
 

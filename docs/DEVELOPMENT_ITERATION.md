@@ -326,7 +326,7 @@ The following acceptance work remains separate from those delivered changes.
 | Priority | Boundary | Owning component | Acceptance condition |
 |---:|---|---|---|
 | 1 | Dedicated build storage and remote-host comparison | managed builder control | compare a separate build disk or host against the twelve-CPU baseline while retaining durable compiler caches; same-host fresh-worker reuse is measured |
-| 2 | Common Rust compiler ABI | Stream/Reason image graphs | Stream candidate service startup passes; wire fresh Artifact-read authority and the bounded recording cache into durable video execution, then complete hardware workload acceptance for both consumers; Reason also requires an admitted NVDEC/CUDA model-input path |
+| 2 | Common Rust compiler ABI | Stream/Reason image graphs | Stream's separated Rust 1.98.1 compiler passes hardware replay and warm source edits take 16.7 s and 15.9 s; finish image publication and activation. Reason retains its existing compiler pending an admitted NVDEC/CUDA model-input path and its own hardware acceptance |
 | 3 | Component ownership migration | deployment contract | complete general raw-resource adoption and ownership transfer before splitting an existing atomic Helm release; exact selected execution, per-release inputs, native scope evidence, and cluster coordination are implemented |
 
 ### Deferred Or Separately Owned Work

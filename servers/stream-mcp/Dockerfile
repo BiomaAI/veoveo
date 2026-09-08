@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
+# syntax=docker/dockerfile:1.27.0@sha256:bde3983e9c939224420ddaf6b784cc30e09b035a4dea01f581230c50809f372e
 ARG DEEPSTREAM_VERSION=9.1
 
 # NVIDIA's Triton image is used only as the DeepStream development stage. The
@@ -6,37 +6,18 @@ ARG DEEPSTREAM_VERSION=9.1
 FROM nvcr.io/nvidia/deepstream:${DEEPSTREAM_VERSION}-triton-multiarch@sha256:fd31f5b44ababdbdee8cd397a375e888191b49e402ac237254a4cdc239130f5b AS builder
 
 USER root
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:${PATH}
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential ca-certificates cmake curl libjson-c-dev pkg-config \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-        | sh -s -- -y --profile minimal --default-toolchain 1.97.1
+        build-essential ca-certificates cmake libjson-c-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
-RUN --mount=type=bind,source=tools/image-build/source-freshness.rs,target=/tmp/source-freshness.rs,readonly \
-    rustc --edition=2024 -O /tmp/source-freshness.rs -o /usr/local/bin/veoveo-source-freshness
-ARG VEOVEO_CARGO_CACHE_ID
-ARG VEOVEO_TARGET_CACHE_ID
-RUN --mount=type=bind,source=.,target=/src,rw \
-    --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-registry-v1,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-git-v1,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/target,sharing=locked \
-    veoveo-source-freshness /src /target/.veoveo-inputs \
-    && toolchain="$(rustup default | awk 'NR == 1 { print $1 }')" \
-    && test -n "${toolchain}" \
-    && RUSTUP_TOOLCHAIN="${toolchain}" CARGO_TARGET_DIR=/target \
-        cargo build --release --locked -p veoveo-stream-mcp --bin stream-mcp \
-    && mkdir -p /out/bin \
-    && install -m 0755 /target/release/stream-mcp /out/bin/stream-mcp
-RUN --mount=type=bind,source=.,target=/src,readonly \
-    cmake -S /src/servers/stream-mcp/gst-runner \
+RUN --mount=type=bind,source=servers/stream-mcp/gst-runner,target=/src,readonly \
+    cmake -S /src \
         -B /tmp/stream-runner-build \
         -DCMAKE_BUILD_TYPE=Release \
     && cmake --build /tmp/stream-runner-build --parallel \
+    && mkdir -p /out/bin \
     && install -m 0755 /tmp/stream-runner-build/stream-gst-runner \
         /out/bin/stream-gst-runner
 
@@ -67,7 +48,7 @@ RUN mkdir -p /opt/veoveo \
     esac \
     && ln -s "${driver_lib_dir}" /opt/veoveo/host-libraries
 
-COPY --from=builder /out/bin/stream-mcp /usr/local/bin/stream-mcp
+COPY --from=veoveo-rust-artifacts /bin/stream-mcp /usr/local/bin/stream-mcp
 COPY --from=builder /out/bin/stream-gst-runner \
     /usr/local/bin/stream-gst-runner
 

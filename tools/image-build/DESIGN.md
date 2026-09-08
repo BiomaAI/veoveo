@@ -5,6 +5,7 @@
 | Boundary | Profile |
 |---|---|
 | Cargo metadata v1 | locked Linux amd64 graph, all features for conservative input discovery, normal and build edges |
+| Rust 1.98.1 | Bookworm control compiler, Linux amd64 GNU ABI; separate Cargo selection from analytics consumers |
 | Docker Buildx Bake | typed target selection and generated context overrides |
 | BuildKit source mounts | disposable writable compiler inputs for freshness synchronization, read-only native inputs, persistent locked Cargo caches |
 | Docker BuildKit Syft scanner 1.12.0 | digest-pinned release generator; Syft 1.51.0 emits SPDX SBOM attestations |
@@ -146,7 +147,22 @@ Different source revisions may share compilation output when their admitted comp
 inputs match. Staging and qualification continue to inspect immutable runnable OCI
 digests; this context boundary grants no release eligibility by itself.
 
-Standalone NVIDIA and SUMO compiler families receive the same Cargo-derived source
+Stream's Rust executable uses `rust-bookworm-control-artifacts`, built by the common
+artifact recipe. Its control family keeps Cargo feature unification separate from
+Map's analytics family. The DeepStream development stage compiles only the C++ runner
+and mounts only `servers/stream-mcp/gst-runner`; Rust edits preserve that native action.
+Runtime assembly combines the two binaries with the digest-pinned DeepStream runtime.
+Reason retains its vLLM compiler boundary until its own GPU workload is qualified.
+
+`rust-control.Dockerfile` installs stable Rust 1.98.1 over the latest published
+official Bookworm Rust image, 1.98.0, then removes the bootstrap toolchain before any
+compilation. The [official image catalog](https://github.com/docker-library/official-images/blob/master/library/rust)
+has not published a 1.98.1 tag as of September 8, 2026, although the
+[Rust release](https://blog.rust-lang.org/2026/09/03/Rust-1.98.1/) and rustup distribution
+are available. Bookworm preserves a glibc baseline below DeepStream's Ubuntu 24.04
+runtime. The compiler image and target-cache epoch change together.
+
+Standalone vLLM and SUMO compiler families receive the same Cargo-derived source
 boundary. Their selected packages include native runner sources, Python runners, image
 recipes and runtime assets. They still use their existing compiler and runtime images.
 Moving a binary between ABI families requires independent compatibility and runtime

@@ -5,7 +5,8 @@ and the shared charts are active with the Bioma reference configuration. Local c
 ABI and throughput experiments have recorded results. Live metadata-only publication
 preserves every running Pod. Disposable component-selected execution now passes the independent native Git/OCI
 fixture. Cluster coordination now serializes cooperating disposable installers;
-GPU compiler-family admission remains pending. The local
+Stream's separated Rust 1.98.1 compiler passes hardware replay; its image publication
+and runtime activation remain to be verified. Reason retains its current compiler. The local
 build-engine cache trial has recorded results; independent build storage and hosts
 remain unmeasured.
 The findings below retain the pre-change evidence. The delivery record identifies
@@ -32,6 +33,7 @@ implemented changes and their verification.
 | Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | The current Stream candidate passes a real RTX 4090 recording task: 55 processed frames, 277 detections, and published artifacts; Reason and production family admission remain pending |
+| Stream compiler separation | Shared Bookworm control artifact recipe with Rust 1.98.1; DeepStream compiles only the C++ runner from its own directory | Final warm Rust edits take 16.7 s and 15.9 s, compile only Stream, and produce identical binaries; the source binary passes RTX 4090 replay with 17 frames and 81 detections; native C++ compilation also passes |
 | Compiler runtime probes | Added a Rust candidate probe with explicit App input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream startup and hardware replay preserve the installed Deployment, Pod identity, and restart count; the v2 receipt also verifies temporary cache removal |
 | Focused flight acceptance | Routes composed-flight scenarios through `veoveo-flight-smoke`, using shared browser source and Stream-owned wire types | Resolved client/helper graphs exclude service implementations, SurrealDB, DuckDB and Rerun; original flight assertions remain in the focused harness |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
@@ -1377,7 +1379,7 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 | Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Separate physical build disk or host is unavailable; that comparison remains unmeasured |
 | Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
 | Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
-| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, narrow flight harness, controlled sccache and Bazel trials, and successful Stream candidate hardware replay | Production family migration and matched iteration timing remain; Reason's accelerated model-input path currently prevents its admission |
+| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, focused harnesses, cache/build-engine trials, and Stream's separated compiler with measured warm edits and hardware replay | Stream image publication and activation remain; Reason's accelerated model-input path prevents its admission |
 | Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Complete for the existing independently owned releases; general ownership transfer is outside this build/deploy goal |
 
 The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
@@ -1487,3 +1489,40 @@ attempt supplied GPU evidence.
 This receipt admits the tested Stream executable/runtime pairing. Production Bake
 still selects the existing compiler families, and Reason's candidate has no hardware
 workload receipt. No common-family migration or Reason inference acceptance is claimed.
+
+## Stream Compiler Separation
+
+Stream now consumes the common scratch-artifact recipe through a Bookworm control
+family. Its Cargo feature selection stays separate from Map's analytics family. The
+DeepStream stage builds only `stream-gst-runner` and mounts only its native source
+directory. The runtime combines that result with the Rust artifact and its separately
+packaged App. Reason retains its existing compiler until its own hardware gate passes.
+
+The compiler uses stable Rust 1.98.1. The official Docker catalog still publishes
+1.98.0, so the pinned Bookworm image supplies the environment and rustup; the recipe
+installs 1.98.1 and removes the bootstrap toolchain before compilation. The resulting
+executable needs glibc through 2.34, while the installed DeepStream runtime has 2.39.
+Its direct libraries are libc, libm, libgcc_s, and the amd64 ELF loader.
+
+The first cache population takes 506.5 s and compiles 575 packages. Initial warm
+source edits take 19.5 s and 17.6 s. After correcting the inherited compiler version
+metadata, the final controlled edits take 16.7 s and 15.9 s. Each measured action
+compiles only Stream, with identical output bytes across its pair. This measures
+the new iteration path; it does not isolate a speedup against the old SDK compiler.
+The native CMake build completes successfully, with its compile/link action taking
+2.9 s. Evidence is retained under `output/development/stream-separated-final-20260908/`
+and `output/development/stream-separated-native-20260908.{json,log}`.
+
+The unmodified-source binary has SHA-256
+`ec7cec73075fceecdda35d4ca3eaf9f8df265b5b103efe95dad5667c394eda9a`.
+Its RTX 4090 replay processes 17 frames and returns 81 detections with results,
+annotations, and a source clip. The native probe verifies cleanup and preserves the
+installed Deployment, Pod identity, runtime digest, and restart count. The receipt is
+`output/development/stream-separated-gpu-20260908/compiler-candidate.json`.
+This admits the tested Rust executable in the existing runtime; publication and
+activation of the complete new image are separate checks.
+
+Before the new build, scoped Cargo cleanup reclaimed 19.16 GiB of superseded
+executables and incremental variants. Current executable links and dependency
+libraries were retained. The subsequent preflight passed with 10 GiB of projected
+growth above the host's 20% reserve, and the Kubernetes node reported no disk pressure.
