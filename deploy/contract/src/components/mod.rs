@@ -22,7 +22,7 @@ pub use types::*;
 pub use validation::{lock_component, validate_component_catalog};
 
 /// Internal, non-secret preflight evidence format.
-pub const COMPONENT_MUTATION_PLAN_SCHEMA: &str = "veoveo.io/component-mutation-plan/v1";
+pub const COMPONENT_MUTATION_PLAN_SCHEMA: &str = "veoveo.io/component-mutation-plan/v2";
 
 /// Reserved source identity for installation-owned inputs and operations.
 pub const INSTALLATION_SOURCE_NAME: &str = "installation";

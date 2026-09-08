@@ -110,6 +110,10 @@ Compilation applies source values followed by installation-owned overrides and e
 atomic release's locked image selection in production mode. Components can retain
 different qualified builds of a shared image target. Helm consumes the complete
 prepared render.
+Each component also records the installation document and commit used for its
+configuration. Preparation restores retained values from that commit, including files
+replaced in the current installation checkout. Locks generated before the mandatory
+configuration snapshot and v2 unit digests must be regenerated.
 Installation never re-resolves `HEAD`, a branch, or
 another mutable source expression.
 

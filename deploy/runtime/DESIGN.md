@@ -42,6 +42,7 @@ for an enterprise installation governed by GitOps.
 | `charts.rs` | Shared source-chart locks, ordered Helm values, rendering, and release commands |
 | `compile.rs` and `compile/objects.rs` | Complete prepared component objects, non-secret inputs, and offline scope declarations |
 | `compile/inputs.rs` | Publication and locked-installation snapshots keyed by component source name, repository, and revision |
+| `compile/configuration.rs` | Exact installation profile snapshots, retained values files, and shared temporary checkouts for older configuration commits |
 | `compile/images.rs` | Per-release image selection, exact build provenance, and rendered image closure checks |
 | `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
 | `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
@@ -61,8 +62,9 @@ cover every installation mutation before exposing a component selector.
 
 Loading a profile checks source declarations and installation files without opening
 source worktrees. The expanded component selection determines the exact source and
-release footprint. The resolver clones only those sources, checks out their locked
-commits, and verifies only their selected charts and values. Unselected repositories
+release footprint. The resolver clones only those sources and checks out their locked
+commits. Preparation verifies selected charts and values against the component's
+configuration snapshot. Unselected repositories
 may be unavailable. A selected working checkout may have missing chart files because
 its committed Git objects supply the installation snapshot.
 
@@ -73,8 +75,13 @@ source revision records publication resolution and does not override retained co
 revisions. Preparation verifies the actual checkout commit before rendering. Release
 execution retains the profile's declaration order, independent of checkout ordering.
 
-Retained installation-file snapshots still require input-resolution work before
-component-selected publication can be exposed.
+Each component's `configuration` records its installation document and commit.
+Preparation shares one checkout per configuration source revision, restores the recorded
+document, and verifies its file inputs against Git. Source chart declarations and
+installation values come from that document. Its installation name, namespace, context,
+and registry must match the current destination. Replaced or deleted current values files
+do not change a retained component. Temporary checkouts live through compilation and
+are removed afterward.
 
 The complete locked artifact and ownership catalogs still validate before resolution.
 Installation checks platform image completeness, registry ownership, image provenance,

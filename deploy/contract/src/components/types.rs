@@ -59,6 +59,15 @@ pub struct ComponentSource {
     pub revision: SourceRevision,
 }
 
+/// Immutable installation document whose configuration was used for this component.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InstallationSnapshot {
+    pub source: ComponentSource,
+    /// Canonical path relative to the installation repository.
+    pub profile: String,
+}
+
 /// Kubernetes object identity across served API versions.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -131,6 +140,7 @@ pub struct DeploymentComponent {
     pub id: ComponentId,
     pub role: ComponentRole,
     pub source: ComponentSource,
+    pub configuration: InstallationSnapshot,
     pub namespaces: BTreeSet<String>,
     pub targets: BTreeSet<AtomicTarget>,
     pub permitted_objects: BTreeSet<ObjectIdentity>,
@@ -171,6 +181,7 @@ pub struct RenderedObject {
 pub struct PreparedAtomicUnit {
     pub component: ComponentId,
     pub source: ComponentSource,
+    pub configuration: InstallationSnapshot,
     pub target: AtomicTarget,
     pub inputs: BTreeSet<ComponentInput>,
     pub objects: Vec<RenderedObject>,
@@ -218,6 +229,7 @@ pub enum ComponentMutationVerb {
 pub struct ComponentMutation {
     pub component: ComponentId,
     pub source: ComponentSource,
+    pub configuration: InstallationSnapshot,
     pub target: AtomicTarget,
     pub digest: ArtifactDigest,
     pub content_digest: ArtifactDigest,

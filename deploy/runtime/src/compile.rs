@@ -22,6 +22,7 @@ use crate::{
     sources::{normalize_origin, resolve_revision},
 };
 
+mod configuration;
 mod images;
 mod inputs;
 mod objects;
@@ -124,8 +125,6 @@ fn compile_with_inputs(
         definition == profile.definition,
         "compiled profile differs from its immutable input document"
     );
-    let installation = installation_source(profile, profile_revision)?;
-    let platform = profile.resolved_platform()?;
     let mut drafted = Vec::new();
     for spec in profile
         .definition
@@ -133,6 +132,10 @@ fn compile_with_inputs(
         .iter()
         .filter(|spec| selected.contains(&spec.id))
     {
+        let configuration = &resolved.configurations[&spec.id];
+        let component_profile = resolved.installation.get(configuration)?;
+        let installation = &configuration.source;
+        let platform = component_profile.resolved_platform()?;
         let (owner, drafts) = match &spec.owner {
             ComponentOwner::Source { name } => {
                 let source = sources
@@ -161,7 +164,7 @@ fn compile_with_inputs(
                         .get(&target)
                         .context("release has no image selection")?;
                     let rendered = helm_render_locked(
-                        profile,
+                        component_profile,
                         snapshot,
                         release,
                         &images.digests,
@@ -176,7 +179,7 @@ fn compile_with_inputs(
                         images.narrow(&profile.definition.registry.pull_address, &inputs)?
                     {
                         let rendered = helm_render_locked(
-                            profile,
+                            component_profile,
                             snapshot,
                             release,
                             &exact.digests,
@@ -211,9 +214,9 @@ fn compile_with_inputs(
                     }
                     for path in &release.installation_values {
                         inputs.insert(file_input(
-                            &installation,
-                            &profile.repository,
-                            &profile.resolve(path),
+                            installation,
+                            &component_profile.repository,
+                            &component_profile.resolve(path),
                         )?);
                     }
                     drafts.push(UnitDraft {
@@ -236,7 +239,7 @@ fn compile_with_inputs(
                 let drafts = spec
                     .installation_inputs
                     .iter()
-                    .map(|input| installation_unit(profile, owner, *input))
+                    .map(|input| installation_unit(component_profile, owner, *input))
                     .collect::<Result<Vec<_>>>()?;
                 (owner.clone(), drafts)
             }
@@ -290,6 +293,7 @@ fn compile_with_inputs(
             let prepared = PreparedAtomicUnit {
                 component: spec.id.clone(),
                 source: owner.clone(),
+                configuration: resolved.configurations[&spec.id].clone(),
                 target: draft.target,
                 inputs: draft.inputs,
                 objects,
@@ -319,6 +323,7 @@ fn compile_with_inputs(
             id: spec.id.clone(),
             role: spec.role,
             source: owner,
+            configuration: resolved.configurations[&spec.id].clone(),
             namespaces: spec.namespaces.clone(),
             targets: units.iter().map(|unit| unit.target.clone()).collect(),
             permitted_objects,
