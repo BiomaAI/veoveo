@@ -10,7 +10,7 @@
 | `veoveo.io/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by publication and compatibility generation |
 | `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
 | `veoveo.io/component-mutation-plan/v2` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
-| `veoveo.io/component-installation/v1` | successful disposable installation receipt: mutation plan, actual applied or reused atomic units, and before/after observations of unselected object versions and Helm metadata |
+| `veoveo.io/component-installation/v2` | successful disposable installation receipt: mutation plan, applied or reused units, unselected object and Helm observations, and exact released cluster-coordination identity |
 | `veoveo.io/installed-deployment-unit/v1` | typed local provenance and observed object fingerprints for verified installation reuse; contains no object bodies or Secret values |
 | `veoveo.io/atomic-deployment-unit/v2` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
 | `veoveo.io/atomic-deployment-content/v2` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions and extension release provenance excluded; used only after exact lock validation |

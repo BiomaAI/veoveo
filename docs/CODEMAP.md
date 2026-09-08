@@ -155,6 +155,7 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/compile/configuration.rs` | component-owned installation document snapshots and exact retained configuration files across installation commits |
 | `deploy/runtime/src/compile/execution.rs` and `src/compile/tests/execution.rs` | Snapshot-bound operational inputs and native Git/Helm regression for retained gateway Secret requirements and owner-specific rollout waits |
 | `deploy/runtime/src/profile/execution.rs` | Compiled gateway/GPU helper inputs and rejection of incompatible retained GPU configurations before installation writes |
+| `deploy/runtime/src/profile/coordination.rs` | cluster-wide serialization for cooperating disposable installers, reserved Lease identity, fail-closed interruption, and conditional release |
 | `deploy/runtime/src/profile/operations.rs` and `src/installed/unselected.rs` | Complete planned-unit execution receipts and before/after unselected object and Helm observations |
 | `testing/deployment-smoke/src/component_scope/` | Independent native Git/OCI selected-deployment fixtures, API request metadata, Pod and Helm storage evidence, and namespace cleanup |
 | `deploy/runtime/src/compile/images.rs` | atomic release image values and exact rendered input closure, including retained versions of shared targets |

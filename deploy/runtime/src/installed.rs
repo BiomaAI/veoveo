@@ -48,6 +48,14 @@ impl InstalledState {
         Ok(state)
     }
 
+    pub(crate) fn validate_destination(&self) -> Result<()> {
+        ensure!(
+            store::cluster_uid(&self.context)? == self.store.cluster_uid,
+            "destination cluster changed after opening installation receipts"
+        );
+        Ok(())
+    }
+
     fn receipt(
         &self,
         component: &CompiledComponent,

@@ -322,6 +322,36 @@ pub(crate) fn verify(args: Args) -> Result<()> {
                 applied.len() == 1 && applied[0].component.as_str() == selected,
                 "update did not apply exactly one selected component"
             );
+            ensure!(
+                receipt.schema_version == "veoveo.io/component-installation/v2"
+                    && receipt.coordination.released
+                    && !receipt.coordination.uid.is_empty()
+                    && receipt.coordination.object.group == "coordination.k8s.io"
+                    && receipt.coordination.object.kind == "Lease"
+                    && receipt.coordination.object.namespace.as_deref() == Some("kube-system")
+                    && receipt.coordination.object.name == "veoveo-profile-mutation",
+                "installation omitted released cluster coordination"
+            );
+            let lock_collection = "/apis/coordination.k8s.io/v1/namespaces/kube-system/leases";
+            let lock_resource = format!("{lock_collection}/{}", receipt.coordination.object.name);
+            ensure!(
+                requests
+                    .iter()
+                    .filter(|request| request.method == proxy::Method::Post
+                        && request.uri.split('?').next() == Some(lock_collection))
+                    .count()
+                    == 1,
+                "observer did not see exactly one coordination acquisition"
+            );
+            ensure!(
+                requests
+                    .iter()
+                    .filter(|request| request.method == proxy::Method::Delete
+                        && request.uri.split('?').next() == Some(lock_resource.as_str()))
+                    .count()
+                    == 1,
+                "observer did not see exactly one coordination release"
+            );
             let writes = requests
                 .iter()
                 .filter(|request| request.method.writes())
@@ -338,8 +368,12 @@ pub(crate) fn verify(args: Args) -> Result<()> {
                         "/apis/apps/v1/namespaces/{namespace}/deployments/{selected}"
                     )) || request
                         .uri
-                        .starts_with(&format!("/api/v1/namespaces/{namespace}/secrets")),
-                    "update wrote outside the selected Deployment and Helm storage"
+                        .starts_with(&format!("/api/v1/namespaces/{namespace}/secrets"))
+                        || (request.method == proxy::Method::Post
+                            && request.uri.split('?').next() == Some(lock_collection))
+                        || (request.method == proxy::Method::Delete
+                            && request.uri.split('?').next() == Some(lock_resource.as_str())),
+                    "update wrote outside selected application objects and its exact coordination Lease"
                 );
             }
             println!(

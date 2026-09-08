@@ -9,12 +9,13 @@
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
 | `veoveo.io/component-publication/v1` | Internal xtask receipt for exact component lock composition; records chart revisions, configuration refresh, image evidence, and retained owners, with no cluster execution claim |
 | `veoveo.io/installed-deployment-unit/v1` | Local installation provenance, exact Helm revision and manifest identity, and observed object fingerprints used to verify reuse |
-| `veoveo.io/component-installation/v1` | Successful selected installation plan, actual unit outcomes, and unselected object and Helm observations; no API audit or cross-host fencing claim |
+| `veoveo.io/component-installation/v2` | Successful selected installation plan, actual unit outcomes, unselected observations, and released cluster coordination identity; API request auditing stays separate |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.2.4 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
 | Helm, Flux, and Argo CD ownership metadata | Exact Helm release annotations and managed-by label, with selected Flux and Argo ownership markers checked for imperative conflicts; absence of a marker grants no authority |
 | Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, GPU resource discovery, and server dry-run (`dryRun=All`) for normalized installation baselines |
+| Kubernetes `coordination.k8s.io/v1` | Non-expiring Lease mutex for cooperating profile commands; conditional deletion requires its UID and resource version |
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
 | NVIDIA DRA chart `0.5.0` and `resource.nvidia.com/v1beta1` | Pinned standalone allocator, verified chart and image artifacts, CDI preparation, and declared sharing configuration; hardware qualification is pending and upstream technology-preview features remain bounded by the deployment contract |
 | k3d | Repository-managed disposable cluster and registry lifecycle through native commands |
@@ -67,6 +68,7 @@ for an enterprise installation governed by GitOps.
 | `gpu/workloads/quiescence.rs` | Deployment child UID tracking and a bounded wait for every owned Pod to disappear before device-plugin retirement |
 | `process.rs` | Native command invocation helpers and explicit JSON object application |
 | `profile/execution.rs` | Selected compiled operational inputs and rejection of incompatible retained GPU policies before writes |
+| `profile/coordination.rs` | Non-expiring cluster execution lock, UID/resource-version release, and reserved control identity |
 | `profile/operations.rs` | Actual applied/reused unit outcomes and complete correspondence with the mutation plan |
 
 The runtime retains the Secret gate before profile installation writes and mandatory GPU
@@ -96,8 +98,8 @@ absence, and Helm metadata; they contain no object bodies or Secret bytes. A rec
 is published only after all selected readiness checks and final observations succeed.
 Snapshots can reveal outside activity, but they cannot establish zero API writes alone.
 The separate native scope fixture supplies request metadata and runtime observations.
-Cluster creation remains a separate lifecycle command; cross-host fencing and general
-raw-object adoption remain outside this implementation.
+Cluster creation remains a separate lifecycle command. General raw-object adoption
+remains outside this implementation.
 
 ## Immutable Render Inputs
 
@@ -281,8 +283,9 @@ Terminating Pods still block retirement, as Kubernetes can exclude them from
 [replica counts](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#terminating-pods).
 The wait rejects a replaced Deployment or a changed desired replica count and times
 out after five minutes. Retirement observations are checked again after quiescing.
-These checks detect drift; they do not fence another host between
-the final observation and deletion. The isolated Rust regression uses zero-replica
+These helper checks detect drift. The profile entrypoint additionally holds the
+cluster execution lock while running migration; unrelated administrative writers do
+not participate in that coordination. The isolated Rust regression uses zero-replica
 Deployments and a ConfigMap-only retiring release. It verifies rejection of an
 unselected workload and changed retirement state, successful checked removal, preserved
 unselected object contents, and namespace cleanup. It executes no GPU workload.
@@ -290,10 +293,10 @@ A separate native regression starts a digest-pinned CPU sleep Pod, verifies its 
 before retirement, and restores a ready replica through the planned Helm operation.
 This establishes lifecycle behavior only; it does not qualify GPU execution.
 
-Installation still processes the full profile. Exact component selection,
-execution fencing, raw-resource adoption, complete mutation receipts,
-and live zero-write acceptance remain unfinished. The NVIDIA DRA 0.5.0
-artifact and render checks pass; hardware qualification of that release is pending.
+Exact component execution, complete mutation receipts, and native zero-write scope
+acceptance are implemented. General raw-resource adoption remains open. The NVIDIA
+DRA 0.5.0 artifact and render checks pass; hardware qualification of that release is
+pending.
 
 ## Verified Installation Reuse
 
@@ -319,7 +322,8 @@ operation in the installation repository's Git common directory under
 `veoveo-deployment/<cluster-uid-hash>/`. The `kube-system` Namespace UID binds the
 destination; recreating a cluster creates a different receipt directory. A nonblocking
 file lock covers preflight and execution for worktrees sharing this directory. It does
-not fence another host or an independent installation repository.
+not coordinate another host or independent installation repository; the cluster lock
+below covers cooperating profile operations across that boundary.
 
 Before installation writes, the runtime decodes all relevant receipts and checks their
 schema, target, owner, provenance, and object inventory. A missing receipt takes the
@@ -333,7 +337,8 @@ including hooks. Every existing object must retain its UID and actual content ha
 The hash includes server-added fields and status; only `resourceVersion` and
 `managedFields` are excluded. Status changes can conservatively trigger a normal apply.
 Live ownership is checked again when verifying reuse, and Helm metadata is reread after
-object observation. Concurrent writers remain outside this local lock's boundary.
+object observation. The cluster execution lock serializes cooperating profile writers. Uncoordinated
+administrative writes remain subject to drift checks, not this local file lock.
 
 After an apply succeeds, baseline capture compares every declared field with the actual
 API object. Added API defaults are accepted. When that comparison fails, the runtime
@@ -388,3 +393,37 @@ from its authoritative `https://crates.io/api/v1/crates/{name}` metadata on Sept
 
 The deployment contract owns the managed GPU component pins. Unit tests and rendered
 configuration checks do not establish a new hardware acceptance result.
+
+## Cluster Execution Coordination
+
+`profile-up` and `profile-down` coordinate through the fixed Lease
+`kube-system/veoveo-profile-mutation`. This is installer control metadata, separate
+from component-owned application objects. The catalog cannot claim its identity.
+The v2 installation receipt records its UID, holder identity, and successful release.
+The native scope observer accounts for its acquisition and release explicitly.
+
+Kubernetes `coordination.k8s.io/v1` supplies atomic object creation. This repository
+uses that operation as a mutex and never expires or takes over an occupied lock.
+The [Lease API](https://kubernetes.io/docs/reference/kubernetes-api/coordination/lease-v1/)
+also accepts UID and resource-version preconditions for deletion. Release supplies
+both values, and each selected unit rechecks the lock before executing. An obsolete
+holder cannot delete a replacement with the same name.
+
+`profile-up` completes its ordinary preflight and Secret closure before acquiring the
+lock. It then rechecks the destination cluster identity and repeats ownership and
+mutation planning under the lock. Read-only replanning failures release the lock.
+Once mutation can begin, incomplete execution retains it: a disconnected parent may
+have left a Helm or kubectl child running. Successful readiness and final observations
+precede conditional release and receipt publication. There is no heartbeat timeout,
+automatic takeover, or assumption that a process is dead because its host is unreachable.
+
+Recovery first establishes that the originating installer and its Helm/kubectl children
+have stopped. Inspect the named Lease, then submit a Kubernetes `DeleteOptions` document
+with that exact UID and resource version through `kubectl delete --raw`. Do not delete
+by name alone or run automatic stale-lock cleanup. Native commands remain the recovery
+surface. The next installation replans from current state and local receipts.
+
+This coordinates cooperating disposable profile commands across hosts and repositories.
+It does not replace Kubernetes authorization, fence an administrator who deliberately
+removes the lock, or introduce an imperative owner for a Flux/Argo installation.
+Enterprise desired state retains its declared GitOps owner.

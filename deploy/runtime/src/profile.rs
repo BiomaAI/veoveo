@@ -27,6 +27,7 @@ use veoveo_deploy_contract::{
     components::{InstallationInput, InstallationReceipt, select_components},
 };
 
+mod coordination;
 mod execution;
 mod operations;
 use execution::ExecutionScope;
@@ -72,6 +73,7 @@ pub fn profile_up(
     let profile = load_profile(path)?;
     let lock = load_deployment_lock(lock_path)?;
     validate_locked_profile(&profile, &lock)?;
+    coordination::validate_reserved_identity(&lock.components)?;
     validate_locked_images(&profile, &lock)?;
     let requested = match selection {
         veoveo_deploy_contract::components::ComponentSelection::All => lock
@@ -146,8 +148,8 @@ pub fn profile_up(
         .as_ref()
         .map(|migration| migration.quiesced_workloads())
         .unwrap_or_default();
-    let mutation_plan = installed.plan(&lock.components, &requested, &compiled, &invalidated)?;
-    let unselected_before = installed.unselected(&lock.components, &selected)?;
+    // Complete deterministic preflight before the coordination API write.
+    installed.plan(&lock.components, &requested, &compiled, &invalidated)?;
     let secret_closure = prepare_secret_closure(
         path,
         lock_path,
@@ -157,7 +159,15 @@ pub fn profile_up(
     )?;
 
     after_secret_closure(secret_closure, |_closure| {
-        let mut operations = operations::Operations::new(&installed, &mutation_plan);
+        let mut coordination = coordination::ExecutionLock::acquire(context)?;
+        installed.validate_destination()?;
+        // Another installer may have completed during source preparation. Repeat
+        // ownership and installed-state observations under the lock.
+        let mutation_plan =
+            installed.plan(&lock.components, &requested, &compiled, &invalidated)?;
+        let unselected_before = installed.unselected(&lock.components, &selected)?;
+        coordination.begin_execution()?;
+        let mut operations = operations::Operations::new(&installed, &mutation_plan, &coordination);
         for (component, unit) in installation_units(&compiled, InstallationInput::NodeBootstrap) {
             operations.apply(component, unit)?;
         }
@@ -176,6 +186,7 @@ pub fn profile_up(
                 .gpu_scheduling
                 .as_ref()
                 .context("prepared GPU placement has no resolved scheduling profile")?;
+            coordination.check()?;
             ensure_gpu_allocator(
                 context,
                 scheduling,
@@ -193,6 +204,7 @@ pub fn profile_up(
                 .next()
                 .context("GPU placement has no prepared claim operation")?;
             let mut created = false;
+            coordination.check()?;
             apply_gpu_placement(
                 context,
                 &profile.definition.namespace,
@@ -270,11 +282,15 @@ pub fn profile_up(
             profile.definition.name,
             sources.len()
         );
+        let unselected_after = installed.unselected(&lock.components, &selected)?;
+        let operations = operations.finish()?;
+        let coordination = coordination.release()?;
         Ok(InstallationReceipt {
-            schema_version: "veoveo.io/component-installation/v1".into(),
+            schema_version: "veoveo.io/component-installation/v2".into(),
+            coordination,
             unselected_before,
-            unselected_after: installed.unselected(&lock.components, &selected)?,
-            operations: operations.finish()?,
+            unselected_after,
+            operations,
             plan: mutation_plan,
         })
     })
@@ -320,13 +336,16 @@ pub fn profile_gpu_verify(path: &Path) -> Result<()> {
 pub fn profile_down(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
     let context = profile.definition.kubernetes.context.as_str();
+    let mut coordination = coordination::ExecutionLock::acquire(context)?;
     let releases = profile
         .definition
         .sources
         .iter()
         .flat_map(|source| source.releases.iter())
         .collect::<Vec<_>>();
+    coordination.begin_execution()?;
     for release in releases.into_iter().rev() {
+        coordination.check()?;
         let output = Command::new("helm")
             .args([
                 "--kube-context",
@@ -354,5 +373,6 @@ pub fn profile_down(path: &Path) -> Result<()> {
             )?;
         }
     }
+    coordination.release()?;
     Ok(())
 }
