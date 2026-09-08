@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:2e33787c18c67c64f68b8aa39f4f1d16e8cf5ee3f8ac62fd3ca34ae217ef5cc7",
-  "updatedAt": "2026-09-08T16:14:18Z",
+  "updatedAt": "2026-09-08T16:19:13Z",
   "checks": [
     {
       "name": "stream-compiler-clippy",
@@ -123,6 +123,83 @@
       "status": "passed",
       "finishedAt": "2026-09-08T16:12:41Z",
       "durationSeconds": 10.487908758,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-separated-edit-stage",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "stage",
+        "--target",
+        "stream-mcp",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "2121a7c84ffac6372e8285cd8ee0112585e9caaf",
+        "--evidence-output",
+        "output/development/stream-separated-edit-stage-20260908.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T16:19:13Z",
+      "durationSeconds": 26.653108025999998,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-separated-qualified",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "images",
+        "--target",
+        "stream-mcp",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "75347594985a0b511101b0a6d8e1e4fb87f2e91d",
+        "--stage-evidence",
+        "output/development/stream-separated-stage-20260908.json",
+        "--evidence-output",
+        "output/development/stream-separated-release-20260908.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T16:18:12Z",
+      "durationSeconds": 66.541941987,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-separated-stage",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "stage",
+        "--target",
+        "stream-mcp",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "75347594985a0b511101b0a6d8e1e4fb87f2e91d",
+        "--evidence-output",
+        "output/development/stream-separated-stage-20260908.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T16:15:58Z",
+      "durationSeconds": 11.081817437,
       "detail": "completed successfully"
     }
   ]
