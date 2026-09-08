@@ -46,6 +46,7 @@ for an enterprise installation governed by GitOps.
 | `compile.rs` and `compile/objects.rs` | Complete prepared component objects, non-secret inputs, and offline scope declarations |
 | `compile/inputs.rs` | Publication and locked-installation snapshots keyed by component source name, repository, and revision |
 | `compile/configuration.rs` | Exact installation profile snapshots, retained values files, and shared temporary checkouts for older configuration commits |
+| `compile/execution.rs` | Gateway activation, GPU settings, claim manifests, and owned rollout targets prepared from each component's immutable configuration |
 | `compile/images.rs` | Per-release image selection, exact build provenance, and rendered image closure checks |
 | `publication.rs` | Chart, configuration, and qualified image updates for exact requested components, retaining other owners' inputs and inventories |
 | `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
@@ -63,6 +64,7 @@ for an enterprise installation governed by GitOps.
 | `gpu/migration.rs` | Preflight inventory of device-plugin retirement and workload quiesce effects, selected-owner checks, and version-bound execution |
 | `gpu/workloads/quiescence.rs` | Deployment child UID tracking and a bounded wait for every owned Pod to disappear before device-plugin retirement |
 | `process.rs` | Native command invocation helpers and explicit JSON object application |
+| `profile/execution.rs` | Selected compiled operational inputs and rejection of incompatible retained GPU policies before writes |
 
 The runtime retains the Secret gate before profile installation writes and mandatory GPU
 qualification. Profile installation still processes the complete deployment.
@@ -94,6 +96,25 @@ installation values come from that document. Its installation name, namespace, c
 and registry must match the current destination. Replaced or deleted current values files
 do not change a retained component. Temporary checkouts live through compilation and
 are removed afterward.
+
+Compilation also retains the operational inputs needed after rendering. Gateway Secret
+requirements and the public activation bundle come from the gateway unit's configuration
+snapshot. The allocator and claim carry their recorded GPU settings. Source units that
+contain a declared GPU Deployment carry the same topology for placement verification.
+The installer rejects disagreement between selected consumers and the allocator before
+writing resources; changing that shared policy requires updating the affected component
+configurations together. Gateway and claim manifests must equal the prepared objects.
+Only the component owning a configured Deployment carries its explicit rollout wait.
+Every configured wait must identify a Deployment in the complete locked inventory;
+an unknown target fails preflight instead of disappearing during selection.
+These inputs contain public configuration and Secret names and keys, never Secret values.
+
+The installer consumes these compiled inputs directly. It does not reopen the current
+gateway document or substitute the current global GPU policy after rendering retained
+components. A native Git/Helm regression replaces and deletes a gateway configuration
+file, changes required Secret keys and rollout waits, refreshes only the extension's
+configuration, and verifies retained gateway requirements and owner-specific waits.
+This test performs no Kubernetes mutation or GPU execution.
 
 The complete locked artifact and ownership catalogs still validate before resolution.
 Installation checks platform image completeness, registry ownership, image provenance,

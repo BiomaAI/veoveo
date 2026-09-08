@@ -102,6 +102,7 @@ pub(crate) fn component(namespace: &str, name: &str, objects: &[&str]) -> Compil
     )
     .unwrap();
     CompiledComponent {
+        execution: Default::default(),
         locked,
         units: vec![CompiledUnit {
             helm: Some(helm),

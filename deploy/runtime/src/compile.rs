@@ -25,6 +25,7 @@ use crate::{
 };
 
 pub(crate) mod configuration;
+pub(crate) mod execution;
 mod images;
 mod inputs;
 pub(crate) mod objects;
@@ -45,6 +46,7 @@ struct UnitDraft {
 pub(crate) struct CompiledComponent {
     pub(crate) locked: LockedComponent,
     pub(crate) units: Vec<CompiledUnit>,
+    pub(crate) execution: execution::ExecutionInputs,
 }
 
 pub(crate) struct CompiledUnit {
@@ -369,6 +371,12 @@ fn compile_with_inputs(
             extension_release: spec.extension_release.clone(),
         };
         catalog.push(CompiledComponent {
+            execution: execution::ExecutionInputs::prepare(
+                resolved
+                    .installation
+                    .get(&resolved.configurations[&spec.id])?,
+                &compiled_units,
+            )?,
             locked: lock_component(declaration, units)?,
             units: compiled_units,
         });
