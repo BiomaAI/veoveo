@@ -121,6 +121,7 @@ artifact_uuid_id!(ArtifactReadCapabilityId, "artifact read capability id");
 artifact_uuid_id!(ArtifactTaskId, "artifact task id");
 
 mod read_capability;
+pub mod upload;
 pub use read_capability::*;
 
 /// Stable caller-selected identity for one asynchronous artifact write.

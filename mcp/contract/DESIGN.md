@@ -26,6 +26,7 @@ complies with in its crate documents and in its contract resource.
 | OAuth 2.0, RFC 8414, RFC 9207, RFC 8707, RFC 9728, and OpenID Connect Discovery 1.0 | private-installation profile with pre-registered clients, exact issuer and resource binding, step-up scopes, and `private_key_jwt`; Dynamic Client Registration is excluded |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
+| Veoveo resumable artifact HTTP upload | repository-owned JSON admission/completion and raw part PUT contract, UUIDv7 idempotency, SHA-256 integrity, and bounded browser-safe 64-bit counters; independent of MCP methods |
 | `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
 | `veoveo.io/live-view/v4` | provider-neutral authoritative camera descriptions, typed camera regions in shared encoded products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, and redacted connection tokens |
 | `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |

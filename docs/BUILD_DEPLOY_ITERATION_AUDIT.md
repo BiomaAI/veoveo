@@ -1787,3 +1787,28 @@ release receipt and completed six-observation GPU task. The committed test repor
 green and matches the current build inputs. Resource preflight passes with the node
 Ready and `DiskPressure=False`. Unavailable infrastructure comparisons remain recorded
 as future performance tests; they are not unfinished deployment acceptance.
+
+## Artifact Upload Implementation Iteration
+
+The upload implementation starts from `20327e93` on September 8. Its delivery tracks
+compilation, test execution, image staging and qualification, and GitOps convergence
+separately. Record avoidable repeated checks, cache misses, and unrelated Pod changes
+beside their measured cause. Functional deployment remains the acceptance priority;
+unavailable independent-storage and 100 GiB scale comparisons remain future experiments.
+
+Initial local storage is 362 GiB available on the 1.8 TiB filesystem. `target/debug`
+occupies 162 GiB and `target/veoveo-xtask` occupies 206 MiB. This is a capacity snapshot,
+not a claim that all build artifacts are expendable. Preserve current cache families
+and qualified rollback images when reclaiming obsolete outputs.
+
+The first checkpoint limits test compilation to the shared contract. Shared type
+changes necessarily invalidate downstream compilation; repeated full-workspace builds
+before the contract settles would add churn without qualifying a deployable endpoint.
+
+The first contract check passes 146 tests. Cargo reports 30.56 s of compilation;
+test execution totals 0.31 s. The recorder measures 30.95 s, while log creation to
+completion spans 54.72 s. About 23.8 s precedes recorded command execution, including
+the quiet xtask build and evidence setup. This is a candidate for reducing tooling
+coupling to shared runtime contracts. The subsequent formatting check takes 0.17 s
+inside the recorder and 0.82 s overall. Evidence:
+`output/development/artifact-upload-contract-20260908.log` and the committed test report.

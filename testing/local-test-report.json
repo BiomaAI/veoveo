@@ -1,86 +1,36 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:413e097085746800f51738cb9834a8c8aa7d5c768d177d85dfe8ab942610483a",
-  "updatedAt": "2026-09-08T19:32:09Z",
+  "buildDigest": "sha256:2d0c967f9c940e38183ab6e638b78f40937b49850e7d0e3f3155f4fca6115d7a",
+  "updatedAt": "2026-09-08T22:29:08Z",
   "checks": [
     {
-      "name": "reason-cache-free-activation-format",
+      "name": "artifact-upload-contract",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-contract",
+        "--no-default-features",
+        "--lib",
+        "--tests"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T22:28:53Z",
+      "durationSeconds": 30.954743549,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-upload-contract-format",
       "command": [
         "cargo",
         "fmt",
-        "--all",
-        "--",
+        "-p",
+        "veoveo-mcp-contract",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T19:12:39Z",
-      "durationSeconds": 2.253637902,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "reason-cache-free-activation-helm",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T19:12:36Z",
-      "durationSeconds": 6.086245992,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "reason-cache-free-installed-gpu",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "reason-gpu",
-        "--env-file",
-        ".env",
-        "--producer-key-secret",
-        "veoveo-recording-producer",
-        "--work-dir",
-        "output/development/reason-cache-free-installed-gpu-20260908"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T19:16:29Z",
-      "durationSeconds": 137.423680636,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "veoveo-public-console-apps-final",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "console-apps-browser-verify",
-        "--public-base-url",
-        "https://veoveo.bioma.ai",
-        "--chrome-cdp-url",
-        "http://127.0.0.1:9222",
-        "--evidence-root",
-        "output/acceptance/veoveo-public-final",
-        "--timeout-seconds",
-        "300"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T19:32:09Z",
-      "durationSeconds": 103.281471774,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "veoveo-public-final",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "bioma-verify"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T19:30:03Z",
-      "durationSeconds": 180.571021369,
+      "finishedAt": "2026-09-08T22:29:08Z",
+      "durationSeconds": 0.168250544,
       "detail": "completed successfully"
     }
   ]

@@ -51,6 +51,7 @@ pub use agents::{
 };
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
+pub use artifact_service::upload::*;
 pub use artifact_service::{
     ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
     ArtifactAccessRequestPage, ArtifactAccessRequestScope, ArtifactAccessRequestState,

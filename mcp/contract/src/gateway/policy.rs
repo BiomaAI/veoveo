@@ -77,6 +77,7 @@ pub enum GatewayAction {
     TasksUpdate,
     TasksCancel,
     ArtifactRead,
+    ArtifactUpload,
     UsageRead,
     AgentsRead,
     AgentsMessage,
@@ -107,6 +108,7 @@ impl GatewayAction {
             Self::TasksUpdate => Some("tasks/update"),
             Self::TasksCancel => Some("tasks/cancel"),
             Self::ArtifactRead
+            | Self::ArtifactUpload
             | Self::UsageRead
             | Self::AgentsRead
             | Self::AgentsMessage

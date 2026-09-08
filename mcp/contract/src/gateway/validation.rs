@@ -773,6 +773,7 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
             server.capabilities.tasks
         }
         GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
+        GatewayAction::ArtifactUpload => true,
         GatewayAction::AgentsRead
         | GatewayAction::AgentsMessage
         | GatewayAction::AgentsInputRequestAnswer => false,
