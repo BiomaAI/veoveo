@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:413e097085746800f51738cb9834a8c8aa7d5c768d177d85dfe8ab942610483a",
-  "updatedAt": "2026-09-08T19:12:39Z",
+  "updatedAt": "2026-09-08T19:16:29Z",
   "checks": [
     {
       "name": "reason-cache-free-activation-format",
@@ -28,6 +28,25 @@
       "status": "passed",
       "finishedAt": "2026-09-08T19:12:36Z",
       "durationSeconds": 6.086245992,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "reason-cache-free-installed-gpu",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "reason-gpu",
+        "--env-file",
+        ".env",
+        "--producer-key-secret",
+        "veoveo-recording-producer",
+        "--work-dir",
+        "output/development/reason-cache-free-installed-gpu-20260908"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T19:16:29Z",
+      "durationSeconds": 137.423680636,
       "detail": "completed successfully"
     }
   ]
