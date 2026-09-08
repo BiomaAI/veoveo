@@ -14,6 +14,16 @@ This service implements the internal Artifact plane. `servers/artifact-mcp` owns
 public MCP projection. The shared request types live in `mcp/contract`; the HTTP
 client lives in `platform/artifacts/client`.
 
+## Resumable Upload Contract
+
+The public upload contract is defined in
+`mcp/contract/src/artifact_service/upload.rs`; its implementation is tracked in
+[`ARTIFACT_UPLOAD_PLAN.md`](../../../docs/ARTIFACT_UPLOAD_PLAN.md). The typed contract
+requires an explicit installation quota and transfer policy, validates MIME admission,
+and negotiates part size within the S3 multipart profile. The `artifact_upload` gateway
+action has no MCP method. Public routes remain disabled until durable storage and
+gateway authorization are activated.
+
 ## Task Read Delegation
 
 A durable task can retain a bounded read capability instead of retaining a submitted

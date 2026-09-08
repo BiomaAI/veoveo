@@ -50,7 +50,7 @@ change lands:
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | canonical multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work from `001`–`013`; current exact App authority, governed upload, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work from `014`–`023` |
 | [`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) | focused implementation plan for request `016`: durable recording datasets, immutable Artifact-backed Rerun layers, governed virtual catalogs, bounded Arrow projection, disk safety, activation, and acceptance |
-| [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) | proposed multi-GB resumable HTTP uploads and Console Artifacts upload form, bounded multipart transfer, Work Context authorization, durable receipts, and Python streaming consumption |
+| [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) | active implementation of multi-GB resumable HTTP uploads and Console Artifacts upload form, bounded multipart transfer, Work Context authorization, durable receipts, and Python streaming consumption |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | hosted weather domain server, hosted tabular prediction server over governed tables, and adoption of the MCP skills extension as a contract crate with profile-scoped projection |
 
 MCP designs live with the crate whose public contract they specify:
@@ -264,6 +264,7 @@ schema merely because the server is first-party.
 | `access.rs` | artifact access levels, user/group subjects, grant composition |
 | `agents.rs` | authenticated operator-message, durable input-request decision, wake-receipt, and pending-input view contracts |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
+| `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, errors, explicit quota policy, and checked multipart layout/manifest validation |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and canonical llms.txt rendering; observed capabilities come from Discover and list methods |
