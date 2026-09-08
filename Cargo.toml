@@ -113,7 +113,7 @@ reqwest = { version = "=0.13.4", default-features = false }
 # governed resource reads, and request-boundary preflight not yet released upstream.
 rig = { git = "https://github.com/rozgo/rig.git", rev = "eefffb118579cd4b1a48f8d7cd9bd04354b57634", features = ["rmcp"] }
 prost = "=0.14.4"
-re_dataframe = "=0.36.3"
+re_dataframe = "=0.37.1"
 re_chunk = "=0.36.3"
 re_chunk_store = "=0.36.3"
 re_entity_db = "=0.36.3"
