@@ -9,6 +9,19 @@ spec:
   releaseName: veoveo
   targetNamespace: veoveo
   storageNamespace: veoveo
+  # Migration 0047: keep Map writers stopped while bootstrap seeds the commit head.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: map-mcp
+            patch: |
+              - op: replace
+                path: /spec/replicas
+                value: 0
   chartRef:
     kind: OCIRepository
     name: veoveo-chart-69e118703fa04214dcdeb8c903c62a89468af5aaadb94c2e75a6c8077501bca8
