@@ -95,6 +95,12 @@ completes a transaction interrupted after publication. Concurrent publication
 accepts identical bytes but cannot replace an existing sequence or Blueprint
 revision with different bytes.
 
+Recovery verifies an already accepted batch against its persisted digest, format,
+byte length, and message count before checking whether the stream permits new
+appends. A finished stream can therefore retire a leftover journal for a
+materialized batch without reopening or advancing its checkpoint. Conflicting
+bytes and new batches remain errors after finish.
+
 The serialized materializer retains the last authorized open-stream checkpoint
 and active writing-segment identity in memory. Every request still carries
 current Gateway authorization and is checked against the immutable producer and
