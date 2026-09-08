@@ -9,7 +9,7 @@
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
-| Helm v4.2.3 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
+| Helm v4.2.4 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
 | Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, and GPU resource discovery |
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
 | NVIDIA DRA chart `0.5.0` and `resource.nvidia.com/v1beta1` | Pinned standalone allocator, verified chart and image artifacts, CDI preparation, and declared sharing configuration; hardware qualification is pending and upstream technology-preview features remain bounded by the deployment contract |
@@ -41,6 +41,7 @@ for an enterprise installation governed by GitOps.
 | `snapshot.rs` | Exact Git blob and executable-mode verification of deployment inputs, independent of index hints and clean filters |
 | `charts.rs` | Shared source-chart locks, ordered Helm values, rendering, and release commands |
 | `compile.rs` and `compile/objects.rs` | Complete prepared component objects, non-secret inputs, and offline scope declarations |
+| `compile/inputs.rs` | Publication and locked-installation snapshots keyed by component source name, repository, and revision |
 | `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
 | `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
@@ -63,6 +64,18 @@ release footprint. The resolver clones only those sources, checks out their lock
 commits, and verifies only their selected charts and values. Unselected repositories
 may be unavailable. A selected working checkout may have missing chart files because
 its committed Git objects supply the installation snapshot.
+
+Installation resolves each component's chart from its recorded source name, repository,
+and revision. Components at the same revision share a checkout; components at different
+revisions receive distinct checkouts even when they share a repository. The top-level
+source revision records publication resolution and does not override retained component
+revisions. Preparation verifies the actual checkout commit before rendering. Release
+execution retains the profile's declaration order, independent of checkout ordering.
+
+This supports retained chart revisions within the existing image catalog. Multiple
+qualified versions of one image target and retained installation-file snapshots still
+require their own input-resolution work before component-selected publication can be
+exposed.
 
 The complete locked artifact and ownership catalogs still validate before resolution.
 Installation checks platform image completeness, registry ownership, image provenance,

@@ -8,7 +8,7 @@ use std::{
 use serde_json::json;
 use veoveo_deploy_contract::{LoadedProfile, LockedImage, LockedSource};
 
-use super::{compile_component_lock, compile_components};
+use super::{compile_component_lock, compile_components, compile_locked_components};
 use crate::charts::lock_source_charts;
 
 fn git(root: &Path, args: &[&str]) -> String {
@@ -79,7 +79,7 @@ fn source(root: &Path, name: &str) -> String {
             r#"apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {name}
+  name: {{{{ .Release.Name }}}}
 spec:
   selector:
     matchLabels:
@@ -295,20 +295,14 @@ fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_rend
     crate::sources::validate_locked_profile(&loaded, &lock).unwrap();
     let resolved = crate::sources::resolve_locked_sources(&loaded, &lock, &selected).unwrap();
     assert_eq!(resolved.len(), 1);
-    assert_eq!(resolved[0].definition.name, "platform");
-    assert_ne!(resolved[0].repository, selected_roots["platform"]);
+    let platform_snapshot = resolved.values().next().unwrap();
+    assert_eq!(platform_snapshot.definition.name, "platform");
+    assert_ne!(platform_snapshot.repository, selected_roots["platform"]);
     let immutable_roots = resolved
         .iter()
-        .map(|source| (source.definition.name.clone(), source.repository.clone()))
+        .map(|(identity, source)| (identity.clone(), source.repository.clone()))
         .collect();
-    let prepared = compile_components(
-        &loaded,
-        &lock.profile_revision,
-        &lock.sources,
-        &immutable_roots,
-        &selected,
-    )
-    .unwrap();
+    let prepared = compile_locked_components(&loaded, &lock, &immutable_roots, &selected).unwrap();
     for component in prepared {
         assert_eq!(
             Some(&component.locked),
@@ -322,4 +316,176 @@ fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_rend
         "extension".to_owned().try_into().unwrap(),
     ]);
     assert!(crate::sources::resolve_locked_sources(&loaded, &lock, &extension_selection).is_err());
+}
+
+#[test]
+fn components_from_one_source_retain_distinct_chart_revisions() {
+    use veoveo_deploy_contract::{DeploymentLock, components::ComponentId};
+    use veoveo_extension_contract::SourceRevision;
+
+    // Synthetic image identities isolate real Git/Helm preparation from publication.
+    let workspace = tempfile::tempdir().unwrap();
+    let platform = workspace.path().join("platform");
+    let old_revision = source(&platform, "platform");
+    let installation = workspace.path().join("installation");
+    initialize(&installation);
+    let releases = ["current", "retained"].map(|name| {
+        json!({
+            "name":name, "chart":"chart", "sourceValues":[], "installationValues":[],
+            "valuesContract":"platform", "timeoutSeconds":60
+        })
+    });
+    let mut components = vec![json!({
+        "id":"installation", "owner":{"kind":"installation"}, "role":"installation",
+        "dependencies":[], "namespaces":["veoveo"],
+        "clusterObjects":[{"group":"", "kind":"Namespace", "namespace":null, "name":"veoveo"}],
+        "releases":[], "installationInputs":["namespace"], "extensionRelease":null
+    })];
+    for name in ["current", "retained"] {
+        components.push(json!({
+            "id":name, "owner":{"kind":"source", "name":"platform"}, "role":"platform",
+            "dependencies":["installation"], "namespaces":["veoveo"], "clusterObjects":[],
+            "releases":[name], "installationInputs":[], "extensionRelease":null
+        }));
+    }
+    let path = installation.join("deployment.json");
+    fs::write(&path, serde_json::to_vec_pretty(&json!({
+        "schemaVersion":"veoveo.io/deployment/v7", "name":"revision-fixture",
+        "registry":{"pushAddress":"registry.example.invalid", "pullAddress":"registry.example.invalid", "transport":"tls"},
+        "sources":[{"name":"platform", "role":"platform", "repository":{"kind":"local", "path":"../platform"},
+            "revision":"HEAD", "imageGroups":[], "releases":releases}],
+        "components":components,
+        "kubernetes":{"context":"must-not-contact-a-cluster", "localCluster":null},
+        "namespace":"veoveo", "resources":{"manifests":[], "configMaps":[]},
+        "platform":{"installationPreset":"custom", "components":["platform-store", "object-store", "artifact-service"],
+            "mcpServers":[], "artifactAudiences":[], "externalWorkloads":[]},
+        "gatewayRequirements":[], "waitForDeployments":[]
+    })).unwrap()).unwrap();
+    let profile_revision = commit(&installation, "two components from one repository");
+    let profile = LoadedProfile::load(&path, &installation).unwrap();
+    let definition = &profile.definition.sources[0];
+    let mut sources = vec![LockedSource {
+        name: "platform".into(),
+        role: definition.role,
+        repository: format!("file://{}", platform.display()),
+        revision: old_revision.clone(),
+        images: vec![LockedImage {
+            name: "artifact-service".into(),
+            repository: "registry.example.invalid/artifact-service".into(),
+            source_revision: SourceRevision::new(&old_revision).unwrap(),
+            digest: format!("sha256:{}", "a".repeat(64)),
+            publication_digest: format!("sha256:{}", "b".repeat(64)),
+        }],
+        charts: lock_source_charts(definition, &platform).unwrap(),
+    }];
+    let roots = BTreeMap::from([("platform".into(), platform.clone())]);
+    let initial = compile_component_lock(&profile, &profile_revision, &sources, &roots).unwrap();
+    let template = platform.join("chart/templates/workload.yaml");
+    let content = fs::read_to_string(&template).unwrap().replace(
+        "metadata:\n  name:",
+        "metadata:\n  annotations:\n    test.example/revision: updated\n  name:",
+    );
+    fs::write(template, content).unwrap();
+    let new_revision = commit(&platform, "advance only the current component chart");
+    sources[0].revision = new_revision.clone();
+    let updated_chart = lock_source_charts(definition, &platform)
+        .unwrap()
+        .into_iter()
+        .find(|chart| chart.release == "current")
+        .unwrap();
+    *sources[0]
+        .charts
+        .iter_mut()
+        .find(|chart| chart.release == "current")
+        .unwrap() = updated_chart;
+    let selection = BTreeSet::from([
+        ComponentId::try_from("current".to_owned()).unwrap(),
+        ComponentId::try_from("installation".to_owned()).unwrap(),
+    ]);
+    let updated =
+        compile_components(&profile, &profile_revision, &sources, &roots, &selection).unwrap();
+    let mut catalog = initial.clone();
+    for component in updated {
+        let previous = catalog
+            .iter_mut()
+            .find(|locked| locked.declaration.id == component.locked.declaration.id)
+            .unwrap();
+        *previous = component.locked;
+    }
+    assert_eq!(
+        catalog
+            .iter()
+            .find(|component| component.declaration.id.as_str() == "retained"),
+        initial
+            .iter()
+            .find(|component| component.declaration.id.as_str() == "retained")
+    );
+    let lock = DeploymentLock {
+        schema_version: veoveo_deploy_contract::DEPLOYMENT_LOCK_SCHEMA.into(),
+        profile: profile.definition.name.clone(),
+        profile_revision,
+        registry: profile.definition.registry.locked(),
+        sources,
+        components: catalog,
+        platform: profile.resolved_platform().unwrap(),
+    };
+    lock.validate().unwrap();
+    crate::sources::validate_locked_profile(&profile, &lock).unwrap();
+    let all = lock
+        .components
+        .iter()
+        .map(|component| component.declaration.id.clone())
+        .collect();
+    let snapshots = crate::sources::resolve_locked_sources(&profile, &lock, &all).unwrap();
+    assert_eq!(snapshots.len(), 2);
+    assert!(snapshots.keys().all(|source| source.name == "platform"));
+    assert_eq!(
+        snapshots
+            .keys()
+            .map(|source| source.revision.as_str())
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([old_revision.as_str(), new_revision.as_str()])
+    );
+    let mut immutable_roots = snapshots
+        .iter()
+        .map(|(identity, snapshot)| (identity.clone(), snapshot.repository.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let incomplete = BTreeSet::from([ComponentId::try_from("current".to_owned()).unwrap()]);
+    let resolution_error = crate::sources::resolve_locked_sources(&profile, &lock, &incomplete)
+        .err()
+        .unwrap();
+    assert!(resolution_error.to_string().contains("expanded dependency"));
+    let preparation_error =
+        compile_locked_components(&profile, &lock, &immutable_roots, &incomplete)
+            .err()
+            .unwrap();
+    assert!(
+        preparation_error
+            .to_string()
+            .contains("expanded dependency")
+    );
+    let prepared = compile_locked_components(&profile, &lock, &immutable_roots, &all).unwrap();
+    assert_eq!(prepared.len(), lock.components.len());
+    for component in prepared {
+        assert_eq!(
+            Some(&component.locked),
+            lock.components
+                .iter()
+                .find(|locked| locked.declaration.id == component.locked.declaration.id)
+        );
+    }
+    // A name-only map would silently replace one of these checkout roots.
+    let old_identity = immutable_roots
+        .keys()
+        .find(|identity| identity.revision.as_str() == old_revision)
+        .unwrap()
+        .clone();
+    let new_root = immutable_roots
+        .iter()
+        .find(|(identity, _)| identity.revision.as_str() == new_revision)
+        .unwrap()
+        .1
+        .clone();
+    immutable_roots.insert(old_identity, new_root);
+    assert!(compile_locked_components(&profile, &lock, &immutable_roots, &all).is_err());
 }

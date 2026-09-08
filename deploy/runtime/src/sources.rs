@@ -11,7 +11,9 @@ use std::{
     path::{Path, PathBuf},
 };
 use url::Url;
-use veoveo_deploy_contract::components::{ComponentId, selected_source_releases};
+use veoveo_deploy_contract::components::{
+    ComponentId, ComponentOwner, ComponentSource, selected_source_releases,
+};
 use veoveo_deploy_contract::{DeploymentLock, DeploymentSource, LoadedProfile, SourceRepository};
 // Immutable source checkouts leave unrelated LFS objects as pointers.
 const GIT_SKIP_LFS_SMUDGE: &[(&str, &str)] = &[("GIT_LFS_SKIP_SMUDGE", "1")];
@@ -169,14 +171,41 @@ pub(crate) fn resolve_locked_sources(
     profile: &LoadedProfile,
     lock: &DeploymentLock,
     selected: &BTreeSet<ComponentId>,
-) -> Result<Vec<ResolvedSource>> {
-    let selected_releases = selected_source_releases(&profile.definition, selected)?;
-    let mut resolved = Vec::with_capacity(selected_releases.len());
-    let deployment_image_digests = locked_image_digests(profile, &lock.sources)?;
-    for source in &profile.definition.sources {
-        let Some(releases) = selected_releases.get(&source.name) else {
+) -> Result<BTreeMap<ComponentSource, ResolvedSource>> {
+    selected_source_releases(&profile.definition, selected)?;
+    let mut selected_releases = BTreeMap::<ComponentSource, BTreeSet<String>>::new();
+    for spec in profile
+        .definition
+        .components
+        .iter()
+        .filter(|spec| selected.contains(&spec.id))
+    {
+        let ComponentOwner::Source { name } = &spec.owner else {
             continue;
         };
+        let component = lock
+            .components
+            .iter()
+            .find(|component| component.declaration.id == spec.id)
+            .context("selected component has no locked source identity")?;
+        ensure!(
+            &component.declaration.source.name == name,
+            "selected component source differs from the profile"
+        );
+        selected_releases
+            .entry(component.declaration.source.clone())
+            .or_default()
+            .extend(spec.releases.iter().cloned());
+    }
+    let mut resolved = BTreeMap::new();
+    let deployment_image_digests = locked_image_digests(profile, &lock.sources)?;
+    for (identity, releases) in selected_releases {
+        let source = profile
+            .definition
+            .sources
+            .iter()
+            .find(|source| source.name == identity.name)
+            .context("selected component source is outside the profile")?;
         let mut source = source.clone();
         source
             .releases
@@ -202,7 +231,7 @@ pub(crate) fn resolve_locked_sources(
             SourceRepository::Git { url } => (url.clone(), normalize_origin(url)?),
         };
         ensure!(
-            source_origin == locked.repository,
+            source_origin == locked.repository && source_origin == identity.repository,
             "deployment lock repository for source {} is {}, profile resolves {}",
             source.name,
             locked.repository,
@@ -227,12 +256,12 @@ pub(crate) fn resolve_locked_sources(
             None,
         )
         .with_context(|| format!("cloning deployment source {}", source.name))?;
-        let revision = resolve_revision(destination, &locked.revision)?;
+        let revision = resolve_revision(destination, identity.revision.as_str())?;
         ensure!(
-            revision == locked.revision,
+            revision == identity.revision.as_str(),
             "deployment source {} resolved locked revision {} to {}",
             source.name,
-            locked.revision,
+            identity.revision,
             revision
         );
         status_checked(
@@ -248,16 +277,19 @@ pub(crate) fn resolve_locked_sources(
             )
         })?;
         validate_locked_charts(&source, locked, destination)?;
-        resolved.push(ResolvedSource {
-            definition: source,
-            repository: destination.to_path_buf(),
-            revision,
-            image_digests: locked_image_digests(profile, std::slice::from_ref(locked))?,
-            deployment_image_digests: deployment_image_digests.clone(),
-            _checkout: SourceCheckout::Temporary {
-                _directory: checkout,
+        resolved.insert(
+            identity,
+            ResolvedSource {
+                definition: source,
+                repository: destination.to_path_buf(),
+                revision,
+                image_digests: locked_image_digests(profile, std::slice::from_ref(locked))?,
+                deployment_image_digests: deployment_image_digests.clone(),
+                _checkout: SourceCheckout::Temporary {
+                    _directory: checkout,
+                },
             },
-        });
+        );
     }
     Ok(resolved)
 }

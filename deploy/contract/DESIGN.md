@@ -64,6 +64,12 @@ artifact digest. Values come from the component's source snapshot or the install
 repository. Every Helm unit consumes exactly one chart. Managed allocator inputs match
 the installation's pinned chart and image closure.
 
+The runtime resolves source charts by the component's complete source identity. The
+top-level source revision records publication resolution; it cannot replace a retained
+component revision during installation. The current artifact catalog still permits one
+qualified version per image target. Extending image selection and retained installation
+snapshots remains part of the component-execution migration.
+
 Profile binding checks every owner's role, dependencies, extension identity, namespaces,
 atomic operations, and cluster permissions. Namespaced permissions come from the complete
 locked inventory. These checks also cover unselected owners without evaluating their

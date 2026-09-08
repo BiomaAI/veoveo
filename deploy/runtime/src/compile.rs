@@ -7,22 +7,22 @@ use std::{
 
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
-use veoveo_deploy_contract::{LoadedProfile, LockedSource, components::*};
+use veoveo_deploy_contract::{DeploymentLock, LoadedProfile, LockedSource, components::*};
 use veoveo_extension_contract::{ArtifactDigest, SourceRevision};
 
 use crate::{
-    charts::{helm_render_locked, validate_locked_charts},
+    charts::helm_render_locked,
     configuration::{
         append_yaml_bytes, append_yaml_objects, config_map_manifest, gateway_activation_manifest,
         prepare_gateway_activation,
     },
     gpu::{prepare_gpu_allocator_objects, prepare_gpu_placement},
     helm_bundle::{ChartMetadata, CompiledHelmRelease, preserve_crds},
-    images::locked_image_digests,
     snapshot::SnapshotInputs,
-    sources::{ResolvedSource, SourceCheckout, normalize_origin, resolve_revision},
+    sources::{normalize_origin, resolve_revision},
 };
 
+mod inputs;
 mod objects;
 #[cfg(test)]
 mod tests;
@@ -82,7 +82,33 @@ pub(crate) fn compile_components(
     source_roots: &BTreeMap<String, PathBuf>,
     selected: &BTreeSet<ComponentId>,
 ) -> Result<Vec<CompiledComponent>> {
-    let selected_releases = selected_source_releases(&profile.definition, selected)?;
+    let inputs = inputs::publication(profile, profile_revision, sources, source_roots, selected)?;
+    compile_with_inputs(profile, profile_revision, sources, selected, inputs)
+}
+
+pub(crate) fn compile_locked_components(
+    profile: &LoadedProfile,
+    lock: &DeploymentLock,
+    source_roots: &BTreeMap<ComponentSource, PathBuf>,
+    selected: &BTreeSet<ComponentId>,
+) -> Result<Vec<CompiledComponent>> {
+    let inputs = inputs::locked(profile, lock, source_roots, selected)?;
+    compile_with_inputs(
+        profile,
+        &lock.profile_revision,
+        &lock.sources,
+        selected,
+        inputs,
+    )
+}
+
+fn compile_with_inputs(
+    profile: &LoadedProfile,
+    profile_revision: &str,
+    sources: &[LockedSource],
+    selected: &BTreeSet<ComponentId>,
+    resolved: inputs::CompilationInputs,
+) -> Result<Vec<CompiledComponent>> {
     ensure!(
         resolve_revision(&profile.repository, "HEAD")? == profile_revision,
         "installation snapshot differs from the publication revision"
@@ -98,42 +124,6 @@ pub(crate) fn compile_components(
         "compiled profile differs from its immutable input document"
     );
     let installation = installation_source(profile, profile_revision)?;
-    let mut resolved = BTreeMap::new();
-    let deployment_images = locked_image_digests(profile, sources)?;
-    for source in sources
-        .iter()
-        .filter(|source| selected_releases.contains_key(&source.name))
-    {
-        let root = source_roots
-            .get(&source.name)
-            .context("publication omits a source snapshot")?;
-        ensure!(
-            resolve_revision(root, "HEAD")? == source.revision,
-            "source snapshot differs from the publication revision"
-        );
-        let mut definition = profile
-            .definition
-            .sources
-            .iter()
-            .find(|candidate| candidate.name == source.name)
-            .context("locked source is outside the profile")?
-            .clone();
-        definition
-            .releases
-            .retain(|release| selected_releases[&source.name].contains(&release.name));
-        validate_locked_charts(&definition, source, root)?;
-        resolved.insert(
-            source.name.clone(),
-            ResolvedSource {
-                definition,
-                repository: root.clone(),
-                revision: source.revision.clone(),
-                image_digests: locked_image_digests(profile, std::slice::from_ref(source))?,
-                deployment_image_digests: deployment_images.clone(),
-                _checkout: SourceCheckout::Publication,
-            },
-        );
-    }
     let platform = profile.resolved_platform()?;
     let mut drafted = Vec::new();
     for spec in profile
@@ -149,9 +139,10 @@ pub(crate) fn compile_components(
                     .find(|source| &source.name == name)
                     .context("component source has no qualified artifacts")?;
                 let snapshot = resolved
-                    .get(name)
+                    .snapshots
+                    .get(&spec.id)
                     .context("component source has no immutable snapshot")?;
-                let owner = component_source(source)?;
+                let owner = resolved.owners[&spec.id].clone();
                 let mut drafts = Vec::new();
                 for release_name in &spec.releases {
                     let release = snapshot
@@ -213,12 +204,13 @@ pub(crate) fn compile_components(
                 (owner, drafts)
             }
             ComponentOwner::Installation => {
+                let owner = &resolved.owners[&spec.id];
                 let drafts = spec
                     .installation_inputs
                     .iter()
-                    .map(|input| installation_unit(profile, &installation, *input))
+                    .map(|input| installation_unit(profile, owner, *input))
                     .collect::<Result<Vec<_>>>()?;
-                (installation.clone(), drafts)
+                (owner.clone(), drafts)
             }
         };
         drafted.push((spec, owner, drafts));
