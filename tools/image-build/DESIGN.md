@@ -156,6 +156,11 @@ Reason consumes the same control compiler and assembles its executable with the
 digest-pinned vLLM 0.28.0 runtime. Runner dependency manifests have their own build
 mounts, while Python source becomes an executable archive in a later layer. Rust and
 Python source edits reuse the large GPU runtime and dependency installation.
+Reason disables install-time Python bytecode and fixes archive timestamps, member
+order, permissions, and the system-account date to the admitted source epoch.
+These internal packaging bytes must survive eviction and rebuilding of the runtime
+assembly cache. Qualification compares the resulting runnable manifest with its
+staged digest after that eviction.
 
 `rust-control.Dockerfile` installs stable Rust 1.98.1 over the latest published
 official Bookworm Rust image, 1.98.0, then removes the bootstrap toolchain before any
