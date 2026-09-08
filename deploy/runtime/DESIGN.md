@@ -54,12 +54,14 @@ for an enterprise installation governed by GitOps.
 | `helm_state/snapshot.rs` | Stored manifest content and successful hook execution from Helm status |
 | `installed.rs` and `installed/` | Local receipt storage, actual object fingerprints, and verified reuse in the full-profile installer |
 | `installed/normalize.rs` | Server dry-run projection of installed intent when Kubernetes serialization differs from the prepared object |
+| `installed/planning.rs` | Checked installed observations, pure mutation decisions, and execution of the prepared atomic-unit plan |
 | `ownership.rs` | Read-only historical inventory and live ownership checks before installation writes |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
 | `configuration.rs` | Rendered Secret-reference closure, bounded Secret observations, public ConfigMaps, and gateway activation |
 | `cluster.rs` | Local registry and k3d lifecycle, node bootstrap, and cluster readiness |
 | `gpu.rs` and `gpu/` | Qualified allocator orchestration, persistent claims, admission, and workload placement |
 | `gpu/migration.rs` | Preflight inventory of device-plugin retirement and workload quiesce effects, selected-owner checks, and version-bound execution |
+| `gpu/workloads/quiescence.rs` | Deployment child UID tracking and a bounded wait for every owned Pod to disappear before device-plugin retirement |
 | `process.rs` | Native command invocation helpers and explicit JSON object application |
 
 The runtime retains the Secret gate before profile installation writes and mandatory GPU
@@ -222,13 +224,22 @@ hooks, verifies live owner metadata, and rejects deletion hooks or removal of a
 Namespace, Node, or CRD whose effects exceed that inventory.
 
 The executor consumes the prepared target set. It rechecks object UIDs and resource
-versions, observed absences, and the Helm revision before quiescing. Each scale operation carries its
-observed resource-version precondition. Retirement observations are checked again
-after quiescing. These checks detect drift; they do not fence another host between
+versions, observed absences, and the Helm revision before quiescing. Each scale operation
+carries its observed resource-version precondition. After rollout reports completion,
+the executor waits for every owned Pod to disappear. It tracks all ReplicaSet revisions
+by owner UID and retains observed child UIDs across deletion or ownership changes.
+Terminating Pods still block retirement, as Kubernetes can exclude them from
+[replica counts](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#terminating-pods).
+The wait rejects a replaced Deployment or a changed desired replica count and times
+out after five minutes. Retirement observations are checked again after quiescing.
+These checks detect drift; they do not fence another host between
 the final observation and deletion. The isolated Rust regression uses zero-replica
 Deployments and a ConfigMap-only retiring release. It verifies rejection of an
 unselected workload and changed retirement state, successful checked removal, preserved
 unselected object contents, and namespace cleanup. It executes no GPU workload.
+A separate native regression starts a digest-pinned CPU sleep Pod, verifies its removal
+before retirement, and restores a ready replica through the planned Helm operation.
+This establishes lifecycle behavior only; it does not qualify GPU execution.
 
 Installation still processes the full profile. Exact component selection,
 execution fencing, raw-resource adoption, complete mutation receipts,
@@ -236,6 +247,23 @@ and live zero-write acceptance remain unfinished. The NVIDIA DRA 0.5.0
 artifact and render checks pass; hardware qualification of that release is pending.
 
 ## Verified Installation Reuse
+
+The full-profile installer prepares a mutation plan before its first write. It feeds
+checked Helm history, live object inventories, and reusable receipt provenance to the
+pure planner. A missing or drifted baseline becomes `RequiresApply`; it does not assert
+that desired inputs were previously installed. Planned GPU quiesce invalidates reuse
+for the affected workload units, which ensures their releases restore desired replicas.
+Namespace, bootstrap, allocator, claim creation, public configuration, gateway
+activation, and source releases execute through their exact planned atomic unit.
+Existing claims retain their separate immutable-spec and UID verification.
+
+Execution checks each unit's owner, input digests, and object inventory against the
+plan. An `Unchanged` decision must pass live reuse verification again; drift rejects
+that decision and requires replanning. It cannot silently authorize a write. An apply
+decision permits the existing installer to verify reuse or perform its recorded
+operation. The internal plan records permitted effects, not actual mutation receipts.
+The native ConfigMap regression covers absent units, reuse, a single-release update,
+missing receipts, and rejection of changed inputs or live drift after planning.
 
 The existing `profile-up` command records each successful Helm or prepared manifest-set
 operation in the installation repository's Git common directory under

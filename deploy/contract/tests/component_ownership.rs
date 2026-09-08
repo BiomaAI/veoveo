@@ -8,6 +8,53 @@ mod support;
 use support::*;
 
 #[test]
+fn checked_inventory_without_reusable_provenance_requires_application() {
+    let platform = fixture("platform", ComponentRole::Platform);
+    let requested = BTreeSet::from([id("platform")]);
+    let mut observations = observed(&platform);
+    observations[0].state = ObservedUnitState::RequiresApply {
+        objects: platform.units[0].objects.clone(),
+    };
+    let plan = component_mutation_plan(
+        std::slice::from_ref(&platform),
+        &requested,
+        &prepared(&platform),
+        &observations,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.mutations[0].verb,
+        ComponentMutationVerb::HelmUpgradeInstall
+    );
+    observations[0].state = ObservedUnitState::RequiresApply {
+        objects: Vec::new(),
+    };
+    assert!(
+        component_mutation_plan(
+            std::slice::from_ref(&platform),
+            &requested,
+            &prepared(&platform),
+            &observations
+        )
+        .is_ok()
+    );
+    let mut raw = platform.clone();
+    raw.units[0].target = AtomicTarget::ManifestSet { name: "raw".into() };
+    raw.declaration.targets = BTreeSet::from([raw.units[0].target.clone()]);
+    let raw = relock(&raw);
+    observations[0].target = raw.units[0].target.clone();
+    assert!(
+        component_mutation_plan(
+            std::slice::from_ref(&raw),
+            &requested,
+            &prepared(&raw),
+            &observations
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn stored_helm_inventory_keeps_retired_objects_inside_the_original_owner() {
     let platform = fixture("platform", ComponentRole::Platform);
     let extension = fixture("extension", ComponentRole::Extension);

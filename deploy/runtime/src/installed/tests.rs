@@ -8,6 +8,8 @@ use crate::{
 use serde_json::json;
 use veoveo_extension_contract::SourceRevision;
 
+mod planning;
+
 fn reseal(component: &mut CompiledComponent) {
     let unit = &mut component.units[0];
     unit.prepared.objects = ObjectScopes::default()

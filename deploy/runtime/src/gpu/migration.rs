@@ -18,6 +18,8 @@ use crate::{
     process::{output_checked, status_checked},
 };
 
+use super::workloads::quiescence::Quiescence;
+
 #[derive(Debug, PartialEq, Eq)]
 struct ObjectVersion {
     identity: ObjectIdentity,
@@ -61,6 +63,7 @@ enum Removal {
 #[derive(Debug)]
 pub(crate) struct PreparedGpuMigration {
     deployments: Vec<ObjectVersion>,
+    quiescence: BTreeMap<ObjectIdentity, Quiescence>,
     absent_deployments: BTreeSet<ObjectIdentity>,
     removal: Removal,
 }
@@ -113,6 +116,7 @@ fn prepare_targets(
     if matches!(removal, Removal::None) {
         return Ok(PreparedGpuMigration {
             deployments: Vec::new(),
+            quiescence: BTreeMap::new(),
             absent_deployments: BTreeSet::new(),
             removal,
         });
@@ -132,12 +136,26 @@ fn prepare_targets(
         .cloned()
         .collect();
     let mut deployments = Vec::new();
+    let mut quiescence = BTreeMap::new();
     for (identity, value) in live {
         validate_manager_value(&owners[&identity], &value)?;
-        deployments.push(ObjectVersion::observe(identity, &value)?);
+        let observation = ObjectVersion::observe(identity.clone(), &value)?;
+        quiescence.insert(
+            identity.clone(),
+            Quiescence::capture(
+                context,
+                identity
+                    .namespace
+                    .as_deref()
+                    .context("GPU Deployment has no namespace")?,
+                &observation.uid,
+            )?,
+        );
+        deployments.push(observation);
     }
     Ok(PreparedGpuMigration {
         deployments,
+        quiescence,
         absent_deployments,
         removal,
     })
@@ -315,6 +333,13 @@ fn validate_retirement<'a>(
 }
 
 impl PreparedGpuMigration {
+    pub(crate) fn quiesced_workloads(&self) -> BTreeSet<ObjectIdentity> {
+        self.deployments
+            .iter()
+            .map(|object| object.identity.clone())
+            .collect()
+    }
+
     pub(crate) fn apply(&self, context: &str) -> Result<()> {
         let removal_objects = match &self.removal {
             Removal::None => return Ok(()),
@@ -380,6 +405,7 @@ impl PreparedGpuMigration {
                 &[],
                 None,
             )?;
+            self.quiescence[identity].wait(context, namespace, &identity.name)?;
         }
         verify_objects(context, removal_objects.iter())?;
         ensure!(

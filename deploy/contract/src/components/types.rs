@@ -214,6 +214,10 @@ pub enum ObservedUnitState {
         content_digest: ArtifactDigest,
         objects: Vec<RenderedObject>,
     },
+    /// The checked inventory has no reusable baseline, has drifted, or will be
+    /// invalidated by an earlier planned mutation. No installed-input digest is
+    /// asserted. An existing Helm release may have an empty stored inventory.
+    RequiresApply { objects: Vec<RenderedObject> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

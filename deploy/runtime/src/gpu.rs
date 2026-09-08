@@ -16,7 +16,7 @@ use veoveo_deploy_contract::{
     NVIDIA_DRA_KUBERNETES_VERSION,
 };
 
-use crate::process::{kubectl_apply_value, output_checked, status_checked};
+use crate::process::{output_checked, status_checked};
 
 #[path = "gpu/admission.rs"]
 mod admission;
@@ -750,6 +750,7 @@ pub(super) fn apply_gpu_placement(
     namespace: &str,
     scheduling: &GpuSchedulingProfile,
     placement: &PreparedGpuPlacement,
+    create_claim: impl FnOnce() -> Result<()>,
 ) -> Result<()> {
     let mut classes = BTreeMap::new();
     for group in &scheduling.same_physical_device_groups {
@@ -773,7 +774,7 @@ pub(super) fn apply_gpu_placement(
         return Ok(());
     }
 
-    kubectl_apply_value(context, &placement.manifest).with_context(|| {
+    create_claim().with_context(|| {
         format!(
             "creating restart-stable GPU ResourceClaim {namespace}/{}",
             placement.claim_name

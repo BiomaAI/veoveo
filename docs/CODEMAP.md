@@ -124,7 +124,7 @@ Hub, administration, and GPU policy.
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `deploy/contract/` | multi-source deployment v7 profiles and locks, mandatory component ownership, exact platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
-| `deploy/contract/src/components/` | atomic ownership catalog, exact provenance and deployable-content digests, dependency expansion, and pure mutation planning for the component-selection migration; installer integration remains pending |
+| `deploy/contract/src/components/` | atomic ownership catalog, exact provenance and deployable-content digests, dependency expansion, and pure mutation planning consumed by the full-profile installer; component-selected execution remains pending |
 | `deploy/contract/src/components/bindings.rs` | full-catalog profile permissions and source/image/chart binding checks, including retained unselected inventories |
 | `deploy/contract/tests/fixtures/` and `tests/support/lock.rs` | explicitly synthetic deployment locks for schema and development-image transformation checks; real installation locks are generated outputs |
 | `deploy/contract/src/gateway_bundle.rs` | canonical complete public ConfigMap content digest shared by disposable gateway activation and GitOps acceptance |
@@ -161,6 +161,7 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/helm_state.rs` and `src/ownership.rs` | stored Helm manifest/hook inventories, possible recovery revisions, batched live metadata reads, and pre-write ownership checks |
 | `deploy/runtime/src/installed.rs`, `src/installed/`, and `src/helm_state/snapshot.rs` | local installed provenance, canonical stored Helm inventories, live object fingerprints, and verified reuse through the full-profile installer |
 | `deploy/runtime/src/installed/normalize.rs` | Kubernetes server dry-run equivalence for normalized quantities and omitted fields when recording a successful installation |
+| `deploy/runtime/src/installed/planning.rs` and `src/installed/tests/planning.rs` | Checked installed-state planning, exact planned-unit execution, and live regressions for reuse, updates, missing receipts, and stale decisions |
 | `deploy/runtime/src/gpu/migration.rs` and `src/gpu/migration/tests.rs` | Complete direct device-plugin retirement/quiesce inventory before profile writes, selected workload ownership, observation checks, and isolated live API regression |
 | `deploy/contract/src/components/installed.rs` | typed non-secret installed-unit receipts and provenance/inventory validation |
 | `deploy/contract/src/components/history.rs` | historical Helm retirement within declared namespaces and rejection of cross-component or cross-target ownership transfer |
@@ -170,6 +171,7 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/gpu/helm.rs` | Helm v4 release metadata, exact allocator artifact and render verification, and atomic installation |
 | `deploy/runtime/src/gpu/admission.rs` | kubelet-plugin selector, DaemonSet readiness, node taint, and pod scheduling diagnostics |
 | `deploy/runtime/src/gpu/workloads.rs` | typed Deployment selector, current ReplicaSet ownership, Ready Pod/container, replica-count, and in-container GPU evidence targeting |
+| `deploy/runtime/src/gpu/workloads/quiescence.rs` | Retained child UID inventory and bounded Pod-exit verification before retiring a device plugin |
 | `testing/deployment-smoke/` | focused Helm configuration, deployment-profile, and exact-revision GitOps convergence CLI; passive observation issues no reconciliation requests; `src/helm_config.rs` owns configuration assertions shared with the full suite |
 | `testing/deployment-smoke/src/helm_config/gitops.rs` | immutable OCI source and generated Helm values references, checked against the Bioma reference in both component-update directions |
 | `testing/deployment-smoke/src/helm_config/jobs.rs` | rendered initialization Job identity checks across Helm and chart revisions, complete spec changes, and long release names |

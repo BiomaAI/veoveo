@@ -6,6 +6,9 @@ use veoveo_deploy_contract::GpuWorkloadPlacement;
 
 use crate::process::output_checked;
 
+#[path = "workloads/quiescence.rs"]
+pub(super) mod quiescence;
+
 const DEPLOYMENT_REVISION_ANNOTATION: &str = "deployment.kubernetes.io/revision";
 
 #[derive(Debug, Deserialize)]

@@ -107,9 +107,18 @@ pub fn component_mutation_plan(
                 .is_none(),
             "duplicate observed atomic target"
         );
-        if let ObservedUnitState::Present { objects, .. } = &unit.state {
+        if let ObservedUnitState::Present { objects, .. }
+        | ObservedUnitState::RequiresApply { objects } = &unit.state
+        {
             ensure!(
-                !objects.is_empty(),
+                !objects.is_empty()
+                    || matches!(
+                        (&unit.state, &unit.target),
+                        (
+                            ObservedUnitState::RequiresApply { .. },
+                            AtomicTarget::HelmRelease { .. }
+                        )
+                    ),
                 "observed atomic target has no explicit inventory"
             );
             for object in objects {
@@ -169,7 +178,7 @@ pub fn component_mutation_plan(
                 "prepared contents differ from locked atomic unit"
             );
             let unchanged = match state {
-                ObservedUnitState::Absent => false,
+                ObservedUnitState::Absent | ObservedUnitState::RequiresApply { .. } => false,
                 ObservedUnitState::Present {
                     digest: installed_digest,
                     content_digest: installed_content_digest,
@@ -205,7 +214,8 @@ pub fn component_mutation_plan(
                 .collect::<BTreeSet<_>>();
             let retired_objects = match state {
                 ObservedUnitState::Absent => Vec::new(),
-                ObservedUnitState::Present { objects, .. } => objects
+                ObservedUnitState::Present { objects, .. }
+                | ObservedUnitState::RequiresApply { objects } => objects
                     .iter()
                     .filter(|object| !desired_objects.contains(&object.identity))
                     .cloned()
