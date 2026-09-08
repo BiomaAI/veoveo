@@ -1,62 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:5625b1b24c6c2ee1f09ff28d0f1a5adf0b7a6c262a89ae4105d9c3382e4fd381",
-  "updatedAt": "2026-09-08T01:54:56Z",
+  "buildDigest": "sha256:94d26ee36076b03041a5a4e19862b753394795ca36bceee5f8c663fa56896162",
+  "updatedAt": "2026-09-08T01:59:12Z",
   "checks": [
     {
-      "name": "recording-ingest-clippy",
+      "name": "chart-activation-config",
       "command": [
         "cargo",
-        "clippy",
-        "--locked",
-        "-p",
-        "veoveo-platform-store",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T01:54:31Z",
-      "durationSeconds": 14.627811572,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-ingest-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T01:54:56Z",
-      "durationSeconds": 2.117066367,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "recording-ingest-recovery",
-      "command": [
-        "env",
-        "VEOVEO_SURREAL_INTEGRATION=1",
-        "VEOVEO_SURREAL_URL=ws://127.0.0.1:32768",
-        "VEOVEO_SURREAL_USER=root",
-        "VEOVEO_SURREAL_PASSWORD=local-ingest-regression",
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-platform-store",
-        "--lib",
-        "--test",
-        "surreal_integration",
-        "--",
-        "--test-threads=1"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T01:53:41Z",
-      "durationSeconds": 10.654843036,
+      "finishedAt": "2026-09-08T01:59:12Z",
+      "durationSeconds": 6.371016013,
       "detail": "completed successfully"
     }
   ]
