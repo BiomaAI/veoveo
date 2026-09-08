@@ -102,8 +102,10 @@ the commit that built it independently of the chart snapshot. Installation locks
 generated outputs; schema tests use explicitly synthetic fixtures.
 
 `cargo xtask smoke profile-up` requires that lock. It verifies the installation
-revision and referenced profile files, checks out each source at the recorded revision,
-and verifies its origin, exact Bake repositories, and source-chart content digest.
+revision and referenced profile files, checks out the sources that supply its releases
+at their recorded revisions, and verifies their origins and source-chart content digests.
+Image validation consumes the qualified lock and complete platform image closure;
+installation does not evaluate Docker Bake or inspect mutable working chart files.
 Compilation applies source values followed by installation-owned overrides and the
 source-owned digest map in production mode. Helm consumes that complete prepared render.
 Installation never re-resolves `HEAD`, a branch, or

@@ -1,29 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:16f730cc0f95f75186293c85cb64acb03e783b2cece94b95c67411a3ecc15580",
-  "updatedAt": "2026-09-08T01:10:07Z",
+  "buildDigest": "sha256:099e504176f57769468ae0259623a4d6a1b178d9b24feaca4a6777378af376d9",
+  "updatedAt": "2026-09-08T01:28:06Z",
   "checks": [
     {
-      "name": "deployment-component-allocator-render",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-deploy-runtime",
-        "--lib",
-        "pinned_allocator_chart_uses_declared_nodes_and_includes_cluster_inventory",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T01:10:04Z",
-      "durationSeconds": 3.046616961,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "deployment-component-clippy",
+      "name": "deployment-selected-source-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -42,12 +23,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T01:09:49Z",
-      "durationSeconds": 5.988041803,
+      "finishedAt": "2026-09-08T01:27:51Z",
+      "durationSeconds": 5.914577423,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-component-format",
+      "name": "deployment-selected-source-format",
       "command": [
         "cargo",
         "fmt",
@@ -56,12 +37,12 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T01:10:07Z",
-      "durationSeconds": 2.1711831249999998,
+      "finishedAt": "2026-09-08T01:28:06Z",
+      "durationSeconds": 2.208516775,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-component-helm",
+      "name": "deployment-selected-source-helm",
       "command": [
         "cargo",
         "xtask",
@@ -69,12 +50,12 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T01:10:00Z",
-      "durationSeconds": 10.572771436,
+      "finishedAt": "2026-09-08T01:28:03Z",
+      "durationSeconds": 11.588343811,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-component-migration",
+      "name": "deployment-selected-sources",
       "command": [
         "cargo",
         "test",
@@ -89,8 +70,8 @@
         "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T01:08:16Z",
-      "durationSeconds": 9.040357906,
+      "finishedAt": "2026-09-08T01:25:14Z",
+      "durationSeconds": 11.931151255,
       "detail": "completed successfully"
     }
   ]

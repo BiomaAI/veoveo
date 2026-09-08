@@ -146,7 +146,7 @@ Hub, administration, and GPU policy.
 | `showcase/uav-sim/deploy/helm/` | authoritative GPU simulator, UAV MCP server, isolated generic pilot agents, shared H.264 stream ingress, continuous camera-product configuration, and viewer authorization |
 | `deploy/runtime/` | shared operational deployment library consumed by the focused Rust smoke harness and release publisher; component-selected execution remains pending |
 | `deploy/runtime/src/profile.rs` | profile validation and ordered lifecycle operations |
-| `deploy/runtime/src/sources.rs` and `src/images.rs` | immutable checkouts, installation input checks, source-owned Bake selection, and image inventories |
+| `deploy/runtime/src/sources.rs` and `src/images.rs` | selected immutable source checkouts, installation input checks, qualified image inventories, and Bake selection for profile validation |
 | `deploy/runtime/src/snapshot.rs` | exact Git blob, file inventory, and executable-mode verification for source charts, source values, and installation inputs; `snapshot/tests.rs` exercises index hints, filters, ignored files, and path confinement |
 | `deploy/runtime/src/compile.rs` and `src/compile/objects.rs` | component render preparation, exact non-secret input closure, offline object scope, and sealed inventories for the v7 migration |
 | `deploy/runtime/src/discovery.rs` | read-only destination scope checks across all locked owners and proposed CRDs, before installation writes |

@@ -56,68 +56,22 @@ pub(crate) fn locked_image_digests_for_registry(
     Ok(image_digests)
 }
 
-pub(crate) fn validate_locked_images(
-    profile: &LoadedProfile,
-    lock: &DeploymentLock,
-    sources: &[ResolvedSource],
-    planned: &[PlannedImage],
-) -> Result<()> {
-    let locked_count = lock
+pub(crate) fn validate_locked_images(profile: &LoadedProfile, lock: &DeploymentLock) -> Result<()> {
+    // Publication validates Bake target ownership. Installation consumes those
+    // immutable artifacts, including images built before the chart snapshot.
+    locked_image_digests(profile, &lock.sources)?;
+    let images = lock
         .sources
         .iter()
-        .map(|source| source.images.len())
-        .sum::<usize>();
-    ensure!(
-        locked_count == planned.len(),
-        "deployment lock contains {locked_count} images, selected Bake targets resolve {}",
-        planned.len()
-    );
-    let mut locked_images = BTreeMap::new();
-    for source in &lock.sources {
-        for image in &source.images {
-            locked_images.insert(
-                (source.name.as_str(), image.name.as_str()),
-                image.repository.as_str(),
-            );
-        }
-    }
-    for image in planned {
-        let source = sources
-            .iter()
-            .find(|candidate| candidate.definition.name == image.source)
-            .with_context(|| format!("planned image references unknown source {}", image.source))?;
-        let repository = image
-            .reference
-            .strip_suffix(&format!(":{}", source.revision))
-            .with_context(|| {
-                format!(
-                    "planned image {} does not use locked source revision {}",
-                    image.reference, source.revision
-                )
-            })?;
-        let locked_repository = locked_images
-            .get(&(image.source.as_str(), image.target.as_str()))
-            .with_context(|| {
-                format!(
-                    "deployment lock omits selected image {}:{}",
-                    image.source, image.target
-                )
-            })?;
-        ensure!(
-            repository == *locked_repository,
-            "deployment lock repository for {}:{} is {}, Bake resolves {}",
-            image.source,
-            image.target,
-            locked_repository,
-            repository
-        );
-        ensure!(
-            repository.starts_with(&format!("{}/", profile.definition.registry.pull_address)),
-            "locked image repository {repository} is outside profile registry {}",
-            profile.definition.registry.pull_address
-        );
-    }
-    Ok(())
+        .flat_map(|source| {
+            source.images.iter().map(|image| PlannedImage {
+                source: source.name.clone(),
+                target: image.name.clone(),
+                reference: format!("{}@{}", image.repository, image.digest),
+            })
+        })
+        .collect::<Vec<_>>();
+    profile.validate_image_plan(&images)
 }
 
 pub(crate) fn validate_bake_selections(

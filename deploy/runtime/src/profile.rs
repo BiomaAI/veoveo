@@ -62,19 +62,17 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let gateway_activation = prepare_gateway_activation(&profile)?;
     let lock = load_deployment_lock(lock_path)?;
     validate_locked_profile(&profile, &lock)?;
-    let sources = resolve_locked_sources(&profile, &lock)?;
-    let selected_images = validate_bake_selections(&profile, &sources)?;
-    profile.validate_image_plan(&selected_images)?;
-    validate_locked_images(&profile, &lock, &sources, &selected_images)?;
-    let source_roots = sources
-        .iter()
-        .map(|source| (source.definition.name.clone(), source.repository.clone()))
-        .collect::<BTreeMap<_, _>>();
+    validate_locked_images(&profile, &lock)?;
     let selected = lock
         .components
         .iter()
         .map(|component| component.declaration.id.clone())
         .collect::<BTreeSet<_>>();
+    let sources = resolve_locked_sources(&profile, &lock, &selected)?;
+    let source_roots = sources
+        .iter()
+        .map(|source| (source.definition.name.clone(), source.repository.clone()))
+        .collect::<BTreeMap<_, _>>();
     let compiled = compile_components(
         &profile,
         &lock.profile_revision,

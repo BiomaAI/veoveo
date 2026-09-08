@@ -16,7 +16,7 @@ pub use digest::{atomic_unit_content_digest, atomic_unit_digest};
 pub use plan::{component_mutation_plan, select_components};
 pub use profile::{
     ComponentOwner, InstallationInput, ProfileComponent, required_installation_inputs,
-    validate_profile_components,
+    selected_source_releases, validate_profile_components,
 };
 pub use types::*;
 pub use validation::{lock_component, validate_component_catalog};

@@ -1,16 +1,17 @@
 use crate::{
-    charts::validate_locked_charts,
+    charts::{lock_source_charts, validate_locked_charts},
     images::locked_image_digests,
     process::{output_checked, path_str, status_checked},
     snapshot::SnapshotInputs,
 };
 use anyhow::{Context, Result, ensure};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     path::{Path, PathBuf},
 };
 use url::Url;
+use veoveo_deploy_contract::components::{ComponentId, selected_source_releases};
 use veoveo_deploy_contract::{DeploymentLock, DeploymentSource, LoadedProfile, SourceRepository};
 // Immutable source checkouts leave unrelated LFS objects as pointers.
 const GIT_SKIP_LFS_SMUDGE: &[(&str, &str)] = &[("GIT_LFS_SKIP_SMUDGE", "1")];
@@ -89,6 +90,7 @@ pub(crate) fn resolve_sources(profile: &LoadedProfile) -> Result<Vec<ResolvedSou
                 source.name
             )
         })?;
+        lock_source_charts(source, destination)?;
         resolved.push(ResolvedSource {
             definition: source.clone(),
             repository: destination.to_path_buf(),
@@ -166,10 +168,19 @@ pub(crate) fn validate_installation_inputs(profile: &LoadedProfile) -> Result<()
 pub(crate) fn resolve_locked_sources(
     profile: &LoadedProfile,
     lock: &DeploymentLock,
+    selected: &BTreeSet<ComponentId>,
 ) -> Result<Vec<ResolvedSource>> {
-    let mut resolved = Vec::with_capacity(profile.definition.sources.len());
+    let selected_releases = selected_source_releases(&profile.definition, selected)?;
+    let mut resolved = Vec::with_capacity(selected_releases.len());
     let deployment_image_digests = locked_image_digests(profile, &lock.sources)?;
     for source in &profile.definition.sources {
+        let Some(releases) = selected_releases.get(&source.name) else {
+            continue;
+        };
+        let mut source = source.clone();
+        source
+            .releases
+            .retain(|release| releases.contains(&release.name));
         let locked = lock
             .sources
             .iter()
@@ -177,7 +188,7 @@ pub(crate) fn resolve_locked_sources(
             .with_context(|| format!("deployment lock omits source {}", source.name))?;
         let (clone_origin, source_origin) = match &source.repository {
             SourceRepository::Local { .. } => {
-                let root = profile.local_source_root(source)?;
+                let root = profile.local_source_root(&source)?;
                 let origin =
                     output_checked("git", ["config", "--get", "remote.origin.url"], Some(&root))
                         .with_context(|| {
@@ -236,9 +247,9 @@ pub(crate) fn resolve_locked_sources(
                 source.name
             )
         })?;
-        validate_locked_charts(source, locked, destination)?;
+        validate_locked_charts(&source, locked, destination)?;
         resolved.push(ResolvedSource {
-            definition: source.clone(),
+            definition: source,
             repository: destination.to_path_buf(),
             revision,
             image_digests: locked_image_digests(profile, std::slice::from_ref(locked))?,

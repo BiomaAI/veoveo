@@ -52,7 +52,15 @@ fn publisher_and_installer_share_chart_inventory_and_content_validation() {
     )
     .unwrap();
     std::fs::write(chart.join("values.yaml"), "replicas: 1\n").unwrap();
-    git(&["add", "chart"]);
+    let unselected = repository.path().join("unselected");
+    std::fs::create_dir(&unselected).unwrap();
+    std::fs::write(
+        unselected.join("Chart.yaml"),
+        "apiVersion: v2\nname: unselected\nversion: 1.0.0\n",
+    )
+    .unwrap();
+    std::fs::write(unselected.join("values.yaml"), "replicas: 1\n").unwrap();
+    git(&["add", "chart", "unselected"]);
     git(&[
         "-c",
         "commit.gpgsign=false",
@@ -78,6 +86,12 @@ fn publisher_and_installer_share_chart_inventory_and_content_validation() {
             timeout_seconds: 60,
         }],
     };
+    source.releases.push(ReleaseSpec {
+        name: "unselected".into(),
+        chart: PathBuf::from("unselected"),
+        source_values: vec![PathBuf::from("unselected/values.yaml")],
+        ..source.releases[0].clone()
+    });
     let locked = LockedSource {
         name: source.name.clone(),
         role: source.role,
@@ -87,6 +101,12 @@ fn publisher_and_installer_share_chart_inventory_and_content_validation() {
         charts: lock_source_charts(&source, repository.path()).unwrap(),
     };
     validate_locked_charts(&source, &locked, repository.path()).unwrap();
+    let mut selected = source.clone();
+    selected.releases.truncate(1);
+    std::fs::remove_file(unselected.join("values.yaml")).unwrap();
+    validate_locked_charts(&selected, &locked, repository.path()).unwrap();
+    assert!(validate_locked_charts(&source, &locked, repository.path()).is_err());
+    std::fs::write(unselected.join("values.yaml"), "replicas: 1\n").unwrap();
     std::fs::write(repository.path().join("README.md"), "unrelated change\n").unwrap();
     assert_eq!(
         locked.charts,

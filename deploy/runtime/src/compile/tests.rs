@@ -6,7 +6,7 @@ use std::{
 };
 
 use serde_json::json;
-use veoveo_deploy_contract::{DeploymentProfile, LoadedProfile, LockedImage, LockedSource};
+use veoveo_deploy_contract::{LoadedProfile, LockedImage, LockedSource};
 
 use super::{compile_component_lock, compile_components};
 use crate::charts::lock_source_charts;
@@ -30,6 +30,14 @@ fn initialize(root: &Path) {
     git(root, &["init", "--quiet"]);
     git(root, &["config", "user.name", "Component Compiler Test"]);
     git(root, &["config", "user.email", "compiler@example.invalid"]);
+    git(
+        root,
+        &[
+            "config",
+            "remote.origin.url",
+            &format!("file://{}", root.display()),
+        ],
+    );
 }
 
 fn commit(root: &Path, message: &str) -> String {
@@ -64,6 +72,7 @@ fn source(root: &Path, name: &str) -> String {
     } else {
         (".Values.veoveo.registry", ".Values.veoveo.imageDigests")
     };
+    let target = image_target(name);
     fs::write(
         root.join("chart/templates/workload.yaml"),
         format!(
@@ -82,12 +91,20 @@ spec:
     spec:
       containers:
         - name: service
-          image: "{{{{ {registry} }}}}/{name}@{{{{ index {digests} "{name}" }}}}"
+          image: "{{{{ {registry} }}}}/{target}@{{{{ index {digests} "{target}" }}}}"
 "#
         ),
     )
     .unwrap();
     commit(root, name)
+}
+
+fn image_target(source: &str) -> &str {
+    if source == "platform" {
+        "artifact-service"
+    } else {
+        source
+    }
 }
 
 #[test]
@@ -120,19 +137,13 @@ fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_rend
         ],
         "kubernetes":{"context":"must-not-contact-a-cluster", "localCluster":null},
         "namespace":"veoveo", "resources":{"manifests":[], "configMaps":[]},
-        "platform":{"installationPreset":"custom", "components":["platform-store"], "mcpServers":[], "artifactAudiences":[], "externalWorkloads":[]},
+        "platform":{"installationPreset":"custom", "components":["platform-store", "object-store", "artifact-service"], "mcpServers":[], "artifactAudiences":[], "externalWorkloads":[]},
         "gatewayRequirements":[], "waitForDeployments":[]
     });
     let path = installation.join("deployment.json");
     fs::write(&path, serde_json::to_vec_pretty(&profile_value).unwrap()).unwrap();
     let profile_revision = commit(&installation, "installation");
-    let definition: DeploymentProfile = serde_json::from_value(profile_value).unwrap();
-    let profile = LoadedProfile {
-        definition,
-        path,
-        directory: installation.clone(),
-        repository: installation,
-    };
+    let profile = LoadedProfile::load(&path, &installation).unwrap();
     let roots = BTreeMap::from([
         ("platform".into(), platform.clone()),
         ("extension".into(), extension.clone()),
@@ -147,8 +158,8 @@ fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_rend
             repository: format!("file://{}", roots[&source.name].display()),
             revision: git(&roots[&source.name], &["rev-parse", "HEAD"]),
             images: vec![LockedImage {
-                name: source.name.clone(),
-                repository: format!("registry.example.invalid/{}", source.name),
+                name: image_target(&source.name).into(),
+                repository: format!("registry.example.invalid/{}", image_target(&source.name)),
                 source_revision: veoveo_extension_contract::SourceRevision::new(git(
                     &roots[&source.name],
                     &["rev-parse", "HEAD"],
@@ -274,4 +285,41 @@ fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_rend
         &lock,
     )
     .unwrap();
+    crate::images::validate_locked_images(&profile, &lock).unwrap();
+
+    // Selected files come from the locked Git snapshot even when the mutable
+    // checkout is incomplete. No part of the unselected repository remains.
+    fs::remove_dir_all(selected_roots["platform"].join("chart")).unwrap();
+    fs::remove_dir_all(&extension).unwrap();
+    let loaded = LoadedProfile::load(&path, &installation).unwrap();
+    crate::sources::validate_locked_profile(&loaded, &lock).unwrap();
+    let resolved = crate::sources::resolve_locked_sources(&loaded, &lock, &selected).unwrap();
+    assert_eq!(resolved.len(), 1);
+    assert_eq!(resolved[0].definition.name, "platform");
+    assert_ne!(resolved[0].repository, selected_roots["platform"]);
+    let immutable_roots = resolved
+        .iter()
+        .map(|source| (source.definition.name.clone(), source.repository.clone()))
+        .collect();
+    let prepared = compile_components(
+        &loaded,
+        &lock.profile_revision,
+        &lock.sources,
+        &immutable_roots,
+        &selected,
+    )
+    .unwrap();
+    for component in prepared {
+        assert_eq!(
+            Some(&component.locked),
+            lock.components
+                .iter()
+                .find(|locked| locked.declaration.id == component.locked.declaration.id)
+        );
+    }
+    let extension_selection = BTreeSet::from([
+        "installation".to_owned().try_into().unwrap(),
+        "extension".to_owned().try_into().unwrap(),
+    ]);
+    assert!(crate::sources::resolve_locked_sources(&loaded, &lock, &extension_selection).is_err());
 }

@@ -132,6 +132,12 @@ non-platform Bake groups. Exactly one source has the `platform` role. Separately
 selected Veoveo applications use `workload`; independently owned integrations use
 `extension`. Their values contracts remain distinct.
 
+Profile loading validates declarations and installation-owned files. It defers source
+filesystem checks to immutable snapshot resolution. The selected source footprint
+requires exact component IDs and an already expanded dependency set. It keeps whole
+catalog validation while limiting source checkouts and chart input inspection to the
+selected releases. Publication and installation use this same profile loader.
+
 The installation owner supplies every Secret through its own reconciliation path.
 Deployment profiles do not create, patch, replace, copy, or transfer ownership of a
 Secret. Raw profile and rendered Helm objects that define a Secret fail before mutation.
