@@ -33,7 +33,7 @@ implemented changes and their verification.
 | Bazel integration and cache trial | Builds Stream Rust, the native CMake runner, and OCI assembly in the existing SDK environment | A restored workspace reuses all 780 Rust compilation actions; both edited builds execute the same six actions and produce identical artifacts; inherited-image materialization remains costly; Cargo/BuildKit stays in production |
 | Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
-| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | Both candidates pass RTX 4090 recording tasks with published artifacts; Stream is now active on its separated compiler, while Reason's new family and image still require publication and activation |
+| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | Both candidates pass RTX 4090 recording tasks with published artifacts; both separated compiler images are now active and pass installed hardware acceptance |
 | Stream compiler separation | Shared Bookworm control artifact recipe with Rust 1.98.1; DeepStream compiles only the C++ runner from its own directory | Warm Rust edits take 16.7 s and 15.9 s; a committed edit stages in 26.2 s with the native action cached. The qualified image is active and passes RTX 4090 replay; all 28 other running Pods preserve identity and restart count |
 | Reason compiler separation | Shared Bookworm control compiler; hash-locked Python dependencies and runner source use separate image mounts | Rust edits stage in 32.6 s; Python edits stage in 11.1 s without Cargo. Only the corresponding executable layer changes. The qualified vLLM 0.28.0 image is active and passes RTX 4090 reasoning; the other 28 running Pods remain unchanged |
 | Compiler runtime probes | Added a Rust candidate probe with explicit App or runner input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream and Reason hardware replay preserve the installed Deployment, Pod identity, and restart count; the v3 receipt binds each payload and verifies temporary cache removal |
@@ -1727,3 +1727,23 @@ The corrected recipe disables install-time bytecode and writes the executable ar
 with sorted members, explicit file modes, and timestamps from `SOURCE_DATE_EPOCH`.
 It also binds the system account's internal date to that epoch. Qualification must
 rebuild the packaging layers after eviction and retain the staged runnable digest.
+
+The first corrected archive remains identical after eviction, but the dependency
+layer still differs. A file-by-file comparison isolates three pip HTTP cache metadata
+files; all other layer entries match. The parent command's cache flag does not reach
+its isolated build-dependency installer. The final recipe uses `PIP_NO_CACHE_DIR=1`
+on the install command so subprocesses inherit the setting. The exact comparison is
+`output/development/reason-gpu-admission/packaging-layer-differences.json`.
+
+Source `2653ee034cf54310053ef34890f51c415ae380d1` stages in 25.2 s. After
+evicting its packaging cache and the preceding recipe's packaging records, native
+qualification rebuilds those actions in 124.6 s and preserves runnable digest
+`sha256:4a9d2d06e77a5a5e8d1c6ee05c5126db0b3713b98cea3c7a772ca1a5806276af`.
+The GPU base and Cargo caches stay resident. Receipts and logs use
+`output/development/reason-cache-free-{stage,release}-20260908.*`; the exact
+eviction plan is under `output/development/reason-gpu-admission/cache-free-*`.
+
+The runner pins PyNvVideoCodec 2.2.2 for its admitted NVDEC input path. This overrides
+vLLM 0.28.0's package metadata pin of 2.0.4, which pip reports during assembly.
+Installed hardware acceptance establishes the supported Qwen3-VL path; it does not
+claim compatibility with every upstream vLLM video integration.
