@@ -26,6 +26,8 @@ use super::{
     WriteCapabilityReservation,
 };
 
+mod read_capability;
+
 #[derive(Clone, Debug)]
 pub struct SurrealArtifactRepository {
     store: platform::PlatformStore,

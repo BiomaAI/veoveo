@@ -1,5 +1,7 @@
 //! Artifact-plane policy enforcement and security workflows.
 
+mod read_capability;
+
 use std::collections::BTreeSet;
 use std::num::NonZeroU64;
 
@@ -1448,6 +1450,7 @@ fn repository_mutation_error(error: RepositoryError) -> ArtifactPlaneError {
 
 #[cfg(test)]
 mod tests {
+    mod read_capability;
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};
 

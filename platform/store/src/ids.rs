@@ -93,6 +93,7 @@ domain_id!(ArtifactBlobId, "artifact_blob");
 domain_id!(ArtifactId, "artifact_occurrence");
 domain_id!(ShareLinkId, "share_link");
 domain_id!(ArtifactWriteCapabilityId, "artifact_write_capability");
+domain_id!(ArtifactReadCapabilityId, "artifact_read_capability");
 domain_id!(ArtifactWriteRedemptionId, "artifact_write_redemption");
 domain_id!(ArtifactAccessRequestId, "artifact_access_request");
 domain_id!(MediaTaskContextId, "media_task_context");

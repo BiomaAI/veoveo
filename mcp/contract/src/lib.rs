@@ -54,13 +54,15 @@ pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use artifact_service::{
     ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
     ArtifactAccessRequestPage, ArtifactAccessRequestScope, ArtifactAccessRequestState,
-    ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
-    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, ArtifactWriteIdempotencyKey,
-    CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
-    GrantList, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
-    ListArtifactAccessRequests, ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
-    PlaneCaller, PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
-    SetArtifactReleaseStateRequest, StreamArtifactRequest,
+    ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactReadAuthority,
+    ArtifactReadCapabilityId, ArtifactReadCapabilitySecret, ArtifactShareLink, ArtifactShareLinkId,
+    ArtifactTaskId, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret,
+    ArtifactWriteIdempotencyKey, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
+    DecideArtifactAccessRequest, GrantList, IssueArtifactReadCapabilityRequest,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactReadCapability,
+    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest,
+    MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest, PutGrantRequest,
+    RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest, StreamArtifactRequest,
 };
 pub use bootstrap::{
     SERVER_BOOTSTRAP_FLAG, SERVER_BOOTSTRAP_ISSUER, SERVER_BOOTSTRAP_MOUNT_PATH,

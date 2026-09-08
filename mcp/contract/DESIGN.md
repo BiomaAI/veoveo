@@ -236,7 +236,11 @@ URI conventions, Work Context propagation, and internal identity.
 - Durable operations run on the shared task runtime and the final task
   extension.
 - Artifact and recording operations present the forwarded short-lived
-  internal identity signed by the gateway.
+  internal identity signed by the gateway. Durable Artifact reads may instead
+  present an explicitly issued, bounded task-read capability through the dedicated
+  internal routes defined by the [Artifact service](../../platform/artifacts/service/DESIGN.md).
+  Capability issuance requires that gateway identity; a task capability cannot
+  authenticate an ordinary operation or mint another capability.
 - Administrative HTTP, when a server has it, is served only under the
   server's canonical mount and reached through the gateway admin route.
 - A server has no private control database. Durable state lives in the
@@ -326,7 +330,7 @@ Server crates are named `*-mcp`.
 | C08 | MUST | Schemas are generated through ordinary rmcp/Schemars or official SDK/Pydantic machinery. |
 | C09 | MUST | Controlled shapes use strong domain types; raw JSON only at open boundaries. |
 | C10 | MUST | Shared mechanics, including the final 8 MiB serialized JSON response cap, come from `veoveo_mcp_contract`, not reimplementation. |
-| C11 | MUST | Artifact and recording operations use the forwarded internal identity. |
+| C11 | MUST | Artifact and recording operations use the forwarded internal identity; durable Artifact reads may use the service's explicitly issued bounded task-read capability. |
 | C12 | MUST | Administrative HTTP exists only under the canonical mount. |
 | C13 | MUST | No private control database. |
 | C14 | MUST | No private byte route. |
