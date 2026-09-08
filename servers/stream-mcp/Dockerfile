@@ -74,8 +74,10 @@ COPY --from=builder /out/bin/stream-gst-runner \
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,video \
     LD_LIBRARY_PATH=/opt/veoveo/host-libraries:/usr/local/cuda/lib64:/opt/veoveo/host-libraries/deepstream \
     USE_NEW_NVSTREAMMUX=no
-COPY --from=veoveo-image-assets --chmod=0444 servers/stream-mcp/assets/live.html /opt/veoveo/stream/assets/live.html
+COPY --from=veoveo-image-assets --chmod=a=rX servers/stream-mcp/assets/live.html /opt/veoveo/stream/assets/live.html
 
 USER veoveo
+RUN test -r /opt/veoveo/stream/assets/live.html \
+    && test ! -x /opt/veoveo/stream/assets/live.html
 EXPOSE 8797
 ENTRYPOINT ["/usr/local/bin/stream-mcp"]
