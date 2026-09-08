@@ -24,6 +24,17 @@ and negotiates part size within the S3 multipart profile. The `artifact_upload` 
 action has no MCP method. Public routes remain disabled until durable storage and
 gateway authorization are activated.
 
+Blob registration is immutable by tenant and whole-file SHA-256. The shared Store
+transaction inserts a new mapping or retains the existing mapping, including its
+object key and creation time. A length conflict rolls back publication. Concurrent
+transaction retries preserve this rule for ordinary writes and recording publication
+as well as uploads. The retained mapping returned by Store is authoritative; upload
+cleanup may remove only its unreferenced losing object.
+
+Native validation uses SurrealDB 3.2.4. SQL formatting uses
+`@surrealdb/surql-fmt@0.1.0-beta.2`, the latest published formatter; upstream has no
+stable formatter release. The formatter does not supply execution evidence.
+
 ## Task Read Delegation
 
 A durable task can retain a bounded read capability instead of retaining a submitted

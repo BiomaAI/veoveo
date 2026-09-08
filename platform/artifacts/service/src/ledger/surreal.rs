@@ -1019,7 +1019,8 @@ fn release_state(state: platform::ArtifactReleaseState) -> ArtifactReleaseState 
 
 fn repository_error(error: platform::StoreError) -> RepositoryError {
     match error {
-        platform::StoreError::ArtifactWriteConflict { .. }
+        platform::StoreError::ArtifactBlobIntegrityConflict
+        | platform::StoreError::ArtifactWriteConflict { .. }
         | platform::StoreError::ArtifactAccessRequestConflict(_) => {
             RepositoryError::Conflict(error.to_string())
         }

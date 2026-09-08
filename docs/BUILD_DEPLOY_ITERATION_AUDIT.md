@@ -1812,3 +1812,14 @@ the quiet xtask build and evidence setup. This is a candidate for reducing tooli
 coupling to shared runtime contracts. The subsequent formatting check takes 0.17 s
 inside the recorder and 0.82 s overall. Evidence:
 `output/development/artifact-upload-contract-20260908.log` and the committed test report.
+
+Immutable blob acceptance passes 23 Artifact tests, including native eight-writer
+concurrency and failed-publication rollback, in 10.6 s. Compilation accounts for
+9.13 s and execution for 1.39 s. The Store's 46 unit tests take 12.8 s with 12.67 s
+spent compiling. Three development attempts preceded acceptance: a test fixture
+constructor mismatch, a conflict incorrectly mapped to a transport error, and a
+native transaction race whose primary error was wrapped. The latter two are fixed
+in publication error mapping and bounded transaction retry. Native database lifecycle
+is now shared with the read-delegation fixture instead of copied into another harness.
+Logs use `output/development/artifact-immutable-native-*20260908.log` and
+`output/development/artifact-store-unit-20260908.log`.
