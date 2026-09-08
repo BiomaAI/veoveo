@@ -1,4 +1,3 @@
-BEGIN TRANSACTION;
   LET $new_blob = (SELECT * FROM ONLY $blob) = NONE;
   INSERT IGNORE INTO artifact_blob $blob_content RETURN NONE;
   LET $retained = SELECT * FROM ONLY $blob;
@@ -18,4 +17,3 @@ BEGIN TRANSACTION;
   CREATE ONLY $artifact CONTENT $artifact_content RETURN NONE;
   INSERT RELATION INTO artifact_grant $grants RETURN NONE;
   CREATE outbox_event CONTENT $outbox RETURN NONE;
-COMMIT TRANSACTION;

@@ -53,6 +53,22 @@ across replicas. Unknown-length streams reserve another bounded part window befo
 exceeding their current reservation. Failed requests release transfer budget while
 preserving the immutable descriptor for a matching retry.
 
+Finalization freezes a complete ordered manifest in Store before touching S3 completion.
+Session leases carry a generation; takeover invalidates prior workers. The publication
+transaction checks current authority and the active verification lease, then commits
+the immutable blob mapping, governed occurrence and grants, completion audit, outbox,
+and durable receipt fields together. Matching publication replay retains the same
+occurrence and completion timestamp. Ordinary writes and upload publication share the
+typed content builder and SQL registration fragment.
+
+Cancellation and failure convert reserved quota into retained cleanup debt. They keep
+active request leases because bytes may still be in flight. Cleanup becomes eligible
+only after those leases have stopped, and the unique object has no retained blob
+mapping. Physical deletion precedes the transaction that releases cleanup debt.
+Duplicate publication charges its losing object until deletion succeeds. A bounded
+keyset recovery scan finds interrupted finalization and pending cleanup across replicas.
+Native lifecycle tests qualify these transactions separately from physical S3 cleanup.
+
 The S3 adapter reconstructs uploads from the ledger's private handle and ordered part
 receipts. It materializes one bounded part, coalesces tiny frames into 64 KiB blocks,
 and retains larger byte chunks without another payload copy. HTTP/socket and chunk

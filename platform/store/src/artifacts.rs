@@ -1,3 +1,5 @@
+pub(crate) mod publication;
+
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
@@ -111,104 +113,28 @@ impl PlatformStore {
         &self,
         draft: ArtifactOccurrenceDraft,
     ) -> Result<ArtifactAggregate, StoreError> {
-        let work_context = deterministic_work_context_id(
-            &draft.identity.tenant_key,
-            &draft.authority.context_key,
-        )?;
-        let initiator = draft
-            .authority
-            .initiator_key
-            .as_deref()
-            .map(|principal| deterministic_principal_id(&draft.identity.tenant_key, principal))
-            .transpose()?
-            .map(|principal| principal.record_id());
-        let blob_id = ArtifactBlobId::from_uuid(Uuid::new_v5(
-            &PLATFORM_ID_NAMESPACE,
-            format!("blob:{}:{}", draft.identity.tenant_key, draft.sha256).as_bytes(),
-        ));
-        let now = Utc::now();
-        let blob = ArtifactBlobRecord {
-            id: blob_id.record_id(),
-            tenant: draft.identity.tenant_id.record_id(),
-            sha256: draft.sha256,
-            byte_len: draft.byte_len,
-            object_key: draft.object_key,
-            content_type: draft.media_type.clone(),
-            encryption: OpenObject::default(),
-            created_at: now,
-        };
-        let occurrence = ArtifactOccurrenceRecord {
-            id: draft.artifact_id.record_id(),
-            tenant: draft.identity.tenant_id.record_id(),
-            blob: blob_id.record_id(),
-            owner: draft.owner,
-            owner_kind: draft.authority.owner_kind,
-            owner_key: draft.authority.owner_key.clone(),
-            work_context: work_context.record_id(),
-            producer: draft.identity.principal_id.record_id(),
-            producer_key: draft.identity.principal_key.clone(),
-            initiator,
-            initiator_key: draft.authority.initiator_key.clone(),
-            invocation_mode: draft.authority.invocation_mode,
-            delegation_id: draft.authority.delegation_id.clone(),
-            policy_revision: draft.authority.policy_revision.clone(),
-            authority: draft.authority.clone(),
-            task: None,
-            filename: draft.filename,
-            media_type: draft.media_type,
-            classification: draft.classification,
-            labels: draft.labels.clone(),
-            metadata: OpenObject::new(draft.metadata),
-            release_state: ArtifactReleaseState::Private,
-            retention_expires_at: draft.retention_expires_at,
-            created_at: now,
-            updated_at: now,
-            search_text: String::new(),
-        };
-        let grants = draft
-            .initial_grants
-            .into_iter()
-            .map(|grant| ArtifactGrantEdge {
-                id: deterministic_relation_id(
-                    "artifact-grant",
-                    draft.artifact_id.to_string(),
-                    format!("{:?}:{}", grant.subject_kind, grant.subject_key),
-                ),
-                r#in: draft.artifact_id.record_id(),
-                out: grant.subject,
-                subject_kind: grant.subject_kind,
-                subject_key: grant.subject_key,
-                permission: grant.permission,
-                labels: grant.labels,
-                expires_at: grant.expires_at,
-                created_by: grant.created_by.record_id(),
-                created_at: now,
-            })
-            .collect::<Vec<_>>();
-        let outbox = OutboxDraft::now(
-            Some(draft.identity.tenant_id.record_id()),
-            "artifact",
-            draft.artifact_id.to_string(),
-            "artifact.created",
-            1,
-            OpenObject::new(BTreeMap::from([(
-                "artifact_id".into(),
-                serde_json::json!(draft.artifact_id.to_string()),
-            )])),
-        );
+        let artifact_id = draft.artifact_id;
+        let tenant_id = draft.identity.tenant_id;
+        let publication::PreparedPublication {
+            blob,
+            occurrence,
+            grants,
+            outbox,
+        } = publication::prepare_publication(draft)?;
         // Equal concurrent writers keep the first object mapping. Retrying a
         // transaction conflict never rewrites the retained blob or its metadata.
         for attempt in 0..8_u32 {
             let mut response = self
                 .db
-                .query(include_str!("artifacts/create.surql"))
-                .bind(("blob", blob_id.record_id()))
-                .bind((
-                    "storage_usage",
-                    crate::artifact_storage_usage_id(draft.identity.tenant_id),
+                .query(concat!(
+                    "BEGIN TRANSACTION;\n",
+                    include_str!("artifacts/register.surql"),
+                    "COMMIT TRANSACTION;"
                 ))
+                .bind(("blob", blob.id.clone()))
+                .bind(("storage_usage", crate::artifact_storage_usage_id(tenant_id)))
                 .bind(("blob_content", blob.clone()))
-                .bind(("artifact", draft.artifact_id.record_id()))
+                .bind(("artifact", artifact_id.record_id()))
                 .bind(("artifact_content", occurrence.clone()))
                 .bind(("grants", grants.clone()))
                 .bind(("outbox", outbox.clone()))
@@ -233,7 +159,7 @@ impl PlatformStore {
             }
             return Err(error.into());
         }
-        self.artifact_aggregate(draft.artifact_id)
+        self.artifact_aggregate(artifact_id)
             .await?
             .ok_or(StoreError::MissingRecord {
                 operation: "artifact occurrence creation readback",
@@ -950,7 +876,7 @@ fn validate_reservation_identity(
     }
 }
 
-fn record_uuid(record: &RecordId) -> Result<Uuid, StoreError> {
+pub(crate) fn record_uuid(record: &RecordId) -> Result<Uuid, StoreError> {
     match &record.key {
         RecordIdKey::Uuid(value) => Ok(**value),
         _ => Err(StoreError::MissingRecord {
