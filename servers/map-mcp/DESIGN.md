@@ -337,8 +337,10 @@ The changeset event updates a shared Map projection head in the same transaction
 An allocated sequence at or below the committed head is rejected; concurrent head
 writes conflict atomically. This makes accepted Map commit sequences increase in
 commit order even though the shared sequence allocator runs independently of the
-data transaction. Installation migration `0047` seeds the head from committed Map
-changesets. Apply it while Map writers are stopped, then resume the new Map image.
+data transaction. Installation migrations `0047` and `0048` establish the head from
+committed Map changesets. The backfill reads canonical rows directly because the
+new index is populated after its defining migration commits. Apply both migrations
+while Map writers are stopped, then resume the new Map image.
 The persisted DuckDB volume and checkpoint remain in place.
 
 DuckDB Spatial is a rebuildable query projection. Recovery captures the committed

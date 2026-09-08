@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 48] = [
+const MIGRATIONS: [Migration; 49] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -315,6 +315,12 @@ const MIGRATIONS: [Migration; 48] = [
         name: "map_projection_sequence",
         filename: "0047_map_projection_sequence.surql",
         sql: include_str!("../migrations/0047_map_projection_sequence.surql"),
+    },
+    Migration {
+        version: 48,
+        name: "map_projection_head_backfill",
+        filename: "0048_map_projection_head_backfill.surql",
+        sql: include_str!("../migrations/0048_map_projection_head_backfill.surql"),
     },
 ];
 
