@@ -440,6 +440,55 @@ planner rejects a standalone builder that omits the source mount or introduces a
 builder-stage `COPY`, which prevents a new workspace crate from breaking an otherwise
 unrelated image late in a release.
 
+### Stream Compiler Runtime Acceptance
+
+The Rust Stream smoke harness can run a candidate executable inside the installed
+NVIDIA container. The candidate uses the mounted site catalog and model on a private
+HTTP port. It joins the existing task store as another replica, with the same lease
+rules as the installed server. Run this during a controlled acceptance window.
+
+```sh
+cargo xtask test-report run --name stream-compiler-gpu -- \
+  cargo xtask smoke stream-gpu \
+    --pipeline-id <installed-object-detection-pipeline> \
+    --candidate-binary output/development/common-rust-artifacts/bin/stream-mcp \
+    --candidate-app output/development/common-rust-artifacts/live.html \
+    --work-dir output/development/stream-compiler-acceptance
+```
+
+The harness verifies the copied binary digest and the container's NVIDIA resource,
+waits for initialized service readiness, and submits an authenticated recording task.
+Acceptance requires processed frames, detections, and published artifacts. Its receipt
+binds those results to the candidate bytes, runtime image identity, GPU, and Pod UID.
+Cleanup stops the additional process and its native children, removes the executable,
+and checks the original Pod restart count and Deployment specification.
+
+This check supplies Stream runtime evidence for a compiler experiment. Admitting a
+shared family still requires every consumer's acceptance. It grants no image release
+eligibility. The smoke's H.264 sample comes from the installed Stream image; it does
+not require a separately tagged Docker image or host-side model directories.
+The environment file supplies the installation's recording producer credentials,
+`RECORDING_TENANT_KEY`, and `RECORDING_WORK_CONTEXT`. The pipeline is selected explicitly
+from that installation's admitted catalog.
+
+For initialized-service evidence before the hardware task, run the bounded startup
+probe. This command produces `startup_verified`, which does not admit a compiler
+family or claim GPU workload execution:
+
+```sh
+cargo xtask test-report run --name stream-compiler-startup -- \
+  cargo xtask smoke stream-compiler-startup \
+    --candidate-binary output/development/common-rust-artifacts/bin/stream-mcp \
+    --candidate-app output/development/common-rust-artifacts/live.html \
+    --work-dir output/development/stream-compiler-startup
+```
+
+The candidate App must come from the candidate's source inputs. The private listener
+must belong to the process executing the admitted binary bytes. A crashed candidate
+ends the probe immediately, and recording producer key files are private and removed
+on both success and failure. These video probes build their actual helper binaries;
+they do not add the unused conformance CLI to Cargo's selected package graph.
+
 ## Adding An Image
 
 A Rust image target declares these labels in `docker-bake.hcl`:

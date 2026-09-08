@@ -914,6 +914,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
+| `testing/smoke/src/bin/smoke/scenarios/stream/candidate.rs` | Stream compiler candidate execution in the installed NVIDIA runtime, binary and Pod identity evidence, and process cleanup |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
 | `testing/smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |

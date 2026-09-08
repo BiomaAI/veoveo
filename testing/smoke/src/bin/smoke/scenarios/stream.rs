@@ -10,7 +10,7 @@ use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::VideoStream;
 use re_sdk_types::components::VideoCodec;
 use secrecy::SecretString;
-use serde_json::{Value, json};
+use serde_json::json;
 use veoveo_mcp_contract::{
     AccessSubject, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey,
     GatewayInternalTokenIssuer, GatewayProfileId, InvocationAuthority, InvocationProvenance,
@@ -32,26 +32,55 @@ const STREAM_READY_URL: &str = "http://127.0.0.1:8797/stream/readyz";
 const STREAM_HOST: &str = "stream-mcp:8797";
 const DEFAULT_KUBERNETES_NAMESPACE: &str = "veoveo";
 
-pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
+#[path = "stream/candidate.rs"]
+mod candidate;
+
+pub(crate) async fn stream_compiler_startup(
+    namespace: &str,
+    binary: &Path,
+    app: &Path,
+    work_dir: &Path,
+) -> Result<()> {
+    let mut candidate = Some(candidate::Candidate::start(
+        namespace, binary, app, work_dir,
+    )?);
+    let resource = candidate.as_ref().context("candidate missing")?.resource();
+    let _forward = PortForwardGuard::spawn(namespace, &resource, 8797, candidate::PORT)?;
+    wait_for_stream(namespace, &mut candidate, work_dir).await?;
+    candidate
+        .as_mut()
+        .context("candidate missing")?
+        .finish(work_dir, candidate::ProbeOutcome::StartupVerified)?;
+    println!(
+        "Stream compiler service startup verified; GPU workload qualification remains separate"
+    );
+    Ok(())
+}
+
+pub(crate) async fn stream_gpu(
+    env_file: &Path,
+    work_dir: &Path,
+    candidate_inputs: Option<(&Path, &Path)>,
+    pipeline_id: &str,
+) -> Result<()> {
     ensure!(
         env_file.is_file(),
         "environment file is missing: {}",
         env_file.display()
     );
     let environment = load_environment(env_file)?;
-    validate_stream_workspace(&environment)?;
     let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
     let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
     let sample_h264 = prepare_sample_h264(work_dir, &environment)?;
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
-    let producer_key = tmpdir.join("recording-producer.pem");
+    let mut producer_key = tempfile::NamedTempFile::new_in(&tmpdir)?;
     let queue_dir = tmpdir.join("forwarder-queue");
     let forwarder_log = tmpdir.join("recording-forwarder.log");
     std::fs::create_dir_all(&queue_dir)?;
-    std::fs::write(
-        &producer_key,
-        required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM")?,
+    std::io::Write::write_all(
+        &mut producer_key,
+        required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM")?.as_bytes(),
     )?;
     let gateway_url = required_environment(&environment, "PUBLIC_BASE_URL")?.trim_end_matches('/');
     let producer_client_id = optional_environment(
@@ -75,6 +104,9 @@ pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         [],
     )
     .context("Stream GPU smoke requires the active k3d Stream profile")?;
+    let mut candidate = candidate_inputs
+        .map(|(binary, app)| candidate::Candidate::start(namespace, binary, app, work_dir))
+        .transpose()?;
     let _recording_forwarder = ChildGuard::spawn(
         Path::new(RECORDING_FORWARDER),
         [
@@ -87,7 +119,7 @@ pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
             "--key-id".into(),
             producer_key_id.into(),
             "--private-key-pem-file".into(),
-            producer_key.as_os_str().to_os_string(),
+            producer_key.path().as_os_str().to_os_string(),
             "--queue-dir".into(),
             queue_dir.as_os_str().to_os_string(),
         ],
@@ -101,9 +133,21 @@ pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         )
     })?;
     wait_for_recording_forwarder(&forwarder_log).await?;
-    let _stream_forward = PortForwardGuard::spawn(namespace, "stream-mcp", 8797, 8797)?;
+    let remote_port = if candidate.is_some() {
+        candidate::PORT
+    } else {
+        8797
+    };
+    let resource = candidate
+        .as_ref()
+        .map(candidate::Candidate::resource)
+        .unwrap_or_else(|| "service/stream-mcp".to_owned());
+    let _stream_forward = PortForwardGuard::spawn(namespace, &resource, 8797, remote_port)?;
     let _surreal_forward = PortForwardGuard::spawn(namespace, "surrealdb", 8000, 8000)?;
-    wait_for_stream(namespace).await?;
+    wait_for_stream(namespace, &mut candidate, work_dir).await?;
+    if let Some(candidate) = &candidate {
+        candidate.verify_listener()?;
+    }
 
     let recording_key = uuid::Uuid::now_v7().to_string();
     publish_h264_recording(&recording_key, &sample_h264).await?;
@@ -115,13 +159,19 @@ pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
             "timeline": "sensor_time",
             "range": {"start": 0, "end": 3_000_000_000_i64}
         },
-        "pipeline_id": "detect-objects",
+        "pipeline_id": pipeline_id,
         "sampling": {"mode": "every_nth", "step": 3},
         "include_source_clip": true
     });
 
-    let bearer_token =
-        issue_internal_token(signing_key, signing_key_id, "stream", "stream-gpu-smoke")?;
+    let bearer_token = issue_internal_token(
+        signing_key,
+        signing_key_id,
+        "stream",
+        "stream-gpu-smoke",
+        required_environment(&environment, "RECORDING_TENANT_KEY")?,
+        required_environment(&environment, "RECORDING_WORK_CONTEXT")?,
+    )?;
     let task_client =
         FinalTaskSmokeClient::new(STREAM_MCP_URL, bearer_token).with_host(STREAM_HOST);
     let task = task_client
@@ -130,46 +180,51 @@ pub(crate) async fn stream_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
     let task = match task {
         Ok(output) => output,
         Err(error) => {
+            if let Some(candidate) = candidate.as_mut() {
+                candidate.finish(
+                    work_dir,
+                    candidate::ProbeOutcome::WorkloadFailed {
+                        message: format!("{error:#}"),
+                    },
+                )?;
+                bail!(
+                    "Stream compiler workload failed: {error:#}; receipt and candidate logs: {}",
+                    work_dir.display()
+                );
+            }
             let logs = kubernetes_logs(namespace, "deployment/stream-mcp")
                 .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
             bail!("Stream MCP recording run failed: {error:#}\nKubernetes logs:\n{logs}");
         }
     };
-    let output = task;
-    let summary = output
-        .get("summary")
-        .and_then(Value::as_object)
-        .context("Stream recording run omitted its typed summary")?;
-    let processed_frames = summary
-        .get("processed_frames")
-        .and_then(Value::as_u64)
-        .context("Stream recording-run summary omitted processed_frames")?;
+    let output: veoveo_stream_mcp::contract::RunRecordingOutput = serde_json::from_value(task)
+        .context("Stream recording run did not return its typed contract")?;
+    let processed_frames = output.summary.processed_frames;
     ensure!(
         processed_frames > 0,
-        "Stream recording run processed no GPU frames: {output}"
+        "Stream recording run processed no GPU frames: {output:?}"
     );
-    for artifact in [
-        "results_artifact",
-        "annotations_artifact",
-        "source_clip_artifact",
-    ] {
-        ensure!(
-            output.get(artifact).is_some_and(Value::is_object),
-            "Stream recording run omitted {artifact}: {output}"
-        );
-    }
+    ensure!(
+        output.source_clip_artifact.is_some(),
+        "Stream recording run omitted its requested source clip"
+    );
 
-    let detection_count = summary
-        .get("detection_count")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
+    let detection_count = output.summary.detection_count;
     ensure!(
         detection_count > 0,
-        "Stream recording run returned no detections: {output}"
+        "Stream recording run returned no detections: {output:?}"
     );
     println!(
         "Stream GPU smoke ok: recording {recording_id}, {processed_frames} frames, {detection_count} detections, typed artifacts published"
     );
+    if let Some(candidate) = candidate.as_mut() {
+        candidate.finish(
+            work_dir,
+            candidate::ProbeOutcome::GpuQualified {
+                result: Box::new(output),
+            },
+        )?;
+    }
     cleanup.remove_on_drop();
     Ok(())
 }
@@ -227,32 +282,6 @@ pub(crate) async fn wait_for_recording_forwarder(log: &Path) -> Result<()> {
     bail!("recording forwarder did not accept loopback Rerun traffic\n{output}")
 }
 
-fn validate_stream_workspace(environment: &BTreeMap<String, String>) -> Result<()> {
-    let config_dir = PathBuf::from(required_environment(environment, "STREAM_CONFIG_DIR")?);
-    let model_dir = PathBuf::from(required_environment(environment, "STREAM_MODEL_DIR")?);
-    let catalog_path = config_dir.join("catalog.json");
-    ensure!(
-        catalog_path.is_file(),
-        "Stream catalog is missing: {}",
-        catalog_path.display()
-    );
-    let catalog: Value = serde_json::from_slice(&std::fs::read(&catalog_path)?)?;
-    let model_path = catalog
-        .pointer("/models/0/model_path")
-        .and_then(Value::as_str)
-        .context("Stream catalog has no first model_path")?;
-    let model_name = Path::new(model_path)
-        .file_name()
-        .context("catalog model_path has no file name")?;
-    let host_model = model_dir.join(model_name);
-    ensure!(
-        host_model.is_file(),
-        "TensorRT engine is missing: {}",
-        host_model.display()
-    );
-    Ok(())
-}
-
 pub(crate) async fn wait_for_recording_catalog(
     environment: &BTreeMap<String, String>,
     recording_key: &str,
@@ -271,7 +300,8 @@ pub(crate) async fn wait_for_recording_catalog(
         .build()?,
     )
     .await?;
-    let tenant_id = deterministic_tenant_id("enterprise")?;
+    let tenant_id =
+        deterministic_tenant_id(required_environment(environment, "RECORDING_TENANT_KEY")?)?;
     for _ in 0..80 {
         if let Some(recording) = store
             .recording_by_key(tenant_id, "veoveo-video-test", recording_key)
@@ -298,9 +328,18 @@ pub(crate) async fn wait_for_recording_catalog(
     bail!("Recording Hub did not catalog recording key {recording_key}")
 }
 
-async fn wait_for_stream(namespace: &str) -> Result<()> {
-    let client = reqwest::Client::new();
+async fn wait_for_stream(
+    namespace: &str,
+    candidate: &mut Option<candidate::Candidate>,
+    work_dir: &Path,
+) -> Result<()> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()?;
     for _ in 0..90 {
+        if let Some(candidate) = candidate {
+            candidate.check_running(work_dir)?;
+        }
         if client
             .get(STREAM_READY_URL)
             .header(reqwest::header::HOST, STREAM_HOST)
@@ -326,38 +365,42 @@ pub(crate) fn prepare_sample_h264(
     if output.metadata().is_ok_and(|metadata| metadata.len() > 0) {
         return Ok(output);
     }
-    let work_dir = work_dir.canonicalize()?;
-    let image_tag = environment
-        .get("VEOVEO_IMAGE_TAG")
-        .map(String::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or("0.1.0");
-    run_checked(
-        Path::new("docker"),
-        [
-            "run".into(),
-            "--rm".into(),
-            "--entrypoint".into(),
-            "gst-launch-1.0".into(),
-            "-v".into(),
-            format!("{}:/work", work_dir.display()).into(),
-            format!("veoveo/stream-mcp:{image_tag}").into(),
-            "-q".into(),
-            "filesrc".into(),
-            "location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4".into(),
-            "!".into(),
-            "qtdemux".into(),
-            "!".into(),
-            "h264parse".into(),
-            "config-interval=-1".into(),
-            "!".into(),
-            "video/x-h264,stream-format=byte-stream,alignment=au".into(),
-            "!".into(),
-            "filesink".into(),
-            format!("location=/work/{SAMPLE_H264_NAME}").into(),
-        ],
-        [],
-    )?;
+    // The installed digest already contains the NVIDIA sample. Demuxing needs
+    // neither a separately tagged Docker image nor installation-specific host paths.
+    let staging = output.with_extension("partial");
+    let result = Command::new("kubectl")
+        .args([
+            "-n",
+            kubernetes_namespace(environment),
+            "exec",
+            "deployment/stream-mcp",
+            "-c",
+            "stream-mcp",
+            "--",
+            "gst-launch-1.0",
+            "-q",
+            "filesrc",
+            "location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4",
+            "!",
+            "qtdemux",
+            "!",
+            "h264parse",
+            "config-interval=-1",
+            "!",
+            "video/x-h264,stream-format=byte-stream,alignment=au",
+            "!",
+            "fdsink",
+            "fd=1",
+        ])
+        .stdout(std::fs::File::create(&staging)?)
+        .stderr(Stdio::piped())
+        .output()?;
+    ensure!(
+        result.status.success(),
+        "DeepStream sample demux failed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    std::fs::rename(staging, &output)?;
     ensure!(
         output.metadata().is_ok_and(|metadata| metadata.len() > 0),
         "DeepStream sample demux did not create {}",
@@ -419,6 +462,8 @@ pub(crate) fn issue_internal_token(
     key_id: &str,
     server: &str,
     subject: &str,
+    tenant: &str,
+    work_context: &str,
 ) -> Result<String> {
     let private_key_der = BASE64_STANDARD.decode(private_key_der_b64.trim())?;
     let issuer = GatewayInternalTokenIssuer::new(
@@ -432,7 +477,7 @@ pub(crate) fn issue_internal_token(
         kind: PrincipalKind::Service,
         issuer: principal_issuer,
         subject: principal_subject,
-        tenant: Some(TenantId::new("enterprise")?),
+        tenant: Some(TenantId::new(tenant)?),
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),
@@ -442,8 +487,8 @@ pub(crate) fn issue_internal_token(
         authenticated_at: Some(Utc::now()),
     };
     let authority = InvocationAuthority {
-        work_context: WorkContextId::new("smoke")?,
-        tenant: TenantId::new("enterprise")?,
+        work_context: WorkContextId::new(work_context)?,
+        tenant: TenantId::new(tenant)?,
         membership: WorkContextMembershipLevel::Owner,
         policy_revision: PolicyVersion::new("r1")?,
         output_policy: WorkContextOutputPolicy {

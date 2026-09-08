@@ -117,12 +117,17 @@ fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
             binaries.push(CONFORMANCE);
         }
     } else if !requests_help(arguments) && dispatcher == SMOKE {
-        binaries.push(CONFORMANCE);
         let scenario = arguments
             .first()
             .context("smoke scenario is required")?
             .to_str()
             .context("smoke scenario is not valid UTF-8")?;
+        if !matches!(
+            scenario,
+            "stream-gpu" | "reason-gpu" | "stream-compiler-startup"
+        ) {
+            binaries.push(CONFORMANCE);
+        }
         for binary in scenario_binaries(scenario)? {
             if !binaries.contains(binary) {
                 binaries.push(*binary);
@@ -227,6 +232,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         ],
         "agent-gateway" => &[CONFORMANCE, DUCKDB, GATEWAY, ARTIFACT_SERVICE],
         "stream-gpu" | "reason-gpu" => &[RECORDING_FORWARDER],
+        "stream-compiler-startup" => &[],
         "helm-config"
         | "external-simulation-fixture"
         | "profile-validate"
@@ -270,6 +276,38 @@ fn prepend_library_path(command: &mut Command, key: &str, path: &std::path::Path
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gpu_video_scenarios_build_only_their_used_binaries() {
+        for scenario in ["stream-gpu", "reason-gpu"] {
+            assert_eq!(
+                cargo_build_arguments(&[scenario.into()]).unwrap(),
+                [
+                    "build",
+                    "--locked",
+                    "--package",
+                    "veoveo-smoke",
+                    "--bin",
+                    "smoke",
+                    "--package",
+                    "veoveo-recording-forwarder",
+                    "--bin",
+                    "recording-forwarder",
+                ]
+            );
+        }
+        assert_eq!(
+            cargo_build_arguments(&["stream-compiler-startup".into()]).unwrap(),
+            [
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-smoke",
+                "--bin",
+                "smoke",
+            ]
+        );
+    }
 
     #[test]
     fn smoke_arguments_remain_lossless_os_strings() {

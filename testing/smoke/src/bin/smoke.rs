@@ -540,6 +540,17 @@ enum Cmd {
         #[arg(long, default_value_t = 1200)]
         timeout_seconds: u64,
     },
+    /// Verify a compiler candidate's initialized Stream service; this does not qualify GPU execution.
+    StreamCompilerStartup {
+        #[arg(long, default_value = "veoveo")]
+        namespace: String,
+        #[arg(long)]
+        candidate_binary: PathBuf,
+        #[arg(long)]
+        candidate_app: PathBuf,
+        #[arg(long)]
+        work_dir: PathBuf,
+    },
     /// Run the DeepStream GPU detector through Recording Hub and the final MCP task protocol.
     StreamGpu {
         /// Environment file used by the active k3d profile and direct assertion signer.
@@ -548,6 +559,15 @@ enum Cmd {
         /// Host workspace for the generated DeepStream sample.
         #[arg(long, default_value = "output/stream/work")]
         work_dir: PathBuf,
+        /// Candidate executable to qualify in the running NVIDIA container on a separate port.
+        #[arg(long, requires = "candidate_app")]
+        candidate_binary: Option<PathBuf>,
+        /// App HTML packaged with the candidate executable.
+        #[arg(long, requires = "candidate_binary")]
+        candidate_app: Option<PathBuf>,
+        /// Object-detection pipeline admitted by the installation's Stream catalog.
+        #[arg(long)]
+        pipeline_id: String,
     },
     /// Run the world-model GPU reasoner through Recording Hub and the final MCP task protocol.
     ReasonGpu {
@@ -882,7 +902,29 @@ async fn main() -> Result<()> {
             )
             .await
         }
-        Cmd::StreamGpu { env_file, work_dir } => stream_gpu(&env_file, &work_dir).await,
+        Cmd::StreamCompilerStartup {
+            namespace,
+            candidate_binary,
+            candidate_app,
+            work_dir,
+        } => {
+            stream_compiler_startup(&namespace, &candidate_binary, &candidate_app, &work_dir).await
+        }
+        Cmd::StreamGpu {
+            env_file,
+            work_dir,
+            candidate_binary,
+            candidate_app,
+            pipeline_id,
+        } => {
+            stream_gpu(
+                &env_file,
+                &work_dir,
+                candidate_binary.as_deref().zip(candidate_app.as_deref()),
+                &pipeline_id,
+            )
+            .await
+        }
         Cmd::ReasonGpu { env_file, work_dir } => reason_gpu(&env_file, &work_dir).await,
     }
 }

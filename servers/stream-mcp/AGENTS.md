@@ -37,7 +37,7 @@ provider-neutral.
 - `cargo check -p veoveo-stream-mcp`
 - `cargo test -p veoveo-stream-mcp --all-targets`
 - `cargo xtask image build --target stream-mcp`
-- `cargo xtask smoke stream-gpu`
+- `cargo xtask smoke stream-gpu --pipeline-id <installed-object-detection-pipeline>`
 - Local processes pass `--live-app servers/stream-mcp/assets/live.html` alongside
   their runtime configuration. Restart after HTML edits. Image assembly supplies
   the App through a separate declared asset context, preserving Rust compilation.
