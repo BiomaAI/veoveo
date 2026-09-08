@@ -1,8 +1,60 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:ab5836d77573b520af47749beeacf7ecf5480c2315be3ab75025bbf9a48b394e",
-  "updatedAt": "2026-09-08T19:07:49Z",
+  "updatedAt": "2026-09-08T19:11:22Z",
   "checks": [
+    {
+      "name": "reason-cache-free-qualification",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "images",
+        "--target",
+        "reason-mcp",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "HEAD",
+        "--stage-evidence",
+        "output/development/reason-cache-free-stage-20260908.json",
+        "--evidence-output",
+        "output/development/reason-cache-free-release-20260908.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T19:11:22Z",
+      "durationSeconds": 125.048233416,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "reason-cache-free-stage",
+      "command": [
+        "cargo",
+        "xtask",
+        "image",
+        "stage",
+        "--target",
+        "reason-mcp",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--registry-transport",
+        "insecure-http",
+        "--revision",
+        "HEAD",
+        "--evidence-output",
+        "output/development/reason-cache-free-stage-20260908.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T19:08:24Z",
+      "durationSeconds": 25.714913444,
+      "detail": "completed successfully"
+    },
     {
       "name": "reason-packaging-cache-format",
       "command": [

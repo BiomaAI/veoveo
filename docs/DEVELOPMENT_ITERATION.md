@@ -321,13 +321,16 @@ passive live publication preserves unchanged workload identities. An isolated se
 worker reuses unchanged BFF/gateway artifacts in 4.6 s. The same source edit takes
 39.5 s on the durable worker and 369.5 s with fresh Cargo caches, which supports
 preserving worker state for iteration. Both matched pairs produce identical artifacts.
+Stream and Reason now use the shared Rust 1.98.1 control compiler and pass installed
+RTX 4090 replay with the Bioma configuration. Reason Rust edits stage in 32.6 s;
+Python runner edits stage in 11.1 s without executing Cargo. Each edit replaces only
+its executable layer.
 The following acceptance work remains separate from those delivered changes.
 
 | Priority | Boundary | Owning component | Acceptance condition |
 |---:|---|---|---|
 | 1 | Dedicated build storage and remote-host comparison | managed builder control | compare a separate build disk or host against the twelve-CPU baseline while retaining durable compiler caches; same-host fresh-worker reuse is measured |
-| 2 | Common Rust compiler ABI | Stream/Reason image graphs | Stream's separated Rust 1.98.1 compiler is active and passes hardware replay; warm edits take 16.7 s and 15.9 s, and a committed source edit stages in 26.2 s. Reason retains its existing compiler pending an admitted NVDEC/CUDA model-input path and its own hardware acceptance |
-| 3 | Component ownership migration | deployment contract | complete general raw-resource adoption and ownership transfer before splitting an existing atomic Helm release; exact selected execution, per-release inputs, native scope evidence, and cluster coordination are implemented |
+| 2 | Component ownership migration | deployment contract | complete general raw-resource adoption and ownership transfer before splitting an existing atomic Helm release; exact selected execution, per-release inputs, native scope evidence, and cluster coordination are implemented |
 
 ### Deferred Or Separately Owned Work
 
