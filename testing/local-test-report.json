@@ -1,23 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4e67025f2c0c42db4c1367f8e37e3cb127723d9ecfcd22865a49266f4a745f54",
-  "updatedAt": "2026-09-08T03:32:42Z",
+  "buildDigest": "sha256:682ac134747d0f570f038191ca9aa5f91341ea841ca181ed24acc4c5108c0beb",
+  "updatedAt": "2026-09-08T03:36:36Z",
   "checks": [
     {
-      "name": "runtime-app-image-permissions",
+      "name": "helm-config",
       "command": [
         "cargo",
         "xtask",
-        "image",
-        "build",
-        "--target",
-        "map-mcp",
-        "--target",
-        "stream-mcp"
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T03:32:42Z",
-      "durationSeconds": 247.189882594,
+      "finishedAt": "2026-09-08T03:36:36Z",
+      "durationSeconds": 6.843970846,
       "detail": "completed successfully"
     }
   ]
