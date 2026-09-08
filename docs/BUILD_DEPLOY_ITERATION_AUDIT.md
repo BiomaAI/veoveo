@@ -1,8 +1,10 @@
 # Build And Deployment Iteration Audit
 
 Status: implementation authorized on September 6, 2026; core changes are committed
-and locally verified. Local compiler ABI and throughput experiments have recorded
-results. GPU compiler-family admission and live chart activation remain pending.
+and the shared charts are active with the Bioma reference configuration. Local compiler
+ABI and throughput experiments have recorded results. Live metadata-only publication
+preserves every running Pod. GPU compiler-family admission and component-selected
+deployment execution remain pending.
 The findings below retain the pre-change evidence. The delivery record identifies
 implemented changes and their verification.
 
@@ -26,7 +28,61 @@ implemented changes and their verification.
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
 | Complete command timing | Added command-entry records with preparation, lock waits, solve references, manifest inspection, terminal failures, per-solve CPU deltas, and filesystem extraction windows | Failure-path tests retain errors before BuildKit starts; cached compiler actions report no execution; extraction remains visible when a scanner materializes cached layers |
 | Exact image selection | Repeated `--target` flags select one sorted Bake solve for planning, local builds, staging, and qualification; affected planning excludes dev-only Cargo edges | CLI selection tests and dependency-closure fixtures cover staging/qualification parity and retained build dependencies |
-| Passive convergence observation | GitOps verification defaults to observation; explicit requested reconciliation remains a declared mode in v3 evidence with the verification start time | Six process-level Rust fixtures pass; a live observation of the already-active Bioma revision takes 1.232 s with unchanged reconciliation annotations and sampled Pod identities; publication latency remains pending |
+| Passive convergence observation | GitOps verification defaults to observation; explicit requested reconciliation remains a declared mode in v3 evidence with the verification start time | Six process-level Rust fixtures pass; an already-active revision is observed in 1.232 s; the live metadata-only publication reaches verified readiness in 40.5 s from push start without reconciliation requests |
+| Immutable GitOps inputs | OCI source names bind complete chart manifest digests; generated immutable Helm values ConfigMaps have content suffixes; one HelmRelease update selects both references | Rust configuration checks exercise updates in both release directions; live activation takes 116.1 s from push start with identical Pod identities, restart counts, Deployment revisions, and Helm histories |
+| Live chart publication | Activated the shared platform and UAV chart changes, then published a platform chart with only its version changed | The version-only update takes 40.5 s from push start; the platform Helm revision advances once while the UAV release and all 29 running Pods remain unchanged |
+| Recording recovery | Resolve accepted batch identity before checking whether a stream permits new appends | A regression reproduces the live finished-stream error; 57 store tests pass; the corrected Hub reconciles its journal and becomes Ready |
+
+## Live Activation Evidence
+
+The September 8, 2026 UTC activation deploys Veoveo with the Bioma reference
+configuration. Flux remains the application owner. All three observers started before
+their Git pushes and used passive reconciliation mode.
+
+| Git revision | Change | Push start to verified readiness | Observed result |
+|---|---|---:|---|
+| `ad36d941545e24806390717f5cdcbb753e6e892d` | Shared chart activation and corrected Recording Hub image | 1,229.0 s | Both Helm releases converge and all 25 Deployments become Ready |
+| `146fdcb21c8c8a8440fe594059cc57506619f9e1` | Immutable chart source and values references | 116.1 s | All 29 running Pod identities and restart counts, all 25 Deployment generations and revisions, and both Helm histories remain unchanged |
+| `837b7f857a6a501be8772a506976733a1e41b44c` | Platform chart version changes with identical runtime inputs | 40.5 s | Platform Helm revision advances from 114 to 115; UAV stays at 99; all Pod identities, restart counts, and Deployment generations and revisions remain unchanged |
+
+The first activation includes recovery from existing operational failures. Recording
+Hub had already materialized its final batch but rejected the leftover journal because
+its stream was finished. The corrected image resolves that idempotent replay. Reason's
+existing database connection was stuck even though a fresh connection could query the
+database; restarting its one unhealthy Pod restored readiness. This intervention is
+part of the first activation timing.
+
+That activation exposed a chart/value ordering race. The generated values ConfigMaps
+changed before Flux fetched the new chart artifacts. The platform performed an extra
+upgrade with its old chart, while the old UAV chart rejected the new `contentSha256`
+field. Immutable chart sources and values references now move together on each
+HelmRelease. The Rust configuration checks enforce complete source digest names,
+rewritten values references, immutable ConfigMaps, and unchanged unselected inputs.
+
+Map also delayed the first rollout by replaying the shared outbox before opening its
+HTTP listener. The outbox contained about 16.8 million events. Its checkpoint advanced
+through the backlog, but startup exceeded the five-minute probe budget and the
+Deployment progress deadline, which triggered container restarts and Helm rollback.
+The persisted checkpoint eventually caught up and the release recovered. Domain-scoped
+projection recovery and bounded database health checks remain deployment work; the
+metadata-only result does not measure those service startup paths.
+
+The corrected Hub publication took 118.8 s end to end, including 34.9 s of Cargo
+compilation. Its image is pinned to runnable manifest
+`sha256:5316ed89fc9806f7e2951fd40134889a764976130b3785a7abf53a61068c33a2`.
+The version-only chart publication compared all 35 archive files; only `Chart.yaml`
+changed. No image build was needed for either subsequent GitOps update.
+
+An additional scoped Cargo cleanup removed a plan containing 10.72 GiB of superseded
+executables and incremental variants. Dependency libraries and current executable
+links were retained. The subsequent resource preflight reported 391 GiB free and
+accepted a 10 GiB build-growth allowance above the retained filesystem reserve.
+
+Local evidence is retained under `output/development/chart-activation-20260908/`,
+`output/development/immutable-gitops-inputs-20260908/`, and
+`output/development/chart-metadata-20260908/`. Each directory contains the push
+timestamps and typed convergence report. The latter two also retain before/after Pod,
+Deployment, and Helm history observations.
 
 ## Standards And Protocols
 
