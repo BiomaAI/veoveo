@@ -213,7 +213,8 @@ cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
   --lock-output "$LOCK"
-cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
+cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK" \
+  --all-components --receipt-output output/development/installation.receipt.json
 cargo xtask smoke sumo-verify --context k3d-veoveo-sumo
 
 kubectl --context k3d-veoveo-sumo -n veoveo \

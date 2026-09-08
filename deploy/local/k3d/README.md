@@ -114,7 +114,8 @@ cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
   --lock-output "$LOCK"
-cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
+cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK" \
+  --all-components --receipt-output output/development/installation.receipt.json
 cargo xtask smoke sumo-verify --context k3d-veoveo-sumo
 ```
 
@@ -129,7 +130,7 @@ before `profile-up`. The profile tooling never applies, patches, replaces, or co
 Secret. This fixture is valid only for this loopback cluster. A shared cluster uses
 operator-created Secrets from its own reconciliation path.
 
-`profile-up` renders every locked Helm chart and raw manifest before its first
+`profile-up` renders the expanded selection of locked Helm charts and raw manifests before its first
 Kubernetes or Helm write. It computes the complete Secret-reference closure, reads only
 the presence and required key names from existing Secrets, and fails closed when a
 Secret or key is missing or cannot be verified. Closure evidence never retains Secret

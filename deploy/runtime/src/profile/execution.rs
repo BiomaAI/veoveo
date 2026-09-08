@@ -3,7 +3,7 @@ use anyhow::{Result, ensure};
 use std::collections::BTreeSet;
 use veoveo_deploy_contract::{
     GpuSchedulingProfile,
-    components::{LockedComponent, ObjectIdentity},
+    components::{InstallationInput, LockedComponent, ObjectIdentity},
 };
 
 use crate::{
@@ -16,6 +16,7 @@ pub(super) struct ExecutionScope<'a> {
     pub gpu_scheduling: Option<&'a GpuSchedulingProfile>,
     pub gpu_placement: Option<&'a PreparedGpuPlacement>,
     pub deployments: BTreeSet<&'a ObjectIdentity>,
+    pub gpu_workloads: BTreeSet<ObjectIdentity>,
 }
 
 impl<'a> ExecutionScope<'a> {
@@ -34,6 +35,7 @@ impl<'a> ExecutionScope<'a> {
             gpu_scheduling: None,
             gpu_placement: None,
             deployments: BTreeSet::new(),
+            gpu_workloads: BTreeSet::new(),
         };
         for component in components {
             let inputs = &component.execution;
@@ -65,7 +67,30 @@ impl<'a> ExecutionScope<'a> {
                     scope.gpu_scheduling = Some(scheduling);
                 }
             }
+            scope
+                .gpu_workloads
+                .extend(inputs.gpu_workloads.iter().cloned());
             scope.deployments.extend(&inputs.deployments);
+        }
+        for (required, needed) in [
+            (
+                InstallationInput::GpuAllocator,
+                scope.gpu_placement.is_some() || !scope.gpu_workloads.is_empty(),
+            ),
+            (
+                InstallationInput::GpuPlacement,
+                !scope.gpu_workloads.is_empty(),
+            ),
+        ] {
+            if needed {
+                ensure!(
+                    components
+                        .iter()
+                        .flat_map(|component| &component.units)
+                        .any(|unit| unit.installation_input == Some(required)),
+                    "selected GPU workloads require the {required:?} owner as a component dependency"
+                );
+            }
         }
         Ok(scope)
     }
@@ -76,6 +101,41 @@ mod tests {
     use super::*;
     use crate::ownership::live_tests::component;
     use veoveo_deploy_contract::*;
+
+    #[test]
+    fn gpu_consumer_selection_requires_allocator_and_claim_owners() {
+        let mut consumer = component("test", "consumer", &["consumer"]);
+        consumer.execution.gpu_workloads.insert(ObjectIdentity {
+            group: "apps".into(),
+            kind: "Deployment".into(),
+            namespace: Some("test".into()),
+            name: "consumer".into(),
+        });
+        let mut allocator = component("test", "allocator", &["allocator"]);
+        allocator.units[0].installation_input = Some(InstallationInput::GpuAllocator);
+        let mut claim = component("test", "claim", &["claim"]);
+        claim.units[0].installation_input = Some(InstallationInput::GpuPlacement);
+        let components = vec![consumer, allocator, claim];
+        let catalog = components
+            .iter()
+            .map(|component| component.locked.clone())
+            .collect::<Vec<_>>();
+        assert!(
+            ExecutionScope::prepare(&components[..1], &catalog)
+                .unwrap_err()
+                .to_string()
+                .contains("GpuAllocator")
+        );
+        assert!(
+            ExecutionScope::prepare(&components[..2], &catalog)
+                .unwrap_err()
+                .to_string()
+                .contains("GpuPlacement")
+        );
+        assert!(ExecutionScope::prepare(&components, &catalog).is_ok());
+        let scope = ExecutionScope::prepare(&components[1..2], &catalog).unwrap();
+        assert!(scope.gpu_workloads.is_empty());
+    }
 
     #[test]
     fn unknown_rollout_waits_fail_before_execution() {

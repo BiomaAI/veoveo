@@ -159,6 +159,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "profile-down"
             | "gitops-converge"
             | "gitops-cancel-verify"
+            | "component-scope-verify"
     ) {
         Ok(DEPLOYMENT_SMOKE)
     } else if matches!(
@@ -238,6 +239,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "profile-down"
         | "gitops-converge"
         | "gitops-cancel-verify"
+        | "component-scope-verify"
         | "gpu-allocation-verify"
         | "bioma-verify"
         | "surreal-integration"
@@ -353,6 +355,16 @@ mod tests {
         assert_eq!(
             cargo_build_arguments(&arguments).unwrap(),
             cargo_build_arguments(&[OsString::from("gitops-converge")]).unwrap()
+        );
+    }
+
+    #[test]
+    fn component_scope_uses_only_the_focused_harness() {
+        let arguments = [OsString::from("component-scope-verify")];
+        assert_eq!(dispatcher_binary(&arguments).unwrap(), DEPLOYMENT_SMOKE);
+        assert_eq!(
+            cargo_build_arguments(&arguments).unwrap(),
+            cargo_build_arguments(&[OsString::from("profile-up")]).unwrap()
         );
     }
 

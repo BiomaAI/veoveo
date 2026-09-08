@@ -115,7 +115,8 @@ Deployment-profile operations use the focused harness:
 
 ```bash
 cargo xtask smoke profile-validate --profile <profile.json>
-cargo xtask smoke profile-up --profile <profile.json> --lock <qualified-lock.json>
+cargo xtask smoke profile-up --profile <profile.json> --lock <qualified-lock.json> \
+  --component <component-id> --receipt-output <new-receipt.json>
 cargo xtask smoke profile-gpu-verify --profile <profile.json>
 ```
 

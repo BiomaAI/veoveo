@@ -143,7 +143,8 @@ cargo xtask smoke profile-validate --profile deploy/deployment.json
 cargo xtask smoke profile-cluster-up --profile deploy/deployment.json
 cargo xtask smoke profile-up \
   --profile deploy/deployment.json \
-  --lock deploy/deployment.lock.json
+  --lock deploy/deployment.lock.json \
+  --all-components --receipt-output output/development/installation.receipt.json
 cargo xtask smoke profile-gpu-verify --profile deploy/deployment.json
 kubectl --context <context> get deviceclass gpu.nvidia.com
 kubectl --context <context> get daemonset -n <allocator-namespace> \
@@ -154,7 +155,9 @@ kubectl --context <context> get resourceclaim -n <namespace> <claim> -o json
 
 Successful `profile-up` prints each ResourceSlice product, physical UUID, and node. It
 also prints the claim UID, allocated request-to-device mapping, and the one UUID
-observed in every declared workload container. CUDA, Vulkan, RTX, and NVENC remain
+observed in every selected workload container. `--all-components` verifies every
+declared consumer. A component selection must include the allocator and persistent
+claim owners through its declared dependencies. CUDA, Vulkan, RTX, and NVENC remain
 application readiness concerns and must still pass on hardware; DRA supplies the
 physical allocation and CDI device injection.
 

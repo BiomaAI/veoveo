@@ -1,6 +1,6 @@
 use crate::{
     charts::validate_helm_releases,
-    cluster::{wait_for_cluster_gpu, wait_for_cluster_nodes},
+    cluster::wait_for_cluster_nodes,
     compile::compile_locked_components,
     configuration::{
         after_secret_closure, prepare_gateway_activation, prepare_secret_closure,
@@ -22,9 +22,13 @@ use std::{
     process::Command,
     time::Duration,
 };
-use veoveo_deploy_contract::{DeploymentSourceRole, components::InstallationInput};
+use veoveo_deploy_contract::{
+    DeploymentSourceRole,
+    components::{InstallationInput, InstallationReceipt, select_components},
+};
 
 mod execution;
+mod operations;
 use execution::ExecutionScope;
 
 pub fn profile_validate(path: &Path) -> Result<()> {
@@ -60,15 +64,25 @@ pub fn profile_validate(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
+pub fn profile_up(
+    path: &Path,
+    lock_path: &Path,
+    selection: &veoveo_deploy_contract::components::ComponentSelection,
+) -> Result<InstallationReceipt> {
     let profile = load_profile(path)?;
     let lock = load_deployment_lock(lock_path)?;
     validate_locked_profile(&profile, &lock)?;
     validate_locked_images(&profile, &lock)?;
-    let selected = lock
-        .components
-        .iter()
-        .map(|component| component.declaration.id.clone())
+    let requested = match selection {
+        veoveo_deploy_contract::components::ComponentSelection::All => lock
+            .components
+            .iter()
+            .map(|component| component.declaration.id.clone())
+            .collect(),
+        veoveo_deploy_contract::components::ComponentSelection::Exact(ids) => ids.clone(),
+    };
+    let selected = select_components(&lock.components, &requested)?
+        .into_iter()
         .collect::<BTreeSet<_>>();
     let sources = resolve_locked_sources(&profile, &lock, &selected)?;
     let source_roots = sources
@@ -77,7 +91,7 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
         .collect::<BTreeMap<_, _>>();
     let compiled = compile_locked_components(&profile, &lock, &source_roots, &selected)?;
     ensure!(
-        compiled.len() == lock.components.len(),
+        compiled.len() == selected.len(),
         "prepared component catalog differs from the deployment lock"
     );
     for component in &compiled {
@@ -113,10 +127,12 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let execution = ExecutionScope::prepare(&compiled, &lock.components)?;
     let context = profile.definition.kubernetes.context.as_str();
     let installed = InstalledState::open(&profile.repository, context, &compiled)?;
-    let gpu_migration = execution
-        .gpu_scheduling
-        .as_ref()
-        .map(|scheduling| {
+    let gpu_migration = installation_units(&compiled, InstallationInput::GpuAllocator)
+        .next()
+        .map(|_| {
+            let scheduling = execution
+                .gpu_scheduling
+                .context("allocator has no compiled GPU settings")?;
             crate::gpu::migration::prepare(
                 context,
                 &profile.definition.namespace,
@@ -130,7 +146,8 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
         .as_ref()
         .map(|migration| migration.quiesced_workloads())
         .unwrap_or_default();
-    let mutation_plan = installed.plan(&lock.components, &selected, &compiled, &invalidated)?;
+    let mutation_plan = installed.plan(&lock.components, &requested, &compiled, &invalidated)?;
+    let unselected_before = installed.unselected(&lock.components, &selected)?;
     let secret_closure = prepare_secret_closure(
         path,
         lock_path,
@@ -140,55 +157,55 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     )?;
 
     after_secret_closure(secret_closure, |_closure| {
+        let mut operations = operations::Operations::new(&installed, &mutation_plan);
         for (component, unit) in installation_units(&compiled, InstallationInput::NodeBootstrap) {
-            installed.apply_planned(component, unit, &mutation_plan)?;
+            operations.apply(component, unit)?;
         }
-        if execution.gpu_scheduling.is_some() {
-            wait_for_cluster_nodes(context, Duration::from_secs(120))?;
-        } else {
-            wait_for_cluster_gpu(context, Duration::from_secs(120))?;
-        }
+        // GPU admission belongs to the selected allocator, claim, and consumers.
+        // A CPU component must also work on DRA nodes without extended resources.
+        wait_for_cluster_nodes(context, Duration::from_secs(120))?;
 
         for (component, unit) in installation_units(&compiled, InstallationInput::Namespace) {
-            installed.apply_planned(component, unit, &mutation_plan)?;
+            operations.apply(component, unit)?;
         }
 
-        if let Some(placement) = execution.gpu_placement {
+        if let Some((component, allocator)) =
+            installation_units(&compiled, InstallationInput::GpuAllocator).next()
+        {
             let scheduling = execution
                 .gpu_scheduling
                 .as_ref()
                 .context("prepared GPU placement has no resolved scheduling profile")?;
-            let (component, allocator) =
-                installation_units(&compiled, InstallationInput::GpuAllocator)
-                    .next()
-                    .context("GPU allocator has no prepared Helm operation")?;
             ensure_gpu_allocator(
                 context,
                 scheduling,
                 gpu_migration
                     .as_ref()
                     .context("GPU migration has no checked inventory")?,
-                || {
-                    installed
-                        .apply_planned(component, allocator, &mutation_plan)
-                        .map(|_| ())
-                },
+                || operations.apply(component, allocator),
             )?;
+        }
+        if let Some(placement) = execution.gpu_placement {
+            let scheduling = execution
+                .gpu_scheduling
+                .context("GPU claim has no compiled settings")?;
+            let (component, claim) = installation_units(&compiled, InstallationInput::GpuPlacement)
+                .next()
+                .context("GPU placement has no prepared claim operation")?;
+            let mut created = false;
             apply_gpu_placement(
                 context,
                 &profile.definition.namespace,
                 scheduling,
                 placement,
                 || {
-                    let (component, claim) =
-                        installation_units(&compiled, InstallationInput::GpuPlacement)
-                            .next()
-                            .context("GPU placement has no prepared claim operation")?;
-                    installed
-                        .apply_planned(component, claim, &mutation_plan)
-                        .map(|_| ())
+                    created = true;
+                    operations.apply(component, claim)
                 },
             )?;
+            if !created {
+                operations.reuse_claim(component, claim)?;
+            }
         }
 
         for input in [
@@ -196,22 +213,27 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             InstallationInput::GatewayActivation,
         ] {
             for (component, unit) in installation_units(&compiled, input) {
-                installed.apply_planned(component, unit, &mutation_plan)?;
+                operations.apply(component, unit)?;
             }
         }
 
-        for source in &profile.definition.sources {
-            for release in &source.releases {
-                let target = veoveo_deploy_contract::components::AtomicTarget::HelmRelease {
-                    namespace: profile.definition.namespace.clone(),
-                    name: release.name.clone(),
-                };
-                let (component, prepared) = compiled
-                    .iter()
-                    .flat_map(|component| component.units.iter().map(move |unit| (component, unit)))
-                    .find(|(_, unit)| unit.prepared.target == target)
-                    .context("source release has no prepared Helm operation")?;
-                installed.apply_planned(component, prepared, &mutation_plan)?;
+        for id in &mutation_plan.expanded {
+            let component = compiled
+                .iter()
+                .find(|component| &component.locked.declaration.id == id)
+                .context("planned owner has no compiled operations")?;
+            for source in &profile.definition.sources {
+                for release in &source.releases {
+                    let target = veoveo_deploy_contract::components::AtomicTarget::HelmRelease {
+                        namespace: profile.definition.namespace.clone(),
+                        name: release.name.clone(),
+                    };
+                    if let Some(prepared) = component.units.iter().find(|unit| {
+                        unit.prepared.target == target && unit.installation_input.is_none()
+                    }) {
+                        operations.apply(component, prepared)?;
+                    }
+                }
             }
         }
         for deployment in &execution.deployments {
@@ -236,14 +258,25 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             )?;
         }
         if let Some(scheduling) = execution.gpu_scheduling {
-            verify_gpu_placement(context, &profile.definition.namespace, scheduling)?;
+            crate::gpu::verify_gpu_workloads(
+                context,
+                &profile.definition.namespace,
+                scheduling,
+                &execution.gpu_workloads,
+            )?;
         }
         println!(
             "Deployment profile {} now runs {} digest-locked sources",
             profile.definition.name,
             sources.len()
         );
-        Ok(())
+        Ok(InstallationReceipt {
+            schema_version: "veoveo.io/component-installation/v1".into(),
+            unselected_before,
+            unselected_after: installed.unselected(&lock.components, &selected)?,
+            operations: operations.finish()?,
+            plan: mutation_plan,
+        })
     })
 }
 

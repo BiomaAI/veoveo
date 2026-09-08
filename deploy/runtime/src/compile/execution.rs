@@ -20,6 +20,7 @@ pub(crate) struct ExecutionInputs {
     pub(crate) gateway_activation: Option<PreparedGatewayActivation>,
     pub(crate) gpu_scheduling: Option<GpuSchedulingProfile>,
     pub(crate) gpu_placement: Option<PreparedGpuPlacement>,
+    pub(crate) gpu_workloads: BTreeSet<ObjectIdentity>,
     pub(crate) declared_deployments: BTreeSet<ObjectIdentity>,
     pub(crate) deployments: BTreeSet<ObjectIdentity>,
 }
@@ -91,10 +92,18 @@ impl ExecutionInputs {
                         .flat_map(|group| &group.workloads)
                         .any(|workload| identities.contains(&deployment(&workload.deployment)))
             });
+        let gpu_workloads = gpu_scheduling
+            .iter()
+            .flat_map(|scheduling| &scheduling.same_physical_device_groups)
+            .flat_map(|group| &group.workloads)
+            .map(|workload| deployment(&workload.deployment))
+            .filter(|identity| identities.contains(identity))
+            .collect();
         Ok(Self {
             gateway_activation,
             gpu_scheduling,
             gpu_placement,
+            gpu_workloads,
             declared_deployments,
             deployments,
         })

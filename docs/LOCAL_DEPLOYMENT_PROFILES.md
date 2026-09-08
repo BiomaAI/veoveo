@@ -36,7 +36,8 @@ cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
   --lock-output "$LOCK"
-cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
+cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK" \
+  --all-components --receipt-output output/development/installation.receipt.json
 ~~~
 
 Repeated `profile-up` runs reuse unchanged Helm releases and prepared manifest sets
@@ -44,8 +45,11 @@ when the installed revision and live object contents match a local receipt. This
 another Helm revision for an unchanged release. Receipts live under `veoveo-deployment/`
 in the installation repository's Git common directory and are bound to the cluster UID.
 A missing receipt causes a normal apply. GPU admission and readiness checks still run.
-The command processes the complete profile; component-selected execution is still in
-development. See the [runtime reuse contract](../deploy/runtime/DESIGN.md#verified-installation-reuse).
+Use `--all-components` for the complete installation or repeat `--component <id>`
+for exact owners and their declared dependencies. The installer resolves and renders
+only that expanded selection. `--receipt-output` requires a new path on every run;
+the successful JSON receipt records applied and reused units and observations of
+unselected objects and Helm releases. See the [runtime reuse contract](../deploy/runtime/DESIGN.md#verified-installation-reuse).
 
 BuildKit pushes images directly to the profile-selected OCI registry. It does not load
 release images into the host Docker image store. The publisher configures the managed
@@ -134,8 +138,9 @@ all unrequested components verbatim, including dependencies. A release remains a
 when several images belong to it. Repeating a component ID, supplying unused evidence,
 changing image ownership, or replacing an existing build revision's qualification fails.
 The receipt records lock assembly; it does not report cluster mutations. The installation's
-existing owner applies the resulting artifacts. Chart and configuration updates still
-use full publication.
+existing owner applies the resulting artifacts. `cargo xtask release components`
+also accepts exact chart revisions and explicit configuration refreshes independently
+of image publication.
 
 `cargo xtask smoke profile-up` requires that lock. It verifies the installation
 revision and referenced profile files, checks out the sources that supply its releases
@@ -186,7 +191,7 @@ The installation owner supplies every Secret before `profile-up`. For the loopba
 fixture, this is the explicit `kubectl apply` step shown above. Shared and enterprise
 installations use their own Secret-management reconciliation path.
 
-Before its first Kubernetes or Helm mutation, `profile-up` renders every locked chart
+Before its first Kubernetes or Helm mutation, `profile-up` renders each selected locked chart
 and raw object. It extracts workload, image-pull, volume, Ingress, Gateway, and admitted
 custom-resource Secret references. It then verifies existing Secret and key presence.
 Missing, forbidden, timed-out, malformed, and transport-failed reads remain distinct

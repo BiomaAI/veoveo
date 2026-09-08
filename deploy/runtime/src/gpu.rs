@@ -893,6 +893,44 @@ pub(super) fn verify_gpu_placement(
     namespace: &str,
     scheduling: &GpuSchedulingProfile,
 ) -> Result<()> {
+    let selected = scheduling
+        .same_physical_device_groups
+        .iter()
+        .flat_map(|group| &group.workloads)
+        .map(
+            |workload| veoveo_deploy_contract::components::ObjectIdentity {
+                group: "apps".into(),
+                kind: "Deployment".into(),
+                namespace: Some(namespace.into()),
+                name: workload.deployment.clone(),
+            },
+        )
+        .collect();
+    verify_gpu_workloads(context, namespace, scheduling, &selected)
+}
+
+pub(crate) fn verify_gpu_workloads(
+    context: &str,
+    namespace: &str,
+    scheduling: &GpuSchedulingProfile,
+    selected: &BTreeSet<veoveo_deploy_contract::components::ObjectIdentity>,
+) -> Result<()> {
+    for identity in selected {
+        ensure!(
+            identity.group == "apps"
+                && identity.kind == "Deployment"
+                && identity.namespace.as_deref() == Some(namespace)
+                && scheduling
+                    .same_physical_device_groups
+                    .iter()
+                    .flat_map(|group| &group.workloads)
+                    .any(|workload| workload.deployment == identity.name),
+            "GPU verification target is outside the compiled workload configuration"
+        );
+    }
+    if selected.is_empty() {
+        return Ok(());
+    }
     let claim = output_checked(
         "kubectl",
         [
@@ -957,8 +995,20 @@ pub(super) fn verify_gpu_placement(
             "GPU ResourceClaim did not allocate request {}",
             group.name
         );
+        let workloads = group
+            .workloads
+            .iter()
+            .filter(|workload| {
+                selected
+                    .iter()
+                    .any(|identity| identity.name == workload.deployment)
+            })
+            .collect::<Vec<_>>();
+        if workloads.is_empty() {
+            continue;
+        }
         let uuids = group_uuids.entry(group.name.clone()).or_default();
-        for workload in &group.workloads {
+        for workload in workloads {
             let pod_names = ready_gpu_workload_pods(context, namespace, workload)?;
             for pod in pod_names {
                 let output = output_checked(
@@ -1007,10 +1057,9 @@ pub(super) fn verify_gpu_placement(
     for constraint in &scheduling.different_physical_device_groups {
         let mut seen = BTreeSet::new();
         for group in &constraint.groups {
-            let uuid = group_uuids
-                .get(group)
-                .and_then(|values| values.first())
-                .with_context(|| format!("GPU group {group} has no verified UUID"))?;
+            let Some(uuid) = group_uuids.get(group).and_then(|values| values.first()) else {
+                continue;
+            };
             ensure!(
                 seen.insert(uuid),
                 "different-physical-device constraint drifted: groups {:?} share UUID {uuid}",

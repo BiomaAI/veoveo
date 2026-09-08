@@ -23,3 +23,4 @@ tempfile.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-deploy-runtime.workspace = true
 veoveo-extension-contract.workspace = true
+veoveo-image-build-control.workspace = true
