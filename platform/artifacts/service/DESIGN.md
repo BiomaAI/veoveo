@@ -9,6 +9,8 @@
 | Veoveo Artifact read delegation | Repository-owned internal API, opaque UUIDv7 capability and task identities, bearer secret confined to task-read routes |
 | Persistence | Typed platform Store records and ordered SurrealQL migrations through `0050`; native durability acceptance uses SurrealDB 3.2.4 |
 | Content and credential identity | SHA-256 for immutable blobs and domain-separated secret hashes |
+| S3 multipart adapter | `object_store` 0.14.1 low-level `MultipartStore`, one-based public parts mapped to zero-based adapter indices; private provider handles and receipts |
+| Veoveo upload ledger functions | `fn::artifact_upload_profile_digest` and `fn::artifact_upload_authority_matches` bind transactions to current profile and Work Context policy |
 
 This service implements the internal Artifact plane. `servers/artifact-mcp` owns its
 public MCP projection. The shared request types live in `mcp/contract`; the HTTP
@@ -44,10 +46,30 @@ Current profile/policy and Work Context digests bind admission to its governing 
 The repository-owned `fn::artifact_upload_profile_digest` and
 `fn::artifact_upload_authority_matches` functions run inside state transactions.
 
-The beta formatter corrupts nested schema field paths in `DEFINE FIELD`. Keep those
-declarations in the established migration format and validate them with the pinned
-native database executable. Formatter output for migration `0050` was rejected before
-execution; it supplies no migration evidence.
+Part admission fixes number, byte length, and SHA-256 before reading a body. A leased
+generation owns its acknowledgement; stale generations cannot replace a receipt.
+Tenant counters and a shared installation memory row bound simultaneous payloads
+across replicas. Unknown-length streams reserve another bounded part window before
+exceeding their current reservation. Failed requests release transfer budget while
+preserving the immutable descriptor for a matching retry.
+
+The S3 adapter reconstructs uploads from the ledger's private handle and ordered part
+receipts. It materializes one bounded part, coalesces tiny frames into 64 KiB blocks,
+and retains larger byte chunks without another payload copy. HTTP/socket and chunk
+metadata add bounded overhead to the in-flight payload budget. Whole-file identity
+comes from one separately bounded sequential object read after completion. A HEAD at
+the upload's unique object key recovers a lost storage completion acknowledgement;
+it never substitutes for the whole-file hash check. In-memory adapter tests establish
+these mechanics, while real S3 and multi-GB acceptance remain rollout requirements.
+S3 connections retain the SDK's connection timeout and use a 30-second read-idle
+timeout. Whole-object streams have no total request timeout; transfer handlers bound
+each part independently. The SDK's default 30-second total timeout would otherwise
+turn transfer duration into an implicit maximum file size.
+
+The beta formatter corrupts nested schema field paths and nested conditional updates.
+Keep these statements in the established SurrealQL format and validate them with the
+pinned native database executable. Rejected formatter output supplies no execution
+evidence.
 
 ## Task Read Delegation
 

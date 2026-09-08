@@ -1840,3 +1840,19 @@ optional descriptor fields individually because absent stored fields and explici
 `NONE` values are not identical objects. These were implementation/debugging costs,
 not evidence of slow production upload behavior. Preserve the failed development logs
 for diagnosis; only current passing checks enter the committed evidence report.
+
+Part accounting and the restartable storage adapter pass 29 Artifact tests, including
+native lease races and unknown-length quota windows, plus 46 Store unit tests. The
+final native execution takes 1.40 s. Tiny request frames coalesce into bounded chunks;
+whole-object verification streams through a fixed-size digest state. Memory-backend
+transfer checks establish adapter behavior, while real S3 transfer acceptance remains
+part of integrated service qualification.
+
+Two extra native test attempts came from SQL tooling and query naming: the beta
+formatter damaged conditional updates, and `session` is a protected native variable.
+Canonical queries now avoid the formatter and use explicit upload variable names.
+One validation was started before its prerequisite formatter result was inspected;
+subsequent formatting, validation, and execution are sequenced. These are avoidable
+development costs, not production timings. The S3 client also had a 30-second total
+read deadline that would interrupt slow large downloads. It now bounds connection
+and idle time; upload parts retain independent operation deadlines.

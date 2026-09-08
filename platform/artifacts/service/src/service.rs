@@ -1455,6 +1455,7 @@ mod tests {
     mod read_capability;
     mod upload_admission;
     mod upload_migration;
+    mod upload_parts;
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};
 

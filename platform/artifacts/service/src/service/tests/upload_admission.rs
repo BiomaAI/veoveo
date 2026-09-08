@@ -4,7 +4,7 @@ use super::native_database::{Database, context};
 use super::*;
 use veoveo_platform_store as platform;
 
-async fn install_profile(store: &platform::PlatformStore) {
+pub(super) async fn install_profile(store: &platform::PlatformStore) {
     let now = Utc::now();
     let revision = platform::RecordId::new("gateway_control_revision", "upload-fixture");
     let revision_content = platform::GatewayControlRevisionContent {
@@ -47,7 +47,7 @@ async fn install_profile(store: &platform::PlatformStore) {
         .bind(("policy", policy)).bind(("active", active)).await.unwrap().check().unwrap();
 }
 
-async fn admission(
+pub(super) async fn admission(
     store: &platform::PlatformStore,
     actor: &PlaneCaller,
     size: i64,
