@@ -27,6 +27,7 @@ pub(crate) mod operation;
 mod run_evidence;
 mod selection;
 mod source_context;
+pub(crate) mod worker_benchmark;
 use source_context::CargoPackage;
 
 use run_evidence::BuildRunResult;

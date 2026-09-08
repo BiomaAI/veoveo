@@ -285,7 +285,7 @@ fn solve(
     Ok(())
 }
 
-fn validate_source_path(path: &Path) -> Result<()> {
+pub(super) fn validate_source_path(path: &Path) -> Result<()> {
     ensure!(
         path.components()
             .all(|part| matches!(part, Component::Normal(_)))
@@ -296,7 +296,7 @@ fn validate_source_path(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn varied_source(original: &[u8], identity: &str) -> Vec<u8> {
+pub(super) fn varied_source(original: &[u8], identity: &str) -> Vec<u8> {
     let mut result = original.to_vec();
     // Keep source span offsets constant across quota labels and sample numbers.
     let identity = hex::encode(Sha256::digest(identity.as_bytes()));

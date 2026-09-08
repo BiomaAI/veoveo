@@ -657,6 +657,7 @@ Simulation runtime ownership:
 | `tools/image-build/control/` | shared pinned Buildx, BuildKit registry configuration, declared resource limits and CPU telemetry, and cross-worktree builder lease used by image release and certification |
 | `tools/xtask/src/commands/image/benchmark.rs` | controlled compiler source-edit comparisons, temporary input variants, CPU quota experiments under the shared lease, and compiler-only evidence |
 | `tools/xtask/src/commands/image/cache_benchmark.rs` | fresh Cargo target comparisons against a pinned compiler cache, ordinary artifact identity, and typed cache hit/miss evidence |
+| `tools/xtask/src/commands/image/worker_benchmark.rs` and `tools/image-build/control/src/experiment.rs` | exported compiler-result reuse, same-host worker isolation, source-edit comparisons, and disposable worker cleanup |
 | `testing/smoke/src/bin/smoke/scenarios/simulation.rs` | deployment-lock registry authorization, published environment invariants, local image materialization, GPU certification, and retained transcripts |
 
 Authoritative simulation live-view ownership:

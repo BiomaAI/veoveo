@@ -202,6 +202,28 @@ local dependency recovery, not second-host transfer or changed-binary link reuse
 The [upstream Rust profile](https://github.com/mozilla/sccache/blob/v0.17.0/docs/Rust.md)
 does not cache crates that invoke the system linker.
 
+`image builder worker-benchmark` measures reuse on an isolated second BuildKit worker
+on this host. It exports the current compiler result, imports that exact cache manifest
+into an empty worker, and compares identical source edits on the primary and secondary
+workers. It uses the existing family recipe and declared resource budget.
+
+```sh
+cargo xtask test-report run --name compiler-worker-comparison -- \
+  cargo xtask image builder worker-benchmark \
+    --target console-bff --target mcp-gateway \
+    --source apps/console/bff/src/main.rs \
+    --source platform/gateway/src/bin/gateway.rs \
+    --output output/development/compiler-worker-comparison
+```
+
+The command changes only disposable source contexts. Its receipt records artifact
+equality, observed compiler packages, cache export bytes, phase and CPU timing, and
+worker identity. An unchanged import must compile nothing and leave Cargo execution
+cache mounts empty. The source-edit cases show the cost of losing those mounts.
+Storage preflight budgets 40 GiB above the retained reserve before starting. Temporary
+worker state and cache transport files are removed; binary and trace evidence remains.
+The comparison measures two workers on one host and grants no GPU or release admission.
+
 Simulation certification holds the same lease. A deployment lock may authorize one
 `insecure-http` registry at its exact host and port; otherwise TLS applies. Image
 configuration, attestation inspection, and digest-addressed materialization all select

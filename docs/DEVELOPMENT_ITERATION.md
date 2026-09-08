@@ -277,22 +277,26 @@ than a general request to make builds faster.
 ### Active Follow-Ups Worth Fixing Next
 
 The [build and deployment audit](BUILD_DEPLOY_ITERATION_AUDIT.md#delivery-record)
-records the September 7 implementation and measured image boundaries. Flux watch
+records the September 7–8 implementation and measured image boundaries. Flux watch
 labels, content-derived rollout triggers, declared worker resources, exact staging,
 complete timing, normalized UAV parents, and isolated presentation inputs are now
 implemented. Shared recording libraries exclude service lifecycle dependencies.
 The authenticated local Console supports source refresh without a document reload.
 Controlled BFF/gateway source edits now compile 2.29× faster at twelve CPUs than at
 four, with identical measured binary digests and warm dependencies.
+The shared charts and Flux changes are active with the Bioma reference configuration;
+passive live publication preserves unchanged workload identities. An isolated second
+worker reuses unchanged BFF/gateway artifacts in 4.6 s. The same source edit takes
+39.5 s on the durable worker and 369.5 s with fresh Cargo caches, which supports
+preserving worker state for iteration. Both matched pairs produce identical artifacts.
 The following acceptance work remains separate from those delivered changes.
 
 | Priority | Boundary | Owning component | Acceptance condition |
 |---:|---|---|---|
-| 1 | Passive GitOps activation | Bioma GitOps and release charts | publish the changed charts and values through their owner; measure exact commit-to-ready latency without requesting Helm reconciliation; verify unchanged workloads retain their Pods |
-| 2 | Dedicated storage and second-worker reuse | managed builder control | compare a separate build disk or host against the measured twelve-CPU baseline without consuming the existing host reserve |
-| 3 | Common Rust compiler ABI | Stream/Reason image graphs | complete service startup and hardware GPU acceptance before sharing one compiler family; candidate ELF and CLI checks pass, while Reason's CPU video preprocessing requires its declared NVDEC/CUDA migration |
-| 4 | Component release ownership | deployment contract | implement the complete object ownership and migration boundary in `DEPLOY-SCOPE-023` before splitting an atomic Helm release; selected publication and per-release image locks are already available |
-| 5 | Focused composed-flight harness closure | smoke harness ownership | a verifier-only edit neither compiles nor links store, task, recording, or unrelated server runtimes, and dispatch remains below 2 s warm |
+| 1 | Dedicated build storage and remote-host comparison | managed builder control | compare a separate build disk or host against the twelve-CPU baseline while retaining durable compiler caches; same-host fresh-worker reuse is measured |
+| 2 | Common Rust compiler ABI | Stream/Reason image graphs | complete service startup and hardware GPU acceptance before sharing one compiler family; candidate ELF and CLI checks pass, while Reason's CPU video preprocessing requires its declared NVDEC/CUDA migration |
+| 3 | Component release ownership | deployment contract | implement the complete object ownership and migration boundary in `DEPLOY-SCOPE-023` before splitting an atomic Helm release; selected publication and per-release image locks are already available |
+| 4 | Focused composed-flight harness closure | smoke harness ownership | a verifier-only edit neither compiles nor links store, task, recording, or unrelated server runtimes, and dispatch remains below 2 s warm |
 
 ### Deferred Or Separately Owned Work
 

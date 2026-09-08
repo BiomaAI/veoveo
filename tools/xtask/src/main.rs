@@ -149,6 +149,21 @@ enum BuilderCommand {
     Benchmark(BuilderBenchmarkArgs),
     /// Compare fresh Cargo targets with and without a reusable compiler cache.
     CacheBenchmark(BuilderCacheBenchmarkArgs),
+    /// Measure exported compiler reuse and source edits on an isolated second worker.
+    WorkerBenchmark(BuilderWorkerBenchmarkArgs),
+}
+
+#[derive(Debug, Args)]
+struct BuilderWorkerBenchmarkArgs {
+    /// Image targets from one admitted shared Rust compiler family.
+    #[arg(long, required = true)]
+    target: Vec<String>,
+    /// Rust source paths varied identically on both workers in disposable contexts.
+    #[arg(long, required = true)]
+    source: Vec<PathBuf>,
+    /// New directory for artifact and worker comparison evidence.
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -462,6 +477,11 @@ fn main() -> Result<()> {
                 BuilderCommand::Benchmark(args) => image::benchmark::run(&repository, &args),
                 BuilderCommand::CacheBenchmark(args) => {
                     image::cache_benchmark::run(&repository, &args)
+                }
+                BuilderCommand::WorkerBenchmark(args) => {
+                    image::operation::record(&repository, "worker-benchmark", clock, || {
+                        image::worker_benchmark::run(&repository, &args)
+                    })
                 }
             },
             ImageCommand::CertificationCachePrune(args) => {

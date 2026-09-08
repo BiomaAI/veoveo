@@ -22,6 +22,7 @@ implemented changes and their verification.
 | Reusable Rust inputs | Shared compiler targets receive Cargo-derived contexts with complete workspace manifests, production dependency sources, and embedded assets | Real frontend-only revision staged in 26.0 s with the Rust action cached and identical binary layer; qualification preserved its runnable digest |
 | Cargo source freshness | Added a content-aware input mirror under each locked target cache, with disposable source timestamp synchronization for every Rust family | An old-timestamp edit/revert regression passes; the corrected ordinary BFF/gateway artifacts equal clean-target outputs; 40 focused tests, strict Clippy, formatting and standalone-family planning pass |
 | Compiler-cache experiment | Added an existing-family sccache 0.17.0 comparison with empty Cargo targets, bounded cache storage, CPU timing and full compiled-artifact identity | All 955 cacheable operations hit on recovery, but the solve takes 333.7 s versus 328.4 s without the wrapper; the wrapper remains outside normal builds; all experiment cache mounts were removed |
+| Second-worker reuse | Added an isolated worker comparison using the existing compiler recipe and an exact exported OCI cache manifest | Unchanged import takes 4.6 s with zero compilation; matched source edits take 39.5 s on the existing worker and 369.5 s on the fresh worker; binaries and native library match within each pair; temporary worker, volume, and cache export are removed |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidate binaries passed loader inspection and CLI execution in the deployed runtime containers; family admission remains pending service and GPU acceptance |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
@@ -667,13 +668,15 @@ The current evidence is `output/development/cargo-cache-hourly-maintenance.json`
 The common Stream/Reason compiler family remains unadmitted. Its candidate executable
 must pass service startup and hardware workload checks in both runtime images. The
 controlled CPU comparison below measures one warm source-edit workload. The completed
-compiler-cache recovery comparison below provides no elapsed-time gain. Second-worker
-portability remains unmeasured. A Bazel migration has no measured advantage from this
-work and has not been introduced.
+compiler-cache recovery comparison below provides no elapsed-time gain. The same-host
+second-worker comparison below now distinguishes completed-result reuse from Cargo
+execution-cache reuse. Network transfer between hosts and independent build storage
+remain unmeasured. A Bazel migration has no measured advantage from this work and has
+not been introduced.
 
-The changed Flux configuration and charts have rendered acceptance, but were not
-published or activated in Bioma. Passive commit-to-ready timing therefore remains
-unmeasured. Selected chart publication and separate release image closures are delivered;
+The changed Flux configuration and shared charts are active with the Bioma reference
+configuration. The live activation records above include passive commit-to-ready timing
+and unchanged workload identities. Selected chart publication and separate release image closures are delivered;
 splitting atomic Helm ownership still belongs to the complete `DEPLOY-SCOPE-023` migration.
 These boundaries remain explicit in the
 [iteration register](DEVELOPMENT_ITERATION.md#active-follow-ups-worth-fixing-next).
@@ -940,6 +943,45 @@ traces. The three experiment cache mounts, including the interrupted comparisons
 were removed under the builder lease after inspection. The cleanup recovered
 728,788,992 bytes and retained all fourteen existing execution cache mounts.
 
+
+### Second-Worker Cache Result
+
+The September 8 trial uses the current Trixie compiler recipe for Console BFF and
+gateway, including its native DuckDB library. Both workers run on this host with the
+same twelve-CPU, 36 GiB budget. The second worker starts with zero BuildKit cache records
+in a newly created volume. The primary worker exports a 484,472,083-byte local OCI
+cache, and both secondary solves import its exact manifest digest.
+
+| Case | Solve elapsed | Compiler action | Compiled package names | Worker CPU time |
+|---|---:|---:|---:|---:|
+| Prepare and export current result | 75.184 s | 58.110 s | 7 | 413.4 s |
+| Import unchanged result on fresh worker | 4.617 s | 0 s | 0 | 5.1 s |
+| Source edit on existing worker | 39.534 s | 37.210 s | 2 | 291.8 s |
+| Same source edit on fresh worker | 369.455 s | 360.855 s | 476 | 2,446.3 s |
+
+The unchanged import reproduces both binaries and `libduckdb.so` byte for byte while
+leaving Cargo execution-cache mounts empty. Both edited builds also produce identical
+artifacts. The edit changes source bytes in disposable contexts; it does not alter the
+worktree. The complete command takes 500.808 s, including preparation, storage checks,
+worker lifecycle, four solves, identity checks, and cleanup. Phase windows overlap.
+
+The fresh-worker edit is 9.35 times slower in this sample. Its compiler action includes
+dependency fetching and full compilation because exported BuildKit results did not
+transport the Cargo registry, Git, or target mounts. An exact finished artifact can be
+reused quickly even though an edit loses the established worker's incremental state.
+This supports keeping a durable worker for normal iteration. A future remote builder
+must preserve that state, or a replacement action-cache design must demonstrate a
+better changed-input result. The trial does not measure network transfer across hosts,
+a cold primary build, a different disk, or a Bazel implementation.
+
+The accepted receipt is
+`output/development/compiler-worker-comparison-20260908/comparison.json`. It records
+worker identity, immutable cache manifest identity, input and artifact hashes, package
+observations, CPU counters, and successful cleanup. Adjacent directories retain each
+trace and artifact bundle. The temporary worker and volume and the exported transport
+cache were removed. The ordinary worker retained its fourteen execution-cache mounts.
+All 25 Veoveo Deployments were Ready after the trial. GPU runtime qualification remains
+separate from these compiler and availability observations.
 
 ### Automatic Cache Capacity
 

@@ -130,19 +130,27 @@ impl CpuSnapshot {
 }
 
 pub fn cpu_snapshot(repository: &Path) -> Result<CpuSnapshot> {
+    snapshot_for(repository, BUILDER_CONTAINER)
+}
+
+pub(crate) fn snapshot_for(repository: &Path, container: &str) -> Result<CpuSnapshot> {
     CpuSnapshot::parse(&output_text(
         "docker",
-        ["exec", BUILDER_CONTAINER, "cat", "/sys/fs/cgroup/cpu.stat"],
+        ["exec", container, "cat", "/sys/fs/cgroup/cpu.stat"],
         Some(repository),
     )?)
 }
 
 pub(crate) fn validate(repository: &Path) -> Result<()> {
+    validate_container(repository, BUILDER_CONTAINER)
+}
+
+pub(crate) fn validate_container(repository: &Path, container: &str) -> Result<()> {
     let output = output_text(
         "docker",
         [
             "inspect",
-            BUILDER_CONTAINER,
+            container,
             "--format",
             "{{with .HostConfig}}{{.CpuPeriod}}|{{.CpuQuota}}|{{.NanoCpus}}|{{.Memory}}|{{.MemorySwap}}|{{.CpusetCpus}}{{end}}",
         ],

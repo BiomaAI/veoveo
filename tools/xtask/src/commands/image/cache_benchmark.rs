@@ -464,7 +464,7 @@ fn validate_samples(samples: &[Sample]) -> Result<()> {
     Ok(())
 }
 
-fn artifact_digests(root: &Path) -> Result<BTreeMap<PathBuf, String>> {
+pub(super) fn artifact_digests(root: &Path) -> Result<BTreeMap<PathBuf, String>> {
     fn collect(
         root: &Path,
         directory: &Path,

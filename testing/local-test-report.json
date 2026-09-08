@@ -1,95 +1,64 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:46964fc3638abb8505796e0532af384a7b8f99b4ad917178a493f6081f98e20f",
-  "updatedAt": "2026-09-08T06:32:20Z",
+  "buildDigest": "sha256:7c151aec4279faf486d287b279d2dac948e0e81caeaa400cd133ea86119cdc8b",
+  "updatedAt": "2026-09-08T06:54:35Z",
   "checks": [
     {
-      "name": "installed-reuse-clippy",
+      "name": "worker-cache-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-deploy-contract",
-        "-p",
-        "veoveo-deploy-runtime",
-        "-p",
         "veoveo-xtask",
+        "-p",
+        "veoveo-image-build-control",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T06:29:37Z",
-      "durationSeconds": 3.246692795,
+      "finishedAt": "2026-09-08T06:45:48Z",
+      "durationSeconds": 2.478158679,
       "detail": "completed successfully"
     },
     {
-      "name": "installed-reuse-helm-config",
+      "name": "worker-cache-native",
       "command": [
         "cargo",
         "xtask",
-        "smoke",
-        "helm-config"
+        "image",
+        "builder",
+        "worker-benchmark",
+        "--target",
+        "console-bff",
+        "--target",
+        "mcp-gateway",
+        "--source",
+        "apps/console/bff/src/main.rs",
+        "--source",
+        "platform/gateway/src/bin/gateway.rs",
+        "--output",
+        "output/development/compiler-worker-comparison-20260908"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T06:30:43Z",
-      "durationSeconds": 12.533146747,
+      "finishedAt": "2026-09-08T06:54:35Z",
+      "durationSeconds": 501.376381827,
       "detail": "completed successfully"
     },
     {
-      "name": "installed-reuse-live",
-      "command": [
-        "env",
-        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-deploy-runtime",
-        "installed::tests::live_installed_reuse_detects_drift_and_preserves_unchanged_revisions",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T06:31:50Z",
-      "durationSeconds": 25.469557936,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "installed-reuse-ownership-live",
-      "command": [
-        "env",
-        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-deploy-runtime",
-        "ownership::live_tests::live_preflight_rejects_historical_transfer_and_raw_adoption_without_mutation",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T06:32:20Z",
-      "durationSeconds": 22.035998567,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "installed-reuse-tests",
+      "name": "worker-cache-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-deploy-contract",
+        "veoveo-xtask",
         "-p",
-        "veoveo-deploy-runtime",
-        "-p",
-        "veoveo-xtask"
+        "veoveo-image-build-control"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T06:29:58Z",
-      "durationSeconds": 5.8516408890000005,
+      "finishedAt": "2026-09-08T06:45:18Z",
+      "durationSeconds": 8.401038031,
       "detail": "completed successfully"
     }
   ]
