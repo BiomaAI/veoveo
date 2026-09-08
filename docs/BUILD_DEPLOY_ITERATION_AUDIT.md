@@ -67,6 +67,23 @@ The persisted checkpoint eventually caught up and the release recovered. Domain-
 projection recovery and bounded database health checks remain deployment work; the
 metadata-only result does not measure those service startup paths.
 
+The Map recovery implementation now pages the canonical changeset log through a
+fixed committed Map head. A live read found two Map changesets while the shared
+outbox had 16,805,799 events. Migration `0047` adds the changeset sequence index;
+SurrealDB 3.2.4 `EXPLAIN` reports a forward `IndexScan` with the requested range and
+limit. The integration test exercises sparse sequence gaps, a commit beyond the
+captured bound, reopening a partially projected DuckDB database, idempotent recovery,
+and failure without checkpoint advancement when a feature revision is missing.
+All 164 Map and store tests pass with real SurrealDB and the pinned Spatial extension,
+including both million-feature R-tree gates. This implementation is not activated.
+SurrealDB allocates sequence values separately from the enclosing data transaction.
+A native 3.2.4 probe committed sequence 3 while sequence 2 remained in an open
+transaction, then committed sequence 2. The shared outbox maximum therefore cannot
+serve as Map's recovery boundary. Migration `0047` also adds a transactional Map
+head: concurrent changesets contend on that record and a lower late sequence is
+rejected atomically. Activation requires stopping Map writers while the bootstrap
+seeds that head, then resuming the new image with its persisted projection.
+
 The corrected Hub publication took 118.8 s end to end, including 34.9 s of Cargo
 compilation. Its image is pinned to runnable manifest
 `sha256:5316ed89fc9806f7e2951fd40134889a764976130b3785a7abf53a61068c33a2`.

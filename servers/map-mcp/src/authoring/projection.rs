@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use duckdb::{Transaction, params};
 use tokio::sync::Mutex;
-use veoveo_platform_store::{MapFeatureRevisionRecord, OutboxEventRecord, PlatformStore};
+use veoveo_platform_store::{MapFeatureProjectionCommit, MapFeatureRevisionRecord, PlatformStore};
 
 use crate::{
     analytics::MapAnalytics,
@@ -15,7 +15,6 @@ use super::query;
 
 const CONSUMER: &str = "map-mcp-authored-features-v1";
 const PAGE_SIZE: u32 = 1_000;
-const COMMITTED_EVENT: &str = "map.feature_changes.committed";
 const INSERT_REVISION_SQL: &str = "INSERT INTO map_authored_feature_revision VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?::JSON, ?::JSON, ?)";
 const INSERT_HEAD_SQL: &str = "INSERT INTO map_authored_feature_head VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?, ?, ?, ?, ?, ?::JSON, ?::JSON, ?)";
 
@@ -82,85 +81,85 @@ impl AuthoringProjection {
     async fn reconcile_to(&self, minimum_sequence: Option<u64>) -> Result<u64> {
         let _writer = self.writer.lock().await;
         let mut sequence = i64::try_from(self.sequence()?)?;
-        loop {
-            if minimum_sequence.is_some_and(|minimum| sequence >= minimum as i64) {
-                return u64::try_from(sequence).context("projection sequence is negative");
-            }
-            let page = self.store.read_outbox(sequence, PAGE_SIZE).await?;
-            if page.events.is_empty() {
-                if let Some(minimum) = minimum_sequence {
-                    bail!(
-                        "authored map projection stopped at sequence {sequence} before required sequence {minimum}"
-                    );
-                }
-                return u64::try_from(sequence).context("projection sequence is negative");
-            }
+        let minimum = minimum_sequence.map(i64::try_from).transpose()?;
+        if minimum.is_some_and(|minimum| sequence >= minimum) {
+            return Ok(u64::try_from(sequence)?);
+        }
+        // The Map head commits atomically with each changeset. Its serialization
+        // prevents later commits appearing below this captured recovery boundary.
+        let through = self.store.latest_map_feature_commit_sequence().await?;
+        if let Some(minimum) = minimum.filter(|minimum| *minimum > through) {
+            bail!(
+                "authored map projection cannot reach required sequence {minimum} beyond committed sequence {through}"
+            );
+        }
+        while sequence < through {
+            let commits = self
+                .store
+                .read_map_feature_commits(sequence, through, PAGE_SIZE)
+                .await?;
 
             let mut revisions = Vec::new();
-            for event in &page.events {
-                if event.event_type == COMMITTED_EVENT {
-                    revisions.extend(self.revisions_for_event(event).await?);
-                }
+            for commit in &commits {
+                revisions.extend(self.revisions_for_commit(commit).await?);
             }
-            self.apply_page(&revisions, page.next_sequence)?;
-            sequence = page.next_sequence;
+            // A short page proves that every Map commit through the snapshot is
+            // included. Gaps belong to other domains and need no projection work.
+            let next_sequence = if commits.len() < PAGE_SIZE as usize {
+                through
+            } else {
+                commits
+                    .last()
+                    .context("full Map commit page is empty")?
+                    .commit_sequence
+            };
+            self.apply_page(&revisions, next_sequence)?;
+            sequence = next_sequence;
             self.store.checkpoint_outbox(CONSUMER, sequence).await?;
-
-            if page.events.len() < PAGE_SIZE as usize && minimum_sequence.is_none() {
-                return u64::try_from(sequence).context("projection sequence is negative");
-            }
         }
+        Ok(u64::try_from(sequence)?)
     }
 
-    async fn revisions_for_event(
+    async fn revisions_for_commit(
         &self,
-        event: &OutboxEventRecord,
+        commit: &MapFeatureProjectionCommit,
     ) -> Result<Vec<ProjectedRevision>> {
-        if event.schema_version != 1 {
-            bail!(
-                "authored map event {} uses unsupported schema version {}",
-                event.sequence,
-                event.schema_version
-            );
-        }
-        let tenant_key = event_string(event, "tenant_key")?;
-        let work_context_key = event_string(event, "work_context_key")?;
-        let layer_key = event_string(event, "layer_key")?;
-        let changeset_key = event_string(event, "changeset_key")?;
-        if event.aggregate_id != changeset_key {
-            bail!(
-                "authored map event {} aggregate id does not match its changeset",
-                event.sequence
-            );
-        }
         let records = self
             .store
             .list_map_feature_revisions_for_changeset(
-                &tenant_key,
-                &work_context_key,
-                &changeset_key,
+                &commit.tenant_key,
+                &commit.work_context_key,
+                &commit.changeset_key,
             )
             .await?;
-        if records.is_empty() {
+        let expected = commit.feature_keys.iter().collect::<BTreeSet<_>>();
+        let actual = records
+            .iter()
+            .map(|record| &record.feature_key)
+            .collect::<BTreeSet<_>>();
+        if records.is_empty() || expected != actual || records.len() != commit.feature_keys.len() {
             bail!(
-                "authored map event {} references an empty changeset",
-                event.sequence
+                "authored map commit {} has incomplete feature revisions",
+                commit.commit_sequence
             );
         }
         for record in &records {
-            if record.layer_key != layer_key || record.changeset_key != changeset_key {
+            if record.layer_key != commit.layer_key
+                || record.changeset_key != commit.changeset_key
+                || record.layer_revision != commit.resulting_layer_revision
+            {
                 bail!(
-                    "authored map event {} has inconsistent revisions",
-                    event.sequence
+                    "authored map commit {} has inconsistent revisions",
+                    commit.commit_sequence
                 );
             }
         }
         Ok(records
             .into_iter()
             .map(|record| ProjectedRevision {
-                tenant_key: tenant_key.clone(),
-                work_context_key: work_context_key.clone(),
-                commit_sequence: event.sequence,
+                tenant_key: commit.tenant_key.clone(),
+                work_context_key: commit.work_context_key.clone(),
+                commit_sequence: commit.commit_sequence,
                 record,
             })
             .collect())
@@ -269,15 +268,9 @@ fn replace_head(transaction: &Transaction<'_>, projected: &ProjectedRevision) ->
     Ok(())
 }
 
-fn event_string(event: &OutboxEventRecord, field: &'static str) -> Result<String> {
-    event
-        .payload
-        .as_map()
-        .get(field)
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_owned)
-        .with_context(|| format!("authored map event {} lacks {field}", event.sequence))
-}
+#[cfg(test)]
+#[path = "projection/recovery_tests.rs"]
+mod recovery_tests;
 
 #[cfg(test)]
 mod tests {

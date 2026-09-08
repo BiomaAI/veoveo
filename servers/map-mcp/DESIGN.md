@@ -333,9 +333,26 @@ changeset stores the event sequence needed for read-your-write projection
 checks. A repeated idempotency key returns the original changeset only when its
 request digest matches.
 
-DuckDB Spatial is a rebuildable query projection. Its outbox consumer writes a
-revision table, a current-head table, R-tree indexes, and a local contiguous
-checkpoint in one transaction. Queries can select a current layer or a published
+The changeset event updates a shared Map projection head in the same transaction.
+An allocated sequence at or below the committed head is rejected; concurrent head
+writes conflict atomically. This makes accepted Map commit sequences increase in
+commit order even though the shared sequence allocator runs independently of the
+data transaction. Installation migration `0047` seeds the head from committed Map
+changesets. Apply it while Map writers are stopped, then resume the new Map image.
+The persisted DuckDB volume and checkpoint remain in place.
+
+DuckDB Spatial is a rebuildable query projection. Recovery captures the committed
+Map head once, then reads the canonical Map changesets
+through that bound using the `commit_sequence` index. Each page contains at most
+1,000 Map commits. Unrelated platform events require no replay or payload transfer.
+The projector checks each changeset's complete feature revision inventory and
+writes a revision table, a current-head table, R-tree indexes, and the local
+checkpoint in one transaction. The checkpoint remains a global sequence: a short
+page proves that every Map commit through the captured bound has been projected.
+The existing persisted checkpoint resumes directly, and read-your-write requests
+above the committed Map bound fail. Unrelated writes cannot advance that bound.
+Map continues publishing its transactional outbox
+events for other consumers. Queries can select a current layer or a published
 layer revision. They accept a validated WGS84 bounding box, open valid-time
 interval, geometry type, opaque keyset cursor, and a bounded Basic CQL2-JSON subset.
 Property paths and literal values remain parameters. A dateline-crossing box is

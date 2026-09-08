@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 47] = [
+const MIGRATIONS: [Migration; 48] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -309,6 +309,12 @@ const MIGRATIONS: [Migration; 47] = [
         name: "recording_catalog_hard_cut",
         filename: "0046_recording_catalog_hard_cut.surql",
         sql: include_str!("../migrations/0046_recording_catalog_hard_cut.surql"),
+    },
+    Migration {
+        version: 47,
+        name: "map_projection_sequence",
+        filename: "0047_map_projection_sequence.surql",
+        sql: include_str!("../migrations/0047_map_projection_sequence.surql"),
     },
 ];
 

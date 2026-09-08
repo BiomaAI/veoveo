@@ -20,6 +20,7 @@ mod live_views;
 mod map;
 mod map_authoring;
 mod map_presentations;
+mod map_projection;
 mod migrations;
 mod models;
 mod outbox;
@@ -73,6 +74,7 @@ pub use map_presentations::{
     MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
     MapLayerProductDraft,
 };
+pub use map_projection::MapFeatureProjectionCommit;
 pub use migrations::{
     AppliedMigration, Migration, MigrationReport, SchemaStatus, migrations, schema_sql,
     validate_catalog,

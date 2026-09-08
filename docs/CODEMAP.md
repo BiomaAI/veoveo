@@ -322,6 +322,7 @@ The only durable platform persistence layer.
 | `coordinates.rs`, `frame_worlds.rs` | coordinate-operation persistence plus authored frame worlds and immutable tree revisions |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
+| `map_projection.rs` | bounded, indexed Map changeset replay through the atomic committed Map head |
 | `map_presentations.rs` | Immutable publication products plus governed, publication-pinned map compositions and revisions |
 | `time.rs` | authority sources and releases, active pointers, acquisitions, calendars, epochs, clock policy, and events |
 | `recordings.rs` | recording lifecycle and visibility |
@@ -532,7 +533,10 @@ Map authoring is split by responsibility. `src/contract/features.rs` owns featur
 types and bounds, while `src/contract/compositions.rs` owns publication products and
 composition contracts. `src/contract/transfers.rs` owns durable import, export, and
 vector-product task contracts. `src/authoring/service.rs` applies Work Context policy
-and optimistic concurrency. `src/authoring/projection.rs` consumes canonical SurrealDB outbox events,
+and optimistic concurrency. `src/authoring/projection.rs` replays the canonical
+SurrealDB Map changeset log through a fixed committed Map head;
+`src/authoring/projection/recovery_tests.rs` verifies indexed paging, persisted
+checkpoint recovery, unrelated traffic, and incomplete-revision rejection,
 while `src/authoring/query.rs` owns the parameterized DuckDB Spatial and bounded CQL2
 query projection. `src/authoring/query/performance.rs` owns the 10k, 100k, and
 million-feature R-tree plan, correctness, maintenance, latency, throughput, and
@@ -549,6 +553,8 @@ while `assets/workspace-app.html` is the generated self-contained Map MCP App
 for composition viewing, feature authoring, and administration. The canonical SurrealDB schemas are
 `platform/store/migrations/0025_map_authoring.surql`
 and `platform/store/migrations/0026_map_authoring_products.surql`.
+`platform/store/migrations/0047_map_projection_sequence.surql` adds the recovery
+index and transactional Map commit head.
 
 Immutable acquisition products use a separate analytical path.
 `src/contract/source_products.rs` owns complete source-feature, raster-product,

@@ -1,19 +1,59 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c3457794affca459c8ad85c251caa72b6180d6c18f027d993643da755d15183d",
-  "updatedAt": "2026-09-08T02:26:49Z",
+  "buildDigest": "sha256:600965ff5c0800872383b2f1e431e53cafd5695400434f790abd663451b3c24e",
+  "updatedAt": "2026-09-08T03:01:58Z",
   "checks": [
     {
-      "name": "metadata-publication-config",
+      "name": "fmt",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "fmt",
+        "--all",
+        "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T02:26:49Z",
-      "durationSeconds": 6.730671888,
+      "finishedAt": "2026-09-08T03:01:58Z",
+      "durationSeconds": 2.172849389,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-store-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-map-mcp",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T03:01:25Z",
+      "durationSeconds": 19.753398921,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "map-store-tests",
+      "command": [
+        "env",
+        "VEOVEO_SURREAL_INTEGRATION=1",
+        "VEOVEO_SURREAL_URL=ws://127.0.0.1:18048",
+        "VEOVEO_SURREAL_USER=root",
+        "VEOVEO_SURREAL_PASSWORD=local-map-regression",
+        "VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION=/tmp/veoveo-spatial-1.5.5-whucO8Or/spatial.duckdb_extension",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-map-mcp"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T03:00:58Z",
+      "durationSeconds": 34.806261934,
       "detail": "completed successfully"
     }
   ]
