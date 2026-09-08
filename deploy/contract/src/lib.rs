@@ -3,6 +3,7 @@
 pub mod components;
 mod gateway_bundle;
 mod image_release;
+mod locked_images;
 mod secret_closure;
 mod source_chart;
 
@@ -1794,7 +1795,7 @@ impl DeploymentLock {
             platform_sources == 1,
             "deployment lock must contain exactly one platform source, found {platform_sources}"
         );
-        let mut image_repositories = BTreeMap::new();
+        locked_images::validate(&self.sources, &self.registry.pull_address)?;
         let mut release_names = BTreeMap::new();
         for source in &self.sources {
             validate_name("locked source", &source.name)?;
@@ -1813,38 +1814,10 @@ impl DeploymentLock {
                 "locked source {} contains no artifacts",
                 source.name
             );
-            ensure_unique("locked image", source.images.iter().map(|item| &item.name))?;
             ensure_unique(
                 "locked Helm release",
                 source.charts.iter().map(|item| &item.release),
             )?;
-            for image in &source.images {
-                validate_name("locked image", &image.name)?;
-                ensure!(
-                    !image.repository.contains('@') && !image.repository.ends_with(":latest"),
-                    "locked image repository must not carry a mutable tag or digest"
-                );
-                validate_digest(&image.digest)?;
-                validate_digest(&image.publication_digest)?;
-                ensure!(
-                    image.digest != image.publication_digest,
-                    "locked image {} must distinguish its runnable manifest digest from its attested publication digest",
-                    image.name
-                );
-                if let Some((owner_source, owner_image)) = image_repositories.insert(
-                    image.repository.clone(),
-                    (source.name.clone(), image.name.clone()),
-                ) {
-                    anyhow::bail!(
-                        "locked image repository {} is owned by both {}:{} and {}:{}",
-                        image.repository,
-                        owner_source,
-                        owner_image,
-                        source.name,
-                        image.name
-                    );
-                }
-            }
             for chart in &source.charts {
                 validate_name("locked Helm release", &chart.release)?;
                 if let Some(owner_source) =

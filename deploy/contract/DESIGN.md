@@ -66,9 +66,13 @@ the installation's pinned chart and image closure.
 
 The runtime resolves source charts by the component's complete source identity. The
 top-level source revision records publication resolution; it cannot replace a retained
-component revision during installation. The current artifact catalog still permits one
-qualified version per image target. Extending image selection and retained installation
-snapshots remains part of the component-execution migration.
+component revision during installation.
+
+The artifact catalog retains qualified image versions by source, target, and build
+revision. A target keeps one repository across revisions, and that repository keeps one
+source-qualified target owner. Repeating a build revision is ambiguous and fails
+validation. Each component input binds the exact version, including when two builds have
+identical runnable bytes. Runnable and attested publication digests remain distinct.
 
 Profile binding checks every owner's role, dependencies, extension identity, namespaces,
 atomic operations, and cluster permissions. Namespaced permissions come from the complete

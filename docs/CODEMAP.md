@@ -129,6 +129,7 @@ Hub, administration, and GPU policy.
 | `deploy/contract/tests/fixtures/` and `tests/support/lock.rs` | explicitly synthetic deployment locks for schema and development-image transformation checks; real installation locks are generated outputs |
 | `deploy/contract/src/gateway_bundle.rs` | canonical complete public ConfigMap content digest shared by disposable gateway activation and GitOps acceptance |
 | `deploy/contract/src/image_release.rs` | shared qualified image publication evidence consumed by the publisher and compatibility generator, with exact build revisions and distinct runnable and attested digests |
+| `deploy/contract/src/locked_images.rs` | retained qualified image versions, unique source/target repository ownership, and unambiguous build provenance |
 | `deploy/contract/src/source_chart.rs` | source chart content identity shared by release publication and installation; hashes actual files independently of commit and archive metadata |
 | `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
@@ -151,6 +152,7 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/snapshot.rs` | exact Git blob, file inventory, and executable-mode verification for source charts, source values, and installation inputs; `snapshot/tests.rs` exercises index hints, filters, ignored files, and path confinement |
 | `deploy/runtime/src/compile.rs` and `src/compile/objects.rs` | component render preparation, exact non-secret input closure, offline object scope, and sealed inventories for the v7 migration |
 | `deploy/runtime/src/compile/inputs.rs` | publication and installation source snapshots keyed by component identity, including retained chart revisions within one repository |
+| `deploy/runtime/src/compile/images.rs` | atomic release image values and exact rendered input closure, including retained versions of shared targets |
 | `deploy/runtime/src/discovery.rs` | read-only destination scope checks across all locked owners and proposed CRDs, before installation writes |
 | `deploy/runtime/src/helm_bundle.rs` | complete prepared Helm renders, literal configuration preservation, and digest-bound CRD retention policy |
 | `deploy/runtime/src/charts.rs` | shared chart-lock construction and validation, ordered values, rendering, and Helm release commands |

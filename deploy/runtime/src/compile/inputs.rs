@@ -9,13 +9,15 @@ use veoveo_deploy_contract::{DeploymentLock, LoadedProfile, LockedSource, compon
 
 use crate::{
     charts::validate_locked_charts,
-    images::locked_image_digests,
     sources::{ResolvedSource, SourceCheckout, resolve_revision},
 };
+
+use super::images::ImageInputs;
 
 pub(super) struct CompilationInputs {
     pub snapshots: BTreeMap<ComponentId, ResolvedSource>,
     pub owners: BTreeMap<ComponentId, ComponentSource>,
+    pub images: BTreeMap<AtomicTarget, ImageInputs>,
 }
 
 pub(super) fn publication(
@@ -53,7 +55,24 @@ pub(super) fn publication(
         };
         owners.insert(spec.id.clone(), owner);
     }
-    prepare(profile, sources, &snapshots, selected, owners)
+    let mut prepared = prepare(profile, sources, &snapshots, selected, owners)?;
+    for snapshot in prepared.snapshots.values() {
+        for release in &snapshot.definition.releases {
+            prepared.images.insert(
+                AtomicTarget::HelmRelease {
+                    namespace: profile.definition.namespace.clone(),
+                    name: release.name.clone(),
+                },
+                ImageInputs::publication(
+                    &profile.definition.registry.pull_address,
+                    &snapshot.definition.name,
+                    release.values_contract,
+                    sources,
+                )?,
+            );
+        }
+    }
+    Ok(prepared)
 }
 
 pub(super) fn locked(
@@ -62,6 +81,7 @@ pub(super) fn locked(
     roots: &BTreeMap<ComponentSource, PathBuf>,
     selected: &BTreeSet<ComponentId>,
 ) -> Result<CompilationInputs> {
+    lock.validate()?;
     let owners = lock
         .components
         .iter()
@@ -73,7 +93,20 @@ pub(super) fn locked(
             )
         })
         .collect();
-    prepare(profile, &lock.sources, roots, selected, owners)
+    let mut prepared = prepare(profile, &lock.sources, roots, selected, owners)?;
+    for component in lock
+        .components
+        .iter()
+        .filter(|component| prepared.snapshots.contains_key(&component.declaration.id))
+    {
+        for unit in &component.units {
+            prepared.images.insert(
+                unit.target.clone(),
+                ImageInputs::locked(&profile.definition.registry.pull_address, unit)?,
+            );
+        }
+    }
+    Ok(prepared)
 }
 
 fn prepare(
@@ -88,7 +121,6 @@ fn prepare(
         owners.keys().cloned().collect::<BTreeSet<_>>() == *selected,
         "component source identities do not cover the exact selection"
     );
-    let deployment_images = locked_image_digests(profile, sources)?;
     let mut snapshots = BTreeMap::new();
     for spec in profile
         .definition
@@ -132,11 +164,13 @@ fn prepare(
                 definition,
                 repository: root.clone(),
                 revision: owner.revision.as_str().to_owned(),
-                image_digests: locked_image_digests(profile, std::slice::from_ref(source))?,
-                deployment_image_digests: deployment_images.clone(),
                 _checkout: SourceCheckout::Publication,
             },
         );
     }
-    Ok(CompilationInputs { snapshots, owners })
+    Ok(CompilationInputs {
+        snapshots,
+        owners,
+        images: BTreeMap::new(),
+    })
 }

@@ -22,11 +22,12 @@ use crate::{
     sources::{normalize_origin, resolve_revision},
 };
 
+mod images;
 mod inputs;
 mod objects;
 #[cfg(test)]
 mod tests;
-use objects::{ObjectScopes, bytes_digest, container_images};
+use objects::{ObjectScopes, bytes_digest};
 
 struct UnitDraft {
     helm: Option<(ChartMetadata, u64)>,
@@ -151,16 +152,46 @@ fn compile_with_inputs(
                         .iter()
                         .find(|release| &release.name == release_name)
                         .context("component release is outside its source")?;
+                    let target = AtomicTarget::HelmRelease {
+                        namespace: profile.definition.namespace.clone(),
+                        name: release_name.clone(),
+                    };
+                    let images = resolved
+                        .images
+                        .get(&target)
+                        .context("release has no image selection")?;
                     let rendered = helm_render_locked(
                         profile,
                         snapshot,
                         release,
+                        &images.digests,
                         &platform.components,
                         &platform.mcp_servers,
                     )?;
                     let mut objects = Vec::new();
                     append_yaml_bytes(rendered.as_bytes(), "component Helm release", &mut objects)?;
-                    let mut inputs = image_inputs(profile, sources, &objects)?;
+                    let mut inputs =
+                        images.rendered(&profile.definition.registry.pull_address, &objects)?;
+                    if let Some(exact) =
+                        images.narrow(&profile.definition.registry.pull_address, &inputs)?
+                    {
+                        let rendered = helm_render_locked(
+                            profile,
+                            snapshot,
+                            release,
+                            &exact.digests,
+                            &platform.components,
+                            &platform.mcp_servers,
+                        )?;
+                        objects.clear();
+                        append_yaml_bytes(
+                            rendered.as_bytes(),
+                            "component Helm release",
+                            &mut objects,
+                        )?;
+                        inputs =
+                            exact.rendered(&profile.definition.registry.pull_address, &objects)?;
+                    }
                     let chart = source
                         .charts
                         .iter()
@@ -193,10 +224,7 @@ fn compile_with_inputs(
                             release.timeout_seconds,
                         )),
                         installation_input: None,
-                        target: AtomicTarget::HelmRelease {
-                            namespace: profile.definition.namespace.clone(),
-                            name: release_name.clone(),
-                        },
+                        target,
                         inputs,
                         objects,
                     });
@@ -347,42 +375,6 @@ fn file_input(source: &ComponentSource, repository: &Path, path: &Path) -> Resul
             .to_owned(),
         digest: bytes_digest(&fs::read(&path)?)?,
     })
-}
-
-fn image_inputs(
-    profile: &LoadedProfile,
-    sources: &[LockedSource],
-    objects: &[Value],
-) -> Result<BTreeSet<ComponentInput>> {
-    let mut inputs = BTreeSet::new();
-    for reference in container_images(objects)? {
-        if !reference.starts_with(&format!("{}/", profile.definition.registry.pull_address)) {
-            continue;
-        }
-        let (repository, digest) = reference
-            .split_once('@')
-            .context("component uses a mutable source image")?;
-        let (source, image) = sources
-            .iter()
-            .find_map(|source| {
-                source
-                    .images
-                    .iter()
-                    .find(|image| image.repository == repository && image.digest == digest)
-                    .map(|image| (source, image))
-            })
-            .context("component image is outside the qualified artifact closure")?;
-        inputs.insert(ComponentInput::Image {
-            source: ComponentSource {
-                revision: image.source_revision.clone(),
-                ..component_source(source)?
-            },
-            target: image.name.clone(),
-            repository: image.repository.clone(),
-            digest: ArtifactDigest::new(&image.digest)?,
-        });
-    }
-    Ok(inputs)
 }
 
 fn installation_unit(

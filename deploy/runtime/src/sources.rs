@@ -1,6 +1,5 @@
 use crate::{
     charts::{lock_source_charts, validate_locked_charts},
-    images::locked_image_digests,
     process::{output_checked, path_str, status_checked},
     snapshot::SnapshotInputs,
 };
@@ -32,8 +31,6 @@ pub(crate) struct ResolvedSource {
     pub(crate) definition: DeploymentSource,
     pub(crate) repository: PathBuf,
     pub(crate) revision: String,
-    pub(crate) image_digests: BTreeMap<String, String>,
-    pub(crate) deployment_image_digests: BTreeMap<String, String>,
     pub(crate) _checkout: SourceCheckout,
 }
 
@@ -97,8 +94,6 @@ pub(crate) fn resolve_sources(profile: &LoadedProfile) -> Result<Vec<ResolvedSou
             definition: source.clone(),
             repository: destination.to_path_buf(),
             revision,
-            image_digests: BTreeMap::new(),
-            deployment_image_digests: BTreeMap::new(),
             _checkout: SourceCheckout::Temporary {
                 _directory: checkout,
             },
@@ -198,7 +193,6 @@ pub(crate) fn resolve_locked_sources(
             .extend(spec.releases.iter().cloned());
     }
     let mut resolved = BTreeMap::new();
-    let deployment_image_digests = locked_image_digests(profile, &lock.sources)?;
     for (identity, releases) in selected_releases {
         let source = profile
             .definition
@@ -283,8 +277,6 @@ pub(crate) fn resolve_locked_sources(
                 definition: source,
                 repository: destination.to_path_buf(),
                 revision,
-                image_digests: locked_image_digests(profile, std::slice::from_ref(locked))?,
-                deployment_image_digests: deployment_image_digests.clone(),
                 _checkout: SourceCheckout::Temporary {
                     _directory: checkout,
                 },

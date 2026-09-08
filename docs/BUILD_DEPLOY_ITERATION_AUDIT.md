@@ -731,8 +731,19 @@ repository, and revision all match. A regression uses real Git commits and Helm 
 to advance one chart while retaining another from the same repository at an older commit.
 Both prepared inventories match their locks, and substituting the newer checkout for
 the retained revision fails. Image digests in this regression are synthetic compiler
-fixtures. Per-component image versions, retained installation snapshots, selected
-execution, and live zero-write evidence remain unfinished.
+fixtures. Retained installation snapshots, selected execution, and live zero-write
+evidence remain unfinished.
+
+The image catalog now retains qualified builds of a shared target at different source
+revisions. Installation passes each Helm release only its recorded image selection.
+Regression cases update one consumer's image while preserving the other consumer's
+complete inventory. A separate case records the same synthetic runnable digest for
+two real source commits and verifies that preparation preserves both build provenances.
+The complete catalog still rejects duplicate build identities, changed repository owners,
+and unqualified artifacts. Publication narrows unused image candidates before sealing
+the render, which keeps image-map-dependent configuration identical during installation.
+These checks cover Git and Helm preparation; component-selected
+publication, development-lock promotion, and actual zero-write execution remain open.
 
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
