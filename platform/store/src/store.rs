@@ -14,6 +14,12 @@ pub type PlatformClient = Client;
 pub(crate) fn primary_transaction_error(
     errors: std::collections::HashMap<usize, surrealdb::Error>,
 ) -> Option<surrealdb::Error> {
+    primary_transaction_failure(errors).map(|(_, error)| error)
+}
+
+pub(crate) fn primary_transaction_failure(
+    errors: std::collections::HashMap<usize, surrealdb::Error>,
+) -> Option<(usize, surrealdb::Error)> {
     let mut errors = errors.into_iter().collect::<Vec<_>>();
     errors.sort_by_key(|(statement, _)| *statement);
     let primary = errors.iter().position(|(_, error)| {
@@ -22,8 +28,8 @@ pub(crate) fn primary_transaction_error(
             && !message.contains("Cannot COMMIT")
     });
     primary
-        .map(|index| errors.swap_remove(index).1)
-        .or_else(|| errors.into_iter().next().map(|(_, error)| error))
+        .map(|index| errors.swap_remove(index))
+        .or_else(|| errors.into_iter().next())
 }
 
 /// A connected, namespace-scoped handle to the installation platform store.

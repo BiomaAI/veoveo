@@ -203,6 +203,10 @@ impl PlatformStore {
                 .db
                 .query(include_str!("artifacts/create.surql"))
                 .bind(("blob", blob_id.record_id()))
+                .bind((
+                    "storage_usage",
+                    crate::artifact_storage_usage_id(draft.identity.tenant_id),
+                ))
                 .bind(("blob_content", blob.clone()))
                 .bind(("artifact", draft.artifact_id.record_id()))
                 .bind(("artifact_content", occurrence.clone()))

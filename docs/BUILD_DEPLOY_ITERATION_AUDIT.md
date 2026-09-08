@@ -1823,3 +1823,20 @@ in publication error mapping and bounded transaction retry. Native database life
 is now shared with the read-delegation fixture instead of copied into another harness.
 Logs use `output/development/artifact-immutable-native-*20260908.log` and
 `output/development/artifact-store-unit-20260908.log`.
+
+Durable admission and schema upgrade pass 25 Artifact tests in 6.2 s, including
+eight simultaneous matching admissions, a 10 GiB reservation, quota/concurrency
+denials, current Work Context rejection, and migration of existing storage usage.
+The reservation fixture transfers no file bytes. The final command spends 4.71 s
+compiling and 1.39 s executing; its observed total is 6.92 s. Store unit validation
+adds 11.0 s. Logs use `output/development/artifact-upload-admission-native-*20260908.log`.
+
+This checkpoint exposed avoidable development churn. The beta SQL formatter removed
+nested field separators; native syntax validation rejected its output. The migration
+runner then hid the primary failure behind a generic transaction wrapper. It now
+reports the migration name, failing statement index, and primary database error.
+The migration handles an empty tenant collection explicitly, and replay compares
+optional descriptor fields individually because absent stored fields and explicit
+`NONE` values are not identical objects. These were implementation/debugging costs,
+not evidence of slow production upload behavior. Preserve the failed development logs
+for diagnosis; only current passing checks enter the committed evidence report.

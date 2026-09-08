@@ -1,6 +1,8 @@
 # Public And Console Artifact Upload Plan
 
-Status: implementation authorized and active; shared HTTP contract and layout policy in progress. Baseline:
+Status: implementation active. Shared HTTP types, checked layout policy, immutable blob
+registration, durable admission, and quota accounting pass native checks. Part transfer,
+finalization, public routes, Console, and deployed acceptance remain in progress. Baseline:
 main `fe6ad0fb`, fetched and checked on 2026-09-08. The first release includes multi-GB resumable
 uploads and an upload form in the Console Artifacts page. Existing component designs
 remain normative until implementation lands.
