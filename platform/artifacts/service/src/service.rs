@@ -425,7 +425,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                 },
             })
             .await
-            .map_err(transport)
+            .map_err(repository_mutation_error)
     }
 
     pub async fn put_stream(
@@ -1450,6 +1450,8 @@ fn repository_mutation_error(error: RepositoryError) -> ArtifactPlaneError {
 
 #[cfg(test)]
 mod tests {
+    mod immutable_blob;
+    mod native_database;
     mod read_capability;
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};

@@ -69,6 +69,8 @@ pub enum MigrationError {
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("artifact digest is already registered with different immutable content metadata")]
+    ArtifactBlobIntegrityConflict,
     #[error(transparent)]
     Config(#[from] StoreConfigError),
     #[error(transparent)]

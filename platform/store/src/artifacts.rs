@@ -196,19 +196,37 @@ impl PlatformStore {
                 serde_json::json!(draft.artifact_id.to_string()),
             )])),
         );
-        let mut response = self.db
-            .query(
-                "BEGIN TRANSACTION; UPSERT ONLY $blob CONTENT $blob_content RETURN NONE; CREATE ONLY $artifact CONTENT $artifact_content RETURN NONE; INSERT RELATION INTO artifact_grant $grants RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
-            )
-            .bind(("blob", blob_id.record_id()))
-            .bind(("blob_content", blob.clone()))
-            .bind(("artifact", draft.artifact_id.record_id()))
-            .bind(("artifact_content", occurrence.clone()))
-            .bind(("grants", grants))
-            .bind(("outbox", outbox))
-            .await?;
-        let errors = response.take_errors();
-        if let Some(error) = primary_transaction_error(errors) {
+        // Equal concurrent writers keep the first object mapping. Retrying a
+        // transaction conflict never rewrites the retained blob or its metadata.
+        for attempt in 0..8_u32 {
+            let mut response = self
+                .db
+                .query(include_str!("artifacts/create.surql"))
+                .bind(("blob", blob_id.record_id()))
+                .bind(("blob_content", blob.clone()))
+                .bind(("artifact", draft.artifact_id.record_id()))
+                .bind(("artifact_content", occurrence.clone()))
+                .bind(("grants", grants.clone()))
+                .bind(("outbox", outbox.clone()))
+                .await?;
+            let Some(error) = primary_transaction_error(response.take_errors()) else {
+                break;
+            };
+            if error.is_thrown() && error.message().contains("artifact_blob_integrity_conflict") {
+                return Err(StoreError::ArtifactBlobIntegrityConflict);
+            }
+            if attempt < 7
+                && (matches!(
+                    error.query_details(),
+                    Some(surrealdb::types::QueryError::TransactionConflict)
+                ) || error.message().starts_with("Transaction conflict:")
+                    || error
+                        .message()
+                        .contains("not executed due to a failed transaction"))
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(1_u64 << attempt)).await;
+                continue;
+            }
             return Err(error.into());
         }
         self.artifact_aggregate(draft.artifact_id)
