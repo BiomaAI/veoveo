@@ -1743,6 +1743,15 @@ The GPU base and Cargo caches stay resident. Receipts and logs use
 `output/development/reason-cache-free-{stage,release}-20260908.*`; the exact
 eviction plan is under `output/development/reason-gpu-admission/cache-free-*`.
 
+Activation revision `7779dca4d8b781ce6710372b25daa40fffb22be0` selects that
+qualified image through the Bioma reference lock. Passive Flux observation reaches
+verified readiness 69.9 s after push starts. The new Reason Pod has zero restarts;
+the other 28 running Pods retain their UID, image identities, and restart counts.
+Installed GPU task `01a08271-5a36-7b22-babb-f1283f4b349f` processes six observations
+and publishes typed artifacts. The complete hardware smoke takes 137.4 s, and all
+25 Deployments remain Ready. Convergence, Pod snapshots, and GPU evidence use the
+`output/development/reason-cache-free-*20260908` prefix.
+
 The runner pins PyNvVideoCodec 2.2.2 for its admitted NVDEC input path. This overrides
 vLLM 0.28.0's package metadata pin of 2.0.4, which pip reports during assembly.
 Installed hardware acceptance establishes the supported Qwen3-VL path; it does not
