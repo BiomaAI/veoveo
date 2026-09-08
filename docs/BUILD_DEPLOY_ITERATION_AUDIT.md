@@ -25,6 +25,7 @@ implemented changes and their verification.
 | Cargo source freshness | Added a content-aware input mirror under each locked target cache, with disposable source timestamp synchronization for every Rust family | An old-timestamp edit/revert regression passes; the corrected ordinary BFF/gateway artifacts equal clean-target outputs; 40 focused tests, strict Clippy, formatting and standalone-family planning pass |
 | Compiler-cache experiment | Added an existing-family sccache 0.17.0 comparison with empty Cargo targets, bounded cache storage, CPU timing and full compiled-artifact identity | All 955 cacheable operations hit on recovery, but the solve takes 333.7 s versus 328.4 s without the wrapper; the wrapper remains outside normal builds; all experiment cache mounts were removed |
 | Second-worker reuse | Added an isolated worker comparison using the existing compiler recipe and an exact exported OCI cache manifest | Unchanged import takes 4.6 s with zero compilation; matched source edits take 39.5 s on the existing worker and 369.5 s on the fresh worker; binaries and native library match within each pair; temporary worker, volume, and cache export are removed |
+| Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidate binaries passed loader inspection and CLI execution in the deployed runtime containers; family admission remains pending service and GPU acceptance |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
@@ -1132,3 +1133,21 @@ This fixture establishes operational scope. Its synthetic extension declaration 
 not qualify extension-manifest content, and its sleep Pods do not qualify GPU execution.
 Cross-host mutation fencing, general raw adoption, actual GPU compiler-family admission,
 and the representative build-engine comparison remain separate open work.
+
+
+## Task Runtime Feature Closure
+
+The Bazel trial exposed an unnecessary dependency in the existing Cargo build.
+`platform/task-runtime` used a direct path dependency on the MCP contract, which enabled
+its default analytics feature. Task lifecycle and subscription code uses the protocol
+surface only. The dependency now uses the workspace declaration, whose default features
+are disabled. Actual analytics consumers retain their explicit dependency behavior.
+
+Native Cargo trees before and after the change show Stream dropping 21 package/version
+pairs, from 629 to 608, with no additions. The removed graph includes DuckDB, its native
+build script, and download/archive helpers. A regression resolves the production graphs
+of Stream and Reason and requires both to retain the task runtime without either DuckDB
+crate. This check uses Cargo's requested feature graph; the image input planner's
+all-feature metadata remains conservative for source discovery. Rust tests and strict
+Clippy cover all targets of the task runtime and both servers. This is dependency and
+compilation evidence, not a measured wall-clock speedup or new GPU runtime admission.
