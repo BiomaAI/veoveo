@@ -827,6 +827,17 @@ protection remains active. The native fixture removes and verifies its temporary
 namespace. This is reuse acceptance for the existing profile command; complete
 component-selected execution, cross-host fencing, and GPU acceptance remain open.
 
+GPU device-plugin migration now prepares its direct removal and workload-quiesce
+inventory before profile writes. A workload outside the selected component set fails
+preflight. Retiring objects cannot overlap current owners, and Helm retirement rejects
+deletion hooks and cascading Namespace, Node, or CRD removal. Execution rechecks object
+versions and Helm revision, then scales only the captured Deployments with Kubernetes
+resource-version preconditions. The live Rust API fixture rejects an unselected workload
+and post-preflight drift before scaling, completes the checked retirement, and preserves
+the other Deployment. It uses zero replicas and verifies namespace cleanup. This closes
+the direct GPU transition inventory gap; cross-host fencing, complete mutation receipts,
+selected execution, and GPU workload acceptance remain open.
+
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
 cache family, explicitly selected both packages and binaries, and exported a local

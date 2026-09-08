@@ -113,6 +113,19 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let context = profile.definition.kubernetes.context.as_str();
     let installed = InstalledState::open(&profile.repository, context, &compiled)?;
     validate_live_ownership(context, &lock.components, &compiled)?;
+    let gpu_migration = platform
+        .gpu_scheduling
+        .as_ref()
+        .map(|scheduling| {
+            crate::gpu::migration::prepare(
+                context,
+                &profile.definition.namespace,
+                scheduling,
+                &lock.components,
+                &selected,
+            )
+        })
+        .transpose()?;
     let secret_closure = prepare_secret_closure(
         path,
         lock_path,
@@ -144,9 +157,14 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
                 installation_units(&compiled, InstallationInput::GpuAllocator)
                     .next()
                     .context("GPU allocator has no prepared Helm operation")?;
-            ensure_gpu_allocator(context, &profile.definition.namespace, scheduling, || {
-                installed.apply(component, allocator).map(|_| ())
-            })?;
+            ensure_gpu_allocator(
+                context,
+                scheduling,
+                gpu_migration
+                    .as_ref()
+                    .context("GPU migration has no checked inventory")?,
+                || installed.apply(component, allocator).map(|_| ()),
+            )?;
             apply_gpu_placement(
                 context,
                 &profile.definition.namespace,
