@@ -451,10 +451,19 @@ rules as the installed server. Run this during a controlled acceptance window.
 cargo xtask test-report run --name stream-compiler-gpu -- \
   cargo xtask smoke stream-gpu \
     --pipeline-id <installed-object-detection-pipeline> \
+    --producer-key-secret <installed-recording-producer-secret> \
     --candidate-binary output/development/common-rust-artifacts/bin/stream-mcp \
     --candidate-app output/development/common-rust-artifacts/live.html \
     --work-dir output/development/stream-compiler-acceptance
 ```
+
+Stream and Reason GPU smoke read the producer's `private-key.pem` from the explicitly
+selected Kubernetes Secret. The namespace comes from the acceptance environment.
+The Rust harness keeps the key in a private temporary file and removes it on success
+or failure; the local `.env` supplies public producer metadata and assertion signing
+configuration. It does not need another copy of the producer's private key.
+`RECORDING_TENANT_KEY` and `RECORDING_WORK_CONTEXT` must name the installed context.
+The assertion signer reads that context's current policy revision from the Store.
 
 The harness verifies the copied binary digest and the container's NVIDIA resource,
 waits for initialized service readiness, and submits an authenticated recording task.

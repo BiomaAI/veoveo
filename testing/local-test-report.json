@@ -1,19 +1,80 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:a47f2c48eb65e4b7d3619040b0e7439c3b28e023d6a50515f019bae27c24ead1",
-  "updatedAt": "2026-09-08T15:12:42Z",
+  "buildDigest": "sha256:3cdc2ae8a55668668f33c355eb926a236442611c1e2e22a005feb2c5bd224c1e",
+  "updatedAt": "2026-09-08T15:36:58Z",
   "checks": [
     {
-      "name": "task-read-activation-helm",
+      "name": "stream-acceptance-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "veoveo-smoke",
+        "--bin",
+        "smoke",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T15:34:21Z",
+      "durationSeconds": 5.591457704,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-acceptance-fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T15:36:58Z",
+      "durationSeconds": 2.325028078,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-acceptance-unit",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-smoke",
+        "--bin",
+        "smoke"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T15:35:35Z",
+      "durationSeconds": 7.422634891,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-common-compiler-gpu",
       "command": [
         "cargo",
         "xtask",
         "smoke",
-        "helm-config"
+        "stream-gpu",
+        "--env-file",
+        ".env",
+        "--producer-key-secret",
+        "veoveo-recording-producer",
+        "--pipeline-id",
+        "traffic-object-detection",
+        "--candidate-binary",
+        "output/development/common-rust-artifacts-696cb831/bin/stream-mcp",
+        "--candidate-app",
+        "output/development/common-compiler-696cb831/servers/stream-mcp/assets/live.html",
+        "--work-dir",
+        "output/development/stream-common-gpu-696cb831"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T15:12:42Z",
-      "durationSeconds": 7.758852089,
+      "finishedAt": "2026-09-08T15:33:13Z",
+      "durationSeconds": 19.699329409,
       "detail": "completed successfully"
     }
   ]

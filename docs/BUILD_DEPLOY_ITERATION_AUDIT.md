@@ -31,8 +31,8 @@ implemented changes and their verification.
 | Bazel integration and cache trial | Builds Stream Rust, the native CMake runner, and OCI assembly in the existing SDK environment | A restored workspace reuses all 780 Rust compilation actions; both edited builds execute the same six actions and produce identical artifacts; inherited-image materialization remains costly; Cargo/BuildKit stays in production |
 | Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
-| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidates pass loader/CLI checks and Stream passes initialized service startup; replay stops at the existing missing Artifact-read credential boundary, before GPU execution; family admission remains pending |
-| Compiler runtime probes | Added a Rust candidate probe with explicit App input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream startup preserves the installed Deployment, Pod identity, and restart count; GPU acceptance is a distinct receipt outcome and remains unverified |
+| Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | The current Stream candidate passes a real RTX 4090 recording task: 55 processed frames, 277 detections, and published artifacts; Reason and production family admission remain pending |
+| Compiler runtime probes | Added a Rust candidate probe with explicit App input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream startup and hardware replay preserve the installed Deployment, Pod identity, and restart count; the v2 receipt also verifies temporary cache removal |
 | Focused flight acceptance | Routes composed-flight scenarios through `veoveo-flight-smoke`, using shared browser source and Stream-owned wire types | Resolved client/helper graphs exclude service implementations, SurrealDB, DuckDB and Rerun; original flight assertions remain in the focused harness |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
 | Release inputs | Split Bioma image locks by rendered release closure; selected Helm publication accepts repeated `--chart` with isolated receipts | Render tests compare generated locks with consumed images; packaging tests require only the selected chart artifact |
@@ -1377,7 +1377,7 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 | Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Separate physical build disk or host is unavailable; that comparison remains unmeasured |
 | Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
 | Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
-| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, narrow flight harness, controlled sccache and Bazel trials | Stream/Reason common-family candidates require actual hardware workload acceptance; recording-read integration needs live verification and Reason's accelerated model-input path currently prevents admission |
+| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, narrow flight harness, controlled sccache and Bazel trials, and successful Stream candidate hardware replay | Production family migration and matched iteration timing remain; Reason's accelerated model-input path currently prevents its admission |
 | Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Complete for the existing independently owned releases; general ownership transfer is outside this build/deploy goal |
 
 The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
@@ -1419,12 +1419,71 @@ download now releases its reservation and removes the partial file. Invalid pers
 request documents fail their claimed task instead of aborting service startup.
 
 These changes remove the identified missing-credential and missing-cache paths.
-Actual Stream/Reason hardware workload acceptance, common-compiler image admission,
-and Reason's accelerated model-input path remain outstanding. The integration is not
-by itself a measured compiler speedup or a live deployment receipt.
+The activation and Stream hardware acceptance below exercise that integration.
+Common-compiler image admission and Reason's accelerated model-input path remain
+outstanding. The integration is not by itself a measured compiler speedup.
 
 The consumer test build created another combined dependency variant. Scoped hourly
 Cargo maintenance removed 26 superseded executables and 245 incremental variants,
 with 29.55 GiB of estimated reclaimable blocks. Current executable links and dependency
 libraries remained protected. Host availability returned to 386 GiB; the exact
 maintenance receipt is `output/development/task-read-cargo-cache-applied-20260908.json`.
+
+## Task Read Activation
+
+Revision `3e684ec9bd1350fdb96290906fd92aaa51f174b2` activates the committed read
+integration in Veoveo with the Bioma configuration. Artifact, Gateway/bootstrap,
+Stream, and Reason use qualified images from source `696cb8318c1e3003cc751b00621a939700da519f`.
+The platform chart and its values move together through the existing Flux owner.
+The bootstrap Job succeeds with the existing gateway control-plane revision, and
+all 25 Deployments become Ready. Each of the five replacement service Pods has zero
+restarts. This establishes activation and service readiness; hardware replay remains
+a separate acceptance step.
+
+The exact four-image staging command takes 532.2 s. Qualification takes 179.5 s and
+preserves every staged runnable digest. The passive rollout observer starts before
+the Git push and succeeds in 108.4 s, including 50.6 s waiting for the source revision.
+These command and observer durations describe different boundaries and are not
+combined into a push-to-ready benchmark. Receipts are retained as
+`output/development/task-read-activation-{stage,release,convergence}-20260908.json`.
+The selected chart bundle is under
+`output/releases/helm/696cb8318c1e3003cc751b00621a939700da519f/0.1.0-696cb831/veoveo/`.
+
+Cleanup also removes the unused local Stream and Map images from earlier builds and
+the node's unused image manifests after rollout completion. Running containers keep
+their image references. A further hourly Cargo pass reclaims 0.89 GiB of superseded
+incremental output. The raw cleanup receipts are retained under
+`output/development/local-image-cleanup-20260908.log`,
+`output/development/node-image-cleanup-20260908.log`, and
+`output/development/pre-activation-cargo-cache-applied-20260908.json`.
+
+## Stream Common-Compiler Hardware Acceptance
+
+The current combined Bookworm build uses source
+`696cb8318c1e3003cc751b00621a939700da519f`. Cargo reports 6 min 25 s for its one
+Stream/Reason compilation action; the completed build command takes 396.6 s.
+This cache state differs from the earlier standalone builds and provides no matched
+speed comparison. BuildKit metadata and the command log are retained as
+`output/development/common-rust-696cb831.buildkit.json` and
+`output/development/common-rust-696cb831.log`.
+
+The Stream candidate's SHA-256 is
+`b92478bf9c83ec63357c6ec1949eac41f984c8087677e4f0da615bf94c84f09a`.
+It completes task `01a081a6-d39a-7ca2-9c08-7e322751b34f` through the installed
+TrafficCamNet replay pipeline on the RTX 4090. The task processes 55 frames and returns
+277 detections, with results, annotation, and source-clip artifacts. The native probe
+verifies its exact executable and HTTP listener. Its cleanup removes the process,
+App, executable, and private recording cache while preserving the installed
+Deployment, Pod UID, runtime digest, and zero restart count. The hardware receipt is
+`output/development/stream-common-gpu-696cb831/compiler-candidate.json`.
+
+The acceptance harness now reads the producer key from an explicitly named Kubernetes
+Secret into a private temporary file. It removes the file on failure as well as success.
+The test assertion uses the installed Work Context's current policy revision. The
+local recording tenant was corrected to match the Bioma configuration. Earlier attempts
+stopped during setup with an empty local key and a stale tenant selection; neither
+attempt supplied GPU evidence.
+
+This receipt admits the tested Stream executable/runtime pairing. Production Bake
+still selects the existing compiler families, and Reason's candidate has no hardware
+workload receipt. No common-family migration or Reason inference acceptance is claimed.

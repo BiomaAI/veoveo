@@ -7,8 +7,8 @@ use serde_json::{Value, json};
 use super::stream::{
     PortForwardGuard, RECORDING_FORWARDER, issue_internal_token, kubernetes_logs,
     kubernetes_namespace, load_environment, optional_environment, prepare_sample_h264,
-    publish_h264_recording, required_environment, wait_for_recording_catalog,
-    wait_for_recording_forwarder,
+    publish_h264_recording, recording_producer_key, required_environment,
+    wait_for_recording_catalog, wait_for_recording_forwarder,
 };
 use super::*;
 
@@ -16,27 +16,28 @@ const REASON_MCP_URL: &str = "http://127.0.0.1:8803/reason/mcp";
 const REASON_READY_URL: &str = "http://127.0.0.1:8803/reason/readyz";
 const REASON_HOST: &str = "reason-mcp:8803";
 
-pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
+pub(crate) async fn reason_gpu(
+    env_file: &Path,
+    work_dir: &Path,
+    producer_key_secret: &str,
+) -> Result<()> {
     ensure!(
         env_file.is_file(),
         "environment file is missing: {}",
         env_file.display()
     );
     let environment = load_environment(env_file)?;
+    let namespace = kubernetes_namespace(&environment);
     validate_reason_workspace(&environment)?;
     let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
     let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
     let sample_h264 = prepare_sample_h264(work_dir, &environment)?;
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
-    let mut producer_key = tempfile::NamedTempFile::new_in(&tmpdir)?;
+    let producer_key = recording_producer_key(namespace, producer_key_secret, &tmpdir)?;
     let queue_dir = tmpdir.join("forwarder-queue");
     let forwarder_log = tmpdir.join("recording-forwarder.log");
     std::fs::create_dir_all(&queue_dir)?;
-    std::io::Write::write_all(
-        &mut producer_key,
-        required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM")?.as_bytes(),
-    )?;
     let gateway_url = required_environment(&environment, "PUBLIC_BASE_URL")?.trim_end_matches('/');
     let producer_client_id = optional_environment(
         &environment,
@@ -44,7 +45,6 @@ pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         "recording-producer",
     );
     let producer_key_id = required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_KEY_ID")?;
-    let namespace = kubernetes_namespace(&environment);
 
     run_checked(
         Path::new("kubectl"),
@@ -113,9 +113,9 @@ pub(crate) async fn reason_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
         signing_key_id,
         "reason",
         "reason-gpu-smoke",
-        required_environment(&environment, "RECORDING_TENANT_KEY")?,
-        required_environment(&environment, "RECORDING_WORK_CONTEXT")?,
-    )?;
+        &environment,
+    )
+    .await?;
     let task_client =
         FinalTaskSmokeClient::new(REASON_MCP_URL, bearer_token).with_host(REASON_HOST);
     let task = task_client
