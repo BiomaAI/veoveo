@@ -12,22 +12,13 @@ use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
     DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentProfile,
     DeploymentSource, DeploymentSourceRole, DevelopmentImageLock, DevelopmentImageOrigin,
-    DevelopmentLockedImage, LoadedProfile, LockedChart, LockedImage, LockedRegistry, LockedSource,
-    PlannedImage, RegistryTransport, SourceRepository,
+    DevelopmentLockedImage, IMAGE_RELEASE_EVIDENCE_SCHEMA, ImageReleaseEvidence, LoadedProfile,
+    LockedChart, LockedImage, LockedRegistry, LockedSource, PlannedImage, RegistryTransport,
+    SourceRepository,
 };
-use veoveo_deploy_runtime::lock_source_charts;
+use veoveo_deploy_runtime::{compile_component_lock, lock_source_charts};
 
-const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v2";
 const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-stage-evidence/v2";
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ImageReleaseEvidence<'a> {
-    schema_version: &'static str,
-    source_revision: &'a str,
-    registry: &'a LockedRegistry,
-    images: &'a [LockedImage],
-}
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -401,7 +392,7 @@ pub(crate) fn development_image_lock(
                 source: source.name.clone(),
                 target: image.name.clone(),
                 repository: image.repository.clone(),
-                source_revision: source.revision.clone(),
+                source_revision: image.source_revision.as_str().to_owned(),
                 runtime_digest: image.digest.clone(),
                 origin: DevelopmentImageOrigin::Qualified {
                     publication_digest: image.publication_digest.clone(),
@@ -582,15 +573,14 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
             .join(publication.revision())
             .join(format!("{}.release-evidence.json", selection_name))
     });
-    write_json(
-        &absolute_output(repository, &output),
-        &ImageReleaseEvidence {
-            schema_version: IMAGE_RELEASE_EVIDENCE_SCHEMA,
-            source_revision: publication.revision(),
-            registry: &registry,
-            images: &images,
-        },
-    )?;
+    let evidence = ImageReleaseEvidence {
+        schema_version: IMAGE_RELEASE_EVIDENCE_SCHEMA.into(),
+        source_revision: veoveo_extension_contract::SourceRevision::new(publication.revision())?,
+        registry: registry.clone(),
+        images,
+    };
+    evidence.validate()?;
+    write_json(&absolute_output(repository, &output), &evidence)?;
     println!(
         "Image release evidence: {}",
         absolute_output(repository, &output).display()
@@ -675,6 +665,15 @@ fn release_profile_images(
         .flat_map(|source| source.images.iter().cloned())
         .collect::<Vec<_>>();
     committed_profile.validate_image_plan(&planned_images)?;
+    let source_roots = prepared_sources
+        .iter()
+        .map(|source| {
+            (
+                source.definition.name.clone(),
+                source.repository.root().to_path_buf(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let locked_sources = prepared_sources
         .into_iter()
         .map(|source| {
@@ -692,10 +691,20 @@ fn release_profile_images(
         profile: committed_profile.definition.name.clone(),
         profile_revision: profile_publication.revision().to_owned(),
         registry,
+        components: compile_component_lock(
+            &committed_profile,
+            profile_publication.revision(),
+            &locked_sources,
+            &source_roots,
+        )?,
         sources: locked_sources,
         platform: committed_profile.resolved_platform()?,
     };
     lock.validate()?;
+    veoveo_deploy_contract::components::validate_profile_component_bindings(
+        &committed_profile.definition,
+        &lock,
+    )?;
     let output = args.lock_output.clone().unwrap_or_else(|| {
         repository
             .root()
@@ -1036,6 +1045,7 @@ fn lock_published_images(
             Ok(LockedImage {
                 name,
                 repository: translate_registry(&push_repository, push_registry, pull_registry)?,
+                source_revision: veoveo_extension_contract::SourceRevision::new(revision)?,
                 digest: digests.runtime,
                 publication_digest: digests.publication,
             })
@@ -1450,7 +1460,7 @@ mod tests {
         let temporary = tempdir().expect("create output directory");
         let base = repository
             .root()
-            .join("testing/fixtures/external-simulation-installation/deployment.lock.json");
+            .join("deploy/contract/tests/fixtures/deployment-lock.json");
         let stage = temporary.path().join("stage.json");
         fs::write(
             &stage,
@@ -1458,14 +1468,14 @@ mod tests {
                 "schemaVersion": "veoveo.io/image-stage-evidence/v2",
                 "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "registry": {
-                    "pushAddress": "127.0.0.1:5001",
-                    "pullAddress": "k3d-veoveo-registry.localhost:5001",
-                    "transport": "insecure-http"
+                    "pushAddress": "registry.example.invalid",
+                    "pullAddress": "registry.example.invalid",
+                    "transport": "tls"
                 },
                 "releaseEligible": false,
                 "images": [{
                     "target": "simulation-runtime",
-                    "repository": "k3d-veoveo-registry.localhost:5001/veoveo/simulation-runtime",
+                    "repository": "registry.example.invalid/veoveo/simulation-runtime",
                     "runtimeDigest": STAGED_RUNTIME,
                     "stagingIndexDigest": STAGED_INDEX,
                     "platform": "linux/amd64"
@@ -1505,6 +1515,7 @@ mod tests {
             .iter()
             .find(|image| image.target == "mcp-gateway")
             .unwrap();
+        assert_eq!(unchanged.source_revision, "1".repeat(40));
         assert!(matches!(
             unchanged.origin,
             DevelopmentImageOrigin::Qualified { .. }

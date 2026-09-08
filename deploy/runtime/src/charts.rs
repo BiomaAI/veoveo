@@ -1,7 +1,7 @@
 use crate::{
     configuration::prepare_gateway_activation,
     gpu::prepare_gpu_placement,
-    process::{output_checked, path_str, status_checked},
+    process::{output_checked, path_str},
     snapshot::SnapshotInputs,
     sources::{ResolvedSource, resolve_revision},
 };
@@ -139,55 +139,6 @@ pub(crate) fn helm_render_locked(
     let rendered = output_checked("helm", refs, None)
         .with_context(|| format!("rendering locked Helm release {}", release.name))?;
     String::from_utf8(rendered).context("Helm output is not UTF-8")
-}
-
-pub(crate) fn helm_up(
-    profile: &LoadedProfile,
-    source: &ResolvedSource,
-    context: &str,
-    release: &ReleaseSpec,
-    components: &BTreeSet<PlatformComponent>,
-    mcp_servers: &BTreeSet<FirstPartyMcpServer>,
-) -> Result<()> {
-    let chart = source.repository.join(&release.chart);
-    let mut args = vec![
-        "--kube-context".to_owned(),
-        context.to_owned(),
-        "upgrade".to_owned(),
-        "--install".to_owned(),
-        release.name.clone(),
-        path_str(&chart)?.to_owned(),
-        "--namespace".to_owned(),
-        profile.definition.namespace.clone(),
-    ];
-    if release.create_namespace {
-        args.push("--create-namespace".to_owned());
-    }
-    for values in ordered_release_values(&source.repository, &profile.directory, release) {
-        args.push("--values".to_owned());
-        args.push(path_str(&values)?.to_owned());
-    }
-    let image_digests = release_image_digests(
-        release.values_contract,
-        &source.image_digests,
-        &source.deployment_image_digests,
-    );
-    append_release_values(
-        &mut args,
-        profile,
-        release,
-        &source.revision,
-        Some(image_digests),
-        components,
-        mcp_servers,
-    )?;
-    args.extend([
-        "--wait".to_owned(),
-        "--timeout".to_owned(),
-        format!("{}s", release.timeout_seconds),
-    ]);
-    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-    status_checked("helm", refs, &[], None)
 }
 
 pub(crate) fn release_image_digests<'a>(

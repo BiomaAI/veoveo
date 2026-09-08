@@ -122,9 +122,12 @@ Hub, administration, and GPU policy.
 | `configs/stream/` | admitted GStreamer graph, typed profile, TensorRT model, and live-ingress catalog example |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v6 profiles and locks, platform/workload/extension ownership, exact platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
+| `deploy/contract/` | multi-source deployment v7 profiles and locks, mandatory component ownership, exact platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
 | `deploy/contract/src/components/` | atomic ownership catalog, exact provenance and deployable-content digests, dependency expansion, and pure mutation planning for the component-selection migration; installer integration remains pending |
+| `deploy/contract/src/components/bindings.rs` | full-catalog profile permissions and source/image/chart binding checks, including retained unselected inventories |
+| `deploy/contract/tests/fixtures/` and `tests/support/lock.rs` | explicitly synthetic deployment locks for schema and development-image transformation checks; real installation locks are generated outputs |
 | `deploy/contract/src/gateway_bundle.rs` | canonical complete public ConfigMap content digest shared by disposable gateway activation and GitOps acceptance |
+| `deploy/contract/src/image_release.rs` | shared qualified image publication evidence consumed by the publisher and compatibility generator, with exact build revisions and distinct runnable and attested digests |
 | `deploy/contract/src/source_chart.rs` | source chart content identity shared by release publication and installation; hashes actual files independently of commit and archive metadata |
 | `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
@@ -145,6 +148,9 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/profile.rs` | profile validation and ordered lifecycle operations |
 | `deploy/runtime/src/sources.rs` and `src/images.rs` | immutable checkouts, installation input checks, source-owned Bake selection, and image inventories |
 | `deploy/runtime/src/snapshot.rs` | exact Git blob, file inventory, and executable-mode verification for source charts, source values, and installation inputs; `snapshot/tests.rs` exercises index hints, filters, ignored files, and path confinement |
+| `deploy/runtime/src/compile.rs` and `src/compile/objects.rs` | component render preparation, exact non-secret input closure, offline object scope, and sealed inventories for the v7 migration |
+| `deploy/runtime/src/discovery.rs` | read-only destination scope checks across all locked owners and proposed CRDs, before installation writes |
+| `deploy/runtime/src/helm_bundle.rs` | complete prepared Helm renders, literal configuration preservation, and digest-bound CRD retention policy |
 | `deploy/runtime/src/charts.rs` | shared chart-lock construction and validation, ordered values, rendering, and Helm release commands |
 | `deploy/runtime/src/configuration.rs` and `src/cluster.rs` | pre-mutation Secret closure, gateway activation, public resources, and disposable cluster lifecycle |
 | `deploy/runtime/src/gpu.rs` | managed NVIDIA DRA orchestration, ResourceSlice inventory, persistent-claim preservation, and workload placement proof |

@@ -69,9 +69,9 @@ audit and final implementation record determine the cycle's final state.
 | DuckDB 1.5.5 and its Spatial extension | typed `POINT_2D` distance path, `geometry_always_xy`, materialized scoring, and restart-stable Map analytics |
 | Kubernetes/K3s 1.36.2 and Helm 4.2.3 | rendered Secret-reference closure for disposable development profiles. Helm and the installation reconciliation controller retain mutation ownership |
 | Kubernetes server-side apply managed fields | optional read-only conflict diagnostics only if selected development scope passes its evidence gate. This plan does not transfer field ownership or replay Helm state |
-| NVIDIA DRA Driver for GPUs 0.4.1, `resource.nvidia.com/v1beta1`, CUDA, and NVML | exact GPU identity, full-device or MIG capacity, memory admission, and hardware evidence. The repository implements only its declared qualified DRA profile |
+| NVIDIA DRA Driver for GPUs 0.5.0, `resource.nvidia.com/v1beta1`, CUDA, and NVML | exact GPU identity, full-device or MIG capacity, memory admission, and hardware evidence. The repository implements only its declared qualified DRA profile |
 | Docker Buildx 0.35.0, BuildKit 0.31.2, and Dockerfile frontend 1.25.0 | secret-mounted private Git credentials and trust inputs, cache isolation, SBOM, and maximum-mode provenance |
-| `veoveo.io/deployment/v6` and `veoveo.io/deployment-lock/v6` | delivered disposable-development baseline. This plan reserves no successor version. An approved evidence-gated profile change uses the next version available when it lands |
+| `veoveo.io/deployment/v7` and `veoveo.io/deployment-lock/v7` | component ownership and immutable catalog migration in progress; selected execution, installed-state receipts, and live acceptance remain pending |
 | `veoveo.io/image-build-plan/v2` and `veoveo.io/image-build-run/v2` | current typed image plan and execution evidence. Credential source paths and bytes never enter either document |
 
 Every dependency or infrastructure component touched during implementation must be

@@ -1,17 +1,12 @@
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{fs, path::PathBuf, process::Command};
 
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::ManagedGpuAllocatorInstallation;
 
-use super::{MANAGED_NODE_LABEL, MANAGED_NODE_LABEL_VALUE, path_str};
-use crate::process::{output_checked, status_checked};
+use super::{admission::validate_kubelet_daemon_set_contract, path_str};
+use crate::process::output_checked;
 
 pub(super) struct VerifiedChart {
     pub(super) archive: PathBuf,
@@ -99,30 +94,6 @@ pub(super) fn pull_and_verify_chart(
     })
 }
 
-pub(super) fn allocator_helm_args(
-    context: &str,
-    installation: &ManagedGpuAllocatorInstallation,
-    archive: &Path,
-) -> Result<Vec<String>> {
-    let mut args = vec![
-        "--kube-context".to_owned(),
-        context.to_owned(),
-        "upgrade".to_owned(),
-        "--install".to_owned(),
-        installation.release_name.clone(),
-        path_str(archive)?.to_owned(),
-        "--namespace".to_owned(),
-        installation.namespace.clone(),
-        "--create-namespace".to_owned(),
-        "--atomic".to_owned(),
-        "--wait".to_owned(),
-        "--timeout".to_owned(),
-        format!("{}s", installation.timeout_seconds),
-    ];
-    args.extend(allocator_value_args(installation)?);
-    Ok(args)
-}
-
 fn allocator_value_args(installation: &ManagedGpuAllocatorInstallation) -> Result<Vec<String>> {
     Ok(vec![
         "--set-string".to_owned(),
@@ -142,10 +113,7 @@ fn allocator_value_args(installation: &ManagedGpuAllocatorInstallation) -> Resul
         "--set-json".to_owned(),
         format!(
             "kubeletPlugin.nodeSelector={}",
-            serde_json::to_string(&BTreeMap::from([(
-                MANAGED_NODE_LABEL,
-                MANAGED_NODE_LABEL_VALUE
-            )]))?
+            serde_json::to_string(&installation.eligible_node_selector)?
         ),
         "--set-json".to_owned(),
         "kubeletPlugin.affinity=null".to_owned(),
@@ -159,56 +127,47 @@ fn allocator_value_args(installation: &ManagedGpuAllocatorInstallation) -> Resul
     ])
 }
 
-pub(super) fn verify_allocator_chart_render(
+pub(super) fn render_allocator_chart(
     installation: &ManagedGpuAllocatorInstallation,
     chart: &VerifiedChart,
-) -> Result<()> {
+) -> Result<Vec<serde_json::Value>> {
     let mut args = vec![
         "template".to_owned(),
         installation.release_name.clone(),
         path_str(&chart.archive)?.to_owned(),
         "--namespace".to_owned(),
         installation.namespace.clone(),
+        "--include-crds".to_owned(),
     ];
     args.extend(allocator_value_args(installation)?);
     let output = output_checked("helm", args.iter().map(String::as_str), None)
         .context("rendering the locked NVIDIA DRA chart")?;
     let output = String::from_utf8(output).context("decoding rendered NVIDIA DRA chart")?;
-    let kubelet = output
-        .split("\n---")
-        .find(|document| {
-            document.contains("kind: DaemonSet") && document.contains("kubelet-plugin")
+    let mut objects = Vec::new();
+    crate::configuration::append_yaml_bytes(output.as_bytes(), "NVIDIA DRA chart", &mut objects)?;
+    let kubelet = objects
+        .iter()
+        .find(|object| {
+            object.get("kind").and_then(serde_json::Value::as_str) == Some("DaemonSet")
+                && object
+                    .pointer("/metadata/name")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|name| name.contains("kubelet-plugin"))
         })
         .context("locked NVIDIA DRA chart rendered no kubelet-plugin DaemonSet")?;
-    ensure!(
-        kubelet.contains(&format!(
-            "{MANAGED_NODE_LABEL}: \"{MANAGED_NODE_LABEL_VALUE}\""
-        )),
-        "locked NVIDIA DRA chart does not render the platform-managed node selector"
-    );
-    ensure!(
-        !kubelet.contains("requiredDuringSchedulingIgnoredDuringExecution"),
-        "locked NVIDIA DRA chart retains a required discovery affinity after the platform override"
-    );
+    validate_kubelet_daemon_set_contract(kubelet, &installation.eligible_node_selector)?;
     let expected_image = format!(
         "{}:{}@{}",
         installation.image.repository, installation.image.tag, installation.image.digest
     );
     ensure!(
-        kubelet.contains(&format!("image: {expected_image}")),
+        kubelet
+            .pointer("/spec/template/spec/containers/0/image")
+            .and_then(serde_json::Value::as_str)
+            == Some(expected_image.as_str()),
         "locked NVIDIA DRA chart does not render image {expected_image}"
     );
-    Ok(())
-}
-
-pub(super) fn install_allocator_chart(
-    context: &str,
-    installation: &ManagedGpuAllocatorInstallation,
-    chart: &VerifiedChart,
-) -> Result<()> {
-    let args = allocator_helm_args(context, installation, &chart.archive)?;
-    status_checked("helm", args.iter().map(String::as_str), &[], None)
-        .context("installing the locked NVIDIA DRA driver")
+    Ok(objects)
 }
 
 pub(super) fn release_metadata(
@@ -323,12 +282,11 @@ fn validate_allocator_release_metadata(
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
     use veoveo_deploy_contract::ManagedGpuAllocatorInstallation;
 
     use super::{
-        HelmReleaseMetadata, allocator_helm_args, decode_release_metadata,
+        HelmReleaseMetadata, allocator_value_args, decode_release_metadata,
         validate_allocator_release_metadata,
     };
 
@@ -338,17 +296,17 @@ mod tests {
             "namespace": "nvidia-dra-driver-gpu",
             "chart": {
                 "coordinate": "oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu",
-                "version": "0.4.1",
-                "digest": "sha256:7a00373fdef1025f27ebb1d353719446bbbe6ec4697e9a503c5ffd7e4f1525dd",
-                "contentDigest": "sha256:c1c316f6bdcfe5fed3ff649cff1b43be50d27d0cb1aaf9d29e7bdca1eaa331ce"
+                "version": "0.5.0",
+                "digest": "sha256:47e43e3fbcaf525accef5b5ad14d87e80e19ef1549839495dcb0eabd06ff3bbe",
+                "contentDigest": "sha256:c7ca3dc31a6fa8b85c6fd5ee40948cf8d9162e32f20db9fc085113b4035e8b35"
             },
             "image": {
                 "repository": "registry.k8s.io/dra-driver-nvidia/dra-driver-nvidia-gpu",
-                "tag": "v0.4.1",
-                "digest": "sha256:eefe67396dedea4df74f68a94d5883f33204888b83979babd42b91501a2de1d8",
+                "tag": "v0.5.0",
+                "digest": "sha256:e1f104e64383ee693e982a5e6b7cf0b750023aaa5cc9b7dcc37c8e0549232933",
                 "platformDigests": {
-                    "linux/amd64": "sha256:ad86983849542f6ef22f02e963ecbf545706e037455e0c265889ace137863556",
-                    "linux/arm64": "sha256:b51290bbc1ee6745adf8ffff040d2b917d3e07dbd5cd36fd444b0e371ccc9166"
+                    "linux/amd64": "sha256:e7f21f226f90dfc993caba2e851ce652ded6da8c18f11de4a7238f6bde1e4bc8",
+                    "linux/arm64": "sha256:a9a640a9cf9805a12c95daa57ad8d6338bac81484bf04b20c49df7da969ead2f"
                 }
             },
             "nvidiaDriverRoot": "/",
@@ -369,14 +327,14 @@ mod tests {
                 "revision":"2",
                 "updated":"2026-08-02 00:00:00 +0000 UTC",
                 "status":"deployed",
-                "chart":"dra-driver-nvidia-gpu-0.4.1",
-                "app_version":"0.4.1"
+                "chart":"dra-driver-nvidia-gpu-0.5.0",
+                "app_version":"0.5.0"
             }]"#,
         )
         .unwrap();
 
         assert_eq!(releases.len(), 1);
-        assert_eq!(releases[0].chart, "dra-driver-nvidia-gpu-0.4.1");
+        assert_eq!(releases[0].chart, "dra-driver-nvidia-gpu-0.5.0");
         assert_eq!(releases[0].revision.value().unwrap(), 2);
     }
 
@@ -388,8 +346,8 @@ mod tests {
                 "namespace":"gpu-system",
                 "revision":3,
                 "status":"deployed",
-                "chart":"dra-driver-nvidia-gpu-0.4.1",
-                "app_version":"0.4.1"
+                "chart":"dra-driver-nvidia-gpu-0.5.0",
+                "app_version":"0.5.0"
             }"#,
         )
         .unwrap();
@@ -405,12 +363,12 @@ mod tests {
                 .is_none()
         );
         let duplicate = br#"[
-            {"name":"gpu-allocator","namespace":"gpu-system","revision":1,"status":"deployed","chart":"driver-0.4.1","app_version":"0.4.1"},
-            {"name":"gpu-allocator","namespace":"gpu-system","revision":2,"status":"deployed","chart":"driver-0.4.1","app_version":"0.4.1"}
+            {"name":"gpu-allocator","namespace":"gpu-system","revision":1,"status":"deployed","chart":"driver-0.5.0","app_version":"0.5.0"},
+            {"name":"gpu-allocator","namespace":"gpu-system","revision":2,"status":"deployed","chart":"driver-0.5.0","app_version":"0.5.0"}
         ]"#;
         assert!(decode_release_metadata(duplicate, "gpu-system", "gpu-allocator").is_err());
         let wrong_namespace = br#"[
-            {"name":"gpu-allocator","namespace":"other","revision":1,"status":"deployed","chart":"driver-0.4.1","app_version":"0.4.1"}
+            {"name":"gpu-allocator","namespace":"other","revision":1,"status":"deployed","chart":"driver-0.5.0","app_version":"0.5.0"}
         ]"#;
         assert!(decode_release_metadata(wrong_namespace, "gpu-system", "gpu-allocator").is_err());
     }
@@ -424,8 +382,8 @@ mod tests {
                 "namespace":"nvidia-dra-driver-gpu",
                 "revision":1,
                 "status":"deployed",
-                "chart":"dra-driver-nvidia-gpu-0.4.1",
-                "app_version":"0.4.1"
+                "chart":"dra-driver-nvidia-gpu-0.5.0",
+                "app_version":"0.5.0"
             }"#,
         )
         .unwrap();
@@ -440,8 +398,7 @@ mod tests {
     #[test]
     fn allocator_values_make_the_managed_selector_authoritative() {
         let installation = qualified_installation();
-        let args =
-            allocator_helm_args("example", &installation, Path::new("/tmp/driver.tgz")).unwrap();
+        let args = allocator_value_args(&installation).unwrap();
         let rendered = args.join(" ");
 
         assert!(rendered.contains("resourceApiVersion=resource.k8s.io/v1"));
@@ -449,7 +406,38 @@ mod tests {
         assert!(rendered.contains("resources.computeDomains.enabled=false"));
         assert!(rendered.contains("gpuResourcesEnabledOverride=true"));
         assert!(rendered.contains("kubeletPlugin.affinity=null"));
-        assert!(rendered.contains("nvidia.com/dra-kubelet-plugin"));
-        assert!(rendered.contains("@sha256:eefe6739"));
+        assert!(rendered.contains(&format!(
+            "kubeletPlugin.nodeSelector={}",
+            serde_json::to_string(&installation.eligible_node_selector).unwrap()
+        )));
+        assert!(rendered.contains(&format!("@{}", installation.image.digest)));
+    }
+
+    #[test]
+    #[ignore = "downloads and renders the exact public NVIDIA DRA chart; requires Helm"]
+    fn pinned_allocator_chart_uses_declared_nodes_and_includes_cluster_inventory() {
+        let mut installation = qualified_installation();
+        installation.eligible_node_selector = std::collections::BTreeMap::from([
+            ("kubernetes.io/hostname".into(), "gpu-worker".into()),
+            ("node.example/installation".into(), "reference".into()),
+        ]);
+        let chart = super::pull_and_verify_chart(&installation).unwrap();
+        let objects = super::render_allocator_chart(&installation, &chart).unwrap();
+        assert!(
+            objects
+                .iter()
+                .any(|object| object["kind"] == "CustomResourceDefinition")
+        );
+        assert!(objects.iter().any(|object| object["kind"] == "ClusterRole"));
+        let kubelet = objects
+            .iter()
+            .find(|object| object["kind"] == "DaemonSet")
+            .unwrap();
+        assert_eq!(
+            kubelet["spec"]["template"]["spec"]["nodeSelector"],
+            serde_json::to_value(&installation.eligible_node_selector).unwrap()
+        );
+        assert!(objects.iter().all(|object| object["kind"] != "Node"));
+        assert!(objects.iter().all(|object| object["kind"] != "Secret"));
     }
 }

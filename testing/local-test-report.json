@@ -1,14 +1,35 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:f5d05c48e90023c1cdfd130d5c5b13b5e6db306ebc4ebbf2553794965a256003",
-  "updatedAt": "2026-09-07T23:45:04Z",
+  "buildDigest": "sha256:16f730cc0f95f75186293c85cb64acb03e783b2cece94b95c67411a3ecc15580",
+  "updatedAt": "2026-09-08T01:10:07Z",
   "checks": [
     {
-      "name": "deployment-input-clippy",
+      "name": "deployment-component-allocator-render",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-deploy-runtime",
+        "--lib",
+        "pinned_allocator_chart_uses_declared_nodes_and_includes_cluster_inventory",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T01:10:04Z",
+      "durationSeconds": 3.046616961,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "deployment-component-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
+        "-p",
+        "veoveo-deploy-contract",
         "-p",
         "veoveo-deploy-runtime",
         "-p",
@@ -21,41 +42,26 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T23:43:56Z",
-      "durationSeconds": 5.987127728,
+      "finishedAt": "2026-09-08T01:09:49Z",
+      "durationSeconds": 5.988041803,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-input-consumers",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-deployment-smoke",
-        "-p",
-        "veoveo-xtask"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-07T23:43:26Z",
-      "durationSeconds": 8.011025063,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "deployment-input-format",
+      "name": "deployment-component-format",
       "command": [
         "cargo",
         "fmt",
         "--all",
+        "--",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T23:45:04Z",
-      "durationSeconds": 2.220082876,
+      "finishedAt": "2026-09-08T01:10:07Z",
+      "durationSeconds": 2.1711831249999998,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-input-helm-config",
+      "name": "deployment-component-helm",
       "command": [
         "cargo",
         "xtask",
@@ -63,22 +69,28 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T23:44:37Z",
-      "durationSeconds": 10.41173799,
+      "finishedAt": "2026-09-08T01:10:00Z",
+      "durationSeconds": 10.572771436,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-input-snapshot",
+      "name": "deployment-component-migration",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-deploy-runtime"
+        "veoveo-deploy-contract",
+        "-p",
+        "veoveo-deploy-runtime",
+        "-p",
+        "veoveo-deployment-smoke",
+        "-p",
+        "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-07T23:44:56Z",
-      "durationSeconds": 0.764274397,
+      "finishedAt": "2026-09-08T01:08:16Z",
+      "durationSeconds": 9.040357906,
       "detail": "completed successfully"
     }
   ]

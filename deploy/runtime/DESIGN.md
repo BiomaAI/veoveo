@@ -4,7 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v6` and `veoveo.io/deployment-lock/v6` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
+| `veoveo.io/deployment/v7` and `veoveo.io/deployment-lock/v7` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
 | `veoveo.io/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
@@ -12,7 +12,7 @@
 | Helm v4.2.3 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
 | Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, and GPU resource discovery |
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
-| NVIDIA DRA chart `0.4.1` and `resource.nvidia.com/v1beta1` | The existing qualified standalone allocator, chart and image digest checks, CDI preparation, and measured sharing configuration; upstream technology-preview features remain bounded by the deployment contract |
+| NVIDIA DRA chart `0.5.0` and `resource.nvidia.com/v1beta1` | Pinned standalone allocator, verified chart and image artifacts, CDI preparation, and declared sharing configuration; hardware qualification is pending and upstream technology-preview features remain bounded by the deployment contract |
 | k3d | Repository-managed disposable cluster and registry lifecycle through native commands |
 
 ## Responsibility
@@ -40,15 +40,18 @@ for an enterprise installation governed by GitOps.
 | `sources.rs` | Installation input checks, immutable source checkouts, and Git identity |
 | `snapshot.rs` | Exact Git blob and executable-mode verification of deployment inputs, independent of index hints and clean filters |
 | `charts.rs` | Shared source-chart locks, ordered Helm values, rendering, and release commands |
+| `compile.rs` and `compile/objects.rs` | Complete prepared component objects, non-secret inputs, and offline scope declarations |
+| `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
+| `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
 | `configuration.rs` | Rendered Secret-reference closure, bounded Secret observations, public ConfigMaps, and gateway activation |
 | `cluster.rs` | Local registry and k3d lifecycle, node bootstrap, and cluster readiness |
 | `gpu.rs` and `gpu/` | Qualified allocator orchestration, persistent claims, admission, and workload placement |
 | `process.rs` | Native command invocation helpers and explicit JSON object application |
 
-The extraction preserves the current v6 execution behavior, including the Secret gate
-before profile installation writes and mandatory GPU qualification. Profile installation
-still processes the complete deployment. Component-selected execution remains the
+The runtime retains the Secret gate before profile installation writes and mandatory GPU
+qualification. Profile installation still processes the complete deployment.
+Component-selected execution remains the
 `DEPLOY-SCOPE-023` migration: it must use the contract's complete ownership catalog and
 cover every installation mutation before exposing a component selector.
 
@@ -69,6 +72,39 @@ immutable checkout through rendering; verification does not lock a user-editable
 filesystem against concurrent writers. This check changes no image or chart digest
 encoding and performs no Kubernetes operation.
 
+## Component Execution Migration
+
+The v7 migration is in progress. Publication prepares a complete ownership catalog.
+Installation compares that catalog with the lock before reading required Secrets or
+writing resources. Kubernetes discovery verifies the declared scope of every locked
+object, including reserved identities. A proposed CRD can introduce a resource kind;
+its declaration cannot override the scope of an existing API.
+
+Each locked image records the immutable commit that produced it. The component's
+chart snapshot may advance while that image remains unchanged. Compilation and
+development image locks preserve the image's original source revision and publication
+digest. Deployable-content hashes stay stable when only source provenance advances.
+The reserved source name `installation` identifies installation-owned inputs; a
+platform, workload, or extension source cannot use that name.
+
+Raw resource application consumes the prepared objects. Helm receives a temporary
+chart whose only template emits the prepared manifests through `Files.Get`. The
+original source templates run during compilation, which makes their result independent
+of Helm's later release counter and destination capabilities. Literal Go-template text
+inside configuration stays literal. The temporary chart retains the source chart name,
+version, and application version. Its installed values are the compiled manifests;
+the deployment lock records the original chart and values inputs.
+
+CRDs in a compiled Helm unit receive `helm.sh/resource-policy: keep` before object
+hashing. Helm manages their declared contents, and uninstall retains them. Namespace
+creation belongs to the explicit installation unit. Helm operations wait for Jobs and
+use atomic rollback.
+
+Installation still processes the full profile. Exact component selection, installed
+state receipts, historical object ownership, conflicting-device-plugin transition
+inventories, and live zero-write acceptance remain unfinished. The NVIDIA DRA 0.5.0
+artifact and render checks pass; hardware qualification of that release is pending.
+
 ## Dependencies
 
 The extraction reuses the existing resolved dependency graph. Direct upstream dependencies
@@ -78,6 +114,5 @@ are pinned exactly in the workspace: `anyhow 1.0.104`, `hex 0.4.3`, `jsonwebtoke
 from its authoritative `https://crates.io/api/v1/crates/{name}` metadata on September 7,
 2026. No upstream package version changed during extraction.
 
-The managed GPU component pins and their existing runtime qualification remain in the
-deployment contract. Unit tests and rendered configuration checks do not establish a
-new hardware acceptance result.
+The deployment contract owns the managed GPU component pins. Unit tests and rendered
+configuration checks do not establish a new hardware acceptance result.
