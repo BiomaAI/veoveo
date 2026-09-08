@@ -47,8 +47,9 @@ pub fn validate_component_catalog(catalog: &[LockedComponent]) -> Result<()> {
             "duplicate component {}",
             declaration.id
         );
-        for source in
-            std::iter::once(&declaration.source).chain(declaration.inputs.iter().map(input_source))
+        for source in std::iter::once(&declaration.source)
+            .chain(std::iter::once(&declaration.configuration.source))
+            .chain(declaration.inputs.iter().map(input_source))
         {
             if let Some(previous) = sources.insert(&source.name, &source.repository) {
                 ensure!(
@@ -152,6 +153,7 @@ fn validate_locked_component(component: &LockedComponent) -> Result<()> {
         let prepared = PreparedAtomicUnit {
             component: declaration.id.clone(),
             source: declaration.source.clone(),
+            configuration: declaration.configuration.clone(),
             target: unit.target.clone(),
             inputs: unit.inputs.clone(),
             objects: unit.objects.clone(),
@@ -195,6 +197,10 @@ pub(super) fn validate_prepared(
     ensure!(
         unit.source == component.source,
         "prepared source differs from locked owner"
+    );
+    ensure!(
+        unit.configuration == component.configuration,
+        "prepared installation snapshot differs from locked configuration"
     );
     ensure!(
         unit.tool_scope == AtomicToolScope::Exact,
@@ -244,6 +250,12 @@ pub(super) fn validate_owned_object(
 
 pub(super) fn validate_declaration(component: &DeploymentComponent) -> Result<()> {
     validate_source(&component.source)?;
+    validate_source(&component.configuration.source)?;
+    ensure!(
+        component.configuration.source.name == super::INSTALLATION_SOURCE_NAME,
+        "component configuration must belong to the installation source"
+    );
+    validate_relative_input_path(&component.configuration.profile)?;
     ensure!(
         !component.targets.is_empty(),
         "component must own an atomic target"
@@ -280,17 +292,7 @@ pub(super) fn validate_declaration(component: &DeploymentComponent) -> Result<()
         validate_source(input_source(input))?;
         match input {
             ComponentInput::File { path, .. } => {
-                ensure!(
-                    !path.is_empty()
-                        && !path.contains('\\')
-                        && Path::new(path)
-                            .components()
-                            .all(|part| matches!(part, std::path::Component::Normal(_)))
-                        && path
-                            .split('/')
-                            .all(|part| !part.is_empty() && part != "." && part != ".."),
-                    "component file input must be a canonical source-relative path"
-                );
+                validate_relative_input_path(path)?;
             }
             ComponentInput::Image {
                 target, repository, ..
@@ -331,6 +333,21 @@ pub(super) fn validate_declaration(component: &DeploymentComponent) -> Result<()
             "input identity has multiple locked contents"
         );
     }
+    Ok(())
+}
+
+fn validate_relative_input_path(path: &str) -> Result<()> {
+    ensure!(
+        !path.is_empty()
+            && !path.contains('\\')
+            && Path::new(path)
+                .components()
+                .all(|part| matches!(part, std::path::Component::Normal(_)))
+            && path
+                .split('/')
+                .all(|part| !part.is_empty() && part != "." && part != ".."),
+        "component file input must be a canonical source-relative path"
+    );
     Ok(())
 }
 

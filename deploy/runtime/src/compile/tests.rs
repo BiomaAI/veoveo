@@ -82,6 +82,7 @@ metadata:
   name: {{{{ .Release.Name }}}}
   annotations:
     test.example/selectedImages: "{{{{ len {digests} }}}}"
+    test.example/setting: "{{{{ .Values.fixtureSetting | default "initial" }}}}"
 spec:
   selector:
     matchLabels:
@@ -373,11 +374,17 @@ fn identical_image_bytes_retain_each_consumers_exact_build_provenance() {
     retained_component_inputs(InputChange::ImageProvenance);
 }
 
+#[test]
+fn retained_configuration_restores_values_removed_from_the_current_installation() {
+    retained_component_inputs(InputChange::Configuration);
+}
+
 #[derive(Clone, Copy)]
 enum InputChange {
     Chart,
     Image,
     ImageProvenance,
+    Configuration,
 }
 
 fn retained_component_inputs(change: InputChange) {
@@ -390,9 +397,17 @@ fn retained_component_inputs(change: InputChange) {
     let old_revision = source(&platform, "platform");
     let installation = workspace.path().join("installation");
     initialize(&installation);
+    let configuration_change = matches!(change, InputChange::Configuration);
+    if configuration_change {
+        fs::write(
+            installation.join("values-old.yaml"),
+            "fixtureSetting: old\n",
+        )
+        .unwrap();
+    }
     let releases = ["current", "retained"].map(|name| {
         json!({
-            "name":name, "chart":"chart", "sourceValues":[], "installationValues":[],
+            "name":name, "chart":"chart", "sourceValues":[], "installationValues":if configuration_change {vec!["values-old.yaml"]} else {vec![]},
             "valuesContract":"platform", "timeoutSeconds":60
         })
     });
@@ -422,9 +437,9 @@ fn retained_component_inputs(change: InputChange) {
             "mcpServers":[], "artifactAudiences":[], "externalWorkloads":[]},
         "gatewayRequirements":[], "waitForDeployments":[]
     })).unwrap()).unwrap();
-    let profile_revision = commit(&installation, "two components from one repository");
-    let profile = LoadedProfile::load(&path, &installation).unwrap();
-    let definition = &profile.definition.sources[0];
+    let mut profile_revision = commit(&installation, "two components from one repository");
+    let mut profile = LoadedProfile::load(&path, &installation).unwrap();
+    let definition = profile.definition.sources[0].clone();
     let mut sources = vec![LockedSource {
         name: "platform".into(),
         role: definition.role,
@@ -437,10 +452,31 @@ fn retained_component_inputs(change: InputChange) {
             digest: format!("sha256:{}", "a".repeat(64)),
             publication_digest: format!("sha256:{}", "b".repeat(64)),
         }],
-        charts: lock_source_charts(definition, &platform).unwrap(),
+        charts: lock_source_charts(&definition, &platform).unwrap(),
     }];
     let roots = BTreeMap::from([("platform".into(), platform.clone())]);
     let initial = compile_component_lock(&profile, &profile_revision, &sources, &roots).unwrap();
+    if configuration_change {
+        fs::remove_file(installation.join("values-old.yaml")).unwrap();
+        fs::write(
+            installation.join("values-current.yaml"),
+            "fixtureSetting: new\n",
+        )
+        .unwrap();
+        for release in &mut profile.definition.sources[0].releases {
+            release.installation_values = vec!["values-current.yaml".into()];
+        }
+        fs::write(
+            &path,
+            serde_json::to_vec_pretty(&profile.definition).unwrap(),
+        )
+        .unwrap();
+        profile_revision = commit(
+            &installation,
+            "replace the current installation values file",
+        );
+        profile = LoadedProfile::load(&path, &installation).unwrap();
+    }
     let previous_image = sources[0].images[0].clone();
     if matches!(change, InputChange::Chart) {
         let template = platform.join("chart/templates/workload.yaml");
@@ -458,7 +494,7 @@ fn retained_component_inputs(change: InputChange) {
     }
     let new_revision = commit(&platform, "advance only the current component input");
     sources[0].revision = new_revision.clone();
-    if !matches!(change, InputChange::Chart) {
+    if matches!(change, InputChange::Image | InputChange::ImageProvenance) {
         let image = &mut sources[0].images[0];
         image.source_revision = SourceRevision::new(&new_revision).unwrap();
         image.publication_digest = format!("sha256:{}", "d".repeat(64));
@@ -466,7 +502,7 @@ fn retained_component_inputs(change: InputChange) {
             image.digest = format!("sha256:{}", "c".repeat(64));
         }
     }
-    let updated_chart = lock_source_charts(definition, &platform)
+    let updated_chart = lock_source_charts(&definition, &platform)
         .unwrap()
         .into_iter()
         .find(|chart| chart.release == "current")
@@ -482,7 +518,7 @@ fn retained_component_inputs(change: InputChange) {
     ]);
     let updated =
         compile_components(&profile, &profile_revision, &sources, &roots, &selection).unwrap();
-    if !matches!(change, InputChange::Chart) {
+    if matches!(change, InputChange::Image | InputChange::ImageProvenance) {
         sources[0].images.push(previous_image);
     }
     let mut catalog = initial.clone();
@@ -548,6 +584,18 @@ fn retained_component_inputs(change: InputChange) {
     );
     let prepared = compile_locked_components(&profile, &lock, &immutable_roots, &all).unwrap();
     assert_eq!(prepared.len(), lock.components.len());
+    if configuration_change {
+        for (id, expected) in [("current", "new"), ("retained", "old")] {
+            let component = prepared
+                .iter()
+                .find(|component| component.locked.declaration.id.as_str() == id)
+                .unwrap();
+            assert_eq!(
+                component.units[0].objects[0]["metadata"]["annotations"]["test.example/setting"],
+                expected
+            );
+        }
+    }
     for component in prepared {
         assert_eq!(
             Some(&component.locked),

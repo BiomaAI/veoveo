@@ -9,6 +9,43 @@ use veoveo_extension_contract::{ArtifactDigest, ReleaseVersion, SourceRevision};
 mod support;
 use support::*;
 
+#[test]
+fn installation_revision_advances_provenance_without_forcing_an_unchanged_release() {
+    let previous = fixture("platform", ComponentRole::Platform);
+    let mut current = previous.clone();
+    current.declaration.configuration.source.revision =
+        SourceRevision::new("b".repeat(40)).unwrap();
+    let current = relock(&current);
+    assert_ne!(current.units[0].digest, previous.units[0].digest);
+    assert_eq!(
+        current.units[0].content_digest,
+        previous.units[0].content_digest
+    );
+    let plan = component_mutation_plan(
+        std::slice::from_ref(&current),
+        &BTreeSet::from([id("platform")]),
+        &prepared(&current),
+        &observed(&previous),
+    )
+    .unwrap();
+    assert_eq!(plan.mutations[0].verb, ComponentMutationVerb::Unchanged);
+    assert_eq!(
+        plan.mutations[0].configuration,
+        current.declaration.configuration
+    );
+    let mut forged = prepared(&current);
+    forged[0].configuration = previous.declaration.configuration.clone();
+    assert!(
+        component_mutation_plan(
+            &[current],
+            &BTreeSet::from([id("platform")]),
+            &forged,
+            &observed(&previous)
+        )
+        .is_err()
+    );
+}
+
 /// Independent histories exercise the planner's immutable input boundary. These
 /// fixtures do not publish images, execute Helm, or attest to Kubernetes writes.
 struct Repository(TempDir);

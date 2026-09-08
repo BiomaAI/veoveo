@@ -1,5 +1,5 @@
 use crate::{
-    charts::{lock_source_charts, validate_locked_charts},
+    charts::lock_source_charts,
     process::{output_checked, path_str, status_checked},
     snapshot::SnapshotInputs,
 };
@@ -270,7 +270,6 @@ pub(crate) fn resolve_locked_sources(
                 source.name
             )
         })?;
-        validate_locked_charts(&source, locked, destination)?;
         resolved.insert(
             identity,
             ResolvedSource {

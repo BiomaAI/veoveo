@@ -52,6 +52,14 @@ pub fn fixture(name: &str, role: ComponentRole) -> LockedComponent {
         id: id(name),
         role,
         source: source.clone(),
+        configuration: InstallationSnapshot {
+            source: ComponentSource {
+                name: INSTALLATION_SOURCE_NAME.into(),
+                repository: "https://example.invalid/installation.git".into(),
+                revision: SourceRevision::new("a".repeat(40)).unwrap(),
+            },
+            profile: "deployment.json".into(),
+        },
         namespaces: BTreeSet::from(["veoveo".into()]),
         targets: BTreeSet::from([target.clone()]),
         permitted_objects: BTreeSet::from([object.identity.clone()]),
@@ -68,6 +76,7 @@ pub fn fixture(name: &str, role: ComponentRole) -> LockedComponent {
         vec![PreparedAtomicUnit {
             component: declaration.id,
             source,
+            configuration: declaration.configuration.clone(),
             target,
             inputs,
             objects: vec![object],
@@ -84,6 +93,7 @@ pub fn prepared(component: &LockedComponent) -> Vec<PreparedAtomicUnit> {
         .map(|unit| PreparedAtomicUnit {
             component: component.declaration.id.clone(),
             source: component.declaration.source.clone(),
+            configuration: component.declaration.configuration.clone(),
             target: unit.target.clone(),
             inputs: unit.inputs.clone(),
             objects: unit.objects.clone(),

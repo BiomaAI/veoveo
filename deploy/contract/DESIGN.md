@@ -9,9 +9,9 @@
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
 | `veoveo.io/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by publication and compatibility generation |
 | `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
-| `veoveo.io/component-mutation-plan/v1` | internal preflight evidence for exact atomic targets; it records allowed actions and does not attest to executed writes |
-| `veoveo.io/atomic-deployment-unit/v1` | repository-owned SHA-256 identity over typed source, target, input closure, and sorted rendered object digests |
-| `veoveo.io/atomic-deployment-content/v1` | repository-owned SHA-256 identity of the same deployable contents with source revisions and extension release provenance excluded; used only after exact lock validation |
+| `veoveo.io/component-mutation-plan/v2` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
+| `veoveo.io/atomic-deployment-unit/v2` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
+| `veoveo.io/atomic-deployment-content/v2` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions and extension release provenance excluded; used only after exact lock validation |
 | `veoveo.io/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
 | `veoveo.io/extension-release/v1` and Semantic Versioning 2.0.0 | component references retain the extension ID, exact release version, and manifest digest using the shared extension contract's validated types |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
@@ -63,6 +63,15 @@ digest, and per-image `sourceRevision`. Charts bind to the source-owned release 
 artifact digest. Values come from the component's source snapshot or the installation
 repository. Every Helm unit consumes exactly one chart. Managed allocator inputs match
 the installation's pinned chart and image closure.
+
+Every component also records `configuration`: the installation repository, immutable
+revision, and repository-relative profile path used for its render. Installation-owned
+files must belong to that snapshot. The runtime verifies the document and referenced
+files against Git before rendering. A retained component can therefore use an older
+configuration even when the current profile has replaced a values file. Configuration
+revisions participate in exact provenance; unchanged configuration contents do not force
+a mutation. The v7 migration now requires this field and v2 unit digests. Earlier
+generated locks require regeneration; no omitted-field default is supported.
 
 The runtime resolves source charts by the component's complete source identity. The
 top-level source revision records publication resolution; it cannot replace a retained

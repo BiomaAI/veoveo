@@ -106,10 +106,15 @@ pub(crate) fn validate_artifact_bindings(lock: &DeploymentLock) -> Result<()> {
     for component in &lock.components {
         let declaration = &component.declaration;
         let owner = &declaration.source;
+        ensure!(
+            declaration.configuration.source.repository == installation.repository,
+            "component configuration is outside the installation repository"
+        );
         if owner.name == INSTALLATION_SOURCE_NAME {
             ensure!(
                 declaration.role == ComponentRole::Installation
-                    && owner.repository == installation.repository,
+                    && owner.repository == installation.repository
+                    && owner == &declaration.configuration.source,
                 "installation component source identity is inconsistent"
             );
         } else {
@@ -234,9 +239,7 @@ pub(crate) fn validate_artifact_bindings(lock: &DeploymentLock) -> Result<()> {
                     }
                     ComponentInput::File { source, .. } => {
                         ensure!(
-                            source == owner
-                                || (source.name == INSTALLATION_SOURCE_NAME
-                                    && source.repository == installation.repository),
+                            source == owner || source == &declaration.configuration.source,
                             "component values input is outside its source or installation owner"
                         );
                     }

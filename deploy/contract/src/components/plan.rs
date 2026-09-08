@@ -210,6 +210,7 @@ pub fn component_mutation_plan(
             mutations.push(ComponentMutation {
                 component: id.clone(),
                 source: component.declaration.source.clone(),
+                configuration: component.declaration.configuration.clone(),
                 target: locked.target.clone(),
                 digest,
                 content_digest,

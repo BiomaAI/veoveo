@@ -12,12 +12,15 @@ use crate::{
     sources::{ResolvedSource, SourceCheckout, resolve_revision},
 };
 
+use super::configuration::{self, ConfigurationSnapshots};
 use super::images::ImageInputs;
 
 pub(super) struct CompilationInputs {
     pub snapshots: BTreeMap<ComponentId, ResolvedSource>,
     pub owners: BTreeMap<ComponentId, ComponentSource>,
     pub images: BTreeMap<AtomicTarget, ImageInputs>,
+    pub configurations: BTreeMap<ComponentId, InstallationSnapshot>,
+    pub installation: ConfigurationSnapshots,
 }
 
 pub(super) fn publication(
@@ -55,7 +58,19 @@ pub(super) fn publication(
         };
         owners.insert(spec.id.clone(), owner);
     }
-    let mut prepared = prepare(profile, sources, &snapshots, selected, owners)?;
+    let configuration = configuration::identity(profile, profile_revision)?;
+    let configurations = selected
+        .iter()
+        .map(|id| (id.clone(), configuration.clone()))
+        .collect();
+    let mut prepared = prepare(
+        profile,
+        sources,
+        &snapshots,
+        selected,
+        owners,
+        configurations,
+    )?;
     for snapshot in prepared.snapshots.values() {
         for release in &snapshot.definition.releases {
             prepared.images.insert(
@@ -93,7 +108,25 @@ pub(super) fn locked(
             )
         })
         .collect();
-    let mut prepared = prepare(profile, &lock.sources, roots, selected, owners)?;
+    let configurations = lock
+        .components
+        .iter()
+        .filter(|component| selected.contains(&component.declaration.id))
+        .map(|component| {
+            (
+                component.declaration.id.clone(),
+                component.declaration.configuration.clone(),
+            )
+        })
+        .collect();
+    let mut prepared = prepare(
+        profile,
+        &lock.sources,
+        roots,
+        selected,
+        owners,
+        configurations,
+    )?;
     for component in lock
         .components
         .iter()
@@ -115,12 +148,18 @@ fn prepare(
     roots: &BTreeMap<ComponentSource, PathBuf>,
     selected: &BTreeSet<ComponentId>,
     owners: BTreeMap<ComponentId, ComponentSource>,
+    configurations: BTreeMap<ComponentId, InstallationSnapshot>,
 ) -> Result<CompilationInputs> {
     selected_source_releases(&profile.definition, selected)?;
     ensure!(
         owners.keys().cloned().collect::<BTreeSet<_>>() == *selected,
         "component source identities do not cover the exact selection"
     );
+    ensure!(
+        configurations.keys().cloned().collect::<BTreeSet<_>>() == *selected,
+        "component configurations do not cover the exact selection"
+    );
+    let installation = ConfigurationSnapshots::prepare(profile, configurations.values())?;
     let mut snapshots = BTreeMap::new();
     for spec in profile
         .definition
@@ -147,7 +186,8 @@ fn prepare(
             resolve_revision(root, "HEAD")? == owner.revision.as_str(),
             "component source snapshot differs from its locked revision"
         );
-        let mut definition = profile
+        let mut definition = installation
+            .get(&configurations[&spec.id])?
             .definition
             .sources
             .iter()
@@ -172,5 +212,7 @@ fn prepare(
         snapshots,
         owners,
         images: BTreeMap::new(),
+        configurations,
+        installation,
     })
 }

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:07150f46aa62967d93f5372ae4024e22947e58eab85ebe50a10d1f415ca8554d",
-  "updatedAt": "2026-09-08T04:45:11Z",
+  "buildDigest": "sha256:bb211f723b82c4b2e6c9c61f2d11fa54c0586f3b7eeae15fb78b85b65e5f4e0f",
+  "updatedAt": "2026-09-08T05:02:25Z",
   "checks": [
     {
-      "name": "component-image-clippy",
+      "name": "component-configuration-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -19,12 +19,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T04:44:51Z",
-      "durationSeconds": 1.662231034,
+      "finishedAt": "2026-09-08T05:01:55Z",
+      "durationSeconds": 0.717755816,
       "detail": "completed successfully"
     },
     {
-      "name": "component-image-format",
+      "name": "component-configuration-format",
       "command": [
         "cargo",
         "fmt",
@@ -33,12 +33,12 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T04:45:11Z",
-      "durationSeconds": 2.203158188,
+      "finishedAt": "2026-09-08T05:02:25Z",
+      "durationSeconds": 2.20867587,
       "detail": "completed successfully"
     },
     {
-      "name": "component-image-helm-config",
+      "name": "component-configuration-helm-config",
       "command": [
         "cargo",
         "xtask",
@@ -46,12 +46,26 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T04:45:08Z",
-      "durationSeconds": 10.076729506,
+      "finishedAt": "2026-09-08T05:02:22Z",
+      "durationSeconds": 16.666248195,
       "detail": "completed successfully"
     },
     {
-      "name": "component-image-inputs",
+      "name": "component-configuration-publisher",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "--locked"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T05:02:04Z",
+      "durationSeconds": 8.025089168,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "component-configuration-snapshots",
       "command": [
         "cargo",
         "test",
@@ -62,22 +76,8 @@
         "--locked"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T04:44:41Z",
-      "durationSeconds": 4.649109169,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "component-image-publisher",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask",
-        "--locked"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T04:44:57Z",
-      "durationSeconds": 5.158554972,
+      "finishedAt": "2026-09-08T05:01:54Z",
+      "durationSeconds": 6.583406696,
       "detail": "completed successfully"
     }
   ]

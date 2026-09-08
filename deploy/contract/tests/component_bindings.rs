@@ -13,6 +13,7 @@ fn relock(lock: &mut DeploymentLock, index: usize) {
         .map(|unit| PreparedAtomicUnit {
             component: component.declaration.id.clone(),
             source: component.declaration.source.clone(),
+            configuration: component.declaration.configuration.clone(),
             target: unit.target.clone(),
             inputs: unit.inputs.clone(),
             objects: unit.objects.clone(),
@@ -298,4 +299,41 @@ fn retained_catalog_cannot_reserve_unrendered_namespaced_objects() {
             .to_string()
             .contains("permissions differ")
     );
+}
+
+#[test]
+fn configuration_identity_cannot_relabel_values_or_escape_the_installation() {
+    let original = fixture();
+    let mut relabeled = original.clone();
+    relabeled.components[1].units[0]
+        .inputs
+        .insert(ComponentInput::File {
+            source: original.components[1]
+                .declaration
+                .configuration
+                .source
+                .clone(),
+            path: "values.yaml".into(),
+            digest: ArtifactDigest::new(format!("sha256:{}", "8".repeat(64))).unwrap(),
+        });
+    relabeled.components[1]
+        .declaration
+        .configuration
+        .source
+        .revision = SourceRevision::new("9".repeat(40)).unwrap();
+    relock(&mut relabeled, 1);
+    assert!(relabeled.validate().is_err());
+
+    let mut foreign = original.clone();
+    foreign.components[1]
+        .declaration
+        .configuration
+        .source
+        .repository = "https://example.invalid/foreign.git".into();
+    relock(&mut foreign, 1);
+    assert!(foreign.validate().is_err());
+
+    let mut malformed = original;
+    malformed.components[1].declaration.configuration.profile = "../deployment.json".into();
+    assert!(validate_component_catalog(&malformed.components).is_err());
 }

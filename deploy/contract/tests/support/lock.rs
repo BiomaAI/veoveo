@@ -25,7 +25,8 @@ pub fn synthetic_catalog(
         name: "installation-namespace".into(),
     };
     let mut catalog = vec![synthetic_component(
-        installation,
+        installation.clone(),
+        &installation,
         ComponentRole::Installation,
         vec![(target, BTreeSet::new(), namespace)],
     )];
@@ -78,13 +79,14 @@ pub fn synthetic_catalog(
             DeploymentSourceRole::Workload => ComponentRole::Workload,
             DeploymentSourceRole::Extension => ComponentRole::Extension,
         };
-        catalog.push(synthetic_component(owner, role, units));
+        catalog.push(synthetic_component(owner, &installation, role, units));
     }
     catalog
 }
 
 fn synthetic_component(
     source: ComponentSource,
+    installation: &ComponentSource,
     role: ComponentRole,
     units: Vec<(AtomicTarget, BTreeSet<ComponentInput>, ObjectIdentity)>,
 ) -> LockedComponent {
@@ -93,6 +95,10 @@ fn synthetic_component(
         id: id.clone(),
         role,
         source: source.clone(),
+        configuration: InstallationSnapshot {
+            source: installation.clone(),
+            profile: "deployment.json".into(),
+        },
         namespaces: BTreeSet::from(["veoveo".into()]),
         targets: units.iter().map(|(target, _, _)| target.clone()).collect(),
         permitted_objects: units.iter().map(|(_, _, object)| object.clone()).collect(),
@@ -116,6 +122,7 @@ fn synthetic_component(
         .map(|(target, inputs, identity)| PreparedAtomicUnit {
             component: id.clone(),
             source: source.clone(),
+            configuration: declaration.configuration.clone(),
             target,
             inputs,
             objects: vec![RenderedObject {
