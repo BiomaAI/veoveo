@@ -1832,6 +1832,12 @@ both cutover choices.
 
 ### Phase 3: Host-Mediated Streaming Artifact Upload
 
+The first-release public HTTP upload and Console Artifacts form are specified in
+[`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md). That handoff requires multi-GB
+resumable multipart uploads and Console browser acceptance. Direct API and Console
+uploads proceed independently of exact MCP App resolution. This phase retains the
+embedded App host-picker integration and consumes the shared ingestion foundation.
+
 This phase implements `APP-UPLOAD-017` after exact App authority exists.
 
 An App resource declares one closed upload grant containing admitted media types, maximum bytes,
