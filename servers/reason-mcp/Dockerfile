@@ -10,11 +10,12 @@ RUN useradd --system --uid 10001 --create-home \
 
 # Install only the locked runner additions. The immutable parent supplies the
 # compatible vLLM, Torch, Transformers, and CUDA stack. Source edits reuse this layer.
+# Propagate cache disabling to pip's isolated build-dependency subprocesses.
 RUN --mount=type=bind,from=veoveo-image-assets,source=servers/reason-mcp/runner/pyproject.toml,target=/tmp/reason-package/pyproject.toml,readonly \
     --mount=type=bind,from=veoveo-image-assets,source=servers/reason-mcp/runner/uv.lock,target=/tmp/reason-package/uv.lock,readonly \
     uv export --project /tmp/reason-package --frozen --no-dev --extra gpu \
         --no-emit-project --output-file /tmp/reason-requirements.txt \
-    && python3 -m pip install --no-cache-dir --no-compile --require-hashes -r /tmp/reason-requirements.txt \
+    && PIP_NO_CACHE_DIR=1 python3 -m pip install --no-compile --require-hashes -r /tmp/reason-requirements.txt \
     && rm /tmp/reason-requirements.txt
 
 # Zip metadata and member order must not depend on the checkout's timestamps

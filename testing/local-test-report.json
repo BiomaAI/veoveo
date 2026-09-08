@@ -1,23 +1,24 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:8f5bc486c13a5872505a14d24a4520fd7f8ae129348e84755e73b70fa376d76b",
-  "updatedAt": "2026-09-08T18:56:03Z",
+  "buildDigest": "sha256:ab5836d77573b520af47749beeacf7ecf5480c2315be3ab75025bbf9a48b394e",
+  "updatedAt": "2026-09-08T19:07:49Z",
   "checks": [
     {
-      "name": "reason-reproducible-packaging-format",
+      "name": "reason-packaging-cache-format",
       "command": [
         "cargo",
         "fmt",
         "--all",
+        "--",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T18:56:03Z",
-      "durationSeconds": 2.385164041,
+      "finishedAt": "2026-09-08T19:07:49Z",
+      "durationSeconds": 2.353910575,
       "detail": "completed successfully"
     },
     {
-      "name": "reason-reproducible-packaging-helm",
+      "name": "reason-packaging-cache-helm",
       "command": [
         "cargo",
         "xtask",
@@ -25,8 +26,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T18:56:00Z",
-      "durationSeconds": 7.721591776,
+      "finishedAt": "2026-09-08T19:07:46Z",
+      "durationSeconds": 7.093707993,
       "detail": "completed successfully"
     }
   ]
