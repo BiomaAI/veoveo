@@ -21,13 +21,8 @@ pub(crate) fn validate_locked_charts(
     locked: &LockedSource,
     repository: &Path,
 ) -> Result<()> {
-    ensure!(
-        locked.charts.len() == source.releases.len(),
-        "deployment lock source {} contains {} charts, profile declares {} releases",
-        source.name,
-        locked.charts.len(),
-        source.releases.len()
-    );
+    // The complete catalog validates ownership separately. Only the selected
+    // releases supplied here may inspect this checkout's chart and values files.
     for expected in lock_source_charts(source, repository)? {
         let chart = locked
             .charts

@@ -8,7 +8,7 @@
 | `veoveo.io/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
-| Docker Buildx Bake | Read-only expansion of the exact platform targets and source-owned workload groups |
+| Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.2.3 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
 | Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, and GPU resource discovery |
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
@@ -56,6 +56,18 @@ Component-selected execution remains the
 cover every installation mutation before exposing a component selector.
 
 ## Immutable Render Inputs
+
+Loading a profile checks source declarations and installation files without opening
+source worktrees. The expanded component selection determines the exact source and
+release footprint. The resolver clones only those sources, checks out their locked
+commits, and verifies only their selected charts and values. Unselected repositories
+may be unavailable. A selected working checkout may have missing chart files because
+its committed Git objects supply the installation snapshot.
+
+The complete locked artifact and ownership catalogs still validate before resolution.
+Installation checks platform image completeness, registry ownership, image provenance,
+and exact rendered image references against that qualified closure. It does not run
+Docker Bake. Profile validation and publication retain the source build checks.
 
 The chart lock constructor verifies the complete chart directory and each source-owned
 values file against the checkout's Git tree. Installation preflight uses the same

@@ -82,7 +82,7 @@ pub(crate) fn compile_components(
     source_roots: &BTreeMap<String, PathBuf>,
     selected: &BTreeSet<ComponentId>,
 ) -> Result<Vec<CompiledComponent>> {
-    validate_profile_components(&profile.definition, &profile.definition.components)?;
+    let selected_releases = selected_source_releases(&profile.definition, selected)?;
     ensure!(
         resolve_revision(&profile.repository, "HEAD")? == profile_revision,
         "installation snapshot differs from the publication revision"
@@ -100,31 +100,9 @@ pub(crate) fn compile_components(
     let installation = installation_source(profile, profile_revision)?;
     let mut resolved = BTreeMap::new();
     let deployment_images = locked_image_digests(profile, sources)?;
-    ensure!(
-        !selected.is_empty(),
-        "component compilation requires exact component IDs"
-    );
-    ensure!(
-        selected.iter().all(|id| profile
-            .definition
-            .components
-            .iter()
-            .any(|spec| &spec.id == id)),
-        "component compilation includes an unknown ID"
-    );
-    let selected_sources = profile
-        .definition
-        .components
-        .iter()
-        .filter(|spec| selected.contains(&spec.id))
-        .filter_map(|spec| match &spec.owner {
-            ComponentOwner::Source { name } => Some(name),
-            ComponentOwner::Installation => None,
-        })
-        .collect::<BTreeSet<_>>();
     for source in sources
         .iter()
-        .filter(|source| selected_sources.contains(&source.name))
+        .filter(|source| selected_releases.contains_key(&source.name))
     {
         let root = source_roots
             .get(&source.name)
@@ -133,17 +111,21 @@ pub(crate) fn compile_components(
             resolve_revision(root, "HEAD")? == source.revision,
             "source snapshot differs from the publication revision"
         );
-        let definition = profile
+        let mut definition = profile
             .definition
             .sources
             .iter()
             .find(|candidate| candidate.name == source.name)
-            .context("locked source is outside the profile")?;
-        validate_locked_charts(definition, source, root)?;
+            .context("locked source is outside the profile")?
+            .clone();
+        definition
+            .releases
+            .retain(|release| selected_releases[&source.name].contains(&release.name));
+        validate_locked_charts(&definition, source, root)?;
         resolved.insert(
             source.name.clone(),
             ResolvedSource {
-                definition: definition.clone(),
+                definition,
                 repository: root.clone(),
                 revision: source.revision.clone(),
                 image_digests: locked_image_digests(profile, std::slice::from_ref(source))?,

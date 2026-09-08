@@ -73,6 +73,38 @@ pub struct ProfileComponent {
     pub extension_release: Option<ComponentExtensionRelease>,
 }
 
+/// Exact release footprint of an already expanded selection. Installation-only
+/// components need no source checkout; their files belong to the profile snapshot.
+pub fn selected_source_releases(
+    profile: &DeploymentProfile,
+    selected: &BTreeSet<ComponentId>,
+) -> Result<BTreeMap<String, BTreeSet<String>>> {
+    validate_profile_components(profile, &profile.components)?;
+    ensure!(
+        !selected.is_empty(),
+        "source resolution requires exact component IDs"
+    );
+    let mut sources = BTreeMap::<String, BTreeSet<String>>::new();
+    for id in selected {
+        let component = profile
+            .components
+            .iter()
+            .find(|component| &component.id == id)
+            .with_context(|| format!("unknown selected component {id}"))?;
+        ensure!(
+            component.dependencies.is_subset(selected),
+            "component {id} selection omits an expanded dependency"
+        );
+        if let ComponentOwner::Source { name } = &component.owner {
+            sources
+                .entry(name.clone())
+                .or_default()
+                .extend(component.releases.iter().cloned());
+        }
+    }
+    Ok(sources)
+}
+
 /// Checks the entire profile's operation ownership before resolving a selection.
 pub fn validate_profile_components(
     profile: &DeploymentProfile,
@@ -357,6 +389,76 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("prerequisite Namespace")
+        );
+    }
+
+    #[test]
+    fn source_footprint_keeps_whole_catalog_validation_and_selects_exact_releases() {
+        let mut profile: DeploymentProfile = serde_json::from_str(include_str!(
+            "../../../../showcase/sumo/deploy/deployment.json"
+        ))
+        .unwrap();
+        let selected = profile
+            .components
+            .iter()
+            .map(|component| component.id.clone())
+            .collect::<BTreeSet<_>>();
+        let mut extra = profile
+            .components
+            .iter()
+            .find(|component| matches!(component.owner, ComponentOwner::Source { .. }))
+            .unwrap()
+            .clone();
+        extra.id = "unselected-release".to_owned().try_into().unwrap();
+        extra.releases = BTreeSet::from(["unselected-release".into()]);
+        let ComponentOwner::Source { name } = &extra.owner else {
+            unreachable!()
+        };
+        let owner_name = name.clone();
+        let source = profile
+            .sources
+            .iter_mut()
+            .find(|source| source.name == owner_name)
+            .unwrap();
+        source.releases.push(crate::ReleaseSpec {
+            name: "unselected-release".into(),
+            chart: "unselected-chart-not-present".into(),
+            ..source.releases[0].clone()
+        });
+        profile.components.push(extra);
+        let footprint = selected_source_releases(&profile, &selected).unwrap();
+        assert!(!footprint[&owner_name].contains("unselected-release"));
+
+        assert!(selected_source_releases(&profile, &BTreeSet::new()).is_err());
+        let mut unknown = selected.clone();
+        unknown.insert("unknown".to_owned().try_into().unwrap());
+        assert!(selected_source_releases(&profile, &unknown).is_err());
+        let mut incomplete = selected.clone();
+        let namespace_owner = profile
+            .components
+            .iter()
+            .find(|component| {
+                component
+                    .installation_inputs
+                    .contains(&InstallationInput::Namespace)
+            })
+            .unwrap();
+        incomplete.remove(&namespace_owner.id);
+        assert!(
+            selected_source_releases(&profile, &incomplete)
+                .unwrap_err()
+                .to_string()
+                .contains("expanded dependency")
+        );
+
+        profile.components.last_mut().unwrap().owner = ComponentOwner::Source {
+            name: "unknown".into(),
+        };
+        assert!(
+            selected_source_releases(&profile, &selected)
+                .unwrap_err()
+                .to_string()
+                .contains("unknown source")
         );
     }
 }

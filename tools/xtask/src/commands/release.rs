@@ -10,11 +10,10 @@ use std::{
 use anyhow::{Context, Result, ensure};
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::{
-    DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentProfile,
-    DeploymentSource, DeploymentSourceRole, DevelopmentImageLock, DevelopmentImageOrigin,
-    DevelopmentLockedImage, IMAGE_RELEASE_EVIDENCE_SCHEMA, ImageReleaseEvidence, LoadedProfile,
-    LockedChart, LockedImage, LockedRegistry, LockedSource, PlannedImage, RegistryTransport,
-    SourceRepository,
+    DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentSource,
+    DeploymentSourceRole, DevelopmentImageLock, DevelopmentImageOrigin, DevelopmentLockedImage,
+    IMAGE_RELEASE_EVIDENCE_SCHEMA, ImageReleaseEvidence, LoadedProfile, LockedChart, LockedImage,
+    LockedRegistry, LockedSource, PlannedImage, RegistryTransport, SourceRepository,
 };
 use veoveo_deploy_runtime::{compile_component_lock, lock_source_charts};
 
@@ -724,43 +723,12 @@ fn load_committed_profile(
     working: &LoadedProfile,
     revision: &str,
 ) -> Result<LoadedProfile> {
-    let repository = fs::canonicalize(publication_root).with_context(|| {
-        format!(
-            "resolving committed profile repository {}",
-            publication_root.display()
-        )
-    })?;
-    let selected = repository.join(relative);
-    let path = fs::canonicalize(&selected).with_context(|| {
-        format!(
-            "resolving committed deployment profile {}",
-            selected.display()
-        )
-    })?;
+    let committed = LoadedProfile::load(&publication_root.join(relative), publication_root)?;
     ensure!(
-        path.starts_with(&repository),
-        "committed deployment profile {} is outside repository {}",
-        path.display(),
-        repository.display()
-    );
-    let definition = serde_json::from_slice::<DeploymentProfile>(
-        &fs::read(&path).with_context(|| format!("reading {}", path.display()))?,
-    )
-    .with_context(|| format!("decoding {}", path.display()))?;
-    ensure!(
-        definition == working.definition,
+        committed.definition == working.definition,
         "working deployment profile differs from committed profile revision {revision}; commit the profile before publication"
     );
-    let directory = path
-        .parent()
-        .context("committed deployment profile path has no parent directory")?
-        .to_path_buf();
-    Ok(LoadedProfile {
-        definition,
-        path,
-        directory,
-        repository,
-    })
+    Ok(committed)
 }
 
 fn prepare_profile_source(
@@ -1436,12 +1404,17 @@ mod tests {
             .expect("load validated working profile");
         let temporary = tempdir().expect("create publication root");
         let committed_path = temporary.path().join(relative);
-        fs::create_dir_all(committed_path.parent().unwrap()).expect("create profile parent");
-        fs::copy(&working_path, &committed_path).expect("copy committed profile");
+        for input in working.installation_inputs().unwrap() {
+            let destination = temporary
+                .path()
+                .join(input.strip_prefix(repository.root()).unwrap());
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::copy(input, destination).unwrap();
+        }
 
         assert!(
-            veoveo_deploy_contract::LoadedProfile::load(&committed_path, temporary.path()).is_err(),
-            "ordinary loading must prove the detached checkout cannot resolve the local source"
+            veoveo_deploy_contract::LoadedProfile::load(&committed_path, temporary.path()).is_ok(),
+            "profile loading validates installation inputs without opening local source worktrees"
         );
         let committed = load_committed_profile(
             temporary.path(),

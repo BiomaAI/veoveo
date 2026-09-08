@@ -741,7 +741,8 @@ pub struct LoadedProfile {
 }
 
 impl LoadedProfile {
-    /// Loads and validates a profile inside the supplied source root.
+    /// Validates installation inputs and source declarations without opening source
+    /// worktrees. Selected source bytes are checked in their immutable snapshots.
     pub fn load(path: &Path, repository: &Path) -> Result<Self> {
         let repository = fs::canonicalize(repository)
             .with_context(|| format!("resolving repository {}", repository.display()))?;
@@ -854,13 +855,22 @@ impl LoadedProfile {
         } else {
             self.directory.join(path)
         };
-        fs::canonicalize(&candidate).with_context(|| {
+        let root = fs::canonicalize(&candidate).with_context(|| {
             format!(
                 "resolving local repository for source {} at {}",
                 source.name,
                 candidate.display()
             )
-        })
+        })?;
+        ensure!(
+            root.join(".git").exists()
+                || root.join("docker-bake.hcl").exists()
+                || root == self.repository,
+            "local source {} is not a repository root: {}",
+            source.name,
+            root.display()
+        );
+        Ok(root)
     }
 
     /// Loads and combines every gateway requirement document in profile order.
@@ -956,23 +966,17 @@ impl LoadedProfile {
                 );
             }
             match &source.repository {
-                SourceRepository::Local { .. } => {
-                    let root = self.local_source_root(source)?;
+                SourceRepository::Local { path } => {
                     ensure!(
-                        root.join(".git").exists()
-                            || root.join("docker-bake.hcl").exists()
-                            || root == self.repository,
-                        "local source {} is not a repository root: {}",
-                        source.name,
-                        root.display()
+                        !path.as_os_str().is_empty(),
+                        "local source repository path cannot be empty"
                     );
-                    validate_releases(source, &root, &mut release_names)?;
                 }
                 SourceRepository::Git { url } => {
                     validate_git_url(url)?;
-                    validate_release_metadata(source, &mut release_names)?;
                 }
             }
+            validate_release_metadata(source, &mut release_names)?;
             for release in &source.releases {
                 for values in &release.installation_values {
                     require_file(&self.resolve(values), "installation-owned Helm values")?;
@@ -2021,21 +2025,6 @@ pub fn development_image_lock_schema() -> schemars::Schema {
     schemars::schema_for!(DevelopmentImageLock)
 }
 
-fn validate_releases(
-    source: &DeploymentSource,
-    root: &Path,
-    release_names: &mut BTreeSet<String>,
-) -> Result<()> {
-    validate_release_metadata(source, release_names)?;
-    for release in &source.releases {
-        require_directory(&root.join(&release.chart), "Helm chart")?;
-        for values in &release.source_values {
-            require_file(&root.join(values), "source-owned Helm values")?;
-        }
-    }
-    Ok(())
-}
-
 fn validate_release_metadata(
     source: &DeploymentSource,
     release_names: &mut BTreeSet<String>,
@@ -2317,11 +2306,6 @@ fn ensure_unique<'a>(kind: &str, values: impl IntoIterator<Item = &'a String>) -
 
 fn require_file(path: &Path, kind: &str) -> Result<()> {
     ensure!(path.is_file(), "{kind} does not exist: {}", path.display());
-    Ok(())
-}
-
-fn require_directory(path: &Path, kind: &str) -> Result<()> {
-    ensure!(path.is_dir(), "{kind} does not exist: {}", path.display());
     Ok(())
 }
 
