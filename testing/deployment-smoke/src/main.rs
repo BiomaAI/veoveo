@@ -3,6 +3,7 @@ use std::{path::PathBuf, process::ExitCode};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod flux_cancellation;
 mod gitops;
 mod helm_config;
 
@@ -20,6 +21,8 @@ struct Args {
 enum Command {
     /// Render and validate Helm, image packaging, and GitOps configuration.
     HelmConfig,
+    /// Verify obsolete Flux health-check cancellation in a disposable namespace.
+    GitopsCancelVerify(flux_cancellation::Args),
     /// Validate one typed deployment profile and every selected build and Helm surface.
     ProfileValidate {
         #[arg(long)]
@@ -89,6 +92,7 @@ enum Command {
 fn run() -> Result<()> {
     match Args::parse().command {
         Command::HelmConfig => helm_config::helm_config(),
+        Command::GitopsCancelVerify(args) => flux_cancellation::verify(args),
         Command::ProfileValidate { profile } => veoveo_deploy_runtime::profile_validate(&profile),
         Command::ProfileRegistryUp { profile } => {
             veoveo_deploy_runtime::profile_registry_up(&profile)

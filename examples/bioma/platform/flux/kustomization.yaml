@@ -3,11 +3,21 @@ kind: Kustomization
 namespace: flux-system
 resources:
   - namespace.yaml
-  - https://github.com/fluxcd/flux2//manifests/bases/source-controller?ref=v2.9.4
-  - https://github.com/fluxcd/flux2//manifests/bases/kustomize-controller?ref=v2.9.4
-  - https://github.com/fluxcd/flux2//manifests/bases/helm-controller?ref=v2.9.4
-  - https://github.com/fluxcd/flux2//manifests/rbac?ref=v2.9.4
-  - https://github.com/fluxcd/flux2//manifests/policies?ref=v2.9.4
+  - https://github.com/fluxcd/flux2//manifests/bases/source-controller?ref=v2.9.5
+  - https://github.com/fluxcd/flux2//manifests/bases/kustomize-controller?ref=v2.9.5
+  - https://github.com/fluxcd/flux2//manifests/bases/helm-controller?ref=v2.9.5
+  - https://github.com/fluxcd/flux2//manifests/rbac?ref=v2.9.5
+  - https://github.com/fluxcd/flux2//manifests/policies?ref=v2.9.5
+images:
+  - name: fluxcd/helm-controller
+    newTag: v1.6.4
+    digest: sha256:8ff15409e46d354338045f483d58ca9cb35dffa2f87e4addd1f5eba1e6a9175f
+  - name: fluxcd/kustomize-controller
+    newTag: v1.9.5
+    digest: sha256:a3a955eb2bc432c2eaa94d2d3714e3beae7fdf17586fd23aadf71ab597ac3339
+  - name: fluxcd/source-controller
+    newTag: v1.9.5
+    digest: sha256:6f20d232d596a758c923d2861f23511718fc303b8a2e36a1434a7c736b9f4268
 patches:
   - target:
       group: apps
@@ -25,6 +35,9 @@ patches:
     patch: |-
       - op: remove
         path: /spec/template/spec/containers/0/args/0
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --feature-gates=CancelHealthCheckOnNewRevision=true
   - target:
       group: apps
       version: v1
@@ -33,5 +46,8 @@ patches:
     patch: |-
       - op: remove
         path: /spec/template/spec/containers/0/args/0
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --feature-gates=CancelHealthCheckOnNewRevision=true
 transformers:
   - labels.yaml

@@ -83,6 +83,7 @@ material they operate:
 | [`deploy/contract/DESIGN.md`](../deploy/contract/DESIGN.md) | typed development profile and local registry declarations shared by operational tools |
 | [`deploy/runtime/DESIGN.md`](../deploy/runtime/DESIGN.md) | shared source, Helm, configuration, cluster, and GPU execution for disposable Veoveo deployment profiles |
 | [`testing/deployment-smoke/DESIGN.md`](../testing/deployment-smoke/DESIGN.md) | focused Helm checks, passive or requested GitOps observation, and convergence evidence limits |
+| `testing/deployment-smoke/src/flux_cancellation/` | isolated live OCI source and Helm health-check cancellation, typed observations, latency evidence, and namespace cleanup |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
 | [`tools/image-build/DESIGN.md`](../tools/image-build/DESIGN.md) | Cargo-derived compilation inputs, artifact reuse, normalized dependency publication, and source identity |
