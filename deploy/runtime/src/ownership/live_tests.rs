@@ -8,9 +8,9 @@ use crate::{
 use veoveo_deploy_contract::components::*;
 use veoveo_extension_contract::{ArtifactDigest, SourceRevision};
 
-struct Namespace {
-    context: String,
-    name: String,
+pub(crate) struct Namespace {
+    pub(crate) context: String,
+    pub(crate) name: String,
 }
 
 impl Drop for Namespace {
@@ -33,7 +33,7 @@ impl Drop for Namespace {
     }
 }
 
-fn component(namespace: &str, name: &str, objects: &[&str]) -> CompiledComponent {
+pub(crate) fn component(namespace: &str, name: &str, objects: &[&str]) -> CompiledComponent {
     let mut objects = objects.iter().map(|name| {
         let mut object = serde_json::json!({"apiVersion":"v1", "kind":"ConfigMap", "metadata":{"namespace":namespace,"name":name},"data":{"setting":"public-test"}});
         if name.starts_with("hook-") { object["metadata"]["annotations"] = serde_json::json!({"helm.sh/hook":"pre-install,pre-upgrade,pre-rollback"}); }
@@ -112,7 +112,7 @@ fn component(namespace: &str, name: &str, objects: &[&str]) -> CompiledComponent
     }
 }
 
-fn snapshot(context: &str, namespace: &str) -> serde_json::Value {
+pub(crate) fn snapshot(context: &str, namespace: &str) -> serde_json::Value {
     let bytes = output_checked(
         "kubectl",
         [

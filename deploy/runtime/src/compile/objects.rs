@@ -175,7 +175,7 @@ fn builtin_scope(group: &str, kind: &str) -> Option<bool> {
     }
 }
 
-pub(super) fn bytes_digest(bytes: &[u8]) -> Result<ArtifactDigest> {
+pub(crate) fn bytes_digest(bytes: &[u8]) -> Result<ArtifactDigest> {
     let hex = Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -183,7 +183,7 @@ pub(super) fn bytes_digest(bytes: &[u8]) -> Result<ArtifactDigest> {
     Ok(ArtifactDigest::new(format!("sha256:{hex}"))?)
 }
 
-fn object_digest(object: &Value) -> Result<ArtifactDigest> {
+pub(crate) fn object_digest(object: &Value) -> Result<ArtifactDigest> {
     fn sort(value: &mut Value) {
         match value {
             Value::Object(map) => {

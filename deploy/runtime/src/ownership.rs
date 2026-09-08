@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
+use serde_json::Value;
 use veoveo_deploy_contract::components::{
     AtomicTarget, LockedComponent, ObjectIdentity, validate_component_catalog,
     validate_helm_inventory,
@@ -17,7 +18,7 @@ use crate::{
 };
 
 #[cfg(test)]
-mod live_tests;
+pub(crate) mod live_tests;
 
 #[derive(Debug, Default, Deserialize)]
 struct Metadata {
@@ -40,8 +41,8 @@ struct LiveObject {
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum LiveObjects {
-    List { items: Vec<LiveObject> },
-    Single(LiveObject),
+    List { items: Vec<Value> },
+    Single(Value),
 }
 
 pub(crate) fn validate_live_ownership(
@@ -127,9 +128,9 @@ pub(crate) fn validate_live_ownership(
         }
     }
     let served = validate_cluster_scopes(context, catalog, &objects)?;
-    let live = read_objects(context, &expected, &served)?;
-    for (identity, metadata) in live {
-        validate_manager(&expected[&identity], &metadata)
+    let live = read_objects(context, &expected.keys().cloned().collect(), Some(&served))?;
+    for (identity, value) in live {
+        validate_manager_value(&expected[&identity], &value)
             .with_context(|| format!("checking existing object {identity:?}"))?;
     }
     // Bind every historical manifest to the observed revision and reject a
@@ -157,14 +158,16 @@ fn insert_owner(
     Ok(())
 }
 
-fn read_objects(
+pub(crate) fn read_objects(
     context: &str,
-    expected: &BTreeMap<ObjectIdentity, AtomicTarget>,
-    served: &BTreeSet<(String, String)>,
-) -> Result<BTreeMap<ObjectIdentity, Metadata>> {
+    expected: &BTreeSet<ObjectIdentity>,
+    served: Option<&BTreeSet<(String, String)>>,
+) -> Result<BTreeMap<ObjectIdentity, Value>> {
     let mut groups = BTreeMap::<(String, String, Option<String>), Vec<String>>::new();
-    for identity in expected.keys() {
-        if served.contains(&(identity.group.clone(), identity.kind.clone())) {
+    for identity in expected {
+        if served
+            .is_none_or(|served| served.contains(&(identity.group.clone(), identity.kind.clone())))
+        {
             groups
                 .entry((
                     identity.group.clone(),
@@ -204,7 +207,9 @@ fn read_objects(
                 LiveObjects::List { items } => items,
                 LiveObjects::Single(object) => vec![object],
             };
-        for object in objects {
+        for value in objects {
+            let object: LiveObject = serde_json::from_value(value.clone())
+                .context("decoding Kubernetes object identity")?;
             let identity = ObjectIdentity {
                 group: object
                     .api_version
@@ -216,16 +221,26 @@ fn read_objects(
                 namespace: object.metadata.namespace.clone(),
             };
             ensure!(
-                expected.contains_key(&identity),
+                expected.contains(&identity),
                 "Kubernetes returned an unrequested object identity"
             );
             ensure!(
-                result.insert(identity, object.metadata).is_none(),
+                result.insert(identity, value).is_none(),
                 "Kubernetes returned duplicate object identities"
             );
         }
     }
     Ok(result)
+}
+
+pub(crate) fn validate_manager_value(target: &AtomicTarget, value: &Value) -> Result<()> {
+    let metadata = serde_json::from_value(
+        value
+            .get("metadata")
+            .context("object has no metadata")?
+            .clone(),
+    )?;
+    validate_manager(target, &metadata)
 }
 
 fn validate_manager(target: &AtomicTarget, metadata: &Metadata) -> Result<()> {

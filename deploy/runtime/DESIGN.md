@@ -8,6 +8,7 @@
 | `veoveo.io/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
 | `veoveo.io/component-image-publication/v1` | Internal xtask receipt for image-only lock composition; records inputs and retained owners, with no cluster execution claim |
+| `veoveo.io/installed-deployment-unit/v1` | Local installation provenance, exact Helm revision and manifest identity, and observed object fingerprints used to verify reuse |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.2.4 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
@@ -50,6 +51,8 @@ for an enterprise installation governed by GitOps.
 | `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
 | `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
 | `helm_state.rs` | Exact Helm metadata and the deployed or successful revisions an upgrade or rollback may use |
+| `helm_state/snapshot.rs` | Stored manifest content and successful hook execution from Helm status |
+| `installed.rs` and `installed/` | Local receipt storage, actual object fingerprints, and verified reuse in the full-profile installer |
 | `ownership.rs` | Read-only historical inventory and live ownership checks before installation writes |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
 | `configuration.rs` | Rendered Secret-reference closure, bounded Secret observations, public ConfigMaps, and gateway activation |
@@ -197,10 +200,63 @@ ConfigMap identities and versions and both Helm revisions after rejection, then 
 and verifies removal of its namespace. These resources exercise ownership without
 claiming GPU workload or selected-deployment acceptance.
 
-Installation still processes the full profile. Exact component selection, installed
-state receipts, execution fencing, raw-resource adoption, conflicting-device-plugin transition
+Installation still processes the full profile. Exact component selection,
+execution fencing, raw-resource adoption, conflicting-device-plugin transition
 inventories, and live zero-write acceptance remain unfinished. The NVIDIA DRA 0.5.0
 artifact and render checks pass; hardware qualification of that release is pending.
+
+## Verified Installation Reuse
+
+The existing `profile-up` command records each successful Helm or prepared manifest-set
+operation in the installation repository's Git common directory under
+`veoveo-deployment/<cluster-uid-hash>/`. The `kube-system` Namespace UID binds the
+destination; recreating a cluster creates a different receipt directory. A nonblocking
+file lock covers preflight and execution for worktrees sharing this directory. It does
+not fence another host or an independent installation repository.
+
+Before installation writes, the runtime decodes all relevant receipts and checks their
+schema, target, owner, provenance, and object inventory. A missing receipt takes the
+ordinary installation path. A malformed receipt fails preflight. Each receipt contains
+typed provenance and object hashes, with no manifest bodies or Secret values. It is a
+local optimization record and grants no Kubernetes ownership authority.
+
+Reuse requires the desired content digest to match the recorded installation. Helm
+must still report the same deployed revision and canonical stored manifest inventory,
+including hooks. Every existing object must retain its UID and actual content hash.
+The hash includes server-added fields and status; only `resourceVersion` and
+`managedFields` are excluded. Status changes can conservatively trigger a normal apply.
+Live ownership is checked again when verifying reuse, and Helm metadata is reread after
+object observation. Concurrent writers remain outside this local lock's boundary.
+
+After an apply succeeds, baseline capture compares every declared field with the actual
+API object before hashing that object's full contents. Added API defaults are accepted;
+scalar coercion or reordered arrays decline caching. Helm's stored manifest must match
+the compiled inventory. An operation invalidates its previous receipt before invoking
+its mutation, which prevents a failed or interrupted apply from reusing obsolete evidence.
+Receipt publication uses an atomic local rename. Reuse preserves the source and
+configuration provenance of the operation that actually installed the unit.
+
+A `batch/v1` Job observed Complete without Failed and with a declared TTL may later be
+absent. A Job removed before completion was observed cannot establish that evidence.
+An absent hook requires Helm's stored `Succeeded` phase and `hook-succeeded` deletion
+policy, following its [hook execution format](https://github.com/helm/helm/blob/v4.2.4/pkg/release/v1/hook.go).
+Other missing objects decline reuse. This avoids rerunning completed initialization
+solely because an expected cleanup removed its object.
+
+The reuse gate covers node bootstrap, namespaces, public resources, gateway activation,
+the GPU allocator Helm release, and source Helm releases. Allocator admission and GPU
+readiness checks still execute. Persistent ResourceClaims retain their existing exact
+specification and identity verification, which already avoids an apply when unchanged.
+Cluster creation and device-plugin migration remain separate lifecycle boundaries.
+
+The explicit-context Rust test in `installed/tests.rs` creates isolated ConfigMap
+releases and a raw ConfigMap. It verifies unchanged object versions and Helm revisions,
+retained installed provenance, an update confined to one release, successful hook
+cleanup, live drift and replacement detection, and invalidation after failure. A
+foreign field-manager conflict remains an error through Helm's normal protection.
+The fixture verifies its namespace removal. Unit tests cover TTL completion, malformed
+receipts, cluster isolation, and the local lock. These checks do not qualify a GPU
+workload or establish complete selected-deployment mutation receipts.
 
 ## Dependencies
 

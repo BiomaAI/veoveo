@@ -777,8 +777,7 @@ objects cannot transfer into another component or release. Live reads batch exac
 object names by kind and namespace, then check Helm ownership and known GitOps markers.
 Release metadata is checked again after those reads. Helm hooks receive explicit owner
 metadata during compilation, and installation now uses the canonical Helm 4 rollback
-flag. Installed-content observations, execution fencing, general raw adoption, and
-selected execution remain open.
+flag. Execution fencing, general raw adoption, and selected execution remain open.
 
 A live Rust ownership test passed against the reference cluster in its own temporary
 namespace. Two ConfigMap-only releases installed successfully through the corrected
@@ -787,6 +786,22 @@ manifest and hook, and raw application over a Helm-owned ConfigMap. ConfigMap UI
 resource versions and both Helm revisions remained unchanged after rejection. Namespace
 removal was verified. This establishes the ownership preflight's live behavior; full
 selected execution and GPU workload acceptance remain separate requirements.
+
+The full-profile installer now verifies local installed-unit receipts before reusing
+unchanged Helm releases or prepared manifest sets. Receipts retain actual installation
+provenance, a cluster UID, stored Helm revision and manifest identity, and observed
+object fingerprints. Reuse adds no Kubernetes bookkeeping object. The initial apply
+captures actual API contents, including defaults and status. Subsequent runs recheck
+those contents, object UIDs, and Helm metadata. Completed TTL Jobs and successfully
+deleted Helm hooks have explicit observation rules.
+
+An isolated live Rust regression verifies unchanged Helm revisions and ConfigMap
+resource versions, source-revision-only reuse, an update confined to one release,
+successful hook deletion, raw ConfigMap reuse, and rejection of drift and replacements.
+Failed application invalidates the local receipt. Helm's field-manager conflict
+protection remains active. The native fixture removes and verifies its temporary
+namespace. This is reuse acceptance for the existing profile command; complete
+component-selected execution, cross-host fencing, and GPU acceptance remain open.
 
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and

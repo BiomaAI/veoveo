@@ -10,6 +10,7 @@
 | `veoveo.io/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by publication and compatibility generation |
 | `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
 | `veoveo.io/component-mutation-plan/v2` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
+| `veoveo.io/installed-deployment-unit/v1` | typed local provenance and observed object fingerprints for verified installation reuse; contains no object bodies or Secret values |
 | `veoveo.io/atomic-deployment-unit/v2` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
 | `veoveo.io/atomic-deployment-content/v2` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions and extension release provenance excluded; used only after exact lock validation |
 | `veoveo.io/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
@@ -37,7 +38,8 @@ disposable profile installer. It consumes this crate's contracts and digest enco
 `src/components/` implements the pure preflight boundary for `DEPLOY-SCOPE-023`.
 The disposable profile compiler and installer consume deployment v7 with mandatory
 component ownership and compiled inventories. Installation still processes the complete
-profile; component selection and installed-state receipts remain unfinished.
+profile; component-selected execution remains unfinished. The runtime uses typed local
+receipts to verify reuse through the existing full-profile installer.
 The internal planner is not an alternative installer or an enterprise mutation owner.
 
 Each component declares its immutable source, role, dependencies, exact Helm release
@@ -150,6 +152,16 @@ inventory describes the ownership boundary; it is not zero-write evidence. Focus
 prove selection and rejection rules. Independent temporary platform and extension Git
 histories exercise revision reuse and committed input reads in the pure planner. Actual
 mutation receipts and live zero-write acceptance remain installer integration work.
+
+`InstalledUnitReceipt` binds one locked atomic unit and its component declaration to a
+cluster UID. Its validator recomputes provenance and content digests and requires exactly
+one observation for each rendered object. Helm units require a positive release revision
+and canonical manifest digest. A present observation contains the actual object UID and
+fingerprint. Only a Job can record completed TTL evidence; completed-hook observations
+require Helm revision evidence. The runtime must establish those observations from the
+API and Helm's execution record. The schema does not authenticate a local receipt or
+prove the absence of concurrent writes. Runtime storage and reuse rules belong in
+[`../runtime/DESIGN.md`](../runtime/DESIGN.md).
 
 ## Deployment Profile
 
