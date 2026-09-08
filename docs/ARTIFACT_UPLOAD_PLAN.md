@@ -1,257 +1,353 @@
-# Public Artifact Upload Plan
+# Public And Console Artifact Upload Plan
 
-Status: proposed for review; implementation has not started. Baseline: main
-`1ea74896`, fetched on
-2026-09-08. Existing component designs remain normative until implementation lands.
+Status: ready for implementation handoff; implementation has not started. Baseline:
+main `66005e28`, fetched on 2026-09-08. The first release includes multi-GB resumable
+uploads and an upload form in the Console Artifacts page. Existing component designs
+remain normative until implementation lands.
 
-An external application uploads a file through authenticated HTTP and receives a
-canonical Artifact URI. A Rust or Python MCP server then consumes that URI under the
-calling principal's existing access rules. File bytes stay outside MCP messages.
+An external application or Console user uploads a file through authenticated HTTP
+and receives a canonical Artifact URI. Rust and Python MCP servers consume that URI
+under the caller's access rules. File bytes stay outside MCP messages.
 
 ## Standards And Protocols
 
 | Boundary | Proposed supported profile |
 |---|---|
-| HTTP, RFC 9110 | JSON admission, streamed raw-body PUT, authenticated receipt GET, cancellation DELETE, explicit status codes, and bounded request lifetimes |
-| Existing gateway OAuth profile | Registered human and machine clients, bearer tokens, exact profile protected-resource binding, and existing `private_key_jwt` client credentials; reuse the repository's supported profile |
-| JSON Schema 2020-12 | Closed upload request, session, receipt, error, and installation-policy models generated from Rust types |
-| SHA-256 | Required client-declared digest, independently verified by Artifact service during transfer |
-| UUIDv7 | Upload and occurrence identities; repository-owned UUIDv7 `Idempotency-Key` semantics, not a claim of implementing an external idempotency standard |
-| Veoveo Work Context authority | Gateway-resolved tenant, actor, invocation provenance, output owner, initial grants, classification, labels, and policy revision |
-| Internal Artifact HTTP | Existing signed-identity transport and verified streaming storage, extended with durable upload operations; internal headers remain an adapter detail |
-| MCP `2026-07-28` | Existing downstream tool input and artifact-resource projection only; upload is an independent HTTP contract |
+| HTTP, RFC 9110 | JSON admission/completion, streamed raw-body part PUT, authenticated status GET, cancellation DELETE, and explicit status codes |
+| Existing gateway OAuth profile | Registered human/machine clients, bearer tokens, exact profile protected-resource binding, and existing `private_key_jwt` client credentials |
+| JSON Schema 2020-12 | Closed request, policy, session, part, receipt, error, and browser-projection models generated from Rust types |
+| SHA-256 | Verified part digests and a separately computed whole-object digest; multipart ETags and composite checksums are not whole-file SHA-256 |
+| UUIDv7 | Upload, occurrence, and client request identities; repository-owned UUIDv7 `Idempotency-Key` semantics |
+| Veoveo Work Context authority | Gateway-resolved tenant, actor, provenance, owner, initial grants, classification, labels, and policy revision |
+| Veoveo resumable upload API | Repository-owned part/completion protocol below; no claim of tus or browser multipart/form-data conformance |
+| S3-compatible multipart storage | Private create, part upload, complete, and abort adapter; provider IDs and object keys remain internal |
+| Browser File/Blob, workers, and HTTP upload | Bounded file slices, incremental hashing, progress, and cancellation in the Console origin |
+| Console authentication | Existing BFF session, same-origin requests, and CSRF protection on mutations |
+| MCP `2026-07-28` | Downstream tool inputs and artifact resources; upload is an independent HTTP contract |
 
-No new dependency is proposed. Implementation must verify authoritative upstream
-releases and exact pins if it introduces or touches a dependency.
+The current storage dependency is `object_store` 0.14.1. Its low-level
+[`MultipartStore`](https://docs.rs/object_store/0.14.1/object_store/multipart/trait.MultipartStore.html)
+exposes provider upload IDs and part receipts suitable for durable sessions. It
+accepts a materialized `PutPayload` per part, which bounds memory by part size but
+does not provide a streaming request-body API. Preserve that distinction in performance
+claims. Verify authoritative upstream releases and exact pins when a dependency is
+introduced or touched. Select a maintained incremental browser hash implementation
+at implementation time if existing dependencies do not provide one.
 
-## Current Implementation
+## Current Implementation And Required Changes
 
-| Existing code | Reusable behavior or gap |
+| Existing code | Reusable behavior or required change |
 |---|---|
-| `platform/artifacts/service/src/http.rs` | Internal `POST /artifacts` and `POST /artifacts/stream`; current upload ceiling is 256 MiB |
-| `platform/artifacts/service/src/service.rs` | `put_stream` stamps trusted authority and recognizes committed retries using occurrence identity and immutable publication data |
-| `platform/artifacts/service/src/store.rs` | `put_verified_stream` hashes bounded chunks, verifies exact length, and aborts explicit transfer/verification failures before writer completion |
-| `platform/gateway/src/bin/gateway/recording_layer_publication.rs` | Public authenticated streaming proxy for recording layers, including policy and gateway assertion issuance |
+| `platform/artifacts/service/src/http.rs` | Internal puts have a 256 MiB ceiling; replace the fixed total-file ceiling with upload policy and independent per-request bounds |
+| `platform/artifacts/service/src/service.rs` | Trusted ownership and committed occurrence retry checks exist; add durable multipart sessions, reservations, finalization, and recovery |
+| `platform/artifacts/service/src/store.rs` | Streaming reads and multipart-backed writes exist; expose durable multipart operations through focused modules |
+| `platform/store/src/artifacts.rs` | Blob identity is tenant plus whole-file SHA-256; replace mutable blob UPSERT behavior with conflict-safe immutable reuse when upload object keys differ |
+| `platform/gateway/src/bin/gateway/recording_layer_publication.rs` | Reuse authenticated streaming proxy mechanics while retaining recording-specific authorization in its route |
 | `platform/gateway/src/bin/gateway/auth.rs` and `runtime.rs` | Profile bearer authentication and `/artifacts/{profile}/...` profile extraction already exist |
-| `sdk/python/src/veoveo_mcp/artifacts.py` | `ArtifactRepository.resolve` reads a URI with the forwarded caller identity |
-| `templates/python-mcp/src/datasheet_mcp/server/mcp_server.py` | CSV/Parquet artifact input is implemented |
+| `apps/console/web/src/views/Artifacts.tsx` | Existing searchable artifact table; add the upload action and form here |
+| `apps/console/bff/src/api.rs` | Session/CSRF and streamed download patterns exist; add upload behavior in a separate module |
+| `sdk/python/src/veoveo_mcp/artifacts.py` | URI resolution exists but materializes the object; add streaming download/file materialization for large consumers |
 
-There is no general public gateway or Console upload route at this baseline. The
-streaming implementation does not supply a durable public admission lifecycle,
-in-flight reservation, or public receipt API. Cancellation, process death, and an
-object-store success followed by database failure require explicit recovery design.
+There is no general public or Console upload route at this baseline. In-memory
+multipart writers cannot resume across processes. Explicit writer aborts do not
+establish recovery after process death or storage success followed by database failure.
 
-## First Release
+## First-Release Scope And Size Policy
 
-The proposed first release assumes one nonempty file per upload, up to the current
-256 MiB ceiling, pending confirmation of the required dataset sizes. Installations
-may set a lower limit. Interrupted transfers restart
-from byte zero under the same upload identity. Range-based resumption and multipart
-public uploads are separate work if multi-GB input is required from day one.
+Multi-GB files and the Console Artifacts upload form are required deliverables.
+There is no fixed small product-level file limit. Installations declare supported
+object size, tenant storage quota, upload concurrency, and transfer budgets within
+their actual backend limits. Use checked 64-bit byte counters throughout Rust and
+Store, and reject unsafe numeric conversions at the browser boundary.
+Upload enablement requires an explicit installation policy; omitted limits must not
+silently restore a small default cap or grant unlimited storage.
 
-Supported initial callers are external services and command-line clients with a
-gateway access token. The endpoint does not require a particular downstream MCP
-server. Uploading a CSV stores an immutable artifact; table ingestion or dataset
-profiling remains an explicit domain operation.
+Admission negotiates part size and parallelism. Start performance measurement at
+16 MiB parts with up to four transfers per upload, then tune against the installed
+store and shared memory budget. These are transfer units, not file-size caps.
+Increase part size as needed for the declared object size and backend maximum part
+count. The admitted layout stays fixed. Enforce aggregate memory admission and tenant
+fairness across all concurrent sessions.
 
-Console and MCP App file pickers follow the endpoint milestone. They consume the
-same admission and storage primitives. App-mediated authority remains subject to
-the exact App resolution gate in `PLATFORM_IMPROVEMENTS_PLAN.md`, request `017`.
-That gate does not block direct authenticated API clients.
+A known-size file reserves its total bytes before transfer. A streaming producer may
+omit total length and reserve a bounded window of additional parts under tenant quota.
+Charge new parts before accepting bytes and release unused reservation at completion.
+Admission declares the session's maximum total bytes and part count. Unknown-length
+streams cannot silently exceed those bounds; callers expecting larger streams request
+an appropriate layout at admission. Only the final part may be shorter than part size.
 
-## Public API
+Interrupted transfers retry missing parts. A refreshed token resumes the same upload.
+Gateway or Artifact service restarts never require retransmission of the entire file.
+Console, command-line clients, and services share the same ingestion foundation.
+Importing a stored artifact into a domain database remains an explicit MCP operation.
 
-All paths are relative to the installation origin. Every operation authenticates a
-fresh request against the selected gateway profile. An upload ID is not a credential.
+## Public HTTP API
 
-| Method and path | Request | Result |
-|---|---|---|
-| `POST /artifacts/{profile}/uploads` | JSON descriptor and UUIDv7 `Idempotency-Key` | `201` reserved session; matching replay returns `200` with the same session or completed receipt |
-| `PUT /artifacts/{profile}/uploads/{upload_id}/content` | Raw file body with matching `Content-Type` | `201` completed receipt; a completed matching replay returns `200` |
-| `GET /artifacts/{profile}/uploads/{upload_id}` | No body | Current session state and completed receipt when present |
-| `DELETE /artifacts/{profile}/uploads/{upload_id}` | No body | `204` after cancellation is recorded; cannot delete a completed artifact |
+All paths are relative to the installation origin. Every request authenticates
+against the selected profile. An upload ID is an identity, not a credential.
 
-The JSON descriptor contains `filename`, `mime_type`, `byte_len`, and `sha256`.
-Reject unknown fields. Bound filename length and reject path components and control
-characters. Apply an installation-owned media-type allowlist. Content-Type agreement
-checks transport consistency; the platform does not claim that a filename or MIME
-declaration validates the file's domain format. Domain consumers validate their input.
+| Method and path | Purpose |
+|---|---|
+| `GET /artifacts/{profile}/upload-policy` | Effective permission, admitted types, object/quota limits, and transfer constraints |
+| `POST /artifacts/{profile}/uploads` | JSON descriptor and UUIDv7 `Idempotency-Key`; `201` session with negotiated layout/expiry; matching replay returns `200` |
+| `PUT /artifacts/{profile}/uploads/{upload_id}/parts/{part_number}` | Raw streamed part with declared size and SHA-256; durable part receipt after storage acknowledgement and ledger commit |
+| `GET /artifacts/{profile}/uploads/{upload_id}` | State, progress, completed receipt, and a bounded cursor-paginated page of accepted parts |
+| `POST /artifacts/{profile}/uploads/{upload_id}/complete` | Final byte length, part count, and optional expected whole-file SHA-256; seal manifest and return `202` while verifying, or `200` for an existing receipt |
+| `DELETE /artifacts/{profile}/uploads/{upload_id}` | Record cancellation and return `204`; cannot delete a completed artifact |
 
-Keep tenant, owner, grants, Work Context, provenance, storage keys, and release state
-out of this descriptor. Derive governance from authenticated authority and an
-installation-owned upload policy. A client that needs a different Work Context uses
-the existing registered-client authority mechanism.
+Public part numbers are one-based. Offsets follow from the negotiated layout. Use
+typed repository-owned `x-veoveo-part-byte-len` and `x-veoveo-part-sha256` headers.
+Enforce size with a streaming counter. Content-Length must match when present;
+the protocol also accepts streams where that header is absent.
 
-Admission allocates a server-owned upload ID and occurrence ID. It returns an
-`upload_url` under the same origin, `expires_at`, and a typed session state. The
-proposed reservation lifetime is one hour. Return the canonical artifact URI only
-after durable completion. A receipt contains:
+Admission accepts `filename`, `mime_type`, optional `byte_len`, and optional expected
+whole-file `sha256`. Reject unknown fields and unsafe filenames. Apply installation
+media policy; a MIME declaration does not certify domain-format validity. Tenant,
+Work Context, owner, grants, provenance, release state, and storage paths come from
+trusted authority rather than form fields or caller JSON.
+
+Clients compute each part digest in bounded memory before transferring that part.
+Console hashes slices in a worker and pipelines hashing with transfers. A streaming
+producer buffers at most its admitted part window. There is no mandatory preliminary
+whole-file read. The service independently checks each part before accepting its
+storage receipt. Bind each part number to immutable size and digest. Matching retries
+reuse the receipt; different content conflicts.
+
+Completion rejects holes, wrong totals, conflicting manifests, and nonfinal short
+parts. Freeze accepted part identities before storage completion. Return the artifact
+URI only after verification and durable publication. The final receipt contains upload
+ID, artifact ID, canonical `artifact://{uuidv7}` URI, verified whole-file SHA-256,
+exact byte length, MIME type, filename, and creation time.
+
+The client flow is admission, bounded parallel part PUTs, completion, and receipt.
+Status recovery reads this platform's upload ledger. Storage operations are direct
+HTTP requests; this design introduces no external provider-job polling.
+
+For example, admission of a 10 GiB file uses this JSON body; clients need not calculate
+its whole-file digest before starting:
 
 ```json
 {
-  "upload_id": "<uuidv7>",
-  "artifact_id": "<uuidv7>",
-  "artifact_uri": "artifact://<uuidv7>",
-  "sha256": "<verified-lowercase-hex-digest>",
-  "byte_len": 12345,
-  "mime_type": "text/csv",
-  "filename": "dataset.csv",
-  "created_at": "<UTC timestamp>"
+  "filename": "observations.parquet",
+  "mime_type": "application/vnd.apache.parquet",
+  "byte_len": 10737418240
 }
 ```
 
-The placeholders above describe the wire shape. A CLI flow will be:
+With a negotiated 16 MiB layout, the client sends 640 parts. A retry sends only parts
+missing from the accepted-part ledger. The completion body is
+`{"byte_len":10737418240,"part_count":640}`. MIME admission still depends on the
+installation policy. Small files use one part through the same canonical API.
 
-```sh
-# upload.json contains the filename, MIME type, exact size, and computed digest.
-curl --fail-with-body "$VEOVEO_ORIGIN/artifacts/$PROFILE/uploads" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Idempotency-Key: $REQUEST_ID" \
-  -H 'Content-Type: application/json' \
-  --data-binary @upload.json
+## Console Artifacts Upload Form
 
-# UPLOAD_ID comes from the admission response.
-curl --fail-with-body \
-  "$VEOVEO_ORIGIN/artifacts/$PROFILE/uploads/$UPLOAD_ID/content" \
-  -X PUT -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H 'Content-Type: text/csv' --data-binary @dataset.csv
-```
+Add an **Upload files** action beside search/filter controls in the Artifacts page.
+It opens a form using existing Console components and theme tokens. Support a queue
+of selected files, each with its own session. File picker and drag/drop selection
+share validation and the transfer controller.
 
-The client computes the digest through bounded file reads. The server verifies it
-again while streaming. This entails a preliminary read by the client; it never
-requires loading the entire file into memory. For HTTP/2 or clients without a
-Content-Length header, the admitted `byte_len` remains the exact streaming bound.
-When Content-Length is present, reject a mismatch before consuming the body.
+| Form element or state | Required behavior |
+|---|---|
+| Destination | Show authenticated Work Context and inherited access; no tenant/ownership overrides |
+| Selection | Accessible file input/drop area; show name, type, size, and effective quota/size constraints |
+| Admission | Fetch effective policy from BFF; explain unavailable permission and reject invalid selections before transfer |
+| Queue | Per-file preparing, uploading, paused, interrupted, verifying, completed, failed, and cancelled states |
+| Progress | Transferred and acknowledged bytes, total when known, rate, and reliable remaining-time estimate; verification has its own state |
+| Controls | Upload, pause, resume/retry, and cancel; keyboard access and labelled status/progress |
+| Success | Refresh/patch the artifact list by receipt identity, open existing ArtifactDrawer, and Copy artifact URI |
+| Failure | Actionable inline errors for quota, expiry, permissions, connection loss, and integrity; retain completed parts and retry identity |
 
-## Authorization And Admission
+Pause stops scheduling and aborts in-flight requests while retaining durable parts.
+Resume reconciles accepted parts before sending missing ones. Cancel calls DELETE
+and initiates cleanup. Closing the form or leaving the page pauses local transfer;
+it does not silently destroy progress. Server verification continues independently
+and settles through upload events in the existing Console event stream.
 
-Add `GatewayAction::ArtifactUpload` with serialized name `artifact_upload`, targeted
-at the Artifact server. Require the new `artifact:upload` scope plus an explicit
-profile policy rule. The action covers admission, transfer, receipt recovery, and
-cancellation, each scoped to the session's original actor. It maps to no MCP method.
+Persist only upload IDs and small descriptors locally, scoped to actor and Work
+Context. Never persist bearer tokens or whole files there. After reload, reconcile
+through the authenticated API and ask for file reselection when the browser no longer
+has a handle. Verify size and recompute accepted-part digests from the reselected file
+before resuming to prevent mixing two same-named files. Do not promise automatic file
+access after a browser reload.
 
-Require at least Contributor membership in the resolved Work Context. Verify profile
-exposure, tenant, and label clearance before reservation. Repeat current authorization
-on each operation. Artifact service rechecks the signed authority and the current
-Work Context policy before committing. A changed policy invalidates an unfinished
-reservation; the client must request a new one. A replay never bypasses current access
-checks. Foreign sessions return a non-disclosing `404`.
+Add `apps/console/bff/src/artifact_upload.rs`. Same-origin routes mirror public operations
+under `/console/api/artifacts/`, including upload-policy, uploads, parts, status,
+completion, and cancellation. Derive profile/bearer from the session and rewrite URLs
+to the BFF origin. Require existing CSRF protection on every mutation. Stream part
+bodies through BFF and Gateway without collecting or duplicating them.
 
-The new typed upload policy bounds file bytes, admitted media types, active sessions,
-and reserved bytes per tenant and actor. Reserve count and byte quota atomically at
-admission. Concurrent gateway replicas must share the same accounting. The declared
-size controls reservation and the observed byte count controls transfer enforcement.
-Validate deployment values against the Artifact service ceiling.
+Use `components/ArtifactUploadForm.tsx`, a typed transfer controller, and a hashing
+worker. Keep queue logic out of `Artifacts.tsx` and shared `api.ts`. Use native bounded
+File/Blob uploads with observable progress. Share negotiated concurrency across the
+queue. A successful part PUT is not whole-file success; wait for the final receipt.
 
-Only the gateway issues internal assertions. It replaces incoming internal headers
-with a descriptor derived from the durable session and trusted admission. Public
-clients never obtain object-store keys, internal bearers, or task write capabilities.
-Existing task write capabilities remain specific to asynchronous task output.
+## Authorization, Quotas, And Expiry
 
-Reuse the selected profile's existing OAuth protected resource and discovery. Do not
-invent an upload-only audience or accept a token issued for another profile. Machine
-clients use the existing client-credentials flow. Later browser callers use the
-Console BFF session and CSRF protection.
+Add `GatewayAction::ArtifactUpload` (`artifact_upload`) targeting Artifact. Require
+`artifact:upload`, explicit profile policy, and Contributor-or-higher Work Context
+membership. It maps to no MCP method. Authenticated policy discovery must report
+unavailable permission without granting transfer authority.
 
-## Streaming, Durability, And Failure Handling
+Recheck authorization on each operation and before occurrence commit. Bind sessions
+to tenant, actor, profile, Work Context, provenance, and upload-policy revision.
+Changed governing policy invalidates unfinished admission. Foreign sessions return
+a non-disclosing `404`. Only Gateway signs internal assertions and reconstructs trusted
+descriptors. Object storage remains private; public clients receive no internal bearer.
 
-Artifact service owns upload records in the shared Store. Use a focused upload module
-with typed states `reserved`, `receiving`, `completed`, `cancelled`, and `expired`.
-A receiving record carries an expiring lease and fencing generation. A live competing
-transfer gets `409`; a stale worker cannot complete after cancellation or takeover.
-An interrupted attempt returns to `reserved` after cleanup and lease recovery.
+Scope admission idempotency to actor, tenant, profile, and Work Context. Conflicting
+descriptors return `409`; receipt recovery still requires current access. Reserve
+bytes/session counts atomically across replicas. Cleanup accounting includes retained
+physical bytes even after cancellation releases the logical reservation.
 
-Scope the admission idempotency key to tenant, actor, profile, and Work Context. Bind
-the immutable descriptor and upload-policy revision to that record. Repeating the key
-with different input returns `409`. The completed receipt survives service recreation
-and a lost HTTP response. Refreshing a token for the same authority does not create a
-second occurrence. Session cleanup preserves completed deduplication records for as
-long as their artifact occurrence is retained; do not silently reuse expired keys.
+Use configurable inactivity expiry and maximum session lifetime. Start with 24 hours
+of inactivity and seven days total, with installation overrides. Short per-part
+deadlines and token expiry bound each HTTP request; refreshed authentication continues
+remaining parts. A single request timeout is never the whole-file deadline.
 
-Stream through Gateway into Artifact service using backpressure. Share the verified
-writer with recording publication, while keeping recording-specific authorization in
-its existing route. No hop may collect the file with `Bytes`, `to_bytes`, or a cloned
-whole-body buffer. Apply a byte counter, idle timeout, total transfer deadline, and
-cancellation propagation at each hop. Bound transfer admission by token expiry and
-return an actionable expired-authorization error when a fresh request is required.
+## Storage, Integrity, And Performance
 
-Extend storage around attempt-specific temporary objects or multipart handles with
-durable cleanup ownership. After exact length and digest verification, promote the
-blob to tenant-scoped content storage. Commit the occurrence, initial grants, receipt,
-quota settlement, and completion audit/outbox event atomically in Store. Fence the
-completion against the current session generation and current policy.
+Parts flow through Console BFF when applicable, Gateway, and Artifact service into
+native S3 multipart storage. External clients bypass only the BFF. Persist provider
+upload IDs and part receipts in Store; these are private implementation details.
 
-Object storage and Store do not share a transaction. Recovery must reconcile a crash
-after blob completion and before occurrence commit. Record enough state to finish a
-valid commit or remove an unreferenced temporary object. Never delete a content blob
-that another occurrence references. Cancellation is durable before returning `204`;
-cleanup converges after crashes through a service-owned recovery loop. No incomplete
-upload may expose an artifact URI or become readable. Explicit abort tests alone do
-not establish this guarantee.
+`MultipartStore::put_part` materializes one bounded part. Reuse shared byte chunks
+where possible and acquire memory budget before reading. Gateway/BFF stay streaming.
+Memory scales with admitted in-flight parts, not object size. Measure copies and
+throughput before choosing a more complex streaming S3 adapter. If bounded-part
+materialization is the bottleneck, adopt a maintained streaming adapter with exact
+current pins. Do not hand-roll signing or claim zero-copy from the current API.
 
-Use bounded typed errors with a safe correlation ID: malformed descriptors `400`,
-authentication failures `401`, policy denials `403`, immutable conflicts `409`, expired
-sessions `410`, byte ceilings `413`, disallowed media types `415`, integrity failures
-`422`, and quota saturation `429`. An upstream outage is retryable `503`. A completed
-upload cannot be cancelled and returns `409` to DELETE. Response bodies and telemetry
-must omit file bytes, credentials, and internal storage paths.
+Complete multipart storage at an opaque tenant-scoped upload object key. Compute
+whole-file SHA-256 with one bounded sequential read in the installation network and
+compare the expected digest when supplied. Retain the verified object at that key
+and attach it to the content ledger. Do not materialize the file on local disk or
+rewrite it under a hash-derived key.
 
-## Implementation Sequence
+This verification pass is an explicit internal read cost. It preserves whole-file
+identity while allowing parallel uploads without a preliminary client file scan.
+Part hashes cannot be combined into ordinary whole-file SHA-256. S3's SHA-256
+multipart checksum is composite, as documented in the
+[S3 integrity profile](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html).
+Do not store a composite checksum or ETag in Veoveo's whole-file `sha256` field.
+
+Verification is durable service-owned work with a lease. It survives client disconnect
+and can restart an internal read after a crash without client retransmission. Any later
+hash-checkpoint optimization needs versioned state and corruption tests. Benchmarks
+include verification in time-to-usable-artifact; wire throughput alone is insufficient.
+
+Register blobs through immutable create-or-reuse by tenant/digest. Concurrent equal
+uploads converge on one retained object key without overwriting a referenced mapping.
+Attach the occurrence to the winning blob, then remove the unreferenced duplicate.
+Update all shared writers, including recording publication, to honor this invariant.
+This is a required cross-component contract change.
+
+## Durable State And Recovery
+
+Use typed states `open`, `finalizing`, `verifying`, `completed`, `cancelled`, `expired`,
+and `failed`. Persist per-part size/digest, storage receipt, lease, and attempt generation.
+Fence stale attempts/finalizers. Only an accepted immutable part descriptor can reach
+storage. Reconcile uncertain acknowledgements without accepting different content.
+
+Freeze the manifest transactionally before storage completion. Recover from completion
+whose response or database update was lost. After verification/current-policy checks,
+commit occurrence, grants, receipt, quota settlement, and completion audit/outbox in
+one Store transaction. Exactly one occurrence becomes visible per upload identity.
+
+Storage and Store have separate transactions. Track multipart handles and unpublished
+completed objects for service-owned cleanup. Abort unfinished uploads after expiry or
+cancellation. Delete unreferenced failed/abandoned objects. Backend lifecycle cleanup
+is defense in depth and cannot delete committed objects because their key originated
+from an upload. Test cancellation/finalization and cleanup/shared-blob races.
+
+Cancellation is terminal before `204`; physical cleanup may finish asynchronously.
+Repeated cancellation is idempotent. DELETE of completed uploads returns `409`.
+Keep completed idempotency records for the artifact retention lifetime. Expired request
+identities are never silently reused.
+
+Use typed bounded errors with safe correlation IDs: malformed input `400`, failed
+authentication `401`, policy denial `403`, conflict `409`, expiry `410`, policy size
+violation `413`, disallowed type `415`, integrity failure `422`, quota/concurrency
+saturation `429`, and retryable dependency failure `503`. Omit file contents,
+credentials, and private paths from errors and telemetry.
+
+## Implementation Checkpoints
 
 | Checkpoint | Changes | Completion evidence |
 |---|---|---|
-| 1. Typed contract and policy | Add `mcp/contract/src/artifact_service/upload.rs`, public wire models, gateway action/validation, upload policy, schemas, and component design updates | Closed-schema tests, policy admission/denial tests, deployment configuration validation |
-| 2. Durable Artifact ingestion | Add focused service/HTTP/ledger upload modules, `platform/store/src/artifact_uploads.rs`, the next ordered migration, streaming client methods, leased reservations, atomic completion, and cleanup | Native SurrealDB concurrency/restart tests and actual S3-compatible storage interruption/cleanup tests |
-| 3. Public gateway endpoint | Add `platform/gateway/src/bin/gateway/artifact_upload.rs`; wire routes in `server.rs`; compose existing auth, policy, audit, and streaming helpers | HTTP admission/transfer/receipt/cancel tests with real streamed bodies and bounded buffering |
-| 4. External-to-Python acceptance | Add a Rust smoke scenario under `testing/smoke/src/bin/smoke/scenarios/`; upload through the public gateway, pass the URI to the Python datasheet server, verify output and denied access | Gateway-authenticated CSV and Parquet round trips, exact digest, single occurrence after retry, and cross-tenant denial |
-| 5. Installation and client guide | Update chart values/schema, installation-owned policy examples, external integration docs, Python template guide, and CODEMAP; verify ingress size/timeouts and request buffering | Recorded affected checks and a deployment plan naming only changed components |
+| 1. Contract/policy | Typed upload models in `mcp/contract/src/artifact_service/upload.rs`, gateway action/validation, quota/layout policy, schemas, designs | Schema, authority, 64-bit size, and deployment checks |
+| 2. Durable storage | Service/HTTP/ledger/store upload modules, next migration, multipart adapter, leases, finalization, verification, immutable blob reuse, cleanup | Native SurrealDB and real S3-compatible concurrency/restart/failure tests |
+| 3. Gateway | `platform/gateway/src/bin/gateway/artifact_upload.rs`, routing, auth/audit, policy discovery, streamed parts, status/completion | Configured-ingress HTTP acceptance, bounded memory, partial retries |
+| 4. Console form | BFF module, Artifacts action/form, queue/controller, worker, progress, pause/resume/cancel, list update, ArtifactDrawer handoff | Session/CSRF tests and headed hardware-GPU browser acceptance |
+| 5. Consumers/smoke | Python streaming download/file materialization, consumer-limit docs, Rust upload scenarios | URI-to-Python interoperability, exact bytes, tenant denial, bounded large download |
+| 6. Installation/performance | Chart policy/schema, integration guides, Console docs, CODEMAP, component deployment plan | Multi-GB throughput/memory, restart/resume, ingress/quota/cleanup evidence and committed test report |
 
-The SDK's current `resolve` path already supports first-release consumption. Do not
-add upload tools to each MCP server. Consumer limits remain independent: Python
-`resolve` currently materializes bytes in memory, and datasheet has its own dataset
-limit. Passing upload acceptance does not prove that every server can process a file
-at the platform maximum. Use small known fixtures for the Python round trip and test
-the upload ceiling separately.
+First release is incomplete until the Console form and multi-GB acceptance pass.
+Use focused modules rather than expanding large gateway, service, or BFF files.
+Update Artifact service and shared contract designs with implementation; repository-wide
+technical documentation owns the gateway/Console flow.
 
-Update `platform/artifacts/service/DESIGN.md` with upload state and cleanup semantics.
-Keep gateway-level authority and public endpoint documentation in the repository-wide
-technical design, with contract types beside `mcp/contract`. This plan remains indexed
-as proposed work until those implementation checkpoints land.
+Python `resolve` currently materializes the object. Keep it as an explicitly bounded
+convenience and add streaming download with byte ceilings, cancellation, and temporary
+file cleanup. Datasheet retains its own input/pandas memory limits; large upload
+support does not certify pandas at that scale. Test small CSV/Parquet interoperability
+separately from large transfer with a streaming consumer.
 
-## Verification And Rollout
+## Acceptance And Rollout
 
-Test unauthorized and viewer-only admission, incorrect audience/profile, forged
-ownership fields, label denials, media/size rejection before transfer, truncated and
-oversized bodies, digest mismatch, cancellation, expired leases, policy changes,
-concurrent identical and conflicting retries, quota release, lost responses, restart
-recovery, and database failure after blob completion. Measure bounded memory with a
-slow consumer. Exercise the configured ingress path as well as loopback HTTP.
+Run actual multi-GB transfers, including a file larger than 4 GiB to expose narrow
+counters. Use 10 GiB in repeatable acceptance and 100 GiB for scale qualification on
+a suitably provisioned installation. These are test sizes, not product caps.
+Compare against native multipart throughput on the same store. Record upload plus
+verification time, memory per process, concurrency, internal read traffic, retries,
+and cleanup latency. Certify only capacity actually tested.
 
-Run affected checks through `cargo xtask test-report run --name <check> -- <command>`,
-then inspect `cargo xtask test-report show` and commit passing evidence with each
-build-input checkpoint. Start with the affected contract, Artifact, Store, and gateway
-crate tests. Use `cargo xtask enforce python` if Python build inputs change. All smoke
-lifecycle, assertions, retries, and cleanup belong in the Rust smoke harness.
+Test unknown/known total lengths, truncated parts, checksum failures, missing parts,
+conflicting retries, completion races, quotas, token refresh, changed policy, replica
+restarts, slow receivers, and database failure after storage commit. Accepted parts
+must survive interruption. Prove memory stays bounded as file size grows and concurrent
+sessions cannot bypass aggregate memory admission.
 
-The plan itself changes documentation only and needs no build evidence refresh.
-Implementation rollout uses the latest component-scoped deploy workflow: bootstrap
-the Store migration, activate Artifact service, then Gateway and explicit upload
-policy. Keep the route disabled by policy until both service and gateway contracts
-are present. Upload API acceptance is nonvisual. A later Console/App file-picker
-milestone requires separate headed hardware-backed browser acceptance under the
-repository GPU policy.
+Console acceptance covers selection, validation, keyboard operation, progress,
+pause/resume/cancel, reselection after reload, receipt recovery, list insertion,
+Copy artifact URI, ArtifactDrawer, and denied access. Before any browser run prove
+headed mode and probe both WebGPU and WebGL where exposed; at least one must reach
+hardware. Stop on loss of the last hardware-backed API. HTTP tests cannot substitute
+for UI acceptance.
 
-## Console And MCP App Follow-On
+All smoke orchestration/assertions/retries/cleanup belong in Rust. Record affected
+checks through `cargo xtask test-report run --name <check> -- <command>`, inspect
+`cargo xtask test-report show`, and commit passing evidence with build-input changes.
+Include Console build/lint, BFF tests, affected Rust crates, and Python enforcement.
 
-Add a same-origin Console BFF upload module that streams to these routes with session
-authentication and CSRF checks. A Console file picker receives progress and completion
-receipts. MCP Apps request the host picker only under an exact resolved App upload
-grant and browser-observed user activation. The host intersects that grant with the
-installation upload policy before admission. File bytes remain in the host origin;
-the App receives only the receipt. Include exact App URI and grant revision in the
-trusted reservation authority and idempotency identity for that path.
+Deploy through the component-scoped workflow: bootstrap Store, activate Artifact,
+Gateway, and Console, then enable explicit policy. Validate actual ingress/proxy part
+limits, timeouts, and buffering. Generic request limits cannot masquerade as total
+artifact limits. Existing whole-body helpers retain bounded-request guards; large-file
+paths use multipart. This documentation change needs no build evidence refresh.
 
-This follow-on implements the host-mediated portion of request `017` using the public
-ingestion foundation. It must not allow a generic upload scope to bypass a missing
-App grant. Reconcile the current platform plan when that phase starts rather than
-creating a second App upload design.
+## MCP App Follow-On
+
+The Console Artifacts form is first-release work. Embedded MCP Apps requesting a host
+picker remain request `017`, gated on exact App authority. Reuse the transfer machinery
+but intersect the explicit App grant with installation policy. Bind App URI and grant
+revision to trusted session authority. File bytes stay in the host origin and the
+App receives only the receipt. Generic upload scope cannot bypass a missing App grant.
+
+## Coding-Agent Handoff
+
+Read `AGENTS.md`, `docs/CODEMAP.md`, `docs/WORK_CONTEXT_GOVERNANCE.md`,
+`mcp/contract/DESIGN.md`, and `platform/artifacts/service/DESIGN.md` before implementation.
+Inspect branch/worktree status and preserve other agents' work. Recheck the baseline
+and dependency releases before modifying build inputs.
+
+Implement the six checkpoints as coherent commits with recorded passing evidence.
+Start by closing the typed API, quota policy, durable session/part schema, and immutable
+blob-registration contract. The external endpoint and Console form are both required;
+neither completes the task alone. The MCP App host-picker integration is the only
+deferred UI scope in this plan.
+
+Do not substitute larger body buffers for resumable transfer, leave Python's large-file
+path as a whole-object allocation, skip crash/cleanup tests, or count API-only checks
+as Console acceptance. Report the exact deployed size/throughput evidence and any
+unmet acceptance item. Update this plan's status and component designs as each
+checkpoint lands; the documentation commit itself supplies no runtime evidence.
