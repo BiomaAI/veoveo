@@ -555,6 +555,9 @@ for composition viewing, feature authoring, and administration. The canonical Su
 and `platform/store/migrations/0026_map_authoring_products.surql`.
 `platform/store/migrations/0047_map_projection_sequence.surql` adds the recovery
 index and transactional Map commit head.
+`platform/store/migrations/0048_map_projection_head_backfill.surql` initializes
+populated installations from canonical rows after the index migration commits;
+`platform/store/tests/surreal_integration/map_projection.rs` verifies that upgrade.
 
 Immutable acquisition products use a separate analytical path.
 `src/contract/source_products.rs` owns complete source-feature, raster-product,
