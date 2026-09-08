@@ -1,64 +1,128 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:7c151aec4279faf486d287b279d2dac948e0e81caeaa400cd133ea86119cdc8b",
-  "updatedAt": "2026-09-08T06:54:35Z",
+  "buildDigest": "sha256:e9165f59a2828c107d405d24b293242f72455c40900b1b3f422c6db94f974cac",
+  "updatedAt": "2026-09-08T07:21:07Z",
   "checks": [
     {
-      "name": "worker-cache-clippy",
+      "name": "deploy-normalization-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-xtask",
+        "veoveo-deploy-contract",
         "-p",
-        "veoveo-image-build-control",
+        "veoveo-deploy-runtime",
+        "-p",
+        "veoveo-xtask",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T06:45:48Z",
-      "durationSeconds": 2.478158679,
+      "finishedAt": "2026-09-08T07:19:40Z",
+      "durationSeconds": 3.489097755,
       "detail": "completed successfully"
     },
     {
-      "name": "worker-cache-native",
+      "name": "deploy-normalization-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T07:21:07Z",
+      "durationSeconds": 2.137619207,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "deploy-normalization-live",
+      "command": [
+        "env",
+        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deploy-runtime",
+        "installed::tests::live_reuse_accepts_server_normalization_without_changing_resource_versions",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T07:18:54Z",
+      "durationSeconds": 21.697852269,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "deploy-normalization-ownership",
+      "command": [
+        "env",
+        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deploy-runtime",
+        "ownership::live_tests::live_preflight_rejects_historical_transfer_and_raw_adoption_without_mutation",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T07:21:00Z",
+      "durationSeconds": 16.934962228,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "deploy-normalization-reuse",
+      "command": [
+        "env",
+        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deploy-runtime",
+        "installed::tests::live_installed_reuse_detects_drift_and_preserves_unchanged_revisions",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T07:20:38Z",
+      "durationSeconds": 20.435297699,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "deploy-normalization-smoke",
       "command": [
         "cargo",
         "xtask",
-        "image",
-        "builder",
-        "worker-benchmark",
-        "--target",
-        "console-bff",
-        "--target",
-        "mcp-gateway",
-        "--source",
-        "apps/console/bff/src/main.rs",
-        "--source",
-        "platform/gateway/src/bin/gateway.rs",
-        "--output",
-        "output/development/compiler-worker-comparison-20260908"
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T06:54:35Z",
-      "durationSeconds": 501.376381827,
+      "finishedAt": "2026-09-08T07:20:05Z",
+      "durationSeconds": 9.187732388,
       "detail": "completed successfully"
     },
     {
-      "name": "worker-cache-tests",
+      "name": "deploy-normalization-tests",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-xtask",
+        "veoveo-deploy-contract",
         "-p",
-        "veoveo-image-build-control"
+        "veoveo-deploy-runtime",
+        "-p",
+        "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T06:45:18Z",
-      "durationSeconds": 8.401038031,
+      "finishedAt": "2026-09-08T07:19:22Z",
+      "durationSeconds": 7.701601157,
       "detail": "completed successfully"
     }
   ]

@@ -30,8 +30,8 @@ fn uid(value: &Value) -> Result<&str> {
         .context("live object has no UID")
 }
 
-// API defaulting may add fields. Array reordering and coercion decline caching;
-// they never grant equality without understanding the resource's schema.
+// A matching literal projection needs no normalization request. If Kubernetes
+// rewrote quantities or omitted empty fields, the API must establish equivalence.
 pub(super) fn contains_desired(live: &Value, desired: &Value) -> bool {
     match (live, desired) {
         (Value::Object(live), Value::Object(desired)) => desired.iter().all(|(key, value)| {
@@ -72,19 +72,22 @@ pub(super) fn capture(
     unit: &crate::compile::CompiledUnit,
     live: &BTreeMap<ObjectIdentity, Value>,
     completed_hooks: &BTreeSet<ObjectIdentity>,
+    normalize: impl Fn(&Value) -> Result<Value>,
 ) -> Result<Option<Vec<InstalledObjectObservation>>> {
     let mut observations = Vec::new();
     for (rendered, desired) in unit.prepared.objects.iter().zip(&unit.objects) {
         let state = if let Some(actual) = live.get(&rendered.identity) {
             validate_manager_value(&unit.prepared.target, actual)?;
-            if !contains_desired(actual, desired)
-                || !actual["metadata"]["deletionTimestamp"].is_null()
-            {
+            if !actual["metadata"]["deletionTimestamp"].is_null() {
+                return Ok(None);
+            }
+            let digest = fingerprint(actual)?;
+            if !contains_desired(actual, desired) && fingerprint(&normalize(desired)?)? != digest {
                 return Ok(None);
             }
             InstalledObjectState::Present {
                 uid: uid(actual)?.into(),
-                digest: fingerprint(actual)?,
+                digest,
                 completed_ttl_job: completed_ttl_job(actual),
             }
         } else if completed_hooks.contains(&rendered.identity) {

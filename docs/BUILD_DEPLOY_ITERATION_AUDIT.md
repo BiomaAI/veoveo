@@ -798,6 +798,15 @@ captures actual API contents, including defaults and status. Subsequent runs rec
 those contents, object UIDs, and Helm metadata. Completed TTL Jobs and successfully
 deleted Helm hooks have explicit observation rules.
 
+Baseline capture now asks Kubernetes for a server dry-run projection when literal
+comparison fails after installation. A native regression reproduced a missed receipt
+because the API converted `1024Mi` to `1Gi` and `0.1` CPU to `100m`, and omitted empty
+Pod fields. The corrected path records the normalized object and reuses the release
+without another Helm revision or resource version. A changed-memory dry-run also
+preserves the live resource version. The fixture runs zero replicas with a synthetic
+image and verifies namespace cleanup; it establishes API behavior only. Unchanged
+reuse does not issue a dry-run request.
+
 An isolated live Rust regression verifies unchanged Helm revisions and ConfigMap
 resource versions, source-revision-only reuse, an update confined to one release,
 successful hook deletion, raw ConfigMap reuse, and rejection of drift and replacements.

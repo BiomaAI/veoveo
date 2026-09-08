@@ -64,42 +64,50 @@ pub(crate) fn own_hooks(objects: &mut [Value], namespace: &str, release: &str) -
         {
             continue;
         }
-        let metadata = object
-            .get_mut("metadata")
-            .and_then(Value::as_object_mut)
-            .context("hook metadata must be an object")?;
-        let annotations = metadata
-            .get_mut("annotations")
-            .and_then(Value::as_object_mut)
-            .context("hook annotations must be an object")?;
-        for (key, expected) in [
-            ("meta.helm.sh/release-name", release),
-            ("meta.helm.sh/release-namespace", namespace),
-        ] {
-            ensure!(
-                annotations
-                    .get(key)
-                    .is_none_or(|value| value.as_str() == Some(expected)),
-                "hook declares another Helm release owner"
-            );
-            annotations.insert(key.into(), Value::String(expected.into()));
-        }
-        let labels = metadata
-            .entry("labels")
-            .or_insert_with(|| serde_json::json!({}))
-            .as_object_mut()
-            .context("hook labels must be an object")?;
-        ensure!(
-            labels
-                .get("app.kubernetes.io/managed-by")
-                .is_none_or(|value| value == "Helm"),
-            "hook declares another manager"
-        );
-        labels.insert(
-            "app.kubernetes.io/managed-by".into(),
-            Value::String("Helm".into()),
-        );
+        own_object(object, namespace, release)?;
     }
+    Ok(())
+}
+
+/// Matches the ownership visitor used by the canonical Helm CLI. Hooks bind it
+/// during compilation; normalized apply projections need it for every Helm object.
+pub(crate) fn own_object(object: &mut Value, namespace: &str, release: &str) -> Result<()> {
+    let metadata = object
+        .get_mut("metadata")
+        .and_then(Value::as_object_mut)
+        .context("Helm object metadata must be a map")?;
+    let annotations = metadata
+        .entry("annotations")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .context("Helm object annotations must be a map")?;
+    for (key, expected) in [
+        ("meta.helm.sh/release-name", release),
+        ("meta.helm.sh/release-namespace", namespace),
+    ] {
+        ensure!(
+            annotations
+                .get(key)
+                .is_none_or(|value| value.as_str() == Some(expected)),
+            "object declares another Helm release owner"
+        );
+        annotations.insert(key.into(), Value::String(expected.into()));
+    }
+    let labels = metadata
+        .entry("labels")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .context("Helm object labels must be a map")?;
+    ensure!(
+        labels
+            .get("app.kubernetes.io/managed-by")
+            .is_none_or(|value| value == "Helm"),
+        "object declares another manager"
+    );
+    labels.insert(
+        "app.kubernetes.io/managed-by".into(),
+        Value::String("Helm".into()),
+    );
     Ok(())
 }
 

@@ -11,6 +11,7 @@ use crate::{
     process::kubectl_apply_value,
 };
 
+mod normalize;
 mod objects;
 mod store;
 use store::ReceiptStore;
@@ -200,7 +201,10 @@ impl InstalledState {
             .map(|object| object.identity.clone())
             .collect::<BTreeSet<_>>();
         let live = read_objects(&self.context, &expected, None)?;
-        let Some(objects) = objects::capture(unit, &live, &completed)? else {
+        let Some(objects) = objects::capture(unit, &live, &completed, |desired| {
+            normalize::project(&self.context, &unit.prepared.target, desired)
+        })?
+        else {
             return Ok(false);
         };
         if self

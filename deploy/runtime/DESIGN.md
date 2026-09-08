@@ -13,7 +13,7 @@
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.2.4 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
 | Helm, Flux, and Argo CD ownership metadata | Exact Helm release annotations and managed-by label, with selected Flux and Argo ownership markers checked for imperative conflicts; absence of a marker grants no authority |
-| Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, and GPU resource discovery |
+| Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, GPU resource discovery, and server dry-run (`dryRun=All`) for normalized installation baselines |
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
 | NVIDIA DRA chart `0.5.0` and `resource.nvidia.com/v1beta1` | Pinned standalone allocator, verified chart and image artifacts, CDI preparation, and declared sharing configuration; hardware qualification is pending and upstream technology-preview features remain bounded by the deployment contract |
 | k3d | Repository-managed disposable cluster and registry lifecycle through native commands |
@@ -53,6 +53,7 @@ for an enterprise installation governed by GitOps.
 | `helm_state.rs` | Exact Helm metadata and the deployed or successful revisions an upgrade or rollback may use |
 | `helm_state/snapshot.rs` | Stored manifest content and successful hook execution from Helm status |
 | `installed.rs` and `installed/` | Local receipt storage, actual object fingerprints, and verified reuse in the full-profile installer |
+| `installed/normalize.rs` | Server dry-run projection of installed intent when Kubernetes serialization differs from the prepared object |
 | `ownership.rs` | Read-only historical inventory and live ownership checks before installation writes |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
 | `configuration.rs` | Rendered Secret-reference closure, bounded Secret observations, public ConfigMaps, and gateway activation |
@@ -229,9 +230,17 @@ Live ownership is checked again when verifying reuse, and Helm metadata is rerea
 object observation. Concurrent writers remain outside this local lock's boundary.
 
 After an apply succeeds, baseline capture compares every declared field with the actual
-API object before hashing that object's full contents. Added API defaults are accepted;
-scalar coercion or reordered arrays decline caching. Helm's stored manifest must match
-the compiled inventory. An operation invalidates its previous receipt before invoking
+API object. Added API defaults are accepted. When that comparison fails, the runtime
+requests a [server dry-run](https://kubernetes.io/docs/reference/using-api/api-concepts/#dry-run)
+of the prepared object. Helm projection uses its server-side field manager and owner
+metadata; raw manifests use the installer's client-side apply behavior. The projected
+object's full hash must equal the observed object's hash. This admits canonical resource
+quantities and omitted empty fields without guessing Kubernetes normalization rules.
+Projection cannot persist changes or force field conflicts. A rejected request fails
+baseline capture; changed projected content declines caching. Unchanged reuse remains
+read-only and does not request projection.
+
+Helm's stored manifest must match the compiled inventory. An operation invalidates its previous receipt before invoking
 its mutation, which prevents a failed or interrupted apply from reusing obsolete evidence.
 Receipt publication uses an atomic local rename. Reuse preserves the source and
 configuration provenance of the operation that actually installed the unit.
@@ -254,7 +263,10 @@ releases and a raw ConfigMap. It verifies unchanged object versions and Helm rev
 retained installed provenance, an update confined to one release, successful hook
 cleanup, live drift and replacement detection, and invalidation after failure. A
 foreign field-manager conflict remains an error through Helm's normal protection.
-The fixture verifies its namespace removal. Unit tests cover TTL completion, malformed
+An additional zero-replica Deployment fixture verifies quantity normalization and
+omitted empty Pod fields. It projects a changed memory request and verifies that neither
+the live resource version nor the Helm revision changes. Its synthetic image is never
+executed. Each fixture verifies its namespace removal. Unit tests cover TTL completion, malformed
 receipts, cluster isolation, and the local lock. These checks do not qualify a GPU
 workload or establish complete selected-deployment mutation receipts.
 
