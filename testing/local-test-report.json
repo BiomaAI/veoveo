@@ -1,19 +1,23 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ab141341daaad6e5c0bbb5490bbc5b710815376c499640186338143c8d03a6d1",
-  "updatedAt": "2026-09-08T03:26:38Z",
+  "buildDigest": "sha256:4e67025f2c0c42db4c1367f8e37e3cb127723d9ecfcd22865a49266f4a745f54",
+  "updatedAt": "2026-09-08T03:32:42Z",
   "checks": [
     {
-      "name": "map-restore-gitops-config",
+      "name": "runtime-app-image-permissions",
       "command": [
         "cargo",
         "xtask",
-        "smoke",
-        "helm-config"
+        "image",
+        "build",
+        "--target",
+        "map-mcp",
+        "--target",
+        "stream-mcp"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T03:26:38Z",
-      "durationSeconds": 7.3178084420000005,
+      "finishedAt": "2026-09-08T03:32:42Z",
+      "durationSeconds": 247.189882594,
       "detail": "completed successfully"
     }
   ]

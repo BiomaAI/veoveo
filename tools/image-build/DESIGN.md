@@ -95,6 +95,11 @@ Map's App generator sources and generated HTML use this boundary; Stream declare
 live App HTML. The runtime Dockerfiles consume the named context supplied by
 `cargo xtask image`.
 
+Runtime HTML copies use `--chmod=a=rX`: files remain read-only, while directories
+created by `COPY` retain traversal permission. An octal `0444` also applies to new
+parent directories and makes them inaccessible to the runtime user. Each consumer
+checks HTML readability as its declared non-root user during image assembly.
+
 The source digest covers ordered paths, modes, file/link kinds, and bytes with a schema
 domain separator. The plan also records file count and the complete-source package
 set. This digest identifies source inputs; it is not a substitute for the compiled

@@ -78,8 +78,10 @@ ENV PYTHONPATH=/opt/veoveo/map-data \
     MAP_VALHALLA_BUILD_CONFIG=/etc/veoveo/map/valhalla.json \
     PROJ_NETWORK=OFF
 
-COPY --from=veoveo-image-assets --chmod=0444 servers/map-mcp/assets/workspace-app.html /opt/veoveo/map/assets/workspace-app.html
+COPY --from=veoveo-image-assets --chmod=a=rX servers/map-mcp/assets/workspace-app.html /opt/veoveo/map/assets/workspace-app.html
 
 USER veoveo
+RUN test -r /opt/veoveo/map/assets/workspace-app.html \
+    && test ! -x /opt/veoveo/map/assets/workspace-app.html
 EXPOSE 8799
 ENTRYPOINT ["/usr/local/bin/map-mcp"]
