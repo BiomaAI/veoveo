@@ -13,6 +13,7 @@ pub enum ComponentSelection {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InstallationReceipt {
     pub schema_version: String,
+    pub coordination: InstallationCoordination,
     pub plan: ComponentMutationPlan,
     pub operations: Vec<UnitExecution>,
     pub unselected_before: UnselectedState,
@@ -71,4 +72,14 @@ pub struct ObservedReleaseVersion {
     pub status: String,
     pub chart: String,
     pub app_version: String,
+}
+
+/// Cluster control metadata is distinct from selected application objects.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InstallationCoordination {
+    pub object: ObjectIdentity,
+    pub uid: String,
+    pub holder_identity: String,
+    pub released: bool,
 }

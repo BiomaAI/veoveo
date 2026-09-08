@@ -26,30 +26,7 @@ impl ReceiptStore {
             Some(repository),
         )?;
         let root = PathBuf::from(std::str::from_utf8(&git)?.trim()).join("veoveo-deployment");
-        #[derive(Deserialize)]
-        struct Namespace {
-            metadata: Identity,
-        }
-        #[derive(Deserialize)]
-        struct Identity {
-            uid: String,
-        }
-        let bytes = output_checked(
-            "kubectl",
-            [
-                "--context",
-                context,
-                "get",
-                "namespace",
-                "kube-system",
-                "--output=json",
-                "--request-timeout=10s",
-            ],
-            None,
-        )?;
-        let namespace: Namespace =
-            serde_json::from_slice(&bytes).context("reading cluster identity")?;
-        Self::at(&root, namespace.metadata.uid)
+        Self::at(&root, cluster_uid(context)?)
     }
 
     pub(super) fn at(root: &Path, cluster_uid: String) -> Result<Self> {
@@ -124,6 +101,33 @@ impl ReceiptStore {
         temporary.persist(self.path(&receipt.unit.target)?)?;
         Ok(())
     }
+}
+
+pub(super) fn cluster_uid(context: &str) -> Result<String> {
+    #[derive(Deserialize)]
+    struct Namespace {
+        metadata: Identity,
+    }
+    #[derive(Deserialize)]
+    struct Identity {
+        uid: String,
+    }
+    let bytes = output_checked(
+        "kubectl",
+        [
+            "--context",
+            context,
+            "get",
+            "namespace",
+            "kube-system",
+            "--output=json",
+            "--request-timeout=10s",
+        ],
+        None,
+    )?;
+    let namespace: Namespace =
+        serde_json::from_slice(&bytes).context("reading cluster identity")?;
+    Ok(namespace.metadata.uid)
 }
 
 #[cfg(test)]

@@ -12,7 +12,7 @@
 | Deployment profile and lock `v7` | shared disposable-profile execution from the smoke owner; schema belongs to `deploy/contract` |
 | Flux CLI 2.9.5 and Helm 4.2.4 | native OCI configuration and chart publication for isolated controller verification |
 | `veoveo.io/flux-cancellation-evidence/v1` | repository-owned controller state, source digest, latency bound, failure, and fixture cleanup evidence |
-| `veoveo.io/component-installation/v1` | successful selected CLI receipt defined by the deployment contract |
+| `veoveo.io/component-installation/v2` | successful selected CLI receipt defined by the deployment contract |
 | `veoveo.io/component-scope-evidence/v1` | independent Git/OCI fixture inputs, selected installation duration, applied/reused units, native API request metadata, runtime snapshots, overlap rejection, and cleanup |
 | kubectl/client-go v1.36.2/v0.36.2 local proxy logs | internal test observer of completed HTTP method and URI at verbosity 6; canary writes and ordered barriers verify the observer before accepting scope evidence |
 

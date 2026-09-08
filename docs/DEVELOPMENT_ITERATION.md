@@ -327,7 +327,7 @@ The following acceptance work remains separate from those delivered changes.
 |---:|---|---|---|
 | 1 | Dedicated build storage and remote-host comparison | managed builder control | compare a separate build disk or host against the twelve-CPU baseline while retaining durable compiler caches; same-host fresh-worker reuse is measured |
 | 2 | Common Rust compiler ABI | Stream/Reason image graphs | Stream candidate service startup passes; wire fresh Artifact-read authority and the bounded recording cache into durable video execution, then complete hardware workload acceptance for both consumers; Reason also requires an admitted NVDEC/CUDA model-input path |
-| 3 | Component release ownership | deployment contract | implement the complete object ownership and migration boundary in `DEPLOY-SCOPE-023` before splitting an atomic Helm release; selected publication and per-release image locks are already available |
+| 3 | Component ownership migration | deployment contract | complete general raw-resource adoption and ownership transfer before splitting an existing atomic Helm release; exact selected execution, per-release inputs, native scope evidence, and cluster coordination are implemented |
 
 ### Deferred Or Separately Owned Work
 

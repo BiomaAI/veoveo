@@ -11,20 +11,27 @@ use veoveo_deploy_contract::components::{
 
 pub(super) struct Operations<'a> {
     installed: &'a InstalledState,
+    coordination: &'a super::coordination::ExecutionLock,
     plan: &'a ComponentMutationPlan,
     performed: Vec<UnitExecution>,
 }
 
 impl<'a> Operations<'a> {
-    pub fn new(installed: &'a InstalledState, plan: &'a ComponentMutationPlan) -> Self {
+    pub fn new(
+        installed: &'a InstalledState,
+        plan: &'a ComponentMutationPlan,
+        coordination: &'a super::coordination::ExecutionLock,
+    ) -> Self {
         Self {
             installed,
+            coordination,
             plan,
             performed: Vec::new(),
         }
     }
 
     pub fn apply(&mut self, component: &CompiledComponent, unit: &CompiledUnit) -> Result<()> {
+        self.coordination.check()?;
         let outcome = match self.installed.apply_planned(component, unit, self.plan)? {
             InstallOutcome::Reused => UnitExecutionOutcome::Reused,
             InstallOutcome::Applied { .. } => UnitExecutionOutcome::Applied,
@@ -38,6 +45,7 @@ impl<'a> Operations<'a> {
         component: &CompiledComponent,
         unit: &CompiledUnit,
     ) -> Result<()> {
+        self.coordination.check()?;
         ensure!(
             unit.installation_input
                 == Some(veoveo_deploy_contract::components::InstallationInput::GpuPlacement),
@@ -67,6 +75,7 @@ impl<'a> Operations<'a> {
     }
 
     pub fn finish(self) -> Result<Vec<UnitExecution>> {
+        self.coordination.check()?;
         let actual = self
             .performed
             .iter()

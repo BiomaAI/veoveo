@@ -4,7 +4,8 @@ Status: implementation authorized on September 6, 2026; core changes are committ
 and the shared charts are active with the Bioma reference configuration. Local compiler
 ABI and throughput experiments have recorded results. Live metadata-only publication
 preserves every running Pod. Disposable component-selected execution now passes the independent native Git/OCI
-fixture. GPU compiler-family admission and cross-host fencing remain pending. The local
+fixture. Cluster coordination now serializes cooperating disposable installers;
+GPU compiler-family admission remains pending. The local
 build-engine cache trial has recorded results; independent build storage and hosts
 remain unmeasured.
 The findings below retain the pre-change evidence. The delivery record identifies
@@ -19,6 +20,7 @@ implemented changes and their verification.
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants; hourly retention can reclaim superseded outputs within one day | Candidate and Cargo-lock interoperability tests pass; the broader pass recovered 18.4 GiB of Cargo outputs and about 61 GiB of image cache; the 20 GiB experiment now passes the reserve gate |
 | Automatic cache capacity | Reduced the protected BuildKit cache floor to 80 GiB and set a 22% collection trigger that covers the 20% host reserve after the pinned daemon’s percentage rounding | Native worker policy reports 404,000,000,000 bytes of free-space protection; all 14 Cargo mounts survive reconfiguration; UAV staging takes 5.6 s including reconfiguration with the same runnable digest; the 20 GiB growth preflight passes |
 | Component-selected installation | Explicit owner selection with dependency expansion before resolution; every installation unit uses the checked plan; receipts report actual applied/reused targets | Independent native Git/OCI platform and extension updates replace only the selected Pod; the unselected repository is unavailable, its Deployment, Pods, and Helm storage remain identical, and an ownership overlap issues no API writes |
+| Concurrent profile execution | Cluster Lease serializes cooperating disposable installers across repositories; ownership planning repeats under the lock, and conditional release checks its exact identity | Native contention admits one winner, stale deletion fails, incomplete execution retains the lock, and the selected-update fixture accounts for control writes while preserving unselected application state |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin with a private MCP transport | Production TypeScript/Vite build passes; authenticated headed hardware-WebGL refresh preserves the document and signed-in session |
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
@@ -1135,8 +1137,8 @@ fixtures live under `output/development/`; the recorder binds the check to build
 
 This fixture establishes operational scope. Its synthetic extension declaration does
 not qualify extension-manifest content, and its sleep Pods do not qualify GPU execution.
-Cross-host mutation fencing, general raw adoption, actual GPU compiler-family admission,
-and independent build-host comparisons remain separate open work.
+General raw adoption, actual GPU compiler-family admission, and independent build-host
+comparisons remain separate open work. Cluster coordination is described below.
 
 
 ## Task Runtime Feature Closure
@@ -1328,3 +1330,41 @@ this measures build and dispatch cost. It does not measure flight execution.
 sample. The first test attempt inherited Cargo's package environment and caused
 spurious Ring rebuilds; the corrected test uses the repository's existing parent
 Cargo environment cleanup before starting the measured command.
+
+## Disposable Installer Coordination
+
+The profile runtime now acquires `kube-system/veoveo-profile-mutation` before
+executing a prepared installation or teardown. Kubernetes atomic creation admits
+one cooperating writer. The installer repeats ownership and installed-state planning
+under the lock, checks it before selected operations, and releases it with UID and
+resource-version deletion preconditions. The v2 installation receipt records the
+released control object separately from component-owned application resources.
+
+An incomplete execution retains the lock because a disconnected installer may have
+left a mutation child running. Recovery requires establishing that the original
+processes have stopped and conditionally deleting that exact Lease. There is no
+timeout takeover. This coordinates profile commands; enterprise application ownership
+continues through GitOps.
+
+The native contention test admits one of two simultaneous callers, rejects a stale
+holder's deletion against a replacement, and verifies retention after interrupted
+execution. The complete component-selection fixture passes in both update directions.
+Its observer sees exactly one lock acquisition and release per successful update,
+while the unselected Deployment, Pods, and Helm storage remain unchanged. An ownership
+overlap still fails before any API write. Both fixtures verify namespace cleanup.
+Evidence is recorded in `testing/local-test-report.json`; the detailed scope trace is
+`output/development/component-scope-coordination-final-20260908.json`.
+
+## Acceptance Status After Implementation
+
+| Authorized boundary | Delivered evidence | Remaining acceptance |
+|---|---|---|
+| Flux triggers and unchanged workloads | Active watch labels, immutable chart/value inputs, metadata-only rollout with unchanged Pods, native cancellation regression | Complete for the measured reference installation |
+| Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Separate physical build disk or host is unavailable; that comparison remains unmeasured |
+| Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
+| Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
+| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, narrow flight harness, controlled sccache and Bazel trials | Stream/Reason common-family candidates require actual hardware workload acceptance; fresh recording-read authority and Reason's accelerated model-input path currently prevent admission |
+| Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Existing atomic Helm releases retain their ownership; general raw adoption and ownership transfer remain unimplemented |
+
+The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
+migration has no demonstrated overall advantage from the measured local cases.
