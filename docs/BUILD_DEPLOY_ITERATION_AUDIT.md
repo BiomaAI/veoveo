@@ -5,8 +5,9 @@ and the shared charts are active with the Bioma reference configuration. Local c
 ABI and throughput experiments have recorded results. Live metadata-only publication
 preserves every running Pod. Disposable component-selected execution now passes the independent native Git/OCI
 fixture. Cluster coordination now serializes cooperating disposable installers;
-Stream's separated Rust 1.98.1 compiler passes hardware replay and immutable image
-publication and is active with the Bioma configuration. Reason retains its current compiler. The local
+Stream and Reason use the shared Rust 1.98.1 control compiler, pass hardware replay,
+and are active with the Bioma configuration. Reason's Python input path stays on
+NVDEC and CUDA. The local
 build-engine cache trial has recorded results; independent build storage and hosts
 remain unmeasured.
 The findings below retain the pre-change evidence. The delivery record identifies
@@ -34,6 +35,7 @@ implemented changes and their verification.
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | Both candidates pass RTX 4090 recording tasks with published artifacts; Stream is now active on its separated compiler, while Reason's new family and image still require publication and activation |
 | Stream compiler separation | Shared Bookworm control artifact recipe with Rust 1.98.1; DeepStream compiles only the C++ runner from its own directory | Warm Rust edits take 16.7 s and 15.9 s; a committed edit stages in 26.2 s with the native action cached. The qualified image is active and passes RTX 4090 replay; all 28 other running Pods preserve identity and restart count |
+| Reason compiler separation | Shared Bookworm control compiler; hash-locked Python dependencies and runner source use separate image mounts | Rust edits stage in 32.6 s; Python edits stage in 11.1 s without Cargo. Only the corresponding executable layer changes. The qualified vLLM 0.28.0 image is active and passes RTX 4090 reasoning; the other 28 running Pods remain unchanged |
 | Compiler runtime probes | Added a Rust candidate probe with explicit App or runner input, private listener ownership, exact executable digest, and verified cleanup; video smoke builds omit the unused conformance CLI | Native Stream and Reason hardware replay preserve the installed Deployment, Pod identity, and restart count; the v3 receipt binds each payload and verifies temporary cache removal |
 | Focused flight acceptance | Routes composed-flight scenarios through `veoveo-flight-smoke`, using shared browser source and Stream-owned wire types | Resolved client/helper graphs exclude service implementations, SurrealDB, DuckDB and Rerun; original flight assertions remain in the focused harness |
 | Focused configuration checks | Routed `helm-config` through the existing deployment harness and moved its assertions beside that harness | Dispatcher coverage rejects the broad smoke/conformance build unit; the same assertions remain part of the full gateway suite |
@@ -1379,7 +1381,7 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 | Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Separate physical build disk or host is unavailable; that comparison remains unmeasured |
 | Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
 | Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
-| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, focused harnesses, cache/build-engine trials, and Stream's active separated compiler with hardware replay and 26.2 s source-edit staging | Stream migration is verified; Reason's new GPU input adapter passes candidate replay, with compiler-family migration and image publication still pending |
+| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, focused harnesses, cache/build-engine trials, and active Stream/Reason control compiler with hardware replay | Both migrations are verified. Stream Rust edits stage in 26.2 s; Reason Rust and Python edits stage in 32.6 s and 11.1 s |
 | Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Complete for the existing independently owned releases; general ownership transfer is outside this build/deploy goal |
 
 The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
@@ -1690,3 +1692,38 @@ therefore budgets 37 GiB above the retained filesystem reserve. Native uv mainte
 also removes unused and downloaded wheel-cache entries; existing environments retain
 their installed files. This storage transition leaves published rollback images and
 application volumes intact.
+
+## Reason Image Activation
+
+Revision `b88fbd8b3842e9d8e0e575ab19e4842d6946eeea` updates only Reason's image
+identity in the Bioma reference lock. Unrelated incoming documentation commits are
+retained. Flux reaches verified readiness in 190.2 s from the successful push start.
+The new Pod uses the qualified runnable digest and has zero restarts. All other 28
+running Pods retain their UID, image identities, and restart counts.
+
+Installed task `01a08255-9b6b-7c81-8814-e09a726aa7c7` processes six observations on
+the RTX 4090 and publishes typed reasoning and annotation artifacts. The complete
+smoke command takes 191.4 s, including its wait for the image rollout. The installed
+runtime reports vLLM 0.28.0, Torch 2.13.0+cu130, Torchvision 0.28.0+cu130,
+Transformers 5.15.1, PyNvVideoCodec 2.2.2, and PyAV 18.1.0. All 25 Deployments are Ready.
+Convergence and GPU logs are retained under
+`output/development/reason-shared-{convergence-final,installed-gpu}-20260908.*`.
+
+After hardware acceptance, the superseded Reason image is removed from the node cache.
+The first CRI call times out during collection; a subsequent image inventory proves
+the old image absent and the filesystem regains its space. Its published registry
+manifest remains available for rollback. The node inventories and removal log are
+under `output/development/reason-gpu-admission/`.
+
+## Runtime Packaging After Cache Eviction
+
+Restaging the accepted source after cache eviction takes 323.4 s and exposes
+non-reproducible Python packaging. Its runtime digest becomes
+`sha256:2fdc5aeced2b9c255471e5bc5839578148e17a0ee8d0aaf411aaa1ca43cc4eb8`;
+only the dependency layer and runner archive differ. The installed qualified image
+is unchanged. This diagnostic restage is not activated.
+
+The corrected recipe disables install-time bytecode and writes the executable archive
+with sorted members, explicit file modes, and timestamps from `SOURCE_DATE_EPOCH`.
+It also binds the system account's internal date to that epoch. Qualification must
+rebuild the packaging layers after eviction and retain the staged runnable digest.
