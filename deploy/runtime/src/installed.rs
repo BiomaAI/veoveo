@@ -15,6 +15,7 @@ mod normalize;
 mod objects;
 mod planning;
 mod store;
+mod unselected;
 use store::ReceiptStore;
 
 pub(crate) struct InstalledState {

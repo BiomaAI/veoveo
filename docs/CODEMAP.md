@@ -124,7 +124,7 @@ Hub, administration, and GPU policy.
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `deploy/contract/` | multi-source deployment v7 profiles and locks, mandatory component ownership, exact platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, typed registry transport, physical-GPU topology, collision-free publication preflight, schema generation, and pure validation |
-| `deploy/contract/src/components/` | atomic ownership catalog, exact provenance and deployable-content digests, dependency expansion, and pure mutation planning consumed by the full-profile installer; component-selected execution remains pending |
+| `deploy/contract/src/components/` | atomic ownership catalog, exact provenance and deployable-content digests, dependency expansion, and pure mutation planning and successful receipts consumed by the component-selected installer |
 | `deploy/contract/src/components/bindings.rs` | full-catalog profile permissions and source/image/chart binding checks, including retained unselected inventories |
 | `deploy/contract/tests/fixtures/` and `tests/support/lock.rs` | explicitly synthetic deployment locks for schema and development-image transformation checks; real installation locks are generated outputs |
 | `deploy/contract/src/gateway_bundle.rs` | canonical complete public ConfigMap content digest shared by disposable gateway activation and GitOps acceptance |
@@ -146,7 +146,7 @@ Hub, administration, and GPU policy.
 | `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
 | `showcase/uav-sim/deploy/helm/` | authoritative GPU simulator, UAV MCP server, isolated generic pilot agents, shared H.264 stream ingress, continuous camera-product configuration, and viewer authorization |
-| `deploy/runtime/` | shared operational deployment library consumed by the focused Rust smoke harness and release publisher; component-selected execution remains pending |
+| `deploy/runtime/` | shared operational deployment library for component-selected installation and immutable release publication |
 | `deploy/runtime/src/profile.rs` | profile validation and ordered lifecycle operations |
 | `deploy/runtime/src/sources.rs` and `src/images.rs` | selected immutable source checkouts, installation input checks, qualified image inventories, and Bake selection for profile validation |
 | `deploy/runtime/src/snapshot.rs` | exact Git blob, file inventory, and executable-mode verification for source charts, source values, and installation inputs; `snapshot/tests.rs` exercises index hints, filters, ignored files, and path confinement |
@@ -155,13 +155,15 @@ Hub, administration, and GPU policy.
 | `deploy/runtime/src/compile/configuration.rs` | component-owned installation document snapshots and exact retained configuration files across installation commits |
 | `deploy/runtime/src/compile/execution.rs` and `src/compile/tests/execution.rs` | Snapshot-bound operational inputs and native Git/Helm regression for retained gateway Secret requirements and owner-specific rollout waits |
 | `deploy/runtime/src/profile/execution.rs` | Compiled gateway/GPU helper inputs and rejection of incompatible retained GPU configurations before installation writes |
+| `deploy/runtime/src/profile/operations.rs` and `src/installed/unselected.rs` | Complete planned-unit execution receipts and before/after unselected object and Helm observations |
+| `testing/deployment-smoke/src/component_scope/` | Independent native Git/OCI selected-deployment fixtures, API request metadata, Pod and Helm storage evidence, and namespace cleanup |
 | `deploy/runtime/src/compile/images.rs` | atomic release image values and exact rendered input closure, including retained versions of shared targets |
 | `deploy/runtime/src/publication.rs` and `tools/xtask/src/commands/release/components.rs` | exact component chart, configuration, and image updates, qualified OCI evidence checks, retained dependencies, and publication receipts |
 | `deploy/runtime/src/compile/tests/publication.rs` | independent Git/Helm publication regressions for chart-only, configuration-only, and combined updates while unrequested repositories are unavailable |
 | `deploy/runtime/src/discovery.rs` | read-only destination scope checks across all locked owners and proposed CRDs, before installation writes |
 | `deploy/runtime/src/helm_bundle.rs` | complete prepared Helm renders, literal configuration preservation, and digest-bound CRD retention policy |
 | `deploy/runtime/src/helm_state.rs` and `src/ownership.rs` | stored Helm manifest/hook inventories, possible recovery revisions, batched live metadata reads, and pre-write ownership checks |
-| `deploy/runtime/src/installed.rs`, `src/installed/`, and `src/helm_state/snapshot.rs` | local installed provenance, canonical stored Helm inventories, live object fingerprints, and verified reuse through the full-profile installer |
+| `deploy/runtime/src/installed.rs`, `src/installed/`, and `src/helm_state/snapshot.rs` | local installed provenance, canonical stored Helm inventories, live object fingerprints, and verified reuse through the component-selected installer |
 | `deploy/runtime/src/installed/normalize.rs` | Kubernetes server dry-run equivalence for normalized quantities and omitted fields when recording a successful installation |
 | `deploy/runtime/src/installed/planning.rs` and `src/installed/tests/planning.rs` | Checked installed-state planning, exact planned-unit execution, and live regressions for reuse, updates, missing receipts, and stale decisions |
 | `deploy/runtime/src/gpu/migration.rs` and `src/gpu/migration/tests.rs` | Complete direct device-plugin retirement/quiesce inventory before profile writes, selected workload ownership, observation checks, and isolated live API regression |

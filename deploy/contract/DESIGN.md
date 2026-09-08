@@ -10,6 +10,7 @@
 | `veoveo.io/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by publication and compatibility generation |
 | `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
 | `veoveo.io/component-mutation-plan/v2` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
+| `veoveo.io/component-installation/v1` | successful disposable installation receipt: mutation plan, actual applied or reused atomic units, and before/after observations of unselected object versions and Helm metadata |
 | `veoveo.io/installed-deployment-unit/v1` | typed local provenance and observed object fingerprints for verified installation reuse; contains no object bodies or Secret values |
 | `veoveo.io/atomic-deployment-unit/v2` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
 | `veoveo.io/atomic-deployment-content/v2` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions and extension release provenance excluded; used only after exact lock validation |
@@ -37,10 +38,10 @@ disposable profile installer. It consumes this crate's contracts and digest enco
 
 `src/components/` implements the pure preflight boundary for `DEPLOY-SCOPE-023`.
 The disposable profile compiler and installer consume deployment v7 with mandatory
-component ownership and compiled inventories. Installation still processes the complete
-profile; component-selected execution remains unfinished. The runtime uses typed local
-receipts to verify reuse and feeds checked installed observations into the planner
-through the existing full-profile installer.
+component ownership and compiled inventories. Installation requires explicit full or
+component selection and expands declared dependencies before source resolution. The
+runtime uses typed local receipts to verify reuse and feeds checked installed observations
+into the planner before executing the expanded selection.
 The internal planner is not an alternative installer or an enterprise mutation owner.
 
 Each component declares its immutable source, role, dependencies, exact Helm release
@@ -152,7 +153,16 @@ unselected object identities. It contains no manifests or Secret values. Its uns
 inventory describes the ownership boundary; it is not zero-write evidence. Focused tests
 prove selection and rejection rules. Independent temporary platform and extension Git
 histories exercise revision reuse and committed input reads in the pure planner. Actual
-mutation receipts and live zero-write acceptance remain installer integration work.
+execution receipts and the independent native request observer belong to the runtime
+and deployment smoke harness respectively.
+
+`InstallationReceipt` records the successful plan and every executed atomic target once,
+with `applied` or `reused` outcomes. Its unselected observations contain UID, resource
+version, and a complete-object digest, or explicit absence. Helm observations contain
+revision, status, chart, and app version. The receipt contains no object bodies or
+Secret values. These observations may change because another controller acts during
+installation; they are evidence rather than a cluster-wide transaction or lock.
+Receipt equality alone cannot prove that no API write occurred.
 
 Observed units distinguish absence, a verified installed baseline, and `RequiresApply`.
 The last state contains checked object inventory without asserting an installed-input
@@ -192,7 +202,7 @@ The installation owner supplies every Secret through its own reconciliation path
 Deployment profiles do not create, patch, replace, copy, or transfer ownership of a
 Secret. Raw profile and rendered Helm objects that define a Secret fail before mutation.
 
-`profile-up` renders the complete locked Helm and raw-manifest closure before its first
+`profile-up` renders the expanded selection's locked Helm and raw-manifest closure before its first
 Kubernetes or Helm write. The pure contract extracts Secret references from container
 environments, image pulls, volumes, Ingress TLS, Gateway listeners, and registered
 custom-resource shapes. An unregistered Secret-bearing custom resource makes the
@@ -323,7 +333,8 @@ reconciliation controller. A profile whose physical-device groups exceed install
 capacity fails during pure profile resolution.
 
 After rollout, `profile-up` reads the allocated claim and executes `nvidia-smi` inside
-every declared GPU container. It reports the retained claim UID, allocated devices, and
+each selected GPU container. Full installation and `profile-gpu-verify` cover every
+configured consumer. It reports the retained claim UID, allocated devices, and
 the one visible physical UUID for each replica. Each GPU Deployment must retain the
 exact replica count declared by the profile. Same-device drift, different-device drift,
 a missing replica, or more than one visible device fails the command with the exact

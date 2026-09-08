@@ -3,8 +3,9 @@
 Status: implementation authorized on September 6, 2026; core changes are committed
 and the shared charts are active with the Bioma reference configuration. Local compiler
 ABI and throughput experiments have recorded results. Live metadata-only publication
-preserves every running Pod. GPU compiler-family admission and component-selected
-deployment execution remain pending.
+preserves every running Pod. Disposable component-selected execution now passes the independent native Git/OCI
+fixture. GPU compiler-family admission, cross-host fencing, and the build-engine
+comparison remain pending.
 The findings below retain the pre-change evidence. The delivery record identifies
 implemented changes and their verification.
 
@@ -16,6 +17,7 @@ implemented changes and their verification.
 | Builder resources | Declared 12 CPUs and 36 GiB without swap, rejected resource drift, exposed cgroup CPU snapshots, and upgraded the managed Buildx/BuildKit pins; added a controlled source-edit benchmark | Identical BFF/gateway binaries compile in 84.9 s at four CPUs versus 37.0 s at twelve; a live failure-path test verifies quota restoration; strict Clippy and 99 unit/worker tests pass |
 | Host cache retention | Added a reviewable Cargo cache plan for old executable copies and redundant incremental variants; hourly retention can reclaim superseded outputs within one day | Candidate and Cargo-lock interoperability tests pass; the broader pass recovered 18.4 GiB of Cargo outputs and about 61 GiB of image cache; the 20 GiB experiment now passes the reserve gate |
 | Automatic cache capacity | Reduced the protected BuildKit cache floor to 80 GiB and set a 22% collection trigger that covers the 20% host reserve after the pinned daemon’s percentage rounding | Native worker policy reports 404,000,000,000 bytes of free-space protection; all 14 Cargo mounts survive reconfiguration; UAV staging takes 5.6 s including reconfiguration with the same runnable digest; the 20 GiB growth preflight passes |
+| Component-selected installation | Explicit owner selection with dependency expansion before resolution; every installation unit uses the checked plan; receipts report actual applied/reused targets | Independent native Git/OCI platform and extension updates replace only the selected Pod; the unselected repository is unavailable, its Deployment, Pods, and Helm storage remain identical, and an ownership overlap issues no API writes |
 | Local Console loop | Corrected the BFF proxy to 8786, added gateway OAuth/discovery routes, fixed the Vite port, and documented one local authentication origin with a private MCP transport | Production TypeScript/Vite build passes; authenticated headed hardware-WebGL refresh preserves the document and signed-in session |
 | Packaged MCP Apps | Map and Stream load bounded immutable HTML snapshots from image assets; declared presentation inputs have their own assembly context outside Rust compiler mounts | 99 helper/planner tests, both server target checks and strict Clippy pass; a real presentation-only revision stages both images in 12.1 s with zero Cargo execution and unchanged binary layers |
 | Normalized GPU dependencies | Declared exact dependency input contexts and recipe-keyed OCI parent publication, reused by digest in staging and qualification | Two source-only revisions staged in 14.6 s and 15.6 s; optimized tooling stages in 2.8 s, or 3.1 s after old dependency cache eviction; warm qualification takes 10.3 s and preserves the runnable digest |
@@ -715,8 +717,8 @@ the release publisher and focused deployment smoke binary. The general smoke bin
 longer compiles a second copy of the installer. Source resolution, Helm inputs, public
 configuration, cluster lifecycle, and GPU allocation have explicit modules. The publisher
 and installer use one source-chart lock constructor and content check. This establishes
-the shared execution boundary for component compilation; the installer still applies the complete
-profile, and component-selected mutation and live zero-write evidence remain open.
+the shared execution boundary for component compilation. The selected execution and
+native scope acceptance built on it are recorded below.
 
 The shared chart constructor now verifies actual input bytes and executable modes
 against the Git tree before publication builds begin. Installation preflight uses the
@@ -824,8 +826,8 @@ resource versions, source-revision-only reuse, an update confined to one release
 successful hook deletion, raw ConfigMap reuse, and rejection of drift and replacements.
 Failed application invalidates the local receipt. Helm's field-manager conflict
 protection remains active. The native fixture removes and verifies its temporary
-namespace. This is reuse acceptance for the existing profile command; complete
-component-selected execution, cross-host fencing, and GPU acceptance remain open.
+namespace. This is unit-reuse acceptance. The selected CLI fixture below adds native scope
+evidence; cross-host fencing and GPU acceptance remain open.
 
 GPU device-plugin migration now prepares its direct removal and workload-quiesce
 inventory before profile writes. A workload outside the selected component set fails
@@ -1105,3 +1107,28 @@ prevent an unrelated upgrade from being invoked. These changes have rendered acc
 and await live activation of Veoveo with the reference configuration. The chart,
 digest contract, and installer remain shared Veoveo components; Bioma supplies one
 installation configuration used for acceptance.
+
+
+## Native Component Selection Delivery
+
+The disposable Veoveo installer now accepts exact component IDs or an explicit full
+installation. Dependency expansion happens before source checkout and rendering. Every
+selected namespace, bootstrap, allocator, claim, public configuration, gateway activation,
+and source Helm unit enters the same checked mutation plan. The returned receipt lists
+actual applied and reused units, with before/after unselected object and Helm observations.
+Enterprise installations continue through their declared GitOps owner; Bioma remains a
+reference configuration.
+
+The Rust `component-scope-verify` harness builds independent platform and extension
+image revisions and invokes the real CLI against an isolated namespace. Platform-only
+and extension-only updates each apply one release and reuse the namespace. The other
+source repository is unavailable throughout installation. Native proxy metadata records
+requests while unselected Deployment versions, Pod identities, image IDs, restart counts,
+and complete Helm storage metadata stay unchanged. An ownership overlap fails before
+any write. The namespace is removed and its absence verified. Evidence and retained Git
+fixtures live under `output/development/`; the recorder binds the check to build inputs.
+
+This fixture establishes operational scope. Its synthetic extension declaration does
+not qualify extension-manifest content, and its sleep Pods do not qualify GPU execution.
+Cross-host mutation fencing, general raw adoption, actual GPU compiler-family admission,
+and the representative build-engine comparison remain separate open work.

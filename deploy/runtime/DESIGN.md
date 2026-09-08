@@ -9,6 +9,7 @@
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
 | `veoveo.io/component-publication/v1` | Internal xtask receipt for exact component lock composition; records chart revisions, configuration refresh, image evidence, and retained owners, with no cluster execution claim |
 | `veoveo.io/installed-deployment-unit/v1` | Local installation provenance, exact Helm revision and manifest identity, and observed object fingerprints used to verify reuse |
+| `veoveo.io/component-installation/v1` | Successful selected installation plan, actual unit outcomes, and unselected object and Helm observations; no API audit or cross-host fencing claim |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.2.4 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
@@ -53,7 +54,8 @@ for an enterprise installation governed by GitOps.
 | `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
 | `helm_state.rs` | Exact Helm metadata and the deployed or successful revisions an upgrade or rollback may use |
 | `helm_state/snapshot.rs` | Stored manifest content and successful hook execution from Helm status |
-| `installed.rs` and `installed/` | Local receipt storage, actual object fingerprints, and verified reuse in the full-profile installer |
+| `installed.rs` and `installed/` | Local receipt storage, actual object fingerprints, and verified reuse for the expanded component selection |
+| `installed/unselected.rs` | Read-only before/after snapshots of unselected permitted objects and Helm release metadata |
 | `installed/normalize.rs` | Server dry-run projection of installed intent when Kubernetes serialization differs from the prepared object |
 | `installed/planning.rs` | Checked installed observations, pure mutation decisions, and execution of the prepared atomic-unit plan |
 | `ownership.rs` | Read-only historical inventory and live ownership checks before installation writes |
@@ -65,12 +67,37 @@ for an enterprise installation governed by GitOps.
 | `gpu/workloads/quiescence.rs` | Deployment child UID tracking and a bounded wait for every owned Pod to disappear before device-plugin retirement |
 | `process.rs` | Native command invocation helpers and explicit JSON object application |
 | `profile/execution.rs` | Selected compiled operational inputs and rejection of incompatible retained GPU policies before writes |
+| `profile/operations.rs` | Actual applied/reused unit outcomes and complete correspondence with the mutation plan |
 
 The runtime retains the Secret gate before profile installation writes and mandatory GPU
-qualification. Profile installation still processes the complete deployment.
-Component-selected execution remains the
-`DEPLOY-SCOPE-023` migration: it must use the contract's complete ownership catalog and
-cover every installation mutation before exposing a component selector.
+qualification for selected GPU workloads. `profile_up` accepts `ComponentSelection::All`
+or `Exact` and returns an `InstallationReceipt`. The CLI requires `--all-components` or
+repeated `--component <id>`, plus a create-only `--receipt-output` path.
+
+Dependency expansion precedes source resolution, rendering, installed-state planning,
+and Secret preflight. The complete locked catalog remains authoritative for ownership,
+including absent reserved identities and unselected releases. Namespace creation, node
+bootstrap, public resources, gateway activation, allocator installation, persistent
+claims, and source releases execute only when their atomic units enter the expanded
+selection. Source releases follow component dependency order, then declaration order
+within each component. Readiness waits use the compiled owner's Deployment identities.
+
+GPU consumers require declared dependencies on both the allocator and claim owners;
+a selected claim requires its allocator owner. Allocator-only selection performs its
+admission checks without executing consumers. Selected consumer verification checks
+hardware UUIDs for those consumers, while the persistent claim retains its full immutable
+specification and allocation constraints. Standalone `profile-gpu-verify` checks every
+configured consumer. An unrelated CPU component needs Ready nodes and does not wait for
+the obsolete extended-resource interface on a DRA cluster.
+
+The successful receipt records each planned atomic target exactly once as applied or
+reused. Unselected observations include complete-object hashes and versions, explicit
+absence, and Helm metadata; they contain no object bodies or Secret bytes. A receipt
+is published only after all selected readiness checks and final observations succeed.
+Snapshots can reveal outside activity, but they cannot establish zero API writes alone.
+The separate native scope fixture supplies request metadata and runtime observations.
+Cluster creation remains a separate lifecycle command; cross-host fencing and general
+raw-object adoption remain outside this implementation.
 
 ## Immutable Render Inputs
 
@@ -87,7 +114,8 @@ and revision. Components at the same revision share a checkout; components at di
 revisions receive distinct checkouts even when they share a repository. The top-level
 source revision records publication resolution and does not override retained component
 revisions. Preparation verifies the actual checkout commit before rendering. Release
-execution retains the profile's declaration order, independent of checkout ordering.
+execution follows expanded dependency order and retains each owner's declaration order,
+independent of checkout ordering.
 
 Each component's `configuration` records its installation document and commit.
 Preparation shares one checkout per configuration source revision, restores the recorded
@@ -269,7 +297,7 @@ artifact and render checks pass; hardware qualification of that release is pendi
 
 ## Verified Installation Reuse
 
-The full-profile installer prepares a mutation plan before its first write. It feeds
+The installer prepares a mutation plan for the expanded selection before its first write. It feeds
 checked Helm history, live object inventories, and reusable receipt provenance to the
 pure planner. A missing or drifted baseline becomes `RequiresApply`; it does not assert
 that desired inputs were previously installed. Planned GPU quiesce invalidates reuse
@@ -346,7 +374,8 @@ omitted empty Pod fields. It projects a changed memory request and verifies that
 the live resource version nor the Helm revision changes. Its synthetic image is never
 executed. Each fixture verifies its namespace removal. Unit tests cover TTL completion, malformed
 receipts, cluster isolation, and the local lock. These checks do not qualify a GPU
-workload or establish complete selected-deployment mutation receipts.
+workload. Selected CLI acceptance is described in the
+[deployment verification design](../../testing/deployment-smoke/DESIGN.md#component-selection).
 
 ## Dependencies
 

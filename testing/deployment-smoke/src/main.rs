@@ -3,6 +3,7 @@ use std::{path::PathBuf, process::ExitCode};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod component_scope;
 mod flux_cancellation;
 mod gitops;
 mod helm_config;
@@ -23,6 +24,8 @@ enum Command {
     HelmConfig,
     /// Verify obsolete Flux health-check cancellation in a disposable namespace.
     GitopsCancelVerify(flux_cancellation::Args),
+    /// Verify selected deployment writes with independent Git and OCI fixtures.
+    ComponentScopeVerify(component_scope::Args),
     /// Validate one typed deployment profile and every selected build and Helm surface.
     ProfileValidate {
         #[arg(long)]
@@ -48,12 +51,22 @@ enum Command {
         #[arg(long)]
         profile: PathBuf,
     },
-    /// Apply a profile's resources and independently resolved Helm releases.
+    /// Apply exact components and their dependencies from one deployment lock.
     ProfileUp {
         #[arg(long)]
         profile: PathBuf,
         #[arg(long)]
         lock: PathBuf,
+        #[arg(
+            long,
+            required_unless_present = "all_components",
+            conflicts_with = "all_components"
+        )]
+        component: Vec<String>,
+        #[arg(long)]
+        all_components: bool,
+        #[arg(long)]
+        receipt_output: PathBuf,
     },
     /// Verify the live GPU placement selected by a deployment profile without mutating it.
     ProfileGpuVerify {
@@ -93,6 +106,7 @@ fn run() -> Result<()> {
     match Args::parse().command {
         Command::HelmConfig => helm_config::helm_config(),
         Command::GitopsCancelVerify(args) => flux_cancellation::verify(args),
+        Command::ComponentScopeVerify(args) => component_scope::verify(args),
         Command::ProfileValidate { profile } => veoveo_deploy_runtime::profile_validate(&profile),
         Command::ProfileRegistryUp { profile } => {
             veoveo_deploy_runtime::profile_registry_up(&profile)
@@ -106,7 +120,44 @@ fn run() -> Result<()> {
         Command::ProfileClusterDelete { profile } => {
             veoveo_deploy_runtime::profile_cluster_delete(&profile)
         }
-        Command::ProfileUp { profile, lock } => veoveo_deploy_runtime::profile_up(&profile, &lock),
+        Command::ProfileUp {
+            profile,
+            lock,
+            component,
+            all_components,
+            receipt_output,
+        } => {
+            use veoveo_deploy_contract::components::{ComponentId, ComponentSelection};
+            anyhow::ensure!(
+                !receipt_output.exists(),
+                "installation receipt already exists"
+            );
+            let parent = receipt_output
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+                .unwrap_or_else(|| std::path::Path::new("."));
+            std::fs::create_dir_all(parent)?;
+            let temporary = tempfile::NamedTempFile::new_in(parent)?;
+            let selection = if all_components {
+                ComponentSelection::All
+            } else {
+                let ids = component
+                    .iter()
+                    .cloned()
+                    .map(ComponentId::try_from)
+                    .collect::<Result<std::collections::BTreeSet<_>>>()?;
+                anyhow::ensure!(
+                    ids.len() == component.len(),
+                    "duplicate component selection"
+                );
+                ComponentSelection::Exact(ids)
+            };
+            let receipt = veoveo_deploy_runtime::profile_up(&profile, &lock, &selection)?;
+            serde_json::to_writer_pretty(temporary.as_file(), &receipt)?;
+            temporary.as_file().sync_all()?;
+            temporary.persist_noclobber(receipt_output)?;
+            Ok(())
+        }
         Command::ProfileGpuVerify { profile } => {
             veoveo_deploy_runtime::profile_gpu_verify(&profile)
         }
@@ -142,5 +193,50 @@ fn main() -> ExitCode {
             eprintln!("{error:#}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn profile_up_requires_explicit_selection_and_receipt() {
+        let base = [
+            "deployment-smoke",
+            "profile-up",
+            "--profile",
+            "profile.json",
+            "--lock",
+            "lock.json",
+        ];
+        let parse = |extra: &[&str]| {
+            Args::try_parse_from(base.iter().copied().chain(extra.iter().copied()))
+        };
+        assert!(parse(&[]).is_err());
+        assert!(parse(&["--all-components"]).is_err());
+        assert!(parse(&["--receipt-output", "receipt.json"]).is_err());
+        assert!(parse(&["--receipt-output", "receipt.json", "--all-components"]).is_ok());
+        assert!(
+            parse(&[
+                "--receipt-output",
+                "receipt.json",
+                "--component",
+                "platform",
+                "--component",
+                "extension"
+            ])
+            .is_ok()
+        );
+        assert!(
+            parse(&[
+                "--receipt-output",
+                "receipt.json",
+                "--all-components",
+                "--component",
+                "platform"
+            ])
+            .is_err()
+        );
     }
 }

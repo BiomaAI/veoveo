@@ -1,17 +1,41 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:60753d54974dc4baee5cda234797bf4e62955d3fb1c2c397f72375be623c5017",
-  "updatedAt": "2026-09-08T08:48:24Z",
+  "buildDigest": "sha256:071d409dd42f3c6c8be395b705b5feb4bf107c741666f76fd255a44a089e4249",
+  "updatedAt": "2026-09-08T09:34:31Z",
   "checks": [
     {
-      "name": "retained-execution-clippy",
+      "name": "component-scope-api",
+      "command": [
+        "env",
+        "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
+        "VEOVEO_SCOPE_TEST_IMAGE=k3d-veoveo-registry.localhost:5000/veoveo/console-bff@sha256:5def84365bd9b532ca329207950a3f0dd03dbc129e0294553d46c41215d9aac6",
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-deploy-runtime",
+        "--lib",
+        "--",
+        "--ignored",
+        "--test-threads=1"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T09:34:13Z",
+      "durationSeconds": 139.227628998,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "component-scope-clippy",
       "command": [
         "cargo",
         "clippy",
+        "--locked",
+        "-p",
+        "veoveo-deploy-contract",
         "-p",
         "veoveo-deploy-runtime",
         "-p",
-        "veoveo-deploy-contract",
+        "veoveo-deployment-smoke",
         "-p",
         "veoveo-xtask",
         "--all-targets",
@@ -20,12 +44,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:47:26Z",
-      "durationSeconds": 3.561068942,
+      "finishedAt": "2026-09-08T09:34:21Z",
+      "durationSeconds": 0.499093908,
       "detail": "completed successfully"
     },
     {
-      "name": "retained-execution-format",
+      "name": "component-scope-format",
       "command": [
         "cargo",
         "fmt",
@@ -34,12 +58,12 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:48:24Z",
-      "durationSeconds": 2.115589941,
+      "finishedAt": "2026-09-08T09:34:31Z",
+      "durationSeconds": 2.164580858,
       "detail": "completed successfully"
     },
     {
-      "name": "retained-execution-smoke",
+      "name": "component-scope-helm",
       "command": [
         "cargo",
         "xtask",
@@ -47,25 +71,53 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:47:56Z",
-      "durationSeconds": 10.657070538,
+      "finishedAt": "2026-09-08T09:34:28Z",
+      "durationSeconds": 6.521951728,
       "detail": "completed successfully"
     },
     {
-      "name": "retained-execution-tests",
+      "name": "component-scope-live",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "component-scope-verify",
+        "--repository",
+        "/home/rozgo/BiomaAI/veoveo",
+        "--context",
+        "k3d-veoveo-bioma",
+        "--push-registry",
+        "127.0.0.1:5001",
+        "--pull-registry",
+        "k3d-veoveo-registry.localhost:5000",
+        "--base-image",
+        "127.0.0.1:5001/veoveo/console-bff@sha256:5def84365bd9b532ca329207950a3f0dd03dbc129e0294553d46c41215d9aac6",
+        "--evidence-output",
+        "output/development/component-scope-20260908-recorded.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T09:31:53Z",
+      "durationSeconds": 39.718487828,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "component-scope-tests",
       "command": [
         "cargo",
         "test",
+        "--locked",
+        "-p",
+        "veoveo-deploy-contract",
         "-p",
         "veoveo-deploy-runtime",
         "-p",
-        "veoveo-deploy-contract",
+        "veoveo-deployment-smoke",
         "-p",
         "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:46:54Z",
-      "durationSeconds": 9.501887212,
+      "finishedAt": "2026-09-08T09:34:20Z",
+      "durationSeconds": 6.28596807,
       "detail": "completed successfully"
     }
   ]

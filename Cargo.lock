@@ -15708,6 +15708,7 @@ dependencies = [
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
  "veoveo-extension-contract",
+ "veoveo-image-build-control",
 ]
 
 [[package]]

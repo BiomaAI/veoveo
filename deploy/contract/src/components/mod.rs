@@ -5,6 +5,7 @@
 
 mod bindings;
 mod digest;
+mod execution;
 mod history;
 mod installed;
 mod plan;
@@ -15,6 +16,7 @@ mod validation;
 pub(crate) use bindings::validate_artifact_bindings;
 pub use bindings::validate_profile_component_bindings;
 pub use digest::{atomic_unit_content_digest, atomic_unit_digest};
+pub use execution::*;
 pub use history::validate_helm_inventory;
 pub use installed::{
     INSTALLED_UNIT_SCHEMA, InstalledHelmRevision, InstalledObjectObservation, InstalledObjectState,

@@ -45,7 +45,8 @@ cargo xtask release images \
   --profile "$PROFILE" \
   --profile-revision "$REVISION" \
   --lock-output "$LOCK"
-cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK"
+cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK" \
+  --all-components --receipt-output output/development/installation.receipt.json
 ```
 
 The locked deployment verifies every source revision, chart, values file, and image

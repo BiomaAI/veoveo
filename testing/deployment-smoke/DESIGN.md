@@ -12,6 +12,9 @@
 | Deployment profile and lock `v7` | shared disposable-profile execution from the smoke owner; schema belongs to `deploy/contract` |
 | Flux CLI 2.9.5 and Helm 4.2.4 | native OCI configuration and chart publication for isolated controller verification |
 | `veoveo.io/flux-cancellation-evidence/v1` | repository-owned controller state, source digest, latency bound, failure, and fixture cleanup evidence |
+| `veoveo.io/component-installation/v1` | successful selected CLI receipt defined by the deployment contract |
+| `veoveo.io/component-scope-evidence/v1` | independent Git/OCI fixture inputs, selected installation duration, applied/reused units, native API request metadata, runtime snapshots, overlap rejection, and cleanup |
+| kubectl/client-go v1.36.2/v0.36.2 local proxy logs | internal test observer of completed HTTP method and URI at verbosity 6; canary writes and ordered barriers verify the observer before accepting scope evidence |
 
 ## Responsibility
 
@@ -94,3 +97,47 @@ This proves cancellation across real OCI source changes and Helm upgrades. Git s
 delivery latency and GPU workload acceptance remain separate measurements. The
 installed Flux reference uses the latest stable 2.9.5 patch, verified against the
 [upstream release](https://github.com/fluxcd/flux2/releases/tag/v2.9.5).
+
+## Component Selection
+
+`component-scope-verify` creates independent platform, extension, and installation Git
+repositories. The existing managed builder publishes digest-pinned witness images to
+the supplied local HTTP registry. Each source owns one Helm release with a Ready sleep
+Pod; both depend on the namespace owner. The harness runs the real `profile-up` CLI for
+initial installation, a platform-only image update, and an extension-only image update.
+During each update the unselected source repository is unavailable. The changed image
+must replace the selected Pod, while the namespace dependency must reuse its receipt.
+
+The child installer uses a loopback kubeconfig connected to the native kubectl proxy.
+The proxy alone uses the original credentials. At verbosity 6, client-go's
+[transport logger](https://github.com/kubernetes/client-go/blob/v0.36.2/transport/round_trippers.go)
+records completed request method, URL, status, and timing; headers begin at verbosity 7.
+The harness retains method and URI only, with no request bodies, response bodies,
+headers, or credentials in evidence. Create/patch/delete canaries and ordered GET
+barriers verify parsing and drain the observer. Rejected proxy requests fail the run.
+This log format is an internal adapter boundary, not a stable Kubernetes audit API.
+
+Each selected update must issue API writes, confined to its Deployment and Helm storage.
+The unselected Deployment UID, resource version, complete-object hash, Pod UID, image
+IDs, restart counts, Helm revision, and every Helm storage Secret's UID and resource
+version must remain identical. POSTs to the Secret collection do not expose names in
+request metadata; unchanged complete unselected storage metadata and rejection of any
+named unselected write complement the observation. This is evidence for the exact
+fixture, not server-side auditing or cross-host mutation fencing. An intentionally
+overlapping ownership declaration must fail with zero observed writes.
+
+The scenario removes its namespace and verifies absence on success or failure. It
+retains the independent Git histories, locks, receipts, and OCI references for review.
+`installationElapsedMs` measures the child installation process including preflight and
+readiness; it excludes image publication, Cargo compilation, and observer snapshots.
+The fixture's extension-manifest identity is synthetic. This test proves operational
+scope and image rollout, not extension admission or GPU execution.
+
+```sh
+cargo xtask smoke component-scope-verify \
+  --repository <veoveo-checkout> --context <context> \
+  --push-registry <host-local-http-registry> \
+  --pull-registry <cluster-local-http-registry> \
+  --base-image <repository@sha256:digest> \
+  --evidence-output <new-evidence.json>
+```
