@@ -13,7 +13,7 @@ use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use tokio::io::AsyncWriteExt as _;
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_mcp_contract::{ArtifactId, PlaneCaller};
+use veoveo_mcp_contract::{ArtifactId, ArtifactPlane, PlaneCaller};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LayerCacheLimits {
@@ -244,6 +244,25 @@ impl LayerCache {
         );
         let _materialization = self.inner.materialization.lock().await;
         let key = format!("{artifact_id}-{expected_sha256}.rrd");
+        let present = self
+            .inner
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording layer cache state is poisoned"))?
+            .entries
+            .contains_key(&key);
+        if present {
+            // Byte integrity never grants authority. Artifact metadata requires
+            // current Read access, including on a warm cache after revocation.
+            // A cache miss uses the download client's existing authorization.
+            let metadata = self.inner.artifacts.head(caller, &artifact_id).await?;
+            ensure!(
+                metadata.artifact_id == artifact_id
+                    && metadata.artifact_uri == artifact_id.plane_uri()
+                    && metadata.byte_len == expected_byte_len,
+                "Artifact metadata does not match the cached recording layer"
+            );
+        }
         if let Some(cached) = self
             .existing(&key, expected_byte_len, expected_sha256, &validation)
             .await?
@@ -532,6 +551,9 @@ fn sync_directory(path: &Path) -> Result<()> {
     File::open(path)?.sync_all()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod authorization_tests;
 
 #[cfg(test)]
 mod tests {

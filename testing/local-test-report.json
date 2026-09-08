@@ -1,51 +1,66 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:78c6c49f9c797f0abe1d17e814cf75bb93ec46e8521a42bfb4787268635d56b6",
-  "updatedAt": "2026-09-08T13:25:15Z",
+  "buildDigest": "sha256:05f7dc82b5662e5f19eea84c770f66d4766019c3f04f118624ba7af563f0d0e7",
+  "updatedAt": "2026-09-08T13:42:01Z",
   "checks": [
     {
-      "name": "profile-coordination-cli-tests",
+      "name": "recording-cache-authority",
       "command": [
         "cargo",
         "test",
         "--locked",
         "-p",
-        "veoveo-deployment-smoke",
-        "-p",
-        "veoveo-xtask",
-        "--bins"
+        "veoveo-recording-reader",
+        "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T13:23:21Z",
-      "durationSeconds": 9.600406222,
+      "finishedAt": "2026-09-08T13:35:51Z",
+      "durationSeconds": 3.770570868,
       "detail": "completed successfully"
     },
     {
-      "name": "profile-coordination-clippy",
+      "name": "recording-cache-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-deploy-runtime",
+        "veoveo-recording-reader",
         "-p",
-        "veoveo-deploy-contract",
+        "veoveo-recording-video",
         "-p",
-        "veoveo-deployment-smoke",
-        "-p",
-        "veoveo-xtask",
+        "veoveo-recording-mcp",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T13:24:37Z",
-      "durationSeconds": 15.397221625,
+      "finishedAt": "2026-09-08T13:39:26Z",
+      "durationSeconds": 18.925450591,
       "detail": "completed successfully"
     },
     {
-      "name": "profile-coordination-format",
+      "name": "recording-cache-consumers",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-recording-reader",
+        "-p",
+        "veoveo-recording-video",
+        "-p",
+        "veoveo-recording-mcp",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T13:38:44Z",
+      "durationSeconds": 111.641399446,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "recording-cache-format",
       "command": [
         "cargo",
         "fmt",
@@ -54,81 +69,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T13:25:15Z",
-      "durationSeconds": 2.260941564,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "profile-coordination-helm-config",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T13:24:54Z",
-      "durationSeconds": 7.132942132,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "profile-coordination-native",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-deploy-runtime",
-        "profile::coordination::tests::native_independent_installers_serialize_and_stale_unlock_is_rejected",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T13:22:59Z",
-      "durationSeconds": 14.474342419,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "profile-coordination-scope",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "component-scope-verify",
-        "--repository",
-        "/home/rozgo/BiomaAI/veoveo",
-        "--context",
-        "k3d-veoveo-bioma",
-        "--push-registry",
-        "127.0.0.1:5001",
-        "--pull-registry",
-        "k3d-veoveo-registry.localhost:5000",
-        "--base-image",
-        "127.0.0.1:5001/veoveo/console-bff@sha256:5def84365bd9b532ca329207950a3f0dd03dbc129e0294553d46c41215d9aac6",
-        "--evidence-output",
-        "output/development/component-scope-coordination-final-20260908.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T13:24:21Z",
-      "durationSeconds": 46.879552366,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "profile-coordination-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-deploy-runtime",
-        "-p",
-        "veoveo-deploy-contract",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T13:22:38Z",
-      "durationSeconds": 5.694485495,
+      "finishedAt": "2026-09-08T13:42:01Z",
+      "durationSeconds": 2.228432681,
       "detail": "completed successfully"
     }
   ]

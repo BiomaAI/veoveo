@@ -32,8 +32,14 @@ replay or persist a submitted bearer.
 ## Cache And Identity
 
 `cache.rs` retains bounded reservations, partial-file publication, full byte and RRD
-identity validation, atomic installation, and pin-aware eviction. Cache hits run the
-identity validator again. The default recording-layer validator binds both canonical
+identity validation, atomic installation, and pin-aware eviction. Cache hits first
+request current Artifact metadata with the presented caller credential. That endpoint
+requires Read access. A revoked grant, expired credential, missing occurrence, or
+unavailable authority rejects reuse before local byte validation or pinning. The
+returned occurrence ID, canonical URI, and byte length must match the requested layer.
+Successful hits then run the identity validator again without downloading bytes.
+Cache misses retain the download client's authorization path.
+The default recording-layer validator binds both canonical
 Store UUIDs, length and SHA-256. Recording MCP supplies its Blueprint validator from
 `blueprint_cache.rs`, which binds application, Blueprint ID and message count with the
 existing Hub Blueprint parser. Blueprint interpretation does not enter analysis readers.
@@ -43,6 +49,12 @@ must verify the full expected byte identity and its typed domain identity on eve
 call. Adding a new kind requires its own rejection tests. Network downloads additionally
 verify the Artifact occurrence, declared length, streamed length and streamed digest
 before validation and installation.
+
+The native HTTP regression in `cache/authorization_tests.rs` opens an existing cache
+entry and changes the Artifact endpoint's decision between requests. It verifies
+caller isolation, revocation, expiry, missing occurrences, mismatched metadata, and
+authority outage. Denied requests do not validate or pin local bytes. The fixture
+accepts only metadata requests and serves no artifact body.
 
 ## Build Boundary
 

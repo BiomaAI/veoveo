@@ -1188,6 +1188,12 @@ unconditionally rejects reads without a fresh Artifact-read credential. Both Str
 and Reason also construct that reader without a layer cache. Their durable execution
 paths need the credential-bearing reader boundary and bounded cache before replay can
 qualify either compiler. A bearer token must not be persisted in the durable request.
+Inspection also exposed a cache prerequisite: a warm recording layer skipped Artifact
+authorization. The cache now rechecks current Read permission through metadata before
+validating or pinning local bytes. A native HTTP regression reproduces access inherited
+by another caller before the fix, then covers revocation, expired credentials, missing
+occurrences, inconsistent metadata, and unavailable authority. This correction does
+not supply durable read delegation or qualify a GPU compiler family.
 The failed task is `01a080f8-7474-7f31-a640-acb90aaacf4e`; its candidate log is retained
 under `output/development/stream-compiler-acceptance/`. It supplies no GPU acceptance.
 
