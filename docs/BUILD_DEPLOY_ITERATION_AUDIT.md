@@ -4,8 +4,9 @@ Status: implementation authorized on September 6, 2026; core changes are committ
 and the shared charts are active with the Bioma reference configuration. Local compiler
 ABI and throughput experiments have recorded results. Live metadata-only publication
 preserves every running Pod. Disposable component-selected execution now passes the independent native Git/OCI
-fixture. GPU compiler-family admission, cross-host fencing, and the build-engine
-comparison remain pending.
+fixture. GPU compiler-family admission and cross-host fencing remain pending. The local
+build-engine cache trial has recorded results; independent build storage and hosts
+remain unmeasured.
 The findings below retain the pre-change evidence. The delivery record identifies
 implemented changes and their verification.
 
@@ -25,7 +26,7 @@ implemented changes and their verification.
 | Cargo source freshness | Added a content-aware input mirror under each locked target cache, with disposable source timestamp synchronization for every Rust family | An old-timestamp edit/revert regression passes; the corrected ordinary BFF/gateway artifacts equal clean-target outputs; 40 focused tests, strict Clippy, formatting and standalone-family planning pass |
 | Compiler-cache experiment | Added an existing-family sccache 0.17.0 comparison with empty Cargo targets, bounded cache storage, CPU timing and full compiled-artifact identity | All 955 cacheable operations hit on recovery, but the solve takes 333.7 s versus 328.4 s without the wrapper; the wrapper remains outside normal builds; all experiment cache mounts were removed |
 | Second-worker reuse | Added an isolated worker comparison using the existing compiler recipe and an exact exported OCI cache manifest | Unchanged import takes 4.6 s with zero compilation; matched source edits take 39.5 s on the existing worker and 369.5 s on the fresh worker; binaries and native library match within each pair; temporary worker, volume, and cache export are removed |
-| Bazel integration experiment | Builds Stream Rust, the native CMake runner, and OCI assembly in the existing SDK environment | Native Cargo feature contexts match; the built image contains the exact binaries and preserves all 22 inherited layers; controlled cache comparisons remain in progress, with no production migration |
+| Bazel integration and cache trial | Builds Stream Rust, the native CMake runner, and OCI assembly in the existing SDK environment | A restored workspace reuses all 780 Rust compilation actions; both edited builds execute the same six actions and produce identical artifacts; inherited-image materialization remains costly; Cargo/BuildKit stays in production |
 | Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidate binaries passed loader inspection and CLI execution in the deployed runtime containers; family admission remains pending service and GPU acceptance |
@@ -1133,7 +1134,7 @@ fixtures live under `output/development/`; the recorder binds the check to build
 This fixture establishes operational scope. Its synthetic extension declaration does
 not qualify extension-manifest content, and its sleep Pods do not qualify GPU execution.
 Cross-host mutation fencing, general raw adoption, actual GPU compiler-family admission,
-and the representative build-engine comparison remain separate open work.
+and independent build-host comparisons remain separate open work.
 
 
 ## Task Runtime Feature Closure
@@ -1182,8 +1183,8 @@ of the native Stream tree. Two package-metadata patches retain the pinned MCP SD
 inherited metadata without changing dependency source code.
 
 Native integration required the SDK's installed pkg-config and C++ compiler. Rust build
-tools use Cargo's release build-override settings, and runtime crates retain release
-optimization. The trial also separates Rust's code-generation count from Bazel's action
+tools use [Cargo's release build-override settings](https://doc.rust-lang.org/cargo/reference/profiles.html#build-dependencies),
+and runtime crates retain release optimization. The trial also separates Rust's code-generation count from Bazel's action
 CPU reservation: reserving sixteen CPUs per action serialized work on the twelve-CPU
 worker. Rust linking uses the SDK's BFD linker. This is an experimental recipe, not a
 claim of byte-identical output between Cargo and Bazel.
@@ -1195,16 +1196,59 @@ descriptors match the declared base image. The exported evidence includes the re
 manifest, configuration, and application layer; it is not a complete standalone OCI
 layout or a release-qualified image. Service and hardware GPU qualification are separate.
 
-The controlled cold, unchanged, source-edit, and fresh-workspace comparisons follow
-this integration checkpoint. Their results must distinguish dependency downloads,
-per-action reuse, native compilation, and container assembly before supporting a build
-engine recommendation. Cargo and BuildKit remain the production path.
+### Controlled Cache Cases
 
-Evidence is under `output/development/bazel-stream-trial/`. The corrected Cargo tree
-comparison, full-probe-4 logs and Build Event Protocol record, prototype input archive,
-and immutable source revision preserve the integration checkpoint. Cleanup removed the
-three first-generation experiment caches (6,822,387,712 bytes), then the three diagnostic
-second-generation caches (43,417,825,280 bytes). All fourteen ordinary execution cache
-identities survived both cleanups. The normal Cargo retention command also reclaimed
-16.33 GiB of superseded executables and incremental variants; dependency libraries and
-current executable links were retained.
+Every case uses the same declared twelve-CPU SDK environment. The cold case starts
+with empty Bazel workspace, repository-download, and disk-action caches; the SDK's
+BuildKit layers are already present. Subsequent cases deliberately invoke Bazel in
+batch mode to expose its own reuse behavior. The separate wrapper case allows BuildKit
+to reuse the complete finished action.
+
+| Case | Complete command | Execution |
+|---|---:|---|
+| Cold Bazel caches | 450.690 s | full Rust, native, and image build |
+| Unchanged Bazel invocation | 47.100 s | one internal workspace-status action; no compiler or assembly process |
+| Rust and C++ source edit on the existing workspace | 51.260 s | two Stream Rust actions, one CMake action, and three image-assembly actions |
+| Restore unchanged source into an empty Bazel workspace | 95.790 s | all 1,554 executable actions hit the disk cache, including 780 Rust compilations |
+| Apply the same edit after restoration | 141.420 s | the same six actions as the existing-workspace edit; dependencies stay cached |
+| Reuse the complete BuildKit wrapper result | 4.000 s | Bazel does not execute; its prior output and evidence are reused |
+
+The baseline action cache is copied before either source edit. Its 6,746 files contain
+13,623,743,859 bytes. Source and copied cache inventories have the same content digest;
+copying and verifying them takes 60.530 s. The restored workspace shares the repository
+download cache. This measures a fresh Bazel workspace on the same host and SDK worker.
+An independent BuildKit worker, second host, and network transfer remain outside this
+trial.
+
+Both edits append the same controlled comments to the Rust entrypoint and C++ source.
+Execution logs prove that only the two Stream Rust targets recompile. The native runner,
+Rust executable, and complete image manifest match byte for byte between the edited
+cases. Cold, unchanged, restored-unchanged, and wrapper-reused artifacts also match.
+Image checks verify the embedded binaries, runtime file permissions, App bytes, and all
+22 inherited layer descriptors. The cold Rust executable passes CLI help with a cleared
+environment. Service startup and hardware workloads remain separate acceptance.
+
+The restored source edit spends 72.303 s staging cached inputs before OCI image assembly.
+The trace identifies an inherited runtime blob during that interval. Restoring completed
+compiler actions therefore leaves a substantial image-input cost in this recipe. The
+47-second unchanged invocation also retains batch startup, module evaluation, and cache
+inspection. These observations support keeping the corrected Cargo/BuildKit production
+path. They establish no matched Cargo-versus-Bazel speedup, and do not describe the
+latency of a persistent Bazel server.
+
+`output/development/bazel-stream-trial/comparison.json` records validated cases, exact
+source variants, manifest and binary digests, cache snapshot identity, execution counts,
+and cleanup. Adjacent files retain the native Cargo feature comparison, prototype input
+archive, Build Event Protocol records, profiles, and detailed spawn logs. Spawn logging
+was enabled after the cold case; its empty-cache receipt and execution counters preserve
+that case's boundary. The exported image evidence contains the manifest, configuration,
+and application layer, while inherited blobs remain available from the declared base.
+
+Cleanup removed all experiment execution caches and preserved all fourteen ordinary Cargo
+cache identities. The final three mounts accounted for 53,217,423,360 bytes. Source edits
+are restored in the detached worktree. The worker retains its declared twelve-CPU,
+36 GiB limits without swap, and all 25 Veoveo Deployments remain Ready. Earlier cleanup removed
+the first-generation caches (6,822,387,712 bytes) and diagnostic second-generation caches
+(43,417,825,280 bytes). The normal Cargo retention command also reclaimed 16.33 GiB of
+superseded executables and incremental variants while retaining dependency libraries
+and current executable links.
