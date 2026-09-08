@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:1f501f1b5c5b53d5c8f3201fda947c2e9f4d296445c3aa64da3ec09bb976bf97",
-  "updatedAt": "2026-09-08T16:24:03Z",
+  "updatedAt": "2026-09-08T16:28:19Z",
   "checks": [
     {
       "name": "stream-activation-clippy",
@@ -35,6 +35,35 @@
       "detail": "completed successfully"
     },
     {
+      "name": "stream-activation-convergence",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "gitops-converge",
+        "--context",
+        "k3d-veoveo-bioma",
+        "--source",
+        "flux-system/bioma",
+        "--root",
+        "flux-system/bioma",
+        "--release",
+        "flux-system/veoveo",
+        "--revision",
+        "85bc3807f8b2ec9b6a0245142ea72655284e5b0e",
+        "--deployment",
+        "veoveo/stream-mcp",
+        "--timeout-seconds",
+        "600",
+        "--evidence-output",
+        "output/development/stream-separated-convergence-20260908.json"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T16:26:43Z",
+      "durationSeconds": 90.582889695,
+      "detail": "completed successfully"
+    },
+    {
       "name": "stream-activation-fmt",
       "command": [
         "cargo",
@@ -46,6 +75,27 @@
       "status": "passed",
       "finishedAt": "2026-09-08T16:24:03Z",
       "durationSeconds": 2.30789419,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "stream-installed-gpu",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "stream-gpu",
+        "--env-file",
+        ".env",
+        "--producer-key-secret",
+        "veoveo-recording-producer",
+        "--pipeline-id",
+        "traffic-object-detection",
+        "--work-dir",
+        "output/development/stream-separated-installed-gpu-20260908"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T16:28:19Z",
+      "durationSeconds": 16.532858489,
       "detail": "completed successfully"
     }
   ]
