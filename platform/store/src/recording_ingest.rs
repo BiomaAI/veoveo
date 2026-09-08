@@ -427,10 +427,12 @@ impl PlatformStore {
                 draft.stream_id.to_string(),
             ));
         }
-        classify_sequence(&stream, &draft, self).await?;
+        // Recovery can replay an accepted batch after the stream was finished.
+        // Verify its durable identity before applying the new-append state gate.
         if draft.sequence < u64::try_from(stream.next_sequence).unwrap_or_default() {
             return duplicate_outcome(stream, &draft, self).await;
         }
+        classify_sequence(&stream, &draft, self).await?;
 
         let batch_id = RecordingIngestBatchId::new();
         let now = Utc::now();

@@ -77,14 +77,13 @@ impl RecordingLayerDraft {
         staging_path: String,
         start_time: Option<DateTime<Utc>>,
     ) -> Result<Self, StoreError> {
-        let ordinal = Some(ordinal);
-        let layer_name = capture_layer_name(ordinal.expect("capture ordinal exists"))?;
+        let layer_name = capture_layer_name(ordinal)?;
         Ok(Self {
             identity,
             recording_id,
             layer_name,
             kind: RecordingLayerKind::Capture,
-            ordinal,
+            ordinal: Some(ordinal),
             staging_path: Some(staging_path),
             start_time,
         })

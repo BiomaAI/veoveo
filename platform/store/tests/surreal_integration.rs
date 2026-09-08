@@ -24,6 +24,9 @@ use veoveo_platform_store::{
     deterministic_work_context_id, gateway_replay_record_id, migrations,
 };
 
+#[path = "surreal_integration/recording_ingest.rs"]
+mod recording_ingest;
+
 fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
     InvocationAuthorityRecord {
         context_key: "operations".into(),
