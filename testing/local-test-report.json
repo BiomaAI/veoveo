@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:84cb8dfbb824b357180e415ab7d7b988d5673bf2ba32fdcbda6b2370fe8d2c1a",
-  "updatedAt": "2026-09-08T08:01:35Z",
+  "buildDigest": "sha256:b6e50cdebaffb85963066b627fe89841edf2a8cc7ac57fa03e7d45852643a028",
+  "updatedAt": "2026-09-08T08:32:51Z",
   "checks": [
     {
-      "name": "gpu-migration-clippy",
+      "name": "deployment-plan-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -20,12 +20,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:00:38Z",
-      "durationSeconds": 4.038433533,
+      "finishedAt": "2026-09-08T08:32:19Z",
+      "durationSeconds": 5.916278011,
       "detail": "completed successfully"
     },
     {
-      "name": "gpu-migration-format",
+      "name": "deployment-plan-format",
       "command": [
         "cargo",
         "fmt",
@@ -34,31 +34,33 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:01:35Z",
-      "durationSeconds": 2.184600405,
+      "finishedAt": "2026-09-08T08:32:51Z",
+      "durationSeconds": 2.165996783,
       "detail": "completed successfully"
     },
     {
-      "name": "gpu-migration-live",
+      "name": "deployment-plan-live",
       "command": [
         "env",
         "VEOVEO_OWNERSHIP_TEST_CONTEXT=k3d-veoveo-bioma",
+        "VEOVEO_SCOPE_TEST_IMAGE=k3d-veoveo-registry.localhost:5000/veoveo/console-bff@sha256:5def84365bd9b532ca329207950a3f0dd03dbc129e0294553d46c41215d9aac6",
         "cargo",
         "test",
         "-p",
         "veoveo-deploy-runtime",
-        "gpu::migration::tests::live_migration_rejects_unselected_workloads_and_drift_before_quiescing",
+        "live_",
         "--",
         "--ignored",
-        "--nocapture"
+        "--nocapture",
+        "--test-threads=2"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T07:58:53Z",
-      "durationSeconds": 27.496072625,
+      "finishedAt": "2026-09-08T08:32:00Z",
+      "durationSeconds": 79.658950721,
       "detail": "completed successfully"
     },
     {
-      "name": "gpu-migration-smoke",
+      "name": "deployment-plan-smoke",
       "command": [
         "cargo",
         "xtask",
@@ -66,12 +68,12 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T08:01:25Z",
-      "durationSeconds": 11.19559453,
+      "finishedAt": "2026-09-08T08:32:43Z",
+      "durationSeconds": 12.378468836,
       "detail": "completed successfully"
     },
     {
-      "name": "gpu-migration-tests",
+      "name": "deployment-plan-tests",
       "command": [
         "cargo",
         "test",
@@ -83,8 +85,8 @@
         "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T07:59:59Z",
-      "durationSeconds": 10.014879945,
+      "finishedAt": "2026-09-08T08:30:21Z",
+      "durationSeconds": 13.273779828,
       "detail": "completed successfully"
     }
   ]

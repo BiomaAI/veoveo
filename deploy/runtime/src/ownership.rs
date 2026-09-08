@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use veoveo_deploy_contract::components::{
-    AtomicTarget, LockedComponent, ObjectIdentity, validate_component_catalog,
+    AtomicTarget, LockedComponent, ObjectIdentity, RenderedObject, validate_component_catalog,
     validate_helm_inventory,
 };
 
@@ -45,11 +45,18 @@ enum LiveObjects {
     Single(Value),
 }
 
+#[derive(Debug)]
+pub(crate) struct OwnershipObservation {
+    pub(crate) live: BTreeMap<ObjectIdentity, Value>,
+    pub(crate) historical: BTreeMap<AtomicTarget, BTreeMap<ObjectIdentity, RenderedObject>>,
+    pub(crate) releases: BTreeMap<AtomicTarget, HelmReleaseMetadata>,
+}
+
 pub(crate) fn validate_live_ownership(
     context: &str,
     catalog: &[LockedComponent],
     compiled: &[CompiledComponent],
-) -> Result<()> {
+) -> Result<OwnershipObservation> {
     validate_component_catalog(catalog)?;
     let mut objects = compiled
         .iter()
@@ -58,6 +65,8 @@ pub(crate) fn validate_live_ownership(
         .collect::<Vec<_>>();
     let mut expected = BTreeMap::<ObjectIdentity, AtomicTarget>::new();
     let mut releases = Vec::<HelmReleaseMetadata>::new();
+    let mut historical_objects =
+        BTreeMap::<AtomicTarget, BTreeMap<ObjectIdentity, RenderedObject>>::new();
     for component in compiled {
         for unit in &component.units {
             for object in &unit.prepared.objects {
@@ -110,8 +119,8 @@ pub(crate) fn validate_live_ownership(
                     &component.locked.declaration.permitted_objects,
                 )?;
                 let identities = inventory
-                    .into_iter()
-                    .map(|object| object.identity)
+                    .iter()
+                    .map(|object| object.identity.clone())
                     .collect::<Vec<_>>();
                 validate_helm_inventory(
                     catalog,
@@ -122,6 +131,14 @@ pub(crate) fn validate_live_ownership(
                 for identity in identities {
                     insert_owner(&mut expected, identity, &unit.prepared.target)?;
                 }
+                historical_objects
+                    .entry(unit.prepared.target.clone())
+                    .or_default()
+                    .extend(
+                        inventory
+                            .into_iter()
+                            .map(|object| (object.identity.clone(), object)),
+                    );
                 objects.extend(historical);
             }
             releases.push(release);
@@ -129,19 +146,34 @@ pub(crate) fn validate_live_ownership(
     }
     let served = validate_cluster_scopes(context, catalog, &objects)?;
     let live = read_objects(context, &expected.keys().cloned().collect(), Some(&served))?;
-    for (identity, value) in live {
-        validate_manager_value(&expected[&identity], &value)
+    for (identity, value) in &live {
+        validate_manager_value(&expected[identity], value)
             .with_context(|| format!("checking existing object {identity:?}"))?;
     }
     // Bind every historical manifest to the observed revision and reject a
     // concurrent release transition during preflight. Execution fencing is separate.
-    for before in releases {
+    for before in &releases {
         ensure!(
-            release_metadata(context, &before.namespace, &before.name)?.as_ref() == Some(&before),
+            release_metadata(context, &before.namespace, &before.name)?.as_ref() == Some(before),
             "Helm release changed during installation preflight"
         );
     }
-    Ok(())
+    Ok(OwnershipObservation {
+        live,
+        historical: historical_objects,
+        releases: releases
+            .into_iter()
+            .map(|release| {
+                (
+                    AtomicTarget::HelmRelease {
+                        namespace: release.namespace.clone(),
+                        name: release.name.clone(),
+                    },
+                    release,
+                )
+            })
+            .collect(),
+    })
 }
 
 fn insert_owner(

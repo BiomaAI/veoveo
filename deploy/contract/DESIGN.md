@@ -39,7 +39,8 @@ disposable profile installer. It consumes this crate's contracts and digest enco
 The disposable profile compiler and installer consume deployment v7 with mandatory
 component ownership and compiled inventories. Installation still processes the complete
 profile; component-selected execution remains unfinished. The runtime uses typed local
-receipts to verify reuse through the existing full-profile installer.
+receipts to verify reuse and feeds checked installed observations into the planner
+through the existing full-profile installer.
 The internal planner is not an alternative installer or an enterprise mutation owner.
 
 Each component declares its immutable source, role, dependencies, exact Helm release
@@ -152,6 +153,15 @@ inventory describes the ownership boundary; it is not zero-write evidence. Focus
 prove selection and rejection rules. Independent temporary platform and extension Git
 histories exercise revision reuse and committed input reads in the pure planner. Actual
 mutation receipts and live zero-write acceptance remain installer integration work.
+
+Observed units distinguish absence, a verified installed baseline, and `RequiresApply`.
+The last state contains checked object inventory without asserting an installed-input
+digest. Missing receipts, observed drift, or an earlier planned mutation can prevent
+reuse even when an object exists. An empty inventory is valid for an existing Helm
+release; an empty raw manifest observation must use absence. `RequiresApply` always
+plans the target's apply operation and undergoes the same retirement and ownership
+checks as a verified baseline. The observation enum is internal and does not change
+the serialized plan schema.
 
 `InstalledUnitReceipt` binds one locked atomic unit and its component declaration to a
 cluster UID. Its validator recomputes provenance and content digests and requires exactly

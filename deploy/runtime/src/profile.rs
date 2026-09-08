@@ -9,7 +9,6 @@ use crate::{
     gpu::{apply_gpu_placement, ensure_gpu_allocator, prepare_gpu_placement, verify_gpu_placement},
     images::{validate_bake_selections, validate_locked_images},
     installed::InstalledState,
-    ownership::validate_live_ownership,
     process::status_checked,
     sources::{
         load_deployment_lock, load_profile, resolve_locked_sources, resolve_sources,
@@ -112,7 +111,6 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let platform = profile.resolved_platform()?;
     let context = profile.definition.kubernetes.context.as_str();
     let installed = InstalledState::open(&profile.repository, context, &compiled)?;
-    validate_live_ownership(context, &lock.components, &compiled)?;
     let gpu_migration = platform
         .gpu_scheduling
         .as_ref()
@@ -126,6 +124,21 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             )
         })
         .transpose()?;
+    let invalidated = gpu_migration
+        .as_ref()
+        .map(|migration| migration.quiesced_workloads())
+        .unwrap_or_default();
+    let mutation_plan = installed.plan(&lock.components, &selected, &compiled, &invalidated)?;
+    let gpu_placement = prepare_gpu_placement(&profile)?;
+    if let Some(placement) = &gpu_placement {
+        let (_, claim) = installation_units(&compiled, InstallationInput::GpuPlacement)
+            .next()
+            .context("GPU placement has no prepared claim operation")?;
+        ensure!(
+            claim.objects.as_slice() == std::slice::from_ref(&placement.manifest),
+            "GPU placement configuration differs from the compiled claim"
+        );
+    }
     let secret_closure = prepare_secret_closure(
         path,
         lock_path,
@@ -136,7 +149,7 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
 
     after_secret_closure(secret_closure, |_closure| {
         for (component, unit) in installation_units(&compiled, InstallationInput::NodeBootstrap) {
-            installed.apply(component, unit)?;
+            installed.apply_planned(component, unit, &mutation_plan)?;
         }
         if platform.gpu_scheduling.is_some() {
             wait_for_cluster_nodes(context, Duration::from_secs(120))?;
@@ -145,10 +158,10 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
         }
 
         for (component, unit) in installation_units(&compiled, InstallationInput::Namespace) {
-            installed.apply(component, unit)?;
+            installed.apply_planned(component, unit, &mutation_plan)?;
         }
 
-        if let Some(placement) = prepare_gpu_placement(&profile)? {
+        if let Some(placement) = &gpu_placement {
             let scheduling = platform
                 .gpu_scheduling
                 .as_ref()
@@ -163,13 +176,26 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
                 gpu_migration
                     .as_ref()
                     .context("GPU migration has no checked inventory")?,
-                || installed.apply(component, allocator).map(|_| ()),
+                || {
+                    installed
+                        .apply_planned(component, allocator, &mutation_plan)
+                        .map(|_| ())
+                },
             )?;
             apply_gpu_placement(
                 context,
                 &profile.definition.namespace,
                 scheduling,
-                &placement,
+                placement,
+                || {
+                    let (component, claim) =
+                        installation_units(&compiled, InstallationInput::GpuPlacement)
+                            .next()
+                            .context("GPU placement has no prepared claim operation")?;
+                    installed
+                        .apply_planned(component, claim, &mutation_plan)
+                        .map(|_| ())
+                },
             )?;
         }
 
@@ -178,7 +204,7 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             InstallationInput::GatewayActivation,
         ] {
             for (component, unit) in installation_units(&compiled, input) {
-                installed.apply(component, unit)?;
+                installed.apply_planned(component, unit, &mutation_plan)?;
             }
         }
 
@@ -193,7 +219,7 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
                     .flat_map(|component| component.units.iter().map(move |unit| (component, unit)))
                     .find(|(_, unit)| unit.prepared.target == target)
                     .context("source release has no prepared Helm operation")?;
-                installed.apply(component, prepared)?;
+                installed.apply_planned(component, prepared, &mutation_plan)?;
             }
         }
         for deployment in &profile.definition.wait_for_deployments {

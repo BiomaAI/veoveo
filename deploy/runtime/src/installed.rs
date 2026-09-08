@@ -13,6 +13,7 @@ use crate::{
 
 mod normalize;
 mod objects;
+mod planning;
 mod store;
 use store::ReceiptStore;
 

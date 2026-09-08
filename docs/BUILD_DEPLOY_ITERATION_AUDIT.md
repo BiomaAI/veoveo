@@ -838,6 +838,26 @@ the other Deployment. It uses zero replicas and verifies namespace cleanup. This
 the direct GPU transition inventory gap; cross-host fencing, complete mutation receipts,
 selected execution, and GPU workload acceptance remain open.
 
+The full-profile installer now consumes the pure mutation planner. Checked Helm history
+and live object inventories distinguish absence, reusable installed provenance, and an
+apply requirement. Missing receipts and drift never borrow the desired lock's digest
+as evidence of a prior installation. Every prepared namespace, bootstrap, allocator,
+claim creation, public configuration, gateway activation, and source release operation
+checks its exact planned unit before execution. A stale unchanged decision fails and
+requires a new plan. This integrates full-profile planning; it does not expose a
+component selector or establish complete mutation receipts.
+All six native deployment regressions pass together, including installed reuse,
+normalization, ownership rejection, planned updates, and GPU transition lifecycle.
+Every fixture verifies removal of its temporary namespace.
+
+Planned GPU quiesce invalidates affected release reuse, which allows Helm to restore
+desired replicas after the migration. The native restoration test exposed an additional
+lifecycle gap: rollout completion at zero replicas can leave terminating Pods alive.
+The migration now retains child UIDs across ReplicaSet revisions and waits for every
+owned Pod to disappear before retiring the device plugin. An isolated digest-pinned
+CPU sleep fixture verifies Pod removal and subsequent ready-replica restoration.
+The fixture establishes Kubernetes lifecycle behavior, not GPU qualification.
+
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
 cache family, explicitly selected both packages and binaries, and exported a local
