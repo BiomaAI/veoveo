@@ -5,8 +5,8 @@ and the shared charts are active with the Bioma reference configuration. Local c
 ABI and throughput experiments have recorded results. Live metadata-only publication
 preserves every running Pod. Disposable component-selected execution now passes the independent native Git/OCI
 fixture. Cluster coordination now serializes cooperating disposable installers;
-Stream's separated Rust 1.98.1 compiler passes hardware replay; its image publication
-and runtime activation remain to be verified. Reason retains its current compiler. The local
+Stream's separated Rust 1.98.1 compiler passes hardware replay and immutable image
+publication; runtime activation remains to be verified. Reason retains its current compiler. The local
 build-engine cache trial has recorded results; independent build storage and hosts
 remain unmeasured.
 The findings below retain the pre-change evidence. The delivery record identifies
@@ -1379,7 +1379,7 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 | Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Separate physical build disk or host is unavailable; that comparison remains unmeasured |
 | Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
 | Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
-| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, focused harnesses, cache/build-engine trials, and Stream's separated compiler with measured warm edits and hardware replay | Stream image publication and activation remain; Reason's accelerated model-input path prevents its admission |
+| Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, focused harnesses, cache/build-engine trials, and Stream's separated compiler with hardware replay and 26.2 s source-edit staging | Stream activation remains; Reason's accelerated model-input path prevents its admission |
 | Independent release inputs and selected execution | Per-release lock projection, selected publication, local UI loop, native zero-unselected-write evidence, cooperative cluster lock | Complete for the existing independently owned releases; general ownership transfer is outside this build/deploy goal |
 
 The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
@@ -1521,6 +1521,16 @@ installed Deployment, Pod identity, runtime digest, and restart count. The recei
 `output/development/stream-separated-gpu-20260908/compiler-candidate.json`.
 This admits the tested Rust executable in the existing runtime; publication and
 activation of the complete new image are separate checks.
+
+Committed source `75347594985a0b511101b0a6d8e1e4fb87f2e91d` stages in 10.6 s.
+Qualification takes 66.1 s and preserves runnable manifest
+`sha256:14256c57b1bbf66fed0427669c23b68dc5635c82d7f9086aec55f25feee618ae`.
+An isolated committed Rust edit, `2121a7c84ffac6372e8285cd8ee0112585e9caaf`,
+stages in 26.2 s end to end, including 18.8 s of Rust compilation. It compiles only
+Stream and reuses the CMake action. The benchmark revision is not the deployment
+candidate. Stage and qualification receipts are retained as
+`output/development/stream-separated-{stage,release,edit-stage}-20260908.json`;
+their logs identify the complete command timing records.
 
 Before the new build, scoped Cargo cleanup reclaimed 19.16 GiB of superseded
 executables and incremental variants. Current executable links and dependency
