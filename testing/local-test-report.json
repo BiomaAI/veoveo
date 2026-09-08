@@ -1,38 +1,29 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:02dbcfab711f73881d4c48129fb1c1b2604f213e7635e3c28f270fcccf681298",
-  "updatedAt": "2026-09-08T14:43:33Z",
+  "buildDigest": "sha256:fbd547471cc31f7b605f7faeb43006312e8e184d6d0abb75edb3ad5ec2a7643e",
+  "updatedAt": "2026-09-08T15:05:32Z",
   "checks": [
     {
-      "name": "task-read-consumer-clippy",
+      "name": "stream-candidate-cache-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "-p",
-        "veoveo-recording-reader",
-        "-p",
-        "veoveo-recording-video",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-reason-mcp",
-        "-p",
-        "veoveo-recording-mcp",
-        "-p",
-        "veoveo-artifact-service",
-        "--all-targets",
+        "veoveo-smoke",
+        "--bin",
+        "smoke",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T14:43:03Z",
-      "durationSeconds": 4.300073204,
+      "finishedAt": "2026-09-08T15:04:42Z",
+      "durationSeconds": 26.086432155,
       "detail": "completed successfully"
     },
     {
-      "name": "task-read-consumer-fmt",
+      "name": "stream-candidate-cache-fmt",
       "command": [
         "cargo",
         "fmt",
@@ -41,75 +32,25 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T14:43:33Z",
-      "durationSeconds": 2.240438489,
+      "finishedAt": "2026-09-08T15:05:32Z",
+      "durationSeconds": 2.949754868,
       "detail": "completed successfully"
     },
     {
-      "name": "task-read-consumer-helm",
+      "name": "stream-candidate-cache-tests",
       "command": [
         "cargo",
-        "xtask",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-smoke",
+        "--bin",
         "smoke",
-        "helm-config"
+        "candidate::tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T14:43:30Z",
-      "durationSeconds": 25.997270552,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "task-read-consumer-native",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-recording-reader",
-        "-p",
-        "veoveo-recording-video",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-reason-mcp",
-        "-p",
-        "veoveo-recording-mcp",
-        "-p",
-        "veoveo-artifact-service",
-        "--all-targets",
-        "artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T14:42:58Z",
-      "durationSeconds": 2.412431901,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "task-read-consumer-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "-p",
-        "veoveo-recording-reader",
-        "-p",
-        "veoveo-recording-video",
-        "-p",
-        "veoveo-stream-mcp",
-        "-p",
-        "veoveo-reason-mcp",
-        "-p",
-        "veoveo-recording-mcp",
-        "-p",
-        "veoveo-artifact-service",
-        "--all-targets"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T14:42:55Z",
-      "durationSeconds": 7.492895996,
+      "finishedAt": "2026-09-08T15:03:32Z",
+      "durationSeconds": 1.271909827,
       "detail": "completed successfully"
     }
   ]

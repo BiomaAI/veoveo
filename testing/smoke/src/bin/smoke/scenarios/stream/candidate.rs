@@ -101,6 +101,7 @@ struct Receipt {
     detection_count: u64,
     original_restart_count: u64,
     candidate_removed: bool,
+    cache_removed: bool,
     outcome: ProbeOutcome,
 }
 
@@ -118,6 +119,7 @@ pub(super) struct Candidate {
     pod: String,
     remote: String,
     remote_app: String,
+    remote_cache: String,
     process: Option<Child>,
     process_group: Option<u32>,
     receipt: Receipt,
@@ -188,20 +190,22 @@ impl Candidate {
             "candidate qualification requires the Stream container's NVIDIA GPU resource"
         );
         let candidate_sha256 = format!("sha256:{}", hex::encode(Sha256::digest(fs::read(binary)?)));
-        let mut arguments = candidate_arguments(&container.args)?;
         let deployment_spec = deployment_spec(namespace)?;
         let remote = format!("/tmp/veoveo-compiler-{}", uuid::Uuid::new_v4().simple());
         let remote_app = format!("{remote}-app.html");
+        let remote_cache = format!("{remote}-cache");
+        let mut arguments = candidate_arguments(&container.args, &remote_cache)?;
         arguments.extend(["--live-app".to_owned(), remote_app.clone()]);
         let mut candidate = Self {
             namespace: namespace.to_owned(),
             pod: pod.metadata.name,
             remote,
             remote_app,
+            remote_cache,
             process: None,
             process_group: None,
             receipt: Receipt {
-                schema: "veoveo.io/stream-compiler-acceptance/v1",
+                schema: "veoveo.io/stream-compiler-acceptance/v2",
                 pod_uid: pod.metadata.uid,
                 runtime_image: container.image.clone(),
                 runtime_image_id: status.image_id.clone(),
@@ -212,6 +216,7 @@ impl Candidate {
                 detection_count: 0,
                 original_restart_count: status.restart_count,
                 candidate_removed: false,
+                cache_removed: false,
                 outcome: ProbeOutcome::Started,
             },
             deployment_spec,
@@ -228,6 +233,11 @@ impl Candidate {
             !candidate.receipt.gpu.is_empty(),
             "NVIDIA hardware probe returned no GPU"
         );
+        checked(
+            candidate
+                .exec()
+                .args(["mkdir", "-m", "0700", &candidate.remote_cache]),
+        )?;
         let mut copy = Command::new("kubectl");
         copy.args([
             "-n",
@@ -491,8 +501,18 @@ impl Candidate {
                 .success(),
             "candidate App file survived cleanup"
         );
+        checked(self.exec().args(["rm", "-rf", "--", &self.remote_cache]))?;
+        ensure!(
+            self.exec()
+                .args(["test", "!", "-e", &self.remote_cache])
+                .output()?
+                .status
+                .success(),
+            "candidate recording cache survived cleanup"
+        );
         self.removed = true;
         self.receipt.candidate_removed = true;
+        self.receipt.cache_removed = true;
         Ok(())
     }
 
@@ -573,19 +593,27 @@ fn deployment_spec(namespace: &str) -> Result<Vec<u8>> {
     ]))
 }
 
-fn candidate_arguments(original: &[String]) -> Result<Vec<String>> {
+fn candidate_arguments(original: &[String], cache: &str) -> Result<Vec<String>> {
     let mut arguments = Vec::new();
     let mut original = original.iter();
     while let Some(argument) = original.next() {
-        if argument == "--port" || argument == "--live-app" {
+        if ["--port", "--live-app", "--catalog-cache-dir"].contains(&argument.as_str()) {
             original
                 .next()
-                .context("installed Stream port argument has no value")?;
-        } else if !argument.starts_with("--port=") && !argument.starts_with("--live-app=") {
+                .with_context(|| format!("installed Stream {argument} argument has no value"))?;
+        } else if !["--port=", "--live-app=", "--catalog-cache-dir="]
+            .iter()
+            .any(|prefix| argument.starts_with(prefix))
+        {
             arguments.push(argument.clone());
         }
     }
-    arguments.extend(["--port".to_owned(), PORT.to_string()]);
+    arguments.extend([
+        "--port".to_owned(),
+        PORT.to_string(),
+        "--catalog-cache-dir".to_owned(),
+        cache.to_owned(),
+    ]);
     Ok(arguments)
 }
 
@@ -613,7 +641,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn candidate_changes_only_the_listener() {
+    fn candidate_isolates_listener_and_cache_preserving_site_limits() {
         let args = [
             "--port",
             "8797",
@@ -621,24 +649,46 @@ mod tests {
             "stream-mcp:8797",
             "--pipeline-catalog",
             "/site/catalog.json",
+            "--catalog-cache-dir",
+            "/recording-cache",
+            "--catalog-cache-managed-bytes",
+            "1073741824",
         ]
         .map(str::to_owned);
         assert_eq!(
-            candidate_arguments(&args).unwrap(),
+            candidate_arguments(&args, "/tmp/candidate-cache").unwrap(),
             [
                 "--allowed-host",
                 "stream-mcp:8797",
                 "--pipeline-catalog",
                 "/site/catalog.json",
+                "--catalog-cache-managed-bytes",
+                "1073741824",
                 "--port",
-                "18797"
+                "18797",
+                "--catalog-cache-dir",
+                "/tmp/candidate-cache"
             ]
         );
         assert_eq!(
-            candidate_arguments(&["--port=8797".into()]).unwrap(),
-            ["--port", "18797"]
+            candidate_arguments(
+                &[
+                    "--port=8797".into(),
+                    "--catalog-cache-dir=/recording-cache".into()
+                ],
+                "/tmp/candidate-cache"
+            )
+            .unwrap(),
+            [
+                "--port",
+                "18797",
+                "--catalog-cache-dir",
+                "/tmp/candidate-cache"
+            ]
         );
-        assert!(candidate_arguments(&["--port".into()]).is_err());
+        for flag in ["--port", "--live-app", "--catalog-cache-dir"] {
+            assert!(candidate_arguments(&[flag.into()], "/tmp/candidate-cache").is_err());
+        }
     }
 
     #[test]

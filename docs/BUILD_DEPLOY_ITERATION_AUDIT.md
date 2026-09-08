@@ -1220,6 +1220,14 @@ The production compiler families remain separate. The initialized Stream receipt
 status. These findings narrow the remaining implementation work without weakening
 the service, GPU, or durable-credential requirements.
 
+After task-read consumer integration, the compiler probe supplies a private recording
+cache under its generated temporary path. It preserves the installation's cache byte
+and free-space limits while replacing the cache directory in either supported CLI
+argument form. The v2 probe receipt requires verified removal of that cache alongside
+the candidate executable and App. This lets the current binary start without sharing
+the installed worker's cache or requiring a chart rollout to create its default mount.
+Recording workload acceptance still requires the matching Artifact read API and schema.
+
 ## Bazel Integration Experiment
 
 The September 8 trial now builds Stream's Rust executable, native GStreamer runner,
