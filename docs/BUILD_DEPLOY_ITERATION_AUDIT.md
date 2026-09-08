@@ -1856,3 +1856,12 @@ subsequent formatting, validation, and execution are sequenced. These are avoida
 development costs, not production timings. The S3 client also had a 30-second total
 read deadline that would interrupt slow large downloads. It now bounds connection
 and idle time; upload parts retain independent operation deadlines.
+
+Lifecycle acceptance passes 32 Artifact tests: compilation takes 13.84 s and execution
+1.57 s. The new native cases cover equal-content concurrent publication, exactly one
+receipt/audit per occurrence, cancellation while a part owns memory, stale finalizer
+fencing, frozen manifest identity, and revocation before publication. One failed
+compile preceded acceptance because native scalar query results require an optional
+wrapper in the SDK. The shared publication builder and SQL fragment serve both ordinary
+writes and uploads, avoiding a second implementation of blob registration and grants.
+Logs use `output/development/artifact-upload-lifecycle-*20260908.log`.

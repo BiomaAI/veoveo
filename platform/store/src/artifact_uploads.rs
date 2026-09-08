@@ -1,7 +1,10 @@
 //! Durable upload sessions, immutable part descriptors, and shared storage accounting.
 
+mod lifecycle;
 mod model;
 mod parts;
+mod publication;
+pub use lifecycle::*;
 pub use model::*;
 pub use parts::*;
 
@@ -129,6 +132,10 @@ fn upload_error(error: surrealdb::Error) -> StoreError {
             ("artifact_upload_quota", ArtifactUploadRejection::Quota),
             ("artifact_upload_busy", ArtifactUploadRejection::Busy),
             ("artifact_upload_expired", ArtifactUploadRejection::Expired),
+            (
+                "artifact_upload_integrity",
+                ArtifactUploadRejection::Integrity,
+            ),
         ] {
             if error.message().contains(marker) {
                 return StoreError::ArtifactUpload(reason);

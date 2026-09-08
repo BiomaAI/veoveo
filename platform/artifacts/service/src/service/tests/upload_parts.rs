@@ -5,7 +5,11 @@ use veoveo_platform_store as platform;
 
 const PART_BYTES: i64 = 16 * 1024 * 1024;
 
-fn claim(upload_id: uuid::Uuid, number: u32, bytes: i64) -> platform::ClaimArtifactUploadPart {
+pub(super) fn claim(
+    upload_id: uuid::Uuid,
+    number: u32,
+    bytes: i64,
+) -> platform::ClaimArtifactUploadPart {
     platform::ClaimArtifactUploadPart {
         upload_id,
         part_number: number,
@@ -20,7 +24,7 @@ fn claim(upload_id: uuid::Uuid, number: u32, bytes: i64) -> platform::ClaimArtif
     }
 }
 
-fn fence(
+pub(super) fn fence(
     request: &platform::ClaimArtifactUploadPart,
     part: &platform::ArtifactUploadPartRecord,
 ) -> platform::ArtifactUploadPartFence {
@@ -32,7 +36,7 @@ fn fence(
     }
 }
 
-fn id(record: &platform::RecordId) -> uuid::Uuid {
+pub(super) fn id(record: &platform::RecordId) -> uuid::Uuid {
     match &record.key {
         platform::RecordIdKey::Uuid(value) => **value,
         _ => panic!("expected UUID"),
