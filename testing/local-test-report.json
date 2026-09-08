@@ -1,17 +1,17 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:0dcf571177ae442325ddbc15bc417b9d7131127b8552cd44a29cffa388b5d64b",
-  "updatedAt": "2026-09-08T04:05:54Z",
+  "buildDigest": "sha256:faefe8a7047ae645fc08298ee6b53a20091abde252beb316ba1477e27ee3c0cb",
+  "updatedAt": "2026-09-08T04:30:29Z",
   "checks": [
     {
-      "name": "deployment-cancellation-clippy",
+      "name": "component-input-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-deployment-smoke",
+        "veoveo-deploy-runtime",
         "-p",
-        "veoveo-xtask",
+        "veoveo-deploy-contract",
         "--all-targets",
         "--locked",
         "--",
@@ -19,84 +19,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T04:02:55Z",
-      "durationSeconds": 1.744767767,
+      "finishedAt": "2026-09-08T04:30:15Z",
+      "durationSeconds": 1.735138744,
       "detail": "completed successfully"
     },
     {
-      "name": "deployment-cancellation-tests",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-deployment-smoke",
-        "-p",
-        "veoveo-xtask",
-        "--locked"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T04:02:24Z",
-      "durationSeconds": 4.40370614,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "flux-cancellation-live",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "gitops-cancel-verify",
-        "--context",
-        "k3d-veoveo-bioma",
-        "--push-registry",
-        "127.0.0.1:5001",
-        "--pull-registry",
-        "k3d-veoveo-registry.localhost:5000",
-        "--registry-transport",
-        "insecure-http",
-        "--image",
-        "k3d-veoveo-registry.localhost:5000/veoveo/map-mcp@sha256:e87b697b112a88b775b103289cbfed019f7110309691eddf2a0a2b660954eb4f",
-        "--evidence-output",
-        "output/development/flux-cancellation-20260908/stable-cancellation.json"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T04:04:18Z",
-      "durationSeconds": 72.230339171,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "flux-platform-dry-run",
-      "command": [
-        "kubectl",
-        "--context",
-        "k3d-veoveo-bioma",
-        "apply",
-        "--server-side",
-        "--field-manager=veoveo-flux-platform",
-        "--dry-run=server",
-        "-k",
-        "examples/bioma/platform/flux"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T04:01:59Z",
-      "durationSeconds": 9.027907585,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "helm-config",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T04:05:11Z",
-      "durationSeconds": 6.629818557,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "rust-format",
+      "name": "component-input-format",
       "command": [
         "cargo",
         "fmt",
@@ -105,8 +33,35 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T04:05:54Z",
-      "durationSeconds": 2.230082881,
+      "finishedAt": "2026-09-08T04:30:29Z",
+      "durationSeconds": 2.268115974,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "component-input-helm-config",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T04:30:26Z",
+      "durationSeconds": 9.954424168,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "component-source-revisions",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deploy-runtime",
+        "--locked"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T04:30:13Z",
+      "durationSeconds": 3.283802997,
       "detail": "completed successfully"
     }
   ]

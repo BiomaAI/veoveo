@@ -724,6 +724,16 @@ complete inventory check, while unrelated working files remain outside the deplo
 input boundary. This establishes the file provenance needed by component compilation;
 it does not activate component-selected deployment or change artifact digest encodings.
 
+Installation preparation now honors the chart revision recorded by each component.
+Previously, a source-name lookup forced every component from one repository onto the
+top-level publication revision. The resolver now shares checkouts only when source name,
+repository, and revision all match. A regression uses real Git commits and Helm renders
+to advance one chart while retaining another from the same repository at an older commit.
+Both prepared inventories match their locks, and substituting the newer checkout for
+the retained revision fails. Image digests in this regression are synthetic compiler
+fixtures. Per-component image versions, retained installation snapshots, selected
+execution, and live zero-write evidence remain unfinished.
+
 The next experiment at `4d3e30dd` built both control binaries in the existing
 `rust-bookworm-artifacts` target. It reused that target's pinned Rust 1.97.1 image and
 cache family, explicitly selected both packages and binaries, and exported a local

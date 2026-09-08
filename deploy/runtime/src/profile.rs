@@ -1,7 +1,7 @@
 use crate::{
     charts::validate_helm_releases,
     cluster::{wait_for_cluster_gpu, wait_for_cluster_nodes},
-    compile::compile_components,
+    compile::compile_locked_components,
     configuration::{
         after_secret_closure, prepare_gateway_activation, prepare_secret_closure,
         validate_node_bootstrap_secret_boundary,
@@ -71,15 +71,9 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
     let sources = resolve_locked_sources(&profile, &lock, &selected)?;
     let source_roots = sources
         .iter()
-        .map(|source| (source.definition.name.clone(), source.repository.clone()))
+        .map(|(identity, source)| (identity.clone(), source.repository.clone()))
         .collect::<BTreeMap<_, _>>();
-    let compiled = compile_components(
-        &profile,
-        &lock.profile_revision,
-        &lock.sources,
-        &source_roots,
-        &selected,
-    )?;
+    let compiled = compile_locked_components(&profile, &lock, &source_roots, &selected)?;
     ensure!(
         compiled.len() == lock.components.len(),
         "prepared component catalog differs from the deployment lock"
@@ -173,8 +167,8 @@ pub fn profile_up(path: &Path, lock_path: &Path) -> Result<()> {
             }
         }
 
-        for source in &sources {
-            for release in &source.definition.releases {
+        for source in &profile.definition.sources {
+            for release in &source.releases {
                 let target = veoveo_deploy_contract::components::AtomicTarget::HelmRelease {
                     namespace: profile.definition.namespace.clone(),
                     name: release.name.clone(),
