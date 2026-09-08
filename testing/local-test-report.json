@@ -1,42 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:6e7e7a745841a1cdde186bd34e4f42b64e3a71acf9bcc9048bc9debb20e334dd",
-  "updatedAt": "2026-09-08T02:17:56Z",
+  "buildDigest": "sha256:c3457794affca459c8ad85c251caa72b6180d6c18f027d993643da755d15183d",
+  "updatedAt": "2026-09-08T02:26:49Z",
   "checks": [
     {
-      "name": "immutable-gitops-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "-p",
-        "veoveo-deployment-smoke",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T02:17:20Z",
-      "durationSeconds": 6.322051708,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "immutable-gitops-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T02:17:56Z",
-      "durationSeconds": 2.366281824,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "immutable-gitops-inputs",
+      "name": "metadata-publication-config",
       "command": [
         "cargo",
         "xtask",
@@ -44,8 +12,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T02:16:30Z",
-      "durationSeconds": 9.530347926,
+      "finishedAt": "2026-09-08T02:26:49Z",
+      "durationSeconds": 6.730671888,
       "detail": "completed successfully"
     }
   ]
