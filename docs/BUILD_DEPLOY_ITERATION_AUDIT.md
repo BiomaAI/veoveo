@@ -25,6 +25,7 @@ implemented changes and their verification.
 | Cargo source freshness | Added a content-aware input mirror under each locked target cache, with disposable source timestamp synchronization for every Rust family | An old-timestamp edit/revert regression passes; the corrected ordinary BFF/gateway artifacts equal clean-target outputs; 40 focused tests, strict Clippy, formatting and standalone-family planning pass |
 | Compiler-cache experiment | Added an existing-family sccache 0.17.0 comparison with empty Cargo targets, bounded cache storage, CPU timing and full compiled-artifact identity | All 955 cacheable operations hit on recovery, but the solve takes 333.7 s versus 328.4 s without the wrapper; the wrapper remains outside normal builds; all experiment cache mounts were removed |
 | Second-worker reuse | Added an isolated worker comparison using the existing compiler recipe and an exact exported OCI cache manifest | Unchanged import takes 4.6 s with zero compilation; matched source edits take 39.5 s on the existing worker and 369.5 s on the fresh worker; binaries and native library match within each pair; temporary worker, volume, and cache export are removed |
+| Bazel integration experiment | Attempted the Stream Rust graph with Bazel 9.2.0 and rules_rust 0.74.0 in the existing DeepStream compiler environment | Five unsuccessful probes exposed Cargo workspace metadata and dependency-resolution integration costs; no complete binary or comparable build timing was produced; Cargo and BuildKit remain the production path |
 | Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidate binaries passed loader inspection and CLI execution in the deployed runtime containers; family admission remains pending service and GPU acceptance |
@@ -1151,3 +1152,49 @@ crate. This check uses Cargo's requested feature graph; the image input planner'
 all-feature metadata remains conservative for source discovery. Rust tests and strict
 Clippy cover all targets of the task runtime and both servers. This is dependency and
 compilation evidence, not a measured wall-clock speedup or new GPU runtime admission.
+
+The normal Stream image path successfully stages revision `c91a88d4` in 79.498 s,
+including a 69.690 s compilation phase window and publication to the development
+registry. Cargo reports 67 s for its optimized build; the native GStreamer runner also
+builds successfully. Repeating that exact revision takes 4.648 s with both compilation
+actions cached. Both receipts retain runnable digest
+`sha256:e71b033b9d96372bda605b2d6854ba0c8ed7382890c412e27f3e8bf6021ea708`.
+These are current existing-worker checkpoints, not a matched before/after measurement
+of the dependency change. The staged image has not been deployed or GPU-qualified.
+Receipts are `output/development/stream-feature-closure.stage.json` and
+`output/development/stream-feature-closure-warm.stage.json`; adjacent logs identify the
+complete command and solve records.
+
+## Bazel Integration Experiment
+
+The September 8 trial attempted Stream with Bazel 9.2.0, rules_rust 0.74.0, and the
+existing Rust 1.97.1 DeepStream compiler environment. Prototype manifests and source
+metadata patches live in a detached disposable worktree. Production recipes and
+dependency versions remain unchanged by the experiment.
+
+Five probes failed before producing a Stream executable. The first failures involved
+Git crates whose package metadata inherits from their Cargo workspace. Extracting those
+crates into separate Bazel repositories lost the parent metadata. Normalizing that
+metadata exposed a DuckDB build script that expects Cargo's output-directory layout.
+Investigation then identified and removed the unnecessary analytics dependency from
+the actual Veoveo task runtime, as recorded above.
+
+The prototype's whole-workspace feature resolution also included features outside the
+selected production graph. An isolated resolver reproduced the corrected native Cargo
+features, but crate_universe splicing could not resolve its relative local Stream
+dependency. The final probe stopped during dependency resolution. Prepared CMake and
+OCI assembly templates were never executed.
+
+These failures establish integration work, not a Bazel performance result. There is no
+cold, unchanged, source-edit, or second-worker comparison for this implementation.
+Failed command durations cannot support a speedup or slowdown claim. Cargo and BuildKit
+remain the production build system; the measured durable-worker and narrower-input
+improvements remain usable independently of this experiment.
+
+`output/development/bazel-stream-trial/review.json` records each retained log hash,
+failure boundary, acceptance limits, and cache cleanup. Further work on a Bazel
+comparison must first produce the exact selected Cargo feature graph and a complete
+Rust/native/container artifact before adding a permanent repository command.
+Cleanup removed the three experiment-specific BuildKit execution caches, accounting
+for 6,822,387,712 bytes, under the shared builder lease. All fourteen ordinary execution
+cache identities remain present. Prototype files and diagnostic logs are retained.
