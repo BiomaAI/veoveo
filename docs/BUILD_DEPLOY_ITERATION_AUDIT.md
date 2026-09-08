@@ -25,7 +25,7 @@ implemented changes and their verification.
 | Cargo source freshness | Added a content-aware input mirror under each locked target cache, with disposable source timestamp synchronization for every Rust family | An old-timestamp edit/revert regression passes; the corrected ordinary BFF/gateway artifacts equal clean-target outputs; 40 focused tests, strict Clippy, formatting and standalone-family planning pass |
 | Compiler-cache experiment | Added an existing-family sccache 0.17.0 comparison with empty Cargo targets, bounded cache storage, CPU timing and full compiled-artifact identity | All 955 cacheable operations hit on recovery, but the solve takes 333.7 s versus 328.4 s without the wrapper; the wrapper remains outside normal builds; all experiment cache mounts were removed |
 | Second-worker reuse | Added an isolated worker comparison using the existing compiler recipe and an exact exported OCI cache manifest | Unchanged import takes 4.6 s with zero compilation; matched source edits take 39.5 s on the existing worker and 369.5 s on the fresh worker; binaries and native library match within each pair; temporary worker, volume, and cache export are removed |
-| Bazel integration experiment | Attempted the Stream Rust graph with Bazel 9.2.0 and rules_rust 0.74.0 in the existing DeepStream compiler environment | Five unsuccessful probes exposed Cargo workspace metadata and dependency-resolution integration costs; no complete binary or comparable build timing was produced; Cargo and BuildKit remain the production path |
+| Bazel integration experiment | Builds Stream Rust, the native CMake runner, and OCI assembly in the existing SDK environment | Native Cargo feature contexts match; the built image contains the exact binaries and preserves all 22 inherited layers; controlled cache comparisons remain in progress, with no production migration |
 | Shared task runtime feature closure | Uses the workspace MCP contract dependency without implicitly enabling analytics | Stream's Linux normal/build graph falls from 629 to 608 package/version pairs with no added packages; Stream and Reason both exclude DuckDB; their Rust targets and the task runtime pass tests and strict Clippy |
 | Shared recording APIs | Moved encoded RRD operations, governed analysis plans, visibility rules, and bounded cache mechanics into libraries; Stream and Reason no longer import Hub or Recording MCP | 30 reader/video/Recording MCP tests pass; all consuming targets compile with Redap enabled; all Rust families now receive Cargo-derived contexts, with real graph tests excluding the service implementations |
 | Common GPU control compiler experiment | Built Stream and Reason together through the existing Bookworm artifact recipe, with explicit package, binary and cache overrides | One Cargo action completed in 351.3 s; both candidate binaries passed loader inspection and CLI execution in the deployed runtime containers; family admission remains pending service and GPU acceptance |
@@ -1167,34 +1167,44 @@ complete command and solve records.
 
 ## Bazel Integration Experiment
 
-The September 8 trial attempted Stream with Bazel 9.2.0, rules_rust 0.74.0, and the
-existing Rust 1.97.1 DeepStream compiler environment. Prototype manifests and source
-metadata patches live in a detached disposable worktree. Production recipes and
-dependency versions remain unchanged by the experiment.
+The September 8 trial now builds Stream's Rust executable, native GStreamer runner,
+and OCI image with Bazel 9.2.0, rules_rust 0.74.0, rules_foreign_cc 0.15.1,
+and rules_oci 2.3.3. It uses the existing Rust 1.97.1 DeepStream SDK environment.
+The prototype remains in a detached disposable worktree. Production recipes and
+compiler families remain unchanged by the experiment.
 
-Five probes failed before producing a Stream executable. The first failures involved
-Git crates whose package metadata inherits from their Cargo workspace. Extracting those
-crates into separate Bazel repositories lost the parent metadata. Normalizing that
-metadata exposed a DuckDB build script that expects Cargo's output-directory layout.
-Investigation then identified and removed the unnecessary analytics dependency from
-the actual Veoveo task runtime, as recorded above.
+The first five probes failed on Cargo workspace metadata and dependency resolution.
+Git crate extraction lost inherited package metadata. Whole-workspace resolution also
+included features outside the selected production graph. The corrected resolver derives
+external dependencies from Cargo, with separate runtime and build-tool feature contexts.
+Its Linux normal/build tree matches all 612 external package-and-feature combinations
+of the native Stream tree. Two package-metadata patches retain the pinned MCP SDK fork's
+inherited metadata without changing dependency source code.
 
-The prototype's whole-workspace feature resolution also included features outside the
-selected production graph. An isolated resolver reproduced the corrected native Cargo
-features, but crate_universe splicing could not resolve its relative local Stream
-dependency. The final probe stopped during dependency resolution. Prepared CMake and
-OCI assembly templates were never executed.
+Native integration required the SDK's installed pkg-config and C++ compiler. Rust build
+tools use Cargo's release build-override settings, and runtime crates retain release
+optimization. The trial also separates Rust's code-generation count from Bazel's action
+CPU reservation: reserving sixteen CPUs per action serialized work on the twelve-CPU
+worker. Rust linking uses the SDK's BFD linker. This is an experimental recipe, not a
+claim of byte-identical output between Cargo and Bazel.
 
-These failures establish integration work, not a Bazel performance result. There is no
-cold, unchanged, source-edit, or second-worker comparison for this implementation.
-Failed command durations cannot support a speedup or slowdown claim. Cargo and BuildKit
-remain the production build system; the measured durable-worker and narrower-input
-improvements remain usable independently of this experiment.
+The first complete diagnostic build took 393.128 s inside Bazel and included cached
+work. It is not a cold-build measurement. Its image contains the exact two built binaries,
+with executable permissions, and the read-only App asset. All 22 inherited runtime layer
+descriptors match the declared base image. The exported evidence includes the resulting
+manifest, configuration, and application layer; it is not a complete standalone OCI
+layout or a release-qualified image. Service and hardware GPU qualification are separate.
 
-`output/development/bazel-stream-trial/review.json` records each retained log hash,
-failure boundary, acceptance limits, and cache cleanup. Further work on a Bazel
-comparison must first produce the exact selected Cargo feature graph and a complete
-Rust/native/container artifact before adding a permanent repository command.
-Cleanup removed the three experiment-specific BuildKit execution caches, accounting
-for 6,822,387,712 bytes, under the shared builder lease. All fourteen ordinary execution
-cache identities remain present. Prototype files and diagnostic logs are retained.
+The controlled cold, unchanged, source-edit, and fresh-workspace comparisons follow
+this integration checkpoint. Their results must distinguish dependency downloads,
+per-action reuse, native compilation, and container assembly before supporting a build
+engine recommendation. Cargo and BuildKit remain the production path.
+
+Evidence is under `output/development/bazel-stream-trial/`. The corrected Cargo tree
+comparison, full-probe-4 logs and Build Event Protocol record, prototype input archive,
+and immutable source revision preserve the integration checkpoint. Cleanup removed the
+three first-generation experiment caches (6,822,387,712 bytes), then the three diagnostic
+second-generation caches (43,417,825,280 bytes). All fourteen ordinary execution cache
+identities survived both cleanups. The normal Cargo retention command also reclaimed
+16.33 GiB of superseded executables and incremental variants; dependency libraries and
+current executable links were retained.
