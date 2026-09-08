@@ -788,7 +788,16 @@ mod tests {
                     );
                 }
                 "veoveo-reason-mcp" => {
-                    assert!(inputs.contains(Path::new("servers/reason-mcp/runner/pyproject.toml")))
+                    let assets =
+                        asset_files(&repository, &metadata, &[package.to_owned()], &files).unwrap();
+                    for runner in [
+                        "servers/reason-mcp/runner/pyproject.toml",
+                        "servers/reason-mcp/runner/uv.lock",
+                        "servers/reason-mcp/runner/src/reason_runner/gpu_model.py",
+                    ] {
+                        assert!(!inputs.contains(Path::new(runner)));
+                        assert!(assets.contains(Path::new(runner)));
+                    }
                 }
                 _ => unreachable!(),
             }

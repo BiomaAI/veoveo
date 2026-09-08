@@ -1214,6 +1214,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "servers/optimization-mcp/Dockerfile",
         "servers/recording-mcp/Dockerfile",
         "servers/stream-mcp/Dockerfile",
+        "servers/reason-mcp/Dockerfile",
         "servers/timeseries-mcp/Dockerfile",
         "servers/time-mcp/Dockerfile",
         "servers/uav-sim-mcp/Dockerfile",
@@ -1243,10 +1244,8 @@ pub(crate) fn helm_config() -> Result<()> {
         contains(&workspace_builder, expected)?;
     }
     not_contains(&workspace_builder, "--jobs 4")?;
-    for dockerfile in [
-        "servers/reason-mcp/Dockerfile",
-        "showcase/sumo/sumo-mcp/Dockerfile",
-    ] {
+    {
+        let dockerfile = "showcase/sumo/sumo-mcp/Dockerfile";
         let contents = fs::read_to_string(dockerfile)?;
         contains(&contents, "id=${VEOVEO_CARGO_CACHE_ID}-registry-v1")?;
         contains(&contents, "id=${VEOVEO_CARGO_CACHE_ID}-git-v1")?;

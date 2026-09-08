@@ -379,8 +379,7 @@ images.
 |---|---|
 | `rust-trixie-v1` | shared Rust 1.97.1 trixie builder |
 | `rust-bookworm-v1` | shared Rust 1.97.1 bookworm builder |
-| `rust-bookworm-control-v1` | shared Rust 1.98.1 Bookworm control builder; Stream's C++ runner compiles separately in DeepStream 9.1 |
-| `rust-vllm-v1` | standalone vLLM runtime ABI |
+| `rust-bookworm-control-v1` | shared Rust 1.98.1 Bookworm control builder for Stream and Reason; DeepStream compiles Stream's C++ runner separately, while Reason packages its Python runner outside Cargo |
 | `rust-sumo-bullseye-v1` | standalone SUMO-compatible bullseye ABI |
 
 Cargo registry and Git caches use builder-family identities:

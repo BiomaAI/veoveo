@@ -1188,8 +1188,7 @@ The first delivery supports one explicit target platform, `linux/amd64`.
 |---|---|
 | `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, conformance, composer, UAV MCP, and agent kernel |
 | `rust-bookworm-v1` | map MCP, time MCP, and view MCP |
-| `rust-bookworm-control-v1` | Stream MCP; native runner retains the DeepStream SDK |
-| `rust-vllm-v1` | reason MCP |
+| `rust-bookworm-control-v1` | Stream and Reason MCP; native Stream runner retains the DeepStream SDK |
 | `rust-sumo-bullseye-v1` | SUMO MCP |
 
 The trixie and bookworm families use one shared workspace-artifact Dockerfile. It

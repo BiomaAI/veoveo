@@ -1644,3 +1644,28 @@ logs use the `final-reason-01` and `final-stream-01` prefixes under
 Scoped host maintenance removes another 2.24 GiB of superseded incremental variants.
 Its exact removal record is
 `output/development/reason-gpu-admission/cargo-cache-applied.json`.
+
+## Reason Compiler And Runtime Assembly
+
+Reason now selects `rust-bookworm-control-v1` alongside Stream. The planner keeps
+that Cargo action separate from Map's analytics features. Runner manifests and Python
+source belong to the declared image asset context, which removes them from Rust
+compilation inputs. The runtime recipe installs hash-locked Python additions from
+separate manifest mounts and packages source in a later executable-archive layer.
+
+The recipe pins [vLLM 0.28.0](https://github.com/vllm-project/vllm/releases/tag/v0.28.0)
+and [PyNvVideoCodec 2.2.2](https://pypi.org/project/pynvvideocodec/2.2.2/), verified as
+the current stable releases on September 8. The vLLM index is
+`sha256:61fc8a896b0a4fbbbdc063bc4b0dbc25ce98e02b5050c24aeb7830ac02039b14`.
+Its CUDA 13.0.2 base uses Ubuntu 24.04. The runner retains the parent's matching
+Torch and Transformers libraries.
+
+Planner and asset-boundary tests, Python unit checks, Helm configuration, strict
+Clippy, and formatting pass. This checkpoint changes the build recipe; the new full
+runtime image still requires staging, hardware acceptance, qualification, and GitOps
+activation. The installed Reason image remains unchanged.
+
+Before the cold runtime build, cleanup removes the forty exact cache records in the
+retired vLLM base/SDK chain and its three Cargo mounts. The ordinary and current
+control-family Cargo caches remain. Plans and removal logs use the `retired-vllm-cache`
+and `retired-reason-cargo` prefixes under `output/development/reason-gpu-admission/`.
