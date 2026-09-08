@@ -5,6 +5,7 @@
 
 mod bindings;
 mod digest;
+mod history;
 mod plan;
 mod profile;
 mod types;
@@ -13,6 +14,7 @@ mod validation;
 pub(crate) use bindings::validate_artifact_bindings;
 pub use bindings::validate_profile_component_bindings;
 pub use digest::{atomic_unit_content_digest, atomic_unit_digest};
+pub use history::validate_helm_inventory;
 pub use plan::{component_mutation_plan, select_components};
 pub use profile::{
     ComponentOwner, InstallationInput, ProfileComponent, required_installation_inputs,

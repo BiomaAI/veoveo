@@ -54,6 +54,55 @@ pub(crate) fn preserve_crds(objects: &mut [Value]) -> Result<()> {
     Ok(())
 }
 
+/// Helm hooks need explicit ownership metadata because Helm executes them apart
+/// from the normal manifest's metadata visitor. Include this in the locked render.
+pub(crate) fn own_hooks(objects: &mut [Value], namespace: &str, release: &str) -> Result<()> {
+    for object in objects {
+        if object
+            .pointer("/metadata/annotations/helm.sh~1hook")
+            .is_none()
+        {
+            continue;
+        }
+        let metadata = object
+            .get_mut("metadata")
+            .and_then(Value::as_object_mut)
+            .context("hook metadata must be an object")?;
+        let annotations = metadata
+            .get_mut("annotations")
+            .and_then(Value::as_object_mut)
+            .context("hook annotations must be an object")?;
+        for (key, expected) in [
+            ("meta.helm.sh/release-name", release),
+            ("meta.helm.sh/release-namespace", namespace),
+        ] {
+            ensure!(
+                annotations
+                    .get(key)
+                    .is_none_or(|value| value.as_str() == Some(expected)),
+                "hook declares another Helm release owner"
+            );
+            annotations.insert(key.into(), Value::String(expected.into()));
+        }
+        let labels = metadata
+            .entry("labels")
+            .or_insert_with(|| serde_json::json!({}))
+            .as_object_mut()
+            .context("hook labels must be an object")?;
+        ensure!(
+            labels
+                .get("app.kubernetes.io/managed-by")
+                .is_none_or(|value| value == "Helm"),
+            "hook declares another manager"
+        );
+        labels.insert(
+            "app.kubernetes.io/managed-by".into(),
+            Value::String("Helm".into()),
+        );
+    }
+    Ok(())
+}
+
 impl CompiledHelmRelease {
     pub(crate) fn prepare(
         metadata: &ChartMetadata,
@@ -112,7 +161,7 @@ impl CompiledHelmRelease {
                 path_str(self.directory.path())?,
                 "--namespace",
                 namespace,
-                "--atomic",
+                "--rollback-on-failure",
                 "--wait",
                 "--wait-for-jobs",
                 "--timeout",
@@ -128,6 +177,30 @@ impl CompiledHelmRelease {
 mod tests {
     use super::*;
     use crate::{configuration::append_yaml_bytes, process::output_checked};
+
+    #[test]
+    fn hook_ownership_is_explicit_before_locking_and_cannot_claim_another_release() {
+        let mut objects = vec![
+            serde_json::json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"hook","annotations":{"helm.sh/hook":"pre-install"}}}),
+        ];
+        own_hooks(&mut objects, "veoveo", "platform").unwrap();
+        assert_eq!(
+            objects[0]["metadata"]["annotations"]["meta.helm.sh/release-name"],
+            "platform"
+        );
+        assert_eq!(
+            objects[0]["metadata"]["annotations"]["meta.helm.sh/release-namespace"],
+            "veoveo"
+        );
+        assert_eq!(
+            objects[0]["metadata"]["labels"]["app.kubernetes.io/managed-by"],
+            "Helm"
+        );
+        let expected = objects.clone();
+        own_hooks(&mut objects, "veoveo", "platform").unwrap();
+        assert_eq!(objects, expected);
+        assert!(own_hooks(&mut objects, "veoveo", "extension").is_err());
+    }
 
     #[test]
     fn complete_prepared_objects_survive_helm_without_template_re_evaluation() {

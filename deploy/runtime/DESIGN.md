@@ -11,6 +11,7 @@
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.2.4 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
+| Helm, Flux, and Argo CD ownership metadata | Exact Helm release annotations and managed-by label, with selected Flux and Argo ownership markers checked for imperative conflicts; absence of a marker grants no authority |
 | Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, and GPU resource discovery |
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
 | NVIDIA DRA chart `0.5.0` and `resource.nvidia.com/v1beta1` | Pinned standalone allocator, verified chart and image artifacts, CDI preparation, and declared sharing configuration; hardware qualification is pending and upstream technology-preview features remain bounded by the deployment contract |
@@ -48,6 +49,8 @@ for an enterprise installation governed by GitOps.
 | `publication.rs` | Qualified image-only updates for exact requested components, retaining all other inputs and inventories |
 | `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
 | `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
+| `helm_state.rs` | Exact Helm metadata and the deployed or successful revisions an upgrade or rollback may use |
+| `ownership.rs` | Read-only historical inventory and live ownership checks before installation writes |
 | `images.rs` | Source-owned Bake selection and locked image inventories |
 | `configuration.rs` | Rendered Secret-reference closure, bounded Secret observations, public ConfigMaps, and gateway activation |
 | `cluster.rs` | Local registry and k3d lifecycle, node bootstrap, and cluster readiness |
@@ -157,13 +160,45 @@ inside configuration stays literal. The temporary chart retains the source chart
 version, and application version. Its installed values are the compiled manifests;
 the deployment lock records the original chart and values inputs.
 
+Hooks receive explicit Helm release-name, release-namespace, and managed-by metadata
+before object hashing. A hook that declares another owner fails compilation. Helm
+executes hooks separately from its normal manifest metadata visitor, which makes these
+fields necessary for later ownership checks. Earlier locks containing hooks require
+regeneration for this render change.
+
 CRDs in a compiled Helm unit receive `helm.sh/resource-policy: keep` before object
 hashing. Helm manages their declared contents, and uninstall retains them. Namespace
 creation belongs to the explicit installation unit. Helm operations wait for Jobs and
-use atomic rollback.
+use Helm 4's `--rollback-on-failure` operation.
+
+Before namespace, bootstrap, allocator, configuration, or source-release writes,
+installation reads the exact stored Helm manifests and hooks. It checks the current
+revision and, when they differ, the deployed revision and most recent successful
+rollback candidate. This follows the pinned
+[Helm upgrade implementation](https://github.com/helm/helm/blob/v4.2.4/pkg/action/upgrade.go).
+Historical namespaced objects can retire within the owner's declared namespaces;
+cluster objects retain their explicit permission requirement. An object reserved by
+another component or assigned to another atomic target cannot transfer through an
+upgrade or rollback.
+
+Live reads group exact object names by resource kind and namespace. Existing Helm
+objects must identify the expected release and namespace. Raw application rejects
+Helm-owned objects, and recognized Flux or Argo ownership markers reject imperative
+application. Unserved kinds introduced by a prepared CRD have no live objects yet.
+The preflight rechecks release metadata after reading objects and rejects a concurrent
+release transition. These reads do not establish execution fencing or installed-content
+equality. General raw-resource adoption still requires its migration boundary.
+
+The ignored Rust live test in `ownership/live_tests.rs` requires an explicit
+`VEOVEO_OWNERSHIP_TEST_CONTEXT`. It installs two ConfigMap-only releases in a unique
+namespace, verifies ordinary preflight, and rejects historical manifest transfer,
+historical hook transfer, and raw application over a Helm-owned object. It compares
+ConfigMap identities and versions and both Helm revisions after rejection, then removes
+and verifies removal of its namespace. These resources exercise ownership without
+claiming GPU workload or selected-deployment acceptance.
 
 Installation still processes the full profile. Exact component selection, installed
-state receipts, historical object ownership, conflicting-device-plugin transition
+state receipts, execution fencing, raw-resource adoption, conflicting-device-plugin transition
 inventories, and live zero-write acceptance remain unfinished. The NVIDIA DRA 0.5.0
 artifact and render checks pass; hardware qualification of that release is pending.
 

@@ -1,44 +1,18 @@
 use std::{fs, path::PathBuf, process::Command};
 
 use anyhow::{Context, Result, ensure};
-use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use veoveo_deploy_contract::ManagedGpuAllocatorInstallation;
 
 use super::{admission::validate_kubelet_daemon_set_contract, path_str};
-use crate::process::output_checked;
+use crate::{
+    helm_state::{HelmReleaseMetadata, release_metadata},
+    process::output_checked,
+};
 
 pub(super) struct VerifiedChart {
     pub(super) archive: PathBuf,
     _directory: tempfile::TempDir,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub(super) struct HelmReleaseMetadata {
-    pub(super) name: String,
-    pub(super) namespace: String,
-    revision: HelmRevision,
-    pub(super) status: String,
-    pub(super) chart: String,
-    pub(super) app_version: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(untagged)]
-enum HelmRevision {
-    Number(u64),
-    Text(String),
-}
-
-impl HelmRevision {
-    fn value(&self) -> Result<u64> {
-        match self {
-            Self::Number(value) => Ok(*value),
-            Self::Text(value) => value
-                .parse()
-                .with_context(|| format!("decoding Helm release revision {value:?}")),
-        }
-    }
 }
 
 pub(super) fn pull_and_verify_chart(
@@ -170,72 +144,6 @@ pub(super) fn render_allocator_chart(
     Ok(objects)
 }
 
-pub(super) fn release_metadata(
-    context: &str,
-    namespace: &str,
-    release_name: &str,
-) -> Result<Option<HelmReleaseMetadata>> {
-    ensure!(
-        !release_name.is_empty()
-            && release_name
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'),
-        "Helm release name {release_name:?} is not a canonical lowercase DNS label"
-    );
-    let filter = format!("^{release_name}$");
-    let output = output_checked(
-        "helm",
-        [
-            "--kube-context",
-            context,
-            "list",
-            "--namespace",
-            namespace,
-            "--filter",
-            filter.as_str(),
-            "--max",
-            "2",
-            "--output",
-            "json",
-        ],
-        None,
-    )
-    .with_context(|| format!("listing Helm release {namespace}/{release_name}"))?;
-    decode_release_metadata(&output, namespace, release_name)
-}
-
-fn decode_release_metadata(
-    output: &[u8],
-    namespace: &str,
-    release_name: &str,
-) -> Result<Option<HelmReleaseMetadata>> {
-    let releases: Vec<HelmReleaseMetadata> = serde_json::from_slice(output)
-        .with_context(|| format!("decoding Helm 4 release list for {namespace}/{release_name}"))?;
-    ensure!(
-        releases.len() <= 1,
-        "Helm returned {} exact-name records for release {namespace}/{release_name}",
-        releases.len()
-    );
-    let Some(release) = releases.into_iter().next() else {
-        return Ok(None);
-    };
-    ensure!(
-        release.name == release_name,
-        "Helm release metadata names {:?}, expected {release_name:?}",
-        release.name
-    );
-    ensure!(
-        release.namespace == namespace,
-        "Helm release {release_name} reports namespace {:?}, expected {namespace:?}",
-        release.namespace
-    );
-    ensure!(
-        release.revision.value()? > 0,
-        "Helm release {namespace}/{release_name} reports a zero revision"
-    );
-    Ok(Some(release))
-}
-
 pub(super) fn verify_allocator_release_metadata(
     context: &str,
     installation: &ManagedGpuAllocatorInstallation,
@@ -282,13 +190,11 @@ fn validate_allocator_release_metadata(
 
 #[cfg(test)]
 mod tests {
+    use crate::helm_state::decode_release_metadata;
 
     use veoveo_deploy_contract::ManagedGpuAllocatorInstallation;
 
-    use super::{
-        HelmReleaseMetadata, allocator_value_args, decode_release_metadata,
-        validate_allocator_release_metadata,
-    };
+    use super::{HelmReleaseMetadata, allocator_value_args, validate_allocator_release_metadata};
 
     fn qualified_installation() -> ManagedGpuAllocatorInstallation {
         serde_json::from_value(serde_json::json!({

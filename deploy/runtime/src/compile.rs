@@ -19,7 +19,7 @@ use crate::{
         prepare_gateway_activation,
     },
     gpu::{prepare_gpu_allocator_objects, prepare_gpu_placement},
-    helm_bundle::{ChartMetadata, CompiledHelmRelease, preserve_crds},
+    helm_bundle::{ChartMetadata, CompiledHelmRelease, own_hooks, preserve_crds},
     snapshot::SnapshotInputs,
     sources::{normalize_origin, resolve_revision},
 };
@@ -27,7 +27,7 @@ use crate::{
 mod configuration;
 mod images;
 mod inputs;
-mod objects;
+pub(crate) mod objects;
 #[cfg(test)]
 mod tests;
 use objects::{ObjectScopes, bytes_digest};
@@ -296,6 +296,9 @@ fn compile_with_inputs(
         for mut draft in drafts {
             if draft.helm.is_some() {
                 preserve_crds(&mut draft.objects)?;
+                if let AtomicTarget::HelmRelease { namespace, name } = &draft.target {
+                    own_hooks(&mut draft.objects, namespace, name)?;
+                }
             }
             let objects = discovery.rendered(
                 &draft.objects,

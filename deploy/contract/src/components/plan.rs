@@ -115,7 +115,16 @@ pub fn component_mutation_plan(
             for object in objects {
                 // Helm can delete an object that disappeared from the desired chart.
                 // Such an object must still belong to this owner, never another component.
-                validate_owned_object(&component.declaration, &object.identity)?;
+                if matches!(unit.target, AtomicTarget::HelmRelease { .. }) {
+                    super::history::validate_historical_object(
+                        catalog,
+                        component,
+                        &unit.target,
+                        &object.identity,
+                    )?;
+                } else {
+                    validate_owned_object(&component.declaration, &object.identity)?;
+                }
                 if let Some(desired) = desired_targets.get(&object.identity) {
                     ensure!(
                         **desired == unit.target,
