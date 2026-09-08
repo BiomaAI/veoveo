@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:72ef26898902f3f8a7778272718621649b5e31c51363c468eeb9aa158809de2d",
-  "updatedAt": "2026-09-08T03:17:34Z",
+  "buildDigest": "sha256:67cf6432429eada96137fa42472d9a014282193cc00fac5ff44fa1f266b6c969",
+  "updatedAt": "2026-09-08T03:18:50Z",
   "checks": [
     {
-      "name": "map-backfill-image-config",
+      "name": "map-resume-gitops-config",
       "command": [
         "cargo",
         "xtask",
@@ -12,8 +12,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T03:17:34Z",
-      "durationSeconds": 6.86136985,
+      "finishedAt": "2026-09-08T03:18:50Z",
+      "durationSeconds": 6.684238031,
       "detail": "completed successfully"
     }
   ]
