@@ -19,7 +19,7 @@ use veoveo_deploy_runtime::{compile_component_lock, lock_source_charts};
 
 const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-stage-evidence/v2";
 
-mod components;
+pub(crate) mod components;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -277,9 +277,6 @@ pub(crate) fn python_sdk(
 
 pub(crate) fn images(repository: &RepositoryContext, args: &ReleaseImagesArgs) -> Result<()> {
     match &args.profile {
-        Some(profile_path) if args.base_lock.is_some() => {
-            components::publish(repository, profile_path, args)
-        }
         Some(profile_path) => release_profile_images(repository, profile_path, args),
         None => release_direct_images(repository, args),
     }
@@ -518,11 +515,7 @@ pub(crate) fn development_image_lock(
 
 fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArgs) -> Result<()> {
     ensure!(
-        args.profile_revision.is_none()
-            && args.lock_output.is_none()
-            && args.base_lock.is_none()
-            && args.component.is_empty()
-            && args.image_evidence.is_empty(),
+        args.profile_revision.is_none() && args.lock_output.is_none(),
         "direct image release does not accept profile-only arguments"
     );
     let revision = args

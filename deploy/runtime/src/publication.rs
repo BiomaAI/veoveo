@@ -1,39 +1,108 @@
-//! Image-only lock publication preserves every other immutable input and owner.
+//! Exact component publication preserves every unrequested input and owner.
 use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, ensure};
 use veoveo_deploy_contract::{DeploymentLock, LoadedProfile, LockedImage, components::*};
+use veoveo_extension_contract::SourceRevision;
 
 use crate::{
-    compile::compile_image_update,
+    compile::{compile_component_update, configuration},
     images::validate_locked_images,
-    sources::{resolve_component_sources, validate_locked_profile},
+    sources::{resolve_component_sources, resolve_revision, validate_locked_profile},
 };
 
-/// Composes qualified image updates into exactly the requested components.
+/// Inputs that may change in the exact requested components. Empty maps retain
+/// their existing artifact identities; configuration refresh uses the current
+/// immutable installation checkout.
+#[derive(Debug, Default)]
+pub struct ComponentUpdates {
+    pub images: BTreeMap<String, Vec<LockedImage>>,
+    pub source_revisions: BTreeMap<String, SourceRevision>,
+    pub refresh_configuration: bool,
+}
+
+/// Composes chart, configuration, and qualified image updates into requested components.
 ///
 /// The caller verifies the supplied OCI qualification evidence. This function
 /// validates its artifact bindings, clones only requested chart sources, renders
 /// their complete releases, and returns a complete lock. Dependencies and other
 /// components are retained verbatim. It performs no build or Kubernetes operation.
-/// The installation checkout must match the base lock's profile revision.
-pub fn update_component_images(
+pub fn update_components(
     profile: &LoadedProfile,
     base: &DeploymentLock,
     requested: &BTreeSet<ComponentId>,
-    images: &BTreeMap<String, Vec<LockedImage>>,
+    updates: &ComponentUpdates,
 ) -> Result<DeploymentLock> {
     base.validate()?;
-    validate_locked_profile(profile, base)?;
+    ensure!(
+        updates.refresh_configuration
+            || !updates.source_revisions.is_empty()
+            || !updates.images.is_empty(),
+        "component publication requires a configuration, chart source, or image update"
+    );
+    let original = configuration::identity(profile, &base.profile_revision)?;
+    ensure!(
+        base.components.iter().all(|component| component
+            .declaration
+            .configuration
+            .source
+            .repository
+            == original.source.repository),
+        "component publication changes the installation repository owner"
+    );
+    let original_profiles =
+        configuration::ConfigurationSnapshots::prepare(profile, std::iter::once(&original))?;
+    let original_profile = original_profiles.get(&original)?;
+    validate_locked_profile(original_profile, base)?;
+    ensure!(
+        profile.definition.components == original_profile.definition.components,
+        "component publication cannot change ownership topology"
+    );
+    ensure!(
+        profile.resolved_platform()? == base.platform,
+        "component publication cannot change shared platform selection"
+    );
+    ensure!(
+        profile.definition.sources.len() == original_profile.definition.sources.len()
+            && profile
+                .definition
+                .sources
+                .iter()
+                .all(|source| original_profile
+                    .definition
+                    .sources
+                    .iter()
+                    .any(|previous| previous.name == source.name
+                        && previous.role == source.role
+                        && previous.repository == source.repository)),
+        "component publication changes source repository ownership"
+    );
     select_components(&base.components, requested)?;
-    let (mut updated, replacements) = merge_images(base, requested, images)?;
-    validate_locked_images(profile, &updated)?;
-    let snapshots = resolve_component_sources(profile, base, requested)?;
+    for name in updates.source_revisions.keys() {
+        ensure!(
+            base.components
+                .iter()
+                .any(|component| requested.contains(&component.declaration.id)
+                    && component.declaration.source.name == *name
+                    && component.declaration.role != ComponentRole::Installation),
+            "chart source {name} is not owned by a requested component"
+        );
+    }
+    let (mut updated, replacements) = merge_images(base, requested, &updates.images)?;
+    updated.profile_revision = resolve_revision(&profile.repository, "HEAD")?;
+    let snapshots = resolve_component_sources(profile, base, requested, &updates.source_revisions)?;
     let roots = snapshots
         .iter()
         .map(|(identity, snapshot)| (identity.clone(), snapshot.repository.clone()))
         .collect();
-    for compiled in compile_image_update(profile, &updated, &roots, requested, &replacements)? {
+    for compiled in compile_component_update(
+        profile,
+        &mut updated,
+        &roots,
+        requested,
+        &replacements,
+        updates,
+    )? {
         let previous = updated
             .components
             .iter_mut()
@@ -42,7 +111,8 @@ pub fn update_component_images(
         *previous = compiled.locked;
     }
     updated.validate()?;
-    validate_profile_component_bindings(&profile.definition, &updated)?;
+    validate_locked_images(profile, &updated)?;
+    validate_locked_profile(profile, &updated)?;
     Ok(updated)
 }
 
@@ -111,10 +181,6 @@ fn merge_images(
             }
         }
     }
-    ensure!(
-        !replacements.is_empty(),
-        "component publication requires qualified image updates"
-    );
     // Validate the merged artifact catalog before opening any source checkout.
     updated.validate()?;
     Ok((updated, replacements))

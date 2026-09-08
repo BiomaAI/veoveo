@@ -11,6 +11,8 @@ use veoveo_deploy_contract::{LoadedProfile, LockedImage, LockedSource};
 use super::{compile_component_lock, compile_components, compile_locked_components};
 use crate::charts::lock_source_charts;
 
+mod publication;
+
 fn git(root: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
         .args(args)
@@ -110,6 +112,23 @@ fn image_target(source: &str) -> &str {
     }
 }
 
+fn publish_images(
+    profile: &LoadedProfile,
+    base: &veoveo_deploy_contract::DeploymentLock,
+    requested: &BTreeSet<veoveo_deploy_contract::components::ComponentId>,
+    images: &BTreeMap<String, Vec<LockedImage>>,
+) -> anyhow::Result<veoveo_deploy_contract::DeploymentLock> {
+    crate::update_components(
+        profile,
+        base,
+        requested,
+        &crate::ComponentUpdates {
+            images: images.clone(),
+            ..Default::default()
+        },
+    )
+}
+
 fn verify_image_publication(
     profile: &LoadedProfile,
     base: &veoveo_deploy_contract::DeploymentLock,
@@ -138,7 +157,7 @@ fn verify_image_publication(
         let updates = BTreeMap::from([(owner.to_owned(), vec![image.clone()])]);
         let hidden = roots[other].with_extension("unavailable");
         fs::rename(&roots[other], &hidden).unwrap();
-        let updated = crate::update_component_images(profile, &lock, &requested, &updates).unwrap();
+        let updated = publish_images(profile, &lock, &requested, &updates).unwrap();
         fs::rename(&hidden, &roots[other]).unwrap();
         for previous in &lock.components {
             let current = updated
@@ -183,13 +202,13 @@ fn verify_image_publication(
         );
         // Reusing the exact qualification is deterministic; no duplicate catalog version.
         assert_eq!(
-            crate::update_component_images(profile, &updated, &requested, &updates).unwrap(),
+            publish_images(profile, &updated, &requested, &updates).unwrap(),
             updated
         );
         // A component cannot import an image outside its recorded consumer closure.
         let unrelated = BTreeSet::from([ComponentId::try_from(other.to_owned()).unwrap()]);
         assert!(
-            crate::update_component_images(profile, &updated, &unrelated, &updates)
+            publish_images(profile, &updated, &unrelated, &updates)
                 .unwrap_err()
                 .to_string()
                 .contains("not consumed")
@@ -198,7 +217,7 @@ fn verify_image_publication(
         conflicting.get_mut(owner).unwrap()[0].publication_digest =
             format!("sha256:{}", "f".repeat(64));
         assert!(
-            crate::update_component_images(profile, &updated, &requested, &conflicting)
+            publish_images(profile, &updated, &requested, &conflicting)
                 .unwrap_err()
                 .to_string()
                 .contains("already qualified")
@@ -206,7 +225,7 @@ fn verify_image_publication(
         let mut duplicate = updates.clone();
         duplicate.get_mut(owner).unwrap().push(image.clone());
         assert!(
-            crate::update_component_images(profile, &updated, &requested, &duplicate)
+            publish_images(profile, &updated, &requested, &duplicate)
                 .unwrap_err()
                 .to_string()
                 .contains("duplicate image")
@@ -216,7 +235,7 @@ fn verify_image_publication(
             .repository
             .push_str("-different");
         assert!(
-            crate::update_component_images(profile, &updated, &requested, &foreign)
+            publish_images(profile, &updated, &requested, &foreign)
                 .unwrap_err()
                 .to_string()
                 .contains("repository ownership")
@@ -246,15 +265,18 @@ fn assert_fixed_inputs(
 
 #[test]
 fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_render() {
-    independent_sources(false);
+    independent_sources(None);
 }
 
 #[test]
 fn image_publication_updates_independent_sources_in_both_directions() {
-    independent_sources(true);
+    independent_sources(Some(verify_image_publication));
 }
 
-fn independent_sources(publish_images: bool) {
+type PublicationCheck =
+    fn(&LoadedProfile, &veoveo_deploy_contract::DeploymentLock, &BTreeMap<String, PathBuf>);
+
+fn independent_sources(publication: Option<PublicationCheck>) {
     // Image digests here are synthetic compiler inputs. This test establishes
     // render selection and provenance, not image publication or live zero writes.
     let workspace = tempfile::tempdir().unwrap();
@@ -331,8 +353,8 @@ fn independent_sources(publish_images: bool) {
         components: initial.clone(),
         platform: profile.resolved_platform().unwrap(),
     };
-    if publish_images {
-        verify_image_publication(&profile, &fresh, &roots);
+    if let Some(verify) = publication {
+        verify(&profile, &fresh, &roots);
         return;
     }
     let exact_roots = initial
@@ -603,6 +625,15 @@ fn retained_component_inputs(change: InputChange) {
     }];
     let roots = BTreeMap::from([("platform".into(), platform.clone())]);
     let initial = compile_component_lock(&profile, &profile_revision, &sources, &roots).unwrap();
+    let publication_base = DeploymentLock {
+        schema_version: veoveo_deploy_contract::DEPLOYMENT_LOCK_SCHEMA.into(),
+        profile: profile.definition.name.clone(),
+        profile_revision: profile_revision.clone(),
+        registry: profile.definition.registry.locked(),
+        sources: sources.clone(),
+        components: initial.clone(),
+        platform: profile.resolved_platform().unwrap(),
+    };
     if configuration_change {
         fs::remove_file(installation.join("values-old.yaml")).unwrap();
         fs::write(
@@ -696,6 +727,60 @@ fn retained_component_inputs(change: InputChange) {
     lock.validate().unwrap();
     crate::images::validate_locked_images(&profile, &lock).unwrap();
     crate::sources::validate_locked_profile(&profile, &lock).unwrap();
+    if matches!(change, InputChange::Chart | InputChange::Configuration) {
+        let requested = BTreeSet::from([ComponentId::try_from("current".to_owned()).unwrap()]);
+        let mut updates = crate::ComponentUpdates {
+            refresh_configuration: configuration_change,
+            ..Default::default()
+        };
+        if matches!(change, InputChange::Chart) {
+            updates.source_revisions.insert(
+                "platform".into(),
+                SourceRevision::new(&new_revision).unwrap(),
+            );
+        }
+        let composed =
+            crate::update_components(&profile, &publication_base, &requested, &updates).unwrap();
+        for previous in &publication_base.components {
+            let current = composed
+                .components
+                .iter()
+                .find(|component| component.declaration.id == previous.declaration.id)
+                .unwrap();
+            if previous.declaration.id.as_str() == "current" {
+                let expected = lock
+                    .components
+                    .iter()
+                    .find(|component| component.declaration.id == previous.declaration.id)
+                    .unwrap();
+                assert_eq!(
+                    current.units[0].content_digest,
+                    expected.units[0].content_digest
+                );
+            } else {
+                assert_eq!(
+                    current, previous,
+                    "shared-source publication retains every unrequested component"
+                );
+            }
+        }
+        assert_eq!(
+            composed.sources[0].images,
+            publication_base.sources[0].images
+        );
+        let retained_chart = |source: &LockedSource| {
+            source
+                .charts
+                .iter()
+                .find(|chart| chart.release == "retained")
+                .unwrap()
+                .clone()
+        };
+        assert_eq!(
+            retained_chart(&composed.sources[0]),
+            retained_chart(&publication_base.sources[0])
+        );
+    }
     let all = lock
         .components
         .iter()
@@ -759,7 +844,7 @@ fn retained_component_inputs(change: InputChange) {
             .unwrap()
             .clone();
         let requested = BTreeSet::from([ComponentId::try_from("retained".to_owned()).unwrap()]);
-        let promoted = crate::update_component_images(
+        let promoted = publish_images(
             &profile,
             &lock,
             &requested,

@@ -168,7 +168,7 @@ pub(crate) fn resolve_locked_sources(
     selected: &BTreeSet<ComponentId>,
 ) -> Result<BTreeMap<ComponentSource, ResolvedSource>> {
     selected_source_releases(&profile.definition, selected)?;
-    resolve_component_sources(profile, lock, selected)
+    resolve_component_sources(profile, lock, selected, &BTreeMap::new())
 }
 
 /// Publication retains dependencies unchanged. Its caller validates the complete
@@ -177,6 +177,7 @@ pub(crate) fn resolve_component_sources(
     profile: &LoadedProfile,
     lock: &DeploymentLock,
     selected: &BTreeSet<ComponentId>,
+    revisions: &BTreeMap<String, veoveo_extension_contract::SourceRevision>,
 ) -> Result<BTreeMap<ComponentSource, ResolvedSource>> {
     let mut selected_releases = BTreeMap::<ComponentSource, BTreeSet<String>>::new();
     for spec in profile
@@ -197,8 +198,12 @@ pub(crate) fn resolve_component_sources(
             &component.declaration.source.name == name,
             "selected component source differs from the profile"
         );
+        let mut identity = component.declaration.source.clone();
+        if let Some(revision) = revisions.get(name) {
+            identity.revision = revision.clone();
+        }
         selected_releases
-            .entry(component.declaration.source.clone())
+            .entry(identity)
             .or_default()
             .extend(spec.releases.iter().cloned());
     }

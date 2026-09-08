@@ -7,7 +7,7 @@
 | `veoveo.io/deployment/v7` and `veoveo.io/deployment-lock/v7` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
 | `veoveo.io/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
-| `veoveo.io/component-image-publication/v1` | Internal xtask receipt for image-only lock composition; records inputs and retained owners, with no cluster execution claim |
+| `veoveo.io/component-publication/v1` | Internal xtask receipt for exact component lock composition; records chart revisions, configuration refresh, image evidence, and retained owners, with no cluster execution claim |
 | `veoveo.io/installed-deployment-unit/v1` | Local installation provenance, exact Helm revision and manifest identity, and observed object fingerprints used to verify reuse |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
@@ -47,7 +47,7 @@ for an enterprise installation governed by GitOps.
 | `compile/inputs.rs` | Publication and locked-installation snapshots keyed by component source name, repository, and revision |
 | `compile/configuration.rs` | Exact installation profile snapshots, retained values files, and shared temporary checkouts for older configuration commits |
 | `compile/images.rs` | Per-release image selection, exact build provenance, and rendered image closure checks |
-| `publication.rs` | Qualified image-only updates for exact requested components, retaining all other inputs and inventories |
+| `publication.rs` | Chart, configuration, and qualified image updates for exact requested components, retaining other owners' inputs and inventories |
 | `discovery.rs` | Destination API scope verification for every locked owner and proposed CRD |
 | `helm_bundle.rs` | Temporary charts containing the complete prepared render consumed by Helm |
 | `helm_state.rs` | Exact Helm metadata and the deployed or successful revisions an upgrade or rollback may use |
@@ -137,22 +137,34 @@ publication renders again with the exact selection that installation will receiv
 That render must consume precisely the same images; template-dependent image expansion
 fails qualification. Platform and Veoveo-source values use
 their source's candidates; extension values can consume platform-owned images as well.
-Image-only publication accepts exact component IDs, a complete base lock, and qualified
-image evidence associated with declared sources. `cargo xtask release images --base-lock`
-is the concrete caller. The runtime validates the complete catalog and rejects images
-outside the requested consumer closure before opening source checkouts. It renders only
-requested components and retains dependency inventories unchanged. The compiler uses
-their locked charts and configuration; image selection replaces only explicitly supplied
-targets. Installation still requires the expanded dependency set.
+Component publication accepts exact component IDs and a complete base lock through
+`cargo xtask release components`. At least one input must be supplied: an exact chart
+source commit, a configuration refresh, or qualified image evidence. Each omitted input
+retains its recorded identity. Configuration refresh selects the current immutable
+installation snapshot only for requested components. Chart updates replace only their
+release locks, including when another component retains an older chart from the same
+repository. Image selection replaces only explicitly supplied targets in the recorded
+consumer closure. A chart or configuration update performs no image build.
+
+The runtime restores and validates the base installation commit before composing new
+inputs. Destination, ownership topology, and shared platform selection must stay fixed;
+changing those boundaries requires a complete publication. It renders only requested
+components and retains every other component, including dependencies, verbatim. Final
+catalog validation rejects overlap and inconsistent artifact bindings. Installation
+still requires the expanded dependency set.
 
 The command verifies each supplied OCI publication index and runnable manifest through
 the existing image qualification reader. Its create-only output includes a
-`veoveo.io/component-image-publication/v1` receipt with base and output lock digests,
-requested IDs, dependency IDs, retained IDs, and input evidence digests. The image-operation
+`veoveo.io/component-publication/v1` receipt with base and output lock digests,
+requested IDs, dependency IDs, retained IDs, chart source revisions, configuration
+refresh intent, and image evidence digests. The image-operation
 recorder captures command timing. Source association follows the declared evidence input;
 this does not add cryptographic publisher authentication. The receipt establishes lock
-composition, not live zero-write evidence. Scoped chart/configuration publication and
-development-lock promotion remain migration work.
+composition, not live zero-write evidence. Development-lock promotion remains migration
+work. Native Git and Helm regressions cover chart-only, configuration-only, and combined
+updates in both directions between independent platform and extension repositories,
+with the unrequested repository absent. Retained configurations remain reproducible
+after current values files are replaced. These fixtures use synthetic image identities.
 The reserved source name `installation` identifies installation-owned inputs; a
 platform, workload, or extension source cannot use that name.
 

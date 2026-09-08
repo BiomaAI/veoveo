@@ -10,12 +10,12 @@ use crate::{
     sources::resolve_revision,
 };
 
-pub(super) struct ConfigurationSnapshots {
+pub(crate) struct ConfigurationSnapshots {
     profiles: BTreeMap<InstallationSnapshot, LoadedProfile>,
     _checkouts: Vec<tempfile::TempDir>,
 }
 
-pub(super) fn identity(profile: &LoadedProfile, revision: &str) -> Result<InstallationSnapshot> {
+pub(crate) fn identity(profile: &LoadedProfile, revision: &str) -> Result<InstallationSnapshot> {
     Ok(InstallationSnapshot {
         source: super::installation_source(profile, revision)?,
         profile: profile
