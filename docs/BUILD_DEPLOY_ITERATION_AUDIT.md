@@ -1,15 +1,17 @@
 # Build And Deployment Iteration Audit
 
-Status: implementation authorized on September 6, 2026; core changes are committed
-and the shared charts are active with the Bioma reference configuration. Local compiler
+Status: completed and accepted on September 8, 2026, at `https://veoveo.bioma.ai`.
+Core changes are committed and the shared charts are active with the Bioma reference configuration. Local compiler
 ABI and throughput experiments have recorded results. Live metadata-only publication
 preserves every running Pod. Disposable component-selected execution now passes the independent native Git/OCI
 fixture. Cluster coordination now serializes cooperating disposable installers;
 Stream and Reason use the shared Rust 1.98.1 control compiler, pass hardware replay,
 and are active with the Bioma configuration. Reason's Python input path stays on
 NVDEC and CUDA. The local
-build-engine cache trial has recorded results; independent build storage and hosts
-remain unmeasured.
+build-engine cache trial has recorded results. The user deferred independent build
+storage and host comparisons on September 8; they are future performance tests and
+do not block completion. Public endpoint and headed Console acceptance pass against
+the deployed Veoveo installation.
 The findings below retain the pre-change evidence. The delivery record identifies
 implemented changes and their verification.
 
@@ -1378,7 +1380,7 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 | Authorized boundary | Delivered evidence | Remaining acceptance |
 |---|---|---|
 | Flux triggers and unchanged workloads | Active watch labels, immutable chart/value inputs, metadata-only rollout with unchanged Pods, native cancellation regression | Complete for the measured reference installation |
-| Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Separate physical build disk or host is unavailable; that comparison remains unmeasured |
+| Builder resources and durable storage | Enforced twelve-CPU budget, 2.29× matched compiler speedup, cache retention, restored disk reserve | Complete on available infrastructure; separate physical disk and host comparisons are deferred by user direction |
 | Presentation and normalized GPU dependency inputs | Frontend-only staging executes no Rust; both source-only UAV revisions meet the thirty-second target; headed Console refresh passes | Complete for those input boundaries |
 | Exact staging and elapsed timing | One selected solve, per-target identities, command-level preparation and failure timing | Complete |
 | Reusable Rust compilation | Shared ordinary compiler families, extracted recording libraries, focused harnesses, cache/build-engine trials, and active Stream/Reason control compiler with hardware replay | Both migrations are verified. Stream Rust edits stage in 26.2 s; Reason Rust and Python edits stage in 32.6 s and 11.1 s |
@@ -1386,6 +1388,12 @@ Evidence is recorded in `testing/local-test-report.json`; the detailed scope tra
 
 The experiments support retaining Cargo and the durable BuildKit worker. A build-engine
 migration has no demonstrated overall advantage from the measured local cases.
+
+Future performance tests need a separate physical build disk or an additional Linux
+host. Repeat the matched source-edit workload with durable Cargo caches, record the
+hardware and storage identity, and compare total staging time while the GPU workload
+stays active. Cross-host transport and the Bazel prototype on an independent worker
+also remain unmeasured. These experiments are follow-up work, not release gates.
 
 ## Durable Read Prerequisite Checkpoint
 
@@ -1756,3 +1764,26 @@ The runner pins PyNvVideoCodec 2.2.2 for its admitted NVDEC input path. This ove
 vLLM 0.28.0's package metadata pin of 2.0.4, which pip reports during assembly.
 Installed hardware acceptance establishes the supported Qwen3-VL path; it does not
 claim compatibility with every upstream vLLM video integration.
+
+## Final Public Acceptance
+
+The September 8 completion check uses the deployed Veoveo installation at
+`https://veoveo.bioma.ai`, with Bioma supplying its configuration and GitOps owner.
+The native `bioma-verify` gate passes public HTTPS health, Console and authorization
+surfaces, GPU workload scheduling, and a governed artifact larger than 8 MiB. Full,
+HEAD, and ranged requests preserve exact content without redirects. Its 180.6 s
+command includes a 145 s rebuild of the acceptance harness. The log is
+`output/development/veoveo-public-final-20260908.log`.
+
+The native `console-apps-browser-verify` gate passes all 16 first-party Apps in
+103.3 s. It verifies the grouped authenticated catalog, each App's host bridge and
+settled state, and headed hardware graphics. NVIDIA RTX 4090 WebGL supplies hardware
+rendering; SwiftShader WebGPU is recorded as software and provides no hardware
+evidence. The receipt and captures are under
+`output/acceptance/veoveo-public-final/6aae356b673549fa5b0cdb3965013bf0a4f7fc73/01a08280-27c2-7d32-b2e7-df6ac4259791/`.
+
+All 25 Deployments are Ready. The installed Reason digest still matches its qualified
+release receipt and completed six-observation GPU task. The committed test report is
+green and matches the current build inputs. Resource preflight passes with the node
+Ready and `DiskPressure=False`. Unavailable infrastructure comparisons remain recorded
+as future performance tests; they are not unfinished deployment acceptance.

@@ -325,17 +325,13 @@ Stream and Reason now use the shared Rust 1.98.1 control compiler and pass insta
 RTX 4090 replay with the Bioma configuration. Reason Rust edits stage in 32.6 s;
 Python runner edits stage in 11.1 s without executing Cargo. Each edit replaces only
 its executable layer.
-The following acceptance work remains separate from those delivered changes.
-
-| Priority | Boundary | Owning component | Acceptance condition |
-|---:|---|---|---|
-| 1 | Dedicated build storage and remote-host comparison | managed builder control | compare a separate build disk or host against the twelve-CPU baseline while retaining durable compiler caches; same-host fresh-worker reuse is measured |
-| 2 | Component ownership migration | deployment contract | complete general raw-resource adoption and ownership transfer before splitting an existing atomic Helm release; exact selected execution, per-release inputs, native scope evidence, and cluster coordination are implemented |
 
 ### Deferred Or Separately Owned Work
 
 | Boundary | Disposition |
 |---|---|
+| Dedicated build storage and remote-host comparison | deferred by user direction on September 8; no separate physical disk or host is available. Future trials should retain durable Cargo caches and compare matched source edits against the twelve-CPU baseline. This does not block building, deploying, or accepting Veoveo |
+| Component ownership migration | general raw-resource adoption and ownership transfer belong to a future atomic-release split; exact selected execution, per-release inputs, native scope evidence, and cluster coordination are implemented |
 | Full release attestation and large inherited-image qualification | reserved for release acceptance; development staging must not pay this cost before behavior is accepted |
 | GPU-renderer startup and live-camera latency | runtime performance work under the UAV design, not an image-orchestration fallback or a reason to weaken GPU acceptance |
 | Provider and external network recovery | owned by the relevant runtime contract; provider completion remains webhook-only |
