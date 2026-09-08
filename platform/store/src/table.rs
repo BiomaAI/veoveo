@@ -35,6 +35,10 @@ pub enum PlatformTable {
     ShareLink,
     ArtifactWriteCapability,
     ArtifactReadCapability,
+    ArtifactUpload,
+    ArtifactUploadPart,
+    ArtifactStorageUsage,
+    ArtifactUploadMemory,
     ArtifactWriteRedemption,
     ArtifactAccessRequest,
     MediaTaskContext,
@@ -78,7 +82,7 @@ pub enum PlatformTable {
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 69] = [
+    pub const ALL: [Self; 73] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -108,6 +112,10 @@ impl PlatformTable {
         Self::ShareLink,
         Self::ArtifactWriteCapability,
         Self::ArtifactReadCapability,
+        Self::ArtifactUpload,
+        Self::ArtifactUploadPart,
+        Self::ArtifactStorageUsage,
+        Self::ArtifactUploadMemory,
         Self::ArtifactWriteRedemption,
         Self::ArtifactAccessRequest,
         Self::MediaTaskContext,
@@ -181,6 +189,10 @@ impl PlatformTable {
             Self::ShareLink => "share_link",
             Self::ArtifactWriteCapability => "artifact_write_capability",
             Self::ArtifactReadCapability => "artifact_read_capability",
+            Self::ArtifactUpload => "artifact_upload",
+            Self::ArtifactUploadPart => "artifact_upload_part",
+            Self::ArtifactStorageUsage => "artifact_storage_usage",
+            Self::ArtifactUploadMemory => "artifact_upload_memory",
             Self::ArtifactWriteRedemption => "artifact_write_redemption",
             Self::ArtifactAccessRequest => "artifact_access_request",
             Self::MediaTaskContext => "media_task_context",

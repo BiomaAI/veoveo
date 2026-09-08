@@ -1,59 +1,7 @@
 //! A real SurrealDB process, independent service instances, and atomic read quotas.
-use super::super::native_database::Database;
+use super::super::native_database::{Database, context};
 use super::*;
 use veoveo_platform_store as platform;
-
-async fn context(store: &platform::PlatformStore, actor: &PlaneCaller) -> platform::RecordId {
-    let identity = store
-        .ensure_identity(
-            actor.tenant().unwrap().as_str(),
-            actor.identity.actor.id.as_str(),
-            actor.identity.actor.issuer.as_str(),
-            actor.identity.actor.subject.as_str(),
-            platform::PrincipalKind::User,
-        )
-        .await
-        .unwrap();
-    let id = platform::deterministic_work_context_id(
-        &identity.tenant_key,
-        actor.identity.authority.work_context.as_str(),
-    )
-    .unwrap()
-    .record_id();
-    let context = platform::WorkContextRecord {
-        id: id.clone(),
-        tenant: identity.tenant_id.record_id(),
-        context_key: actor.identity.authority.work_context.to_string(),
-        title: "Read delegation fixture".into(),
-        policy_revision: "r1".into(),
-        output_policy: platform::WorkContextOutputPolicyRecord {
-            owner_kind: platform::ArtifactGrantSubjectKind::Principal,
-            owner_key: identity.principal_key.clone(),
-            initial_grants: vec![],
-            classification: None,
-            data_labels: vec![],
-        },
-        memberships: vec![platform::WorkContextMembershipRuleRecord {
-            level: platform::WorkContextMembershipLevel::Owner,
-            principals: vec![identity.principal_key],
-            groups: vec![],
-            roles: vec![],
-            oauth_clients: vec![],
-        }],
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
-    };
-    store
-        .client()
-        .query("CREATE ONLY $record CONTENT $content;")
-        .bind(("record", id.clone()))
-        .bind(("content", context))
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-    id
-}
 
 #[tokio::test]
 #[ignore = "requires VEOVEO_SURREAL_BINARY; owns and removes an isolated in-memory SurrealDB 3.2.4 process"]

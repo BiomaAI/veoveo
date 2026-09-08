@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 50] = [
+const MIGRATIONS: [Migration; 51] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -328,6 +328,12 @@ const MIGRATIONS: [Migration; 50] = [
         filename: "0049_artifact_read_delegation.surql",
         sql: include_str!("../migrations/0049_artifact_read_delegation.surql"),
     },
+    Migration {
+        version: 50,
+        name: "artifact_uploads",
+        filename: "0050_artifact_uploads.surql",
+        sql: include_str!("../migrations/0050_artifact_uploads.surql"),
+    },
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -478,9 +484,15 @@ impl PlatformStore {
                 .bind(("migration_name", migration.name))
                 .bind(("migration_checksum", migration.checksum()))
                 .await
-                .and_then(|response| response.check());
+                .map_err(|error| (0, error))
+                .and_then(|mut response| {
+                    match crate::store::primary_transaction_failure(response.take_errors()) {
+                        Some(error) => Err(error),
+                        None => Ok(()),
+                    }
+                });
 
-            if let Err(error) = result {
+            if let Err((statement, error)) = result {
                 // A second replica may have committed the same migration first.
                 // Only accept that race when the durable checksum matches exactly.
                 history = self.migration_history().await?;
@@ -488,7 +500,14 @@ impl PlatformStore {
                     Ok(current) if !current.pending_versions.contains(&version) => {
                         continue;
                     }
-                    _ => return Err(StoreError::Database(error)),
+                    _ => {
+                        return Err(StoreError::MigrationExecution {
+                            version: migration.version,
+                            statement,
+                            name: migration.name,
+                            source: error,
+                        });
+                    }
                 }
             }
             applied_versions.push(version);

@@ -69,6 +69,15 @@ pub enum MigrationError {
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("migration {version:04}_{name} statement {statement} failed: {source}")]
+    MigrationExecution {
+        version: u32,
+        statement: usize,
+        name: &'static str,
+        source: surrealdb::Error,
+    },
+    #[error("artifact upload rejected: {0:?}")]
+    ArtifactUpload(crate::ArtifactUploadRejection),
     #[error("artifact digest is already registered with different immutable content metadata")]
     ArtifactBlobIntegrityConflict,
     #[error(transparent)]

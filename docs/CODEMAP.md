@@ -343,6 +343,8 @@ The only durable platform persistence layer.
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `artifacts/create.surql` | atomic occurrence, grants, and outbox publication with immutable tenant/digest blob reuse |
+| `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
+| `migrations/0050_artifact_uploads.surql` | durable upload/part state, storage accounting, and repository-owned current-authority digest functions |
 | `artifact_reads.rs`, `artifact_reads/` | task-bound read delegation, current policy identity, and atomic distinct-occurrence quotas; governed by the Artifact service design |
 | `coordinates.rs`, `frame_worlds.rs` | coordinate-operation persistence plus authored frame worlds and immutable tree revisions |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |

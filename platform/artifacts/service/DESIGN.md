@@ -7,7 +7,7 @@
 | Internal HTTP | JSON metadata and capability control; streamed GET/HEAD downloads with the existing single-range profile |
 | Gateway identity | Forwarded, verified short-lived internal assertion for ordinary operations and capability issuance/revocation |
 | Veoveo Artifact read delegation | Repository-owned internal API, opaque UUIDv7 capability and task identities, bearer secret confined to task-read routes |
-| Persistence | Typed platform Store records and ordered SurrealQL migration `0049`; native delegation acceptance uses SurrealDB 3.2.4 |
+| Persistence | Typed platform Store records and ordered SurrealQL migrations through `0050`; native durability acceptance uses SurrealDB 3.2.4 |
 | Content and credential identity | SHA-256 for immutable blobs and domain-separated secret hashes |
 
 This service implements the internal Artifact plane. `servers/artifact-mcp` owns its
@@ -34,6 +34,20 @@ cleanup may remove only its unreferenced losing object.
 Native validation uses SurrealDB 3.2.4. SQL formatting uses
 `@surrealdb/surql-fmt@0.1.0-beta.2`, the latest published formatter; upstream has no
 stable formatter release. The formatter does not supply execution evidence.
+
+Migration `0050` stores upload admission, part descriptors, recovery leases, and
+tenant/global transfer accounting. Admission serializes through the tenant usage row;
+it includes retained cleanup bytes and committed tenant storage in quota decisions.
+Request replay is scoped to tenant, actor, profile, and Work Context. Native admission
+tests reserve 10 GiB without transferring bytes; transfer acceptance remains separate.
+Current profile/policy and Work Context digests bind admission to its governing rules.
+The repository-owned `fn::artifact_upload_profile_digest` and
+`fn::artifact_upload_authority_matches` functions run inside state transactions.
+
+The beta formatter corrupts nested schema field paths in `DEFINE FIELD`. Keep those
+declarations in the established migration format and validate them with the pinned
+native database executable. Formatter output for migration `0050` was rejected before
+execution; it supplies no migration evidence.
 
 ## Task Read Delegation
 

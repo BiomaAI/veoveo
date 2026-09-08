@@ -1453,6 +1453,8 @@ mod tests {
     mod immutable_blob;
     mod native_database;
     mod read_capability;
+    mod upload_admission;
+    mod upload_migration;
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};
 
