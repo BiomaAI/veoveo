@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "buildDigest": "sha256:413e097085746800f51738cb9834a8c8aa7d5c768d177d85dfe8ab942610483a",
-  "updatedAt": "2026-09-08T19:16:29Z",
+  "updatedAt": "2026-09-08T19:32:09Z",
   "checks": [
     {
       "name": "reason-cache-free-activation-format",
@@ -47,6 +47,40 @@
       "status": "passed",
       "finishedAt": "2026-09-08T19:16:29Z",
       "durationSeconds": 137.423680636,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "veoveo-public-console-apps-final",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "console-apps-browser-verify",
+        "--public-base-url",
+        "https://veoveo.bioma.ai",
+        "--chrome-cdp-url",
+        "http://127.0.0.1:9222",
+        "--evidence-root",
+        "output/acceptance/veoveo-public-final",
+        "--timeout-seconds",
+        "300"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T19:32:09Z",
+      "durationSeconds": 103.281471774,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "veoveo-public-final",
+      "command": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "bioma-verify"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T19:30:03Z",
+      "durationSeconds": 180.571021369,
       "detail": "completed successfully"
     }
   ]
