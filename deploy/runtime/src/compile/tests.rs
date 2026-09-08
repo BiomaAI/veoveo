@@ -110,8 +110,151 @@ fn image_target(source: &str) -> &str {
     }
 }
 
+fn verify_image_publication(
+    profile: &LoadedProfile,
+    base: &veoveo_deploy_contract::DeploymentLock,
+    roots: &BTreeMap<String, PathBuf>,
+) {
+    use veoveo_deploy_contract::components::{ComponentId, ComponentInput};
+    use veoveo_extension_contract::SourceRevision;
+    let mut lock = base.clone();
+    for (owner, other) in [("platform", "extension"), ("extension", "platform")] {
+        let source = lock
+            .sources
+            .iter()
+            .find(|source| source.name == owner)
+            .unwrap();
+        let mut image = source.images[0].clone();
+        fs::write(
+            roots[owner].join("implementation.txt"),
+            "new image implementation",
+        )
+        .unwrap();
+        let revision = commit(&roots[owner], "new image build input");
+        image.source_revision = SourceRevision::new(revision).unwrap();
+        image.digest = format!("sha256:{}", "d".repeat(64));
+        image.publication_digest = format!("sha256:{}", "e".repeat(64));
+        let requested = BTreeSet::from([ComponentId::try_from(owner.to_owned()).unwrap()]);
+        let updates = BTreeMap::from([(owner.to_owned(), vec![image.clone()])]);
+        let hidden = roots[other].with_extension("unavailable");
+        fs::rename(&roots[other], &hidden).unwrap();
+        let updated = crate::update_component_images(profile, &lock, &requested, &updates).unwrap();
+        fs::rename(&hidden, &roots[other]).unwrap();
+        for previous in &lock.components {
+            let current = updated
+                .components
+                .iter()
+                .find(|component| component.declaration.id == previous.declaration.id)
+                .unwrap();
+            assert_fixed_inputs(&current.declaration, &previous.declaration);
+            if previous.declaration.id.as_str() == owner {
+                assert_ne!(
+                    current.units[0].content_digest,
+                    previous.units[0].content_digest
+                );
+                assert!(current.units[0].inputs.iter().any(|input| matches!(input,
+                    ComponentInput::Image { source, digest, .. } if source.revision == image.source_revision && digest.as_str() == image.digest)));
+            } else {
+                assert_eq!(
+                    current, previous,
+                    "unrequested owners including dependencies must be retained verbatim"
+                );
+            }
+        }
+        assert_eq!(updated.profile_revision, lock.profile_revision);
+        assert_eq!(updated.platform, lock.platform);
+        let all = updated
+            .components
+            .iter()
+            .map(|component| component.declaration.id.clone())
+            .collect();
+        let snapshots = crate::sources::resolve_locked_sources(profile, &updated, &all).unwrap();
+        let exact_roots = snapshots
+            .iter()
+            .map(|(identity, source)| (identity.clone(), source.repository.clone()))
+            .collect();
+        let prepared = compile_locked_components(profile, &updated, &exact_roots, &all).unwrap();
+        assert_eq!(
+            prepared
+                .into_iter()
+                .map(|component| component.locked)
+                .collect::<Vec<_>>(),
+            updated.components
+        );
+        // Reusing the exact qualification is deterministic; no duplicate catalog version.
+        assert_eq!(
+            crate::update_component_images(profile, &updated, &requested, &updates).unwrap(),
+            updated
+        );
+        // A component cannot import an image outside its recorded consumer closure.
+        let unrelated = BTreeSet::from([ComponentId::try_from(other.to_owned()).unwrap()]);
+        assert!(
+            crate::update_component_images(profile, &updated, &unrelated, &updates)
+                .unwrap_err()
+                .to_string()
+                .contains("not consumed")
+        );
+        let mut conflicting = updates.clone();
+        conflicting.get_mut(owner).unwrap()[0].publication_digest =
+            format!("sha256:{}", "f".repeat(64));
+        assert!(
+            crate::update_component_images(profile, &updated, &requested, &conflicting)
+                .unwrap_err()
+                .to_string()
+                .contains("already qualified")
+        );
+        let mut duplicate = updates.clone();
+        duplicate.get_mut(owner).unwrap().push(image.clone());
+        assert!(
+            crate::update_component_images(profile, &updated, &requested, &duplicate)
+                .unwrap_err()
+                .to_string()
+                .contains("duplicate image")
+        );
+        let mut foreign = updates.clone();
+        foreign.get_mut(owner).unwrap()[0]
+            .repository
+            .push_str("-different");
+        assert!(
+            crate::update_component_images(profile, &updated, &requested, &foreign)
+                .unwrap_err()
+                .to_string()
+                .contains("repository ownership")
+        );
+        lock = updated;
+    }
+}
+
+fn assert_fixed_inputs(
+    current: &veoveo_deploy_contract::components::DeploymentComponent,
+    previous: &veoveo_deploy_contract::components::DeploymentComponent,
+) {
+    use veoveo_deploy_contract::components::ComponentInput;
+    let mut current = current.clone();
+    let mut previous = previous.clone();
+    current
+        .inputs
+        .retain(|input| !matches!(input, ComponentInput::Image { .. }));
+    previous
+        .inputs
+        .retain(|input| !matches!(input, ComponentInput::Image { .. }));
+    assert_eq!(
+        current, previous,
+        "every non-image declaration field must stay fixed"
+    );
+}
+
 #[test]
 fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_render() {
+    independent_sources(false);
+}
+
+#[test]
+fn image_publication_updates_independent_sources_in_both_directions() {
+    independent_sources(true);
+}
+
+fn independent_sources(publish_images: bool) {
     // Image digests here are synthetic compiler inputs. This test establishes
     // render selection and provenance, not image publication or live zero writes.
     let workspace = tempfile::tempdir().unwrap();
@@ -188,6 +331,10 @@ fn selected_compilation_reuses_unselected_inventory_without_its_checkout_or_rend
         components: initial.clone(),
         platform: profile.resolved_platform().unwrap(),
     };
+    if publish_images {
+        verify_image_publication(&profile, &fresh, &roots);
+        return;
+    }
     let exact_roots = initial
         .iter()
         .filter_map(|component| {
@@ -603,6 +750,41 @@ fn retained_component_inputs(change: InputChange) {
                 .iter()
                 .find(|locked| locked.declaration.id == component.locked.declaration.id)
         );
+    }
+    if matches!(change, InputChange::Image | InputChange::ImageProvenance) {
+        let image = lock.sources[0]
+            .images
+            .iter()
+            .find(|image| image.source_revision.as_str() == new_revision)
+            .unwrap()
+            .clone();
+        let requested = BTreeSet::from([ComponentId::try_from("retained".to_owned()).unwrap()]);
+        let promoted = crate::update_component_images(
+            &profile,
+            &lock,
+            &requested,
+            &BTreeMap::from([("platform".into(), vec![image])]),
+        )
+        .unwrap();
+        for previous in &lock.components {
+            let current = promoted
+                .components
+                .iter()
+                .find(|component| component.declaration.id == previous.declaration.id)
+                .unwrap();
+            if previous.declaration.id.as_str() == "retained" {
+                assert_fixed_inputs(&current.declaration, &previous.declaration);
+                assert_ne!(current.units[0].digest, previous.units[0].digest);
+                if matches!(change, InputChange::ImageProvenance) {
+                    assert_eq!(
+                        current.units[0].content_digest,
+                        previous.units[0].content_digest
+                    );
+                }
+            } else {
+                assert_eq!(current, previous);
+            }
+        }
     }
     // A name-only map would silently replace one of these checkout roots.
     let old_identity = immutable_roots

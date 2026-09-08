@@ -1,44 +1,31 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:bb211f723b82c4b2e6c9c61f2d11fa54c0586f3b7eeae15fb78b85b65e5f4e0f",
-  "updatedAt": "2026-09-08T05:02:25Z",
+  "buildDigest": "sha256:c275a03e74443006acca3eb15e1f9f697ee819aa963f32d0e6a51d84411836d8",
+  "updatedAt": "2026-09-08T05:26:30Z",
   "checks": [
     {
-      "name": "component-configuration-clippy",
+      "name": "component-image-clippy",
       "command": [
         "cargo",
         "clippy",
         "-p",
+        "veoveo-deploy-contract",
+        "-p",
         "veoveo-deploy-runtime",
         "-p",
-        "veoveo-deploy-contract",
+        "veoveo-xtask",
         "--all-targets",
-        "--locked",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T05:01:55Z",
-      "durationSeconds": 0.717755816,
+      "finishedAt": "2026-09-08T05:26:14Z",
+      "durationSeconds": 2.702792005,
       "detail": "completed successfully"
     },
     {
-      "name": "component-configuration-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T05:02:25Z",
-      "durationSeconds": 2.20867587,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "component-configuration-helm-config",
+      "name": "component-image-helm-config",
       "command": [
         "cargo",
         "xtask",
@@ -46,38 +33,25 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T05:02:22Z",
-      "durationSeconds": 16.666248195,
+      "finishedAt": "2026-09-08T05:26:30Z",
+      "durationSeconds": 6.821772919,
       "detail": "completed successfully"
     },
     {
-      "name": "component-configuration-publisher",
+      "name": "component-image-publication",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-xtask",
-        "--locked"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-08T05:02:04Z",
-      "durationSeconds": 8.025089168,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "component-configuration-snapshots",
-      "command": [
-        "cargo",
-        "test",
+        "veoveo-deploy-contract",
         "-p",
         "veoveo-deploy-runtime",
         "-p",
-        "veoveo-deploy-contract",
-        "--locked"
+        "veoveo-xtask"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T05:01:54Z",
-      "durationSeconds": 6.583406696,
+      "finishedAt": "2026-09-08T05:26:22Z",
+      "durationSeconds": 7.266771585,
       "detail": "completed successfully"
     }
   ]

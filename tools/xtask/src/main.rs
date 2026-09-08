@@ -107,7 +107,7 @@ enum ReleaseCommand {
     Preflight(ReleasePreflightArgs),
     /// Inspect or reclaim older regenerable host Cargo outputs.
     CachePrune(ReleaseCacheArgs),
-    /// Publish images from one exact committed revision.
+    /// Publish qualified images or compose an image update into a deployment lock.
     Images(ReleaseImagesArgs),
     /// Build, verify, and optionally publish the Python SDK.
     PythonSdk(ReleasePythonSdkArgs),
@@ -307,8 +307,17 @@ struct ReleaseImagesArgs {
     #[arg(long, conflicts_with_all = ["target", "group", "push_registry", "pull_registry", "registry_transport"])]
     profile: Option<PathBuf>,
     /// Exact configuration-repository revision containing the deployment profile.
-    #[arg(long, requires = "profile", conflicts_with = "revision")]
+    #[arg(long, requires = "profile", conflicts_with_all = ["revision", "base_lock"])]
     profile_revision: Option<String>,
+    /// Compose an image-only component update from this qualified deployment lock.
+    #[arg(long, requires_all = ["profile", "component", "image_evidence", "lock_output"], conflicts_with = "revision")]
+    base_lock: Option<PathBuf>,
+    /// Exact component whose consumed images may change; repeat for an explicit set.
+    #[arg(long, requires = "base_lock")]
+    component: Vec<String>,
+    /// Qualified image release evidence, associated with its source as SOURCE=PATH.
+    #[arg(long, requires = "base_lock", value_name = "SOURCE=PATH")]
+    image_evidence: Vec<String>,
     /// Docker Bake image target; repeat to select an exact set.
     #[arg(long, conflicts_with_all = ["profile", "group"])]
     target: Vec<String>,

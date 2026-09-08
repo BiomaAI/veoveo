@@ -13,6 +13,7 @@ mod helm_bundle;
 mod images;
 mod process;
 mod profile;
+mod publication;
 mod snapshot;
 mod sources;
 
@@ -22,6 +23,7 @@ pub use cluster::{
 };
 pub use compile::compile_component_lock;
 pub use profile::{profile_down, profile_gpu_verify, profile_up, profile_validate};
+pub use publication::update_component_images;
 
 #[cfg(test)]
 mod tests;
