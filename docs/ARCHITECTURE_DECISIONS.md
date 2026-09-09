@@ -20,6 +20,20 @@ Veoveo is installed and operated by its owner. Each installation is autonomous:
 Kubernetes is the supported installation form and Helm is its package contract.
 k3d runs that same chart for local development.
 
+## Computers
+
+Computers is a core Veoveo capability. Standard releases own its native API, Console
+experience, durable lifecycle, retained storage integration, and installation package.
+Installations configure capacity, admitted development images, policy, provider
+connections, and trust. Admission and maintenance are operational controls.
+
+The first supported profile is a personal development Computer with explicit owner
+authority, reconnectable execution, and retained files and caches across Stop/Start.
+Build publication and production promotion keep their separate authority boundaries.
+The implementation and acceptance sequence is proposed in
+[`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md); the capability is not implemented at this
+decision checkpoint.
+
 ## Release and installation ownership
 
 Veoveo release engineering publishes OCI images and Helm charts. Production image

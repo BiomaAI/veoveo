@@ -11,6 +11,11 @@
 > [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md), and the owning component
 > designs.
 
+Computers is separately adopted as a core Veoveo capability in
+[`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md#computers), with its personal
+development lifecycle planned in [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md). This
+factory plan governs disposable author/verifier jobs and their broker authority.
+
 ## Purpose
 
 Veoveo needs a software factory that can accept a reviewed product specification,
@@ -132,7 +137,8 @@ who proposed the work.
   credentials.
 - Treating model alignment, prompts, harness approvals, or a harness-native sandbox as
   the factory security boundary.
-- Making OpenShell part of the fielded Veoveo installation.
+- Defining the personal Computers lifecycle or its core installation package; those
+  belong to the Computers plan.
 - Making the product repository the owner of a customer's cluster or GitOps
   controller.
 - Claiming that passing automated tests proves product correctness.
