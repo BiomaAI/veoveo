@@ -913,6 +913,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | File | Responsibility |
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
+| `uploads/` | persistent, identity-scoped artifact upload queue, bounded worker hashing, progress transport, and accessible selection/recovery panel; governed by its local `DESIGN.md` |
+| `csrf.ts` | ephemeral CSRF state shared by JSON and raw-body upload transports |
 | `appHost.tsx`, `StandaloneAppHost.tsx`, `standaloneBootstrap.ts` | minimal standalone App entry, authorized same-path bootstrap, shared OAuth/CSRF settlement, authorized title, and Console return link |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |

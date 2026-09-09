@@ -1919,3 +1919,17 @@ and the MCP runtime. Reusing the resulting test graph avoids repeating that cold
 dependency work during focused validation. Logs use
 `output/development/artifact-upload-http-*20260909.log` and
 `output/development/artifact-upload-proxy-compile-20260909.log`.
+
+The Console queue adds a separately emitted hashing worker without another dependency.
+Production bundling takes 1.73 s after TypeScript validation. Four new controller tests
+cover wrong-file rejection before PUT, transmission of missing parts only, completion
+winning cancellation, and receipt recovery without file access. Their first focused
+run takes 186 ms overall. They use controlled HTTP/worker doubles and are not browser
+or deployed transfer evidence. Lint caught a render-time ref assignment and a filename
+control-character expression before qualification; both are corrected.
+
+The queue and HTTP wiring are now implemented, while exact catalog sizes, Python
+streaming consumption, installation policy activation, image publication, and deployed
+large-file/browser acceptance remain required. Image staging has not started at this
+checkpoint. Keeping that distinction explicit avoids counting local UI compilation
+as a usable release.

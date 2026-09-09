@@ -6,10 +6,12 @@ import type { ArtifactSummary } from "../types";
 
 export function ArtifactsView({
   artifacts,
-  onSelect
+  onSelect,
+  onUpload
 }: {
   artifacts: ArtifactSummary[];
   onSelect: (artifact: ArtifactSummary) => void;
+  onUpload: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [state, setState] = useState("all");
@@ -29,9 +31,14 @@ export function ArtifactsView({
       <SectionHeader
         title="Artifacts"
         count={rows.length}
-        actions={<Toolbar query={query} setQuery={setQuery} state={state} setState={setState} placeholder="Search artifacts" />}
+        actions={<div className="upload-page-actions"><Toolbar query={query} setQuery={setQuery} state={state} setState={setState} states={["private", "releasable", "released"]} placeholder="Search artifacts" />
+          <button className="button button-primary" onClick={onUpload}>Upload files</button></div>}
       />
-      <ArtifactTable artifacts={rows} onSelect={onSelect} />
+      {rows.length ? <ArtifactTable artifacts={rows} onSelect={onSelect} /> : <div className="upload-empty">
+        <p>{artifacts.length ? "No artifacts match these filters." : "Your artifact library is empty."}</p>
+        {artifacts.length ? <button className="button button-secondary" onClick={() => { setQuery(""); setState("all"); }}>Clear filters</button>
+          : <button className="button button-primary" onClick={onUpload}>Upload files</button>}
+      </div>}
     </section>
   );
 }
