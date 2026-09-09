@@ -1,6 +1,7 @@
 //! HTTP transport for the artifact plane.
 
 mod read_capability;
+pub mod uploads;
 
 use std::sync::Arc;
 
@@ -712,7 +713,7 @@ async fn redeem_public_share<R: ArtifactRepository, S: BlobStore>(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     mod read_capability;
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};
@@ -745,12 +746,12 @@ mod tests {
         "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
     const PUBLIC_KEY_X: &str = "OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg";
 
-    fn signing_key() -> GatewayInternalSigningKey {
+    pub(crate) fn signing_key() -> GatewayInternalSigningKey {
         GatewayInternalSigningKey::new(KEY_ID, BASE64_STANDARD.decode(PRIVATE_KEY_DER_B64).unwrap())
             .unwrap()
     }
 
-    fn trust_bundle() -> GatewayInternalTrustBundle {
+    pub(crate) fn trust_bundle() -> GatewayInternalTrustBundle {
         GatewayInternalTrustBundle::from_json(&format!(
             r#"{{"keys":[{{"kty":"OKP","crv":"Ed25519","x":"{PUBLIC_KEY_X}","alg":"EdDSA","use":"sig","kid":"{KEY_ID}"}}]}}"#
         ))

@@ -50,7 +50,7 @@ use super::{
         projection_data,
     },
     runtime::{
-        AdminState, AppState, ArtifactDownloadState, DynamicMcpState, GatewayRetentionPolicy,
+        AdminState, AppState, ArtifactHttpState, DynamicMcpState, GatewayRetentionPolicy,
         ProfileAuthState, ProfileMcpService, Readiness, RecordingIngestGatewayState,
         RecordingLayerPublicationState, RecordingPlaybackState, build_http_client, current_catalog,
         profile_id_from_gateway_path, spawn_gateway_retention_gc_loop,
@@ -169,10 +169,14 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         public_base_url: deployment.base_url().to_string(),
     }));
 
-    let artifact_download_state = ArtifactDownloadState {
+    let artifact_http_state = ArtifactHttpState {
         catalog: catalog.clone(),
         gateway_state: gateway_state.clone(),
-        http: http.clone(),
+        http: reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .read_timeout(std::time::Duration::from_secs(60))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?,
         internal_token_issuer: internal_token_issuer.clone(),
         artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
         artifact_service_url: artifact_service_url.trim_end_matches('/').to_owned(),
@@ -182,7 +186,8 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             "/artifacts/{profile}/{artifact_id}/download",
             get(download_artifact),
         )
-        .with_state(artifact_download_state)
+        .with_state(artifact_http_state.clone())
+        .merge(crate::artifact_upload::router(artifact_http_state))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             authenticate_mcp,

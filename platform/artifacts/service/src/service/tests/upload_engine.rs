@@ -48,6 +48,248 @@ async fn fixture(
     }
 }
 
+#[tokio::test]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns native database and HTTP listener"]
+async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
+    use contract::{
+        ArtifactUploadSession, ArtifactUploadState, GatewayInternalTokenIssuer,
+        GatewayInternalTokenVerifier,
+    };
+    let mut database = Database::start();
+    let store = database.connect().await;
+    let actor = caller("alice", "acme", &[]);
+    let verified = fixture(&store, &actor).await;
+    let issuer_id = contract::TokenIssuer::new("veoveo-internal").unwrap();
+    let issuer =
+        GatewayInternalTokenIssuer::new(issuer_id.clone(), crate::http::tests::signing_key());
+    let token = issuer
+        .issue_artifact_upload(
+            verified.identity.profile.clone(),
+            verified.identity.actor.clone(),
+            verified.identity.authority.clone(),
+            verified.authorization.clone(),
+            Utc::now() + TimeDelta::minutes(5),
+        )
+        .unwrap();
+    let verifier = GatewayInternalTokenVerifier::new(
+        issuer_id,
+        contract::ServerSlug::new(contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+        crate::http::tests::trust_bundle(),
+    );
+    let service = UploadService::new(
+        store,
+        ArtifactObjectStore::with_multipart(Arc::new(object_store::memory::InMemory::new())),
+    );
+    let app = crate::http::uploads::router(service.clone(), verifier);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/artifact-uploads", listener.local_addr().unwrap());
+    let http = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let recovery = tokio::spawn(service.run_recovery());
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .unwrap();
+    assert_eq!(
+        client
+            .post(&url)
+            .body("unread")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    let ordinary = issuer
+        .issue(
+            verified.identity.profile.clone(),
+            contract::ServerSlug::new("artifact").unwrap(),
+            verified.identity.actor.clone(),
+            verified.identity.authority.clone(),
+            Utc::now() + TimeDelta::minutes(5),
+        )
+        .unwrap();
+    assert_eq!(
+        client
+            .get(format!("{url}/policy"))
+            .bearer_auth(ordinary.bearer_token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    let policy = client
+        .get(format!("{url}/policy"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(policy.status(), 200);
+    assert_eq!(policy.headers()["cache-control"], "no-store");
+    let key = contract::ArtifactUploadRequestId::new().to_string();
+    let data = vec![42_u8; 131_071];
+    let sha = hex::encode(Sha256::digest(&data));
+    let mut invalid = serde_json::to_value(descriptor(data.len())).unwrap();
+    invalid["owner"] = serde_json::json!("someone-else");
+    assert_eq!(
+        client
+            .post(&url)
+            .bearer_auth(&token)
+            .header("idempotency-key", &key)
+            .json(&invalid)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        400
+    );
+    let admitted = client
+        .post(&url)
+        .bearer_auth(&token)
+        .header("idempotency-key", &key)
+        .json(&descriptor(data.len()))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(admitted.status(), 201);
+    let admitted: ArtifactUploadSession = admitted.json().await.unwrap();
+    let replay = client
+        .post(&url)
+        .bearer_auth(&token)
+        .header("idempotency-key", &key)
+        .json(&descriptor(data.len()))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(replay.status(), 200);
+    assert_eq!(
+        replay
+            .json::<ArtifactUploadSession>()
+            .await
+            .unwrap()
+            .upload_id,
+        admitted.upload_id
+    );
+    let session_url = format!("{url}/{}", admitted.upload_id);
+    let part_url = format!("{session_url}/parts/1");
+    assert_eq!(
+        client
+            .put(&part_url)
+            .bearer_auth(&token)
+            .header(contract::UPLOAD_PART_BYTE_LEN_HEADER, data.len() + 1)
+            .header(contract::UPLOAD_PART_SHA256_HEADER, &sha)
+            .body(data.clone())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        400
+    );
+    let part = client
+        .put(&part_url)
+        .bearer_auth(&token)
+        .header(contract::UPLOAD_PART_BYTE_LEN_HEADER, data.len())
+        .header(contract::UPLOAD_PART_SHA256_HEADER, &sha)
+        .body(data.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(part.status(), 200);
+    assert_eq!(
+        part.json::<contract::UploadPartReceipt>()
+            .await
+            .unwrap()
+            .byte_len,
+        data.len() as u64
+    );
+    let mut foreign = verified.identity.actor.clone();
+    foreign.id = contract::PrincipalId::new("another-person").unwrap();
+    let foreign = issuer
+        .issue_artifact_upload(
+            verified.identity.profile.clone(),
+            foreign,
+            verified.identity.authority.clone(),
+            verified.authorization.clone(),
+            Utc::now() + TimeDelta::minutes(5),
+        )
+        .unwrap();
+    assert_eq!(
+        client
+            .get(&session_url)
+            .bearer_auth(foreign)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    let manifest = serde_json::json!({"byte_len":data.len(), "part_count":1, "sha256":sha});
+    let completion_url = format!("{session_url}/complete");
+    let completion = client
+        .post(&completion_url)
+        .bearer_auth(&token)
+        .json(&manifest)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(completion.status(), 202);
+    assert!(
+        completion
+            .json::<ArtifactUploadSession>()
+            .await
+            .unwrap()
+            .receipt
+            .is_none()
+    );
+    let completed = tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            let status = client
+                .get(&session_url)
+                .bearer_auth(&token)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(status.status(), 200);
+            let status: ArtifactUploadSession = status.json().await.unwrap();
+            if status.state == ArtifactUploadState::Completed {
+                break status;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let receipt = completed.receipt.unwrap();
+    assert_eq!(receipt.byte_len, data.len() as u64);
+    assert_eq!(receipt.sha256.as_str(), sha);
+    assert_eq!(
+        client
+            .post(completion_url)
+            .bearer_auth(&token)
+            .json(&manifest)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    assert_eq!(
+        client
+            .delete(&session_url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        409
+    );
+    http.abort();
+    recovery.abort();
+    let _ = http.await;
+    let _ = recovery.await;
+    database.finish();
+}
+
 fn stream(bytes: Vec<u8>) -> BlobStream {
     let chunks: Vec<_> = bytes
         .chunks(8192)

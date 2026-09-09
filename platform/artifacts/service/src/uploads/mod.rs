@@ -112,6 +112,17 @@ impl UploadService {
                 .transpose()
                 .map_err(|_| UploadFault::unavailable())?;
         }
+        if row.state == platform::ArtifactUploadState::Completed {
+            let same = row.manifest.as_ref().is_some_and(|saved| {
+                u64::try_from(saved.byte_len).ok() == Some(manifest.byte_len)
+                    && saved.part_count == i64::from(manifest.part_count.get())
+                    && saved.sha256.as_deref() == manifest.sha256.as_ref().map(|sha| sha.as_str())
+            });
+            if !same {
+                return Err(contract::UploadErrorCode::Conflict.into());
+            }
+            return self.status(caller, id, 0).await;
+        }
         let parts = self
             .database
             .artifact_upload_parts(id.as_uuid(), 0, 10001, true)

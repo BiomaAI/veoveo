@@ -766,16 +766,8 @@ async fn proxy_json<T: Serialize>(
     (status, headers, body).into_response()
 }
 
-/// Session accessor for the apps host module; identical semantics to the
-/// JSON proxies (cookie session, silent refresh, 401 on failure).
-pub(crate) async fn upstream_session_for_apps(
-    state: &AppState,
-    request_headers: &HeaderMap,
-) -> Result<crate::oauth::UpstreamSession, Response> {
-    upstream_session(state, request_headers).await
-}
-
-async fn upstream_session(
+/// Shared cookie session and silent refresh for Console HTTP transports.
+pub(crate) async fn upstream_session(
     state: &AppState,
     request_headers: &HeaderMap,
 ) -> Result<crate::oauth::UpstreamSession, Response> {

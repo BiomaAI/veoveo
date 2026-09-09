@@ -6,6 +6,8 @@ use std::{
 mod admin;
 #[path = "gateway/artifact_download.rs"]
 mod artifact_download;
+#[path = "gateway/artifact_upload.rs"]
+mod artifact_upload;
 #[path = "gateway/audit.rs"]
 mod audit;
 #[path = "gateway/auth.rs"]

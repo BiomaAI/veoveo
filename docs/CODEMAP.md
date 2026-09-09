@@ -421,6 +421,7 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 | `admin/console/health.rs` | background MCP server health prober and cache |
 | `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's contract-defined admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |
+| `artifact_upload.rs` | profile-authorized public resumable upload routes, signed current-policy binding, and streaming proxy |
 | `recording_playback.rs` | authorized/audited playback manifest and framed live-stream pass-through |
 | `audit.rs` | common admin authorization and operation audit helpers |
 
@@ -445,6 +446,7 @@ plane and its bounded durable task-read delegation.
 | `store/s3_multipart.rs` and `tests/s3_upload.rs` | bounded S3 enumeration and native installed-storage acceptance for uncertain acknowledgements, restored handles, and physical cleanup |
 | `auth.rs` | internal assertion verification and plane caller |
 | `http.rs` | internal artifact API plus `/s/{token}` redemption |
+| `http/uploads.rs` | dedicated upload assertion verification, bounded control bodies, and streamed part transport |
 | `config.rs` | fail-closed store/database/audience configuration |
 
 ### `platform/artifacts/client`
@@ -900,6 +902,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `session.rs` | XChaCha20-Poly1305 cookies, CSRF material, and bounded same-origin `BrowserReturnPath` authority |
 | `app_host.rs` | typed `/apps/{server}/{page...}` route authority, public no-store entry document, and caller-authorized App bootstrap |
 | `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/input-request BFF projections; browser credentials and database authority never enter an MCP App |
+| `artifact_upload.rs` | cookie-session and CSRF-protected upload proxy; the BFF selects the authenticated profile |
 | `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
 | `apps.rs`, `mcp_client.rs` | MCP Apps host backend: auth-scoped final-profile client pool, public gateway authority preservation, reactive failure-isolated app catalog, standalone descriptors, sandboxed frame serving, declared agent-message targets, allowlisted tool calls, explicit resource-read settlement, configured listener/subscription admission, bounded token-replacement cancellation, and one multiplexed resource-wake stream per App |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |

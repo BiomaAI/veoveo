@@ -276,7 +276,7 @@ async fn with_apps_session<T, F>(
 where
     F: Future<Output = Result<T, rmcp::ServiceError>>,
 {
-    let upstream = api::upstream_session_for_apps(state, request_headers).await?;
+    let upstream = api::upstream_session(state, request_headers).await?;
     let response_headers =
         api::response_session_headers(state, &upstream).map_err(IntoResponse::into_response)?;
     let mut retried = false;
