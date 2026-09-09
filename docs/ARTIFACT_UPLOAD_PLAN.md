@@ -1,9 +1,10 @@
 # Public And Console Artifact Upload Plan
 
 Status: implementation active. Durable upload storage and native S3/HTTP checks pass.
-Public Gateway/BFF routes and the Console queue are implemented. Exact catalog sizes,
-Python streaming, installation activation, and deployed multi-GB/browser acceptance
-remain in progress. Baseline:
+Public Gateway/BFF routes, the Console queue, and Python streaming are implemented.
+The first runtime release is deployed at veoveo.bioma.ai. Public browser preflight
+found a Console snapshot query regression; its correction and deployed multi-GB
+acceptance remain in progress. Baseline:
 main `fe6ad0fb`, fetched and checked on 2026-09-08. The first release includes multi-GB resumable
 uploads and an upload form in the Console Artifacts page. Existing component designs
 remain normative until implementation lands.

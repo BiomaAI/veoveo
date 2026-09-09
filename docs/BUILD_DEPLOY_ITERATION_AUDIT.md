@@ -1971,3 +1971,18 @@ compilation. The committed installation policy validates, and the final GitOps/H
 configuration check passes in 6.1 s. Image locks select qualified runtime digests;
 the policy and image updates travel in one push. These measurements cover publication
 and configuration checks, not rollout or public upload acceptance.
+
+GitOps revision `6b647cc9` converges in 85.1 s: source fetch accounts for 62.3 s
+and desired-state application for 21.4 s. A manual source reconciliation was also
+requested; the observer itself remained passive. All three runtime digests match
+the qualified lock. Bootstrap completes, with one initial Artifact recovery warning
+before its new tables exist. Service health alone does not establish feature readiness.
+
+Headed browser preflight accepts hardware graphics and the public upload policy,
+then fails because the Console snapshot exceeds the BFF's 15 s upstream timeout.
+The newly added blob `WHERE id IN (SELECT ...)` lookup scans the blob table with
+a nested occurrence query. Replace it with a bounded set of direct record reads
+from the already selected occurrences. Native acceptance must check missing blobs,
+exact populated sizes, and foreign-tenant references before another Gateway rollout.
+This regression should have been caught against a populated snapshot before the
+first feature deployment; small typed projection tests did not exercise its query.

@@ -116,6 +116,7 @@ fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
                 "map-workspace-browser-verify"
                     | "map-workspace-live-browser-verify"
                     | "console-apps-browser-verify"
+                    | "console-artifact-upload-verify"
                     | "uav-app-hosts-browser-verify"
                     | "uav-agent-instruction-browser-verify"
             )
@@ -178,6 +179,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
         "map-workspace-browser-verify"
             | "map-workspace-live-browser-verify"
             | "console-apps-browser-verify"
+            | "console-artifact-upload-verify"
             | "uav-app-hosts-browser-verify"
             | "uav-agent-instruction-browser-verify"
             | "uav-showcase-browser-verify"
