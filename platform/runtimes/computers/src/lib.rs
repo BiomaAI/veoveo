@@ -31,6 +31,7 @@ mod execution;
 mod models;
 mod policy_continuity;
 mod policy_json;
+mod recovery;
 mod remote_access;
 mod storage;
 mod terminal;
@@ -45,6 +46,7 @@ pub use models::{
 };
 pub use policy_continuity::{PolicyRestoration, ReplacementPolicy};
 pub use policy_json::parse_policy;
+pub use recovery::{LifecycleCheckpoint, LifecycleObservation};
 pub use remote_access::OpenShellAccess;
 pub use storage::{PERSISTENT_BUILD_COMMAND, PERSISTENT_COMMAND, PERSISTENT_HOME, PersistentHome};
 pub use terminal::Terminal;

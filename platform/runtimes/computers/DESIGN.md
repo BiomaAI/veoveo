@@ -13,6 +13,7 @@ is qualified by this source checkpoint. The owning domain is planned in
 | SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
 | `veoveo.io/computer-storage/v1` | Bounded mTLS allocation/restore adapter generated from `protocol/storage.json`; allocator implementation and physical volume qualification pending |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
+| Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 
 Upstream stable versions were checked through crates.io and the NVIDIA GitHub
@@ -47,8 +48,8 @@ The adapter returns typed outcomes without secrets or provider text in errors.
 
 Healthy lifecycle observation uses native WatchSandbox. The supplied event/log tails
 are best effort and lag warnings do not establish complete history. Transport loss
-returns uncertainty and never proves a failed mutation. A follow-up change introduces
-the bounded, identity-correlated reconciliation required by
+returns uncertainty and never proves a failed mutation. `recovery` implements one
+bounded, identity-correlated reconciliation read under
 [CE-01](../../../docs/CONTRACT_EVOLUTION.md#ce-01-provider-completion-follows-qualified-semantics).
 
 Create uses deterministic binding identity. Start/Stop must preserve the selected
@@ -58,6 +59,20 @@ fenced until its effect can be settled. Cancellation is distinct from stopping a
 provider process, and a terminal transport deadline is distinct from Computer lifetime.
 
 ## Verification And Delivery Gaps
+
+Before dispatch the owner persists a LifecycleCheckpoint with the operation UUID,
+installation-owned provider UUID, complete binding, and the previous resource/run
+identity for Start or Stop. The runtime's configured provider UUID must match before
+any recovery I/O. A recovery attempt reads at most once and expires within ten seconds
+or the smaller remaining budget. The owning Task charges and persists its recovery
+budget before calling; no per-process loop resets the budget after a restart.
+
+Start requires a new nonempty process identity on the same sandbox. Stop requires
+the same recorded process and sandbox. Create requires the exact deterministic full
+binding and a ready process. A missing resource, inconsistent state, or observer error
+does not authorize redispatch. Pending snapshots preserve the original operation.
+This evidence establishes the declared lifecycle state, not the result of an arbitrary
+command. Domain integration and native fault qualification remain delivery gaps.
 
 The focused crate fixtures cover real local mTLS, generated provider RPCs, policy
 validation, binding mismatches, bounded command/terminal streams, and replay. A fixture

@@ -279,7 +279,7 @@ impl Observation {
             && self.main_process_instance_id == other.main_process_instance_id
     }
 }
-fn identifier(s: &str) -> bool {
+pub(crate) fn identifier(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 128
         && s.bytes()

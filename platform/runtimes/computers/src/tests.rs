@@ -14,6 +14,7 @@ use uuid::Uuid;
 mod allocation_tests;
 mod instance_tests;
 mod policy_tests;
+mod recovery_tests;
 mod terminal_tests;
 type BoxStream<T> =
     std::pin::Pin<Box<dyn Stream<Item = std::result::Result<T, Status>> + Send + 'static>>;
@@ -305,6 +306,7 @@ struct FakeState {
     watch: u8,
     exec: u8,
     gets: usize,
+    get_delay: Duration,
     creates: usize,
     starts: usize,
     stops: usize,
@@ -330,6 +332,7 @@ impl Fake {
             watch: 0,
             exec: 0,
             gets: 0,
+            get_delay: Duration::ZERO,
             creates: 0,
             starts: 0,
             stops: 0,
@@ -439,6 +442,10 @@ impl api::open_shell_server::OpenShell for Fake {
         request: Request<api::GetSandboxRequest>,
     ) -> std::result::Result<Response<api::SandboxResponse>, Status> {
         self.authorize()?;
+        let delay = self.0.lock().unwrap().get_delay;
+        if !delay.is_zero() {
+            tokio::time::sleep(delay).await;
+        }
         let request = request.into_inner();
         assert_eq!(request.workspace, "computers");
         let mut state = self.0.lock().unwrap();
@@ -775,6 +782,7 @@ impl TlsFiles {
     }
     fn config(&self, endpoint: String) -> GatewayConfig {
         GatewayConfig::new(
+            Uuid::from_u128(100),
             endpoint,
             "computers".into(),
             self.dir.join("ca.pem"),
@@ -925,7 +933,7 @@ async fn gateway_admission_auth_and_identity_fail_closed() {
         .await;
     if let Ok(channel) = channel {
         assert!(matches!(
-            OpenShellRuntime::from_channel(channel, "computers".into())
+            OpenShellRuntime::from_channel(channel, "computers".into(), Uuid::from_u128(100))
                 .ready()
                 .await,
             Err(RuntimeFailure::Unavailable)
