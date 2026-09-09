@@ -946,6 +946,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
+| `testing/smoke/src/bin/smoke/scenarios/artifact_consumers.rs`, `artifact_consumers/python.rs` | installed public known/unknown-length uploads, CSV/Parquet MCP interoperability, and full-size Python SDK streaming observations asserted by Rust; direct-plane fixture identities stay separate from public OAuth evidence |
 | `testing/smoke/src/bin/smoke/scenarios/candidate.rs` | Stream and Reason compiler candidates in their installed NVIDIA runtimes, executable and payload identities, private listeners, and verified process cleanup |
 | `testing/smoke/src/bin/smoke/scenarios/recording_fixture.rs` | authenticated completion of explicitly selected video-test recording fixtures; production recordings are rejected |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |

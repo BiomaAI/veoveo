@@ -3,8 +3,7 @@ use super::*;
 use std::io::{Read, Seek, SeekFrom, Write};
 
 #[path = "artifact_upload/resume.rs"]
-mod resume;
-pub(crate) use resume::verify_resume;
+pub(crate) mod resume;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Receipt {

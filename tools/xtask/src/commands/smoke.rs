@@ -263,6 +263,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "component-scope-verify"
         | "gpu-allocation-verify"
         | "bioma-verify"
+        | "artifact-upload-consumers"
         | "surreal-integration"
         | "view-mcp"
         | "view-google-live"

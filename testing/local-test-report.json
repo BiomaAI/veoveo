@@ -1,19 +1,50 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:af495b1f8a9cede93a30d3bd647537b6b936e21085564ff6aa5e5250ddee3c98",
-  "updatedAt": "2026-09-09T02:26:58Z",
+  "buildDigest": "sha256:c032b4407b2537bef754b6f513754b0897a0a6c28fff99dd10631abbf0e9a79b",
+  "updatedAt": "2026-09-09T02:37:30Z",
   "checks": [
     {
-      "name": "artifact-upload-python-gitops-config",
+      "name": "artifact-upload-consumer-browser-build",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "build",
+        "-p",
+        "veoveo-browser-smoke",
+        "-p",
+        "veoveo-flight-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T02:26:58Z",
-      "durationSeconds": 26.920150473,
+      "finishedAt": "2026-09-09T02:36:54Z",
+      "durationSeconds": 20.390285524,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-upload-consumer-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-09T02:37:30Z",
+      "durationSeconds": 2.353624259,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-upload-consumer-harness",
+      "command": [
+        "cargo",
+        "build",
+        "-p",
+        "veoveo-smoke",
+        "-p",
+        "veoveo-mcp-conformance"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-09T02:35:56Z",
+      "durationSeconds": 18.718530469,
       "detail": "completed successfully"
     }
   ]

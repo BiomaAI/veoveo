@@ -2052,3 +2052,20 @@ from `2856e416` takes 34.0 s and qualification takes 19.8 s; Python layer export
 accounts for much of this time. This component can roll out while the independent
 browser transfer continues. The main source checkout stays unchanged while its
 acceptance recorder is active; the isolated worktree supplies this qualified image.
+
+The isolated worktree's Helm configuration check recompiles its native path-based
+crate graph in 21.1 s before 5.8 s of assertions. The same check previously reused
+the main checkout's graph. Sharing CARGO_TARGET_DIR does not make different source
+paths free. The consumer harness also pulls the broad smoke graph; moving its
+external HTTP and SDK checks into a focused client harness is a future build-cost
+improvement. Two compile errors in the new harness (a shadowed DuckDB crate name
+and a NonZeroU64 comparison) are corrected before execution. The warm rebuild takes
+18.6 s. Building the browser and flight consumers from the isolated path takes 20.3 s.
+
+The installed Python acceptance distinguishes its credentials explicitly: public
+HTTP and MCP operations use the registered machine's OAuth exchange, while direct
+Artifact-plane streaming uses short-lived signed conformance identities supplied
+by the local Rust harness. The Python process never receives the signing key.
+The harness records full-file bytes/hash, peak RSS, maximum delivered chunk, early
+exit, byte-ceiling rejection, materialization cleanup, and a foreign-tenant denial.
+These checks remain pending until the browser publishes the large upload receipt.
