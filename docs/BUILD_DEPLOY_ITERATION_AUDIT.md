@@ -2106,3 +2106,40 @@ A 100 GiB run and native multipart comparison remain future capacity experiments
 the certified transfer size here is 10 GiB. Near completion, Artifact stays around
 68 MiB, BFF 22 MiB, and Gateway 39 MiB on its active replica. Browser JavaScript heap
 samples are 27–45 MB; they exclude browser native buffers and are not process RSS.
+
+The final narrow-drawer Console image stages in 50.2 s, qualifies in 7.8 s,
+and converges through GitOps in 18.9 s. Its Helm configuration check takes 6.3 s.
+The deployed runtime digest is
+`sha256:3924ade680abeeabecc17a8199fa83826680875bf835bcbfd2ebeffb3dd8c4f4`.
+This UI-only image change still spends 32.6 s compiling Rust and reports 385 changed
+freshness paths after switching from the earlier two-target publication to Console
+alone. Keeping the Rust artifact cache stable across target selection and source
+normalization deserves a focused follow-up; a CSS correction should reuse the BFF
+binary. The first final browser check also fails before upload because the harness
+omits Enter's keyboard-generated text. The native CDP event is corrected, and the
+check now uses native Tab as well. This is test-harness churn, not deployment time.
+The artifact snapshot and live updates already sort by creation time; checking that
+code closes a suspected list-order issue without introducing another database change.
+
+Final public UX acceptance passes in 93.2 s. Native Enter/Tab/Escape, clipboard,
+filtered detail access, durable cancellation, and wrong-file recovery work against
+the deployed Console. Initial narrow screenshots had the active file below the
+scroll position even though the DOM assertions passed. The capture helper now
+scrolls that row into view and checks that its controls fit the panel. A separate
+256 MiB transfer supplies a visible narrow Finishing state, an independent hash,
+and live/reloaded list-insertion evidence. All ten final screenshots are inspected.
+Evidence is
+`output/acceptance/artifact-upload/09f3e37f49a26c9395078c88ede42e91d3421a85/ux-01a0842a-789f-7372-8219-29d320ac6c51/evidence.json`.
+The shared browser/flight harness build takes 3.2 s. The final installed smoke passes
+the public origin, authorization surfaces, complete server catalog, GPU capacity,
+and governed full/HEAD/Range delivery. No image rebuild is needed for these final
+harness and evidence changes. Artifact, both Gateway replicas, Console, and the
+installed Python consumer are Ready at their locked runtime digests.
+
+The next build/deploy work should stabilize cached Rust artifacts across image
+target sets, avoid source-path recompilation across worktrees, and keep external
+acceptance clients out of the broad native smoke dependency graph. Public upload
+throughput needs a separate measured ingress/uplink experiment. The final UI image
+build, qualification, and GitOps rollout total 76.9 s; the hours spent on this
+feature also include implementation, real long-transfer recovery, and avoidable
+test/source-coordination retries. Available host disk is about 314 GiB at closure.
