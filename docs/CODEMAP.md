@@ -845,7 +845,7 @@ stays the source of truth for every wire shape and schema.
 | `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
 | `task_extension/` | typed official Tasks SDK-hook adapter, models, and projection |
 | `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, outbox, recovery, prune |
-| `artifacts.py` | artifact-plane HTTP client and capability redemption |
+| `artifacts.py` | artifact-plane HTTP client, capability redemption, bounded convenience reads, and streamed URI/file consumption with cancellation cleanup |
 
 ### `templates/python-mcp`
 
