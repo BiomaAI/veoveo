@@ -9,11 +9,13 @@ use tonic::{
     Code, Request,
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
 };
+use uuid::Uuid;
 use zeroize::Zeroizing;
 pub const GATEWAY_VERSION: &str = "0.0.117-dev.6+g32efe0b";
 pub(crate) type Client = api::open_shell_client::OpenShellClient<Channel>;
 
 pub struct GatewayConfig {
+    provider_instance_id: Uuid,
     endpoint: String,
     workspace: String,
     ca_path: PathBuf,
@@ -22,12 +24,16 @@ pub struct GatewayConfig {
 }
 impl GatewayConfig {
     pub fn new(
+        provider_instance_id: Uuid,
         endpoint: String,
         workspace: String,
         ca_path: PathBuf,
         cert_path: PathBuf,
         key_path: PathBuf,
     ) -> Result<Self> {
+        if provider_instance_id.is_nil() {
+            return Err(RuntimeFailure::InvalidConfiguration);
+        }
         endpoint_parts(&endpoint)?;
         if workspace.is_empty()
             || workspace.len() > 19
@@ -44,6 +50,7 @@ impl GatewayConfig {
             validate_path(p)?;
         }
         Ok(Self {
+            provider_instance_id,
             endpoint,
             workspace,
             ca_path,
@@ -107,6 +114,7 @@ pub(crate) fn request<T>(message: T, seconds: u64) -> Request<T> {
 
 #[derive(Clone)]
 pub struct OpenShellRuntime {
+    pub(crate) provider_instance_id: Uuid,
     pub(crate) client: Client,
     pub(crate) workspace: String,
 }
@@ -130,14 +138,19 @@ impl OpenShellRuntime {
             .connect()
             .await
             .map_err(|_| RuntimeFailure::Unavailable)?;
-        let runtime = Self::from_channel(channel, config.workspace);
+        let runtime = Self::from_channel(channel, config.workspace, config.provider_instance_id);
         runtime.ready().await?;
         Ok(runtime)
     }
     // Kept private: tests can exercise generated gRPC without providing an
     // insecure constructor to platform callers.
-    pub(crate) fn from_channel(channel: Channel, workspace: String) -> Self {
+    pub(crate) fn from_channel(
+        channel: Channel,
+        workspace: String,
+        provider_instance_id: Uuid,
+    ) -> Self {
         Self {
+            provider_instance_id,
             client: Client::new(channel)
                 .max_decoding_message_size(1024 * 1024)
                 .max_encoding_message_size(1024 * 1024),

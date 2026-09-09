@@ -1,8 +1,24 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2a19cdfd8602fadf3dbc00dfbaa50e00e2f4b294f98cad5c32895ddcc7dfb428",
-  "updatedAt": "2026-09-09T23:31:37Z",
+  "buildDigest": "sha256:2fbdce6cc9d64f391dcee2e2a27b02da7e9d3759d89b3485888ae7259b27850a",
+  "updatedAt": "2026-09-09T23:43:57Z",
   "checks": [
+    {
+      "name": "computers-recovery",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "recovery_tests"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-09T23:39:11Z",
+      "durationSeconds": 11.429106541,
+      "detail": "completed successfully"
+    },
     {
       "name": "computers-runtime",
       "command": [
@@ -14,8 +30,8 @@
         "veoveo-computers-runtime"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T23:30:02Z",
-      "durationSeconds": 60.549469749,
+      "finishedAt": "2026-09-09T23:43:57Z",
+      "durationSeconds": 21.604831214,
       "detail": "completed successfully"
     },
     {
@@ -33,8 +49,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T23:30:50Z",
-      "durationSeconds": 12.953974695,
+      "finishedAt": "2026-09-09T23:42:46Z",
+      "durationSeconds": 5.331191248,
       "detail": "completed successfully"
     },
     {
@@ -48,8 +64,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T23:31:37Z",
-      "durationSeconds": 0.133621283,
+      "finishedAt": "2026-09-09T23:43:03Z",
+      "durationSeconds": 0.14313049,
       "detail": "completed successfully"
     }
   ]

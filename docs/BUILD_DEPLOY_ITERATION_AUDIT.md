@@ -2169,3 +2169,9 @@ focused virtual-time check may reduce that cost while preserving one real transp
 deadline test. These measurements do not establish native provider behavior, physical
 storage enforcement, a warm edit budget, or installed browser/CLI acceptance. Provider
 source, native recovery, retained storage and deployment remain active work.
+
+The recovery checkpoint adds eight tests; the full 60-test suite still executes in
+20.44 s. Concurrent v2 evidence recorders reproduced a lost-update race: the full
+suite passed, but another check overwrote its receipt. The recorder is serialized
+until CE-06 supplies immutable receipts and a concurrency-safe aggregate. Restoring
+the missing receipt required one unnecessary repeat of the 20-second fixture suite.

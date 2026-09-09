@@ -15,7 +15,7 @@ pub struct Binding {
 impl Binding {
     /// The first instance keeps its published name and complete original labels.
     pub fn new(computer_id: Uuid, template_fingerprint: String) -> Result<Self> {
-        if !valid_fingerprint(&template_fingerprint) {
+        if computer_id.is_nil() || !valid_fingerprint(&template_fingerprint) {
             return Err(RuntimeFailure::BindingMismatch);
         }
         Ok(Self {
