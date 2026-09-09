@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Activity,
   Archive,
@@ -20,7 +20,10 @@ import {
   X
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { logoutConsole } from "./api";
+import { loadSnapshot, logoutConsole } from "./api";
+import { UploadQueue, type QueueState } from "./uploads/queue";
+import { UploadPanel } from "./uploads/UploadPanel";
+import type { Receipt } from "./uploads/model";
 import { useAppCatalogLive, useConsoleLiveStream } from "./live";
 import { queryKeys, useApps, useSnapshot } from "./queries";
 import { Overview } from "./views/Overview";
@@ -35,7 +38,7 @@ import { AuditView } from "./views/Audit";
 import { ClusterView } from "./views/Cluster";
 import { ArtifactDrawer } from "./drawers/ArtifactDrawer";
 import { TaskDrawer } from "./drawers/TaskDrawer";
-import type { AppDescriptor, ArtifactSummary, TaskSummary } from "./types";
+import type { AppDescriptor, ArtifactSummary, InstallationSnapshot, TaskSummary } from "./types";
 import { consoleThemes, useTheme, type ConsoleTheme } from "./theme";
 import { isFullBleedApp } from "./appPresentation";
 import { groupAppsByServer, namespacedAppTitle } from "./apps/catalogPresentation";
@@ -56,6 +59,8 @@ const navItems = [
 ] as const;
 
 const OPEN_APP_SERVERS_KEY = "veoveo.console.open-app-servers";
+const EMPTY_UPLOAD_QUEUE: QueueState = { entries: [] };
+const noUploadSubscription = () => () => {};
 
 function storedOpenAppServers(): Set<string> {
   try {
@@ -98,11 +103,37 @@ export function App() {
   const [selectedAppUri, setSelectedAppUri] = useState<string | undefined>(initial.appUri);
   const [mobileNav, setMobileNav] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactSummary>();
+  const [uploadsOpen, setUploadsOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskSummary>();
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | undefined>(initial.recordingId);
   const [signOutError, setSignOutError] = useState<string>();
   const [signingOut, setSigningOut] = useState(false);
   const [openAppServers, setOpenAppServers] = useState(storedOpenAppServers);
+  const actor = snapshot?.session.actorId;
+  const workContext = snapshot?.session.workContext;
+  const tenant = snapshot?.session.tenantId;
+  const receiveUpload = useCallback((receipt: Receipt) => {
+    queryClient.setQueryData<InstallationSnapshot>(queryKeys.snapshot, (current) => current && ({
+      ...current, artifacts: current.artifacts.map((artifact) => artifact.id === receipt.artifact_id ? {
+        ...artifact, byteLength: receipt.byte_len, filename: receipt.filename, mediaType: receipt.mime_type,
+      } : artifact),
+    }));
+    void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
+  }, [queryClient]);
+  const uploadQueue = useMemo(() => actor && workContext && tenant ? new UploadQueue(actor, workContext, tenant, receiveUpload) : undefined, [actor, workContext, tenant, receiveUpload]);
+  useEffect(() => {
+    if (!uploadQueue) return;
+    void uploadQueue.initialize();
+    return () => uploadQueue.dispose();
+  }, [uploadQueue]);
+  const uploadState = useSyncExternalStore(uploadQueue?.subscribe ?? noUploadSubscription, uploadQueue?.snapshot ?? (() => EMPTY_UPLOAD_QUEUE));
+  const viewUpload = async (receipt: Receipt) => {
+    const current = await loadSnapshot();
+    queryClient.setQueryData(queryKeys.snapshot, current);
+    const artifact = current.artifacts.find((candidate) => candidate.id === receipt.artifact_id);
+    if (!artifact) throw new Error("Your artifact is ready. Its catalog entry is still refreshing; try opening it again shortly.");
+    setSelectedArtifact(artifact); setUploadsOpen(false);
+  };
   const apps = useMemo(() => appsCatalog?.apps ?? [], [appsCatalog?.apps]);
   const appGroups = useMemo(
     () => groupAppsByServer(apps, appsCatalog?.degradations ?? []),
@@ -152,6 +183,7 @@ export function App() {
   }, [openAppServers]);
 
   const signOut = async () => {
+    uploadQueue?.pauseAll(true);
     setSigningOut(true);
     try {
       await logoutConsole();
@@ -199,7 +231,7 @@ export function App() {
   const accountName = snapshot.session.displayName.trim();
 
   return (
-    <div className="app-shell">
+    <><div className="app-shell">
       <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">
@@ -288,6 +320,9 @@ export function App() {
             </div>
           </div>
           <div className="topbar-actions">
+            <button className="button button-secondary" onClick={() => setUploadsOpen(true)} aria-label="Open uploads">
+              Uploads{uploadState.entries.length ? ` (${uploadState.entries.filter((entry) => !["Ready", "Cancelled"].includes(entry.phase)).length} active · ${uploadState.entries.filter((entry) => entry.phase === "Ready").length} ready)` : ""}
+            </button>
             <label className="theme-select" title="Console theme">
               <Palette size={15} />
               <select
@@ -334,7 +369,7 @@ export function App() {
         >
           {view === "overview" && <Overview snapshot={snapshot} onArtifact={setSelectedArtifact} onTask={setSelectedTask} />}
           {view === "work" && <WorkView tasks={snapshot.tasks} onSelect={setSelectedTask} />}
-          {view === "artifacts" && <ArtifactsView artifacts={snapshot.artifacts} onSelect={setSelectedArtifact} />}
+          {view === "artifacts" && <ArtifactsView artifacts={snapshot.artifacts} onSelect={setSelectedArtifact} onUpload={() => setUploadsOpen(true)} />}
           {view === "agents" && <AgentsView snapshot={snapshot} />}
           {view === "recordings" && <RecordingsView snapshot={snapshot} initialRecordingId={selectedRecordingId} onRecordingSelect={(recordingId) => {
             setSelectedRecordingId(recordingId);
@@ -360,5 +395,7 @@ export function App() {
       }} />}
       {currentTask && <TaskDrawer task={currentTask} onClose={() => setSelectedTask(undefined)} />}
     </div>
+      {uploadsOpen && uploadQueue && <UploadPanel queue={uploadQueue} state={uploadState} onClose={() => setUploadsOpen(false)} onView={viewUpload} />}
+    </>
   );
 }

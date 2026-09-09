@@ -5,13 +5,15 @@ export function Toolbar({
   setQuery,
   state,
   setState,
-  placeholder
+  placeholder,
+  states = ["running", "waiting", "succeeded", "failed", "private", "releasable", "released"]
 }: {
   query: string;
   setQuery: (value: string) => void;
   state: string;
   setState: (value: string) => void;
   placeholder: string;
+  states?: string[];
 }) {
   return (
     <div className="toolbar">
@@ -23,13 +25,7 @@ export function Toolbar({
         <SlidersHorizontal size={15} />
         <select value={state} onChange={(event) => setState(event.target.value)} aria-label="State filter">
           <option value="all">All states</option>
-          <option value="running">Running</option>
-          <option value="waiting">Waiting</option>
-          <option value="succeeded">Succeeded</option>
-          <option value="failed">Failed</option>
-          <option value="private">Private</option>
-          <option value="releasable">Releasable</option>
-          <option value="released">Released</option>
+          {states.map((value) => <option key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</option>)}
         </select>
       </label>
     </div>

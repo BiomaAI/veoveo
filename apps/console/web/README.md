@@ -45,6 +45,13 @@ configured for this development origin. Vite leaves redirects and cookie policy 
 assets. Visual verification additionally requires a headed browser and hardware-backed
 WebGPU or WebGL; probe both exposed APIs before interacting with the Console.
 
+The Artifacts upload panel requires an enabled Gateway profile upload policy and the
+`artifact:upload` scope. Its controller lives in the authenticated application shell;
+closing the panel and changing pages preserve active transfers. Reload reconciles
+saved sessions and asks for the original file only when bytes remain to transfer.
+The upload component's [`DESIGN.md`](src/uploads/DESIGN.md) describes its memory,
+identity, and recovery boundaries. Queue tests run with the existing `npm test` command.
+
 Publish accepted changes with `cargo xtask image stage --target console-bff` and the
 installation's registry arguments. The Cargo-derived image source boundary reuses the
 compiled BFF when only frontend files change. Follow the
