@@ -1986,3 +1986,18 @@ from the already selected occurrences. Native acceptance must check missing blob
 exact populated sizes, and foreign-tenant references before another Gateway rollout.
 This regression should have been caught against a populated snapshot before the
 first feature deployment; small typed projection tests did not exercise its query.
+
+The correction's native database case and 94 Gateway/BFF tests pass in 2.0 s on
+the warm graph. Building both consumers of the shared browser module also exposes
+a missing `Duration` import in the existing process helper; the explicit import
+restores compilation. The harness build then takes 6.6 s.
+
+Gateway-only staging from `fbf44ae3` takes 68.3 s, including 59.8 s of compilation.
+Changing from the three-target build to Gateway alone still recompiles shared Rust
+crates. Cargo freshness reports 578 changed paths, showing that target selection
+changes the compilation input closure despite the small source edit. Stable Cargo
+feature sets across affected-target builds need a separate controlled measurement.
+
+Before/after Pod UID comparison confirms that the first rollout replaces Artifact
+service, Console BFF, both Gateway replicas, and bootstrap. Other Pod identities,
+including all GPU workloads and object initialization, remain unchanged.
