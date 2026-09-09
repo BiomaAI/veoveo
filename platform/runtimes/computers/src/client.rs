@@ -1,0 +1,344 @@
+use crate::{
+    Binding, DevelopmentTemplate, Observation, Phase, Result, RuntimeFailure, protocol::v1 as api,
+};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
+use tonic::{
+    Code, Request,
+    transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
+};
+use zeroize::Zeroizing;
+pub const GATEWAY_VERSION: &str = "0.0.117-dev.6+g32efe0b";
+pub(crate) type Client = api::open_shell_client::OpenShellClient<Channel>;
+
+pub struct GatewayConfig {
+    endpoint: String,
+    workspace: String,
+    ca_path: PathBuf,
+    cert_path: PathBuf,
+    key_path: PathBuf,
+}
+impl GatewayConfig {
+    pub fn new(
+        endpoint: String,
+        workspace: String,
+        ca_path: PathBuf,
+        cert_path: PathBuf,
+        key_path: PathBuf,
+    ) -> Result<Self> {
+        endpoint_parts(&endpoint)?;
+        if workspace.is_empty()
+            || workspace.len() > 19
+            || workspace.split('-').any(|p| {
+                p.is_empty()
+                    || !p
+                        .bytes()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+            })
+        {
+            return Err(RuntimeFailure::InvalidConfiguration);
+        }
+        for p in [&ca_path, &cert_path, &key_path] {
+            validate_path(p)?;
+        }
+        Ok(Self {
+            endpoint,
+            workspace,
+            ca_path,
+            cert_path,
+            key_path,
+        })
+    }
+}
+pub(crate) fn validate_path(path: &Path) -> Result<()> {
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(RuntimeFailure::InvalidConfiguration);
+    }
+    Ok(())
+}
+pub(crate) fn endpoint_parts(endpoint: &str) -> Result<(&str, u16)> {
+    let (host, port) = endpoint
+        .rsplit_once(':')
+        .ok_or(RuntimeFailure::InvalidConfiguration)?;
+    if host.is_empty()
+        || host.len() > 253
+        || !host
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b".-".contains(&c))
+        || port.is_empty()
+        || !port.bytes().all(|c| c.is_ascii_digit())
+    {
+        return Err(RuntimeFailure::InvalidConfiguration);
+    }
+    let port = port
+        .parse::<u16>()
+        .ok()
+        .filter(|p| *p != 0)
+        .ok_or(RuntimeFailure::InvalidConfiguration)?;
+    Ok((host, port))
+}
+pub(crate) async fn read_file(path: &Path) -> Result<Zeroizing<Vec<u8>>> {
+    let size = tokio::fs::metadata(path)
+        .await
+        .map_err(|_| RuntimeFailure::InvalidConfiguration)?
+        .len();
+    if size == 0 || size > 1024 * 1024 {
+        return Err(RuntimeFailure::InvalidConfiguration);
+    }
+    let bytes = tokio::fs::read(path)
+        .await
+        .map_err(|_| RuntimeFailure::InvalidConfiguration)?;
+    if bytes.len() > 1024 * 1024 {
+        return Err(RuntimeFailure::InvalidConfiguration);
+    }
+    Ok(Zeroizing::new(bytes))
+}
+pub(crate) fn request<T>(message: T, seconds: u64) -> Request<T> {
+    let mut request = Request::new(message);
+    request.set_timeout(Duration::from_secs(seconds));
+    request
+}
+
+#[derive(Clone)]
+pub struct OpenShellRuntime {
+    pub(crate) client: Client,
+    pub(crate) workspace: String,
+}
+impl OpenShellRuntime {
+    /// Establish an installation-owned mTLS connection and admit the exact pin.
+    pub async fn connect(config: GatewayConfig) -> Result<Self> {
+        let (host, _) = endpoint_parts(&config.endpoint)?;
+        let ca = read_file(&config.ca_path).await?;
+        let cert = read_file(&config.cert_path).await?;
+        let key = read_file(&config.key_path).await?;
+        let tls = ClientTlsConfig::new()
+            .domain_name(host)
+            .ca_certificate(Certificate::from_pem(&*ca))
+            .identity(Identity::from_pem(&*cert, &*key));
+        let endpoint = Endpoint::from_shared(format!("https://{}", config.endpoint))
+            .map_err(|_| RuntimeFailure::InvalidConfiguration)?
+            .connect_timeout(Duration::from_secs(10))
+            .tls_config(tls)
+            .map_err(|_| RuntimeFailure::InvalidConfiguration)?;
+        let channel = endpoint
+            .connect()
+            .await
+            .map_err(|_| RuntimeFailure::Unavailable)?;
+        let runtime = Self::from_channel(channel, config.workspace);
+        runtime.ready().await?;
+        Ok(runtime)
+    }
+    // Kept private: tests can exercise generated gRPC without providing an
+    // insecure constructor to platform callers.
+    pub(crate) fn from_channel(channel: Channel, workspace: String) -> Self {
+        Self {
+            client: Client::new(channel)
+                .max_decoding_message_size(1024 * 1024)
+                .max_encoding_message_size(1024 * 1024),
+            workspace,
+        }
+    }
+    pub async fn ready(&self) -> Result<()> {
+        let response = self
+            .client
+            .clone()
+            .get_gateway_info(request(api::GetGatewayInfoRequest {}, 10))
+            .await
+            .map_err(|_| RuntimeFailure::Unavailable)?
+            .into_inner();
+        if response.gateway_version != GATEWAY_VERSION
+            || response.compute_drivers.len() != 1
+            || response.compute_drivers[0].name != "docker"
+        {
+            return Err(RuntimeFailure::VersionMismatch);
+        }
+        Ok(())
+    }
+    fn observation(
+        &self,
+        response: api::SandboxResponse,
+        binding: &Binding,
+    ) -> Result<Observation> {
+        Observation::checked(
+            response.sandbox.ok_or(RuntimeFailure::BindingMismatch)?,
+            binding,
+            &self.workspace,
+        )
+    }
+    pub async fn get(&self, binding: &Binding) -> Result<Option<Observation>> {
+        match self
+            .client
+            .clone()
+            .get_sandbox(request(
+                api::GetSandboxRequest {
+                    name: binding.name(),
+                    workspace: self.workspace.clone(),
+                },
+                15,
+            ))
+            .await
+        {
+            Ok(response) => self.observation(response.into_inner(), binding).map(Some),
+            Err(status) if status.code() == Code::NotFound => Ok(None),
+            Err(_) => Err(RuntimeFailure::Unavailable),
+        }
+    }
+    pub async fn create(
+        &self,
+        binding: &Binding,
+        template: &DevelopmentTemplate,
+    ) -> Result<Observation> {
+        if template.fingerprint() != binding.template_fingerprint() {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
+        // A new container cannot carry the previous container's writable layer.
+        // Replacement is supported only with the stable, separately retained home.
+        if binding.replacement_instance_id().is_some() && template.persistent_home().is_none() {
+            return Err(RuntimeFailure::InvalidTemplate);
+        }
+        if let Some(existing) = self.get(binding).await? {
+            return Ok(existing);
+        }
+        match self
+            .client
+            .clone()
+            .create_sandbox(request(
+                api::CreateSandboxRequest {
+                    name: binding.name(),
+                    workspace: self.workspace.clone(),
+                    labels: binding.labels(),
+                    spec: Some(template.spec(binding.computer_id())?),
+                    ..Default::default()
+                },
+                30,
+            ))
+            .await
+        {
+            Ok(response) => self.observation(response.into_inner(), binding),
+            Err(status) if status.code() == Code::AlreadyExists => self
+                .get(binding)
+                .await?
+                .ok_or(RuntimeFailure::LifecycleUnknown),
+            Err(_) => Err(RuntimeFailure::LifecycleUnknown),
+        }
+    }
+    pub async fn start(&self, binding: &Binding) -> Result<Observation> {
+        let current = self.get(binding).await?.ok_or(RuntimeFailure::NotFound)?;
+        if matches!(
+            current.phase,
+            Phase::Ready | Phase::Starting | Phase::Provisioning
+        ) {
+            return Ok(current);
+        }
+        if current.phase != Phase::Stopped {
+            return Err(RuntimeFailure::InvalidState);
+        }
+        let response = self
+            .client
+            .clone()
+            .start_sandbox(request(
+                api::StartSandboxRequest {
+                    name: binding.name(),
+                    workspace: self.workspace.clone(),
+                },
+                30,
+            ))
+            .await
+            .map_err(|_| RuntimeFailure::LifecycleUnknown)?;
+        let observed = self.observation(response.into_inner(), binding)?;
+        if observed.sandbox_id != current.sandbox_id {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
+        Ok(observed)
+    }
+    pub async fn stop(&self, binding: &Binding) -> Result<Observation> {
+        let current = self.get(binding).await?.ok_or(RuntimeFailure::NotFound)?;
+        if matches!(current.phase, Phase::Stopped | Phase::Stopping) {
+            return Ok(current);
+        }
+        if current.phase != Phase::Ready {
+            return Err(RuntimeFailure::InvalidState);
+        }
+        let response = self
+            .client
+            .clone()
+            .stop_sandbox(request(
+                api::StopSandboxRequest {
+                    name: binding.name(),
+                    workspace: self.workspace.clone(),
+                },
+                30,
+            ))
+            .await
+            .map_err(|_| RuntimeFailure::LifecycleUnknown)?;
+        let observed = self.observation(response.into_inner(), binding)?;
+        if observed.sandbox_id != current.sandbox_id {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
+        Ok(observed)
+    }
+    pub async fn wait_for(
+        &self,
+        binding: &Binding,
+        current: &Observation,
+        target: Phase,
+    ) -> Result<Observation> {
+        if !matches!(target, Phase::Ready | Phase::Stopped) {
+            return Err(RuntimeFailure::InvalidState);
+        }
+        if current.phase == target {
+            return Ok(current.clone());
+        }
+        tokio::time::timeout(Duration::from_secs(180), async {
+            let mut stream = self
+                .client
+                .clone()
+                .watch_sandbox(request(
+                    api::WatchSandboxRequest {
+                        id: current.sandbox_id.clone(),
+                        follow_status: true,
+                        ..Default::default()
+                    },
+                    180,
+                ))
+                .await
+                .map_err(|_| RuntimeFailure::WatchFailed)?
+                .into_inner();
+            while let Some(event) = stream
+                .message()
+                .await
+                .map_err(|_| RuntimeFailure::WatchFailed)?
+            {
+                use api::sandbox_stream_event::Payload;
+                match event.payload {
+                    Some(Payload::Warning(_)) | None => return Err(RuntimeFailure::WatchFailed),
+                    Some(Payload::Sandbox(sandbox)) => {
+                        let seen = Observation::checked(sandbox, binding, &self.workspace)?;
+                        if seen.sandbox_id != current.sandbox_id {
+                            return Err(RuntimeFailure::BindingMismatch);
+                        }
+                        if seen.phase == target {
+                            return Ok(seen);
+                        }
+                        if matches!(
+                            seen.phase,
+                            Phase::Error | Phase::Deleting | Phase::Unknown | Phase::Unspecified
+                        ) {
+                            return Err(RuntimeFailure::WatchFailed);
+                        }
+                    }
+                    _ => {} // Unrequested logs/events carry no lifecycle evidence.
+                }
+            }
+            Err(RuntimeFailure::WatchFailed)
+        })
+        .await
+        .map_err(|_| RuntimeFailure::WatchFailed)?
+    }
+}

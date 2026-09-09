@@ -4,7 +4,8 @@ Status: revised on 2026-09-09 under the user's authorization to renegotiate the
 contracts for Veoveo and Computers. Core product status and the policy decisions in
 [Contract Evolution](CONTRACT_EVOLUTION.md) are accepted. This document defines the
 implementation sequence and release gates; it does not claim runtime delivery or
-production deployment. Computers is a Veoveo capability. Bioma supplies one
+production deployment. Implementation was authorized and set as the active goal on
+2026-09-09. Computers is a Veoveo capability. Bioma supplies one
 installation configuration and the public acceptance destination.
 
 ## Standards And Protocols
@@ -429,6 +430,14 @@ retain their own acceptance and do not silently enter the supported matrix.
 | Unattended factory | Existing factory broker and independent verification/promotion authority; personal Compute access grants no deployment rights |
 
 ## Reviewed Handoff
+
+Current delivery checkpoint: the phase 0/1 private runtime port passes 52 local
+transport/policy/stream tests and all-target Clippy. Native provider qualification
+and the revised recovery semantics remain in progress. Upstream
+main is unchanged at `11f59d55`; the existing host has sufficient disk reserve and the
+Bioma cluster is Ready. The installed stock CLI is `0.0.14` and cannot establish the
+qualified `0.0.116` client profile. Runtime dependencies remain outside the gateway.
+No provider or Computers deployment has been accepted at this checkpoint.
 
 Source package: `veoveo-openshell-handoff-2026-09-09.zip`, SHA-256
 `b330a4016a25d182e206421c4eb019a1cd2fc0ae94e40b7d2056dcd654cba061`.

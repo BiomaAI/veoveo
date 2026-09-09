@@ -1,0 +1,1133 @@
+diff --git a/.agents/skills/debug-openshell-cluster/SKILL.md b/.agents/skills/debug-openshell-cluster/SKILL.md
+index 90b9a38..afc1f9b 100644
+--- a/.agents/skills/debug-openshell-cluster/SKILL.md
++++ b/.agents/skills/debug-openshell-cluster/SKILL.md
+@@ -625,6 +625,7 @@ openshell logs <sandbox-name>
+ | Supervisor repeatedly fails to install middleware after enabling gateway JWT signing | Extension credential minting, distribution, or authenticated service connection failed; last-known-good registry remains active | Gateway `RefreshSandboxToken` logs, sandbox configuration events, service token-verification logs, registration TLS/audience settings |
+ | Custom compute driver is unavailable | Driver process/socket missing, inaccessible, or selected name does not match its endpoint/config key | Socket ownership/mode, driver service logs, gateway `GetCapabilities` logs |
+ | Sandbox remains `Stopping` or `Starting` | Driver stop/start failed, retained resource is missing, or a fresh supervisor has not connected | Gateway and driver logs; `docker inspect`, `podman inspect`, Agent Sandbox status/PVC, or VM state marker and launcher process |
++| Retained Docker sandbox fails bootstrap after a positive JWT TTL | Gateway/driver lacks negotiated bootstrap renewal, or the protected token file or container identity fails renewal checks | Confirm the qualified gateway/driver pair advertises `supports_bootstrap_token_refresh`; inspect only file ownership/mode and exact container identity/mount metadata, never token contents. Do not disable expiry, recreate the sandbox, or clear its caches to hide this failure. |
+ | Image pull failure | Gateway or sandbox image cannot be pulled | Runtime events and image pull credentials |
+ | `K8s namespace not ready` with `envoy-gateway-openshell.yaml: the server could not find the requested resource` | Optional Gateway API manifest was applied without Envoy Gateway CRDs, or k3s Helm controller startup exceeded the namespace wait | Apply `deploy/kube/manifests/envoy-gateway-openshell.yaml` manually only after Envoy Gateway is installed and `grpcRoute` is enabled |
+ | HTTPS ingress (`grpcRoute.gateway.listener.protocol=HTTPS`) connection resets or TLS handshake hangs | Envoy terminates TLS but the gateway pod still expects TLS, so the plaintext backend hop fails | Set `server.disableTls=true` so Envoy forwards plaintext to the pod; verify the listener `certificateRefs` Secret exists in the release namespace and `openshell status` over `https://<host>` |
+diff --git a/Cargo.lock b/Cargo.lock
+index 0117307..4368133 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3952,6 +3952,7 @@ dependencies = [
+  "opentelemetry",
+  "opentelemetry_sdk",
+  "prost-types",
++ "rustix 1.1.4",
+  "serde",
+  "serde_json",
+  "tar",
+diff --git a/architecture/compute-runtimes.md b/architecture/compute-runtimes.md
+index 2a36073..ef4451c 100644
+--- a/architecture/compute-runtimes.md
++++ b/architecture/compute-runtimes.md
+@@ -169,6 +169,29 @@ The driver reports this behavior through
+ in-process and external drivers. Older drivers omit the field and retain the
+ conservative operator-managed behavior.
+ 
++Bootstrap renewal is separately negotiated through
++`GetCapabilities.supports_bootstrap_token_refresh`. When the gateway has a
++sandbox JWT issuer and the driver advertises this capability, the gateway
++mints a fresh token for the persisted sandbox ID and sends it in
++`StartSandboxRequest.sandbox_token`. Explicit starts, persisted `Starting`
++recovery, and running-intent startup use the same path under the lifecycle
++gate. Driver names are diagnostic and do not grant this capability. Older
++drivers receive an empty field. The signing key never leaves the gateway.
++
++The Docker driver advertises renewal. Before starting retained stopped compute,
++it verifies the exact managed container labels, stopped state, and read-only
++bootstrap bind mount. It atomically replaces only the existing owner-private
++token file and syncs it before Docker start. Unsafe, missing, or mismatched
++material fails closed. Running containers are unchanged. The configured token
++TTL and supervisor refresh policy remain unchanged, so shared gateways can
++retain positive expiry across stopped intervals longer than that TTL.
++
++An explicit authorized start may also retry a persisted `Error` when both
++bootstrap renewal and a gateway signer are present. The same lifecycle gate,
++identity checks and driver validation apply, and a failed retry retains the
++error. Automatic startup sweeps still exclude errors. This recovers retained
++containers that already failed bootstrap before renewal was installed.
++
+ ## Deletion Lifecycle
+ 
+ Lifecycle requests use per-sandbox gates to serialize stop, start, and
+diff --git a/crates/openshell-core/build.rs b/crates/openshell-core/build.rs
+index 9caaf8e..db26201 100644
+--- a/crates/openshell-core/build.rs
++++ b/crates/openshell-core/build.rs
+@@ -47,6 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
+         .build_server(true)
+         .build_client(true)
+         .include_file("openshell.rs")
++        .skip_debug([".openshell.compute.v1.StartSandboxRequest"])
+         // Emit a binary FileDescriptorSet so the server can enumerate every
+         // RPC at runtime (used by the per-handler auth exhaustiveness test).
+         .file_descriptor_set_path(&descriptor_path)
+diff --git a/crates/openshell-core/src/proto/mod.rs b/crates/openshell-core/src/proto/mod.rs
+index d3b3405..7009067 100644
+--- a/crates/openshell-core/src/proto/mod.rs
++++ b/crates/openshell-core/src/proto/mod.rs
+@@ -40,6 +40,33 @@ pub mod compute {
+     pub use super::generated::openshell::compute::v1;
+ }
+ 
++impl std::fmt::Debug for compute::v1::StartSandboxRequest {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter
++            .debug_struct("StartSandboxRequest")
++            .field("sandbox_id", &self.sandbox_id)
++            .field("sandbox_name", &self.sandbox_name)
++            .field("sandbox_token", &"[REDACTED]")
++            .finish()
++    }
++}
++
++#[cfg(test)]
++mod restart_debug_tests {
++    #[test]
++    fn retained_start_debug_never_displays_bootstrap_token() {
++        let request = super::compute::v1::StartSandboxRequest {
++            sandbox_id: "fixture-id".into(),
++            sandbox_name: "fixture-name".into(),
++            sandbox_token: "private-token-canary".into(),
++        };
++        let rendered = format!("{request:?}");
++        assert!(rendered.contains("fixture-id"));
++        assert!(!rendered.contains("private-token-canary"));
++        assert!(rendered.contains("[REDACTED]"));
++    }
++}
++
+ #[allow(
+     clippy::all,
+     clippy::pedantic,
+diff --git a/crates/openshell-driver-docker/Cargo.toml b/crates/openshell-driver-docker/Cargo.toml
+index 7a5fa3f..3ffde4a 100644
+--- a/crates/openshell-driver-docker/Cargo.toml
++++ b/crates/openshell-driver-docker/Cargo.toml
+@@ -38,6 +38,8 @@ miette = { workspace = true }
+ toml = { workspace = true }
+ tower-http = { workspace = true }
+ http = { workspace = true }
++rustix = { workspace = true }
++tempfile = "3"
+ 
+ [dev-dependencies]
+ openshell-otel-test-support = { path = "../openshell-otel-test-support" }
+@@ -46,7 +48,6 @@ opentelemetry_sdk = { workspace = true, features = ["testing"] }
+ prost-types = { workspace = true }
+ tar = "0.4"
+ temp-env = "0.3"
+-tempfile = "3"
+ tracing-subscriber = { workspace = true }
+ 
+ [lints]
+diff --git a/crates/openshell-driver-docker/README.md b/crates/openshell-driver-docker/README.md
+index bbd7e69..2ab184e 100644
+--- a/crates/openshell-driver-docker/README.md
++++ b/crates/openshell-driver-docker/README.md
+@@ -47,6 +47,22 @@ startup, the gateway sends an idempotent `StartSandbox` request for the same
+ sandboxes, restarting their retained containers. Explicitly stopped sandboxes
+ remain excluded.
+ 
++The driver advertises `supports_bootstrap_token_refresh` through
++`GetCapabilities`. A gateway with JWT signing enabled supplies a newly minted,
++sandbox-scoped `StartSandboxRequest.sandbox_token` on explicit and recovery
++starts. For stopped containers, the driver validates exact managed-by, sandbox
++ID, name, namespace, state, and read-only token bind-source identity before
++renewal. It requires an existing canonical, owner-private, single-link regular
++file in an owner-private directory. Atomic replacement and directory sync
++complete before Docker start. Running containers and retained workload files
++are untouched. Missing or unsafe bootstrap material fails closed. Neither the
++token nor the signer is logged, and the signer is never given to the driver.
++The configured positive TTL remains in force; this is not a non-expiring token
++workaround. Empty token fields preserve legacy driver-call compatibility.
++An explicit authorized gateway start can retry an existing `Error` under this
++negotiated, signed profile. Errors are not automatically restarted. The driver
++still requires the exact retained stopped container and protected token mount.
++
+ Before creating the container, the driver inspects the final sandbox image and
+ captures its immutable image ID, raw OCI `Config.User`, and OCI
+ `Config.WorkingDir`. Container creation uses that image ID, preventing a
+diff --git a/crates/openshell-driver-docker/src/lib.rs b/crates/openshell-driver-docker/src/lib.rs
+index b1859f5..be994a8 100644
+--- a/crates/openshell-driver-docker/src/lib.rs
++++ b/crates/openshell-driver-docker/src/lib.rs
+@@ -10,10 +10,10 @@ pub mod otel_tracing;
+ use bollard::Docker;
+ use bollard::errors::Error as BollardError;
+ use bollard::models::{
+-    ContainerCreateBody, ContainerState, ContainerStateStatusEnum, ContainerSummary,
+-    ContainerSummaryStateEnum, CreateImageInfo, DeviceRequest, EndpointSettings, HostConfig, Mount,
+-    MountTmpfsOptions, MountTypeEnum, MountVolumeOptions, NetworkCreateRequest, NetworkingConfig,
+-    ProgressDetail, SystemInfo,
++    ContainerCreateBody, ContainerInspectResponse, ContainerState, ContainerStateStatusEnum,
++    ContainerSummary, ContainerSummaryStateEnum, CreateImageInfo, DeviceRequest, EndpointSettings,
++    HostConfig, Mount, MountTmpfsOptions, MountTypeEnum, MountVolumeOptions, NetworkCreateRequest,
++    NetworkingConfig, ProgressDetail, SystemInfo,
+ };
+ use bollard::query_parameters::{
+     CreateContainerOptionsBuilder, CreateImageOptions, DownloadFromContainerOptionsBuilder,
+@@ -635,6 +635,7 @@ impl DockerComputeDriver {
+             driver_version: self.config.daemon_version.clone(),
+             default_image: self.config.default_image.clone(),
+             gateway_manages_lifecycle: true,
++            supports_bootstrap_token_refresh: true,
+         }
+     }
+ 
+@@ -1188,7 +1189,7 @@ impl DockerComputeDriver {
+     /// the sandbox, and `Err(...)` for any Docker failure.
+     #[tracing::instrument(
+         name = "docker.start_sandbox",
+-        skip(self),
++        skip(self, sandbox_token),
+         fields(
+             otel.name = "docker.start_sandbox",
+             otel.status_code = tracing::field::Empty,
+@@ -1200,12 +1201,13 @@ impl DockerComputeDriver {
+         &self,
+         sandbox_id: &str,
+         sandbox_name: &str,
++        sandbox_token: &str,
+     ) -> Result<bool, Status> {
+         let span_status = openshell_otel::ErrorStatusGuard::current();
+         require_sandbox_identifier(sandbox_id, sandbox_name)?;
+         self.lifecycle_event_fences.begin_start(sandbox_id);
+         let result = self
+-            .start_sandbox_with_lifecycle_fence(sandbox_id, sandbox_name)
++            .start_sandbox_with_lifecycle_fence(sandbox_id, sandbox_name, sandbox_token)
+             .await;
+         self.lifecycle_event_fences.finish_start(sandbox_id);
+         span_status.finish(result)
+@@ -1215,6 +1217,7 @@ impl DockerComputeDriver {
+         &self,
+         sandbox_id: &str,
+         sandbox_name: &str,
++        sandbox_token: &str,
+     ) -> Result<bool, Status> {
+         let Some(container) = self
+             .find_managed_container_summary(sandbox_id, sandbox_name)
+@@ -1230,15 +1233,27 @@ impl DockerComputeDriver {
+             return Ok(true);
+         }
+ 
++        let inspected = self
++            .docker
++            .inspect_container(&target, None)
++            .await
++            .map_err(|err| internal_status("inspect docker sandbox before start", err))?;
++        if !sandbox_token.is_empty() {
++            let path = sandbox_token_host_path_by_id(sandbox_id, &self.config)?;
++            validate_bootstrap_restart(
++                &inspected,
++                sandbox_id,
++                sandbox_name,
++                &self.config.sandbox_namespace,
++                &path,
++            )?;
++            replace_retained_bootstrap_token(&path, sandbox_token)?;
++        }
++
+         // Fence a poll that observed this stopped run but has not published it
+         // yet. Use Docker's transition timestamp so a later, genuine exit from
+         // the restarted container remains observable.
+         let previous_finished_at = if state == ContainerSummaryStateEnum::EXITED {
+-            let inspected = self
+-                .docker
+-                .inspect_container(&target, None)
+-                .await
+-                .map_err(|err| internal_status("inspect docker sandbox before start", err))?;
+             inspected
+                 .state
+                 .as_ref()
+@@ -2010,7 +2025,14 @@ impl ComputeDriver for DockerComputeDriver {
+         request: Request<StartSandboxRequest>,
+     ) -> Result<Response<StartSandboxResponse>, Status> {
+         let request = request.into_inner();
+-        if !Self::start_sandbox(self, &request.sandbox_id, &request.sandbox_name).await? {
++        if !Self::start_sandbox(
++            self,
++            &request.sandbox_id,
++            &request.sandbox_name,
++            &request.sandbox_token,
++        )
++        .await?
++        {
+             return Err(Status::not_found("sandbox not found"));
+         }
+         self.publish_container_snapshot(&request.sandbox_id, &request.sandbox_name)
+@@ -2696,6 +2718,106 @@ async fn write_sandbox_token_file(
+     Ok(true)
+ }
+ 
++fn validate_bootstrap_restart(
++    inspected: &ContainerInspectResponse,
++    sandbox_id: &str,
++    sandbox_name: &str,
++    namespace: &str,
++    path: &Path,
++) -> Result<(), Status> {
++    let valid_labels = inspected
++        .config
++        .as_ref()
++        .and_then(|config| config.labels.as_ref())
++        .is_some_and(|labels| {
++            [
++                (LABEL_MANAGED_BY, LABEL_MANAGED_BY_VALUE),
++                (LABEL_SANDBOX_ID, sandbox_id),
++                (LABEL_SANDBOX_NAME, sandbox_name),
++                (LABEL_SANDBOX_NAMESPACE, namespace),
++            ]
++            .into_iter()
++            .all(|(key, value)| labels.get(key).is_some_and(|found| found == value))
++        });
++    let stopped = inspected
++        .state
++        .as_ref()
++        .and_then(|state| state.status)
++        .is_some_and(|state| {
++            matches!(
++                state,
++                ContainerStateStatusEnum::CREATED | ContainerStateStatusEnum::EXITED
++            )
++        });
++    let valid_mount = inspected.mounts.as_ref().is_some_and(|mounts| {
++        mounts.iter().any(|mount| {
++            mount.source.as_deref().map(Path::new) == Some(path)
++                && mount.destination.as_deref() == Some(SANDBOX_TOKEN_MOUNT_PATH)
++                && mount.rw == Some(false)
++        })
++    });
++    if sandbox_id.is_empty() || sandbox_name.is_empty() || !valid_labels || !stopped || !valid_mount
++    {
++        return Err(Status::failed_precondition(
++            "retained sandbox bootstrap identity, state or mount differs",
++        ));
++    }
++    Ok(())
++}
++
++/// Replace only a protected, existing bootstrap file. Docker resolves the
++/// original bind source again at start; the container and workspace are kept.
++fn replace_retained_bootstrap_token(path: &Path, token: &str) -> Result<(), Status> {
++    use std::io::Write;
++    use std::os::unix::fs::MetadataExt;
++
++    if token.is_empty()
++        || token.len() > 65536
++        || token.split('.').count() != 3
++        || token.split('.').any(str::is_empty)
++        || !token
++            .bytes()
++            .all(|byte| byte.is_ascii_alphanumeric() || b"-_.".contains(&byte))
++    {
++        return Err(Status::invalid_argument(
++            "invalid retained sandbox bootstrap token",
++        ));
++    }
++    let replace = || -> std::io::Result<()> {
++        let fail = || std::io::Error::other("unsafe retained sandbox bootstrap file");
++        let parent = path.parent().ok_or_else(fail)?;
++        if !path.is_absolute() || path.canonicalize()? != path || parent.canonicalize()? != parent {
++            return Err(fail());
++        }
++        let original = std::fs::symlink_metadata(path)?;
++        let directory = std::fs::symlink_metadata(parent)?;
++        let uid = rustix::process::geteuid().as_raw();
++        if !original.is_file()
++            || original.nlink() != 1
++            || original.uid() != uid
++            || original.mode() & 0o077 != 0
++            || original.len() > 65537
++            || !directory.is_dir()
++            || directory.uid() != uid
++            || directory.mode() & 0o077 != 0
++        {
++            return Err(fail());
++        }
++        let mut replacement = tempfile::NamedTempFile::new_in(parent)?;
++        writeln!(replacement, "{token}")?;
++        replacement.as_file().sync_all()?;
++        let current = std::fs::symlink_metadata(path)?;
++        if current.dev() != original.dev() || current.ino() != original.ino() {
++            return Err(fail());
++        }
++        replacement.persist(path).map_err(|error| error.error)?;
++        std::fs::File::open(parent)?.sync_all()
++    };
++    replace().map_err(|_| {
++        Status::failed_precondition("could not renew protected retained sandbox bootstrap")
++    })
++}
++
+ fn cleanup_sandbox_token_file(sandbox: &DriverSandbox, config: &DockerDriverRuntimeConfig) {
+     cleanup_sandbox_token_file_by_id(&sandbox.id, config);
+ }
+@@ -4063,3 +4185,6 @@ fn internal_status(operation: &str, err: BollardError) -> Status {
+ 
+ #[cfg(test)]
+ mod tests;
++
++#[cfg(test)]
++mod restart_tests;
+diff --git a/crates/openshell-driver-docker/src/restart_tests.rs b/crates/openshell-driver-docker/src/restart_tests.rs
+new file mode 100644
+index 0000000..a14ea69
+--- /dev/null
++++ b/crates/openshell-driver-docker/src/restart_tests.rs
+@@ -0,0 +1,184 @@
++// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
++// SPDX-License-Identifier: Apache-2.0
++
++use super::*;
++use std::fs;
++use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
++
++fn protected_directory() -> tempfile::TempDir {
++    tempfile::Builder::new()
++        .permissions(fs::Permissions::from_mode(0o700))
++        .tempdir()
++        .unwrap()
++}
++
++fn protected_file(path: &Path, content: &str) {
++    fs::write(path, content).unwrap();
++    fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
++}
++
++#[test]
++fn retained_bootstrap_rotation_changes_only_the_credential() {
++    let root = protected_directory();
++    let path = root.path().join("sandbox.jwt");
++    let cache = root.path().join("retained-cache");
++    protected_file(&path, "expired.bootstrap.token\n");
++    protected_file(&cache, "warm compiled output");
++    let cache_before = fs::metadata(&cache).unwrap();
++    let token_before = fs::metadata(&path).unwrap();
++    replace_retained_bootstrap_token(&path, "fresh.bootstrap.token").unwrap();
++    assert_eq!(
++        fs::read_to_string(&path).unwrap(),
++        "fresh.bootstrap.token\n"
++    );
++    let token_after = fs::metadata(&path).unwrap();
++    assert_ne!(
++        token_before.ino(),
++        token_after.ino(),
++        "replacement is atomic"
++    );
++    assert_eq!(token_after.mode() & 0o777, 0o600);
++    assert_eq!(token_before.uid(), token_after.uid());
++    assert_eq!(fs::read_to_string(&cache).unwrap(), "warm compiled output");
++    assert_eq!(cache_before.ino(), fs::metadata(&cache).unwrap().ino());
++}
++
++#[test]
++fn retained_bootstrap_rotation_rejects_unsafe_paths_without_changing_targets() {
++    for fault in [
++        "symlink",
++        "hardlink",
++        "public-file",
++        "public-directory",
++        "missing",
++        "directory",
++        "large",
++    ] {
++        let root = protected_directory();
++        let original = root.path().join("original");
++        let path = root.path().join("sandbox.jwt");
++        protected_file(&original, "original.bootstrap.token\n");
++        protected_file(&path, "expired.bootstrap.token\n");
++        match fault {
++            "symlink" => {
++                fs::remove_file(&path).unwrap();
++                symlink(&original, &path).unwrap();
++            }
++            "hardlink" => {
++                fs::remove_file(&path).unwrap();
++                fs::hard_link(&original, &path).unwrap();
++            }
++            "public-file" => fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap(),
++            "public-directory" => {
++                fs::set_permissions(root.path(), fs::Permissions::from_mode(0o755)).unwrap();
++            }
++            "missing" => fs::remove_file(&path).unwrap(),
++            "directory" => {
++                fs::remove_file(&path).unwrap();
++                fs::create_dir(&path).unwrap();
++            }
++            "large" => fs::write(&path, vec![b'x'; 65538]).unwrap(),
++            _ => unreachable!(),
++        }
++        assert!(
++            replace_retained_bootstrap_token(&path, "fresh.bootstrap.token").is_err(),
++            "{fault}"
++        );
++        assert_eq!(
++            fs::read_to_string(&original).unwrap(),
++            "original.bootstrap.token\n"
++        );
++    }
++}
++
++#[test]
++fn retained_bootstrap_rotation_rejects_malformed_or_oversized_tokens() {
++    let root = protected_directory();
++    let path = root.path().join("sandbox.jwt");
++    protected_file(&path, "expired.bootstrap.token\n");
++    for token in [
++        String::new(),
++        "one-segment".into(),
++        "header.payload.signature\n".into(),
++        format!("header.{}.signature", "x".repeat(65536)),
++    ] {
++        assert!(replace_retained_bootstrap_token(&path, &token).is_err());
++        assert_eq!(
++            fs::read_to_string(&path).unwrap(),
++            "expired.bootstrap.token\n"
++        );
++    }
++}
++
++fn retained_container(path: &Path) -> ContainerInspectResponse {
++    ContainerInspectResponse {
++        config: Some(bollard::models::ContainerConfig {
++            labels: Some(HashMap::from([
++                (LABEL_MANAGED_BY.into(), LABEL_MANAGED_BY_VALUE.into()),
++                (LABEL_SANDBOX_ID.into(), "sandbox-id".into()),
++                (LABEL_SANDBOX_NAME.into(), "sandbox-name".into()),
++                (LABEL_SANDBOX_NAMESPACE.into(), "namespace".into()),
++            ])),
++            ..Default::default()
++        }),
++        state: Some(ContainerState {
++            status: Some(ContainerStateStatusEnum::EXITED),
++            ..Default::default()
++        }),
++        mounts: Some(vec![bollard::models::MountPoint {
++            source: Some(path.to_string_lossy().into_owned()),
++            destination: Some(SANDBOX_TOKEN_MOUNT_PATH.into()),
++            rw: Some(false),
++            ..Default::default()
++        }]),
++        ..Default::default()
++    }
++}
++
++#[test]
++fn retained_bootstrap_rotation_requires_exact_stopped_container_and_mount() {
++    let path = Path::new("/private/tokens/sandbox-id.jwt");
++    let original = retained_container(path);
++    let check = |container: &ContainerInspectResponse| {
++        validate_bootstrap_restart(container, "sandbox-id", "sandbox-name", "namespace", path)
++    };
++    check(&original).unwrap();
++    for label in [
++        LABEL_MANAGED_BY,
++        LABEL_SANDBOX_ID,
++        LABEL_SANDBOX_NAME,
++        LABEL_SANDBOX_NAMESPACE,
++    ] {
++        let mut container = original.clone();
++        container
++            .config
++            .as_mut()
++            .unwrap()
++            .labels
++            .as_mut()
++            .unwrap()
++            .insert(label.into(), "wrong".into());
++        assert!(check(&container).is_err());
++    }
++    for state in [
++        ContainerStateStatusEnum::RUNNING,
++        ContainerStateStatusEnum::PAUSED,
++        ContainerStateStatusEnum::RESTARTING,
++    ] {
++        let mut container = original.clone();
++        container.state.as_mut().unwrap().status = Some(state);
++        assert!(check(&container).is_err());
++    }
++    for fault in ["source", "destination", "writable", "missing"] {
++        let mut container = original.clone();
++        let mount = &mut container.mounts.as_mut().unwrap()[0];
++        match fault {
++            "source" => mount.source = Some("/private/someone-else.jwt".into()),
++            "destination" => mount.destination = Some("/unrelated".into()),
++            "writable" => mount.rw = Some(true),
++            "missing" => container.mounts = None,
++            _ => unreachable!(),
++        }
++        assert!(check(&container).is_err(), "{fault}");
++    }
++}
+diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
+index b52cb87..8bf91a4 100644
+--- a/crates/openshell-driver-docker/src/tests.rs
++++ b/crates/openshell-driver-docker/src/tests.rs
+@@ -356,7 +356,7 @@ async fn tracing_direct_start_exports_a_docker_start_span() {
+     let subscriber = tracing_subscriber::registry().with(otel_tracing::layer(&provider));
+     let driver = test_driver_with_config(runtime_config());
+ 
+-    DockerComputeDriver::start_sandbox(&driver, "", "")
++    DockerComputeDriver::start_sandbox(&driver, "", "", "")
+         .with_subscriber(subscriber)
+         .await
+         .expect_err("missing identifier should fail");
+diff --git a/crates/openshell-driver-kubernetes/src/driver.rs b/crates/openshell-driver-kubernetes/src/driver.rs
+index c188587..1f2484e 100644
+--- a/crates/openshell-driver-kubernetes/src/driver.rs
++++ b/crates/openshell-driver-kubernetes/src/driver.rs
+@@ -567,6 +567,7 @@ impl KubernetesComputeDriver {
+             driver_version: openshell_core::VERSION.to_string(),
+             default_image: self.config.default_image.clone(),
+             gateway_manages_lifecycle: false,
++            supports_bootstrap_token_refresh: false,
+         })
+     }
+ 
+diff --git a/crates/openshell-driver-mxc/src/driver.rs b/crates/openshell-driver-mxc/src/driver.rs
+index d8e981a..8914305 100644
+--- a/crates/openshell-driver-mxc/src/driver.rs
++++ b/crates/openshell-driver-mxc/src/driver.rs
+@@ -304,6 +304,7 @@ impl MxcComputeBackend {
+             driver_version: DRIVER_VERSION.to_string(),
+             default_image: DEFAULT_IMAGE_SENTINEL.to_string(),
+             gateway_manages_lifecycle: false,
++            supports_bootstrap_token_refresh: false,
+         }
+     }
+ 
+diff --git a/crates/openshell-driver-podman/src/driver.rs b/crates/openshell-driver-podman/src/driver.rs
+index a11189c..4ca25ee 100644
+--- a/crates/openshell-driver-podman/src/driver.rs
++++ b/crates/openshell-driver-podman/src/driver.rs
+@@ -507,6 +507,7 @@ impl PodmanComputeDriver {
+             driver_version: openshell_core::VERSION.to_string(),
+             default_image: self.config.default_image.clone(),
+             gateway_manages_lifecycle: true,
++            supports_bootstrap_token_refresh: false,
+         })
+     }
+ 
+diff --git a/crates/openshell-driver-vm/src/driver.rs b/crates/openshell-driver-vm/src/driver.rs
+index 13e57f5..d00c4f9 100644
+--- a/crates/openshell-driver-vm/src/driver.rs
++++ b/crates/openshell-driver-vm/src/driver.rs
+@@ -524,6 +524,7 @@ impl VmDriver {
+             driver_version: openshell_core::VERSION.to_string(),
+             default_image: self.config.default_image.clone(),
+             gateway_manages_lifecycle: true,
++            supports_bootstrap_token_refresh: false,
+         }
+     }
+ 
+diff --git a/crates/openshell-server/src/compute/mod.rs b/crates/openshell-server/src/compute/mod.rs
+index b85641c..aacabf6 100644
+--- a/crates/openshell-server/src/compute/mod.rs
++++ b/crates/openshell-server/src/compute/mod.rs
+@@ -17,6 +17,7 @@ pub use openshell_driver_podman::PodmanComputeConfig;
+ #[cfg(all(not(target_os = "windows"), feature = "in-tree-compute-drivers"))]
+ pub use vm::VmComputeConfig;
+ 
++use crate::auth::sandbox_jwt::SandboxJwtIssuer;
+ use crate::grpc::policy::SANDBOX_SETTINGS_OBJECT_TYPE;
+ use crate::otel_tracing::TraceContextInterceptor;
+ use crate::persistence::{
+@@ -572,6 +573,8 @@ pub struct ComputeRuntime {
+     lifecycle_gates: Arc<LifecycleGateRegistry>,
+     gateway_listener_requirements: Vec<GatewayListenerRequirement>,
+     replica_id: String,
++    sandbox_jwt_issuer: Option<Arc<SandboxJwtIssuer>>,
++    supports_bootstrap_token_refresh: bool,
+     /// A1 policy side channel for the in-process MXC driver. `create_sandbox`
+     /// stages the typed `SandboxPolicy` here by sandbox id immediately before
+     /// dispatching to the driver, which consumes it. `None` for all other
+@@ -698,11 +701,50 @@ impl ComputeRuntime {
+             lifecycle_gates: Arc::new(LifecycleGateRegistry::default()),
+             gateway_listener_requirements,
+             replica_id: lease::replica_id(),
++            sandbox_jwt_issuer: None,
++            supports_bootstrap_token_refresh: capabilities.supports_bootstrap_token_refresh,
+             #[cfg(target_os = "windows")]
+             mxc_policy_sink: None,
+         })
+     }
+ 
++    pub(crate) fn with_sandbox_jwt_issuer(mut self, issuer: Option<Arc<SandboxJwtIssuer>>) -> Self {
++        self.sandbox_jwt_issuer = issuer;
++        self
++    }
++
++    /// All callers hold the persisted sandbox's lifecycle gate. Mint after
++    /// resolving that identity, for both explicit starts and crash recovery.
++    async fn start_driver_sandbox(&self, sandbox: &Sandbox) -> Result<(), Status> {
++        let sandbox_id = sandbox.object_id().to_string();
++        let sandbox_token = if self.supports_bootstrap_token_refresh {
++            self.sandbox_jwt_issuer
++                .as_ref()
++                .map(|issuer| issuer.mint(&sandbox_id).map(|minted| minted.token))
++                .transpose()?
++                .unwrap_or_default()
++        } else {
++            String::new()
++        };
++        let request = StartSandboxRequest {
++            sandbox_id: sandbox_id.clone(),
++            sandbox_name: sandbox.object_name().to_string(),
++            sandbox_token,
++        };
++        self.driver
++            .call(
++                "driver.start_sandbox",
++                Some(&sandbox_id),
++                |driver| async move {
++                    driver
++                        .start_sandbox(Request::new(request))
++                        .await
++                        .map(|_| ())
++                },
++            )
++            .await
++    }
++
+     /// Serializes sandbox/provider-profile invariant checks and object writes
+     /// within this gateway process.
+     ///
+@@ -1237,7 +1279,13 @@ impl ComputeRuntime {
+         if phase == SandboxPhase::Ready {
+             return Ok(current);
+         }
+-        if !matches!(phase, SandboxPhase::Stopped | SandboxPhase::Starting) {
++        // An explicit authorized retry can repair a retained bootstrap failure.
++        // Error rows are never included in automatic startup sweeps. The driver
++        // still proves the retained container and protected bootstrap identity.
++        let renewable_error = phase == SandboxPhase::Error
++            && self.supports_bootstrap_token_refresh
++            && self.sandbox_jwt_issuer.is_some();
++        if !matches!(phase, SandboxPhase::Stopped | SandboxPhase::Starting) && !renewable_error {
+             return Err(Status::failed_precondition(format!(
+                 "sandbox must be Stopped to start (current phase: {phase:?})"
+             )));
+@@ -1270,13 +1318,7 @@ impl ComputeRuntime {
+         tokio::spawn(
+             async move {
+                 runtime
+-                    .complete_sandbox_start(
+-                        sandbox_id,
+-                        sandbox_name,
+-                        previous,
+-                        starting,
+-                        lifecycle_guard,
+-                    )
++                    .complete_sandbox_start(sandbox_id, previous, starting, lifecycle_guard)
+                     .await
+             }
+             .instrument(request_span),
+@@ -1292,29 +1334,14 @@ impl ComputeRuntime {
+     async fn complete_sandbox_start(
+         &self,
+         sandbox_id: String,
+-        sandbox_name: String,
+         previous: Sandbox,
+         starting: Sandbox,
+         lifecycle_guard: SandboxLifecycleGuard,
+     ) -> Result<Sandbox, Status> {
+-        let result = self
+-            .driver
+-            .call("driver.start_sandbox", Some(&sandbox_id), |driver| {
+-                let sandbox_id = sandbox_id.clone();
+-                let sandbox_name = sandbox_name.clone();
+-                async move {
+-                    driver
+-                        .start_sandbox(Request::new(StartSandboxRequest {
+-                            sandbox_id,
+-                            sandbox_name,
+-                        }))
+-                        .await
+-                }
+-            })
+-            .await;
++        let result = self.start_driver_sandbox(&starting).await;
+ 
+         match result {
+-            Ok(_) => {
++            Ok(()) => {
+                 let _global_guard = self.lock_global_for_lifecycle(&lifecycle_guard).await;
+                 let latest = self
+                     .store
+@@ -2238,24 +2265,8 @@ impl ComputeRuntime {
+                 continue;
+             }
+ 
+-            let sandbox_name = sandbox.object_name().to_string();
+-            match self
+-                .driver
+-                .call("driver.start_sandbox", Some(&sandbox_id), |driver| {
+-                    let sandbox_id = sandbox_id.clone();
+-                    let sandbox_name = sandbox_name.clone();
+-                    async move {
+-                        driver
+-                            .start_sandbox(Request::new(StartSandboxRequest {
+-                                sandbox_id,
+-                                sandbox_name,
+-                            }))
+-                            .await
+-                    }
+-                })
+-                .await
+-            {
+-                Ok(_) => {
++            match self.start_driver_sandbox(&sandbox).await {
++                Ok(()) => {
+                     info!(
+                         sandbox_id = %sandbox.object_id(),
+                         sandbox_name = %sandbox.object_name(),
+@@ -2388,25 +2399,7 @@ impl ComputeRuntime {
+                     }
+                 }
+                 SandboxPhase::Starting => {
+-                    let sandbox_id = sandbox.object_id().to_string();
+-                    let sandbox_name = sandbox.object_name().to_string();
+-                    let driver_sandbox_id = sandbox_id.clone();
+-                    if let Err(err) = self
+-                        .driver
+-                        .call(
+-                            "driver.start_sandbox",
+-                            Some(&sandbox_id),
+-                            |driver| async move {
+-                                driver
+-                                    .start_sandbox(Request::new(StartSandboxRequest {
+-                                        sandbox_id: driver_sandbox_id,
+-                                        sandbox_name,
+-                                    }))
+-                                    .await
+-                            },
+-                        )
+-                        .await
+-                    {
++                    if let Err(err) = self.start_driver_sandbox(&sandbox).await {
+                         warn!(sandbox_id = %sandbox.object_id(), error = %err, "Failed to recover sandbox start");
+                     }
+                 }
+@@ -4161,6 +4154,7 @@ impl ComputeDriver for NoopTestDriver {
+                 driver_version: "test".to_string(),
+                 default_image: "openshell/sandbox:test".to_string(),
+                 gateway_manages_lifecycle: false,
++                supports_bootstrap_token_refresh: false,
+             },
+         ))
+     }
+@@ -4314,6 +4308,8 @@ pub async fn new_test_runtime_with_driver(
+         lifecycle_gates: Arc::new(LifecycleGateRegistry::default()),
+         gateway_listener_requirements: Vec::new(),
+         replica_id: "test-replica".to_string(),
++        sandbox_jwt_issuer: None,
++        supports_bootstrap_token_refresh: false,
+         #[cfg(target_os = "windows")]
+         mxc_policy_sink: None,
+     }
+@@ -4467,6 +4463,7 @@ mod tests {
+                 driver_version: "test".to_string(),
+                 default_image: "openshell/sandbox:test".to_string(),
+                 gateway_manages_lifecycle: false,
++                supports_bootstrap_token_refresh: false,
+             }))
+         }
+ 
+@@ -4785,6 +4782,7 @@ mod tests {
+                 driver_version: "test".to_string(),
+                 default_image: "openshell/sandbox:test".to_string(),
+                 gateway_manages_lifecycle: false,
++                supports_bootstrap_token_refresh: false,
+             }))
+         }
+ 
+@@ -5000,6 +4998,8 @@ mod tests {
+             lifecycle_gates: Arc::new(LifecycleGateRegistry::default()),
+             gateway_listener_requirements: Vec::new(),
+             replica_id: "test-replica".to_string(),
++            sandbox_jwt_issuer: None,
++            supports_bootstrap_token_refresh: false,
+             #[cfg(target_os = "windows")]
+             mxc_policy_sink: None,
+         }
+@@ -5043,6 +5043,152 @@ mod tests {
+         sandbox
+     }
+ 
++    #[tokio::test]
++    async fn retained_starts_mint_scoped_expiring_tokens_for_explicit_and_recovery_paths() {
++        use crate::test_support::FakeComputeDriver;
++        use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
++
++        for phase in [
++            SandboxPhase::Stopped,
++            SandboxPhase::Starting,
++            SandboxPhase::Ready,
++            SandboxPhase::Error,
++        ] {
++            let material = openshell_bootstrap::jwt::generate_jwt_key().unwrap();
++            let issuer = Arc::new(
++                SandboxJwtIssuer::from_pem(
++                    material.signing_key_pem.as_bytes(),
++                    material.kid,
++                    "restart-fixture",
++                    Duration::from_secs(60),
++                )
++                .unwrap(),
++            );
++            let driver = FakeComputeDriver::new()
++                .with_driver_name("diagnostic-name-is-not-a-capability")
++                .with_bootstrap_token_refresh()
++                .with_gateway_manages_lifecycle();
++            let store = Arc::new(Store::connect("sqlite::memory:").await.unwrap());
++            let runtime = ComputeRuntime::from_driver(
++                "docker".into(),
++                Arc::new(driver.clone()),
++                None,
++                store.clone(),
++                SandboxIndex::new(),
++                SandboxWatchBus::new(),
++                TracingLogBus::new(),
++                Arc::new(SupervisorSessionRegistry::new()),
++            )
++            .await
++            .unwrap()
++            .with_sandbox_jwt_issuer(Some(issuer));
++            let sandbox = sandbox_record("retained-id", "retained-name", phase);
++            store.put_message(&sandbox).await.unwrap();
++            match phase {
++                SandboxPhase::Stopped | SandboxPhase::Error => {
++                    runtime
++                        .start_sandbox("default", "retained-name")
++                        .await
++                        .unwrap();
++                }
++                SandboxPhase::Starting => runtime
++                    .recover_persisted_lifecycle_transitions()
++                    .await
++                    .unwrap(),
++                SandboxPhase::Ready => runtime.start_persisted_sandboxes().await.unwrap(),
++                _ => unreachable!(),
++            }
++            let requests = driver.start_requests();
++            assert_eq!(requests.len(), 1, "one native start for {phase:?}");
++            let request = &requests[0];
++            assert_eq!(request.sandbox_id, "retained-id");
++            assert_eq!(request.sandbox_name, "retained-name");
++            let mut validation = Validation::new(Algorithm::EdDSA);
++            validation.set_audience(&["openshell-gateway:restart-fixture"]);
++            validation.set_issuer(&["openshell-gateway:restart-fixture"]);
++            let claims = decode::<serde_json::Value>(
++                &request.sandbox_token,
++                &DecodingKey::from_ed_pem(material.public_key_pem.as_bytes()).unwrap(),
++                &validation,
++            )
++            .unwrap()
++            .claims;
++            assert!(claims["sub"].as_str().unwrap().ends_with("/retained-id"));
++            assert_eq!(
++                claims["exp"].as_u64().unwrap() - claims["iat"].as_u64().unwrap(),
++                60
++            );
++            assert!(claims["exp"].as_u64().unwrap() > 0);
++            assert!(!format!("{request:?}").contains(&request.sandbox_token));
++        }
++    }
++
++    #[tokio::test]
++    async fn retained_start_requires_negotiated_refresh_and_a_configured_issuer() {
++        use crate::test_support::FakeComputeDriver;
++
++        for (refresh, signing) in [(false, false), (false, true), (true, false)] {
++            // Even an advertised Docker name is not authority to receive a token.
++            let mut driver = FakeComputeDriver::new().with_driver_name("docker");
++            if refresh {
++                driver = driver.with_bootstrap_token_refresh();
++            }
++            let issuer = if signing {
++                let material = openshell_bootstrap::jwt::generate_jwt_key().unwrap();
++                Some(Arc::new(
++                    SandboxJwtIssuer::from_pem(
++                        material.signing_key_pem.as_bytes(),
++                        material.kid,
++                        "restart-fixture",
++                        Duration::from_secs(60),
++                    )
++                    .unwrap(),
++                ))
++            } else {
++                None
++            };
++            let runtime = ComputeRuntime::from_driver(
++                "docker".into(),
++                Arc::new(driver.clone()),
++                None,
++                Arc::new(Store::connect("sqlite::memory:").await.unwrap()),
++                SandboxIndex::new(),
++                SandboxWatchBus::new(),
++                TracingLogBus::new(),
++                Arc::new(SupervisorSessionRegistry::new()),
++            )
++            .await
++            .unwrap()
++            .with_sandbox_jwt_issuer(issuer);
++            runtime
++                .start_driver_sandbox(&sandbox_record(
++                    "retained-id",
++                    "retained-name",
++                    SandboxPhase::Stopped,
++                ))
++                .await
++                .unwrap();
++            let requests = driver.start_requests();
++            assert_eq!(requests.len(), 1);
++            assert!(requests[0].sandbox_token.is_empty());
++            let failed = sandbox_record("failed-id", "failed-name", SandboxPhase::Error);
++            runtime.store.put_message(&failed).await.unwrap();
++            assert_eq!(
++                runtime
++                    .start_sandbox("default", "failed-name")
++                    .await
++                    .unwrap_err()
++                    .code(),
++                Code::FailedPrecondition
++            );
++            assert_eq!(
++                driver.start_requests().len(),
++                1,
++                "failed recovery must not dispatch"
++            );
++        }
++    }
++
+     #[test]
+     fn main_process_exit_zero_is_terminal_error() {
+         let mut sandbox = sandbox_record("sb-1", "sandbox-a", SandboxPhase::Ready);
+diff --git a/crates/openshell-server/src/lib.rs b/crates/openshell-server/src/lib.rs
+index 3dc2ace..67e7d44 100644
+--- a/crates/openshell-server/src/lib.rs
++++ b/crates/openshell-server/src/lib.rs
+@@ -646,7 +646,7 @@ pub(crate) async fn run_server(
+     let mut state = ServerState::new_with_credentials(
+         config.clone(),
+         store.clone(),
+-        compute,
++        compute.with_sandbox_jwt_issuer(sandbox_jwt_issuer.clone()),
+         sandbox_index,
+         sandbox_watch_bus,
+         tracing_log_bus,
+diff --git a/crates/openshell-server/src/test_support.rs b/crates/openshell-server/src/test_support.rs
+index 957db46..e4d9124 100644
+--- a/crates/openshell-server/src/test_support.rs
++++ b/crates/openshell-server/src/test_support.rs
+@@ -76,6 +76,7 @@ struct FakeComputeDriverState {
+     gateway_listener_requirements_supported: bool,
+     sandboxes: HashMap<String, DriverSandbox>,
+     calls: Vec<FakeComputeDriverCall>,
++    start_requests: Vec<StartSandboxRequest>,
+     traceparents: Vec<String>,
+ }
+ 
+@@ -95,11 +96,13 @@ impl FakeComputeDriver {
+                     driver_version: "test".to_string(),
+                     default_image: "openshell/sandbox:test".to_string(),
+                     gateway_manages_lifecycle: false,
++                    supports_bootstrap_token_refresh: false,
+                 },
+                 gateway_listener_requirements: Vec::new(),
+                 gateway_listener_requirements_supported: true,
+                 sandboxes: HashMap::new(),
+                 calls: Vec::new(),
++                start_requests: Vec::new(),
+                 traceparents: Vec::new(),
+             })),
+         }
+@@ -129,6 +132,12 @@ impl FakeComputeDriver {
+         self
+     }
+ 
++    #[must_use]
++    pub fn with_bootstrap_token_refresh(self) -> Self {
++        self.with_state(|state| state.capabilities.supports_bootstrap_token_refresh = true);
++        self
++    }
++
+     #[must_use]
+     pub fn with_gateway_listener_requirement(
+         self,
+@@ -162,6 +171,11 @@ impl FakeComputeDriver {
+         self.with_state(|state| state.traceparents.clone())
+     }
+ 
++    #[must_use]
++    pub fn start_requests(&self) -> Vec<StartSandboxRequest> {
++        self.with_state(|state| state.start_requests.clone())
++    }
++
+     pub fn clear_calls(&self) {
+         self.with_state(|state| state.calls.clear());
+     }
+@@ -360,6 +374,7 @@ impl ComputeDriver for FakeComputeDriver {
+         self.record_traceparent(request.metadata());
+         let request = request.into_inner();
+         self.with_state(|state| {
++            state.start_requests.push(request.clone());
+             state.calls.push(FakeComputeDriverCall::StartSandbox {
+                 sandbox_id: request.sandbox_id,
+                 sandbox_name: request.sandbox_name,
+diff --git a/docs/reference/sandbox-compute-drivers.mdx b/docs/reference/sandbox-compute-drivers.mdx
+index 5773fb2..9d40050 100644
+--- a/docs/reference/sandbox-compute-drivers.mdx
++++ b/docs/reference/sandbox-compute-drivers.mdx
+@@ -167,6 +167,17 @@ idempotent start request. Explicitly stopped sandboxes remain stopped.
+ 
+ For GPU-backed Docker sandboxes, configure Docker CDI before starting the gateway so OpenShell can detect the daemon capability.
+ 
++With gateway JWT signing enabled, retained starts renew the Docker supervisor's
++protected bootstrap token before starting the same stopped container. Files,
++caches, volumes, and the configured token TTL remain unchanged. This allows
++shared gateways to use a positive TTL even when a sandbox stays stopped past
++the original token's expiry. Already-running containers are unchanged. External
++drivers must advertise `supports_bootstrap_token_refresh` to receive fresh
++tokens; a driver name alone does not enable renewal.
++An explicit start can also recover an existing error under this signed renewal
++profile, including a container that failed bootstrap before the repair. Gateway
++startup does not automatically retry errors.
++
+ ### Docker Driver Config Mounts
+ 
+ Docker driver config accepts user-supplied `volume` and `tmpfs` mounts. It also
+diff --git a/proto/compute_driver.proto b/proto/compute_driver.proto
+index afa93f1..200d57b 100644
+--- a/proto/compute_driver.proto
++++ b/proto/compute_driver.proto
+@@ -78,6 +78,10 @@ message GetCapabilitiesResponse {
+   // Whether the gateway should stop running sandbox compute during graceful
+   // shutdown and restart the retained running intent on startup.
+   bool gateway_manages_lifecycle = 6;
++  // Accepts a gateway-minted bootstrap token on retained starts. The driver
++  // replaces only protected bootstrap material before starting stopped compute
++  // and leaves running compute unchanged. Absent/false preserves legacy starts.
++  bool supports_bootstrap_token_refresh = 7;
+ }
+ 
+ message GetGatewayListenerRequirementsRequest {}
+@@ -311,6 +315,11 @@ message StartSandboxRequest {
+   string sandbox_id = 1;
+   // Compute-runtime name used by the driver.
+   string sandbox_name = 2;
++  // Fresh gateway-minted, sandbox-scoped bootstrap JWT. Sent only to drivers
++  // advertising supports_bootstrap_token_refresh. Replace only protected
++  // bootstrap material before retained start; running compute is unchanged.
++  // Never log this field. Empty preserves compatibility without this bootstrap.
++  string sandbox_token = 3;
+ }
+ 
+ message StartSandboxResponse {}

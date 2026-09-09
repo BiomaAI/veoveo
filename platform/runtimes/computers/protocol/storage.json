@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://shield-next.ai/contracts/computer-storage/v1",
+  "title": "ComputerStorageProtocol",
+  "description": "Private installation mTLS protocol, not an operator API. One JSON document per four-byte network-order length frame, maximum 1024 bytes. Duplicate object keys are forbidden before schema validation. Successful replies must echo the exact request identity and admitted capacity. No caller-selected paths, credentials or capacity.",
+  "x-maximum-frame-bytes": 1024,
+  "oneOf": [
+    {"$ref": "#/definitions/ReadyRequest"},
+    {"$ref": "#/definitions/BoundRequest"},
+    {"$ref": "#/definitions/ReadyReply"},
+    {"$ref": "#/definitions/BoundReply"},
+    {"$ref": "#/definitions/FailureReply"}
+  ],
+  "definitions": {
+    "ProtocolSchema": {"type": "string", "enum": ["veoveo.io/computer-storage/v1"]},
+    "Fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "ComputerId": {
+      "type": "string",
+      "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+    },
+    "BoundOperation": {"type": "string", "enum": ["prepare", "restore"]},
+    "CapacityBytes": {"type": "integer", "minimum": 536870912, "maximum": 274877906944, "multipleOf": 4096},
+    "ReadyRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "operation", "templateFingerprint"],
+      "properties": {
+        "schema": {"$ref": "#/definitions/ProtocolSchema"},
+        "operation": {"type": "string", "enum": ["ready"]},
+        "templateFingerprint": {"$ref": "#/definitions/Fingerprint"}
+      }
+    },
+    "BoundRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "operation", "templateFingerprint", "computerId"],
+      "properties": {
+        "schema": {"$ref": "#/definitions/ProtocolSchema"},
+        "operation": {"$ref": "#/definitions/BoundOperation"},
+        "templateFingerprint": {"$ref": "#/definitions/Fingerprint"},
+        "computerId": {"$ref": "#/definitions/ComputerId"}
+      }
+    },
+    "ReadyReply": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "operation", "templateFingerprint", "status", "capacityBytes"],
+      "properties": {
+        "schema": {"$ref": "#/definitions/ProtocolSchema"},
+        "operation": {"type": "string", "enum": ["ready"]},
+        "templateFingerprint": {"$ref": "#/definitions/Fingerprint"},
+        "status": {"type": "string", "enum": ["ready"]},
+        "capacityBytes": {"$ref": "#/definitions/CapacityBytes"}
+      }
+    },
+    "BoundReply": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "operation", "templateFingerprint", "computerId", "status", "capacityBytes"],
+      "properties": {
+        "schema": {"$ref": "#/definitions/ProtocolSchema"},
+        "operation": {"$ref": "#/definitions/BoundOperation"},
+        "templateFingerprint": {"$ref": "#/definitions/Fingerprint"},
+        "computerId": {"$ref": "#/definitions/ComputerId"},
+        "status": {"type": "string", "enum": ["ready"]},
+        "capacityBytes": {"$ref": "#/definitions/CapacityBytes"}
+      }
+    },
+    "FailureReply": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "status"],
+      "properties": {
+        "schema": {"$ref": "#/definitions/ProtocolSchema"},
+        "status": {"type": "string", "enum": ["error"]}
+      }
+    }
+  }
+}

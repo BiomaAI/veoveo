@@ -1,0 +1,81 @@
+{
+  "schema": "veoveo-openshell-handoff/provider-patches/v1",
+  "upstreamRepository": "https://github.com/NVIDIA/OpenShell",
+  "upstreamRevision": "d1155aa70042d3e2ee49dbfa15346b108b7c1d92",
+  "upstreamTag": "v0.0.116",
+  "cliVersion": "0.0.116",
+  "gatewayVersion": "0.0.117-dev.6+g32efe0b",
+  "supervisorVersion": "0.0.117-dev.5+gea0c605",
+  "driver": "docker",
+  "platform": "linux/amd64",
+  "artifactsIncluded": false,
+  "executionQualifiedByThisPackage": false,
+  "patches": [
+    {
+      "order": 1,
+      "file": "0.0.116-positive-ttl-restart.patch",
+      "branch": "common",
+      "baseRevision": "d1155aa70042d3e2ee49dbfa15346b108b7c1d92",
+      "sourceRevision": "c40054a9e449759df3ae5858c577e9aec97ada42",
+      "expectedSourceTree": "e3bc07c0385a86bdaf39b62f385f287649753fab",
+      "originalPatchSha256": "1d31433e50fda3cd46c0464bc5b635cf64dd059f6e01004dc05e1158a197a6bb",
+      "packagedPatchSha256": "1d31433e50fda3cd46c0464bc5b635cf64dd059f6e01004dc05e1158a197a6bb",
+      "mailEnvelopeRemoved": false
+    },
+    {
+      "order": 2,
+      "file": "0.0.116-numeric-supervisor-groups.patch",
+      "branch": "common",
+      "baseRevision": "c40054a9e449759df3ae5858c577e9aec97ada42",
+      "sourceRevision": "857b66394867be36f2f90bfc15f8029c74e3aef1",
+      "expectedSourceTree": "8805c731f1110bb8d6a5856c8e7a6171c9ae2062",
+      "originalPatchSha256": "978e2e3c723c2ef3f88e9d4af171b3db2a47c67a057ec535e8e067f9a2312ff8",
+      "packagedPatchSha256": "978e2e3c723c2ef3f88e9d4af171b3db2a47c67a057ec535e8e067f9a2312ff8",
+      "mailEnvelopeRemoved": false
+    },
+    {
+      "order": 3,
+      "file": "0.0.116-owned-terminals.patch",
+      "branch": "common",
+      "baseRevision": "857b66394867be36f2f90bfc15f8029c74e3aef1",
+      "sourceRevision": "92d36947ba8ac892ee9ef84b3250dea95e4ac3cb",
+      "expectedSourceTree": "d6c991caf64220519382d93342ef88876a561324",
+      "originalPatchSha256": "f9d08b6243b2d44c512263560421b371455b02c103afa71ea7ddd40832e97a08",
+      "packagedPatchSha256": "f9d08b6243b2d44c512263560421b371455b02c103afa71ea7ddd40832e97a08",
+      "mailEnvelopeRemoved": false
+    },
+    {
+      "order": 4,
+      "file": "0.0.116-exit-recheck.patch",
+      "branch": "gateway",
+      "baseRevision": "92d36947ba8ac892ee9ef84b3250dea95e4ac3cb",
+      "sourceRevision": "f03c0f7d35149bcb034cb3fb8d58ca110f368cd5",
+      "expectedSourceTree": "226b4cea15c1f140e532dc9aae82264fe8b931de",
+      "originalPatchSha256": "c9f449f65f2088388a204a1eebd1530dd5dbbab3a78bf2d59bd4eb910867fdfb",
+      "packagedPatchSha256": "c9f449f65f2088388a204a1eebd1530dd5dbbab3a78bf2d59bd4eb910867fdfb",
+      "mailEnvelopeRemoved": false
+    },
+    {
+      "order": 5,
+      "file": "0.0.116-log-limits.patch",
+      "branch": "gateway",
+      "baseRevision": "f03c0f7d35149bcb034cb3fb8d58ca110f368cd5",
+      "sourceRevision": "32efe0b36dc75a0548344b98ced65132d0de4789",
+      "expectedSourceTree": "ff0dadb259171f03e00c76937fef5ef4848d4df1",
+      "originalPatchSha256": "5130c0ace89194c442b0eeded58472c4458593eeaf796e17d22d47d6d94ea884",
+      "packagedPatchSha256": "5130c0ace89194c442b0eeded58472c4458593eeaf796e17d22d47d6d94ea884",
+      "mailEnvelopeRemoved": false
+    },
+    {
+      "order": 6,
+      "file": "0.0.116-replay-boundary.patch",
+      "branch": "supervisor",
+      "baseRevision": "92d36947ba8ac892ee9ef84b3250dea95e4ac3cb",
+      "sourceRevision": "ea0c605bf510d7306f89e34a4e51877dde39d891",
+      "expectedSourceTree": "90efc474f932c877e696ee9010e9f00878914942",
+      "originalPatchSha256": "8ec199e19624ad2bb43442857154787fd43237532868d0066ec748184bbbc3a6",
+      "packagedPatchSha256": "c8800d27541541893b4d6c6025b93c948c7b7ef495c811889efaa70a48155d4d",
+      "mailEnvelopeRemoved": true
+    }
+  ]
+}
