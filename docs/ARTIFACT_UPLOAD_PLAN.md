@@ -1,15 +1,13 @@
 # Public And Console Artifact Upload Plan
 
-Status: implementation active. Durable upload storage and native S3/HTTP checks pass.
-Public Gateway/BFF routes, the Console queue, and Python streaming are implemented.
-The runtime release is deployed at veoveo.bioma.ai. A real 10 GiB browser upload
-resumed after session recovery, completed with an independently verified SHA-256,
-and passed public HEAD/Range and artifact-detail checks. Installed Python streaming
-and CSV/Parquet MCP consumption also pass. Final narrow-layout and interaction
-acceptance remains in progress. Baseline:
-main `fe6ad0fb`, fetched and checked on 2026-09-08. The first release includes multi-GB resumable
-uploads and an upload form in the Console Artifacts page. Existing component designs
-remain normative until implementation lands.
+Status: first release implemented, deployed, and verified at **veoveo.bioma.ai**
+on 2026-09-09 UTC. Veoveo runs with the Bioma installation configuration.
+Durable upload storage, public Gateway/BFF routes, the persistent Console queue,
+and Python streaming are available. A real 10 GiB browser upload resumed after
+session recovery and completed with an independently verified SHA-256. Installed
+consumer and headed hardware-browser acceptance pass. The tested capacity is
+10 GiB; 100 GiB and comparative storage benchmarks remain future qualification.
+The implementation began from main `fe6ad0fb`, fetched on 2026-09-08.
 
 An external application or Console user uploads a file through authenticated HTTP
 and receives a canonical Artifact URI. Rust and Python MCP servers consume that URI
@@ -437,6 +435,47 @@ Gateway, and Console, then enable explicit policy. Validate actual ingress/proxy
 limits, timeouts, and buffering. Generic request limits cannot masquerade as total
 artifact limits. Existing whole-body helpers retain bounded-request guards; large-file
 paths use multipart. This documentation change needs no build evidence refresh.
+
+## Installed Acceptance Evidence
+
+The runtime image lock is `examples/bioma/images/veoveo.lock.yaml`. The final
+Console correction was activated by GitOps revision `09f3e37f`; the actual Artifact,
+Gateway, Console, and Datasheet deployments match their locked runtime digests and
+have their required ready replicas. `cargo xtask smoke bioma-verify` passes the
+public origin, authentication, full MCP catalog, required GPU workload capacity,
+and governed full/HEAD/Range delivery checks.
+
+| Check | Observed result |
+|---|---|
+| Public browser transfer | 10,737,418,240 verified bytes at `artifact://01a083cf-8e2e-7de2-b79a-7688f8bd0735`; SHA-256 `2dcb535dbca1ce175de712a3b39bc7fbe19eb71061f5f4626a8ab9eaf755b236` |
+| Interruption and session renewal | Resumed the same upload after 3,523,215,360 accepted bytes; transferred only missing parts across the 15-minute access-token lifetime |
+| Installed Python streaming | Full 10 GiB in 33.7 s, matching hash, 54,764 KiB peak RSS, maximum 1 MiB chunks; early exit, byte ceilings, and materialization cleanup pass |
+| Public HTTP and MCP consumers | Known/unknown lengths, immutable part replay/conflict, completion replay, and CSV/Parquet consumption pass |
+| Authority | Foreign actor upload IDs are concealed; independent Work Context downloads and foreign-tenant reads are denied. Queue controller checks cover actor isolation and handle loss on sign-in failure |
+| Console interaction | Mixed-validity selection, pause/reselection after reload, same-named wrong bytes, route/panel continuity, native keyboard focus, clipboard, filtered direct detail, durable cancellation, and receipt recovery pass |
+| Visible completion | A separate 256 MiB upload has matching independent bytes/hash and appears in the artifact list before and after reload. Desktop and 390 px captures cover transfer, finishing, recoverable error, and ready states across the two browser scenarios |
+
+Both graphics APIs were probed in headed Chrome. NVIDIA RTX 4090 WebGL supplies
+the hardware evidence; the SwiftShader WebGPU adapter is not counted. All accepted
+screenshots were inspected, and narrow row captures assert that their recovery
+controls fit the visible panel. The final UX scenario takes 93.2 s.
+
+Local evidence is retained at these paths:
+
+- `output/acceptance/artifact-upload/8278ab55eff9a64032761a02ed8ddd89b07150fc/01a083cf-6ab3-78c0-a56e-ce6ae4be8664/resume-01a083f7-1384-7210-898e-323d0fdf9f01/evidence.json`
+- `output/acceptance/artifact-upload/installed-consumers-20260909.json`
+- `output/acceptance/artifact-upload/09f3e37f49a26c9395078c88ede42e91d3421a85/ux-01a0842a-789f-7372-8219-29d320ac6c51/evidence.json`
+- `output/development/artifact-upload-final-installation-20260909.log`
+
+Public HTTP/MCP acceptance uses registered OAuth clients. The installed Python
+direct-plane check uses short-lived conformance identities issued by the Rust
+harness; Python never receives the signing key. A second interactive Entra account
+and browser Work Context switch were not exercised in this installation. Their
+authorization boundaries are covered by service and queue-controller checks.
+Future capacity work includes 100 GiB, native multipart comparison, independent
+storage, and a controlled public ingress/uplink benchmark. It does not block this
+functional release. Build and deployment timings and avoidable test churn are
+recorded in `docs/BUILD_DEPLOY_ITERATION_AUDIT.md`.
 
 ## MCP App Follow-On
 
