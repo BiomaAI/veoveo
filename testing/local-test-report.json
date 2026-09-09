@@ -1,25 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:73e7229d75efd816fbdbafa6aafcc99f44f8fe1f5fb2800f205cead588bcc31b",
-  "updatedAt": "2026-09-09T01:10:20Z",
+  "buildDigest": "sha256:f1c55a3f7ada7f672ec8b3c1c79a58f6df0b6422e352adbf6b4a5d6a0192c54d",
+  "updatedAt": "2026-09-09T01:14:25Z",
   "checks": [
     {
-      "name": "artifact-upload-bioma-policy",
+      "name": "artifact-upload-gitops-config",
       "command": [
         "cargo",
-        "run",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--bin",
-        "gateway",
-        "--",
-        "validate",
-        "--control-plane",
-        "examples/bioma/gateway.json"
+        "xtask",
+        "smoke",
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T01:10:20Z",
-      "durationSeconds": 0.644300216,
+      "finishedAt": "2026-09-09T01:14:25Z",
+      "durationSeconds": 6.119496916,
       "detail": "completed successfully"
     }
   ]
