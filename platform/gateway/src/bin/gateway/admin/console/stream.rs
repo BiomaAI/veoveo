@@ -16,17 +16,17 @@ use axum::{
 use chrono::{DateTime, Utc};
 use futures::Stream;
 use parking_lot::Mutex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, watch};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::GatewayAction;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     AgentRecord, ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge,
-    ArtifactOccurrenceRecord, AuditEventRecord, ChangefeedCursor, ChangefeedEntry, PlatformStore,
-    PlatformTable, PrincipalRecord, RecordId, RecordingLayerRecord, RecordingLayerState,
-    RecordingRecord, ShareLinkRecord, TaskRecord, Value as DbValue, WakeRecord,
-    decode_changefeed_entry, deterministic_tenant_id,
+    ArtifactOccurrenceRecord, ArtifactUploadRecord, ArtifactUploadState, AuditEventRecord,
+    ChangefeedCursor, ChangefeedEntry, PlatformStore, PlatformTable, PrincipalRecord, RecordId,
+    RecordingLayerRecord, RecordingLayerState, RecordingRecord, ShareLinkRecord, TaskRecord,
+    Value as DbValue, WakeRecord, decode_changefeed_entry, deterministic_tenant_id,
 };
 
 use super::projection::{
@@ -55,11 +55,12 @@ const REPLAY_HORIZON: chrono::TimeDelta = chrono::TimeDelta::hours(24);
 
 /// Tenant tables the console stream follows, in dependency order: within one
 /// versionstamp group parents apply before the children that re-emit them.
-const STREAM_TABLES: [PlatformTable; 12] = [
+const STREAM_TABLES: [PlatformTable; 13] = [
     PlatformTable::Principal,
     PlatformTable::Task,
     PlatformTable::ArtifactBlob,
     PlatformTable::ArtifactOccurrence,
+    PlatformTable::ArtifactUpload,
     PlatformTable::ArtifactGrant,
     PlatformTable::ArtifactAccessRequest,
     PlatformTable::ShareLink,
@@ -496,6 +497,13 @@ struct ConsoleStreamState {
     artifact_access: ArtifactAccessContext,
 }
 
+#[derive(Serialize)]
+struct UploadChanged {
+    op: &'static str,
+    upload_id: veoveo_mcp_contract::ArtifactUploadId,
+    state: ArtifactUploadState,
+}
+
 impl ConsoleStreamState {
     async fn seed(
         state: &AdminState,
@@ -696,6 +704,28 @@ impl ConsoleStreamState {
                             .insert(record_key(&artifact.blob)?, id.clone());
                         self.artifacts.insert(id.clone(), artifact);
                         self.emit_artifact(&id, versionstamp, rank)
+                    }
+                    PlatformTable::ArtifactUpload => {
+                        let upload: ArtifactUploadRecord = row.into_t()?;
+                        if upload.state == ArtifactUploadState::Open
+                            || !self.artifact_access.matches_upload_scope(
+                                &upload.tenant_key,
+                                &upload.actor_key,
+                                &upload.authority.context_key,
+                            )
+                        {
+                            return Ok(None);
+                        }
+                        // Contentless, scoped notifications trigger a currently authorized status
+                        // read. File descriptors, storage handles, and authority never enter SSE.
+                        let event = UploadChanged {
+                            op: "changed",
+                            upload_id: veoveo_mcp_contract::ArtifactUploadId::parse(record_key(
+                                &upload.id,
+                            )?)?,
+                            state: upload.state,
+                        };
+                        Ok(out("artifact_upload", serde_json::to_value(event)?))
                     }
                     PlatformTable::ArtifactGrant => {
                         let grant: ArtifactGrantEdge = row.into_t()?;

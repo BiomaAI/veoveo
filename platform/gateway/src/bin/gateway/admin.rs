@@ -32,7 +32,9 @@ pub(super) use artifacts::{
 pub(crate) use console::{
     ConsoleStreamRuntime, ServerHealthMonitor, spawn_console_wake_hub, spawn_server_health_prober,
 };
-pub(super) use console::{authorize_console_cluster, read_console_snapshot, stream_console};
+pub(super) use console::{
+    authorize_console_cluster, read_console_artifact, read_console_snapshot, stream_console,
+};
 pub(super) use control_plane::{read_control_plane, update_control_plane};
 pub(super) use jwt_revocations::{prune_jwt_revocations, revoke_jwt};
 pub(crate) use server_proxy::proxy_server_admin;

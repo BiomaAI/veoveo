@@ -2001,3 +2001,34 @@ feature sets across affected-target builds need a separate controlled measuremen
 Before/after Pod UID comparison confirms that the first rollout replaces Artifact
 service, Console BFF, both Gateway replicas, and bootstrap. Other Pod identities,
 including all GPU workloads and object initialization, remain unchanged.
+
+The bounded snapshot correction converges in 48 s, including 25.5 s for source
+fetch and 21.2 s for apply. The public Console then renders the upload controls.
+The real 10 GiB browser test passes selection, duplicate suppression, pause/reload,
+wrong-file rejection, and navigation during transfer. It preserves 3,523,215,360
+accepted bytes before authentication recovery fails. This is partial-transfer
+evidence, not a completed multi-GB acceptance result.
+
+The stalled request trace includes HTTP/3 errors, 125 s part timeouts, and a rejected
+Console refresh followed by HTTP 401. Successful parts near the stall take 19–23 s.
+A long part can arrive with a cookie whose refresh token a concurrent short request
+already consumed beyond the five-second delivery window. The correction keeps
+refresh rotation on short control requests. Part requests neither rotate refresh
+tokens nor clear a newer browser cookie. A retry checks current authorization before
+sending more bytes. This mechanism fits the observed failure; the trace alone does
+not establish every ingress delay or the gateway's exact revocation reason.
+
+The observing harness also imposed a hard-coded 25-minute deadline inside its
+configurable timeout. It now has one configured deadline and a resume command that
+reuses the original file and saved upload identity. Repeating the entire 10 GiB
+transfer would discard useful accepted work. During the partial transfer, Artifact
+uses about 70 MiB, Console BFF 26–27 MiB, Gateway 38–39 MiB, and RustFS 444–470 MiB.
+These are sampled working sets, not controlled peak-memory measurements. SurrealDB
+CPU varies; the samples do not prove that it limits transfer throughput. The host
+still has about 330 GiB free.
+
+Moving the follow-up from an isolated worktree exposed another local coordination
+mistake: its node_modules symlink was accidentally staged, and applying that patch
+failed partway through. The preserved source worktree restored the intended files;
+the dependency symlink was removed from its index. No deployment used that partial
+tree. This extra churn belongs to source coordination, not compiler or rollout cost.

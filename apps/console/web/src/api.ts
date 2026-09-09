@@ -14,6 +14,7 @@ import type {
   AgentInputRequest,
   AgentWakeReceipt,
   ArtifactAccessRequest,
+  ArtifactSummary,
   ArtifactAccessRequestPage,
   ArtifactAccessRequestState,
   InstallationSnapshot,
@@ -28,6 +29,16 @@ import { consoleSession } from "./csrf";
 
 export function initializeAppSession(token: string): void {
   consoleSession.csrfToken = token;
+}
+
+export async function loadArtifact(artifactId: string): Promise<ArtifactSummary> {
+  const response = await fetch(`/console/api/artifacts/${encodeURIComponent(artifactId)}`, { credentials: "same-origin", headers: { Accept: "application/json" } });
+  consoleSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? consoleSession.csrfToken;
+  if (response.status === 401) authenticationRequired();
+  if (!response.ok) throw new Error("This artifact is not available with your current access.");
+  const artifact = await response.json() as ArtifactSummary;
+  if (artifact.id !== artifactId || (artifact.byteLength !== null && (!Number.isSafeInteger(artifact.byteLength) || artifact.byteLength < 0))) throw new Error("Artifact details could not be verified.");
+  return artifact;
 }
 
 export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSnapshot> {

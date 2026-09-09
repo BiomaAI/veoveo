@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatBytes } from "../format.ts";
 import { Hashing } from "./hashing.ts";
 import { describe, duplicate, invalidSelection, policySchema, requestId, savedSchema, sessionSchema, type Entry, type Part, type Policy, type Receipt, type Session } from "./model.ts";
 import { delay, putPart, request, UploadError } from "./transport.ts";
@@ -12,6 +13,7 @@ export class UploadQueue {
   private lifecycle = new AbortController();
   private active?: { key: string; controller: AbortController };
   private watching = new Map<string, AbortController>();
+  private reconciling = new Set<string>();
   private disposed = true;
   private storageKey: string;
   private actor: string;
@@ -30,6 +32,22 @@ export class UploadQueue {
     } catch { this.state.persistenceError = "Saved upload information could not be restored."; }
   }
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
+  reconcile = (uploadId?: string): void => {
+    if (this.disposed || !this.state.policy?.allowed) return;
+    for (const entry of this.state.entries) {
+      if (!entry.uploadId || (uploadId && entry.uploadId !== uploadId) || ["Ready", "Cancelled"].includes(entry.phase) || this.reconciling.has(entry.key)) continue;
+      this.reconciling.add(entry.key);
+      void request(`/${entry.uploadId}`, "GET", sessionSchema, this.lifecycle.signal).then((status) => {
+        if (this.disposed) return;
+        // The local transfer owns open-session progress; an SSE wake must not rewind it.
+        if (status.state === "open") return;
+        if (this.active?.key === entry.key) this.active.controller.abort();
+        this.watching.get(entry.key)?.abort();
+        this.observe(entry.key, status);
+        if (["finalizing", "verifying"].includes(status.state)) this.watch(entry.key);
+      }).catch((error: unknown) => this.failed(entry.key, error)).finally(() => this.reconciling.delete(entry.key));
+    }
+  };
   snapshot = () => this.state;
   private entry(key: string): Entry | undefined { return this.state.entries.find((entry) => entry.key === key); }
   private emit(persist = true): void {
@@ -38,7 +56,7 @@ export class UploadQueue {
       try {
         localStorage.setItem(this.storageKey, JSON.stringify(this.state.entries.map((entry) => ({
           key: entry.key, descriptor: entry.descriptor, lastModified: entry.lastModified, uploadId: entry.uploadId,
-          receipt: entry.receipt, accepted: entry.accepted, cancelRequested: entry.cancelRequested, cancelled: entry.phase === "Cancelled", admissionStarted: entry.admissionStarted,
+          receipt: entry.receipt, accepted: entry.accepted, cancelRequested: entry.cancelRequested, cancelled: entry.phase === "Cancelled", admissionStarted: entry.admissionStarted, restartRequired: entry.restartRequired,
         }))));
       } catch { this.state.persistenceError = "This browser cannot save the queue. Keep this tab open until uploads finish."; }
     }
@@ -105,9 +123,25 @@ export class UploadQueue {
     for (const entry of this.state.entries) if (entry.phase === "Selected" && !invalidSelection(entry.descriptor, this.state.policy)) this.patch(entry.key, { phase: "Queued", message: undefined });
     this.pump();
   }
+  async restart(key: string): Promise<void> {
+    const entry = this.entry(key);
+    if (!entry?.restartRequired) return;
+    await this.refreshPolicy();
+    if (this.disposed || !this.state.policy?.allowed) return;
+    const message = invalidSelection(entry.descriptor, this.state.policy);
+    if (message) { this.patch(key, { message }); return; }
+    // Terminal or revoked sessions cannot be reused. Server-owned expiry/authority
+    // recovery retains responsibility for their cleanup after local dismissal.
+    this.state.entries = this.state.entries.map((current) => current.key !== key ? current : {
+      key: requestId(), descriptor: entry.descriptor, lastModified: entry.lastModified,
+      file: entry.file, accepted: 0, sent: 0, phase: entry.file ? "Selected" : "Select file",
+      message: "This is a new upload. The file must be transferred again.",
+    });
+    this.emit();
+  }
   resume(key: string): void {
     const entry = this.entry(key);
-    if (!entry || entry.receipt || entry.phase === "Cancelled") return;
+    if (!entry || entry.receipt || entry.restartRequired || entry.phase === "Cancelled") return;
     if (entry.cancelRequested) { void this.cancel(key); return; }
     if (!entry.file) {
       if (entry.uploadId) {
@@ -191,7 +225,7 @@ export class UploadQueue {
       this.onReceipt(status.receipt);
     } else if (["finalizing", "verifying"].includes(status.state)) this.patch(key, { phase: "Finishing upload", speed: undefined, eta: undefined });
     else if (status.state === "cancelled") this.patch(key, { phase: "Cancelled", file: undefined, cancelRequested: false });
-    else if (["expired", "failed"].includes(status.state)) this.patch(key, { phase: "Needs attention", message: status.state === "expired" ? "This upload expired. Start a new upload." : "File verification failed. Start a new upload." });
+    else if (["expired", "failed"].includes(status.state)) this.patch(key, { phase: "Needs attention", restartRequired: true, speed: undefined, eta: undefined, message: status.state === "expired" ? "This upload expired. Start again to transfer the file in a new upload." : "This upload could not finish. Start again after checking current access; another transfer is required." });
   }
   private failed(key: string, error: unknown): void {
     if (this.disposed || (error instanceof DOMException && error.name === "AbortError")) return;
@@ -200,9 +234,18 @@ export class UploadQueue {
     if (error instanceof UploadError && error.status === 401) {
       this.pauseAll(true);
       this.patch(key, { phase: "Sign in to continue", message: error.message });
+    } else if (error instanceof UploadError && [403, 410, 422].includes(error.status)) {
+      if (this.active?.key === key) this.active.controller.abort();
+      this.patch(key, { phase: "Needs attention", restartRequired: true, message: `${error.message} Start again after checking current access; another transfer is required.`, sent: entry.accepted, speed: undefined, eta: undefined });
     } else if (error instanceof UploadError && (error.status === 0 || !navigator.onLine)) {
-      this.patch(key, { phase: "Waiting for connection", message: "Accepted parts are saved. Transfer can resume when connected.", sent: entry.accepted, eta: undefined });
-    } else this.patch(key, { phase: "Needs attention", message: error instanceof Error ? error.message : "Upload interrupted. Retry to recover saved progress.", sent: entry.accepted, eta: undefined });
+      this.patch(key, { phase: "Waiting for connection", message: "Accepted parts are saved. Transfer can resume when connected.", sent: entry.accepted, speed: undefined, eta: undefined });
+    } else {
+      this.patch(key, { phase: "Needs attention", message: error instanceof Error ? error.message : "Upload interrupted. Retry to recover saved progress.", sent: entry.accepted, speed: undefined, eta: undefined });
+      if (error instanceof UploadError && error.quotaExceeded) void this.refreshPolicy().then(() => {
+        const available = this.state.policy?.available_bytes;
+        if (!this.disposed && this.state.policy?.allowed && available !== undefined) this.patch(key, { message: `This upload requires ${formatBytes(entry.descriptor.byte_len)}. ${formatBytes(available)} of storage is currently available. Free space before retrying.` });
+      });
+    }
   }
   private async transfer(key: string, controller: AbortController): Promise<void> {
     const signal = controller.signal;
@@ -224,6 +267,7 @@ export class UploadQueue {
       if (parts.size > status.layout.max_parts) throw new Error("Upload status exceeds its part limit.");
     }
     const hashing = new Hashing(signal);
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       if (!entry.checked && parts.size) {
         this.patch(key, { phase: "Checking file", message: "Checking this file against the saved parts before sending bytes." });
@@ -240,6 +284,21 @@ export class UploadQueue {
       const count = Math.max(1, Math.ceil(file.size / status.layout.part_bytes));
       if (count > status.layout.max_parts || file.size > status.layout.max_total_bytes) throw new Error("This file exceeds the admitted upload layout.");
       const missing = Array.from({ length: count }, (_, index) => index + 1).filter((number) => !parts.has(number));
+      let authorizedAt = performance.now();
+      let authorization: Promise<void> | undefined;
+      const authorizeTransfer = (force = false): Promise<void> => {
+        if (authorization) return authorization;
+        if (!force && performance.now() - authorizedAt < 15000) return Promise.resolve();
+        authorization = request(`/${status.upload_id}`, "GET", sessionSchema, signal).then((current) => {
+          authorizedAt = performance.now();
+          if (current.state !== "open") {
+            this.observe(key, current);
+            if (["finalizing", "verifying"].includes(current.state)) this.watch(key);
+            controller.abort(); signal.throwIfAborted();
+          }
+        }).finally(() => { authorization = undefined; });
+        return authorization;
+      };
       let next = 0;
       const inFlight = new Map<number, number>();
       const accepted = () => [...parts.values()].reduce((sum, part) => sum + part.byte_len, 0);
@@ -247,6 +306,8 @@ export class UploadQueue {
       const initialAccepted = accepted();
       let samples = 0;
       const progress = () => {
+        clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => { this.patch(key, { speed: undefined, eta: undefined }, false); }, 5000);
         const sent = accepted() + [...inFlight.values()].reduce((sum, value) => sum + value, 0);
         const seconds = (performance.now() - began) / 1000;
         const speed = seconds > 3 && ++samples >= 3 ? (sent - initialAccepted) / seconds : undefined;
@@ -256,6 +317,8 @@ export class UploadQueue {
         while (next < missing.length) {
           signal.throwIfAborted();
           const number = missing[next++];
+          await authorizeTransfer();
+          signal.throwIfAborted();
           const offset = (number - 1) * status.layout.part_bytes;
           const blob = file.slice(offset, Math.min(file.size, offset + status.layout.part_bytes));
           const sha = await hashing.hash(blob);
@@ -267,7 +330,10 @@ export class UploadQueue {
               break;
             } catch (error) {
               inFlight.delete(number); progress();
-              if (!(error instanceof UploadError) || ![0, 429, 503, 502, 504].includes(error.status) || attempt === 3 || !navigator.onLine) throw error;
+              if (!(error instanceof UploadError) || ![0, 401, 429, 503, 502, 504].includes(error.status) || attempt === 3 || !navigator.onLine) throw error;
+              // A short read safely refreshes the cookie and distinguishes lost
+              // upload responses from expired access before sending more bytes.
+              await authorizeTransfer(true);
               await delay(Math.max(error.retryAfter, 2 ** attempt) * 1000, signal);
             }
           }
@@ -289,7 +355,7 @@ export class UploadQueue {
       status = await request(`/${status.upload_id}/complete`, "POST", sessionSchema, signal, { byte_len: file.size, part_count: count });
       this.observe(key, status);
       if (!status.receipt) this.watch(key);
-    } finally { hashing.dispose(); }
+    } finally { clearTimeout(stallTimer); hashing.dispose(); }
     entry = this.entry(key);
     if (entry?.phase === "Finishing upload") this.patch(key, { file: undefined });
   }
@@ -303,7 +369,9 @@ export class UploadQueue {
         const status = await request(`/${id}`, "GET", sessionSchema, controller.signal);
         controller.signal.throwIfAborted(); this.observe(key, status);
         if (!["finalizing", "verifying"].includes(status.state)) return;
-        await delay(2000, controller.signal);
+        // SSE settles completion promptly. This bounded platform-ledger read
+        // also covers a lost wake while the Console stream reconnects.
+        await delay(15000, controller.signal);
       }
     })().catch((error: unknown) => this.failed(key, error)).finally(() => { if (this.watching.get(key) === controller) this.watching.delete(key); });
   }

@@ -2,6 +2,10 @@
 use super::*;
 use std::io::{Read, Seek, SeekFrom, Write};
 
+#[path = "artifact_upload/resume.rs"]
+mod resume;
+pub(crate) use resume::verify_resume;
+
 #[derive(Debug, Deserialize, Serialize)]
 struct Receipt {
     upload_id: String,
@@ -117,7 +121,7 @@ async fn run(
         source_revision: git_revision()?,
         page_url: page_url.into(),
         hardware,
-        policy: policy(cdp, session).await?,
+        policy: authorized_policy(cdp, session, page_url).await?,
         preflight_only,
         steps: Vec::new(),
         screenshots: Vec::new(),
@@ -126,37 +130,6 @@ async fn run(
         large_receipt: None,
         csv_receipt: None,
     };
-    if evidence.policy.status == 401 || !evidence.policy.allowed {
-        // A fresh OAuth authorization picks up newly admitted scopes using the existing IdP session.
-        let path = Url::parse(page_url)?;
-        let return_path = format!(
-            "{}?{}#{}",
-            path.path(),
-            path.query().unwrap_or_default(),
-            path.fragment().unwrap_or_default()
-        );
-        let mut login = path.clone();
-        login.set_path("/auth/login");
-        login.set_fragment(None);
-        login
-            .query_pairs_mut()
-            .clear()
-            .append_pair("return_to", &return_path);
-        cdp.command(
-            "Page.navigate",
-            serde_json::json!({"url":login.as_str()}),
-            Some(session),
-        )
-        .await?;
-        wait_for_requested_document(cdp, session, page_url).await?;
-        hardware_check(cdp, session).await?;
-        evidence.policy = policy(cdp, session).await?;
-    }
-    ensure!(
-        evidence.policy.status == 200 && evidence.policy.allowed,
-        "public upload policy unavailable: {:?}",
-        evidence.policy
-    );
     println!("Authenticated public upload policy passed");
     wait_selector(
         cdp,
@@ -318,7 +291,6 @@ async fn run(
     .await?;
     click(cdp, session, "button[aria-label='Open uploads']").await?;
     let mut finishing_captured = false;
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(1500);
     let mut last_progress = tokio::time::Instant::now();
     loop {
         hardware_check(cdp, session).await?;
@@ -358,10 +330,6 @@ async fn run(
             !["Needs attention", "Sign in to continue", "Cancelled"]
                 .contains(&current.phase.as_str()),
             "large upload failed: {current:?}"
-        );
-        ensure!(
-            tokio::time::Instant::now() < deadline,
-            "large upload did not finish: {current:?}"
         );
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
@@ -428,6 +396,42 @@ async fn hardware_check(cdp: &mut Cdp, session: &str) -> Result<HardwareIdentity
     hardware.validate()?;
     cdp.assert_no_software_renderer_events()?;
     Ok(hardware)
+}
+
+async fn authorized_policy(cdp: &mut Cdp, session: &str, page_url: &str) -> Result<PolicyProbe> {
+    let mut current = policy(cdp, session).await?;
+    if current.status == 401 || !current.allowed {
+        // A fresh OAuth authorization picks up newly admitted scopes using the existing IdP session.
+        let path = Url::parse(page_url)?;
+        let return_path = format!(
+            "{}?{}#{}",
+            path.path(),
+            path.query().unwrap_or_default(),
+            path.fragment().unwrap_or_default()
+        );
+        let mut login = path.clone();
+        login.set_path("/auth/login");
+        login.set_fragment(None);
+        login
+            .query_pairs_mut()
+            .clear()
+            .append_pair("return_to", &return_path);
+        cdp.command(
+            "Page.navigate",
+            serde_json::json!({"url":login.as_str()}),
+            Some(session),
+        )
+        .await?;
+        wait_for_requested_document(cdp, session, page_url).await?;
+        hardware_check(cdp, session).await?;
+        current = policy(cdp, session).await?;
+    }
+    ensure!(
+        current.status == 200 && current.allowed,
+        "public upload policy unavailable: {:?}",
+        current
+    );
+    Ok(current)
 }
 
 async fn policy(cdp: &mut Cdp, session: &str) -> Result<PolicyProbe> {

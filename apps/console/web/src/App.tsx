@@ -20,7 +20,7 @@ import {
   X
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { loadSnapshot, logoutConsole } from "./api";
+import { loadArtifact, logoutConsole } from "./api";
 import { UploadQueue, type QueueState } from "./uploads/queue";
 import { UploadPanel } from "./uploads/UploadPanel";
 import type { Receipt } from "./uploads/model";
@@ -98,11 +98,10 @@ export function App() {
   const { data: snapshot, error, isLoading } = useSnapshot();
   const { data: appsCatalog } = useApps(Boolean(snapshot));
   useAppCatalogLive(Boolean(snapshot));
-  const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor);
   const [view, setView] = useState<ViewId>(initial.view);
   const [selectedAppUri, setSelectedAppUri] = useState<string | undefined>(initial.appUri);
   const [mobileNav, setMobileNav] = useState(false);
-  const [selectedArtifact, setSelectedArtifact] = useState<ArtifactSummary>();
+  const [artifactSelection, setArtifactSelection] = useState<{ artifact: ArtifactSummary; scope: string }>();
   const [uploadsOpen, setUploadsOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskSummary>();
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | undefined>(initial.recordingId);
@@ -112,6 +111,9 @@ export function App() {
   const actor = snapshot?.session.actorId;
   const workContext = snapshot?.session.workContext;
   const tenant = snapshot?.session.tenantId;
+  const artifactScope = JSON.stringify([tenant, actor, workContext]);
+  const selectedArtifact = artifactSelection?.scope === artifactScope ? artifactSelection.artifact : undefined;
+  const setSelectedArtifact = (artifact?: ArtifactSummary) => setArtifactSelection(artifact ? { artifact, scope: artifactScope } : undefined);
   const receiveUpload = useCallback((receipt: Receipt) => {
     queryClient.setQueryData<InstallationSnapshot>(queryKeys.snapshot, (current) => current && ({
       ...current, artifacts: current.artifacts.map((artifact) => artifact.id === receipt.artifact_id ? {
@@ -121,6 +123,7 @@ export function App() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
   }, [queryClient]);
   const uploadQueue = useMemo(() => actor && workContext && tenant ? new UploadQueue(actor, workContext, tenant, receiveUpload) : undefined, [actor, workContext, tenant, receiveUpload]);
+  const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor, uploadQueue?.reconcile);
   useEffect(() => {
     if (!uploadQueue) return;
     void uploadQueue.initialize();
@@ -128,10 +131,7 @@ export function App() {
   }, [uploadQueue]);
   const uploadState = useSyncExternalStore(uploadQueue?.subscribe ?? noUploadSubscription, uploadQueue?.snapshot ?? (() => EMPTY_UPLOAD_QUEUE));
   const viewUpload = async (receipt: Receipt) => {
-    const current = await loadSnapshot();
-    queryClient.setQueryData(queryKeys.snapshot, current);
-    const artifact = current.artifacts.find((candidate) => candidate.id === receipt.artifact_id);
-    if (!artifact) throw new Error("Your artifact is ready. Its catalog entry is still refreshing; try opening it again shortly.");
+    const artifact = await loadArtifact(receipt.artifact_id);
     setSelectedArtifact(artifact); setUploadsOpen(false);
   };
   const apps = useMemo(() => appsCatalog?.apps ?? [], [appsCatalog?.apps]);
@@ -226,7 +226,7 @@ export function App() {
     view === "apps" && selectedApp
       ? namespacedAppTitle(selectedApp)
       : navItems.find((item) => item.id === view)?.label ?? "Overview";
-  const currentArtifact = selectedArtifact && snapshot.artifacts.find((item) => item.id === selectedArtifact.id);
+  const currentArtifact = selectedArtifact && (snapshot.artifacts.find((item) => item.id === selectedArtifact.id) ?? selectedArtifact);
   const currentTask = selectedTask && snapshot.tasks.find((item) => item.id === selectedTask.id);
   const accountName = snapshot.session.displayName.trim();
 

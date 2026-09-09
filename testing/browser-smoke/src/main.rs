@@ -261,10 +261,21 @@ enum SmokeCommand {
         evidence_root: PathBuf,
         #[arg(long, default_value_t = 10 * 1024 * 1024 * 1024)]
         bytes: u64,
-        #[arg(long, default_value_t = 1800)]
+        #[arg(long, default_value_t = 5400)]
         timeout_seconds: u64,
         #[arg(long)]
         preflight_only: bool,
+    },
+    /// Resume an existing public upload acceptance fixture without retransmitting saved parts.
+    ConsoleArtifactUploadResume {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long)]
+        evidence_directory: PathBuf,
+        #[arg(long, default_value_t = 5400)]
+        timeout_seconds: u64,
     },
     /// Repeat headed Console acceptance without restarting or commanding the simulation.
     UavShowcaseBrowserVerify {
@@ -602,6 +613,20 @@ async fn main() -> Result<()> {
                 bytes,
                 Duration::from_secs(timeout_seconds),
                 preflight_only,
+            )
+            .await
+        }
+        SmokeCommand::ConsoleArtifactUploadResume {
+            public_base_url,
+            chrome_cdp_url,
+            evidence_directory,
+            timeout_seconds,
+        } => {
+            browser::artifact_upload::verify_resume(
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_directory,
+                Duration::from_secs(timeout_seconds),
             )
             .await
         }

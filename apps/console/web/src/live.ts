@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { attachAppCatalogEvents } from "./apps/catalogEvents";
 import { queryKeys } from "./queries";
+import { uploadNotificationSchema } from "./uploads/model";
 import type {
   AgentSummary,
   AppCatalog,
@@ -142,7 +143,7 @@ const RESYNC_AFTER_FAILURES = 3;
  * failures force a snapshot refetch, whose fresh cursor restarts the
  * stream via the effect dependency.
  */
-export function useConsoleLiveStream(cursor: string | undefined): LiveStatus {
+export function useConsoleLiveStream(cursor: string | undefined, reconcileUploads?: (uploadId?: string) => void): LiveStatus {
   const client = useQueryClient();
   const [status, setStatus] = useState<LiveStatus>("off");
 
@@ -162,6 +163,7 @@ export function useConsoleLiveStream(cursor: string | undefined): LiveStatus {
     source.onopen = () => {
       failures = 0;
       setStatus("live");
+      reconcileUploads?.();
     };
     source.onerror = () => {
       setStatus("reconnecting");
@@ -176,6 +178,12 @@ export function useConsoleLiveStream(cursor: string | undefined): LiveStatus {
     source.addEventListener("access_request", () => {
       void client.invalidateQueries({ queryKey: queryKeys.accessRequests });
     });
+    source.addEventListener("artifact_upload", (event) => {
+      try {
+        const notification = uploadNotificationSchema.safeParse(JSON.parse((event as MessageEvent<string>).data));
+        if (notification.success) reconcileUploads?.(notification.data.upload_id);
+      } catch { /* A malformed event cannot establish an upload receipt. */ }
+    });
     source.addEventListener("reset", resync);
 
     return () => {
@@ -183,7 +191,7 @@ export function useConsoleLiveStream(cursor: string | undefined): LiveStatus {
       source.close();
       setStatus("off");
     };
-  }, [cursor, client]);
+  }, [cursor, client, reconcileUploads]);
 
   return status;
 }

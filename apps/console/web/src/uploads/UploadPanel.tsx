@@ -80,9 +80,9 @@ function UploadRow({ entry, queue, onView }: { entry: Entry; queue: UploadQueue;
   const [viewing, setViewing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const active = ["Queued", "Preparing", "Uploading", "Checking file"].includes(entry.phase);
-  const resume = ["Paused", "Waiting for connection", "Needs attention", "Select file"].includes(entry.phase);
+  const resume = !entry.restartRequired && ["Paused", "Waiting for connection", "Needs attention", "Select file"].includes(entry.phase);
   const terminal = ["Ready", "Cancelled"].includes(entry.phase);
-  const selectAgain = !entry.file && !terminal && entry.phase !== "Finishing upload" && entry.phase !== "Cancelling";
+  const selectAgain = !entry.restartRequired && !entry.file && !terminal && entry.phase !== "Finishing upload" && entry.phase !== "Cancelling";
   const view = async () => {
     if (!entry.receipt) return;
     setViewing(true); setActionMessage(undefined);
@@ -105,6 +105,7 @@ function UploadRow({ entry, queue, onView }: { entry: Entry; queue: UploadQueue;
       {entry.phase === "Selected" && <button className="button button-secondary" aria-label={`Remove ${entry.descriptor.filename}`} onClick={() => queue.remove(entry.key)}>Remove</button>}
       {active && <button className="button button-secondary" aria-label={`Pause ${entry.descriptor.filename}`} onClick={() => queue.pause(entry.key)}>Pause</button>}
       {resume && <button className="button button-secondary" aria-label={`Resume ${entry.descriptor.filename}`} onClick={() => queue.resume(entry.key)}>{entry.phase === "Needs attention" ? "Retry" : "Resume"}</button>}
+      {entry.restartRequired && <button className="button button-primary" aria-label={`Start again ${entry.descriptor.filename}`} onClick={() => void queue.restart(entry.key)}>Start again</button>}
       {selectAgain && <><button className="button button-secondary" aria-label={`Select original file for ${entry.descriptor.filename}`} onClick={() => fileInput.current?.click()}>Select file</button>
         <input className="visually-hidden" tabIndex={-1} ref={fileInput} type="file" aria-label={`Original file for ${entry.descriptor.filename}`} onChange={(event) => { const file = event.target.files?.[0]; if (file) queue.reselect(entry.key, file); event.target.value = ""; }} /></>}
       {entry.phase === "Sign in to continue" && <button className="button button-primary" aria-label={`Sign in to continue ${entry.descriptor.filename}`} onClick={() => { queue.pauseAll(true); redirectToLogin(); }}>Sign in</button>}

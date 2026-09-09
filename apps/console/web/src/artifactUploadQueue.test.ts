@@ -55,6 +55,38 @@ async function until(check: () => boolean) {
   while (!check()) { assert.ok(Date.now() < deadline, "queue did not settle"); await new Promise((resolve) => setTimeout(resolve, 5)); }
 }
 
+test("upload events reconcile only known sessions and require a server receipt", async () => {
+  const f = await fixture();
+  await f.queue.initialize();
+  const calls = f.calls.length;
+  f.queue.reconcile(requestId());
+  assert.equal(f.calls.length, calls);
+  f.respond(() => Response.json({ ...f.status, state: "completed", accepted_bytes: 16, receipt: f.receipt }));
+  f.queue.reconcile(f.uploadId);
+  await until(() => f.queue.snapshot().entries[0].phase === "Ready");
+  assert.equal(f.queue.snapshot().entries[0].file, undefined);
+  assert.deepEqual(f.receipts, [f.receipt]);
+  f.queue.dispose();
+});
+
+test("expired uploads require a new admission identity after current policy discovery", async () => {
+  const f = await fixture();
+  f.respond(() => Response.json({ ...f.status, state: "expired" }));
+  await f.queue.initialize();
+  assert.equal(f.queue.snapshot().entries[0].restartRequired, true);
+  const calls = f.calls.length;
+  f.queue.resume(f.key);
+  assert.equal(f.calls.length, calls);
+  await f.queue.restart(f.key);
+  const fresh = f.queue.snapshot().entries[0];
+  assert.notEqual(fresh.key, f.key);
+  assert.equal(fresh.uploadId, undefined);
+  assert.equal(fresh.accepted, 0);
+  assert.equal(fresh.phase, "Select file");
+  assert.equal(f.calls.at(-1)?.path, "/console/api/artifact-uploads/policy");
+  f.queue.dispose();
+});
+
 test("reselected wrong bytes preserve accepted progress and never reach PUT", async () => {
   const f = await fixture();
   Object.defineProperty(globalThis, "XMLHttpRequest", { configurable: true, value: class { constructor() { assert.fail("wrong file reached the transport"); } } });
@@ -107,6 +139,28 @@ test("resume checks saved bytes and sends only the missing part, then waits for 
     const persisted = f.memory.get(storageKey)!;
     assert.ok(!persisted.includes("ephemeral-only"));
     assert.ok(!persisted.includes('"file"')); assert.ok(!persisted.includes('"parts"'));
+  } finally { f.queue.dispose(); }
+});
+
+test("a lost part response checks short-request authentication before sending bytes again", async () => {
+  const f = await fixture();
+  let failedPart = false;
+  let puts = 0;
+  f.respond(() => failedPart ? Response.json({ message: "Sign in required" }, { status: 401 }) : Response.json(f.status));
+  class LostResponse {
+    upload = {}; status = 502; timeout = 0; responseText = "";
+    onload?: () => void; onabort?: () => void;
+    open() {} setRequestHeader() {} getResponseHeader() { return null; }
+    abort() { this.onabort?.(); }
+    send() { puts += 1; failedPart = true; queueMicrotask(() => this.onload?.()); }
+  }
+  Object.defineProperty(globalThis, "XMLHttpRequest", { configurable: true, value: LostResponse });
+  try {
+    await f.queue.initialize(); f.queue.reselect(f.key, f.file);
+    await until(() => f.queue.snapshot().entries[0].phase === "Sign in to continue");
+    assert.equal(puts, 1);
+    assert.equal(f.queue.snapshot().entries[0].accepted, 8);
+    assert.equal(f.queue.snapshot().entries[0].file, undefined);
   } finally { f.queue.dispose(); }
 });
 

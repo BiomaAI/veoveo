@@ -222,6 +222,12 @@ pub(crate) struct ArtifactAccessContext {
 }
 
 impl ArtifactAccessContext {
+    pub(super) fn matches_upload_scope(&self, tenant: &str, actor: &str, context: &str) -> bool {
+        self.tenant.as_str() == tenant
+            && self.actor.as_str() == actor
+            && self.work_context.as_str() == context
+    }
+
     pub(crate) fn from_subject(
         subject: &AuthenticatedSubject,
         tenant_key: &str,
@@ -895,6 +901,22 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn upload_events_require_the_exact_actor_tenant_and_context() {
+        let access = ArtifactAccessContext {
+            actor: PrincipalId::new("alice").unwrap(),
+            tenant: TenantId::new("example").unwrap(),
+            work_context: WorkContextId::new("operations").unwrap(),
+            clearance: BTreeSet::new(),
+            groups: BTreeSet::new(),
+            membership: WorkContextMembershipLevel::Owner,
+        };
+        assert!(access.matches_upload_scope("example", "alice", "operations"));
+        assert!(!access.matches_upload_scope("foreign", "alice", "operations"));
+        assert!(!access.matches_upload_scope("example", "bob", "operations"));
+        assert!(!access.matches_upload_scope("example", "alice", "other"));
+    }
 
     #[tokio::test]
     #[ignore = "requires VEOVEO_SURREAL_BINARY pointing to the pinned native server"]
