@@ -1944,3 +1944,11 @@ An avoidable test-command change selected Gateway alone after the previous check
 selected Gateway plus BFF. Cargo compiled another dependency feature graph. Keep
 the package set stable across a checkpoint; changing the set is not inherently a
 cheaper focused check. No production speed claim follows from these development runs.
+
+Python consumption now uses the existing authenticated download endpoint and its
+metadata header, avoiding a separate metadata request. The full SDK enforcement
+passes 67 tests, builds its wheel and source distribution, and passes 15 isolated
+template tests. Its first qualified run takes 14.2 s. Stream tests cover byte ceilings,
+early exit, length mismatch, optional SHA-256 verification, and temporary-file cleanup;
+the multi-GB metadata case rejects before reading and does not represent a transfer.
+Logs use `output/development/artifact-upload-python-*20260909.log`.

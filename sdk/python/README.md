@@ -37,6 +37,41 @@ Credentials belong in the package manager's credential provider or its documente
 environment variables. They do not belong in `pyproject.toml`, a lockfile, a
 Dockerfile, or an extension release manifest.
 
+## Streaming Artifact Consumption
+
+`HttpArtifactPlane.stream` consumes a canonical `artifact://{uuidv7}` URI under the
+forwarded caller identity. Every consumer declares its own byte ceiling. Iteration
+uses bounded chunks and closes the HTTP response when the context exits, including
+early exit and task cancellation. Consume the full iterator to check exact length;
+pass the upload receipt's `expected_sha256` to verify its whole-file digest as well.
+
+```python
+from veoveo_mcp.artifacts import HttpArtifactPlane
+
+plane = HttpArtifactPlane(artifact_service_url)
+try:
+    async with plane.stream(caller, artifact_uri, max_bytes=20 * 1024**3) as download:
+        async for chunk in download:
+            await consume_chunk(chunk)
+finally:
+    await plane.close()
+```
+
+For libraries that consume paths, `materialize` yields a fully downloaded temporary
+file and removes it on context exit. The filename preserves its extension. Partial
+files are removed after transport errors, cancellation, or failed digest validation.
+
+```python
+async with plane.materialize(caller, artifact_uri, max_bytes=20 * 1024**3) as path:
+    await consume_file(path)
+```
+
+`get` and `resolve` remain in-memory convenience operations with an 8 MiB default
+consumer ceiling and streaming enforcement before allocation. Large inputs use
+`stream` or `materialize`. An upload's admitted size does not change a domain server's
+own input limits: Datasheet and pandas still impose their separate memory and format
+constraints. No object-store URL or storage credential reaches a consumer.
+
 ## Development
 
 The Veoveo repository tests the source workspace and then rebuilds the template in an
