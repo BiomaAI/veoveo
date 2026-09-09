@@ -280,10 +280,11 @@ class ArtifactRepository:
         return metadata.presented_under_scheme(self.scheme)
 
     async def get(
-        self, caller: PlaneCaller, artifact_id: ArtifactId
+        self, caller: PlaneCaller, artifact_id: ArtifactId, *,
+        max_bytes: int = DEFAULT_OBJECT_READ_BYTES,
     ) -> ArtifactObject | None:
         try:
-            artifact = await self.plane.get(caller, artifact_id)
+            artifact = await self.plane.get(caller, artifact_id, max_bytes=max_bytes)
         except ArtifactNotFound:
             return None
         artifact.metadata = artifact.metadata.presented_under_scheme(self.scheme)
@@ -298,8 +299,10 @@ class ArtifactRepository:
             return None
         return metadata.presented_under_scheme(self.scheme)
 
-    async def resolve(self, caller: PlaneCaller, uri: str) -> ArtifactObject:
-        artifact = await self.plane.resolve(caller, uri)
+    async def resolve(
+        self, caller: PlaneCaller, uri: str, *, max_bytes: int = DEFAULT_OBJECT_READ_BYTES,
+    ) -> ArtifactObject:
+        artifact = await self.plane.resolve(caller, uri, max_bytes=max_bytes)
         artifact.metadata = artifact.metadata.presented_under_scheme(self.scheme)
         return artifact
 

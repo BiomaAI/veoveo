@@ -66,7 +66,8 @@ async with plane.materialize(caller, artifact_uri, max_bytes=20 * 1024**3) as pa
     await consume_file(path)
 ```
 
-`get` and `resolve` remain in-memory convenience operations with an 8 MiB default
+`get` and `resolve`, including their `ArtifactRepository` wrappers, accept an explicit
+`max_bytes` consumer ceiling. They remain in-memory convenience operations with an 8 MiB default
 consumer ceiling and streaming enforcement before allocation. Large inputs use
 `stream` or `materialize`. An upload's admitted size does not change a domain server's
 own input limits: Datasheet and pandas still impose their separate memory and format

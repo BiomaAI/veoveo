@@ -58,7 +58,9 @@ async def materialize_dataset(
         data = request.inline_csv.encode()
         name, mime = "inline.csv", "text/csv"
     else:
-        artifact = await state.artifacts.resolve(caller, request.dataset_uri or "")
+        artifact = await state.artifacts.resolve(
+            caller, request.dataset_uri or "", max_bytes=state.max_dataset_bytes,
+        )
         data = artifact.bytes_
         name = artifact.metadata.filename
         mime = artifact.metadata.mime_type
