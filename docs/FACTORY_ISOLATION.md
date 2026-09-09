@@ -16,6 +16,10 @@ Computers is separately adopted as a core Veoveo capability in
 development lifecycle planned in [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md). This
 factory plan governs disposable author/verifier jobs and their broker authority.
 
+Future implementation follows the accepted [contract evolution](CONTRACT_EVOLUTION.md)
+for provider recovery, qualified dependencies, test tooling, and scoped evidence. The
+trial versions and completed observations below remain historical qualification inputs.
+
 ## Purpose
 
 Veoveo needs a software factory that can accept a reviewed product specification,
@@ -58,8 +62,8 @@ Git push credentials never enter an author job.
 | NVIDIA CUDA, Vulkan, RTX, NVENC, WebGPU, WebGL, and Chrome DevTools Protocol | Hardware-GPU execution and headed-browser proof remain mandatory for visual, simulation, perception, rendering, encode, and visual-verification acceptance. |
 
 The OpenShell tag, documentation, and open issues cited here were current on August 24,
-2026. The adoption preflight must verify the latest stable release again and update the
-pin, tests, and this document in the same change.
+2026. Adoption checks current upstream releases and support, selects an exact qualified
+profile under AGENTS.md, and updates the pin, tests, and this document together.
 
 ## Product Definition
 
@@ -380,8 +384,9 @@ Flux, a registry, or a signer.
 Deployment enters a bounded observation window defined by the specification. The run
 shows controller convergence, workload readiness, domain acceptance, product-specific
 signals, and any pre-authorized rollback. Kubernetes and Flux observation use their
-typed watch-based harnesses. Provider jobs remain webhook-only; the factory does not
-poll a provider for missing completion.
+typed watch-based harnesses. Provider jobs use their qualified completion/recovery
+profile. The factory consumes durable observations and cannot invent a polling fallback
+or repeat an uncertain mutation.
 
 Terminal states are:
 
@@ -979,9 +984,10 @@ WebGPU or WebGL before navigating. SwiftShader, llvmpipe, software adapters, and
 software-rasterizer warnings fail the job. Browser-side H.264 software decode retains
 the one existing exception and must be labeled according to Media Capabilities.
 
-Provider job completion remains webhook-only. A missing webhook creates an operational
-failure. Neither a coding harness nor an acceptance worker polls the provider or adds a
-fallback status path.
+Provider completion follows the adapter's authenticated observation and bounded recovery
+contract. Missing delivery preserves unresolved effects and their resource fences.
+Only the owning adapter performs declared reconciliation; a coding harness or acceptance
+worker cannot add an independent status loop or clear an uncertain operation.
 
 ## Typed Factory Contracts
 
@@ -1167,7 +1173,7 @@ dependency advisory, or a human proposal supplies the next objective.
 | Missing required evidence | `incomplete`; never promotable. |
 | Base branch moved | Promotion rejection and fresh plan or verification. |
 | Signer or registry unavailable | Promotion waits or fails; unsigned artifact is not substituted. |
-| Missing provider webhook | Operational failure; no status polling. |
+| Missing provider completion | Bounded adapter recovery; preserve unresolved identity and resource fencing when authoritative evidence is unavailable. |
 | GPU or hardware browser unavailable | Acceptance failure; no software-renderer evidence. |
 | Deployment acceptance failure | Stop promotion and apply only the pre-authorized rollback policy. |
 | OCSF export or trusted ledger unavailable | Job cannot produce promotable evidence. |

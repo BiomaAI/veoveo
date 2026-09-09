@@ -46,10 +46,10 @@ system updates a candidate model. The term does not imply autonomous self-modifi
 | Internal model-serving adapter | Exact-token capture may require a private adapter compatible with the selected inference runtime. It is not an MCP replacement, an installation API, or a public OpenAI-compatible Veoveo contract. |
 | Trainer adapter | Agent Lightning, VERL, or another trainer may consume a governed export through an internal adapter. No trainer package or wire protocol is approved by this exploration. |
 
-Provider-managed post-training, if ever admitted, remains subject to Veoveo's webhook-only
-provider completion contract. The platform does not poll provider job status or add a
-polling recovery path. Self-hosted trainer progress is an internal execution concern and
-must still project durable state through the canonical task and event boundaries.
+Provider-managed post-training, if admitted, requires a qualified completion/recovery
+profile under [Contract Evolution](CONTRACT_EVOLUTION.md). This exploration adds no
+provider adapter. Self-hosted trainer progress remains an internal execution concern
+and projects durable state through the canonical Task and event boundaries.
 
 ## Companion Boundary
 
@@ -415,9 +415,9 @@ make the same request twice. Network redelivery can be deduplicated only when th
 idempotency identity is present.
 
 Kubernetes controllers may use watches and reconciliation lists to manage local Jobs.
-That does not relax provider webhook-only completion. A provider-managed model-training
-job must still finish through a signed terminal webhook, with missing delivery treated as
-an operational failure.
+A provider-managed training job uses its declared authenticated completion and bounded
+recovery profile. Missing delivery cannot authorize an uncertain training submission to
+be repeated or treated as definitively failed.
 
 ## GPU And Runtime Isolation
 

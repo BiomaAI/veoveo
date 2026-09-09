@@ -30,6 +30,20 @@ image and its later qualified publication must share that digest. GitOps receive
 complete digest map, while Kubernetes rolls only Deployments whose selected digest
 changed. Qualification adds supply-chain attestations after behavior is accepted.
 
+The accepted [contract evolution](CONTRACT_EVOLUTION.md) permits maintained browser
+and SDK harnesses and headless checks for nonvisual behavior. Required visual and GPU
+acceptance retain hardware proof. Dependency upgrades are separately qualified work;
+an ordinary consumer edit may retain its supported pins. Per-check evidence reuse is
+planned in [Continuous Integration](CONTINUOUS_INTEGRATION.md); the current v2 report
+still invalidates at repository scope.
+
+Select checks from the changed input closure. Run focused feedback while editing,
+qualify the changed component before deployment, and compose the complete supported
+release profile at its release checkpoint. Resume a failed stage from unchanged
+qualified artifacts. A UI asset edit must reuse its unchanged Rust binary, and a
+no-op deployment must preserve workload identities. Record cache invalidation causes,
+rerun causes, phase timings, and any unrelated workload changes in the iteration audit.
+
 ## Component Release Inputs
 
 Prepare a configuration-only update from a committed installation checkout:
@@ -334,7 +348,7 @@ its executable layer.
 | Component ownership migration | general raw-resource adoption and ownership transfer belong to a future atomic-release split; exact selected execution, per-release inputs, native scope evidence, and cluster coordination are implemented |
 | Full release attestation and large inherited-image qualification | reserved for release acceptance; development staging must not pay this cost before behavior is accepted |
 | GPU-renderer startup and live-camera latency | runtime performance work under the UAV design, not an image-orchestration fallback or a reason to weaken GPU acceptance |
-| Provider and external network recovery | owned by the relevant runtime contract; provider completion remains webhook-only |
+| Provider and external network recovery | owned by the qualified provider profile under contract evolution; current Media completion remains webhook-only |
 | Documentation publication automation | useful, but it does not block the source-to-running-workload fast path |
 
 ## Iteration Budgets

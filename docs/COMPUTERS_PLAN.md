@@ -1,327 +1,432 @@
 # Computers Core Capability Plan
 
-Status: the user approved Computers as a core Veoveo capability on 2026-09-09.
-This document proposes the implementation and release sequence for review;
-runtime implementation and deployment are not started by this planning change.
-The product decision is recorded in `ARCHITECTURE_DECISIONS.md`.
+Status: revised on 2026-09-09 under the user's authorization to renegotiate the
+contracts for Veoveo and Computers. Core product status and the policy decisions in
+[Contract Evolution](CONTRACT_EVOLUTION.md) are accepted. This document defines the
+implementation sequence and release gates; it does not claim runtime delivery or
+production deployment. Computers is a Veoveo capability. Bioma supplies one
+installation configuration and the public acceptance destination.
 
 ## Standards And Protocols
 
 | Boundary | Planned supported profile |
 |---|---|
-| Veoveo identity and Work Context governance | Existing canonical tenant/principal mapping, gateway policy, session families, and scoped attachment authority |
-| HTTP and JSON | RFC 9110 control operations; closed Rust serde/schemars DTOs, JSON Schema 2020-12, and generated Console types |
-| Shared Tasks and transactional outbox | Existing durable Task identities, leases, cancellation, recovery, retention, and replayable installation events |
-| Provider completion | Authenticated, idempotent webhooks persisted before acknowledgment; use the shared webhook-wait recovery boundary |
-| OpenShell provider adapter | Generated protobuf/gRPC over mTLS. Native watches are internal adapter inputs; they do not replace Veoveo's webhook completion contract |
-| Browser terminal | RFC 6455 binary transport; typed internal terminal-v2 controls, absolute authorization deadlines, and explicit ReplayComplete metadata |
-| Stock OpenShell CLI | Reviewed baseline 0.0.116; existing-SSO pairing and restricted HTTP/2/gRPC over WebSocket, including the stock client's root tunnel route |
-| SSH | Authorized access to the bound Computer; browser canonical-main attachment and ordinary SSH sessions have separate tested semantics |
-| Retained storage | Reviewed `veoveo.io/computer-storage/v1` allocation boundary over mTLS, with bounded frames and exact identity/capacity validation |
-| Release and installation | Existing OCI runtime/publication digest distinction, Helm packaging, installation-owned GitOps and trust references; deployment v7 remains the disposable-development contract |
-| Visual acceptance | Headed browser with a proved hardware WebGPU or WebGL path; GPU workloads retain their existing hardware and placement requirements |
+| Veoveo identity and Work Context | Canonical tenants, principals, direct/delegated/automated invocation, action policy, session families, and bounded grants |
+| MCP `2026-07-28`, contract revision 3 | Governed Computer resources, task-augmented lifecycle/execution tools, and subscriptions under the [server contract](../mcp/contract/DESIGN.md) |
+| HTTP, RFC 9110; JSON Schema `2020-12` | Native Console projection over the same domain, generated Rust/TypeScript contracts, bounded payloads and typed errors |
+| Shared Tasks and transactional outbox | Durable admission, operation identity, leases, cancellation, result publication, and recovery; provider observation extension remains to be implemented |
+| OpenShell gRPC/Protocol Buffers over mTLS | Internal provider adapter with a qualified watch and authoritative reconciliation profile; no required webhook translation |
+| OpenShell `0.0.116` | Reviewed stock CLI baseline and handoff provider patch graph; pin exact selected artifacts after qualification |
+| WebSocket, RFC 6455; SSH | Browser binary terminal and stock CLI transport; terminal-v2 controls and ReplayComplete metadata are repository-owned extensions |
+| OAuth security, RFC 9700; native apps, RFC 8252 | Scoped renewal and pairing design requirements; custom stock-CLI pairing does not imply standardized device-flow support |
+| Retained storage | Reviewed `veoveo.io/computer-storage/v1` adapter candidate; actual volume/quota/fencing mechanism is selected and qualified before adoption |
+| Artifact HTTP and `artifact://` resources | Existing governed file transfer and immutable publication; no terminal bytes or unbounded file bodies in MCP |
+| OCI, Helm and installation-owned GitOps | Exact runtime artifacts and topology inputs; development deployment v7 remains confined to disposable environments |
+| Behavioral and visual acceptance | Headless nonvisual checks permitted; final visual proof uses headed hardware WebGPU or WebGL; GPU workloads keep their mandatory acceleration |
 
-OpenShell 0.0.116 is the latest published release verified during review on
-2026-09-09. The supplied reference needs additional gateway and supervisor fixes.
-Implementation must recheck authoritative releases and pin every selected artifact
-exactly. No new dependency pin is introduced by this plan.
+The handoff contains additional OpenShell gateway and supervisor fixes. Check current
+upstream support when selecting the initial profile, prefer qualified upstream fixes,
+and record exact patched artifacts when needed. An unrelated consumer edit retains
+its qualified pins. No dependency or image pin is introduced by this planning change.
 
-## Product And Installation Contract
+## Product Decisions
 
-Computers ships in the standard Veoveo release with its native API, Console page,
-schema migrations, service images, installation package, diagnostics, and acceptance.
-The capability has no optional-product enable flag. Access remains policy-controlled.
-The installation supplies its compute capacity, storage budget, admitted templates,
-provider connection, and trust material. Standard-install preflight verifies that
-closure; a normal installation cannot silently omit the capability's dependencies.
+| Decision | Product behavior and boundary |
+|---|---|
+| Core delivery | Native Console experience, canonical control contracts, diagnostics, installation package, and supported retained execution ship together |
+| Capacity | Qualified local, remote, or on-demand providers can supply capacity; a product enable flag does not hide Computers |
+| Authority | Humans and services use canonical principals and explicit policy; ownership is distinct from the actor currently working |
+| Cardinality | The personal default is one Computer per owner; collection APIs and transactional quotas support other installation limits |
+| Continuity | Navigation, transport loss, and ordinary token renewal preserve retained work; Stop ends execution and preserves the home |
+| Automation | Agents use structured execution and lifecycle Tasks under scoped grants; no dependency on terminal scraping or a human browser session |
+| Security | Provider/host administration stays outside the Computer; publication and promotion use existing scoped broker authority |
+| Installation identity | Veoveo is the product; clean installation and the Bioma configuration consume the same release contracts |
 
-Admission can be paused for maintenance. Capacity exhaustion and provider failure
-produce visible Computers states. Computers readiness participates in installation
-qualification, while unrelated gateway routes and services keep their own readiness.
-Packaging includes the disconnected-installation artifact closure; local retained
-operation cannot depend on a Veoveo-hosted service or an Internet image pull.
+The first release supports private personal Computers, stock CLI and browser access,
+scoped agent execution, and Artifact file handoff. Group collaboration, persistent
+device grants, remote-editor certification, app previews, alternative compute drivers,
+and GPU-enabled Computer profiles follow explicit qualification milestones. They do
+not require a new identity model. The software factory remains a separate orchestration
+profile under [Factory Isolation](FACTORY_ISOLATION.md).
 
-The first supported user profile provides one personal Computer per canonical owner.
-An authorized human can create it, use an admitted development image, reconnect to
-its running terminal, and Stop/Start over the same retained home. Stopped Computers
-continue to reserve storage. Coding tools inside a personal Computer use their own
-authorized credentials and network policy. Console login is not coding-tool login.
+## User Journey And Experience Contract
 
-Personal Computers carry no provider administration, host container socket,
-database administrator credential, cluster credential, image-signing authority, or
-implicit production-promotion grant. Ordinary editing and bounded local tests run
-inside the Computer. A separate authorized build worker performs image publication
-and release operations against an exact committed revision.
+1. Open Computers and see accessible Computers, permitted actions, retained storage,
+   and capacity. An unconfigured installation shows a setup action to authorized
+   operators. Other users see a useful availability explanation without secret or
+   provider-internal configuration details.
+2. Choose an admitted template and resource preset, then Create. Show admission,
+   capacity/image preparation, starting, and ready progress. Reload and navigation
+   recover the same operation. A timeout presents its known state and a recovery
+   action using the original identity.
+3. Connect and begin work. Focus and keyboard behavior are predictable, resize works,
+   and terminal selection/copy are accessible. Bound retained replay and mark any
+   truncation. Input becomes available only after replay completion and callback drain.
+4. Reconnect to the same running process after navigation or network loss. Explicit
+   Disconnect persists as an intentional choice. Transport reconnect never replays
+   user input or repeats an arbitrary command whose effect is unknown.
+5. Connect with the stock CLI through existing SSO pairing. Copied commands contain no
+   secret. Show active grants, last use, expiry, and Revoke. Ordinary renewal preserves
+   authorized work without repeated pairing.
+6. Grant an admitted agent the actions needed on this Computer, with visible scope and
+   duration. The agent can execute a bounded command Task, inspect structured progress,
+   and publish selected results as Artifacts. Human and agent actions are attributable.
+7. Import an authorized Artifact or export selected files through a governed Task.
+   Show size, destination and overwrite behavior before a mutating import. Enforce
+   path confinement, symlink/archive limits and quotas. Reuse the Artifact upload UI
+   and SDK; a general file editor is a later UX enhancement.
+8. Stop and later Start over the same repositories, files, coding-tool state and
+   eligible caches. Explain that process memory ends on Stop. Default-template changes
+   do not replace an existing Computer without an explicit maintenance operation.
+9. Recover from provider, disk or authorization trouble through typed states. Uncertain
+   effects remain protected. Deletion presents the actual retention consequence and
+   requires explicit confirmation; routine cleanup cannot delete a home.
 
-Shared Computers, arbitrary user-chosen images, GPU passthrough, remote-editor
-certification, and unattended factory jobs are later profiles. CPU development work
-does not authorize CPU substitutes for rendering or GPU acceptance. Such work uses
-an admitted hardware-GPU worker or reports that the required capability is absent.
-The factory plan continues to govern disposable author/verifier jobs separately.
+Use an accessible collection and detail layout with a clear primary action, responsive
+terminal controls, screen-reader status announcements, and useful empty/error states.
+Keep the focused terminal stable during background status updates. Progress reflects
+observed phases; a spinner cannot conceal an exhausted recovery budget. Operator
+reports expose correlation IDs and diagnostics without command text or credentials.
 
-## User Journey
+## State, Authority And Retention
 
-1. The signed-in user opens the native Computers page. It shows their Computer,
-   admitted image and resources, storage retention, capacity, and permitted actions.
-2. Create admits one durable operation. Navigation and reload recover the same
-   Task. Uncertain responses retain the original request identity.
-3. Connect opens the terminal when server-issued action flags permit it. Detaching
-   or navigating away preserves the canonical process and background work.
-4. Returning reconnects only when the user left the terminal connected. Explicit
-   Disconnect stays disconnected. Replay drains before input and terminal replies
-   are enabled.
-5. Stop visibly settles through its Task. Start creates a new process over the
-   same home, repositories, coding-tool state, and useful build caches.
-6. Connect from CLI presents credential-free commands and an existing-SSO pairing
-   flow. Ordinary access-token renewal preserves authorized work. Logout, revocation,
-   or the absolute connection deadline closes attachment authority promptly.
-7. Provider or storage trouble presents the known outcome and permitted recovery.
-   Unknown remote effects remain locked to their original operation.
+Persist desired state, observed state and observation freshness independently of the
+current operation. The UI must be able to distinguish starting from reconnecting and
+an unavailable observer from a stopped process. A single Error state cannot safely
+encode an unknown mutation outcome.
+
+| Event | Access or execution effect | Retained-data effect |
+|---|---|---|
+| Disconnect or network loss | Attachment closes; execution follows its existing policy | Home and admitted background work remain |
+| Attachment expiry or revocation | Input/output transport closes within the bound; no new grant from stale authority | Home remains; separately authorized policy may suspend execution |
+| Stop | Confirm the selected run stopped and release compute admission | Keep the same allocation and recorded template |
+| Agent command cancellation | Track request acceptance and actual process termination separately | Keep home; do not claim rollback of arbitrary command writes |
+| Template maintenance | Fence source execution before replacement; checkpoint adoption | Reuse a qualified home or explicit snapshot/restore path |
+| Delete | Stop/fence execution, revoke grants, then apply the declared retention policy | Purge only through an explicit authorized operation; report incomplete purge |
+
+Use canonical direct, delegated and automated invocation metadata. Effective access
+intersects actor policy, Computer grant and Work Context authority. A service cannot
+name another owner or widen its own grant in a request. Model observe, attach, execute,
+manage, share and delete separately. First-release delegated access is explicit and
+private to named principals; group collaboration needs its own admission and terminal
+writer policy. Exported files retain Work Context and Artifact policy.
+
+Idle policy is installation-configured and visible. Active command Tasks and declared
+background work hold execution leases; lack of keyboard input alone does not prove
+idleness. Stopped Computers reserve storage. Quota reductions affect new admission and
+explicit maintenance, with no silent eviction of existing homes.
 
 ## Proposed Component Ownership
 
-These are planned paths; component DESIGN.md and AGENTS.md files are added when
-their implementations land. Each design names its supported protocols near the top.
+These are planned paths. Add component DESIGN.md and AGENTS.md files with implementation
+and update CODEMAP. Generate public types before exposing routes.
 
-| Owner | Planned path and responsibility |
+| Owner | Planned responsibility |
 |---|---|
-| Public contracts | `platform/computers/contract/`: lifecycle, snapshot, action flags, terminal controls, CLI bootstrap/grants, typed errors, schema export |
-| Domain | `platform/computers/`: canonical ownership, admission, retained templates, operation state, attachment leases, Tasks and store transactions |
-| Service | `platform/computers/service/`: thin binary plus focused modules for lifecycle workers, internal routes, webhook settlement, and terminal execution |
-| Provider runtime | `platform/runtimes/computers/`: exact OpenShell profile, generated clients, provider operation correlation, terminal and storage adapters |
-| Storage service | `platform/computers/storage/`: maintained allocation/restore implementation, bounded capacity, single-writer enforcement and operational diagnostics |
-| Gateway | Existing gateway modules: authenticate and authorize public/native operations; forward narrow internal authority to Computers |
-| Console BFF | Focused `computers/` modules: existing session/CSRF integration, browser terminal and stock CLI edge transport |
-| Console | `apps/console/web/src/computers/` and native view: generated types, controller, terminal state, status and recovery UI |
-| Deployment | Existing component catalog, image targets and Helm packages: complete owned inputs, trust mounts, provider/storage dependencies and standard Computers closure |
-| Acceptance | Focused Rust smoke harness: native fault tests, installed browser/CLI flows, replica routing, storage and release evidence |
+| `platform/computers/contract/` | Shared typed Computer, authority, operation, execution, terminal and grant vocabulary plus schema export; justified by multiple Rust/Console consumers |
+| `platform/computers/` | Domain commands, policy application, admission, retained state and shared Task/store transactions |
+| `servers/computers-mcp/` | Thin MCP projection and one deployable Computers worker/relay process; domain behavior delegates to the platform modules |
+| `platform/runtimes/computers/` | OpenShell clients, supported provider profile, observation/recovery, terminal and volume adapters |
+| Provider-host storage boundary | Privileged allocation and physical writer exclusion; reuse a qualified volume/provider mechanism before introducing a custom service |
+| Existing gateway | Canonical catalog/action policy and existing governed MCP/admin routing; no provider SDK or host-volume credentials |
+| Console BFF | Session/CSRF handling and bounded browser/CLI edge relay through narrow internal grants |
+| `apps/console/web/src/computers/` | Native Computers page, generated client, controller, terminal state and grant/recovery UX |
+| Existing deployment and image owners | Selected topology, independent artifact inputs, trust references and installation qualification |
+| Owning test harnesses | Rust domain/provider/storage faults, TypeScript browser behavior and visual journeys, native stock CLI and SDK consumer checks |
 
-The service owns lifecycle execution independently of gateway replicas. This limits
-gateway build dependencies and prevents a Console/gateway rollout from restarting
-Computers workers. Terminal relays remain bounded streams; gateways do not grow a
-second domain controller. Artifact file movement uses the existing governed Artifact
-service rather than another public upload system.
+The native Console page is an accepted platform projection over the Computers domain.
+The MCP facade supplies the same state and actions to agents; neither facade owns a
+second policy or lifecycle implementation. The BFF uses the existing governed server
+projection for control; generic gateway modules need no Computers-specific controller.
+Follow the complete domain-relevant MCP
+contract, including discovery, resources, Tasks, subscriptions and well-known docs.
+Terminal traffic uses its dedicated bounded transport.
+
+Use one Computers deployable for worker execution and the MCP projection initially.
+This keeps provider compilation and lifecycle restart independent of gateway/BFF
+rollouts. A separate storage helper is justified only by required host privileges or
+volume ownership. Do not add another controller or event journal merely to mirror a
+module boundary. Replica loss may interrupt an attachment, but cannot stop or duplicate
+provider execution through lost in-memory ownership.
 
 ## Delivery Sequence
 
-### 1. Close The Contracts And Reproduce The Provider Profile
+### 0. Establish Contracts And Fast Feedback
 
-Review the supplied source as port units against current main. Do not merge its
-unrelated downstream history. Inventory omitted Task helpers, policy actions,
-migration registration, router wiring, manifests, and build inputs before estimating
-the port. Keep a dependency list with a concrete owner and acceptance for each item.
+Land the policy changes in AGENTS, architecture decisions and Contract Evolution.
+Inventory handoff files, omitted manifests/migrations/store helpers, provider patches,
+and existing upstream equivalents. Use the selected source as port units against
+main, preserving unrelated history and local changes.
 
-Publish three short decisions beside the relevant code: provider completion/recovery,
-retained-home exclusion, and renewable CLI attachment. Generate every public DTO,
-including CLI bootstrap, from the canonical exporter. Remove downstream names and
-obsolete configuration fields when porting; assign migrations in our own ledger.
+Create focused domain and provider tests and one maintained Console browser harness.
+Use existing Rust fixture ownership through a narrow launcher when needed. Native
+framework commands may run through the current test-report wrapper before new xtask
+routing is implemented. Do not make rewriting existing smokes a prerequisite.
 
-Reproduce the six OpenShell patches in their actual dependency graph. The gateway
-and supervisor branch after the common third patch; they are distinct qualified
-artifacts. Choose upstream-released equivalents when available, otherwise maintain
-an explicit Veoveo provider patch set with exact source, license and artifact
-provenance. Admission validates the complete supported tuple, including replay.
+Implement scoped evidence as a bounded tooling workstream under Continuous Integration.
+It is an ecosystem improvement with its own acceptance, and the existing v2 workflow
+remains usable during Computers delivery. Record build inputs and cache churn from the
+first port; do not wait for a full provider rebuild to discover the feedback cost.
 
-First support the reviewed Linux/amd64 Docker-backed retained profile. The Veoveo
-control plane remains Kubernetes/Helm-installed. Document the compute host boundary
-and package its provider/storage prerequisites; a Docker socket stays inside that
-trusted boundary. Other OpenShell drivers require independent qualification.
+Exit: approved target contracts are recorded, the dependency/gap inventory has owners,
+and a focused check can run without building the full Veoveo smoke graph.
 
-Exit: reproducible provider artifacts and passing native retained-start/replay probes;
-agreed contracts for unknown outcomes, storage ownership, and CLI renewal. This work
-resolves the highest-risk assumptions before building the full UI.
+### 1. Qualify The Provider And Storage Boundary
 
-### 2. Implement Durable Ownership And Lifecycle
+Start with the reviewed Linux/amd64 Docker-backed retained profile. Veoveo's control
+plane remains Kubernetes/Helm-installed. Package the compute-host prerequisites and
+trust boundary; the provider's Docker socket never enters the gateway or Computer.
 
-Reuse canonical identity and existing Tasks. Persist Computer identity, selected
-provider instance, retained home, immutable template, operation identity, worker
-lease, and terminal attachments as separate typed concepts. Preserve owner checks
-through list, Task reads, lifecycle operations, terminal grants, and CLI bootstrap.
+Declare the selected containment threat model. Qualify non-root identity, filesystem
+and syscall restrictions, egress enforcement, and cross-owner attack cases on the
+actual driver. Separate untrusted compute from control-plane credentials and storage.
+A Docker-backed sandbox does not establish VM-grade isolation; stronger tenant threat
+models require an independently qualified VM-backed boundary before admission.
+Operators select admitted templates and network destinations, including the package,
+Git and model endpoints needed for useful development. Policy changes stay attributable
+and cannot be requested by a Computer to widen its own authority.
 
-Carry an indeterminate remote outcome explicitly. Fix the reference's conversion of
-LifecycleUnknown/WatchFailed into ordinary terminal failure. A failed completion
-stream cannot free the operation lock or permit another dispatch. Task publication
-and acknowledgment must retain the original operation until its effect is settled.
+Reproduce the six provider fixes only where required behavior is absent upstream.
+The gateway and supervisor branch after the common third patch; retain their distinct
+artifact identities and tests. Record CLI, gateway, supervisor, driver, protocol and
+storage compatibility in one supported profile. Capability negotiation cannot replace
+native tests. A newly qualified upstream fix can retire its corresponding patch.
 
-Preserve the repository's webhook-only completion rule. The qualified provider
-profile must correlate accepted operations and deliver authenticated completion
-events through a durable outbox. A native-watch adapter is acceptable only when
-its source supplies replay/checkpoint guarantees sufficient to survive disconnection;
-otherwise add provider-side event journaling. Persist inbound events before replying,
-deduplicate redelivery, and reject stale process/operation epochs. No recovery path
-queries provider status to establish completion. A missing event exposes an unresolved
-operation that needs event redelivery or documented maintenance recovery.
+Prototype exact operation/run correlation across lost submission replies, watch loss,
+lag and provider restart. The supplied watch tail is best effort. Use native watches
+for timely observation and a bounded authoritative read for recovery when its result
+proves the relevant outcome. No unconditional polling companion is added. If identity
+or outcome evidence is insufficient, add the smallest provider repair before lifecycle
+release. Do not manufacture reliability by wrapping the same lossy input in a webhook.
 
-Reuse webhook-wait Task recovery after dispatch. Claims and bounded preparation may
-resume from durable checkpoints; they cannot repeat an unknown remote effect. Keep
-cancellation pending until dispatched work and home-writer authority are reconciled.
+Choose a physically enforced volume mechanism for retained homes. Prefer a maintained
+provider/volume facility if it proves quota, restore identity and single-writer safety.
+Implement the missing narrow allocator only when necessary for the selected driver.
+Document the actual filesystem/volume prerequisites, backup guarantees and host-failure
+limits. A DTO byte limit and a database lease cannot enforce those properties alone.
 
-Exit: isolated real-store tests pass concurrent admission, changed-input retries,
-cross-owner denial, worker lease loss, cancellation, duplicate/out-of-order webhooks,
-lost acknowledgments, and service restart without redispatch or early lock release.
+Also prototype stock CLI renewal across provider-session expiry before completing the
+browser UI. If the stock transport cannot renew in place, distinguish attachment
+reconnect from process continuation and resolve the supported UX in this checkpoint.
 
-### 3. Ship The Retained-Home Service
+Exit: exact candidate artifacts pass native retention, writer-fencing, replay, recovery,
+and renewal probes. Unsupported provider assumptions become concrete repairs or explicit
+profile limits; they do not become claims of completed functionality.
 
-Provide the actual allocator implementation missing from the archive. Qualify a
-Linux filesystem-backed reference allocator with physically enforced capacity and
-explicit reservation accounting. Select its filesystem/volume mechanism in the
-provider/storage prototype; a byte limit in a DTO is not capacity enforcement.
+### 2. Implement Durable Lifecycle And Agent Control
 
-Prepare initializes exactly one new home. Restore opens the same complete allocation
-and refuses to seed, format, resize, or substitute another home. Bind allocation to
-Computer identity and immutable template/storage fingerprints. Enforce owner UID/GID,
-real ENOSPC behavior, restart restoration, and exclusive writer access. Store leases
-alone cannot prove a stopped provider process: the allocator/provider boundary must
-fence the old writer before granting another.
+Reuse canonical identity, Work Context and shared Tasks. Persist request fingerprint,
+provider instance/resource identity, selected template/home, operation identity and run
+epoch before dispatch. Apply quota admission and ownership transactionally. Same-key
+same-input retries return the original operation; changed inputs are rejected.
 
-Account for active, stopped, and incomplete allocations. Bound logs and temporary
-storage separately. Admit new allocations only when physical capacity and the free
-space floor permit them. Publish a preservation and recovery runbook; routine cache
-cleanup never removes homes or user state.
+Extend provider-wait recovery under CE-01. Qualify any stored enum/schema migration and
+mixed-version compatibility or required drain. Preserve Media's existing webhook
+behavior and cancellation/billing semantics. The Computers adapter records its own
+observation profile rather than pretending a watch is a webhook.
 
-Exit: real storage tests cover failed preparation, duplicate frames, capacity
-exhaustion, allocator and host restart, identity mismatch, and contested writers.
-Actual files and useful compiler caches survive Stop/Start and restart restoration.
-Host restarts, disk exhaustion and destructive fault injection use disposable
-provider/storage fixtures with the candidate artifacts and containment profile.
+Fix the handoff's conversion of LifecycleUnknown/WatchFailed into ordinary terminal
+failure. Losing an observer does not release the active operation or home fence. A
+budget-exhausted operation exposes Recovery Required while retaining identity. A read
+that only proves present resource state cannot certify a past command result. Operator
+recovery must supply authoritative evidence and use the same domain transitions.
 
-### 4. Deliver The Browser Development Loop
+Implement the MCP projection and native Console projection over these commands. Agent
+execution uses explicit argv or an explicitly admitted shell, a confined working
+directory, bounded environment/output, a deadline and durable request identity. Treat
+arbitrary execution as mutating regardless of argv form. Stream bounded progress and
+store authorized output Artifacts without recording command bodies in audit logs.
+Cancellation waits for the admitted process-termination semantics; no automatic replay
+of an interrupted execution with uncertain effects.
 
-Port native navigation, generated API types and the Computers controller. Use shared
-SSE invalidations and canonical snapshots/Task results. Expose action flags from the
-server. Show capacity, maintenance, disconnected, denied and unresolved-operation
-states without requiring the user to understand provider internals.
+Exit: real-store concurrency and fault cases prove quotas, tenant/actor policy, delegated
+and automated provenance, exact retry identity, observation recovery, stale-event
+rejection, lease loss, cancellation, and no duplicate provider effect. Both facades see
+the same state. Agent execution succeeds with its scoped grant and fails outside it.
 
-Implement the terminal state machine separately from lifecycle UI. Preserve binary
-bytes and explicit replay completion. Disable user input and automatic terminal
-answerbacks while replay callbacks drain. Renew attachment authority before expiry;
-an old callback cannot reconnect after explicit Disconnect, logout, or owner change.
-Subscribe to revocation before baseline authorization and fail closed if its event
-stream is lost. Bound slow readers/writers independently of authorization deadlines.
+### 3. Complete Retention And Governed File Movement
 
-Exit: real headed hardware-browser acceptance proves edit/test, same-process
-reattachment, replay after a query-emitting TUI, authorization renewal, navigation,
-reload, intentional Disconnect, Stop/Start, keyboard use, and narrow recovery UI.
+Prepare creates one allocation. Restore opens that exact allocation and refuses silent
+seeding, formatting, substitution or resizing. Bind the volume to Computer identity,
+owner UID/GID and template/storage compatibility. Fence the old physical writer before
+attaching a replacement. Account for active, stopped and incomplete allocations, with
+separate bounds for logs, temporary data and caches.
 
-### 5. Make Stock CLI Sessions Usable For Real Work
+Protect a free-space reserve and provide actionable admission errors. Keep user homes
+and journals outside routine image/Cargo cleanup. Validate retained templates and
+rollback inputs before pruning images. Provide backup/export and tested restore for the
+selected profile; local persistence across reboot is not a claim of host-loss durability.
+Declare encryption-at-rest and backup-key ownership in that profile. Scope credential
+injection to the Computer and operation, and preserve the owner's ability to revoke
+coding-tool credentials. Logs and support bundles exclude terminal contents and tokens.
 
-Keep the admitted CLI unmodified. Preserve existing-SSO pairing, explicit code
-confirmation, loopback callback validation, credential-free bootstrap, both tunnel
-routes, and the narrow gRPC/SSH forwarding facade. Reject arbitrary methods, targets,
-Computers, origins and forged session headers.
+Implement Artifact import/export using existing authorization and transfer paths. Check
+actual byte limits, extraction bounds, traversal/symlink confinement, overwrite policy,
+interruption and integrity. Imported data cannot escape the admitted working tree or
+silently acquire broader labels or grants.
 
-Replace the reference's static access-token-bound relay ticket with a reviewed
-renewable attachment design. The proposed basis is an opaque, durable pairing grant
-bound to owner, Computer, session family, policy and an absolute installation limit.
-Short-lived internal authority renews only while that grant and its underlying
-authority remain valid. Provider session renewal must preserve the established SSH
-transport; prove that capability early and include a provider fix if required.
-Expiry and revocation remain enforced. Merely extending a stale JWT is not renewal.
+Exit: files and useful caches survive Stop/Start and host restart. Disposable candidate
+fixtures prove ENOSPC, incomplete allocation, identity mismatch, contested writers,
+backup/restore and interrupted file transfer. Destructive fault tests do not run against
+production user homes.
 
-Store connection authority outside replica memory and share sealing-key rotation
-through installation trust. CreateSshSession and ForwardTcp may land on different
-replicas. A replica loss permits explicit reconnect; it does not imply that an
-existing TCP connection can migrate without interruption.
+### 4. Deliver Browser And Stock CLI Continuity
 
-Exit: real stock CLI through ingress, alternating BFF/gateway replicas, healthy
-bursts and blocked writers; sustained work crosses actual token renewals without
-fresh pairing. Revocation and absolute expiry close access promptly. An interrupted
-ordinary SSH exec is reported honestly and is never rerun automatically.
+Implement the user journey with generated types, shared invalidation events, canonical
+snapshots and server-issued action flags. Keep terminal transport and lifecycle UI in
+focused modules. Bound history and flow control, drain ReplayComplete before enabling
+input/answerbacks, and reject stale reconnect callbacks after Disconnect or owner change.
 
-### 6. Support Template Changes And Retained-Instance Maintenance
+Reuse existing SSO for one-use, expiring, rate-limited CLI pairing with explicit code
+confirmation and validated loopback callback. Support the qualified stock client's
+Computer-prefixed and root tunnel routes through an explicit adapter. Restrict methods,
+SSH targets, origins and grants; no arbitrary HTTP/gRPC proxy or forged session header.
+Pairing and session redemption must work across replicas without sticky routing.
 
-Changing the default template affects new Computers. Existing Computers, queued
-operations and retries continue to use their recorded template and home. Retain
-the exact referenced images and configuration; missing retained inputs block dispatch.
+Issue short attachment leases from current grant/policy state and renew before expiry.
+Use revocation events plus authoritative resynchronization, with no stale-cache renewal.
+Initial maximum authority staleness is 30 seconds, including cache and clock allowances;
+renew at most every 10 seconds while attached. Target revocation closure within five
+seconds in healthy operation. Enforce the hard bound during blocked reads/writes and
+observer loss. Installation policy may tighten the limits. Grant absolute/idle limits
+remain distinct from this short lease and do not slide indefinitely.
 
-Implement replacement as a durable maintenance Task. Drain controllers and provider
-work, checkpoint the exact source/target instance, fence the source writer, attach
-the retained home, qualify policy and terminal behavior, then adopt the target.
-Rollback first proves that the target writer stopped. Uncertain maintenance retains
-its lock and checkpoints across worker restart.
+The first CLI grant is session-bound and revokes on logout. Closing the browser tab does
+not itself log out. Persistent device grants are a later explicit-consent profile.
+Service-principal execution uses its own authority. Revocation closes access; separately
+specified suspension policy determines whether background execution must also stop.
 
-Exit: cancellation, lost replies, restart at each checkpoint, default rollover,
-upgrade and rollback preserve user data and never create concurrent home writers.
+Store grant state outside replica memory and rotate installation sealing keys with an
+explicit overlap window. No secret enters copied commands, query strings, browser
+storage, traces or ordinary logs. Enforce WebSocket Origin for browser attachment;
+nonbrowser CLI connections authenticate through their narrow grant and cannot inherit
+browser-cookie authority. Render terminal output as untrusted data, with automatic
+clipboard, hyperlink and terminal-response behavior explicitly bounded.
 
-### 7. Package Computers As Core And Deploy The Bioma Configuration
+Exit: headless behavior tests cover keyboard, replay, navigation and races. Headed
+hardware acceptance proves usable layout and the real editing journey. Stock CLI work
+crosses actual token/provider-session renewal through public ingress and alternating
+replicas. Logout, policy removal, replayed pairing, blocked I/O, replica loss and grant
+expiry satisfy the access bound. A broken SSH stream is reported as interrupted and
+never implies an arbitrary exec was automatically resumed.
 
-Ship canonical service, provider and allocator image recipes; migrations, standard
-Helm resources, configuration validation, trust references, ingress routes and
-offline artifact closure. Declare ownership and complete inputs in existing build
-and deployment contracts. Split independently updated deployment units only with
-explicit ownership, including any required migration of existing objects.
+### 5. Qualify Retained Maintenance And Core Packaging
 
-Remove the reference feature-enable switch. Keep operational admission/maintenance
-settings. Register core Console/API surfaces and installation diagnostics. Preflight
-fails on missing required provider/storage closure before writes. Provider outages
-make Computers unavailable without taking unrelated services out of readiness.
+New template defaults apply to new Computers. Existing operations retain exact image,
+configuration and home identities. Maintenance drains execution, checkpoints source and
+target, fences the source writer, restores the selected home, qualifies the target, and
+commits adoption. Rollback proves the target writer stopped before restoring the source.
+If an upgrade changes on-disk data incompatibly, require a qualified snapshot/restore
+path or declare the forward-only boundary before admission. Uncertainty retains locks.
 
-First qualify a clean installation with its own origin, identity, image, policy and
-capacity. Then publish qualified immutable artifacts, update the Bioma-owned GitOps
-configuration, and reconcile **Veoveo at veoveo.bioma.ai**. Verify actual running
-digests and configuration. Record the complete candidate closure and installed results.
+Package Computers, provider and storage inputs for the chosen topology using existing
+component/image ownership. Validate declared trust/configuration before writes. Always
+register core control/Console surfaces; show Setup Required if capacity is explicitly
+unconfigured. Missing inputs for a configured topology fail validation. Provider outages
+make Computers unavailable while unrelated service readiness remains meaningful.
 
-Exit: both clean installation and Bioma configuration pass the release matrix below.
+Include the complete disconnected artifact closure for the selected local topology.
+No mandatory Veoveo-hosted service or unrecorded Internet pull may be needed to start a
+retained Computer. On-demand or remote profiles are published only after their own
+capacity, trust, failure and retention qualification.
 
-## Build And Deployment Iteration Plan
+Exit: a clean installation works with its own hostname, identity, policy and capacity.
+Installed-template changes and rollback preserve files and prevent concurrent writers.
+An explicitly unconfigured setup gives truthful diagnostics without claiming operational
+Computers acceptance. The configured offline profile works without external downloads.
 
-Develop Console through its Vite/BFF loop. Use focused Rust package checks and one
-stable checkout/target configuration per builder. Generate OpenShell clients offline
-from hash-verified protocol inputs. Keep protocol/provider dependencies in the owning
-runtime/service so a Console layout edit does not compile them.
+### 6. Deploy Veoveo With The Bioma Configuration
 
-Retain separate images and cache identities for Computers service, allocator,
-OpenShell gateway, supervisor, and development templates. Rebuild only affected
-artifacts. A provider patch should not rebuild Console; a new default development
-image should not restart existing Computers. Publish once and deploy the exact
-qualified digests. Use component-scoped receipts to prove which workloads changed.
+Publish the exact qualified immutable artifacts. Update installation-owned GitOps
+configuration for Veoveo at `veoveo.bioma.ai`, reconcile it, and verify running digests,
+configuration and the complete selected profile. Preserve retained instances unless an
+explicit tested maintenance operation is part of the deployment.
 
-| Representative change | Acceptance target |
+Run the installed matrix below with real users and an admitted service principal. Use
+at least two gateway/BFF replicas for shared grant, routing and revocation cases. Run
+host destruction and disk-fault cases on isolated fixtures with the same candidate
+artifacts; record which evidence came from fixtures and which from the public endpoint.
+
+Exit: real browser, stock CLI, agent execution, file movement and retained recovery work
+on Veoveo with Bioma configuration. A browser-only demo or API health check does not
+complete this release.
+
+## Build, Deployment And Performance Plan
+
+| Representative change | Required behavior |
 |---|---|
-| Console source edit | Vite refresh with no Rust build, image publication, or Pod restart |
-| Console production assets | Reuse the existing BFF binary and all Computers/provider artifacts |
-| Computers implementation | Focused package tests; rebuild and roll out only its affected service units |
-| Provider repair | Build the affected provider branch, qualify its exact tuple, and preserve running retained instances until maintenance |
-| New template default | Validate and publish configuration/image closure; retain old Computers' selected images and caches |
-| No-op deployment | Reuse unchanged units and produce no rollout |
+| Console source edit | Vite refresh and focused browser behavior; no Rust build, image publication or workload restart |
+| Console production assets | Reuse the BFF binary and all Computers/provider artifacts |
+| Domain or adapter edit | Focused input closure; rebuild and qualify only affected service/provider artifacts |
+| Provider repair | Qualify the changed supported tuple; retained instances stay pinned until maintenance |
+| Template default | Publish image/configuration once; preserve existing Computers and their useful caches |
+| No-op deployment | Reuse exact artifacts and preserve workload identities |
 
-Record dependency/source preparation, compilation, linking, image export, push,
-qualification, reconciliation and readiness separately. Initial targets are a warm
-focused source check below 30 seconds and a warm component build/qualification/rollout
-below two minutes, excluding provider rebuilds and sustained acceptance. These are
-targets to measure, not performance claims. Report misses and their input/cache cause.
+Keep stable builder/worktree input paths and feature selection. Generate provider clients
+from hash-verified local inputs. Budget cache storage explicitly and retain reusable
+compiler dependencies within the free-space reserve. Every phase reports elapsed time,
+cache/input invalidation causes, retry reason and affected workload identities.
 
-Use short configurable authorization lifetimes for routine fault suites, then run
-one sustained public browser/CLI qualification across real access-token renewals.
-Keep required functional acceptance in the release path. Record additional capacity
-and throughput experiments separately so they do not become indefinite blockers.
-Extend `BUILD_DEPLOY_ITERATION_AUDIT.md` with measured costs and avoidable retries.
+Use three checkpoints: focused feedback during edits, affected-component qualification,
+and full supported release acceptance. Dependency upgrades and broader performance
+experiments run separately unless they resolve a selected-profile failure. Shortened
+lease lifetimes accelerate routine fault cases; final qualification crosses real token
+renewals. The v2 test-report workflow remains in force until scoped evidence ships.
+
+| Measurement | Initial target and measurement boundary |
+|---|---|
+| Focused warm source check | Below 30 seconds on the declared developer host |
+| Warm component build, qualification and rollout | Below two minutes, excluding provider rebuilds and sustained acceptance |
+| Warm Start to usable terminal | p95 below 10 seconds with image present and capacity available; report provider startup separately |
+| Reattach to input-ready | p95 below two seconds on the declared network with bounded history; include replay drain |
+| Terminal responsiveness | p95 server/relay overhead below 50 ms; report measured network RTT and end-to-end echo separately |
+| Access revocation | At most 30 seconds from committed platform revocation, including failure conditions; healthy-operation target below five seconds |
+| Capacity and file transfer | Bounded memory/disk/concurrency under declared limits; record throughput with matched routes and payloads |
+
+Latency targets require a recorded baseline, sample count, p50/p95, payload and network
+conditions before a performance claim. Security bounds and bounded-resource behavior
+are correctness gates. A latency miss creates a measured optimization issue and an
+explicit release disposition. Additional host/provider/throughput comparisons are not
+indefinite blockers for a usable, secure selected profile. Extend the source-controlled
+[iteration audit](BUILD_DEPLOY_ITERATION_AUDIT.md) with costs and unresolved experiments.
 
 ## Release Acceptance Matrix
 
-| Area | Required installed evidence |
+| Area | Required evidence |
 |---|---|
-| Core delivery | Standard release/Helm/offline closure includes Computers; clean install needs installation configuration only |
-| Ownership | Two real principals, including similar display names, cannot read or control each other's Computer, Tasks, terminal or CLI grants |
-| Replicas | At least two gateway and BFF replicas; cross-replica admission, pairing/session use, revocation and restart recovery |
-| Lifecycle | Same-request retries preserve identity; unknown effects stay locked; webhook loss/redelivery, lease loss and cancellation preserve exact operation authority |
-| Browser | Headed hardware GPU proof, native page, keyboard/narrow UI, real editing/testing, safe replay, reload/navigation, renewal and intentional Disconnect |
-| CLI | Stock client on a clean machine through real ingress; sustained session renewal, root tunnel, restricted forwarding, bounded stalls and revocation |
-| Retention | Files, repository state, coding-tool state and useful caches survive Stop/Start; new process identity is observed |
-| Storage | Real ENOSPC, incomplete allocation, single writer, service/host restart and documented restoration; no silent reseed |
-| Maintenance | Immutable template rollover, worker/controller drain, replacement checkpoints and rollback with preserved homes |
-| Isolation | Admitted containment and egress; personal shell cannot obtain host sockets, provider administration or build/release authority |
-| Runtime health | Actual source/configuration/image closure, Computer capability readiness and continued unrelated service availability during a provider fault |
-| Iteration | Representative changed-component and no-op runs record cache use, build timings and actual changed workload inventories |
+| Core | Standard release surfaces, valid configured/unconfigured states, clean install and selected offline topology |
+| Identity | Two real humans with similar display names plus a service principal; private defaults, explicit delegation, tenant/context denial and actor attribution |
+| Quotas | Collection APIs, a quota above one, concurrent admission, exhaustion and reduction without silent deletion |
+| Lifecycle | Lost replies, duplicate inputs, watch lag/gaps, authoritative reconciliation, stale epochs, budget exhaustion and cancellation preserve operation identity/fencing |
+| Automation | Governed MCP resources/Tasks, structured execution, confined file/output handling, grant revocation and no uncertain command replay |
+| Browser | Responsive accessible page, keyboard, safe replay, editing/testing, refresh/navigation, intentional Disconnect and headed hardware visual proof |
+| CLI | Unmodified qualified client through real ingress, explicit pairing, both tunnel routes, renewal, narrow forwarding and honest interruption behavior |
+| Authority | Cross-replica grants, fresh policy checks, key rotation, logout/revocation, expired/replayed challenges and blocked-I/O deadline enforcement |
+| Retention | New process after Start over the same home; ENOSPC, partial allocation, physical writer fencing, backup/restore and host restart |
+| Files | Authorized Artifact import/export, path/archive bounds, quotas, integrity and interrupted transfer |
+| Maintenance | Retained template rollover, drain, replacement checkpoints, downgrade limits and tested rollback |
+| Isolation | Effective containment/egress, no host socket or provider/admin credentials, denied cross-Computer access and broker-only publication/promotion |
+| Installation | Actual source/configuration/image closure, Computers readiness, continued unrelated availability during provider faults |
+| Iteration | Asset-only and no-op runs preserve unaffected artifacts/workloads; scoped test selection and measured source-to-running timing |
 
-All smoke lifecycle, assertions, retries and cleanup stay in Rust. Record affected
-checks with `cargo xtask test-report run`, inspect `show`, and commit passing current
-evidence with each build-input change. Each implementation checkpoint is a coherent
-commit; qualification receipts identify mocked, native and installed evidence separately.
+Each implementation checkpoint is a coherent commit with affected checks and current
+recorded evidence. Report mocked, native, isolated installed, public installed, and
+hardware evidence separately. The release is complete when the supported browser,
+stock CLI and agent journey, retained storage/recovery, core packaging, and Bioma
+installation pass. Future group, editor, preview, GPU and additional-provider profiles
+retain their own acceptance and do not silently enter the supported matrix.
 
-The capability is complete when the full supported personal browser and CLI journey,
-retained storage and recovery, core installation packaging, and Bioma deployment pass.
-A browser-first milestone is useful progress; it does not finish the Computers goal.
+## Follow-On Profiles
+
+| Profile | Entry requirement |
+|---|---|
+| Team collaboration | Explicit group grants, per-session actor attribution and terminal writer arbitration; no shared human token |
+| Remote editor | Qualify actual SSH process/subsystem and forwarding requirements, renewal and interruption with the selected editor |
+| Private app preview | Per-Computer/port grants, isolated browser origin, WebSocket support and current policy; block arbitrary proxy destinations and metadata endpoints |
+| GPU Computer | Qualified device isolation/placement and fastest compatible NVIDIA path; retain actual hardware execution proof |
+| Additional providers/on-demand hosts | Same lifecycle, recovery, retention, authority and capacity matrix; truthful cold-start and scale-to-zero behavior |
+| Persistent CLI device grant | Explicit consent, device binding where supported, independent lifetime/revoke UX and account-security event handling |
+| Unattended factory | Existing factory broker and independent verification/promotion authority; personal Compute access grants no deployment rights |
 
 ## Reviewed Handoff
 
@@ -329,9 +434,12 @@ Source package: `veoveo-openshell-handoff-2026-09-09.zip`, SHA-256
 `b330a4016a25d182e206421c4eb019a1cd2fc0ae94e40b7d2056dcd654cba061`.
 The package selects downstream source revision
 `396a71200470043a5e7b2f6c3a855166c63e52e1` against Veoveo baseline
-`11f59d55b487a4fa856f73cb31a498c7fb7e6d30`. Its listed checksums passed review.
+`11f59d55b487a4fa856f73cb31a498c7fb7e6d30`. Listed checksums passed review.
 Its selected source is not a buildable checkout. Reported private runtime results
-are useful context and do not substitute for the candidate's acceptance evidence.
+are context and do not substitute for the candidate's qualification.
 
-Authoritative upstream baseline:
-[OpenShell 0.0.116](https://github.com/NVIDIA/OpenShell/releases/tag/v0.0.116).
+The provider protocol's best-effort tails and lag warnings, the unknown-outcome
+settlement bug, static CLI relay lifetime, patch graph and omitted allocator are
+specific adoption risks. Phase 1 resolves them before broad integration. Upstream
+references are [OpenShell 0.0.116](https://github.com/NVIDIA/OpenShell/releases/tag/v0.0.116)
+and [OpenShell's supported isolation model](https://docs.nvidia.com/openshell/about/overview).
