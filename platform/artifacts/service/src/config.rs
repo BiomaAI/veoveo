@@ -68,7 +68,14 @@ impl ObjectStoreConfig {
                     builder = builder.with_endpoint(endpoint);
                 }
                 let store = Arc::new(builder.build().context("building S3 artifact store")?);
-                Ok(ArtifactObjectStore::with_multipart(store))
+                ArtifactObjectStore::with_s3(
+                    store,
+                    endpoint.as_deref(),
+                    bucket,
+                    region,
+                    *allow_http,
+                )
+                .context("building S3 multipart reconciliation")
             }
         }
     }

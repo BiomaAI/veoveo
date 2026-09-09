@@ -1890,3 +1890,16 @@ caches, and current acceptance executables remain. The deletion manifest is
 353 GiB after concurrent compilation and cleanup. This remains below the image
 builder's operating reserve, so obsolete builder materializations must be reviewed
 before image staging rather than waiting for disk exhaustion.
+
+Installed S3 acceptance transfers 33,554,451 bytes through RustFS and verifies the
+whole-object digest. It covers orphan multipart cleanup, adapter reconstruction,
+lost part acknowledgements, and completion replay. Compilation takes 9.91 s and test
+execution 1.10 s; the recorder reports 11.1 s overall. The 35 Artifact library tests
+also pass. This is storage integration evidence, not public HTTP, multi-GB, or
+Console acceptance. Logs use `output/development/artifact-upload-s3-*20260909.log`.
+
+At this checkpoint the upload experience is still not deployed. Backend implementation
+and debugging account for the delay; the measured warm build is short. Completing
+multiple backend layers before connecting the public API and Console delayed usable
+feedback. The next checkpoint must connect those surfaces instead of adding another
+isolated backend layer.

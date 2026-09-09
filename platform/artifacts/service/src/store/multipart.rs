@@ -7,6 +7,12 @@ use veoveo_mcp_contract::UploadSha256;
 
 const COALESCE_BYTES: usize = 64 * 1024;
 
+pub struct StoredUploadPart {
+    pub number: NonZeroU32,
+    pub byte_len: u64,
+    pub content_id: String,
+}
+
 /// Constructed only after checking the complete bounded request body. Tiny HTTP
 /// chunks are coalesced so metadata allocations cannot grow independently of bytes.
 pub struct VerifiedUploadPayload {
@@ -63,6 +69,43 @@ impl VerifiedUploadPayload {
 }
 
 impl ArtifactObjectStore {
+    pub async fn remove_upload_orphans(
+        &self,
+        key: &str,
+        retained: Option<&str>,
+    ) -> Result<(), BlobStoreError> {
+        match &self.reconciliation {
+            Some(super::s3_multipart::Reconciliation::S3(store)) => {
+                store.remove_orphans(key, retained).await
+            }
+            #[cfg(test)]
+            Some(super::s3_multipart::Reconciliation::MemoryFixture) => Ok(()),
+            None => Err(BlobStoreError::Backend(
+                "S3 multipart reconciliation is unavailable".into(),
+            )),
+        }
+    }
+
+    pub async fn reconciled_upload_parts(
+        &self,
+        key: &str,
+        multipart: &str,
+        parts: Vec<StoredUploadPart>,
+    ) -> Result<Vec<String>, BlobStoreError> {
+        match &self.reconciliation {
+            Some(super::s3_multipart::Reconciliation::S3(store)) => {
+                store.content_ids(key, multipart, &parts).await
+            }
+            #[cfg(test)]
+            Some(super::s3_multipart::Reconciliation::MemoryFixture) => {
+                Ok(parts.into_iter().map(|part| part.content_id).collect())
+            }
+            None => Err(BlobStoreError::Backend(
+                "S3 multipart reconciliation is unavailable".into(),
+            )),
+        }
+    }
+
     fn multipart_backend(
         &self,
     ) -> Result<&dyn object_store::multipart::MultipartStore, BlobStoreError> {
