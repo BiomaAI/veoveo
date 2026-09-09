@@ -1,19 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d7ff46202d9cc0f41055313c56c2b010ad50f3a78d28c94a93382c3c9a6ebb62",
-  "updatedAt": "2026-09-09T02:18:33Z",
+  "buildDigest": "sha256:48607445f1bd949554b9b6781851faee07ef80c756884d0b008b49dd5d260215",
+  "updatedAt": "2026-09-09T02:22:54Z",
   "checks": [
     {
-      "name": "artifact-upload-recovery-gitops-config",
+      "name": "artifact-upload-python-consumer-limits",
       "command": [
         "cargo",
         "xtask",
-        "smoke",
-        "helm-config"
+        "enforce",
+        "python"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T02:18:33Z",
-      "durationSeconds": 5.947988392,
+      "finishedAt": "2026-09-09T02:22:54Z",
+      "durationSeconds": 13.81522294,
       "detail": "completed successfully"
     }
   ]

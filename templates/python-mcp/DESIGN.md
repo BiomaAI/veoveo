@@ -26,6 +26,11 @@ alone. The full report is stored on the shared artifact plane through a write
 capability reserved at submission, usage is recorded per task, and the result
 is a typed `CallToolResult` with a `datasheet://artifact/{id}` resource link.
 
+Dataset reads pass the configured `max_dataset_bytes` ceiling to the SDK before
+downloading bytes. Report resource reads use `max_artifact_bytes`. These limits
+bound the materialized consumer input independently of the upload's admitted size;
+large-file acceptance does not certify pandas at that scale.
+
 ## Resources
 
 | Resource | Content |

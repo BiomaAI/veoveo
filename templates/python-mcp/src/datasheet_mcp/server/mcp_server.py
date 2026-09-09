@@ -65,7 +65,9 @@ def build_mcp_server(state: AppState) -> Server:
         if selector.inline_csv is not None:
             return await asyncio.to_thread(engine.load_inline_csv, selector.inline_csv)
         caller = caller_from_scope(request_scope(ctx))
-        artifact = await state.artifacts.resolve(caller, selector.dataset_uri or "")
+        artifact = await state.artifacts.resolve(
+            caller, selector.dataset_uri or "", max_bytes=state.max_dataset_bytes,
+        )
         return await asyncio.to_thread(
             engine.load_dataframe,
             artifact.bytes_,
@@ -336,7 +338,9 @@ def build_mcp_server(state: AppState) -> Server:
         artifact_id = uris.parse_artifact_uri(text)
         if artifact_id is not None:
             caller = caller_from_scope(request_scope(ctx))
-            artifact = await state.artifacts.get(caller, artifact_id)
+            artifact = await state.artifacts.get(
+                caller, artifact_id, max_bytes=state.max_artifact_bytes,
+            )
             if artifact is None:
                 raise _invalid(f"unknown artifact `{artifact_id}`")
             return types.ReadResourceResult(

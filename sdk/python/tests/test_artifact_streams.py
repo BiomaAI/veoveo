@@ -9,7 +9,7 @@ import pytest
 import uuid_extensions
 
 from veoveo_mcp.artifacts import (
-    ArtifactDenied, ArtifactTooLarge, ArtifactTransport, HttpArtifactPlane,
+    ArtifactDenied, ArtifactRepository, ArtifactTooLarge, ArtifactTransport, HttpArtifactPlane,
 )
 from veoveo_mcp.contract.identity import PlaneCaller
 
@@ -93,6 +93,25 @@ async def test_declared_multigb_file_is_rejected_before_consuming_when_consumer_
         assert source.closed
     finally:
         await plane.close()
+
+
+@pytest.mark.parametrize("operation", ["get", "resolve"])
+async def test_repository_enforces_the_consumers_declared_ceiling(operation):
+    source = Chunks([b"data"])
+    plane, uri = fixture(source)
+    repository = ArtifactRepository("https://plane.example", "datasheet")
+    await repository.plane.close()
+    repository.plane = plane
+    target = uri if operation == "resolve" else uri.removeprefix("artifact://")
+    try:
+        with pytest.raises(ArtifactTooLarge):
+            await getattr(repository, operation)(caller(), target, max_bytes=3)
+        assert source.delivered == 0
+        result = await getattr(repository, operation)(caller(), target, max_bytes=4)
+        assert result.bytes_ == b"data"
+        assert result.metadata.artifact_uri.startswith("datasheet://")
+    finally:
+        await repository.close()
 
 
 async def test_early_exit_closes_the_response_and_yields_bounded_chunks():
