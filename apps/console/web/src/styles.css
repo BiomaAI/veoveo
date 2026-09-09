@@ -457,6 +457,9 @@ a.button { text-decoration: none; }
 .drawer { position: relative; width: min(480px, calc(100vw - 24px)); height: 100%; display: flex; flex-direction: column; background: var(--surface); box-shadow: -10px 0 30px var(--shadow); }
 .drawer-wide { width: min(900px, calc(100vw - 24px)); }
 .drawer > header { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px; border-bottom: 1px solid var(--border); }
+.drawer > header > div { flex: 1; min-width: 0; }
+.drawer > header > .icon-button { flex-shrink: 0; }
+body:has(.drawer-layer) { overflow: hidden; }
 .drawer > header span { color: var(--muted); font: 500 var(--text-2xs) var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
 .drawer > header h2 { max-width: 370px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 550 var(--text-lg)/22px var(--sans); letter-spacing: -0.01em; }
 .drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 0 16px 20px; }

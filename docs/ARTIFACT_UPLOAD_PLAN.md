@@ -2,10 +2,11 @@
 
 Status: implementation active. Durable upload storage and native S3/HTTP checks pass.
 Public Gateway/BFF routes, the Console queue, and Python streaming are implemented.
-The runtime release is deployed at veoveo.bioma.ai. The populated Console snapshot
-regression is corrected and deployed. A public 10 GiB browser transfer preserved
-3,523,215,360 bytes before session renewal failed; recovery corrections and completion
-of that same transfer remain in progress. Baseline:
+The runtime release is deployed at veoveo.bioma.ai. A real 10 GiB browser upload
+resumed after session recovery, completed with an independently verified SHA-256,
+and passed public HEAD/Range and artifact-detail checks. Installed Python streaming
+and CSV/Parquet MCP consumption also pass. Final narrow-layout and interaction
+acceptance remains in progress. Baseline:
 main `fe6ad0fb`, fetched and checked on 2026-09-08. The first release includes multi-GB resumable
 uploads and an upload form in the Console Artifacts page. Existing component designs
 remain normative until implementation lands.

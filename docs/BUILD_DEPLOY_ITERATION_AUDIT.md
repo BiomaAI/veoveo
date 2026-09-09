@@ -2069,3 +2069,40 @@ by the local Rust harness. The Python process never receives the signing key.
 The harness records full-file bytes/hash, peak RSS, maximum delivered chunk, early
 exit, byte-ceiling rejection, materialization cleanup, and a foreign-tenant denial.
 These checks remain pending until the browser publishes the large upload receipt.
+
+The resumed 10 GiB public upload completes with SHA-256
+`2dcb535dbca1ce175de712a3b39bc7fbe19eb71061f5f4626a8ab9eaf755b236` and
+canonical URI `artifact://01a083cf-8e2e-7de2-b79a-7688f8bd0735`. Its final receipt
+contains exactly 10,737,418,240 bytes. The continuation transfers 7,214,202,880 new
+bytes and reaches Ready in 1,756.6 s, averaging 3.92 MiB/s including recovery checks
+and verification. This timing excludes the first failed transfer and repair interval.
+It exceeds the configured 15-minute access-token lifetime without another rejected
+refresh. Public HEAD and Range, the queued CSV, and the narrow artifact drawer pass.
+The four saved screenshots were inspected. Their long filename exposes a narrow
+header layout defect: the close button can fall outside the viewport. The title
+container now shrinks, the button retains its width, and an open drawer locks
+background scrolling. This small correction remains a separate Console rollout.
+
+Installed consumer acceptance passes real known/unknown-length HTTP uploads,
+immutable part replay/conflict, completion replay, concealed foreign-actor upload
+IDs, and a denied independent Work Context download. Public Datasheet MCP consumes
+both uploaded CSV and Parquet. The installed Python SDK reads the full 10 GiB object
+in 33.7 s with a matching SHA-256, 1 MiB maximum chunks, and 54,764 KiB peak RSS.
+Early exit, declared-byte rejection, temporary-file cleanup, and a foreign-tenant
+read denial also pass. Evidence is
+`output/acceptance/artifact-upload/installed-consumers-20260909.json`.
+
+The first consumer attempt requested only operator:use and artifact:upload, while
+the profile requires its complete scope set. HTTP 401 was therefore expected.
+The fixture now reuses the installed-profile scope list, requires a successful typed
+policy read, and checks the typed concealed-404 upload error. A separate urllib
+investigation hit Cloudflare error 1010 and cannot count as application authorization
+evidence. Native HTTP and MCP acceptance reaches the authenticated application.
+
+The difference between the resumed public upload's 3.92 MiB/s and the installed
+Python download's roughly 304 MiB/s warrants a controlled ingress/uplink comparison.
+It does not isolate Cloudflare, QUIC, the browser, or the uplink as the bottleneck.
+A 100 GiB run and native multipart comparison remain future capacity experiments;
+the certified transfer size here is 10 GiB. Near completion, Artifact stays around
+68 MiB, BFF 22 MiB, and Gateway 39 MiB on its active replica. Browser JavaScript heap
+samples are 27–45 MB; they exclude browser native buffers and are not process RSS.

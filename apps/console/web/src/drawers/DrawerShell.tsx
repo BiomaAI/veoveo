@@ -21,9 +21,9 @@ export function DrawerShell({
         <header>
           <div>
             <span>{subtitle}</span>
-            <h2>{title}</h2>
+            <h2 title={title}>{title}</h2>
           </div>
-          <button className="icon-button" onClick={onClose} title="Close">
+          <button className="icon-button" onClick={onClose} title="Close" aria-label="Close details">
             <X size={18} />
           </button>
         </header>

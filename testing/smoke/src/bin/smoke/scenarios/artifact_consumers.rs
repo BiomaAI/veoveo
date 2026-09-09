@@ -61,12 +61,14 @@ pub(crate) async fn artifact_upload_consumers(
         "large fixture must exceed 4 GiB"
     );
     let base = public_base.trim_end_matches('/');
+    let mut scopes = bioma::OPERATOR_PROFILE_SCOPES.to_vec();
+    scopes.push("artifact:upload");
     let token = gateway_token_for_context(
         conformance,
         base,
         "operator-service",
         "operator",
-        &["operator:use", "artifact:upload"],
+        &scopes,
         "operations",
     )
     .await?;
@@ -75,6 +77,18 @@ pub(crate) async fn artifact_upload_consumers(
         .redirect(Policy::none())
         .build()?;
     let upload_base = format!("{base}/artifacts/operator/uploads");
+    let policy: EffectiveArtifactUploadPolicy = client
+        .get(format!("{base}/artifacts/operator/upload-policy"))
+        .bearer_auth(&token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    ensure!(
+        policy.allowed,
+        "installed profile did not authorize machine uploads"
+    );
 
     let other_actor = client
         .get(format!("{upload_base}/{}", browser.large_receipt.upload_id))
@@ -82,15 +96,20 @@ pub(crate) async fn artifact_upload_consumers(
         .send()
         .await?;
     ensure!(
-        other_actor.status() == StatusCode::FORBIDDEN,
-        "a different actor could read the browser upload session"
+        other_actor.status() == StatusCode::NOT_FOUND,
+        "foreign-actor upload status returned {}, expected concealed 404",
+        other_actor.status()
+    );
+    ensure!(
+        other_actor.json::<ArtifactUploadError>().await?.code == UploadErrorCode::NotFound,
+        "foreign upload response did not come from the typed upload boundary"
     );
     let independent = gateway_token_for_context(
         conformance,
         base,
         "operator-service",
         "operator",
-        &["operator:use"],
+        bioma::OPERATOR_PROFILE_SCOPES,
         "independent-review",
     )
     .await?;
