@@ -1952,3 +1952,15 @@ template tests. Its first qualified run takes 14.2 s. Stream tests cover byte ce
 early exit, length mismatch, optional SHA-256 verification, and temporary-file cleanup;
 the multi-GB metadata case rejects before reading and does not represent a transfer.
 Logs use `output/development/artifact-upload-python-*20260909.log`.
+
+The first staging command incorrectly selected `store-bootstrap` as an image target.
+Bootstrap uses the Gateway image, so Bake rejected the name before compilation. The
+correct runtime image set is `mcp-gateway`, `artifact-service`, and `console-bff`.
+Staging restarted with that exact set from isolated revision `e588b397`. Installation
+policy changes can proceed in the main checkout without mutating its build context.
+Keep workload names distinct from image-owner names when planning affected targets.
+
+At staging, RustFS contains 123 GiB on the same 1.8 TiB host filesystem, with 341 GiB
+available. Its host-path PVC requests 10 GiB but does not impose a filesystem quota.
+The explicit upload ledger quota governs artifact admission; independent storage and
+large-scale capacity benchmarking remain follow-up infrastructure work.

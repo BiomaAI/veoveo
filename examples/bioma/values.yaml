@@ -19,12 +19,13 @@ artifactService:
 
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
-  controlPlaneRevision: 41c46086ea0cb84f6d0db80b968b5ec57f728f57c0772d257dbd6ddebbeb9828
+  controlPlaneRevision: 3df69c4e3765c08836ad943e70c26d50e6744899503e773f73f55a18d8b27835
 
 consoleBff:
   oauthResource: https://veoveo.bioma.ai/mcp/admin
   mcpTransportUrl: http://mcp-gateway:8788/mcp/admin
   oauthScopes:
+    - artifact:upload
     - operator:use
     - admin:manage
     - uav-sim:admin
