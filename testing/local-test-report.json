@@ -1,69 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c1964b92a20a472545a0b172ca60c369073eb1e8411bd9ec873b8852d75a42c1",
-  "updatedAt": "2026-09-09T03:07:56Z",
+  "buildDigest": "sha256:47146616d3dfdbb9ae4f19a553e3408421b6f56d01422e98b1905a4cd21658d4",
+  "updatedAt": "2026-09-09T03:10:18Z",
   "checks": [
     {
-      "name": "artifact-upload-drawer-ui-build",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-09T02:59:44Z",
-      "durationSeconds": 5.584037725,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-upload-drawer-ui-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-09T03:01:20Z",
-      "durationSeconds": 3.500966471,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-upload-final-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-09T03:07:56Z",
-      "durationSeconds": 2.341188186,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-upload-installed-consumers",
+      "name": "artifact-upload-final-gitops-config",
       "command": [
         "cargo",
         "xtask",
         "smoke",
-        "artifact-upload-consumers",
-        "--conformance-bin",
-        "/home/rozgo/BiomaAI/veoveo/target/debug/conformance",
-        "--public-base-url",
-        "https://veoveo.bioma.ai",
-        "--browser-evidence",
-        "/home/rozgo/BiomaAI/veoveo/output/acceptance/artifact-upload/8278ab55eff9a64032761a02ed8ddd89b07150fc/01a083cf-6ab3-78c0-a56e-ce6ae4be8664/resume-01a083f7-1384-7210-898e-323d0fdf9f01/evidence.json",
-        "--evidence-output",
-        "/home/rozgo/BiomaAI/veoveo/output/acceptance/artifact-upload/installed-consumers-20260909.json"
+        "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T02:59:22Z",
-      "durationSeconds": 50.969723317,
+      "finishedAt": "2026-09-09T03:10:18Z",
+      "durationSeconds": 6.336839634,
       "detail": "completed successfully"
     }
   ]
