@@ -61,7 +61,10 @@ pub(crate) async fn load_projection(
             SELECT * FROM principal WHERE tenant = $tenant ORDER BY display_name ASC LIMIT $limit;
             SELECT * FROM task WHERE tenant = $tenant ORDER BY updated_at DESC LIMIT $limit;
             SELECT * FROM artifact_occurrence WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
-            SELECT * FROM artifact_blob WHERE tenant = $tenant LIMIT $limit;
+            SELECT * FROM artifact_blob WHERE tenant = $tenant AND id IN (
+                SELECT VALUE blob FROM artifact_occurrence
+                WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit
+            );
             SELECT * FROM share_link WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
             SELECT * FROM artifact_grant WHERE in IN (SELECT VALUE id FROM artifact_occurrence WHERE tenant = $tenant) LIMIT $limit;
             SELECT * FROM agent WHERE tenant = $tenant ORDER BY updated_at DESC LIMIT $limit;
@@ -124,7 +127,7 @@ pub(crate) struct ArtifactSummary {
     pub(crate) id: String,
     pub(crate) filename: String,
     pub(crate) media_type: String,
-    pub(crate) byte_length: i64,
+    pub(crate) byte_length: Option<u64>,
     pub(crate) owner: String,
     pub(crate) output_owner: ArtifactOutputOwnerSummary,
     pub(crate) provenance: ArtifactGovernanceSummary,
@@ -426,12 +429,13 @@ pub(crate) fn share_link_summary(
 
 pub(crate) fn artifact_summary(
     artifact: ArtifactOccurrenceRecord,
-    byte_length: i64,
+    byte_length: Option<i64>,
     grants: Vec<ArtifactGrantSummary>,
     share_links: Vec<ArtifactShareLinkSummary>,
     principal_names: &BTreeMap<String, String>,
     access: &ArtifactAccessContext,
 ) -> anyhow::Result<ArtifactSummary> {
+    let byte_length = browser_byte_length(byte_length)?;
     let effective_access = effective_artifact_access(&artifact, &grants, access)?;
     let recording =
         serde_json::from_value::<ArtifactProvenanceEnvelope>(serde_json::Value::Object(
@@ -480,6 +484,19 @@ pub(crate) fn artifact_summary(
         created_at: artifact.created_at,
         recording,
     })
+}
+
+fn browser_byte_length(value: Option<i64>) -> anyhow::Result<Option<u64>> {
+    value
+        .map(|value| {
+            let value = u64::try_from(value)?;
+            anyhow::ensure!(
+                value <= veoveo_mcp_contract::MAX_UPLOAD_BYTES,
+                "artifact size exceeds the browser's exact integer range"
+            );
+            Ok(value)
+        })
+        .transpose()
 }
 
 const fn contract_invocation_mode(mode: veoveo_platform_store::InvocationMode) -> InvocationMode {
@@ -858,6 +875,22 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn artifact_sizes_distinguish_missing_zero_and_large_exact_values() {
+        assert_eq!(browser_byte_length(None).unwrap(), None);
+        assert_eq!(browser_byte_length(Some(0)).unwrap(), Some(0));
+        assert_eq!(
+            browser_byte_length(Some(14_288_899)).unwrap(),
+            Some(14_288_899)
+        );
+        assert_eq!(
+            browser_byte_length(Some(10_737_418_240)).unwrap(),
+            Some(10_737_418_240)
+        );
+        assert!(browser_byte_length(Some(-1)).is_err());
+        assert!(browser_byte_length(Some(1_i64 << 53)).is_err());
+    }
 
     #[test]
     fn share_link_snapshot_never_serializes_bearer_hash_material() {

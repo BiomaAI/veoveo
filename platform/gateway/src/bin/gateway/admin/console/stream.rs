@@ -591,8 +591,8 @@ impl ConsoleStreamState {
         let mut events = Vec::new();
         for table in STREAM_TABLES {
             let rank = table_rank(table);
-            let cursor = self.cursors[&rank];
             loop {
+                let cursor = self.cursors[&rank];
                 let batches = store
                     .replay_changes(table, cursor, REPLAY_PAGE_LIMIT)
                     .await?;
@@ -603,6 +603,9 @@ impl ConsoleStreamState {
                 for batch in &batches {
                     for change in &batch.changes {
                         let entry = decode_changefeed_entry(change)?;
+                        if table == PlatformTable::ArtifactOccurrence {
+                            self.resolve_referenced_blob(store, &entry).await?;
+                        }
                         if let Some(event) = self.apply(table, rank, batch.versionstamp, entry)? {
                             events.push(event);
                         }
@@ -617,6 +620,30 @@ impl ConsoleStreamState {
             }
         }
         Ok(events)
+    }
+
+    /// A new occurrence can reuse a blob older than the initial Console window.
+    async fn resolve_referenced_blob(
+        &mut self,
+        store: &PlatformStore,
+        entry: &ChangefeedEntry,
+    ) -> anyhow::Result<()> {
+        if let ChangefeedEntry::Upsert(row) = entry {
+            if !self.row_in_tenant(PlatformTable::ArtifactOccurrence, row) {
+                return Ok(());
+            }
+            let artifact: ArtifactOccurrenceRecord = row.clone().into_t()?;
+            let key = record_key(&artifact.blob)?;
+            if !self.blob_lengths.contains_key(&key) {
+                let blob: Option<ArtifactBlobRecord> = store.client().select(artifact.blob).await?;
+                if let Some(blob) = blob
+                    && blob.tenant == self.tenant
+                {
+                    self.blob_lengths.insert(key, blob.byte_len);
+                }
+            }
+        }
+        Ok(())
     }
 
     fn apply(
@@ -839,8 +866,7 @@ impl ConsoleStreamState {
         };
         let byte_length = record_key(&artifact.blob)
             .ok()
-            .and_then(|blob| self.blob_lengths.get(&blob).copied())
-            .unwrap_or(0);
+            .and_then(|blob| self.blob_lengths.get(&blob).copied());
         let mut grants: Vec<_> = self
             .grants
             .values()

@@ -350,7 +350,7 @@ fn build_snapshot(
         .into_iter()
         .map(|artifact| {
             let blob_key = record_key(&artifact.blob)?;
-            let byte_length = blob_lengths.get(&blob_key).copied().unwrap_or(0);
+            let byte_length = blob_lengths.get(&blob_key).copied();
             let id = record_key(&artifact.id)?;
             artifact_summary(
                 artifact,

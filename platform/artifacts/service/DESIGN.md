@@ -50,6 +50,13 @@ request bodies. Artifact downloads now use the Gateway's streaming HTTP client w
 connection and idle limits, removing the authentication client's ten-second total
 deadline from file transfers.
 
+Console snapshot sizes resolve blobs referenced by the selected artifact occurrences.
+The blob query has no independent window that could discard their metadata. Live
+replay loads an older referenced blob when a new occurrence reuses it outside the
+initial snapshot. Missing metadata becomes an explicit null size; zero is reserved
+for an actual empty object. Negative sizes and integers beyond the browser's exact
+range are rejected before serialization.
+
 `GatewayProfile.artifact_upload` holds the explicit typed policy. An absent policy
 disables uploads. Part deadlines are at most one hour; Store reserves a short margin
 after the request deadline before reclaiming its lease. The upload assertion binds

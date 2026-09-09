@@ -8,7 +8,8 @@ export const formatDate = (value?: string) =>
       }).format(new Date(value))
     : "-";
 
-export const formatBytes = (value: number) => {
+export const formatBytes = (value: number | null) => {
+  if (value === null) return "Size unavailable";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let amount = value;
   let unit = 0;
