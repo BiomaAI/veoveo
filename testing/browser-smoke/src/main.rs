@@ -622,7 +622,7 @@ async fn main() -> Result<()> {
             evidence_directory,
             timeout_seconds,
         } => {
-            browser::artifact_upload::verify_resume(
+            browser::artifact_upload::resume::verify_resume(
                 &public_base_url,
                 &chrome_cdp_url,
                 &evidence_directory,

@@ -324,7 +324,7 @@ fn assert_artifact_response(
     Ok(())
 }
 
-async fn run_public_conformance(
+pub(super) async fn run_public_conformance(
     conformance: &Path,
     base: &str,
     token: &str,
@@ -352,7 +352,7 @@ async fn run_public_conformance(
     String::from_utf8(output.stdout).context("decoding public conformance output")
 }
 
-fn structured_output(output: &str) -> Result<Value> {
+pub(super) fn structured_output(output: &str) -> Result<Value> {
     let encoded = output
         .lines()
         .find_map(|line| line.strip_prefix("structured: "))

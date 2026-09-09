@@ -8,8 +8,11 @@ mod basic;
 #[path = "../../../../deployment-smoke/src/helm_config.rs"]
 mod helm;
 pub(crate) use helm::helm_config;
+#[path = "scenarios/artifact_consumers.rs"]
+mod artifact_consumers;
 #[path = "scenarios/bioma.rs"]
 mod bioma;
+pub(crate) use artifact_consumers::artifact_upload_consumers;
 #[path = "scenarios/candidate.rs"]
 mod candidate;
 #[path = "scenarios/datasheet.rs"]

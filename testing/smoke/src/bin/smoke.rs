@@ -101,6 +101,19 @@ enum Cmd {
         #[arg(long, default_value = "https://veoveo.bioma.ai")]
         public_base_url: String,
     },
+    /// Verify installed upload interoperability and bounded Python streaming.
+    ArtifactUploadConsumers {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(long, default_value = "k3d-veoveo-bioma")]
+        context: String,
+        #[arg(long, default_value = "https://veoveo.bioma.ai")]
+        public_base_url: String,
+        #[arg(long)]
+        browser_evidence: PathBuf,
+        #[arg(long)]
+        evidence_output: PathBuf,
+    },
     /// Run every live SurrealDB integration target against an isolated 3.2.4 container.
     SurrealIntegration,
     /// Smoke-test gateway platform bootstrap and active revision validation.
@@ -590,6 +603,22 @@ async fn main() -> Result<()> {
                 &context,
                 &local_base_url,
                 &public_base_url,
+            )
+            .await
+        }
+        Cmd::ArtifactUploadConsumers {
+            conformance_bin,
+            context,
+            public_base_url,
+            browser_evidence,
+            evidence_output,
+        } => {
+            artifact_upload_consumers(
+                &conformance_bin,
+                &context,
+                &public_base_url,
+                &browser_evidence,
+                &evidence_output,
             )
             .await
         }
