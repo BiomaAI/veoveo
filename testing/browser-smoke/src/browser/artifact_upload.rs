@@ -4,6 +4,8 @@ use std::io::{Read, Seek, SeekFrom, Write};
 
 #[path = "artifact_upload/resume.rs"]
 pub(crate) mod resume;
+#[path = "artifact_upload/ux.rs"]
+pub(crate) mod ux;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Receipt {

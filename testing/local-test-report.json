@@ -1,10 +1,24 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c032b4407b2537bef754b6f513754b0897a0a6c28fff99dd10631abbf0e9a79b",
-  "updatedAt": "2026-09-09T02:37:30Z",
+  "buildDigest": "sha256:248342d27ddfc82c4c99e55e503c499fa975bb8a541b63450a61adb263c3e494",
+  "updatedAt": "2026-09-09T02:46:33Z",
   "checks": [
     {
-      "name": "artifact-upload-consumer-browser-build",
+      "name": "artifact-upload-ux-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-09T02:46:33Z",
+      "durationSeconds": 2.359338671,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-upload-ux-harness",
       "command": [
         "cargo",
         "build",
@@ -14,37 +28,8 @@
         "veoveo-flight-smoke"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T02:36:54Z",
-      "durationSeconds": 20.390285524,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-upload-consumer-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-09T02:37:30Z",
-      "durationSeconds": 2.353624259,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-upload-consumer-harness",
-      "command": [
-        "cargo",
-        "build",
-        "-p",
-        "veoveo-smoke",
-        "-p",
-        "veoveo-mcp-conformance"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-09T02:35:56Z",
-      "durationSeconds": 18.718530469,
+      "finishedAt": "2026-09-09T02:44:22Z",
+      "durationSeconds": 5.404645137,
       "detail": "completed successfully"
     }
   ]

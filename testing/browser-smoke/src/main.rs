@@ -277,6 +277,17 @@ enum SmokeCommand {
         #[arg(long, default_value_t = 5400)]
         timeout_seconds: u64,
     },
+    /// Verify upload keyboard, clipboard, filtering, narrow recovery, and cancellation.
+    ConsoleArtifactUploadUxVerify {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long)]
+        completed_evidence: PathBuf,
+        #[arg(long, default_value = "output/acceptance/artifact-upload")]
+        evidence_root: PathBuf,
+    },
     /// Repeat headed Console acceptance without restarting or commanding the simulation.
     UavShowcaseBrowserVerify {
         #[arg(long, default_value = "target/debug/conformance")]
@@ -613,6 +624,20 @@ async fn main() -> Result<()> {
                 bytes,
                 Duration::from_secs(timeout_seconds),
                 preflight_only,
+            )
+            .await
+        }
+        SmokeCommand::ConsoleArtifactUploadUxVerify {
+            public_base_url,
+            chrome_cdp_url,
+            completed_evidence,
+            evidence_root,
+        } => {
+            browser::artifact_upload::ux::verify(
+                &public_base_url,
+                &chrome_cdp_url,
+                &completed_evidence,
+                &evidence_root,
             )
             .await
         }

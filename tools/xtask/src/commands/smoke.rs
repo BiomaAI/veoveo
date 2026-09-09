@@ -118,6 +118,7 @@ fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
                     | "console-apps-browser-verify"
                     | "console-artifact-upload-verify"
                     | "console-artifact-upload-resume"
+                    | "console-artifact-upload-ux-verify"
                     | "uav-app-hosts-browser-verify"
                     | "uav-agent-instruction-browser-verify"
             )
@@ -182,6 +183,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "console-apps-browser-verify"
             | "console-artifact-upload-verify"
             | "console-artifact-upload-resume"
+            | "console-artifact-upload-ux-verify"
             | "uav-app-hosts-browser-verify"
             | "uav-agent-instruction-browser-verify"
             | "uav-showcase-browser-verify"
