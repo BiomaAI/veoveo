@@ -2032,3 +2032,10 @@ mistake: its node_modules symlink was accidentally staged, and applying that pat
 failed partway through. The preserved source worktree restored the intended files;
 the dependency symlink was removed from its index. No deployment used that partial
 tree. This extra churn belongs to source coordination, not compiler or rollout cost.
+
+Recovery images from `d679d5fe` stage in 75.3 s with 57.2 s of compilation.
+The stable two-target change reports 35 changed input paths. Qualification reuses
+the exact runtime digests and takes 9.2 s. The final warm checks take 2.0 s for
+97 backend tests, 0.4 s for 58 UI tests, 6.0 s for the production UI build, 4.5 s
+for lint, and 5.5 s for both browser-harness consumers. The latter emits an unused
+re-export warning in the flight harness; both binaries compile successfully.
