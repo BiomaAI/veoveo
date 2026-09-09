@@ -6,6 +6,7 @@
 |---|---|
 | Internal HTTP | JSON metadata and capability control; streamed GET/HEAD downloads with the existing single-range profile |
 | Gateway identity | Forwarded, verified short-lived internal assertion for ordinary operations and capability issuance/revocation |
+| Upload identity | Dedicated `artifact-upload` EdDSA assertion includes the checked control-plane SHA-256 and Work Context digest; ordinary forwarded server tokens do not authorize uploads |
 | Veoveo Artifact read delegation | Repository-owned internal API, opaque UUIDv7 capability and task identities, bearer secret confined to task-read routes |
 | Persistence | Typed platform Store records and ordered SurrealQL migrations through `0050`; native durability acceptance uses SurrealDB 3.2.4 |
 | Content and credential identity | SHA-256 for immutable blobs and domain-separated secret hashes |
@@ -25,6 +26,19 @@ requires an explicit installation quota and transfer policy, validates MIME admi
 and negotiates part size within the S3 multipart profile. The `artifact_upload` gateway
 action has no MCP method. Public routes remain disabled until durable storage and
 gateway authorization are activated.
+
+`GatewayProfile.artifact_upload` holds the explicit typed policy. An absent policy
+disables uploads. Part deadlines are at most one hour; Store reserves a short margin
+after the request deadline before reclaiming its lease. The upload assertion binds
+the gateway's policy decision to the active control-plane identity and current Work
+Context. A stale assertion cannot admit bytes while a replica refreshes configuration.
+
+The focused `uploads/` modules orchestrate admission, transfer, public projections,
+and recovery. A dropped request schedules release of its part lease; process failure
+leaves the lease for durable recovery. Two local background workers bound simultaneous
+whole-object verification streams. Session lease renewal checks terminal state and
+current authority while verification proceeds. Public activation still requires S3
+enumeration for uncertain create acknowledgements and integrated HTTP acceptance.
 
 Blob registration is immutable by tenant and whole-file SHA-256. The shared Store
 transaction inserts a new mapping or retains the existing mapping, including its

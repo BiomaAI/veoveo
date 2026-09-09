@@ -337,6 +337,11 @@ impl GatewayControlPlane {
         let mut profile_by_id = BTreeMap::new();
         let mut protected_resources = BTreeSet::new();
         for profile in &self.profiles {
+            if let Some(policy) = &profile.artifact_upload {
+                policy.validate().map_err(|_| {
+                    GatewayControlPlaneError::InvalidArtifactUploadPolicy(profile.id.clone())
+                })?;
+            }
             if !profiles.insert(profile.id.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateProfile(
                     profile.id.clone(),

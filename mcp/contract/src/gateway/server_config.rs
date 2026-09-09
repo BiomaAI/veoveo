@@ -104,6 +104,9 @@ pub struct GatewayProfile {
     pub authorization_server: AuthorizationServerId,
     pub protected_resource: ProtectedResourceId,
     pub policy_version: PolicyVersion,
+    /// An explicit policy enables the public resumable upload surface.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_upload: Option<crate::ArtifactUploadPolicy>,
     pub auth_modes: BTreeSet<AuthMode>,
     /// Whether federated list discovery may return a typed degraded catalog or
     /// must fail until every server in this profile is reachable.

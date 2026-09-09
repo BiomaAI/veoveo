@@ -25,6 +25,7 @@ pub enum GatewayControlPlaneError {
         second: ServerSlug,
     },
     DuplicateProfile(GatewayProfileId),
+    InvalidArtifactUploadPolicy(GatewayProfileId),
     DuplicateRecordingIngestResource(ProtectedResourceName),
     DuplicateProtectedResource(ProtectedResourceId),
     DuplicateRecordingProducer(RecordingProducerId),
@@ -435,6 +436,9 @@ impl fmt::Display for GatewayControlPlaneError {
                 "servers `{first}` and `{second}` claim the same gateway route `{path}`"
             ),
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
+            Self::InvalidArtifactUploadPolicy(profile) => {
+                write!(f, "invalid artifact upload policy for profile `{profile}`")
+            }
             Self::DuplicateRecordingIngestResource(resource) => {
                 write!(f, "duplicate recording ingest resource `{resource}`")
             }

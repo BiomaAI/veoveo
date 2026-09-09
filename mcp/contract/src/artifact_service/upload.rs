@@ -1,7 +1,6 @@
 //! Public resumable HTTP upload contract. File bytes never enter MCP messages.
 
 use super::*;
-use crate::gateway::{GatewayProfileId, PolicyVersion};
 
 mod policy;
 pub use policy::*;
@@ -11,6 +10,7 @@ artifact_uuid_id!(ArtifactUploadRequestId, "upload idempotency key");
 
 pub const UPLOAD_PART_BYTE_LEN_HEADER: &str = "x-veoveo-part-byte-len";
 pub const UPLOAD_PART_SHA256_HEADER: &str = "x-veoveo-part-sha256";
+pub const ARTIFACT_UPLOAD_AUDIENCE: &str = "artifact-upload";
 pub const UPLOAD_PART_PAGE_LIMIT: usize = 256;
 /// JSON counters also travel through browser numbers. Reject lossy conversions.
 pub const MAX_UPLOAD_BYTES: u64 = (1_u64 << 53) - 1;
@@ -181,12 +181,8 @@ pub struct ArtifactUploadSession {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ArtifactUploadAuthority {
-    pub tenant: TenantId,
-    pub actor: PrincipalId,
-    pub profile: GatewayProfileId,
-    pub authority: crate::InvocationAuthority,
-    pub policy_revision: PolicyVersion,
-    pub policy: ArtifactUploadPolicy,
+    pub control_plane_sha256: UploadSha256,
+    pub context_digest: UploadSha256,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

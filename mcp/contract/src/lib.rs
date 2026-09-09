@@ -154,7 +154,7 @@ pub use internal_auth::{
     GatewayInternalIdentity, GatewayInternalResourceIdentity, GatewayInternalResourceTokenVerifier,
     GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
     GatewayInternalTrustBundle, InternalTokenError, IssuedGatewayInternalResourceToken,
-    IssuedGatewayInternalToken,
+    IssuedGatewayInternalToken, VerifiedArtifactUploadIdentity,
 };
 pub use live_view::{
     LIVE_VIEW_SCHEMA, LiveCameraContractError, LiveCameraDescriptor, LiveCameraHealth,

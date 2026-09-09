@@ -233,6 +233,7 @@ fn profile() -> GatewayProfile {
         protected_resource: ProtectedResourceId::new("https://veoveo.example/mcp/operator")
             .unwrap(),
         policy_version: PolicyVersion::new("2026-07-02").unwrap(),
+        artifact_upload: None,
         auth_modes: BTreeSet::from([
             AuthMode::EnterpriseManagedAuthorization,
             AuthMode::OAuthClientCredentials,

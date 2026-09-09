@@ -54,7 +54,7 @@ impl PlatformStore {
             || request.byte_len < 0
             || request.byte_len > 5 * 1024 * 1024 * 1024
             || request.lease_seconds == 0
-            || request.lease_seconds > 3600
+            || request.lease_seconds > 3660
             || request.max_inflight_bytes <= 0
             || request.max_tenant_inflight_parts == 0
             || request.quota_bytes <= 0

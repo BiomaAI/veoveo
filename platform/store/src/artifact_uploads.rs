@@ -11,6 +11,31 @@ pub use parts::*;
 use crate::{PlatformStore, StoreError};
 
 impl PlatformStore {
+    /// The gateway control-plane is an open document boundary. Its consumer
+    /// deserializes only the typed profile fields it owns.
+    pub async fn artifact_upload_profile(
+        &self,
+        profile: &str,
+    ) -> Result<Option<crate::OpenObject>, StoreError> {
+        let mut response = self.db.query("LET $active = SELECT * FROM ONLY gateway_control_active:current; SELECT VALUE document FROM gateway_control_object WHERE revision = $active.revision AND object_kind = 'profile' AND object_id = $profile LIMIT 1;")
+            .bind(("profile", profile.to_owned())).await?.check()?;
+        let mut documents: Vec<crate::OpenObject> = response.take(1)?;
+        Ok(documents.pop())
+    }
+
+    pub async fn artifact_upload_storage_usage(
+        &self,
+        tenant: crate::TenantId,
+    ) -> Result<Option<ArtifactStorageUsage>, StoreError> {
+        let mut response = self
+            .db
+            .query("SELECT * FROM ONLY $usage;")
+            .bind(("usage", artifact_storage_usage_id(tenant)))
+            .await?
+            .check()?;
+        response.take(0).map_err(Into::into)
+    }
+
     pub async fn artifact_upload_authority_version(
         &self,
         tenant_key: &str,

@@ -265,6 +265,7 @@ schema merely because the server is first-party.
 | `agents.rs` | authenticated operator-message, durable input-request decision, wake-receipt, and pending-input view contracts |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, errors, explicit quota policy, and checked multipart layout/manifest validation |
+| `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and canonical llms.txt rendering; observed capabilities come from Discover and list methods |
@@ -440,6 +441,7 @@ plane and its bounded durable task-read delegation.
 | `service/read_capability.rs`, `ledger/read_capability.rs`, `ledger/surreal/read_capability.rs` | delegated read policy, focused repository contract, and durable adapter |
 | `http/read_capability.rs` | current task scope, Artifact read routes and gateway-authenticated issuance/revocation |
 | `store.rs` | memory/S3 blob storage and signed download behavior |
+| `store/multipart.rs` and `uploads/` | restartable multipart storage adapter, bounded transfer orchestration, safe session projections, and service-owned finalization/cleanup recovery |
 | `auth.rs` | internal assertion verification and plane caller |
 | `http.rs` | internal artifact API plus `/s/{token}` redemption |
 | `config.rs` | fail-closed store/database/audience configuration |
