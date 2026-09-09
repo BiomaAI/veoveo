@@ -182,6 +182,7 @@ Hub, administration, and GPU policy.
 | `testing/deployment-smoke/src/helm_config/gitops.rs` | immutable OCI source and generated Helm values references, checked against the Bioma reference in both component-update directions |
 | `testing/deployment-smoke/src/helm_config/jobs.rs` | rendered initialization Job identity checks across Helm and chart revisions, complete spec changes, and long release names |
 | `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and explicit native live-view container-restart recovery evidence |
+| `testing/browser-smoke/src/browser/artifact_upload.rs` | public Console upload preflight and real large-file selection, pause/reload/reselection, navigation, durable receipt, and hardware-browser evidence |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |

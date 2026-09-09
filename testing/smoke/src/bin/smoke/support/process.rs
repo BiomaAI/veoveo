@@ -1,4 +1,5 @@
 use super::*;
+use std::time::Duration;
 
 pub(crate) struct ChildGuard {
     child: Child,

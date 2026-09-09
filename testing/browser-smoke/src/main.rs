@@ -251,6 +251,21 @@ enum SmokeCommand {
         #[arg(long, default_value_t = 300)]
         timeout_seconds: u64,
     },
+    /// Verify public Console upload selection, durable resume, and a real large transfer.
+    ConsoleArtifactUploadVerify {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value = "output/acceptance/artifact-upload")]
+        evidence_root: PathBuf,
+        #[arg(long, default_value_t = 10 * 1024 * 1024 * 1024)]
+        bytes: u64,
+        #[arg(long, default_value_t = 1800)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        preflight_only: bool,
+    },
     /// Repeat headed Console acceptance without restarting or commanding the simulation.
     UavShowcaseBrowserVerify {
         #[arg(long, default_value = "target/debug/conformance")]
@@ -569,6 +584,24 @@ async fn main() -> Result<()> {
                 &chrome_cdp_url,
                 &evidence_root,
                 Duration::from_secs(timeout_seconds),
+            )
+            .await
+        }
+        SmokeCommand::ConsoleArtifactUploadVerify {
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+            bytes,
+            timeout_seconds,
+            preflight_only,
+        } => {
+            browser::artifact_upload::verify(
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
+                bytes,
+                Duration::from_secs(timeout_seconds),
+                preflight_only,
             )
             .await
         }

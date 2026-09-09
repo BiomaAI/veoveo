@@ -61,10 +61,6 @@ pub(crate) async fn load_projection(
             SELECT * FROM principal WHERE tenant = $tenant ORDER BY display_name ASC LIMIT $limit;
             SELECT * FROM task WHERE tenant = $tenant ORDER BY updated_at DESC LIMIT $limit;
             SELECT * FROM artifact_occurrence WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
-            SELECT * FROM artifact_blob WHERE tenant = $tenant AND id IN (
-                SELECT VALUE blob FROM artifact_occurrence
-                WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit
-            );
             SELECT * FROM share_link WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
             SELECT * FROM artifact_grant WHERE in IN (SELECT VALUE id FROM artifact_occurrence WHERE tenant = $tenant) LIMIT $limit;
             SELECT * FROM agent WHERE tenant = $tenant ORDER BY updated_at DESC LIMIT $limit;
@@ -88,19 +84,43 @@ pub(crate) async fn load_projection(
         .bind(("layer_limit", LAYER_SNAPSHOT_LIMIT))
         .await?
         .check()?;
+    let artifacts: Vec<ArtifactOccurrenceRecord> = response.take(2)?;
+    let blob_ids: BTreeSet<RecordId> = artifacts.iter().map(|row| row.blob.clone()).collect();
+    // Read at most the selected occurrences' exact blob keys. A WHERE ... IN
+    // subquery scans the blob table and can reevaluate the occurrence query per row.
+    let blobs =
+        load_referenced_blobs(state.control_store.platform_store(), tenant, blob_ids).await?;
     Ok(Projection {
         principals: response.take(0)?,
         tasks: response.take(1)?,
-        artifacts: response.take(2)?,
-        blobs: response.take(3)?,
-        share_links: response.take(4)?,
-        grants: response.take(5)?,
-        agents: response.take(6)?,
-        wakes: response.take(7)?,
-        recordings: response.take(8)?,
-        layers: response.take(9)?,
-        audit: response.take(10)?,
+        artifacts,
+        blobs,
+        share_links: response.take(3)?,
+        grants: response.take(4)?,
+        agents: response.take(5)?,
+        wakes: response.take(6)?,
+        recordings: response.take(7)?,
+        layers: response.take(8)?,
+        audit: response.take(9)?,
     })
+}
+
+async fn load_referenced_blobs(
+    store: &veoveo_platform_store::PlatformStore,
+    tenant: &RecordId,
+    blob_ids: BTreeSet<RecordId>,
+) -> anyhow::Result<Vec<ArtifactBlobRecord>> {
+    if blob_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(store
+        .client()
+        .query("SELECT * FROM $blobs WHERE tenant = $tenant;")
+        .bind(("blobs", blob_ids.into_iter().collect::<Vec<_>>()))
+        .bind(("tenant", tenant.clone()))
+        .await?
+        .check()?
+        .take(0)?)
 }
 
 #[derive(Clone, Serialize)]
@@ -875,6 +895,125 @@ mod tests {
     };
 
     use super::*;
+
+    #[tokio::test]
+    #[ignore = "requires VEOVEO_SURREAL_BINARY pointing to the pinned native server"]
+    async fn referenced_blob_reads_preserve_exact_sizes_and_tenant_scope() {
+        use std::{
+            net::TcpListener,
+            process::{Child, Command, Stdio},
+            time::Duration,
+        };
+        use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
+        struct Server(Child);
+        impl Drop for Server {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let binary = std::env::var("VEOVEO_SURREAL_BINARY").unwrap();
+        let version = Command::new(&binary).arg("version").output().unwrap();
+        assert!(
+            version.status.success()
+                && String::from_utf8_lossy(&version.stdout).starts_with("3.2.4")
+        );
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let password = uuid::Uuid::now_v7().to_string();
+        let mut server = Server(
+            Command::new(binary)
+                .args([
+                    "start",
+                    "--no-banner",
+                    "--bind",
+                    &address.to_string(),
+                    "memory",
+                ])
+                .env("SURREAL_USER", "fixture")
+                .env("SURREAL_PASS", &password)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap(),
+        );
+        let client = reqwest::Client::new();
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        while !client
+            .get(format!("http://{address}/health"))
+            .timeout(Duration::from_secs(1))
+            .send()
+            .await
+            .is_ok_and(|r| r.status().is_success())
+        {
+            assert!(
+                server.0.try_wait().unwrap().is_none() && tokio::time::Instant::now() < deadline
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let config = StoreConfig::builder(
+            format!("ws://{address}"),
+            "projection_fixture",
+            "fixture",
+            StoreCredentials::root("fixture", password),
+        )
+        .build()
+        .unwrap();
+        let store = PlatformStore::connect(config).await.unwrap();
+        let tenant = RecordId::new("tenant", "selected");
+        let requested = RecordId::new("artifact_blob", "old_blob");
+        let foreign = RecordId::new("artifact_blob", "foreign");
+        let rows = [
+            (requested.clone(), tenant.clone(), 14_288_899_i64),
+            (
+                foreign.clone(),
+                RecordId::new("tenant", "other"),
+                10_737_418_240_i64,
+            ),
+            (
+                RecordId::new("artifact_blob", "unselected"),
+                tenant.clone(),
+                0_i64,
+            ),
+        ]
+        .map(|(id, tenant, byte_len)| ArtifactBlobRecord {
+            id,
+            tenant,
+            byte_len,
+            sha256: "a".repeat(64),
+            object_key: "fixture".into(),
+            content_type: "application/octet-stream".into(),
+            encryption: OpenObject::default(),
+            created_at: Utc::now(),
+        });
+        store
+            .client()
+            .query("DEFINE TABLE artifact_blob SCHEMALESS; INSERT INTO artifact_blob $rows;")
+            .bind(("rows", rows.to_vec()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let missing = RecordId::new("artifact_blob", "missing");
+        let blobs = load_referenced_blobs(
+            &store,
+            &tenant,
+            BTreeSet::from([requested.clone(), foreign, missing]),
+        )
+        .await
+        .unwrap();
+        assert_eq!(blobs.len(), 1);
+        assert_eq!(blobs[0].id, requested);
+        assert_eq!(blobs[0].byte_len, 14_288_899);
+        assert!(
+            load_referenced_blobs(&store, &tenant, BTreeSet::new())
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
 
     #[test]
     fn artifact_sizes_distinguish_missing_zero_and_large_exact_values() {
