@@ -46,6 +46,7 @@ change lands:
 
 | Document | Planned change |
 |---|---|
+| [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | core Computers product decision and proposed native domain/service, OpenShell provider, retained storage, browser/CLI access, lifecycle recovery, standard packaging, Bioma deployment and iteration acceptance |
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | canonical multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work from `001`–`013`; current exact App authority, governed upload, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work from `014`–`023` |
