@@ -67,6 +67,21 @@ pub(crate) async fn enforce_csrf(
     next.run(request).await
 }
 
+pub(crate) async fn artifact_details(
+    State(state): State<AppState>,
+    Path(artifact_id): Path<uuid::Uuid>,
+    headers: HeaderMap,
+) -> Response {
+    proxy_json::<()>(
+        &state,
+        &headers,
+        Method::GET,
+        &format!("console/artifacts/{artifact_id}"),
+        None,
+    )
+    .await
+}
+
 pub(crate) async fn snapshot(
     State(state): State<AppState>,
     request_headers: HeaderMap,

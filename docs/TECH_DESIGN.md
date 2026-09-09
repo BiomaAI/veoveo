@@ -450,6 +450,18 @@ PKCE, stores access and rotating refresh tokens in an XChaCha20-Poly1305 encrypt
 HttpOnly, SameSite cookie, and uses a separate encrypted authorization cookie during
 login. Unsafe requests require a constant-time CSRF token match.
 
+Upload part requests use the access token in their authenticated cookie without
+rotating its refresh token. Delayed ingress delivery cannot replay an old refresh
+token or clear a newer browser cookie. Short upload status requests refresh the
+session, and the Console checks that path before retrying a failed part. Saved
+upload identities survive sign-in recovery under the same actor and Work Context.
+
+The Console stream emits `artifact_upload` state notifications only for the exact
+actor, tenant, and Work Context. They contain an upload identity and state; the
+browser obtains receipts through the currently authorized status endpoint. Direct
+`GET /admin/{profile}/console/artifacts/{artifact_id}` projections allow completed
+queue entries to open artifacts outside the snapshot's current catalog window.
+
 The OAuth protected-resource URL remains a public identity even when the BFF reaches
 the gateway through a cluster-private transport URL. The Apps MCP client binds those
 URLs by their exact `/mcp/<profile>` path and sends the public deployment authority as

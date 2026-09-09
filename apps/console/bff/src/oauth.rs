@@ -644,7 +644,7 @@ pub(crate) async fn upstream_session(
         .await
         .context("gateway refresh request failed")?;
     if !response.status().is_success() {
-        anyhow::bail!("gateway rejected console refresh");
+        anyhow::bail!("gateway rejected console refresh ({})", response.status());
     }
     let token: TokenResponse = response
         .json()

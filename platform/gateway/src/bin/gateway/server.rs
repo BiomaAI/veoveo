@@ -32,9 +32,10 @@ use super::{
         create_artifact_access_request, create_artifact_share_link, decide_agent_input_request,
         decide_artifact_access_request, grant_artifact, list_agent_input_requests,
         list_artifact_access_requests, proxy_server_admin, prune_jwt_revocations,
-        read_agent_conversation, read_console_snapshot, read_control_plane, revoke_artifact_grant,
-        revoke_artifact_share_link, revoke_jwt, send_agent_message, set_artifact_release_state,
-        spawn_console_wake_hub, spawn_server_health_prober, stream_console, update_control_plane,
+        read_agent_conversation, read_console_artifact, read_console_snapshot, read_control_plane,
+        revoke_artifact_grant, revoke_artifact_share_link, revoke_jwt, send_agent_message,
+        set_artifact_release_state, spawn_console_wake_hub, spawn_server_health_prober,
+        stream_console, update_control_plane,
     },
     artifact_download::download_artifact,
     auth::{
@@ -270,6 +271,10 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         .route(
             "/admin/{profile}/console/snapshot",
             get(read_console_snapshot),
+        )
+        .route(
+            "/admin/{profile}/console/artifacts/{artifact_id}",
+            get(read_console_artifact),
         )
         .route(
             "/admin/{profile}/console/cluster",

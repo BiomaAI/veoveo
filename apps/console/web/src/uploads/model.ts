@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { formatBytes } from "../format.ts";
 
 const bytes = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const positive = bytes.positive();
 const id = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const sha = z.string().regex(/^[0-9a-f]{64}$/);
+export const uploadNotificationSchema = z.object({ op: z.literal("changed"), upload_id: id, state: z.enum(["finalizing", "verifying", "completed", "cancelled", "expired", "failed"]) });
 export const descriptorSchema = z.object({ filename: z.string().min(1).max(255), mime_type: z.string(), byte_len: bytes, sha256: sha.optional() });
 export const receiptSchema = z.object({
   upload_id: id, artifact_id: id, artifact_uri: z.string().startsWith("artifact://"),
@@ -51,12 +53,14 @@ export interface Entry {
   checked?: boolean;
   cancelRequested?: boolean;
   admissionStarted?: boolean;
+  restartRequired?: boolean;
 }
 
 export const savedSchema = z.array(z.object({
   key: id, descriptor: descriptorSchema, lastModified: bytes,
   uploadId: id.optional(), receipt: receiptSchema.optional(), accepted: bytes,
   cancelRequested: z.boolean().optional(), cancelled: z.boolean().optional(), admissionStarted: z.boolean().optional(),
+  restartRequired: z.boolean().optional(),
 })).max(200);
 
 export function requestId(): string {
@@ -83,7 +87,7 @@ export function invalidSelection(descriptor: Descriptor, policy?: Policy): strin
   if (!Number.isSafeInteger(descriptor.byte_len) || descriptor.byte_len < 0 || descriptor.byte_len > policy.policy.max_object_bytes) return "This file exceeds the upload size limit.";
   if (!descriptor.filename || [".", ".."].includes(descriptor.filename) || new TextEncoder().encode(descriptor.filename).length > 255 || descriptor.filename.trim() !== descriptor.filename || Array.from(descriptor.filename).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127 || char === "/" || char === "\\")) return "Rename this file to remove unsupported characters or shorten its name.";
   if (!policy.policy.allowed_mime_types.includes(descriptor.mime_type)) return "This file type is not allowed here.";
-  if (policy.available_bytes !== undefined && descriptor.byte_len > policy.available_bytes) return "There is not enough available storage for this file.";
+  if (policy.available_bytes !== undefined && descriptor.byte_len > policy.available_bytes) return `This file requires ${formatBytes(descriptor.byte_len)}. Only ${formatBytes(policy.available_bytes)} of storage is currently available.`;
 }
 
 export function duplicate(left: Entry, file: File): boolean {

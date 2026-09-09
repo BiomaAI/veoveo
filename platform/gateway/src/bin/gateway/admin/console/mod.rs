@@ -1,3 +1,4 @@
+mod artifact;
 mod health;
 mod projection;
 mod stream;
@@ -19,6 +20,7 @@ use veoveo_mcp_contract::{
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
 use veoveo_platform_store::{ChangefeedCursor, RecordingLayerState, deterministic_tenant_id};
 
+pub(crate) use artifact::read_console_artifact;
 pub(crate) use health::{ServerHealthMonitor, spawn_server_health_prober};
 use projection::{
     AgentSummary, ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary,

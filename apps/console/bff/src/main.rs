@@ -98,6 +98,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/callback", get(oauth::callback))
         .route("/auth/logout", post(oauth::logout))
         .route("/console/api/snapshot", get(api::snapshot))
+        .route(
+            "/console/api/artifacts/{artifact_id}",
+            get(api::artifact_details),
+        )
         .route("/console/api/stream", get(api::stream))
         .route("/console/api/apps", get(apps::list_apps))
         .route("/console/api/apps/events", get(apps::app_catalog_events))

@@ -183,6 +183,8 @@ Hub, administration, and GPU policy.
 | `testing/deployment-smoke/src/helm_config/jobs.rs` | rendered initialization Job identity checks across Helm and chart revisions, complete spec changes, and long release names |
 | `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and explicit native live-view container-restart recovery evidence |
 | `testing/browser-smoke/src/browser/artifact_upload.rs` | public Console upload preflight and real large-file selection, pause/reload/reselection, navigation, durable receipt, and hardware-browser evidence |
+| `testing/browser-smoke/src/browser/artifact_upload/resume.rs` | continuation of an interrupted large-upload acceptance fixture with the same durable upload identity, independent SHA-256, and public HEAD/Range checks |
+| `platform/gateway/src/bin/gateway/admin/console/artifact.rs` | direct governed artifact detail projection outside the latest catalog window |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
