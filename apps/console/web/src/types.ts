@@ -81,7 +81,7 @@ export interface ArtifactSummary {
   id: string;
   filename: string;
   mediaType: string;
-  byteLength: number;
+  byteLength: number | null;
   owner: string;
   outputOwner: {
     kind: "principal" | "group";

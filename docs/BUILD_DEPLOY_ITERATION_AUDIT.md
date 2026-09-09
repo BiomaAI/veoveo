@@ -1933,3 +1933,14 @@ streaming consumption, installation policy activation, image publication, and de
 large-file/browser acceptance remain required. Image staging has not started at this
 checkpoint. Keeping that distinction explicit avoids counting local UI compilation
 as a usable release.
+
+Size projection inspection also found a live-stream replay inefficiency: the next
+page reused the cursor captured before the pagination loop. A full page could be
+read repeatedly. The loop now reads its advanced durable cursor for each page.
+Snapshot blob metadata follows the selected occurrence window, and live occurrence
+reuse hydrates an older missing blob directly instead of publishing a zero size.
+
+An avoidable test-command change selected Gateway alone after the previous check
+selected Gateway plus BFF. Cargo compiled another dependency feature graph. Keep
+the package set stable across a checkpoint; changing the set is not inherently a
+cheaper focused check. No production speed claim follows from these development runs.

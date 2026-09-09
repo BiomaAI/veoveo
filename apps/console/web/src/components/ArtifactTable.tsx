@@ -55,7 +55,7 @@ export function ArtifactTable({
                 </span>
               </td>
               {!compact && <td><span className="code-label">{artifact.classification}</span></td>}
-              <td>{formatBytes(artifact.byteLength)}</td>
+              <td title={artifact.byteLength === null ? "Size unavailable" : `${artifact.byteLength.toLocaleString()} bytes`}>{formatBytes(artifact.byteLength)}</td>
               <td>{formatDate(artifact.createdAt)}</td>
               <td>
                 <button className="table-preview-action" onClick={() => onSelect(artifact)}>

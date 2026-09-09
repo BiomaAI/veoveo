@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:aa1a37a14df34756d7bc65b164396b468f3e2d27bb49a257fcec35b9a67979e0",
-  "updatedAt": "2026-09-09T00:46:17Z",
+  "buildDigest": "sha256:559fa19b52b48f81fa57d1e5d585a7e409866dc9505b8924e4787b030219c84b",
+  "updatedAt": "2026-09-09T00:53:22Z",
   "checks": [
     {
-      "name": "artifact-upload-console-build",
+      "name": "artifact-upload-size-console",
       "command": [
         "npm",
         "--prefix",
@@ -13,35 +13,36 @@
         "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T00:44:54Z",
-      "durationSeconds": 4.9875815679999995,
+      "finishedAt": "2026-09-09T00:53:11Z",
+      "durationSeconds": 5.330444611,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-upload-console-lint",
+      "name": "artifact-upload-size-format",
       "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T00:45:30Z",
-      "durationSeconds": 3.527878999,
+      "finishedAt": "2026-09-09T00:53:22Z",
+      "durationSeconds": 2.291159571,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-upload-console-tests",
+      "name": "artifact-upload-size-gateway",
       "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "test"
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T00:46:17Z",
-      "durationSeconds": 0.398711734,
+      "finishedAt": "2026-09-09T00:52:03Z",
+      "durationSeconds": 4.405849009,
       "detail": "completed successfully"
     }
   ]
