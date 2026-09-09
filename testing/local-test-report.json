@@ -1,10 +1,23 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:33752df8c85e6513f8c606f323c69440ccf56893994f6ee5ea7d666fb92bab9f",
-  "updatedAt": "2026-09-09T00:11:43Z",
+  "buildDigest": "sha256:31f8ddea3d0ba9873c97711c002177f0925e54411c1c121f1361faf3ed4bda52",
+  "updatedAt": "2026-09-09T00:28:25Z",
   "checks": [
     {
-      "name": "artifact-upload-s3-engine",
+      "name": "artifact-upload-http-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-09T00:28:25Z",
+      "durationSeconds": 2.353867715,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-upload-http-native",
       "command": [
         "env",
         "VEOVEO_SURREAL_BINARY=/home/rozgo/BiomaAI/veoveo/output/tools/surreal/3.2.4/surreal",
@@ -13,45 +26,29 @@
         "-p",
         "veoveo-artifact-service",
         "--lib",
+        "--bins",
         "--",
         "--include-ignored"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T00:10:45Z",
-      "durationSeconds": 12.476520621,
+      "finishedAt": "2026-09-09T00:27:28Z",
+      "durationSeconds": 10.585873749,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-upload-s3-format",
+      "name": "artifact-upload-http-proxies",
       "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-09T00:11:43Z",
-      "durationSeconds": 2.315847645,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-upload-s3-native",
-      "command": [
-        "env",
-        "VEOVEO_UPLOAD_S3_CONTEXT=k3d-veoveo-bioma",
         "cargo",
         "test",
         "-p",
-        "veoveo-artifact-service",
-        "--test",
-        "s3_upload",
-        "--",
-        "--include-ignored",
-        "--nocapture"
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "--bins"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T00:09:38Z",
-      "durationSeconds": 11.095752131,
+      "finishedAt": "2026-09-09T00:27:42Z",
+      "durationSeconds": 0.910963672,
       "detail": "completed successfully"
     }
   ]

@@ -217,6 +217,13 @@ impl Config {
             .expect("validated profile and artifact id")
     }
 
+    /// Called only with upload routes assembled from validated identifiers.
+    pub(crate) fn artifact_upload_url(&self, path: &str) -> Url {
+        self.gateway_url
+            .join(&format!("/artifacts/{}/{path}", self.admin_profile))
+            .expect("validated profile and typed upload route")
+    }
+
     pub(crate) fn recording_playback_url(&self, recording_id: &str) -> Url {
         self.gateway_url
             .join(&format!(

@@ -1903,3 +1903,19 @@ and debugging account for the delay; the measured warm build is short. Completin
 multiple backend layers before connecting the public API and Console delayed usable
 feedback. The next checkpoint must connect those surfaces instead of adding another
 isolated backend layer.
+
+The HTTP checkpoint mounts the Artifact service transport and recovery worker, adds
+Gateway policy enforcement, and connects the Console BFF through its existing session
+and CSRF boundary. Native acceptance passes 36 Artifact tests, including a real HTTP
+admission, raw-body part transfer, completion and receipt replay. It rejects ordinary
+server assertions, foreign actors, caller-supplied authority, and mismatched part sizes.
+Gateway and BFF binary suites pass 27 and 65 tests respectively; those suites establish
+existing route behavior and compilation, while full proxy-chain acceptance remains a
+deployment check. The Console queue UI is not part of this checkpoint.
+
+The first Gateway/BFF test build takes 1 min 47 s while the two suites execute in
+0.29 s. It compiles their wider dependency feature set, including SurrealDB, DuckDB,
+and the MCP runtime. Reusing the resulting test graph avoids repeating that cold
+dependency work during focused validation. Logs use
+`output/development/artifact-upload-http-*20260909.log` and
+`output/development/artifact-upload-proxy-compile-20260909.log`.

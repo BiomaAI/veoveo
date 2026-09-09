@@ -76,10 +76,10 @@ pub(super) struct DynamicMcpState {
 }
 
 #[derive(Clone)]
-pub(super) struct ArtifactDownloadState {
+pub(super) struct ArtifactHttpState {
     pub(super) catalog: SharedCatalog,
     pub(super) gateway_state: GatewayState,
-    pub(super) http: SharedHttpClient,
+    pub(super) http: reqwest::Client,
     pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
     pub(super) artifact_server: ServerSlug,
     pub(super) artifact_service_url: String,

@@ -25,8 +25,30 @@ The public upload contract is defined in
 [`ARTIFACT_UPLOAD_PLAN.md`](../../../docs/ARTIFACT_UPLOAD_PLAN.md). The typed contract
 requires an explicit installation quota and transfer policy, validates MIME admission,
 and negotiates part size within the S3 multipart profile. The `artifact_upload` gateway
-action has no MCP method. Public routes remain disabled until durable storage and
-gateway authorization are activated.
+action has no MCP method. Public routes require both durable S3 storage and an
+explicit profile upload policy.
+
+`http/uploads.rs` owns the internal `/artifact-uploads` route group. Its upload-only
+verifier checks the signed assertion before consuming JSON or part bytes. JSON control
+bodies have a 16 KiB bound; part bodies use the negotiated layout and streaming counter.
+The S3 service starts durable recovery at boot. Memory and filesystem installations
+do not mount resumable upload routes.
+
+The Gateway exposes `/artifacts/{profile}/upload-policy` and
+`/artifacts/{profile}/uploads`, with upload-ID status/cancellation, numbered part PUT,
+and completion subroutes. It audits `artifact_upload` against the Artifact server,
+requires the upload scope and contributor membership, and compares its loaded
+configuration identity with Store before signing an assertion. Policy discovery
+returns a readable disabled explanation when authenticated callers lack upload access.
+Only selected content and part headers pass through the proxy. Internal assertions,
+storage handles, and redirect locations are never accepted from public callers.
+
+The Console BFF exposes `/console/api/artifact-uploads`, with `/policy` discovery and
+the same session subroutes. The cookie session selects the Gateway profile and current
+bearer token; existing CSRF middleware protects every mutation. Both proxies stream
+request bodies. Artifact downloads now use the Gateway's streaming HTTP client with
+connection and idle limits, removing the authentication client's ten-second total
+deadline from file transfers.
 
 `GatewayProfile.artifact_upload` holds the explicit typed policy. An absent policy
 disables uploads. Part deadlines are at most one hour; Store reserves a short margin

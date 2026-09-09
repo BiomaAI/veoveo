@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     AppState,
-    api::{response_session_headers, upstream_session_for_apps},
+    api::{response_session_headers, upstream_session},
 };
 
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
@@ -118,7 +118,7 @@ pub(crate) async fn manifest(
     let Some(recording_id) = parse_uuid_v7(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let session = match upstream_session_for_apps(&state, &request_headers).await {
+    let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
         Err(response) => return response,
     };
@@ -178,7 +178,7 @@ pub(crate) async fn live_recording(
     let Some(recording_id) = parse_uuid_v7(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let session = match upstream_session_for_apps(&state, &request_headers).await {
+    let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
         Err(response) => return response,
     };
@@ -264,7 +264,7 @@ pub(crate) async fn blueprint(
     if revision == 0 {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let session = match upstream_session_for_apps(&state, &request_headers).await {
+    let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
         Err(response) => return response,
     };
@@ -304,7 +304,7 @@ pub(crate) async fn projection(
     let Some(projection_id) = parse_uuid_v7(&projection_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let session = match upstream_session_for_apps(&state, &request_headers).await {
+    let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
         Err(response) => return response,
     };

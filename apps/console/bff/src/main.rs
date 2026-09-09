@@ -1,6 +1,7 @@
 mod api;
 mod app_host;
 mod apps;
+mod artifact_upload;
 mod cluster;
 mod config;
 mod mcp_client;
@@ -195,6 +196,7 @@ async fn main() -> anyhow::Result<()> {
             recording_playback::PROJECTION_PATH,
             get(recording_playback::projection),
         );
+    let router = router.merge(artifact_upload::router());
     let router = with_console_static_routes(router, config.asset_dir())?;
     let router = app_host::with_app_host_route(router, config.asset_dir())?
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))

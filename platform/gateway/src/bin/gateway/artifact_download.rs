@@ -13,12 +13,12 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
 
-use crate::runtime::{ArtifactDownloadState, current_catalog, current_http_client};
+use crate::runtime::{ArtifactHttpState, current_catalog};
 
 const INTERNAL_DOWNLOAD_TOKEN_TTL_SECONDS: i64 = 60;
 
 pub(super) async fn download_artifact(
-    State(state): State<ArtifactDownloadState>,
+    State(state): State<ArtifactHttpState>,
     Path((profile, artifact_id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     method: Method,
@@ -121,7 +121,8 @@ pub(super) async fn download_artifact(
         "{}/artifacts/{artifact_id}/download",
         state.artifact_service_url
     );
-    let mut request = current_http_client(&state.http)
+    let mut request = state
+        .http
         .request(method, url)
         .bearer_auth(internal_token.bearer_token);
     for name in [
