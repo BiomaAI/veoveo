@@ -80,6 +80,48 @@ attestation, or a security boundary. Its purpose is to keep known local build fa
 visible while Veoveo relies on one qualified development host. Documentation validation
 remains a separate local responsibility and does not turn the Build status red.
 
+## Planned Evidence And Harness Improvements
+
+The accepted changes below can land incrementally on the current host. They do not
+depend on provisioning the future worker pool. They follow
+[`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md#ce-06-evidence-reuse-follows-actual-inputs).
+
+### Scoped Evidence And Appropriate Harnesses
+
+Replace global report invalidation with per-check input closures. Include the check
+implementation, transitive source/build dependencies, generated contracts, lockfiles,
+feature selection, toolchain, command, and relevant execution environment. Unknown
+dependencies broaden validation conservatively. Installed checks also bind exact
+runtime/configuration artifacts and an explicit freshness policy.
+
+Write immutable per-run receipts and atomically assemble an index. Preserve failed
+history and select the current qualifying result explicitly. Parallel checks must not
+overwrite each other's results. Retained receipts are reusable only when their full
+dependency and environment conditions hold. Release composition requires coverage of
+the selected closure and compatibility of retained artifacts; a green local report
+continues to be distinct from a release attestation.
+
+Implement the versioned receipt and index in `tools/xtask/src/commands/test_report.rs`
+with owning test descriptors and CI presentation. Migrate the existing report in one
+coherent change. Until then, use the v2 commands and committed report described above.
+Do not manually preserve obsolete entries or claim scoped reuse from the v2 digest.
+
+Qualification must show that an unrelated UI edit retains a service result, a shared
+schema or toolchain edit invalidates dependent checks, concurrent writers lose no
+results, stale deployed configuration invalidates installed evidence, and release
+composition rejects missing coverage and known failures.
+
+Rust remains the service/process harness. Console behavior may use maintained
+TypeScript browser tooling and SDK consumers use their own language. Keep fixture
+lifecycle owned by one harness and dispatch it through existing native commands or
+the typed xtask surface. Adopt framework helpers for actual synchronization problems;
+do not rewrite all existing smokes as a prerequisite.
+
+Headless browser behavior tests have a separate evidence class. Headed hardware
+verification remains mandatory for visual acceptance and required GPU workloads.
+The first migration should cover Computers terminal input/replay and renewal, where
+browser tooling removes concrete custom synchronization work.
+
 ## Future Full GPU CI
 
 The permanent system moves execution to dedicated ephemeral workers owned by the

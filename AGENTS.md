@@ -34,42 +34,45 @@ cross-worktree synchronization easier. Each commit should capture one completed 
 and leave the repository in a coherent state. Do not mix unrelated changes into a commit,
 and do not use commits to conceal incomplete or failing work.
 
-## Hard Cut Policy
+## Contract Evolution
 
-Default behavior in this repository is a hard cut.
+Internal refactors use a hard cut: replace obsolete names and behavior, update callers,
+and keep one canonical internal model. Do not introduce hidden aliases or fallbacks.
 
-Do not preserve old names, old environment variables, old commands, old protocol paths,
-old package names, old resource URIs, old behavior, or compatibility shims unless the
-user explicitly asks for compatibility in the current request.
+Public protocols, installed clients, persisted data, and deployment transitions may use
+explicit versioned adapters or migrations. Declare the boundary, owner, supported
+versions, qualification cases, and retirement criteria in the owning DESIGN.md. Keep
+authorization and domain behavior in the canonical implementation. An adapter cannot
+invent guarantees its upstream does not provide or silently weaken a security policy.
+Unsupported combinations fail with an actionable upgrade or configuration diagnostic.
 
-This means:
+Published removals require a documented migration and support window. A breaking cut
+is appropriate for an unreleased surface or an explicitly coordinated installation
+upgrade. Prove mixed-version safety when a rolling update permits overlap; otherwise
+declare and test the required drain. Persistent formats need recovery and rollback
+semantics before destructive conversion. `mcp/bridges/legacy` remains an explicitly
+declared boundary under its own AGENTS.md.
 
-- Rename by replacing the old surface, not by adding aliases.
-- Remove obsolete code paths instead of keeping alternate paths.
-- Use one canonical configuration name.
-- Use one canonical protocol/resource shape.
-- Do not add hidden compatibility behavior.
-- Do not describe unsupported legacy behavior in user-facing docs.
-
-If a change would break existing callers, that is acceptable by default. Document the new
-canonical path, update tests and examples to it, and delete the old path.
-
-The one admitted legacy boundary is `mcp/bridges/legacy`, an isolated external
-connector for systems still on MCP `2025-11-25`. It exists because its own
-`AGENTS.md` declares it; any other legacy boundary requires the same explicit
-declaration in the current request.
+The accepted decisions and remaining implementation work are recorded in
+[`docs/CONTRACT_EVOLUTION.md`](docs/CONTRACT_EVOLUTION.md). Contract permission does not
+establish that a new runtime profile is implemented or qualified.
 
 ## Dependency Currency
 
-Use the latest stable upstream release whenever a dependency, toolchain, image,
-or deployment component is introduced or touched. Do not copy stale versions
-from examples, blog posts, or upstream guides. Verify the current release from
-the authoritative upstream source, pin it exactly for reproducibility, and
-update its tests and documentation in the same change.
+Use exact, qualified dependency, toolchain, image, and deployment pins. For a new
+dependency or a planned upgrade, verify the latest stable release from its authoritative
+upstream source and prefer it. Record a concrete compatibility or qualification reason
+when selecting an older supported release. Do not copy versions from examples or guides.
 
-Pre-release dependencies require an explicit product reason. If the upstream
-project has no stable release, use its latest published pre-release and record
-that constraint beside the pin.
+Editing a consumer does not require an unrelated dependency upgrade. Review upstream
+security and support status regularly, prioritize applicable security fixes, and qualify
+upgrades independently of feature work when possible. Unsupported or vulnerable pins
+require a documented mitigation, owner, and replacement deadline; a pin is not a reason
+to ignore a security defect. Update affected tests and documentation with a pin change.
+
+Pre-release dependencies and maintained provider patches require an explicit product
+reason, exact provenance, a supported qualification matrix, and an upstream/removal
+plan. Record the constraint beside the pin.
 
 ## GPU Execution Is Mandatory
 
@@ -89,14 +92,23 @@ implementation is available, mark the exact path with `TODO(GPU)` and state the 
 replacement. A TODO records migration debt; it does not authorize a new CPU fallback or
 allow the unaccelerated path to become acceptance evidence.
 
-Before browser automation, an interactive demo, or a screenshot run, prove that the
-browser is headed and that at least one of its high-performance WebGPU adapter or WebGL
-context is hardware-backed. Probe both APIs when the browser exposes them. Reject the
+Before visual acceptance, an interactive demo, or screenshot/publication capture used
+as visual evidence, prove that the browser is headed and that at least one of its
+high-performance WebGPU adapter or WebGL context is hardware-backed. Probe both APIs
+when the browser exposes them. Reject the
 browser when neither API reaches hardware, and reject SwiftShader, llvmpipe, software
 adapters, and software rasterizer warnings as hardware evidence. If a browser loses its
 last hardware-backed graphics API, stop the workflow immediately. Do not keep using that
 browser, replace visual verification with an API-only check, capture an image, or report
 the visual workflow as verified.
+
+Behavioral browser tests for forms, authorization, navigation, keyboard handling, and
+other non-rendering contracts may run headless with maintained browser tooling. Declare
+them as behavioral evidence. They cannot establish visual fidelity, graphics throughput,
+video quality, or GPU execution. A behavioral pass never substitutes for required headed
+hardware acceptance, and GPU workload tests retain their hardware requirement.
+Headless diagnostic screenshots may accompany a behavioral test failure when labeled
+as diagnostic evidence. They cannot be used for product publication or visual acceptance.
 
 Browser-side H.264 playback is the only software exception. A client may decode a
 stream in software when Media Capabilities reports the exact configuration as
@@ -111,11 +123,23 @@ the NVIDIA device, driver capability, or hardware rendering backend is unavailab
 not add CPU rendering fallbacks, optional GPU modes, or deployment profiles that remove
 a required GPU workload to fit the cluster.
 
-## Provider Completion
+## Provider Completion And Recovery
 
-Provider job completion is webhook-only. Do not add provider status polling, polling
-fallbacks, backup status checks, or timeout recovery paths that query the provider.
-Missing webhook delivery is an operational failure.
+Each provider adapter declares and qualifies its completion profile. Prefer the native
+authenticated event path: webhooks, resumable watches, or event streams. A definitive
+synchronous response may settle an operation. Bounded status reconciliation is permitted
+when the provider exposes authoritative, operation-correlated outcomes; a provider with
+only a status API may use a declared bounded polling profile. Generic background polling
+and undocumented transport fallbacks are prohibited.
+
+Persist operation identity and dispatch intent before side effects. Authenticate and
+correlate observations, persist settlement before acknowledging recoverable delivery,
+deduplicate repeats, and reject stale operation/process epochs. Declare event retention,
+gap recovery, deadlines, request/rate budgets, cancellation, and consistency semantics.
+An expired wait, missing event, disconnected watch, or unqualified not-found response
+does not prove failure or authorize another mutation. Retain unresolved outcomes and
+resource fencing until authoritative evidence settles them. Existing provider profiles
+keep their documented mechanism until a replacement is implemented and qualified.
 
 ## MCP Server Contract
 
@@ -165,6 +189,10 @@ The gateway is expected to support many hosted MCP servers, profiles, and auth p
 That scale alone is not a refactor trigger. Refactor when the code stops composing cleanly
 or when server-specific behavior leaks into generic gateway modules.
 
+A module boundary does not require another process, image, or service. Add a deployment
+boundary for a concrete privilege, fault, scaling, or release-isolation requirement and
+record the operational cost. Core capability status does not prescribe a hosting topology.
+
 ## Repository Command Discipline
 
 The repository has no Justfile. One-step Cargo, Helm, uv, Docker, and Kubernetes
@@ -180,15 +208,24 @@ through the evidence recorder
 displays that committed evidence. Documentation-only changes do not invalidate build
 evidence. Do not commit red or stale report entries.
 
-All smoke tests for this repository must be implemented in Rust. `cargo xtask smoke`
-may build the harness and its scenario-specific local binaries, then dispatch the
-typed Rust smoke harness. It must not own service lifecycle, assertions, retries,
-JSON parsing, evidence, or cleanup.
+Tests use the maintained tooling appropriate to their boundary: Rust for service and
+process invariants, TypeScript/browser tooling for Console behavior, and the SDK's
+language for consumer acceptance. Keep domain assertions in one owning harness.
+`cargo xtask smoke` dispatches scenarios and their required build prerequisites; it
+does not reimplement their lifecycle, assertions, retries, or cleanup. Until a new
+dispatcher is implemented, native framework commands run through `test-report`.
 
-Only add smoke-test helper crates when they are current, maintained, and remove concrete
-complexity from our actual multi-process smoke tests. Do not add a crate just because it
-is popular for CLI tests; if it does not materially improve server lifecycle,
-readiness, assertions, cleanup, or diagnostics, keep the in-repo Rust harness.
+Every harness must provide bounded timeouts, isolated fixtures, owned cleanup, secret
+redaction, useful failure diagnostics, and machine-readable results. Declare hardware,
+network, identity, and service prerequisites explicitly. Prefer existing framework
+behavior over custom browser synchronization or protocol clients. Add dependencies
+only when they remove concrete complexity from our tests.
+
+Evidence reuse must follow each check's actual inputs and execution environment. Shared
+contract or toolchain changes broaden that dependency closure. Unknown dependencies
+require conservative rechecking. The current local report still uses a repository-wide
+digest; continue its documented workflow until scoped evidence is implemented under
+[`docs/CONTINUOUS_INTEGRATION.md`](docs/CONTINUOUS_INTEGRATION.md).
 
 ## Naming
 

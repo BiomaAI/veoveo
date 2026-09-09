@@ -257,6 +257,11 @@ task URI.
 
 ## Provider Completion
 
+This section describes the implemented Media profile. The broader accepted provider
+policy is in [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md#ce-01-provider-completion-follows-qualified-semantics).
+Computers watch/reconciliation recovery and any new persisted recovery class remain
+implementation work; this policy change does not add a status API to Media.
+
 The media server keeps client/server async and provider/server async separate:
 
 1. A live gateway identity creates a durable task and bounded artifact write capability.
@@ -603,10 +608,15 @@ server-side GPU work remain hardware-backed in either case.
 
 ## Verification
 
-All smoke orchestration is Rust. The harness owns child/container lifecycle, readiness,
+The existing smoke orchestration is Rust. The harness owns child/container lifecycle, readiness,
 timeouts, cleanup, MCP and HTTP calls, assertions, and evidence. `cargo xtask smoke`
 only builds the harness and its scenario-specific local binary prerequisites, then
 dispatches the typed scenario.
+
+New behavior checks may use maintained Console/browser or SDK-language harnesses under
+the shared bounded-lifecycle, diagnostics, and evidence rules in
+[`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md#ce-05-verification-uses-the-owning-ecosystem).
+Headless behavioral results cannot replace headed hardware visual acceptance.
 
 Coverage includes:
 

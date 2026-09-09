@@ -1,7 +1,8 @@
 # Veoveo Code Map
 
 This map identifies ownership boundaries and the shortest path to the code behind a
-behavior. It describes only the current hard-cut architecture.
+behavior. Current ownership entries describe implemented code; implementation-plan
+entries explicitly identify future components and contract transitions.
 
 ## Documentation Index
 
@@ -13,6 +14,7 @@ component:
 | [`README.md`](../README.md) | installation entrypoint, development commands, and repository overview |
 | [`AGENTS.md`](../AGENTS.md) | mandatory contribution and implementation rules |
 | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
+| [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) | accepted ecosystem and Computers contract decisions: qualified provider recovery, capacity and authority, renewable access, appropriate test tooling, scoped evidence, version transitions, deployment boundaries, and transfer-profile gates; includes remaining implementation work |
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared responsibility, continuous containment boundary, and operating proof for always-autonomous agents |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
@@ -40,13 +42,13 @@ authorize implementation:
 | [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
 | [`ARTIFACT_PREVIEW_AND_APP_HANDOFF.md`](ARTIFACT_PREVIEW_AND_APP_HANDOFF.md) | artifact catalog, preview dispatch, producer and external-App registration paths, governed App handoff constraints, handler models, and open design questions |
 
-Implementation plans describe future hard cuts. A plan's status line records whether
+Implementation plans describe future changes. A plan's status line records whether
 its execution is approved. Existing contracts remain authoritative until each planned
 change lands:
 
 | Document | Planned change |
 |---|---|
-| [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | core Computers product decision and proposed native domain/service, OpenShell provider, retained storage, browser/CLI access, lifecycle recovery, standard packaging, Bioma deployment and iteration acceptance |
+| [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | core Computers delivery sequence: platform domain and planned Computers MCP worker, native Console/CLI, scoped agent execution, retained storage, provider recovery, capacity policy, standard packaging, Bioma deployment and measured acceptance |
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | canonical multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work from `001`–`013`; current exact App authority, governed upload, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work from `014`–`023` |
@@ -137,7 +139,7 @@ Hub, administration, and GPU policy.
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
-| `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
+| `AGENTS.md` | contract evolution, provider recovery, dependency qualification, GPU evidence, type/module, and test-harness rules |
 | `docs/` | general architecture, code index, recording design, and rendered publications |
 | `agents/` | agent kernel and durable agent runtime |
 | `apps/` | user-facing applications and their service boundaries |

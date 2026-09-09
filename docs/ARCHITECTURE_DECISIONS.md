@@ -5,6 +5,30 @@ implementations must preserve. It is normative. Detailed component designs may
 change, but a change to one of these decisions requires an explicit replacement
 decision rather than an implicit compatibility path.
 
+## Standards And Protocols
+
+| Boundary | Profile |
+|---|---|
+| MCP, JSON-RPC, JSON Schema, OAuth and OpenID Connect | Versions and supported subsets in the normative [MCP server contract](../mcp/contract/DESIGN.md) |
+| HTTP, WebSocket, SSH and internal gRPC | Governed control, artifact transfer, and planned Computers access; [contract evolution](CONTRACT_EVOLUTION.md) records the new profile requirements |
+| UUIDv7, SHA-256 and Git identity | Opaque domain identities, integrity, and exact source provenance |
+| SurrealQL and transactional outbox | Durable store and recovery under the pinned SurrealDB implementation; no database HA claim |
+| OCI, Helm, Kubernetes and GitOps | Immutable release artifacts and installation-owned reconciliation |
+| S3-compatible object APIs | Private Artifact storage under the [Artifact service design](../platform/artifacts/service/DESIGN.md) |
+| Rerun RRD/Data Protocol, Arrow, H.264 and Media Capabilities | Recording and playback subsets under [Recordings](RECORDINGS.md) and the owning component designs |
+| NVIDIA CUDA, Vulkan, RTX and NVENC; WebGPU and WebGL | Hardware execution and visual acceptance under the runtime-specific pinned profiles |
+| WGS84, ENU/NED, MAVLink, TraCI and 3D Tiles | Domain integration boundaries defined by Frames, UAV, SUMO, and View designs |
+
+## Contract evolution
+
+[`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) records the accepted September 9
+decisions for provider recovery, core capacity, human and agent authority, renewable
+access, verification, evidence reuse, dependency qualification, deployment boundaries,
+and future Artifact transfer profiles. Internal models remain canonical. Public
+adapters and persistent/deployment transitions require an explicit supported window,
+owner, migration, and qualification; hidden compatibility paths remain prohibited.
+Its implementation table distinguishes accepted policy from delivered behavior.
+
 ## Product boundary
 
 Veoveo is installed and operated by its owner. Each installation is autonomous:
@@ -27,8 +51,23 @@ experience, durable lifecycle, retained storage integration, and installation pa
 Installations configure capacity, admitted development images, policy, provider
 connections, and trust. Admission and maintenance are operational controls.
 
+Core status permits qualified local, remote, or on-demand compute. Control surfaces
+remain present when capacity is unconfigured, exhausted, or under maintenance, with
+actionable states. Setup can finish without allocating workers; operational Computers
+acceptance requires a configured provider and real retained execution. Offline
+qualification requires the complete selected local runtime and storage inputs.
+
+Ownership and actor authority use canonical principals and Work Context policy.
+Humans and services may receive explicit action grants. Personal privacy is the
+default, and per-owner cardinality is a quota policy. A human-only installation can
+express that restriction in policy without imposing it on the domain model.
+
 The first supported profile is a personal development Computer with explicit owner
-authority, reconnectable execution, and retained files and caches across Stop/Start.
+authority, reconnectable execution, retained files and caches across Stop/Start,
+and scoped agent control. Browser, CLI, and agent access share the same domain
+authority. Renewable attachments expire and revoke independently of retained work.
+The native Console page and planned MCP facade project the same Computers domain;
+the gateway retains generic governed routing and no provider controller.
 Build publication and production promotion keep their separate authority boundaries.
 The implementation and acceptance sequence is proposed in
 [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md); the capability is not implemented at this
@@ -176,9 +215,15 @@ Recovery is explicit per task:
 - `interrupted_indeterminate`: interrupted mutating work fails and is not run
   again automatically.
 
-Provider job completion is webhook-only. Missing webhook delivery is an
-operational failure. Veoveo does not poll provider status, add polling fallback,
-or query a provider during timeout recovery.
+These are the currently implemented recovery classes. The accepted extension is a
+provider-specific completion/recovery profile under
+[`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md#ce-01-provider-completion-follows-qualified-semantics).
+Native authenticated events are preferred. Definitive synchronous results and
+bounded authoritative status reconciliation are permitted by a qualified adapter;
+an API-only provider may declare a bounded polling profile. Missing events and
+expired waits preserve uncertain effects and resource fencing. Recovery cannot
+redispatch a mutation without proven safety. Media retains its signed-webhook
+profile until an explicit replacement passes its own qualification.
 
 ## Artifacts and sharing
 
@@ -201,10 +246,17 @@ Artifacts support two distinct sharing modes:
 
 Link tokens are random, stored only as hashes, default to seven days, may not
 exceed thirty days, and are revocable. Public links never confer write or admin
-access. Every client-facing capability uses the installation origin selected by
+access. The current client-facing transfer route uses the installation origin selected by
 `global.publicBaseUrl`. Large authorized, ranged, and public-share downloads are
 policy-checked and streamed through Artifact service. Object storage remains private,
 has no client-addressable hostname, and never issues a redirect to a client.
+
+Artifact remains the authority when a future qualified transfer profile uses an
+installation-owned endpoint. Such a profile must prove its method/object scope,
+quota, integrity, publication, and revocation semantics and demonstrate a measured
+benefit. Presigned object transfer is not currently supported. URL expiration alone
+cannot prove active-stream revocation. The implementation gate is
+[`CE-09`](CONTRACT_EVOLUTION.md#ce-09-artifact-authority-can-admit-qualified-transfer-routes).
 
 ## MCP protocol surface
 
@@ -347,11 +399,17 @@ declare ordinary GPU requests and remain independently schedulable. No
 application profile disables one GPU service to admit another; cluster capacity
 must satisfy the complete six-workload declaration.
 
-Visual workflows fail closed without hardware acceleration. Browser automation,
-interactive demonstrations, screenshots, and publication rendering require a
+Visual workflows fail closed without hardware acceleration. Visual browser acceptance,
+interactive demonstrations, visual-evidence screenshots, and publication rendering require a
 headed browser with hardware-backed WebGPU or WebGL. Both APIs are probed when
 available; SwiftShader, llvmpipe, and software rasterizers do not count as
 hardware evidence.
+
+Headless browser tests may establish nonvisual behavior such as forms, authorization,
+navigation, and keyboard handling. They carry behavioral evidence and cannot replace
+required visual or GPU acceptance. Tests may use maintained tooling in their owning
+language under the shared prerequisite, cleanup, diagnostics, and evidence contract.
+Labeled headless failure screenshots are diagnostic artifacts and never visual acceptance.
 
 Browser H.264 playback is the only software exception. The exact Media
 Capabilities configuration must report `supported` and `smooth`, and the UI

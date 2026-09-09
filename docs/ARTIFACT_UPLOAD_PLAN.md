@@ -420,12 +420,14 @@ change cannot transfer or reveal another session's files. Exercise a mixed-valid
 batch, one failed file among successful files, a same-named wrong file on resume,
 completion hidden by active filters, exact displayed sizes, and a completion/cancel
 race. Capture transferring, finishing, recoverable-error, and ready states at desktop
-and narrow widths. Before any browser run prove
+and narrow widths. Before visual acceptance prove
 headed mode and probe both WebGPU and WebGL where exposed; at least one must reach
 hardware. Stop on loss of the last hardware-backed API. HTTP tests cannot substitute
 for UI acceptance.
 
-All smoke orchestration/assertions/retries/cleanup belong in Rust. Record affected
+Smoke orchestration, assertions, retries and cleanup belong to the owning harness under
+[Contract Evolution](CONTRACT_EVOLUTION.md). Headless behavior checks cannot replace the
+visual acceptance above. Record affected
 checks through `cargo xtask test-report run --name <check> -- <command>`, inspect
 `cargo xtask test-report show`, and commit passing evidence with build-input changes.
 Include Console build/lint, BFF tests, affected Rust crates, and Python enforcement.

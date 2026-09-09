@@ -45,10 +45,11 @@ profiles:
 | SARIF 2.1.0 | preferred machine-readable exchange for compatible security and static-analysis results |
 | Veoveo smoke descriptor version 1 | planned internal typed protocol between component smoke binaries and `xtask`; it is not a public product contract |
 
-Every dependency, tool, action, image, or deployment component introduced while
-executing this plan must use the latest stable upstream release verified from its
-authoritative source, then be pinned exactly. The table records protocol boundaries and
-does not authorize copying example versions into the implementation.
+Dependencies, tools, actions, images, and deployment components follow AGENTS.md and
+[Contract Evolution](CONTRACT_EVOLUTION.md): verify current upstream releases when
+selecting a new dependency or upgrade, prefer latest stable, record any supported older
+selection's reason, and pin the qualified result exactly. Ordinary consumer edits need
+not upgrade unrelated dependencies. The table does not authorize copying example pins.
 
 ## Intended Outcome
 
@@ -826,7 +827,7 @@ behavior, DuckDB staging path, or component list.
 
 ### Typed Scenario Protocol
 
-Every smoke package compiles against a shared scenario contract:
+Rust smoke packages compile against a shared scenario contract:
 
 ```rust
 pub trait SmokeScenario {
@@ -842,11 +843,14 @@ billed service, and required secret needs. A shared macro generates `describe`, 
 `run`, and `run-all` commands for each smoke binary.
 
 The generated launcher performs declared preflight before scenario code runs. A GPU
-scenario cannot continue without an NVIDIA-backed path. A browser scenario cannot
-continue unless headed Chrome exposes hardware-backed WebGPU or WebGL.
+scenario cannot continue without an NVIDIA-backed path. Visual browser acceptance
+requires headed Chrome with hardware WebGPU or WebGL. Headless behavioral scenarios
+declare a different evidence class and cannot close a visual or GPU gate.
 
-The internal descriptor and result protocol uses shared versioned Rust types serialized
-as JSON across the process boundary.
+The internal descriptor and result protocol uses a shared versioned schema, with Rust
+types and generated bindings for other owning harnesses. Maintained TypeScript browser
+and SDK-language harnesses may produce the same bounded lifecycle and evidence contract.
+Existing Rust smokes remain valid; migration should remove measured complexity.
 
 ### Discovery
 

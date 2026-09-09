@@ -9,6 +9,11 @@ and headed hardware-GPU acceptance. Other phases retain their own start gates. E
 component designs remain normative until each current phase lands and deletes the surface
 it replaces.
 
+For new work, [Contract Evolution](CONTRACT_EVOLUTION.md) supersedes this plan's older
+universal requirements for provider completion, test language, browser prerequisites,
+and dependency upgrades. Completed cycle records retain the contracts actually tested.
+Changing a provider profile still requires its own implementation and qualification.
+
 ## Standards And Protocols
 
 Each cycle records the exact external standards, wire protocols, data formats, and
@@ -1289,7 +1294,7 @@ large-file paths, or a risky rewrite of an already qualified live-view runtime.
 | JSON Schema Draft 2020-12 | closed App resolution, upload, release, recording, live-view, GPU, reasoning, and deployment contracts |
 | W3C Trace Context and Baggage | bounded `traceparent`, `tracestate`, and `baggage` propagation. The authenticated HTTP boundary establishes trust and untrusted App frames never choose trace authority |
 | OpenTelemetry Protocol | export of connected Console, Gateway, hosted-server, and bounded data-plane spans. Operator correlation exposes only a shortened trace identity and safe result category |
-| Rerun `0.36.3` RRD | canonical immutable multimodal recording bytes at this baseline. Implementation rechecks the latest stable Rerun release before touching the pin and migrates the complete stack together if a newer stable release exists |
+| Rerun `0.36.3` RRD | canonical immutable multimodal recording bytes at this baseline. Planned pin changes verify upstream support and qualify the complete compatible stack under AGENTS.md; consumer edits may retain the qualified pin |
 | Rerun Data Protocol | official `rerun.cloud.v1alpha1.RerunCloudService` read profile for governed datasets, segments, layers, schema, manifests, chunk queries, and chunk fetches over HTTP/2 or gRPC-Web |
 | Rerun Catalog SDK and DataFusion | native Python and Rust dataset reads, segment filtering, content filtering, typed dataframe operations, and Arrow conversion. Veoveo does not claim unsupported Catalog mutation or maintenance profiles |
 | Apache Arrow IPC streaming format | sole browser-native recording projection payload. It is a query result over RRD, not another recording format or durable copy |
@@ -1370,7 +1375,8 @@ qualified shared-device deployment.
   recording segments. Projection-only callers never receive a Redap bearer.
 - The current live RRD channel keeps its exclusive receiver, reconnect, rollover, and Blueprint
   continuity behavior. Archive changes cannot introduce polling or cursor forcing into Live mode.
-- Provider work completion remains webhook-only. Trace work cannot add provider polling.
+- Existing Media work retains its webhook profile. Trace work consumes recorded provider
+  events and does not independently add provider polling; adapter changes follow Contract Evolution.
 - GPU visual, simulation, rendering, encoding, perception, and visual verification remain
   hardware-only. Admission never creates a CPU profile or optional GPU mode.
 - Browser acceptance stays headed and requires hardware WebGPU or WebGL. SwiftShader, llvmpipe,
@@ -2156,8 +2162,9 @@ Every build-input change runs its affected checks through `cargo xtask test-repo
 `testing/local-test-report.json` contains only green current entries. Documentation-only commits do
 not replace or invalidate build evidence.
 
-All smoke lifecycle, assertions, retries, cleanup, and evidence remain Rust. Browser acceptance
-uses a headed hardware-backed browser. Recording and live-view GPU evidence is collected only on
+New smoke work follows [Contract Evolution](CONTRACT_EVOLUTION.md): the owning Rust, browser,
+or SDK harness supplies bounded lifecycle, assertions, cleanup and evidence. Visual browser
+acceptance uses a headed hardware-backed browser. Recording and live-view GPU evidence is collected only on
 the Linux deployment with accessible NVIDIA hardware. macOS review or software rendering cannot
 close any visual gate.
 

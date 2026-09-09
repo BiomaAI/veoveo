@@ -519,8 +519,9 @@ The minimum automated matrix covers:
 
 ### Deployment smoke
 
-All smoke orchestration, lifecycle, assertions, retries, cleanup, and evidence parsing
-remain in Rust. Extend the existing recording scenario to:
+The existing Rust recording scenario owns lifecycle, assertions, retries, cleanup, and
+evidence parsing for these deployment cases. Future harness choices follow
+[Contract Evolution](CONTRACT_EVOLUTION.md). Extend that scenario to:
 
 1. Create one dataset and ingest two recordings into it.
 2. Force more than one capture layer and seal both recordings.
