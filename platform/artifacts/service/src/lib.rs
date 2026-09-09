@@ -12,6 +12,7 @@ pub mod http;
 pub mod ledger;
 pub mod service;
 pub mod store;
+pub mod uploads;
 
 pub use auth::PlaneAuthenticator;
 pub use config::{Config, ObjectStoreConfig};

@@ -1454,6 +1454,7 @@ mod tests {
     mod native_database;
     mod read_capability;
     mod upload_admission;
+    mod upload_engine;
     mod upload_lifecycle;
     mod upload_migration;
     mod upload_parts;

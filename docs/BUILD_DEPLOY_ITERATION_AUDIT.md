@@ -1865,3 +1865,28 @@ compile preceded acceptance because native scalar query results require an optio
 wrapper in the SDK. The shared publication builder and SQL fragment serve both ordinary
 writes and uploads, avoiding a second implementation of blob registration and grants.
 Logs use `output/development/artifact-upload-lifecycle-*20260908.log`.
+
+The assembled upload service passes 34 Artifact tests. Its native transfer fixture
+streams a 256 KiB object through bounded parts, reconstructs the service on another
+replica, publishes a verified receipt, and reads the result through the ordinary
+Artifact API. Cancellation of a pending body releases memory before the durable lease
+expires; background cleanup releases retained quota. This fixture uses the native
+database and an in-memory multipart backend, not installed S3 acceptance.
+
+An extra `cargo check --lib` took 64.6 s before reporting three typed-ID constructor
+errors. It compiled a separate dependency/feature graph, including SurrealDB, despite
+the warm native test build. Prefer the known acceptance test target during this phase
+to avoid warming an extra build graph that does not execute the feature. The first
+assembled-service test also attempted to mutate an immutable gateway revision in its
+fixture; the fixture now creates its typed upload policy in the original revision.
+These costs remain development churn. Logs use
+`output/development/artifact-upload-engine-*20260908.log`.
+
+A bounded cleanup removed five generated test/binary executables older than seven days,
+including their remaining Cargo hardlinks: 4.08 GiB of unique logical file data across
+nine paths. No running executable referenced those inodes. Rust libraries, incremental
+caches, and current acceptance executables remain. The deletion manifest is
+`output/development/artifact-upload-cleanup-20260908.json`; filesystem availability is
+353 GiB after concurrent compilation and cleanup. This remains below the image
+builder's operating reserve, so obsolete builder materializations must be reviewed
+before image staging rather than waiting for disk exhaustion.

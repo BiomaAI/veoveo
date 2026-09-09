@@ -5,6 +5,13 @@ use super::*;
 use veoveo_platform_store as platform;
 
 pub(super) async fn install_profile(store: &platform::PlatformStore) {
+    install_profile_policy(store, None).await;
+}
+
+pub(super) async fn install_profile_policy(
+    store: &platform::PlatformStore,
+    upload: Option<veoveo_mcp_contract::ArtifactUploadPolicy>,
+) {
     let now = Utc::now();
     let revision = platform::RecordId::new("gateway_control_revision", "upload-fixture");
     let revision_content = platform::GatewayControlRevisionContent {
@@ -16,15 +23,22 @@ pub(super) async fn install_profile(store: &platform::PlatformStore) {
         tenant: None,
         control_plane: platform::OpenObject::default(),
     };
+    let mut document = std::collections::BTreeMap::from([
+        ("id".into(), serde_json::json!("fixture")),
+        ("policy_version".into(), serde_json::json!("r1")),
+    ]);
+    if let Some(policy) = upload {
+        document.insert(
+            "artifact_upload".into(),
+            serde_json::to_value(policy).unwrap(),
+        );
+    }
     let profile = platform::GatewayControlObjectContent {
         revision: revision.clone(),
         tenant: None,
         object_kind: "profile".into(),
         object_id: "fixture".into(),
-        document: platform::OpenObject::new(std::collections::BTreeMap::from([
-            ("id".into(), serde_json::json!("fixture")),
-            ("policy_version".into(), serde_json::json!("r1")),
-        ])),
+        document: platform::OpenObject::new(document),
     };
     let policy = platform::GatewayControlObjectContent {
         revision: revision.clone(),

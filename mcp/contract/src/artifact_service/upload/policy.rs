@@ -59,6 +59,7 @@ impl ArtifactUploadPolicy {
             || self.lifetime_seconds.get() > 365 * 24 * 60 * 60
             || self.inactivity_seconds > self.lifetime_seconds
             || self.part_timeout_seconds > self.inactivity_seconds
+            || self.part_timeout_seconds.get() > 3600
             || self.allowed_mime_types.is_empty()
             || self
                 .allowed_mime_types

@@ -1,3 +1,6 @@
+mod upload;
+pub use upload::*;
+
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -201,24 +204,7 @@ impl GatewayInternalTokenIssuer {
         authority: InvocationAuthority,
         expires_at: DateTime<Utc>,
     ) -> Result<IssuedGatewayInternalToken, InternalTokenError> {
-        ensure_jwt_crypto_provider();
-        let now = Utc::now();
-        if expires_at <= now {
-            return Err(InternalTokenError::ExpiredDelegation);
-        }
-        let jwt_id =
-            JwtId::new(uuid::Uuid::new_v4().to_string()).map_err(InternalTokenError::Identifier)?;
-        let identity = GatewayInternalIdentity {
-            issuer: self.issuer.clone(),
-            profile,
-            server,
-            actor,
-            authority,
-            jwt_id,
-            issued_at: now,
-            not_before: now,
-            expires_at,
-        };
+        let identity = self.create_identity(profile, server, actor, authority, expires_at)?;
         let claims = GatewayInternalJwtClaims::from_identity(&identity);
         let mut header = Header::new(Algorithm::EdDSA);
         header.typ = Some("JWT".to_string());
@@ -232,6 +218,34 @@ impl GatewayInternalTokenIssuer {
         Ok(IssuedGatewayInternalToken {
             bearer_token,
             identity,
+        })
+    }
+
+    fn create_identity(
+        &self,
+        profile: GatewayProfileId,
+        server: ServerSlug,
+        actor: Principal,
+        authority: InvocationAuthority,
+        expires_at: DateTime<Utc>,
+    ) -> Result<GatewayInternalIdentity, InternalTokenError> {
+        ensure_jwt_crypto_provider();
+        let now = Utc::now();
+        if expires_at <= now {
+            return Err(InternalTokenError::ExpiredDelegation);
+        }
+        let jwt_id =
+            JwtId::new(uuid::Uuid::new_v4().to_string()).map_err(InternalTokenError::Identifier)?;
+        Ok(GatewayInternalIdentity {
+            issuer: self.issuer.clone(),
+            profile,
+            server,
+            actor,
+            authority,
+            jwt_id,
+            issued_at: now,
+            not_before: now,
+            expires_at,
         })
     }
 
@@ -456,6 +470,14 @@ impl GatewayInternalTokenVerifier {
         &self,
         bearer_token: &str,
     ) -> Result<GatewayInternalIdentity, InternalTokenError> {
+        let claims = self.decode_claims::<GatewayInternalJwtClaims>(bearer_token)?;
+        self.identity_from_claims(claims)
+    }
+
+    fn decode_claims<T: serde::de::DeserializeOwned>(
+        &self,
+        bearer_token: &str,
+    ) -> Result<T, InternalTokenError> {
         ensure_jwt_crypto_provider();
         let header = decode_header(bearer_token).map_err(InternalTokenError::Jwt)?;
         if header.alg != Algorithm::EdDSA {
@@ -476,9 +498,15 @@ impl GatewayInternalTokenVerifier {
         let audience_strs: Vec<&str> = self.audiences.iter().map(ServerSlug::as_str).collect();
         validation.set_audience(&audience_strs);
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "iat", "nbf", "jti"]);
-        let token = decode::<GatewayInternalJwtClaims>(bearer_token, &decoding_key, &validation)
+        let token = decode::<T>(bearer_token, &decoding_key, &validation)
             .map_err(InternalTokenError::Jwt)?;
-        let claims = token.claims;
+        Ok(token.claims)
+    }
+
+    fn identity_from_claims(
+        &self,
+        claims: GatewayInternalJwtClaims,
+    ) -> Result<GatewayInternalIdentity, InternalTokenError> {
         if !self.audiences.contains(&claims.server) {
             return Err(InternalTokenError::AudienceMismatch {
                 expected: self
@@ -686,6 +714,66 @@ mod tests {
                 initiator: principal().id,
             },
         }
+    }
+
+    #[test]
+    fn upload_assertions_require_dedicated_audience_and_signed_policy_binding() {
+        let issuer = GatewayInternalTokenIssuer::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            signing_key("key-1"),
+        );
+        let verifier = GatewayInternalTokenVerifier::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            ServerSlug::new(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+            trust_bundle("key-1"),
+        );
+        let binding = crate::ArtifactUploadAuthority {
+            control_plane_sha256: crate::UploadSha256::parse("a".repeat(64)).unwrap(),
+            context_digest: crate::UploadSha256::parse("b".repeat(64)).unwrap(),
+        };
+        let token = issuer
+            .issue_artifact_upload(
+                GatewayProfileId::new("default").unwrap(),
+                principal(),
+                authority(),
+                binding.clone(),
+                Utc::now() + TimeDelta::minutes(1),
+            )
+            .unwrap();
+        let verified = verifier.verify_artifact_upload(&token).unwrap();
+        assert_eq!(verified.authorization, binding);
+        assert_eq!(verified.identity.actor.id, principal().id);
+        let ordinary = issuer
+            .issue(
+                GatewayProfileId::new("default").unwrap(),
+                ServerSlug::new(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+                principal(),
+                authority(),
+                Utc::now() + TimeDelta::minutes(1),
+            )
+            .unwrap();
+        assert!(
+            verifier
+                .verify_artifact_upload(&ordinary.bearer_token)
+                .is_err(),
+            "a token without a signed policy binding was accepted"
+        );
+        let domain = GatewayInternalTokenVerifier::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            ServerSlug::new("media").unwrap(),
+            trust_bundle("key-1"),
+        );
+        assert!(domain.verify(&token).is_err());
+        let mut segments: Vec<String> = token.split('.').map(str::to_owned).collect();
+        let mut claims: serde_json::Value =
+            serde_json::from_slice(&URL_SAFE_NO_PAD.decode(&segments[1]).unwrap()).unwrap();
+        claims["upload_authorization"]["context_digest"] = serde_json::json!("c".repeat(64));
+        segments[1] = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims).unwrap());
+        assert!(
+            verifier
+                .verify_artifact_upload(&segments.join("."))
+                .is_err()
+        );
     }
 
     #[test]

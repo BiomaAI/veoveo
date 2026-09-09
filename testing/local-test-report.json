@@ -1,10 +1,26 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:fa1992c13c9eba7f93ab316f0db306711de054949e720069a9755ea759408a32",
-  "updatedAt": "2026-09-08T23:36:21Z",
+  "buildDigest": "sha256:87df535f57c5a9867737e1a3b1cfc6706d7ed116e5265f8d3d849f210f096964",
+  "updatedAt": "2026-09-08T23:59:18Z",
   "checks": [
     {
-      "name": "artifact-upload-lifecycle-format",
+      "name": "artifact-upload-engine-contract",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-contract",
+        "--lib",
+        "--test",
+        "artifact_upload"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-08T23:58:09Z",
+      "durationSeconds": 33.746725553,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "artifact-upload-engine-format",
       "command": [
         "cargo",
         "fmt",
@@ -12,12 +28,12 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T23:36:21Z",
-      "durationSeconds": 2.209364303,
+      "finishedAt": "2026-09-08T23:59:18Z",
+      "durationSeconds": 2.394476388,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-upload-lifecycle-native",
+      "name": "artifact-upload-engine-native",
       "command": [
         "env",
         "VEOVEO_SURREAL_BINARY=/home/rozgo/BiomaAI/veoveo/output/tools/surreal/3.2.4/surreal",
@@ -30,12 +46,12 @@
         "--include-ignored"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T23:35:12Z",
-      "durationSeconds": 15.500720194,
+      "finishedAt": "2026-09-08T23:55:35Z",
+      "durationSeconds": 6.921138987,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-upload-lifecycle-store",
+      "name": "artifact-upload-engine-store",
       "command": [
         "cargo",
         "test",
@@ -44,8 +60,8 @@
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-08T23:35:51Z",
-      "durationSeconds": 6.13631001,
+      "finishedAt": "2026-09-08T23:58:44Z",
+      "durationSeconds": 6.221135769,
       "detail": "completed successfully"
     }
   ]

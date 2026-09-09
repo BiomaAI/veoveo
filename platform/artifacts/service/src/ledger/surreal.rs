@@ -780,7 +780,9 @@ fn contract_access_request_state(
     }
 }
 
-fn platform_authority(authority: &InvocationAuthority) -> platform::InvocationAuthorityRecord {
+pub(crate) fn platform_authority(
+    authority: &InvocationAuthority,
+) -> platform::InvocationAuthorityRecord {
     let (invocation_mode, initiator_key, delegation_id) = match &authority.provenance {
         InvocationProvenance::Direct { initiator } => (
             platform::InvocationMode::Direct,
