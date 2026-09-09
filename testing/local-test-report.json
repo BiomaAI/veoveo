@@ -1,54 +1,55 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4315106bb276c284b272749db184e05af9188c37b54c631a7d1fcbb715ce6a60",
-  "updatedAt": "2026-09-09T03:19:07Z",
+  "buildDigest": "sha256:2a19cdfd8602fadf3dbc00dfbaa50e00e2f4b294f98cad5c32895ddcc7dfb428",
+  "updatedAt": "2026-09-09T23:31:37Z",
   "checks": [
     {
-      "name": "artifact-upload-console-ux",
+      "name": "computers-runtime",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "console-artifact-upload-ux-verify",
-        "--public-base-url",
-        "https://veoveo.bioma.ai",
-        "--completed-evidence",
-        "/home/rozgo/BiomaAI/veoveo/output/acceptance/artifact-upload/8278ab55eff9a64032761a02ed8ddd89b07150fc/01a083cf-6ab3-78c0-a56e-ce6ae4be8664/resume-01a083f7-1384-7210-898e-323d0fdf9f01/evidence.json",
-        "--evidence-root",
-        "/home/rozgo/BiomaAI/veoveo/output/acceptance/artifact-upload"
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T03:17:40Z",
-      "durationSeconds": 93.159783018,
+      "finishedAt": "2026-09-09T23:30:02Z",
+      "durationSeconds": 60.549469749,
       "detail": "completed successfully"
     },
     {
-      "name": "artifact-upload-final-format",
+      "name": "computers-runtime-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-09T23:30:50Z",
+      "durationSeconds": 12.953974695,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-runtime-format",
       "command": [
         "cargo",
         "fmt",
-        "--all",
+        "-p",
+        "veoveo-computers-runtime",
         "--",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T03:19:07Z",
-      "durationSeconds": 2.352921866,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "artifact-upload-final-harness-build",
-      "command": [
-        "cargo",
-        "build",
-        "-p",
-        "veoveo-browser-smoke",
-        "-p",
-        "veoveo-flight-smoke"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-09T03:18:07Z",
-      "durationSeconds": 3.236074821,
+      "finishedAt": "2026-09-09T23:31:37Z",
+      "durationSeconds": 0.133621283,
       "detail": "completed successfully"
     }
   ]

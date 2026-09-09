@@ -1,0 +1,566 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 4368133..c38d2fe 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4535,6 +4535,7 @@ dependencies = [
+  "openshell-core",
+  "openshell-ocsf",
+  "openshell-policy",
++ "prost",
+  "rand 0.10.2",
+  "russh",
+  "rustix 1.1.4",
+diff --git a/architecture/sandbox.md b/architecture/sandbox.md
+index 42b326b..497706b 100644
+--- a/architecture/sandbox.md
++++ b/architecture/sandbox.md
+@@ -417,6 +417,31 @@ sandbox workload directly. The relay supports:
+ - Tar-based file sync.
+ - Port forwarding where supported by the CLI/TUI surface.
+ 
++Retained-output clients can request typed replay metadata with SSH environment
++request `OPENSHELL_MAIN_EVENTS=1` before attaching `openshell-main`. The value
++is not propagated to the sandbox process. Invalid values and requests after
++attachment fail. Ordinary clients retain raw stdout and stderr without metadata.
++
++The output cursor atomically captures a per-attachment sequence fence. Once it
++has delivered retained events before that fence, it emits one generated
++`openshell.terminal.v1.MainProcessEvent` containing `replay_complete`. The message travels
++on SSH extended-data type `0xFE000001`, in the private-use range defined by
++[RFC 4254 section 5.2](https://www.rfc-editor.org/rfc/rfc4254#section-5.2).
++This is an OpenShell adapter extension, not a standardized terminal event.
++The process cannot manufacture metadata by writing escape sequences or stderr.
++The shared log never stores attachment fences. Empty history completes
++immediately; output produced during replay remains after the captured fence.
++Eviction fails the attachment without a completion claim.
++
++Renderers must suppress terminal answerbacks while replaying and drain all
++preceding renderer writes before enabling input or processing live output.
++Neither elapsed time nor an idle stream establishes replay completion. A
++client requiring metadata must fail closed if it never arrives, including
++when an older supervisor acknowledges the generic environment request.
++This event does not grant input ownership, extend authorization, or replace
++the canonical process. Raw stdout/stderr ordering, the output bound, the
++single input lease and disconnect semantics remain unchanged.
++
+ Before dropping identity, full-mode canonical and independent PTY children
+ transfer their freshly allocated slave descriptor to the same resolved UID/GID
+ used for execution, with owner-only mode 0600. They never chown a workload
+diff --git a/crates/openshell-core/src/proto/mod.rs b/crates/openshell-core/src/proto/mod.rs
+index 7009067..de1dc26 100644
+--- a/crates/openshell-core/src/proto/mod.rs
++++ b/crates/openshell-core/src/proto/mod.rs
+@@ -40,6 +40,10 @@ pub mod compute {
+     pub use super::generated::openshell::compute::v1;
+ }
+ 
++pub mod terminal {
++    pub use super::generated::openshell::terminal::v1;
++}
++
+ impl std::fmt::Debug for compute::v1::StartSandboxRequest {
+     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+         formatter
+diff --git a/crates/openshell-supervisor-process/Cargo.toml b/crates/openshell-supervisor-process/Cargo.toml
+index 2e2120f..7d8013f 100644
+--- a/crates/openshell-supervisor-process/Cargo.toml
++++ b/crates/openshell-supervisor-process/Cargo.toml
+@@ -14,6 +14,7 @@ rust-version.workspace = true
+ openshell-core = { path = "../openshell-core" }
+ openshell-ocsf = { path = "../openshell-ocsf" }
+ openshell-policy = { path = "../openshell-policy" }
++prost = { workspace = true }
+ 
+ anyhow = { workspace = true }
+ base64 = { workspace = true }
+diff --git a/crates/openshell-supervisor-process/src/main_session.rs b/crates/openshell-supervisor-process/src/main_session.rs
+index fc5c969..3ada86c 100644
+--- a/crates/openshell-supervisor-process/src/main_session.rs
++++ b/crates/openshell-supervisor-process/src/main_session.rs
+@@ -26,13 +26,18 @@ pub enum MainOutput {
+     Stdout(Bytes),
+     Stderr(Bytes),
+     Exit(i32),
++    /// Per-attachment fence, never stored in the shared output log. All
++    /// events preceding `next_sequence` belonged to the attachment's replay.
++    ReplayComplete {
++        next_sequence: u64,
++    },
+ }
+ 
+ impl MainOutput {
+     fn len(&self) -> usize {
+         match self {
+             Self::Stdout(data) | Self::Stderr(data) => data.len(),
+-            Self::Exit(_) => 0,
++            Self::Exit(_) | Self::ReplayComplete { .. } => 0,
+         }
+     }
+ }
+@@ -97,10 +102,12 @@ impl OutputLog {
+             .events
+             .front()
+             .map_or(state.next_sequence, |retained| retained.sequence);
++        let replay_end = Some(state.next_sequence);
+         drop(state);
+         MainOutputCursor {
+             output: Arc::clone(self),
+             next_sequence,
++            replay_end,
+             version,
+         }
+     }
+@@ -114,6 +121,7 @@ pub struct MainOutputLagged {
+ pub struct MainOutputCursor {
+     output: Arc<OutputLog>,
+     next_sequence: u64,
++    replay_end: Option<u64>,
+     version: watch::Receiver<u64>,
+ }
+ 
+@@ -133,8 +141,17 @@ impl MainOutputCursor {
+                 if self.next_sequence < oldest {
+                     let skipped = oldest - self.next_sequence;
+                     self.next_sequence = oldest;
++                    // Missing output invalidates this attachment's fence.
++                    // SSH closes on lag rather than claiming a complete replay.
++                    self.replay_end = None;
+                     return Err(MainOutputLagged { skipped });
+                 }
++                if self.replay_end == Some(self.next_sequence) {
++                    self.replay_end = None;
++                    return Ok(MainOutput::ReplayComplete {
++                        next_sequence: self.next_sequence,
++                    });
++                }
+                 if self.next_sequence >= state.next_sequence {
+                     None
+                 } else {
+@@ -433,6 +450,10 @@ mod tests {
+         ));
+ 
+         session.publish(MainOutput::Stderr(Bytes::from_static(b"after")));
++        assert!(matches!(
++            output.recv().await.expect("attachment replay boundary"),
++            MainOutput::ReplayComplete { next_sequence: 1 }
++        ));
+         assert!(matches!(
+             output.recv().await.expect("live output"),
+             MainOutput::Stderr(data) if data == b"after"[..]
+@@ -473,6 +494,10 @@ mod tests {
+         let (session, mut slave) = MainSession::terminal_for_test();
+         set_nonblocking(&slave).expect("set test PTY slave nonblocking");
+         let mut output = session.subscribe();
++        assert!(matches!(
++            output.recv().await.expect("empty replay boundary"),
++            MainOutput::ReplayComplete { next_sequence: 0 }
++        ));
+ 
+         slave
+             .write_all(b"process output")
+@@ -508,4 +533,81 @@ mod tests {
+         assert_eq!(&received[..read], b"client input\n");
+         session.release_input(owner);
+     }
++
++    #[tokio::test]
++    async fn replay_fence_is_fixed_before_concurrent_live_publication() {
++        let session = MainSession::inert();
++        session.publish(MainOutput::Stdout(Bytes::from_static(b"\x1b[6n")));
++        session.publish(MainOutput::Stderr(Bytes::from_static(b"retained")));
++        let mut cursor = session.subscribe();
++        // Already available when the reader starts, but not part of its history.
++        session.publish(MainOutput::Stdout(Bytes::from_static(b"live")));
++        assert!(
++            matches!(cursor.recv().await.unwrap(), MainOutput::Stdout(data) if data == b"\x1b[6n"[..])
++        );
++        assert!(
++            matches!(cursor.recv().await.unwrap(), MainOutput::Stderr(data) if data == b"retained"[..])
++        );
++        assert!(matches!(
++            cursor.recv().await.unwrap(),
++            MainOutput::ReplayComplete { next_sequence: 2 }
++        ));
++        assert!(
++            matches!(cursor.recv().await.unwrap(), MainOutput::Stdout(data) if data == b"live"[..])
++        );
++    }
++
++    #[tokio::test]
++    async fn empty_replay_emits_one_fence_without_waiting_for_process_output() {
++        let session = MainSession::inert();
++        let mut cursor = session.subscribe();
++        assert!(matches!(
++            cursor.recv().await.unwrap(),
++            MainOutput::ReplayComplete { next_sequence: 0 }
++        ));
++        assert!(
++            tokio::time::timeout(std::time::Duration::from_millis(10), cursor.recv())
++                .await
++                .is_err()
++        );
++        session.publish(MainOutput::Stdout(Bytes::from_static(b"new")));
++        assert!(
++            matches!(cursor.recv().await.unwrap(), MainOutput::Stdout(data) if data == b"new"[..])
++        );
++    }
++
++    #[tokio::test]
++    async fn separate_attachments_have_independent_fences_not_stored_events() {
++        let session = MainSession::inert();
++        let mut first = session.subscribe();
++        session.publish(MainOutput::Stdout(Bytes::from_static(b"one")));
++        let mut second = session.subscribe();
++        assert!(matches!(
++            first.recv().await.unwrap(),
++            MainOutput::ReplayComplete { next_sequence: 0 }
++        ));
++        assert!(matches!(first.recv().await.unwrap(), MainOutput::Stdout(_)));
++        assert!(matches!(
++            second.recv().await.unwrap(),
++            MainOutput::Stdout(_)
++        ));
++        assert!(matches!(
++            second.recv().await.unwrap(),
++            MainOutput::ReplayComplete { next_sequence: 1 }
++        ));
++        assert_eq!(session.output.state.lock().unwrap().events.len(), 1);
++    }
++
++    #[tokio::test]
++    async fn evicted_replay_never_claims_a_complete_fence() {
++        let session = MainSession::inert();
++        session.publish(MainOutput::Stdout(Bytes::from_static(b"history")));
++        let mut cursor = session.subscribe();
++        let chunk = Bytes::from(vec![0; 4096]);
++        for _ in 0..=(OUTPUT_BUFFER_BYTES / chunk.len()) {
++            session.publish(MainOutput::Stdout(chunk.clone()));
++        }
++        assert!(cursor.recv().await.is_err());
++        assert!(cursor.replay_end.is_none());
++    }
+ }
+diff --git a/crates/openshell-supervisor-process/src/ssh.rs b/crates/openshell-supervisor-process/src/ssh.rs
+index 50203df..c5ee89f 100644
+--- a/crates/openshell-supervisor-process/src/ssh.rs
++++ b/crates/openshell-supervisor-process/src/ssh.rs
+@@ -19,10 +19,14 @@ use nix::pty::{Winsize, openpty};
+ use nix::unistd::setsid;
+ use openshell_core::net::set_tcp_nodelay_best_effort;
+ use openshell_core::policy::SandboxPolicy;
++use openshell_core::proto::terminal::v1::{
++    MainProcessEvent, MainProcessReplayComplete, main_process_event,
++};
+ use openshell_core::provider_credentials::ProviderCredentialState;
+ use openshell_ocsf::{
+     ActionId, ActivityId, DispositionId, SeverityId, SshActivityBuilder, StatusId, ocsf_emit,
+ };
++use prost::Message;
+ use russh::keys::{Algorithm, PrivateKey};
+ use russh::server::{Auth, ChannelOpenHandle, Handle, Session};
+ use russh::{ChannelId, ChannelOpenFailure, Sig};
+@@ -389,12 +393,23 @@ struct ChannelState {
+     main_input_owner: Option<u64>,
+     main_attached: bool,
+     main_read_only: bool,
++    main_output_mode: MainOutputMode,
+     main_detach_prefix_pending: bool,
+     main_output_task: Option<tokio::task::AbortHandle>,
+ }
+ 
+ const MAIN_DETACH_PREFIX: u8 = 0x10; // Ctrl-P
+ const MAIN_DETACH_KEY: u8 = 0x11; // Ctrl-Q
++// RFC 4254 section 5.2 private-use extended-data code. Payload is generated
++// MainProcessEvent, never bytes originating from the sandbox process.
++const MAIN_EVENT_EXTENDED_DATA: u32 = 0xfe00_0001;
++
++#[derive(Clone, Copy, Default, Eq, PartialEq)]
++enum MainOutputMode {
++    #[default]
++    Bytes,
++    BytesWithEvents,
++}
+ 
+ /// Remove the `OpenShell` detach sequence from canonical-main input.
+ ///
+@@ -753,6 +768,7 @@ impl russh::server::Handler for SshHandler {
+             state.main_attached = true;
+             state.main_detach_prefix_pending = false;
+             state.input_sender = input;
++            let main_output_mode = state.main_output_mode;
+             let mut output = self.main_session.subscribe();
+             let handle = session.handle();
+             session.channel_success(channel)?;
+@@ -770,7 +786,10 @@ impl russh::server::Handler for SshHandler {
+                     match output.recv().await {
+                         Ok(event) => {
+                             let exited = matches!(event, MainOutput::Exit(_));
+-                            send_main_output(&handle, channel, event).await;
++                            if !send_main_output(&handle, channel, event, main_output_mode).await {
++                                let _ = handle.close(channel).await;
++                                break;
++                            }
+                             if exited {
+                                 break;
+                             }
+@@ -845,6 +864,17 @@ impl russh::server::Handler for SshHandler {
+         // Accept the env request so the client knows we handled it, but we
+         // don't actually propagate the variables — the sandbox environment is
+         // controlled via policy.  We must reply so VSCode doesn't stall.
++        if variable_name == "OPENSHELL_MAIN_EVENTS" {
++            let Some(state) = self.channels.get_mut(&channel) else {
++                session.channel_failure(channel)?;
++                return Ok(());
++            };
++            if variable_value != "1" || state.main_attached {
++                session.channel_failure(channel)?;
++                return Ok(());
++            }
++            state.main_output_mode = MainOutputMode::BytesWithEvents;
++        }
+         if variable_name == "OPENSHELL_MAIN_READ_ONLY"
+             && variable_value == "1"
+             && let Some(state) = self.channels.get_mut(&channel)
+@@ -954,13 +984,28 @@ impl russh::server::Handler for SshHandler {
+     }
+ }
+ 
+-async fn send_main_output(handle: &Handle, channel: ChannelId, event: MainOutput) {
++async fn send_main_output(
++    handle: &Handle,
++    channel: ChannelId,
++    event: MainOutput,
++    mode: MainOutputMode,
++) -> bool {
+     match event {
+-        MainOutput::Stdout(data) => {
+-            let _ = handle.data(channel, data).await;
+-        }
+-        MainOutput::Stderr(data) => {
+-            let _ = handle.extended_data(channel, 1, data).await;
++        MainOutput::Stdout(data) => handle.data(channel, data).await.is_ok(),
++        MainOutput::Stderr(data) => handle.extended_data(channel, 1, data).await.is_ok(),
++        MainOutput::ReplayComplete { next_sequence } => {
++            if mode == MainOutputMode::Bytes {
++                return true;
++            }
++            let event = MainProcessEvent {
++                event: Some(main_process_event::Event::ReplayComplete(
++                    MainProcessReplayComplete { next_sequence },
++                )),
++            };
++            handle
++                .extended_data(channel, MAIN_EVENT_EXTENDED_DATA, event.encode_to_vec())
++                .await
++                .is_ok()
+         }
+         MainOutput::Exit(code) => {
+             let _ = handle.eof(channel).await;
+@@ -968,6 +1013,7 @@ async fn send_main_output(handle: &Handle, channel: ChannelId, event: MainOutput
+                 .exit_status_request(channel, code.max(0).unsigned_abs())
+                 .await;
+             let _ = handle.close(channel).await;
++            true
+         }
+     }
+ }
+@@ -2493,6 +2539,168 @@ mod tests {
+         authenticated_test_client_with_main(MainSession::inert()).await
+     }
+ 
++    #[tokio::test]
++    async fn main_replay_boundary_is_explicit_even_when_history_is_empty() {
++        let client = authenticated_test_client().await;
++        let mut channel = client.channel_open_session().await.expect("open session");
++        channel
++            .set_env(true, "OPENSHELL_MAIN_EVENTS", "1")
++            .await
++            .expect("request retained-output events");
++        channel
++            .request_subsystem(true, "openshell-main")
++            .await
++            .expect("attach canonical main");
++        let boundary = tokio::time::timeout(Duration::from_secs(1), async {
++            while let Some(message) = channel.wait().await {
++                if let russh::ChannelMsg::ExtendedData {
++                    ext: 0xfe00_0001,
++                    data,
++                } = message
++                {
++                    return data;
++                }
++            }
++            panic!("main attachment closed before replay boundary");
++        })
++        .await
++        .expect("replay must end explicitly without waiting for process output");
++        assert!(!boundary.is_empty(), "boundary must carry its typed event");
++        assert!(matches!(
++            MainProcessEvent::decode(boundary.as_ref())
++                .expect("generated event decode")
++                .event,
++            Some(main_process_event::Event::ReplayComplete(
++                MainProcessReplayComplete { next_sequence: 0 }
++            ))
++        ));
++    }
++
++    #[tokio::test]
++    async fn main_replay_boundary_separates_exact_pty_history_and_live_bytes() {
++        let (main, mut slave) = MainSession::terminal_for_test();
++        let mut observed = main.subscribe();
++        assert!(matches!(
++            observed.recv().await.unwrap(),
++            MainOutput::ReplayComplete { .. }
++        ));
++        let history = b"\x1b[6n\x1b]11;?\x07history";
++        slave.write_all(history).expect("write real PTY history");
++        let retained = tokio::time::timeout(Duration::from_secs(1), observed.recv())
++            .await
++            .unwrap()
++            .unwrap();
++        assert!(matches!(retained, MainOutput::Stdout(data) if data.as_ref() == history));
++
++        let client = authenticated_test_client_with_main(Arc::clone(&main)).await;
++        let mut channel = client.channel_open_session().await.unwrap();
++        channel
++            .set_env(true, "OPENSHELL_MAIN_EVENTS", "1")
++            .await
++            .unwrap();
++        channel
++            .request_subsystem(true, "openshell-main")
++            .await
++            .unwrap();
++        let mut replay = Vec::new();
++        tokio::time::timeout(Duration::from_secs(1), async {
++            loop {
++                match channel.wait().await.expect("open attachment") {
++                    russh::ChannelMsg::Success => {}
++                    russh::ChannelMsg::Data { data } => replay.extend_from_slice(&data),
++                    russh::ChannelMsg::ExtendedData { ext, data } => {
++                        assert_eq!(ext, MAIN_EVENT_EXTENDED_DATA);
++                        assert!(matches!(
++                            MainProcessEvent::decode(data.as_ref()).unwrap().event,
++                            Some(main_process_event::Event::ReplayComplete(
++                                MainProcessReplayComplete { next_sequence: 1 }
++                            ))
++                        ));
++                        break;
++                    }
++                    other => panic!("unexpected replay event: {other:?}"),
++                }
++            }
++        })
++        .await
++        .expect("bounded replay completion");
++        assert_eq!(replay, history);
++
++        let live = b"live\x1b[6n";
++        slave.write_all(live).unwrap();
++        let message = tokio::time::timeout(Duration::from_secs(1), channel.wait())
++            .await
++            .unwrap()
++            .unwrap();
++        assert!(matches!(message, russh::ChannelMsg::Data { data } if data.as_ref() == live));
++    }
++
++    #[tokio::test]
++    async fn ordinary_main_attachment_keeps_raw_output_without_metadata() {
++        let (main, mut slave) = MainSession::terminal_for_test();
++        let client = authenticated_test_client_with_main(main).await;
++        let mut channel = client.channel_open_session().await.unwrap();
++        channel
++            .request_subsystem(true, "openshell-main")
++            .await
++            .unwrap();
++        assert!(matches!(
++            tokio::time::timeout(Duration::from_secs(1), channel.wait())
++                .await
++                .unwrap()
++                .unwrap(),
++            russh::ChannelMsg::Success
++        ));
++        slave.write_all(b"raw\x1b[6n").unwrap();
++        assert!(
++            matches!(tokio::time::timeout(Duration::from_secs(1), channel.wait()).await.unwrap().unwrap(), russh::ChannelMsg::Data { data } if data.as_ref() == b"raw\x1b[6n")
++        );
++        assert!(
++            tokio::time::timeout(Duration::from_millis(20), channel.wait())
++                .await
++                .is_err()
++        );
++    }
++
++    #[tokio::test]
++    async fn main_metadata_rejects_invalid_or_late_opt_in() {
++        let client = authenticated_test_client().await;
++        let mut channel = client.channel_open_session().await.unwrap();
++        channel
++            .set_env(true, "OPENSHELL_MAIN_EVENTS", "0")
++            .await
++            .unwrap();
++        assert!(matches!(
++            tokio::time::timeout(Duration::from_secs(1), channel.wait())
++                .await
++                .unwrap()
++                .unwrap(),
++            russh::ChannelMsg::Failure
++        ));
++        channel
++            .request_subsystem(true, "openshell-main")
++            .await
++            .unwrap();
++        assert!(matches!(
++            tokio::time::timeout(Duration::from_secs(1), channel.wait())
++                .await
++                .unwrap()
++                .unwrap(),
++            russh::ChannelMsg::Success
++        ));
++        channel
++            .set_env(true, "OPENSHELL_MAIN_EVENTS", "1")
++            .await
++            .unwrap();
++        assert!(matches!(
++            tokio::time::timeout(Duration::from_secs(1), channel.wait())
++                .await
++                .unwrap()
++                .unwrap(),
++            russh::ChannelMsg::Failure
++        ));
++    }
++
+     #[tokio::test]
+     async fn abrupt_transport_drop_releases_main_input_lease() {
+         let main_session = MainSession::inert();
+diff --git a/proto/terminal_events.proto b/proto/terminal_events.proto
+new file mode 100644
+index 0000000..a5b21db
+--- /dev/null
++++ b/proto/terminal_events.proto
+@@ -0,0 +1,25 @@
++// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
++// SPDX-License-Identifier: Apache-2.0
++
++syntax = "proto3";
++
++package openshell.terminal.v1;
++
++// Private retained-terminal metadata, not an operator RPC. A client opts in
++// with SSH env OPENSHELL_MAIN_EVENTS=1 before requesting openshell-main.
++// Each SSH extended-data frame with private type 0xFE000001 carries exactly
++// one of these protobuf messages. Standard stdout/stderr bytes are unchanged.
++message MainProcessEvent {
++  oneof event {
++    MainProcessReplayComplete replay_complete = 1;
++  }
++}
++
++// A per-attachment fence captured atomically when its output cursor subscribes.
++// All earlier retained events have been delivered before this frame. Later
++// output is live even if it was produced while the attachment drained history.
++// Renderers must drain preceding writes with answerbacks disabled before
++// enabling input. Missing metadata or lost history cannot imply completion.
++message MainProcessReplayComplete {
++  uint64 next_sequence = 1;
++}

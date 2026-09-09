@@ -1,0 +1,158 @@
+diff --git a/.agents/skills/generate-sandbox-policy/SKILL.md b/.agents/skills/generate-sandbox-policy/SKILL.md
+index f455590..9b8d870 100644
+--- a/.agents/skills/generate-sandbox-policy/SKILL.md
++++ b/.agents/skills/generate-sandbox-policy/SKILL.md
+@@ -518,6 +518,13 @@ When the user explicitly requests `process.run_as_user` or
+ (`4294967295`). Warn that a low numeric identity inherits permissions granted
+ to the same ID on image files, mounted volumes, or devices.
+ 
++On Linux, switching from the supervisor to an explicit numeric workload UID
++clears supplementary groups before execution; the selected primary GID remains.
++Numeric identities do not acquire named-account group memberships. A failed
++group reset prevents the child from starting. An already-unprivileged process
++keeping its current UID does not attempt a privileged group reset. Verify
++supplementary groups as well as UID/GID when checking the resulting sandbox.
++
+ If the user provides a file path, write to it. Otherwise, ask where to place it. A common convention is a project-local policy file (e.g., `sandbox-policy.yaml`) passed to `openshell sandbox create --policy <path>` or set via the `OPENSHELL_SANDBOX_POLICY` env var.
+ 
+ ### Mode C: Present Only (no file write)
+diff --git a/.agents/skills/openshell-cli/SKILL.md b/.agents/skills/openshell-cli/SKILL.md
+index dd1bd10..2c7012f 100644
+--- a/.agents/skills/openshell-cli/SKILL.md
++++ b/.agents/skills/openshell-cli/SKILL.md
+@@ -541,6 +541,13 @@ fields. Explicit numeric fields may use any UID/GID from `1` through
+ Warn users that low IDs can inherit permissions from matching accounts, image
+ files, mounted volumes, or devices.
+ 
++On Linux, switching from the supervisor to an explicit numeric workload UID
++clears supplementary groups before user code runs. The selected primary GID
++remains; matching a named account does not add its group memberships. A group
++reset failure aborts the spawn. An already-unprivileged process retaining its
++current UID does not attempt a privileged group reset. Include supplementary
++groups, not only UID/GID, when checking workload identity.
++
+ ### Forward ports
+ 
+ ```bash
+diff --git a/architecture/sandbox.md b/architecture/sandbox.md
+index 786ed51..3414de5 100644
+--- a/architecture/sandbox.md
++++ b/architecture/sandbox.md
+@@ -21,6 +21,14 @@ container-granted capabilities. This is fail-closed: the supervisor retains
+ aborts unless the bounding set ends up empty. A `setpcap` `EPERM` is tolerated
+ only when the set is already empty; any other outcome fails the spawn.
+ 
++On Linux, switching from the supervisor to an explicit numeric workload UID
++clears supplementary groups before changing UID. Numeric identities do not
++inherit the supervisor's groups or acquire groups by matching a named account.
++Failure to clear groups aborts the spawn. Named policy users retain their
++account-derived group initialization; OCI fallback retains its bounded group
++resolution. An already-unprivileged process keeping its current UID does not
++attempt a privileged group reset.
++
+ ## Startup Flow
+ 
+ 1. The compute runtime starts the workload with sandbox identity, callback
+diff --git a/crates/openshell-supervisor-process/src/process.rs b/crates/openshell-supervisor-process/src/process.rs
+index 5255749..b20e950 100644
+--- a/crates/openshell-supervisor-process/src/process.rs
++++ b/crates/openshell-supervisor-process/src/process.rs
+@@ -2310,6 +2310,17 @@ pub fn drop_privileges_with_identity(
+             {
+                 nix::unistd::initgroups(user_cstr.as_c_str(), target_gid).into_diagnostic()?;
+             }
++        } else if user_name_is_numeric {
++            // An explicit numeric user has no named-account group membership.
++            // Clear the supervisor's groups before dropping UID, just as for
++            // numeric OCI users. Failure must abort before any workload runs.
++            #[cfg(not(any(
++                target_os = "macos",
++                target_os = "ios",
++                target_os = "haiku",
++                target_os = "redox"
++            )))]
++            nix::unistd::setgroups(&[]).into_diagnostic()?;
+         }
+     }
+ 
+@@ -2792,6 +2803,62 @@ mod tests {
+         assert!(drop_privileges(&policy).is_ok());
+     }
+ 
++    #[test]
++    #[cfg(target_os = "linux")]
++    fn numeric_identity_group_probe_child() {
++        if std::env::var_os("OPENSHELL_TEST_NUMERIC_GROUP_PROBE").is_none() {
++            return;
++        }
++        assert_eq!(nix::unistd::geteuid().as_raw(), 65_534);
++        assert_eq!(nix::unistd::getegid().as_raw(), 65_534);
++        assert!(
++            nix::unistd::getgroups()
++                .expect("read child groups")
++                .is_empty()
++        );
++        assert!(nix::unistd::setuid(Uid::from_raw(0)).is_err());
++    }
++
++    #[test]
++    #[cfg(target_os = "linux")]
++    #[ignore = "requires isolated root with CAP_SETGID, CAP_SETUID and CAP_SETPCAP"]
++    #[allow(unsafe_code)]
++    fn explicit_numeric_identity_drops_inherited_supplementary_groups() {
++        use std::os::unix::process::CommandExt;
++
++        assert!(
++            nix::unistd::geteuid().is_root(),
++            "run only in an isolated root test container"
++        );
++        let policy = policy_with_process(ProcessPolicy {
++            run_as_user: Some("65534".to_string()),
++            run_as_group: Some("65534".to_string()),
++        });
++        let mut command = std::process::Command::new(std::env::current_exe().expect("test binary"));
++        command
++            .arg("numeric_identity_group_probe_child")
++            .arg("--nocapture")
++            .env("OPENSHELL_TEST_NUMERIC_GROUP_PROBE", "1")
++            .stdin(StdStdio::null())
++            .stdout(StdStdio::piped())
++            .stderr(StdStdio::piped());
++        // Only the child changes identity. The test parent and host retain theirs.
++        unsafe {
++            command.pre_exec(move || {
++                nix::unistd::setgroups(&[Gid::from_raw(0), Gid::from_raw(27)])
++                    .map_err(std::io::Error::from)?;
++                drop_privileges(&policy).map_err(|error| std::io::Error::other(error.to_string()))
++            });
++        }
++        let output = command.output().expect("spawn numeric identity probe");
++        assert!(
++            output.status.success(),
++            "numeric identity child failed: {} {}",
++            String::from_utf8_lossy(&output.stdout),
++            String::from_utf8_lossy(&output.stderr)
++        );
++    }
++
+     #[test]
+     fn drop_privileges_fails_for_nonexistent_user() {
+         let policy = policy_with_process(ProcessPolicy {
+diff --git a/docs/reference/policy-schema.mdx b/docs/reference/policy-schema.mdx
+index 64942a3..cd3bd3d 100644
+--- a/docs/reference/policy-schema.mdx
++++ b/docs/reference/policy-schema.mdx
+@@ -130,6 +130,13 @@ Omission is preserved independently for each field. For example, setting only
+ `run_as_user` keeps that explicit user while allowing the active driver to
+ select the group.
+ 
++On Linux, when the supervisor switches to an explicit numeric `run_as_user`,
++it clears supplementary groups before changing UID. The child keeps the
++selected primary GID but does not inherit the supervisor's supplementary groups
++or resolve group memberships from a matching named account. If clearing groups
++fails, the child does not start. This does not reset groups for an
++already-unprivileged process that keeps its current UID.
++
+ Example:
+ 
+ ```yaml showLineNumbers={false}

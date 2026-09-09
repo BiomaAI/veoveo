@@ -145,6 +145,7 @@ Hub, administration, and GPU policy.
 | `apps/` | user-facing applications and their service boundaries |
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
 | `platform/` | internal platform services, persistence, and reusable runtimes |
+| `platform/runtimes/computers/` | private native OpenShell adapter, retained binding/storage protocol, terminal/exec streams and provider patch provenance; domain/service and installed qualification remain in the Computers plan |
 | `servers/` | independently deployed MCP servers and protocol projections |
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |

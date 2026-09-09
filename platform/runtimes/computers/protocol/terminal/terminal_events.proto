@@ -1,0 +1,25 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package openshell.terminal.v1;
+
+// Private retained-terminal metadata, not an operator RPC. A client opts in
+// with SSH env OPENSHELL_MAIN_EVENTS=1 before requesting openshell-main.
+// Each SSH extended-data frame with private type 0xFE000001 carries exactly
+// one of these protobuf messages. Standard stdout/stderr bytes are unchanged.
+message MainProcessEvent {
+  oneof event {
+    MainProcessReplayComplete replay_complete = 1;
+  }
+}
+
+// A per-attachment fence captured atomically when its output cursor subscribes.
+// All earlier retained events have been delivered before this frame. Later
+// output is live even if it was produced while the attachment drained history.
+// Renderers must drain preceding writes with answerbacks disabled before
+// enabling input. Missing metadata or lost history cannot imply completion.
+message MainProcessReplayComplete {
+  uint64 next_sequence = 1;
+}

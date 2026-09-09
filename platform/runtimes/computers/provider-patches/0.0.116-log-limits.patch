@@ -1,0 +1,685 @@
+diff --git a/.agents/skills/debug-openshell-cluster/SKILL.md b/.agents/skills/debug-openshell-cluster/SKILL.md
+index 727cb27..e34e371 100644
+--- a/.agents/skills/debug-openshell-cluster/SKILL.md
++++ b/.agents/skills/debug-openshell-cluster/SKILL.md
+@@ -628,6 +628,7 @@ openshell logs <sandbox-name>
+ | Retained Docker sandbox reports `ContainerExited` immediately after start while the exact container is running | A previous-run exit may have been queued before start; driver-side filtering alone cannot retract it | Confirm the gateway includes lifecycle-gated exit rechecks. Correlate the stable sandbox/container IDs, phase, current backend state, and gateway recheck errors. Rechecks are bounded to 16 concurrent IDs and 10 seconds; deferred work uses the 60-second reconciliation sweep. Do not compare clocks across gateway and driver as a correctness fence, edit database rows, recreate the container, or clear its caches. A genuine current exit or canonical main-process exit remains terminal. |
+ | Retained Docker sandbox fails bootstrap after a positive JWT TTL | Gateway/driver lacks negotiated bootstrap renewal, or the protected token file or container identity fails renewal checks | Confirm the qualified gateway/driver pair advertises `supports_bootstrap_token_refresh`; inspect only file ownership/mode and exact container identity/mount metadata, never token contents. Do not disable expiry, recreate the sandbox, or clear its caches to hide this failure. |
+ | Image pull failure | Gateway or sandbox image cannot be pulled | Runtime events and image pull credentials |
++| Docker sandbox logs exhaust host storage | The container predates or omits an explicit log envelope, or gateway logs lack their own retention | Inspect `HostConfig.LogConfig` and structured `HostConfig.Mounts` for the exact container. New templates can select `driver_config.docker.log_limits` with rotating JSON logs and protected `/var/log` tmpfs. Existing containers keep their original settings; do not recreate them or clear homes and caches as a repair. Budget all tmpfs against memory. Rotated, dropped, and temporary logs are not durable audit evidence. |
+ | `K8s namespace not ready` with `envoy-gateway-openshell.yaml: the server could not find the requested resource` | Optional Gateway API manifest was applied without Envoy Gateway CRDs, or k3s Helm controller startup exceeded the namespace wait | Apply `deploy/kube/manifests/envoy-gateway-openshell.yaml` manually only after Envoy Gateway is installed and `grpcRoute` is enabled |
+ | HTTPS ingress (`grpcRoute.gateway.listener.protocol=HTTPS`) connection resets or TLS handshake hangs | Envoy terminates TLS but the gateway pod still expects TLS, so the plaintext backend hop fails | Set `server.disableTls=true` so Envoy forwards plaintext to the pod; verify the listener `certificateRefs` Secret exists in the release namespace and `openshell status` over `https://<host>` |
+ | HTTPS ingress returns `Unauthenticated` after connecting | TLS terminates at Envoy, so the gateway never sees a client cert; no OIDC issuer is configured for identity | Configure `server.oidc.issuer` and register with `openshell gateway add https://<host> --oidc-issuer <url>`, or set `server.auth.allowUnauthenticatedUsers=true` for a trusted-proxy/dev cluster |
+diff --git a/architecture/compute-runtimes.md b/architecture/compute-runtimes.md
+index 8c3af73..5dd5e04 100644
+--- a/architecture/compute-runtimes.md
++++ b/architecture/compute-runtimes.md
+@@ -264,6 +264,17 @@ operator override because they place gateway-host filesystem state inside the
+ sandbox and can negate OpenShell workspace isolation and filesystem-policy
+ controls. Driver-owned supervisor, token, and TLS bind mounts stay reserved.
+ 
++Docker additionally accepts an explicit per-template `log_limits` envelope.
++It selects bounded JSON log retention with a non-blocking 256 KiB delivery
++buffer and a root-only, non-executable `/var/log` tmpfs. All sizes and counts
++are required bounded integers, and supervisor tmpfs requires an explicit
++memory limit. Mounts, image volumes, workspaces, and SSH sockets cannot overlap
++the protected log path. Omitted envelopes preserve existing behavior; retained
++containers are never recreated or relabeled to adopt new limits. Diagnostic
++logs can be dropped, rotated, or lost on stop and are not a durable task or
++audit authority. Installation admission budgets the remaining tmpfs and
++workload memory, and gateway log retention is configured separately.
++
+ Network features follow the existing driver/substrate split. Compute drivers
+ advertise only the runtime mechanics they can guarantee: namespace and
+ capability ownership, DNS/TCP capture installation, and coupled
+diff --git a/crates/openshell-driver-docker/README.md b/crates/openshell-driver-docker/README.md
+index 2ab184e..f08b36c 100644
+--- a/crates/openshell-driver-docker/README.md
++++ b/crates/openshell-driver-docker/README.md
+@@ -168,6 +168,33 @@ openshell sandbox create \
+   -- claude
+ ```
+ 
++## Log Storage Limits
++
++An optional, closed `driver_config.log_limits` object controls newly created
++containers. `max_file_bytes` and `supervisor_tmpfs_bytes` are required integers
++from 1 MiB through 64 MiB; `max_files` is a required integer from 1 through 10.
++The protobuf Struct decoder rejects null, missing fields, unknown fields,
++non-finite numbers, fractional values, and out-of-range values. Omission keeps
++the previous contract rather than silently retargeting retained containers.
++
++The driver selects `json-file`, explicit rotation, no compression, and
++non-blocking delivery through a 256 KiB buffer. It also mounts a root-owned
++mode `0700`, `noexec` tmpfs at `/var/log`. Docker supplies `nodev` and `nosuid`
++for this structured tmpfs mount. User mounts, image volume declarations, the
++workspace, and the configured SSH socket cannot overlap that path. Validation
++rejects template-known errors before image pulls and resource provisioning;
++image-dependent collisions fail before container creation.
++
++The template must have an explicit memory limit and reserve at most half of it
++for this log tmpfs. Installation admission must account for other tmpfs mounts
++and workload memory as well. Rotation thresholds are Docker retention limits,
++not a filesystem quota. Logs can be dropped at buffer saturation, overwritten
++by rotation, or lost when tmpfs stops. Canonical task results need a separate
++durable store. This feature neither changes retained homes nor updates the
++logging configuration of existing containers or the gateway process.
++
++See `docs/reference/sandbox-compute-drivers.mdx` for the public schema.
++
+ ## Supervisor Binary Resolution
+ 
+ The Docker driver bind-mounts a host-side Linux `openshell-sandbox` binary into
+diff --git a/crates/openshell-driver-docker/src/lib.rs b/crates/openshell-driver-docker/src/lib.rs
+index be994a8..b252c8e 100644
+--- a/crates/openshell-driver-docker/src/lib.rs
++++ b/crates/openshell-driver-docker/src/lib.rs
+@@ -5,8 +5,11 @@
+ 
+ #![allow(clippy::result_large_err)]
+ 
++mod log_limits;
+ pub mod otel_tracing;
+ 
++use log_limits::{DockerLogLimits, deserialize_optional_log_limits};
++
+ use bollard::Docker;
+ use bollard::errors::Error as BollardError;
+ use bollard::models::{
+@@ -349,6 +352,8 @@ struct DockerSandboxDriverConfig {
+     )]
+     cdi_devices: Option<Vec<String>>,
+     mounts: Vec<DockerDriverMountConfig>,
++    #[serde(default, deserialize_with = "deserialize_optional_log_limits")]
++    log_limits: Option<DockerLogLimits>,
+ }
+ 
+ struct ValidatedDockerSandbox<'a> {
+@@ -662,10 +667,11 @@ impl DockerComputeDriver {
+             .ok_or_else(|| Status::invalid_argument("sandbox.spec.template is required"))?;
+ 
+         Self::validate_sandbox_template_base(template)?;
+-        let _ = docker_resource_limits(template)?;
++        let resource_limits = docker_resource_limits(template)?;
+         let driver_config =
+             DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
+         validate_docker_driver_mounts(&driver_config.mounts, config.enable_bind_mounts)?;
++        driver_config.validate_log_limits(resource_limits.memory_bytes)?;
+         let gpu_requirements = driver_gpu_requirements(spec.resource_requirements.as_ref());
+         Self::validate_gpu_request(gpu_requirements, config.supports_gpu, &driver_config)?;
+         Ok(ValidatedDockerSandbox {
+@@ -2356,9 +2362,28 @@ fn docker_driver_config(
+     let config =
+         DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
+     validate_docker_driver_mounts(&config.mounts, enable_bind_mounts)?;
++    config.validate_log_limits(docker_resource_limits(template)?.memory_bytes)?;
+     Ok(config)
+ }
+ 
++impl DockerSandboxDriverConfig {
++    fn validate_log_limits(&self, memory_bytes: Option<i64>) -> Result<(), Status> {
++        if let Some(limits) = self.log_limits {
++            limits.validate_memory(memory_bytes)?;
++            for mount in &self.mounts {
++                let target = match mount {
++                    DockerDriverMountConfig::Bind { target, .. }
++                    | DockerDriverMountConfig::Volume { target, .. }
++                    | DockerDriverMountConfig::Tmpfs { target, .. }
++                    | DockerDriverMountConfig::Image { target, .. } => target,
++                };
++                DockerLogLimits::validate_path(target)?;
++            }
++        }
++        Ok(())
++    }
++}
++
+ /// Collect user-supplied bind mounts as string-format binds.
+ ///
+ /// Bind mounts use the legacy `Binds` field (`-v` syntax) rather than the
+@@ -3083,6 +3108,11 @@ fn build_container_create_body_for_image(
+         .map_err(Status::failed_precondition)?;
+     driver_mounts::validate_workspace_control_path(&workspace_root, &config.ssh_socket_path)
+         .map_err(Status::failed_precondition)?;
++    driver_config.validate_log_limits(resource_limits.memory_bytes)?;
++    if driver_config.log_limits.is_some() {
++        DockerLogLimits::validate_path(&workspace_root)?;
++        DockerLogLimits::validate_path(&config.ssh_socket_path)?;
++    }
+     for volume in &image.volumes {
+         driver_mounts::validate_container_mount_target(volume).map_err(|error| {
+             Status::failed_precondition(format!(
+@@ -3096,6 +3126,9 @@ fn build_container_create_body_for_image(
+         })?;
+         driver_mounts::validate_mount_control_path(volume, &config.ssh_socket_path)
+             .map_err(Status::failed_precondition)?;
++        if driver_config.log_limits.is_some() {
++            DockerLogLimits::validate_path(volume)?;
++        }
+     }
+     for mount in &driver_config.mounts {
+         let target = match mount {
+@@ -3109,7 +3142,10 @@ fn build_container_create_body_for_image(
+         driver_mounts::validate_mount_control_path(target, &config.ssh_socket_path)
+             .map_err(Status::failed_precondition)?;
+     }
+-    let user_mounts = docker_driver_mounts(driver_config)?;
++    let mut user_mounts = docker_driver_mounts(driver_config)?;
++    if let Some(limits) = driver_config.log_limits {
++        user_mounts.push(limits.supervisor_mount());
++    }
+     let user_bind_strings = docker_driver_bind_strings(driver_config)?;
+     let device_requests = gpu_device_ids.map(|device_ids| {
+         vec![DeviceRequest {
+@@ -3161,6 +3197,7 @@ fn build_container_create_body_for_image(
+                 Some(binds)
+             },
+             mounts: Some(user_mounts),
++            log_config: driver_config.log_limits.map(DockerLogLimits::log_config),
+             // Canonical main-process exit is terminal. Runtime restart would
+             // silently create a new process generation behind the gateway.
+             restart_policy: None,
+diff --git a/crates/openshell-driver-docker/src/log_limits.rs b/crates/openshell-driver-docker/src/log_limits.rs
+new file mode 100644
+index 0000000..153ec37
+--- /dev/null
++++ b/crates/openshell-driver-docker/src/log_limits.rs
+@@ -0,0 +1,123 @@
++// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
++// SPDX-License-Identifier: Apache-2.0
++
++//! Explicit, closed log storage limits for newly created Docker sandboxes.
++
++use bollard::models::{HostConfigLogConfig, Mount, MountTmpfsOptions, MountTypeEnum};
++use openshell_core::driver_mounts;
++use serde::Deserialize;
++use std::collections::HashMap;
++use tonic::Status;
++
++const SUPERVISOR_LOG_PATH: &str = "/var/log";
++const MIB: u32 = 1_048_576;
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
++#[serde(try_from = "LogLimitsInput")]
++pub struct DockerLogLimits {
++    max_file_bytes: i64,
++    max_files: i64,
++    supervisor_tmpfs_bytes: i64,
++}
++
++// Protobuf Struct represents numbers as f64, including integral values.
++// All fields are required; accepting null or a partial object would silently
++// restore an unlimited daemon default at a resource-admission boundary.
++#[derive(Deserialize)]
++#[serde(deny_unknown_fields)]
++struct LogLimitsInput {
++    max_file_bytes: f64,
++    max_files: f64,
++    supervisor_tmpfs_bytes: f64,
++}
++
++impl TryFrom<LogLimitsInput> for DockerLogLimits {
++    type Error = String;
++
++    fn try_from(input: LogLimitsInput) -> Result<Self, Self::Error> {
++        Ok(Self {
++            max_file_bytes: bounded_integer(input.max_file_bytes, MIB, 64 * MIB, "max_file_bytes")?,
++            max_files: bounded_integer(input.max_files, 1, 10, "max_files")?,
++            supervisor_tmpfs_bytes: bounded_integer(
++                input.supervisor_tmpfs_bytes,
++                MIB,
++                64 * MIB,
++                "supervisor_tmpfs_bytes",
++            )?,
++        })
++    }
++}
++
++fn bounded_integer(value: f64, minimum: u32, maximum: u32, field: &str) -> Result<i64, String> {
++    if !value.is_finite()
++        || value.fract() != 0.0
++        || value < f64::from(minimum)
++        || value > f64::from(maximum)
++    {
++        return Err(format!(
++            "log_limits.{field} must be an integer from {minimum} through {maximum}"
++        ));
++    }
++    // The integral/range checks above prove an exactly representable u32.
++    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
++    let integer = value as u32;
++    Ok(i64::from(integer))
++}
++
++pub fn deserialize_optional_log_limits<'de, D>(
++    deserializer: D,
++) -> Result<Option<DockerLogLimits>, D::Error>
++where
++    D: serde::Deserializer<'de>,
++{
++    DockerLogLimits::deserialize(deserializer).map(Some)
++}
++
++impl DockerLogLimits {
++    pub fn validate_memory(self, memory_bytes: Option<i64>) -> Result<(), Status> {
++        let Some(memory_bytes) = memory_bytes else {
++            return Err(Status::failed_precondition(
++                "docker log_limits require an explicit template memory limit",
++            ));
++        };
++        if self.supervisor_tmpfs_bytes > memory_bytes / 2 {
++            return Err(Status::failed_precondition(
++                "log_limits.supervisor_tmpfs_bytes must not exceed half the template memory limit",
++            ));
++        }
++        Ok(())
++    }
++
++    pub fn validate_path(path: &str) -> Result<(), Status> {
++        driver_mounts::validate_mount_control_path(path, SUPERVISOR_LOG_PATH)
++            .map_err(Status::failed_precondition)
++    }
++
++    pub fn log_config(self) -> HostConfigLogConfig {
++        HostConfigLogConfig {
++            typ: Some("json-file".to_string()),
++            config: Some(HashMap::from([
++                ("max-size".to_string(), self.max_file_bytes.to_string()),
++                ("max-file".to_string(), self.max_files.to_string()),
++                ("compress".to_string(), "false".to_string()),
++                ("mode".to_string(), "non-blocking".to_string()),
++                ("max-buffer-size".to_string(), "262144".to_string()),
++            ])),
++        }
++    }
++
++    pub fn supervisor_mount(self) -> Mount {
++        Mount {
++            typ: Some(MountTypeEnum::TMPFS),
++            target: Some(SUPERVISOR_LOG_PATH.to_string()),
++            tmpfs_options: Some(MountTmpfsOptions {
++                size_bytes: Some(self.supervisor_tmpfs_bytes),
++                mode: Some(0o700),
++                // Docker supplies nodev/nosuid for tmpfs. Its structured API
++                // accepts noexec here, not arbitrary fstab mount options.
++                options: Some(vec![vec!["noexec".to_string()]]),
++            }),
++            ..Default::default()
++        }
++    }
++}
+diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
+index 8bf91a4..93fd600 100644
+--- a/crates/openshell-driver-docker/src/tests.rs
++++ b/crates/openshell-driver-docker/src/tests.rs
+@@ -133,6 +133,292 @@ fn json_struct(value: serde_json::Value) -> prost_types::Struct {
+         .expect("test JSON must convert to a protobuf Struct")
+ }
+ 
++fn bounded_log_config() -> serde_json::Value {
++    serde_json::json!({"log_limits": {
++        "max_file_bytes": 10_485_760,
++        "max_files": 3,
++        "supervisor_tmpfs_bytes": 33_554_432
++    }})
++}
++
++fn sandbox_with_logs(config: serde_json::Value) -> DriverSandbox {
++    let mut sandbox = test_sandbox();
++    let template = sandbox.spec.as_mut().unwrap().template.as_mut().unwrap();
++    template.driver_config = Some(json_struct(config));
++    template.resources = Some(DriverResourceRequirements {
++        memory_limit: "512Mi".to_string(),
++        ..Default::default()
++    });
++    sandbox
++}
++
++#[test]
++fn log_limits_absence_preserves_legacy_container_contract() {
++    let host = build_container_create_body(&test_sandbox(), &runtime_config())
++        .unwrap()
++        .host_config
++        .unwrap();
++    assert!(host.log_config.is_none());
++    assert!(host.mounts.unwrap().is_empty());
++}
++
++#[test]
++fn log_limits_render_exact_rotation_and_protected_tmpfs_with_existing_home() {
++    let mut config = bounded_log_config();
++    config["mounts"] = serde_json::json!([
++        {"type": "volume", "source": "retained-home", "target": "/sandbox/persistent",
++         "read_only": false, "subpath": "home"},
++        {"type": "tmpfs", "target": "/tmp", "size_bytes": 16_777_216, "mode": 1023}
++    ]);
++    let sandbox = sandbox_with_logs(config);
++    DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config()).unwrap();
++    let host = build_container_create_body(&sandbox, &runtime_config())
++        .unwrap()
++        .host_config
++        .unwrap();
++    assert_eq!(
++        serde_json::to_value(host.log_config.unwrap()).unwrap(),
++        serde_json::json!({
++            "Type": "json-file", "Config": {
++                "max-size": "10485760", "max-file": "3", "compress": "false",
++                "mode": "non-blocking", "max-buffer-size": "262144"
++            }
++        })
++    );
++    let mounts = host.mounts.unwrap();
++    assert_eq!(mounts.len(), 3);
++    assert_eq!(mounts[0].source.as_deref(), Some("retained-home"));
++    assert_eq!(
++        mounts[0]
++            .volume_options
++            .as_ref()
++            .unwrap()
++            .subpath
++            .as_deref(),
++        Some("home")
++    );
++    assert_eq!(mounts[1].target.as_deref(), Some("/tmp"));
++    let log_mount = serde_json::to_value(&mounts[2]).unwrap();
++    assert_eq!(
++        log_mount,
++        serde_json::json!({
++            "Type": "tmpfs", "Target": "/var/log", "TmpfsOptions": {
++                "SizeBytes": 33_554_432, "Mode": 448, "Options": [["noexec"]]
++            }
++        })
++    );
++    assert!(host.restart_policy.is_none());
++}
++
++#[test]
++fn log_limits_reject_null_partial_unknown_or_non_object_envelopes() {
++    for value in [
++        serde_json::Value::Null,
++        serde_json::json!({}),
++        serde_json::json!([]),
++        serde_json::json!(false),
++        serde_json::json!("default"),
++    ] {
++        let sandbox = sandbox_with_logs(serde_json::json!({"log_limits": value}));
++        assert_eq!(
++            DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config())
++                .unwrap_err()
++                .code(),
++            tonic::Code::InvalidArgument
++        );
++    }
++    for field in ["max_file_bytes", "max_files", "supervisor_tmpfs_bytes"] {
++        let mut config = bounded_log_config();
++        config["log_limits"].as_object_mut().unwrap().remove(field);
++        assert!(
++            DockerComputeDriver::validate_sandbox(&sandbox_with_logs(config), &runtime_config())
++                .is_err()
++        );
++    }
++    for field in ["driver", "options", "path", "env", "labels", "max_size"] {
++        let mut config = bounded_log_config();
++        config["log_limits"][field] = serde_json::json!("override");
++        let err =
++            DockerComputeDriver::validate_sandbox(&sandbox_with_logs(config), &runtime_config())
++                .unwrap_err();
++        assert!(err.message().contains("unknown field"), "{field}: {err}");
++    }
++}
++
++#[test]
++fn log_limits_reject_invalid_numbers_before_provisioning() {
++    for (field, minimum, maximum) in [
++        ("max_file_bytes", 1_048_576_u32, 67_108_864_u32),
++        ("max_files", 1, 10),
++        ("supervisor_tmpfs_bytes", 1_048_576, 67_108_864),
++    ] {
++        for value in [
++            serde_json::Value::Null,
++            serde_json::json!(true),
++            serde_json::json!("1"),
++            serde_json::json!(-1),
++            serde_json::json!(0),
++            serde_json::json!(minimum - 1),
++            serde_json::json!(maximum + 1),
++            serde_json::json!(f64::from(minimum) + 0.5),
++            serde_json::json!(1e100),
++        ] {
++            let mut config = bounded_log_config();
++            config["log_limits"][field] = value.clone();
++            let err = DockerComputeDriver::validate_sandbox(
++                &sandbox_with_logs(config),
++                &runtime_config(),
++            )
++            .unwrap_err();
++            assert_eq!(
++                err.code(),
++                tonic::Code::InvalidArgument,
++                "{field}={value}: {err}"
++            );
++        }
++        for value in [minimum, maximum] {
++            let mut config = bounded_log_config();
++            config["log_limits"][field] = serde_json::json!(value);
++            DockerComputeDriver::validate_sandbox(&sandbox_with_logs(config), &runtime_config())
++                .unwrap();
++        }
++    }
++}
++
++#[test]
++fn log_limits_reject_nonfinite_protobuf_numbers() {
++    for number in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
++        let mut sandbox = sandbox_with_logs(bounded_log_config());
++        let config = sandbox
++            .spec
++            .as_mut()
++            .unwrap()
++            .template
++            .as_mut()
++            .unwrap()
++            .driver_config
++            .as_mut()
++            .unwrap();
++        let prost_types::value::Kind::StructValue(limits) = config
++            .fields
++            .get_mut("log_limits")
++            .unwrap()
++            .kind
++            .as_mut()
++            .unwrap()
++        else {
++            panic!("log limits must be an object");
++        };
++        limits.fields.get_mut("max_files").unwrap().kind =
++            Some(prost_types::value::Kind::NumberValue(number));
++        assert!(DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config()).is_err());
++    }
++}
++
++#[test]
++fn log_limits_require_memory_and_reserve_at_most_half_for_supervisor_tmpfs() {
++    for (memory, allowed) in [(None, false), (Some("63Mi"), false), (Some("64Mi"), true)] {
++        let mut sandbox = sandbox_with_logs(bounded_log_config());
++        sandbox
++            .spec
++            .as_mut()
++            .unwrap()
++            .template
++            .as_mut()
++            .unwrap()
++            .resources = memory.map(|memory| DriverResourceRequirements {
++            memory_limit: memory.to_string(),
++            ..Default::default()
++        });
++        assert_eq!(
++            DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config()).is_ok(),
++            allowed,
++            "{memory:?}"
++        );
++        assert_eq!(
++            build_container_create_body(&sandbox, &runtime_config()).is_ok(),
++            allowed,
++            "{memory:?}"
++        );
++    }
++}
++
++#[test]
++fn log_limits_reject_mounts_over_under_or_containing_supervisor_logs() {
++    for kind in ["bind", "volume", "tmpfs"] {
++        for target in ["/var", "/var/log", "/var/log/", "/var/log/nested"] {
++            let mut config = bounded_log_config();
++            let mut mount = serde_json::json!({"type": kind, "target": target});
++            if kind != "tmpfs" {
++                mount["source"] = serde_json::json!(if kind == "bind" { "/tmp" } else { "logs" });
++            }
++            config["mounts"] = serde_json::json!([mount]);
++            let mut runtime = runtime_config();
++            runtime.enable_bind_mounts = true;
++            let err = DockerComputeDriver::validate_sandbox(&sandbox_with_logs(config), &runtime)
++                .unwrap_err();
++            assert!(
++                err.message().contains("control path '/var/log'")
++                    || (target == "/var" && err.message().contains("/var/run/netns")),
++                "{kind} {target}: {err}"
++            );
++        }
++    }
++}
++
++#[test]
++fn log_limits_reject_image_volume_workspace_and_socket_collisions() {
++    let sandbox = sandbox_with_logs(bounded_log_config());
++    let template = sandbox.spec.as_ref().unwrap().template.as_ref().unwrap();
++    let config = docker_driver_config(template, false).unwrap();
++    for path in ["/var", "/var/log", "/var/log/nested"] {
++        for collision in ["volume", "workdir", "socket"] {
++            let mut image = DockerImageMetadata {
++                id: "sha256:immutable".to_string(),
++                user: "998:998".to_string(),
++                working_dir: "/sandbox".to_string(),
++                volumes: Vec::new(),
++            };
++            let mut runtime = runtime_config();
++            match collision {
++                "volume" => image.volumes.push(path.to_string()),
++                "workdir" => image.working_dir = path.to_string(),
++                "socket" => runtime.ssh_socket_path = path.to_string(),
++                _ => unreachable!(),
++            }
++            let err =
++                build_container_create_body_for_image(&sandbox, &runtime, &config, None, &image)
++                    .unwrap_err();
++            assert!(
++                err.message().contains("control path '/var/log'")
++                    || (path == "/var" && err.message().contains("/var/run/netns")),
++                "{collision} {path}: {err}"
++            );
++        }
++    }
++}
++
++#[test]
++fn log_limits_allow_non_overlapping_similar_paths() {
++    let mut value = bounded_log_config();
++    value["mounts"] = serde_json::json!([{"type": "tmpfs", "target": "/var/logs"}]);
++    let sandbox = sandbox_with_logs(value);
++    let config = docker_driver_config(
++        sandbox.spec.as_ref().unwrap().template.as_ref().unwrap(),
++        false,
++    )
++    .unwrap();
++    let image = DockerImageMetadata {
++        id: "sha256:immutable".to_string(),
++        user: "998:998".to_string(),
++        working_dir: "/var/logger".to_string(),
++        volumes: vec!["/var/logged".to_string()],
++    };
++    let mut runtime = runtime_config();
++    runtime.ssh_socket_path = "/var/logpipe/ssh.sock".to_string();
++    build_container_create_body_for_image(&sandbox, &runtime, &config, None, &image).unwrap();
++}
++
+ fn inspected_volume(driver: &str, options: HashMap<String, String>) -> bollard::models::Volume {
+     bollard::models::Volume {
+         name: "openshell-test-volume".to_string(),
+diff --git a/docs/reference/gateway-config.mdx b/docs/reference/gateway-config.mdx
+index 32d93aa..bb6f59d 100644
+--- a/docs/reference/gateway-config.mdx
++++ b/docs/reference/gateway-config.mdx
+@@ -625,6 +625,13 @@ enable_bind_mounts = false
+ sandbox_pids_limit = 2048
+ ```
+ 
++Per-sandbox log storage is configured through `driver_config.docker.log_limits`
++on the sandbox template, not through this TOML table. An explicit log envelope
++sets rotating Docker logs and a protected supervisor log tmpfs for new
++containers. Omission preserves Docker defaults and existing containers remain
++unchanged. See [Docker log limits](./sandbox-compute-drivers#docker-log-limits)
++for the required fields, memory budget, and retention behavior.
++
+ ### Podman
+ 
+ Sandboxes run as Podman containers on a user-mode bridge network. The supervisor image is mounted read-only via Podman's `type=image` mount; guest mTLS material is supplied as host paths.
+diff --git a/docs/reference/sandbox-compute-drivers.mdx b/docs/reference/sandbox-compute-drivers.mdx
+index 9d40050..d9e9a27 100644
+--- a/docs/reference/sandbox-compute-drivers.mdx
++++ b/docs/reference/sandbox-compute-drivers.mdx
+@@ -178,6 +178,55 @@ An explicit start can also recover an existing error under this signed renewal
+ profile, including a container that failed bootstrap before the repair. Gateway
+ startup does not automatically retry errors.
+ 
++### Docker Log Limits
++
++You can bound log storage for new Docker sandboxes by adding `log_limits` to
++the template's `docker` driver-config block. All three fields are required
++integers. OpenShell rejects null, partial objects, unknown fields, and values
++outside these inclusive ranges.
++
++| Field | Range | Purpose |
++|---|---|---|
++| `max_file_bytes` | 1,048,576 through 67,108,864 | Docker JSON log rotation threshold in bytes. |
++| `max_files` | 1 through 10 | Maximum number of retained Docker log files. |
++| `supervisor_tmpfs_bytes` | 1,048,576 through 67,108,864 | Capacity of the supervisor's temporary `/var/log` filesystem. |
++
++This driver-config example selects a 10 MiB rotation threshold, three retained
++files, and 32 MiB of supervisor log storage.
++
++```json
++{
++  "docker": {
++    "log_limits": {
++      "max_file_bytes": 10485760,
++      "max_files": 3,
++      "supervisor_tmpfs_bytes": 33554432
++    }
++  }
++}
++```
++
++Set an explicit template memory limit. Supervisor log capacity must not exceed
++half that limit. Budget other tmpfs mounts and workload memory separately.
++OpenShell mounts `/var/log` as root-owned, mode `0700`, non-executable tmpfs.
++User mounts, image `VOLUME` declarations, the OCI working directory, and the
++configured SSH socket must not overlap this path in either direction.
++
++Docker uses the `json-file` logger with compression disabled, non-blocking
++delivery, and a 256 KiB buffer. Rotation discards the oldest Docker logs, and
++a full delivery buffer drops new messages. Supervisor log files share the
++tmpfs capacity and disappear on stop. A full tmpfs prevents further file
++writes; these logs are diagnostic retention, not a durable audit ledger.
++See Docker's [JSON logging](https://docs.docker.com/engine/logging/drivers/json-file/),
++[delivery modes](https://docs.docker.com/engine/logging/configure/#configure-the-delivery-mode-of-log-messages-from-container-to-log-driver),
++and [tmpfs](https://docs.docker.com/engine/storage/tmpfs/) documentation.
++
++Omitting `log_limits` preserves existing Docker defaults. This setting does
++not update or recreate a retained container, change its home or caches, or
++configure the gateway's own logs. Start retains the original container's log
++configuration. Select a new explicitly qualified template when introducing
++these limits, and configure gateway log retention separately.
++
+ ### Docker Driver Config Mounts
+ 
+ Docker driver config accepts user-supplied `volume` and `tmpfs` mounts. It also

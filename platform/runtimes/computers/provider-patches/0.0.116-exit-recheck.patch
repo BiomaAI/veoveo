@@ -1,0 +1,817 @@
+diff --git a/.agents/skills/debug-openshell-cluster/SKILL.md b/.agents/skills/debug-openshell-cluster/SKILL.md
+index afc1f9b..727cb27 100644
+--- a/.agents/skills/debug-openshell-cluster/SKILL.md
++++ b/.agents/skills/debug-openshell-cluster/SKILL.md
+@@ -625,6 +625,7 @@ openshell logs <sandbox-name>
+ | Supervisor repeatedly fails to install middleware after enabling gateway JWT signing | Extension credential minting, distribution, or authenticated service connection failed; last-known-good registry remains active | Gateway `RefreshSandboxToken` logs, sandbox configuration events, service token-verification logs, registration TLS/audience settings |
+ | Custom compute driver is unavailable | Driver process/socket missing, inaccessible, or selected name does not match its endpoint/config key | Socket ownership/mode, driver service logs, gateway `GetCapabilities` logs |
+ | Sandbox remains `Stopping` or `Starting` | Driver stop/start failed, retained resource is missing, or a fresh supervisor has not connected | Gateway and driver logs; `docker inspect`, `podman inspect`, Agent Sandbox status/PVC, or VM state marker and launcher process |
++| Retained Docker sandbox reports `ContainerExited` immediately after start while the exact container is running | A previous-run exit may have been queued before start; driver-side filtering alone cannot retract it | Confirm the gateway includes lifecycle-gated exit rechecks. Correlate the stable sandbox/container IDs, phase, current backend state, and gateway recheck errors. Rechecks are bounded to 16 concurrent IDs and 10 seconds; deferred work uses the 60-second reconciliation sweep. Do not compare clocks across gateway and driver as a correctness fence, edit database rows, recreate the container, or clear its caches. A genuine current exit or canonical main-process exit remains terminal. |
+ | Retained Docker sandbox fails bootstrap after a positive JWT TTL | Gateway/driver lacks negotiated bootstrap renewal, or the protected token file or container identity fails renewal checks | Confirm the qualified gateway/driver pair advertises `supports_bootstrap_token_refresh`; inspect only file ownership/mode and exact container identity/mount metadata, never token contents. Do not disable expiry, recreate the sandbox, or clear its caches to hide this failure. |
+ | Image pull failure | Gateway or sandbox image cannot be pulled | Runtime events and image pull credentials |
+ | `K8s namespace not ready` with `envoy-gateway-openshell.yaml: the server could not find the requested resource` | Optional Gateway API manifest was applied without Envoy Gateway CRDs, or k3s Helm controller startup exceeded the namespace wait | Apply `deploy/kube/manifests/envoy-gateway-openshell.yaml` manually only after Envoy Gateway is installed and `grpcRoute` is enabled |
+diff --git a/architecture/compute-runtimes.md b/architecture/compute-runtimes.md
+index ef4451c..8c3af73 100644
+--- a/architecture/compute-runtimes.md
++++ b/architecture/compute-runtimes.md
+@@ -145,8 +145,24 @@ starting sandbox returns to `Ready`; stale driver snapshots and supervisor
+ sessions cannot promote a `Stopped` row.
+ 
+ A driver stop operation does not complete while its backend still reports an
+-in-progress stop. This prevents an immediate start from racing the previous
+-run's delayed exit event and regressing the new run to `Error`.
++in-progress stop. Driver-side filtering also suppresses stale exit snapshots,
++but cannot retract events already queued before a new start. For a stored
++`Starting` or `Ready` sandbox, the gateway rechecks `ContainerExited` against
++the current backend under that sandbox's lifecycle gate before applying it.
++The lookup runs without the global state guard and its result is bound to the
++exact stored resource version. Missing or failed lookups leave the row for
++periodic reconciliation; genuine current exits still become `Error`, and a
++backend snapshot never revives a canonical main-process exit.
++
++The watch loop runs at most 16 exit rechecks, coalesces pending events for the
++same sandbox, and gives each recheck 10 seconds including gate acquisition.
++Other watch events keep flowing even at capacity. Saturated, coalesced,
++canceled, timed-out, or version-conflicting work is recovered by the existing
++60-second reconciliation sweep. Stream restart and shutdown cancel pending
++watch rechecks. Sweep lookups also hold the per-sandbox lifecycle gate so they
++cannot mistake the previous run for a newly committed start; each backend
++lookup has a 10-second deadline. These process-local gates do not provide HA
++lifecycle serialization; resource-version checks remain necessary.
+ 
+ Persisted `Stopping` and `Starting` rows are retried at startup. Stable
+ `Stopped` rows remain stopped. Docker and Podman retain the stopped container
+@@ -205,9 +221,11 @@ serialize attempts rather than share results: if one attempt fails and recovery
+ restores a deletable state, a request waiting on the gate may retry the driver.
+ Persisted resource-version checks remain the cross-replica safety boundary.
+ 
+-Watcher events do not acquire lifecycle gates. Exact resource-version checks allow
+-them to interleave safely: status snapshots are no-ops for `Deleting` rows,
+-deleted events are idempotent, and snapshots for absent rows are ignored.
++Ordinary watcher events do not acquire lifecycle gates. Exit rechecks for
++`Starting` or `Ready` rows are the bounded concurrent exception described above.
++Exact resource-version checks allow events to interleave safely: status
++snapshots are no-ops for `Deleting` rows, deleted events are idempotent, and
++snapshots for absent rows are ignored.
+ 
+ An accepted delete (`deleted = true`) is finalized by the watcher. If the
+ backend is already absent (`deleted = false`), the request removes gateway state
+diff --git a/crates/openshell-server/src/compute/mod.rs b/crates/openshell-server/src/compute/mod.rs
+index aacabf6..d0de255 100644
+--- a/crates/openshell-server/src/compute/mod.rs
++++ b/crates/openshell-server/src/compute/mod.rs
+@@ -64,7 +64,7 @@ use openshell_driver_mxc::{ComputeDriverService as MxcDriverService, MxcComputeC
+ #[cfg(all(not(target_os = "windows"), feature = "in-tree-compute-drivers"))]
+ use openshell_driver_podman::{ComputeDriverService as PodmanDriverService, PodmanComputeDriver};
+ use prost::Message;
+-use std::collections::HashMap;
++use std::collections::{HashMap, HashSet};
+ use std::fmt;
+ use std::net::SocketAddr;
+ use std::path::{Path, PathBuf};
+@@ -91,6 +91,8 @@ use traced_driver::TracedDriver;
+ 
+ const LIFECYCLE_SWEEP_PAGE_SIZE: u32 = 1000;
+ const SHUTDOWN_STOP_CONCURRENCY: usize = 16;
++const EXIT_RECHECK_CONCURRENCY: usize = 16;
++const EXIT_RECHECK_TIMEOUT: Duration = Duration::from_secs(10);
+ 
+ /// Instrumenting wrapper around the compute driver.
+ mod traced_driver {
+@@ -2589,12 +2591,58 @@ impl ComputeRuntime {
+                 }
+             };
+ 
++            // Exit snapshots can predate an in-flight StartSandbox. Recheck
++            // them concurrently, without holding up ordinary watch events.
++            // Independent tasks must keep polling while an ordinary event
++            // awaits the global guard. Polling everything in this loop alone
++            // could strand that guard in a suspended recheck.
++            // A reconnect or shutdown cancels these tasks; periodic full
++            // reconciliation recovers coalesced, saturated or canceled work.
++            let mut exit_updates = tokio::task::JoinSet::new();
++            let mut pending_exits = HashSet::new();
+             let mut restart = false;
+             loop {
+                 tokio::select! {
++                    Some(completed) = exit_updates.join_next(), if !exit_updates.is_empty() => {
++                        let (sandbox_id, result) = match completed {
++                            Ok(result) => result,
++                            Err(err) => {
++                                warn!(error = %err, "Exit recheck task failed; restarting compute watch");
++                                restart = true;
++                                break;
++                            }
++                        };
++                        pending_exits.remove(&sandbox_id);
++                        if let Err(err) = result {
++                            warn!(error = %err, sandbox_id, "Failed to recheck compute driver exit");
++                        }
++                    }
+                     item = stream.next() => {
+                         match item {
+                             Some(Ok(event)) => {
++                                if let Some(watch_sandboxes_event::Payload::Sandbox(update)) = &event.payload
++                                    && let Some(sandbox) = &update.sandbox
++                                    && driver_snapshot_reports_container_exit(sandbox)
++                                {
++                                    if pending_exits.contains(&sandbox.id) {
++                                        continue;
++                                    }
++                                    if exit_updates.len() == EXIT_RECHECK_CONCURRENCY {
++                                        debug!(sandbox_id = %sandbox.id, "Exit recheck capacity reached; deferring to reconciliation");
++                                        continue;
++                                    }
++                                    let sandbox_id = sandbox.id.clone();
++                                    pending_exits.insert(sandbox_id.clone());
++                                    let runtime = Arc::clone(&self);
++                                    exit_updates.spawn(async move {
++                                        let result = tokio::time::timeout(
++                                            EXIT_RECHECK_TIMEOUT,
++                                            runtime.apply_watch_event(event),
++                                        ).await.unwrap_or_else(|_| Err("exit recheck timed out; deferred to reconciliation".to_string()));
++                                        (sandbox_id, result)
++                                    });
++                                    continue;
++                                }
+                                 if let Err(err) = self.apply_watch_event(event).await {
+                                     warn!(error = %err, "Failed to apply compute driver event");
+                                 }
+@@ -2607,10 +2655,14 @@ impl ComputeRuntime {
+                             None => break,
+                         }
+                     }
+-                    _ = cancel.changed() => return,
++                    _ = cancel.changed() => {
++                        exit_updates.shutdown().await;
++                        return;
++                    },
+                 }
+             }
+ 
++            exit_updates.shutdown().await;
+             if !restart {
+                 warn!("Compute driver watch stream ended unexpectedly");
+             }
+@@ -2660,7 +2712,7 @@ impl ComputeRuntime {
+         let backend_ids = backend_sandboxes
+             .iter()
+             .map(|sandbox| sandbox.id.clone())
+-            .collect::<std::collections::HashSet<_>>();
++            .collect::<HashSet<_>>();
+         tracing::Span::current().record("backend_count", backend_sandboxes.len());
+ 
+         for sandbox in backend_sandboxes {
+@@ -2766,13 +2818,57 @@ impl ComputeRuntime {
+     }
+ 
+     async fn apply_sandbox_update(&self, incoming: DriverSandbox) -> Result<(), String> {
+-        let _guard = self.sync_lock.lock().await;
++        {
++            let _guard = self.sync_lock.lock().await;
++            let existing = self
++                .store
++                .get(Sandbox::object_type(), &incoming.id)
++                .await
++                .map_err(|e| e.to_string())?;
++            if !exit_snapshot_needs_recheck(&incoming, existing.as_ref())? {
++                return self.apply_sandbox_update_locked(incoming, existing).await;
++            }
++        }
++
++        // The driver can filter stale exits before publishing, but cannot
++        // retract an event already queued when the gateway commits Starting.
++        // Wait for this sandbox's lifecycle operation, then read the current
++        // backend state. Never compare gateway and driver wall clocks.
++        let lifecycle_guard = self.lifecycle_gates.lock_for(&incoming.id).await;
++        let (expected_resource_version, sandbox_name) = {
++            let _guard = self.lock_global_for_lifecycle(&lifecycle_guard).await;
++            let existing = self
++                .store
++                .get(Sandbox::object_type(), &incoming.id)
++                .await
++                .map_err(|e| e.to_string())?;
++            if !exit_snapshot_needs_recheck(&incoming, existing.as_ref())? {
++                return self.apply_sandbox_update_locked(incoming, existing).await;
++            }
++            let existing = existing.expect("active sandbox was checked above");
++            let sandbox = decode_sandbox_record(&existing)?;
++            (existing.resource_version, sandbox.object_name().to_string())
++        };
++        let Some(current) = self
++            .get_driver_sandbox_bounded(&incoming.id, &sandbox_name)
++            .await?
++        else {
++            // Missing is not proof that this queued event belongs to the new
++            // run. The retained-resource reconciliation path owns that case.
++            return Ok(());
++        };
++        let _guard = self.lock_global_for_lifecycle(&lifecycle_guard).await;
+         let existing = self
+             .store
+             .get(Sandbox::object_type(), &incoming.id)
+             .await
+             .map_err(|e| e.to_string())?;
+-        self.apply_sandbox_update_locked(incoming, existing).await
++        if existing.as_ref().map(|record| record.resource_version)
++            != Some(expected_resource_version)
++        {
++            return Ok(());
++        }
++        self.apply_sandbox_update_locked(current, existing).await
+     }
+ 
+     async fn apply_sandbox_update_locked(
+@@ -3172,8 +3268,12 @@ impl ComputeRuntime {
+         snapshot: DriverSandbox,
+         sweep_started_at_ms: i64,
+     ) -> Result<(), String> {
++        // A fresh get during Starting can still observe the *previous* run
++        // before the driver start executes. Serialize with that operation,
++        // just as watch exit rechecks do, without locking other sandboxes.
++        let lifecycle_guard = self.lifecycle_gates.lock_for(&snapshot.id).await;
+         let expected_resource_version = {
+-            let _guard = self.sync_lock.lock().await;
++            let _guard = self.lock_global_for_lifecycle(&lifecycle_guard).await;
+             let Some(existing) = self
+                 .store
+                 .get(Sandbox::object_type(), &snapshot.id)
+@@ -3190,13 +3290,13 @@ impl ComputeRuntime {
+         };
+ 
+         let Some(current) = self
+-            .get_driver_sandbox(&snapshot.id, &snapshot.name)
++            .get_driver_sandbox_bounded(&snapshot.id, &snapshot.name)
+             .await?
+         else {
+             return Ok(());
+         };
+ 
+-        let _guard = self.sync_lock.lock().await;
++        let _guard = self.lock_global_for_lifecycle(&lifecycle_guard).await;
+         let Some(existing) = self
+             .store
+             .get(Sandbox::object_type(), &snapshot.id)
+@@ -3221,8 +3321,9 @@ impl ComputeRuntime {
+         sweep_started_at_ms: i64,
+         grace_ms: i64,
+     ) -> Result<(), String> {
++        let lifecycle_guard = self.lifecycle_gates.lock_for(&record.id).await;
+         let (sandbox_id, sandbox_name, expected_resource_version, age_ms) = {
+-            let _guard = self.sync_lock.lock().await;
++            let _guard = self.lock_global_for_lifecycle(&lifecycle_guard).await;
+             let Some(current_record) = self
+                 .store
+                 .get(Sandbox::object_type(), &record.id)
+@@ -3251,9 +3352,11 @@ impl ComputeRuntime {
+             )
+         };
+ 
+-        let current = self.get_driver_sandbox(&sandbox_id, &sandbox_name).await?;
++        let current = self
++            .get_driver_sandbox_bounded(&sandbox_id, &sandbox_name)
++            .await?;
+ 
+-        let _guard = self.sync_lock.lock().await;
++        let _guard = self.lock_global_for_lifecycle(&lifecycle_guard).await;
+         let Some(current_record) = self
+             .store
+             .get(Sandbox::object_type(), &sandbox_id)
+@@ -3324,6 +3427,19 @@ impl ComputeRuntime {
+             .await
+     }
+ 
++    async fn get_driver_sandbox_bounded(
++        &self,
++        sandbox_id: &str,
++        sandbox_name: &str,
++    ) -> Result<Option<DriverSandbox>, String> {
++        tokio::time::timeout(
++            EXIT_RECHECK_TIMEOUT,
++            self.get_driver_sandbox(sandbox_id, sandbox_name),
++        )
++        .await
++        .map_err(|_| "compute driver lookup timed out; deferred to reconciliation".to_string())?
++    }
++
+     async fn get_driver_sandbox(
+         &self,
+         sandbox_id: &str,
+@@ -3733,6 +3849,32 @@ fn sandbox_resource_version(sandbox: &Sandbox) -> u64 {
+         .map_or(0, |metadata| metadata.resource_version)
+ }
+ 
++fn driver_snapshot_reports_container_exit(snapshot: &DriverSandbox) -> bool {
++    snapshot.status.as_ref().is_some_and(|status| {
++        status.conditions.iter().any(|condition| {
++            condition.r#type == "Ready"
++                && condition.status.eq_ignore_ascii_case("false")
++                && condition.reason == "ContainerExited"
++        })
++    })
++}
++
++fn exit_snapshot_needs_recheck(
++    incoming: &DriverSandbox,
++    existing: Option<&ObjectRecord>,
++) -> Result<bool, String> {
++    if !driver_snapshot_reports_container_exit(incoming) {
++        return Ok(false);
++    }
++    let Some(existing) = existing else {
++        return Ok(false);
++    };
++    Ok(matches!(
++        SandboxPhase::try_from(decode_sandbox_record(existing)?.phase()),
++        Ok(SandboxPhase::Starting | SandboxPhase::Ready)
++    ))
++}
++
+ fn public_status_from_driver(
+     status: &DriverSandboxStatus,
+     phase: SandboxPhase,
+@@ -4641,6 +4783,7 @@ mod tests {
+         start_requests: TestMutex<Vec<(String, String)>>,
+         start_outcome: TestMutex<ControlledLifecycleOutcome>,
+         get_started: Notify,
++        get_calls: AtomicUsize,
+         get_release: Semaphore,
+         get_blocked: AtomicBool,
+         get_outcome: TestMutex<ControlledGetOutcome>,
+@@ -4673,6 +4816,7 @@ mod tests {
+                 start_requests: TestMutex::new(Vec::new()),
+                 start_outcome: TestMutex::new(ControlledLifecycleOutcome::Ok),
+                 get_started: Notify::new(),
++                get_calls: AtomicUsize::new(0),
+                 get_release: Semaphore::new(0),
+                 get_blocked: AtomicBool::new(false),
+                 get_outcome: TestMutex::new(ControlledGetOutcome::Missing),
+@@ -4806,6 +4950,7 @@ mod tests {
+             &self,
+             _request: Request<GetSandboxRequest>,
+         ) -> Result<tonic::Response<GetSandboxResponse>, Status> {
++            self.get_calls.fetch_add(1, Ordering::SeqCst);
+             self.get_started.notify_one();
+             if self.get_blocked.load(Ordering::SeqCst) {
+                 self.get_release
+@@ -7943,22 +8088,63 @@ mod tests {
+         stop_watch_loop(shutdown_tx, watch_handle).await;
+     }
+ 
++    #[tokio::test]
++    async fn queued_previous_exit_does_not_regress_new_start() {
++        for phase in [SandboxPhase::Starting, SandboxPhase::Ready] {
++            let backend = ready_driver_sandbox("sb-restarted", "restarted");
++            let runtime = test_runtime(Arc::new(TestDriver {
++                current_sandboxes: vec![backend.clone()],
++                ..Default::default()
++            }))
++            .await;
++            let sandbox = sandbox_record("sb-restarted", "restarted", phase);
++            runtime.store.put_message(&sandbox).await.unwrap();
++            if phase == SandboxPhase::Ready {
++                register_test_supervisor_session(&runtime, sandbox.object_id());
++            }
++            // The stopped-run event already left the driver before StartSandbox
++            // committed. Its timestamp is deliberately opaque: correctness must
++            // not depend on comparing clocks across the gateway/driver boundary.
++            let mut delayed = backend;
++            delayed.status = Some(make_driver_status(make_driver_condition(
++                "ContainerExited",
++                "previous run exited before this start",
++            )));
++            runtime.apply_sandbox_update(delayed).await.unwrap();
++            let current = runtime
++                .store
++                .get_message::<Sandbox>(sandbox.object_id())
++                .await
++                .unwrap()
++                .unwrap();
++            assert_eq!(
++                current.phase(),
++                phase as i32,
++                "a queued previous-run exit must not make the new lifecycle terminal"
++            );
++        }
++    }
++
+     #[tokio::test]
+     async fn non_deleting_container_exit_still_transitions_to_error() {
+-        let runtime = test_runtime(Arc::new(TestDriver::default())).await;
++        let mut exited = ready_driver_sandbox("sb-1", "sandbox-a");
++        exited.status = Some(make_driver_status(make_driver_condition(
++            "ContainerExited",
++            "container exited unexpectedly",
++        )));
++        let runtime = test_runtime(Arc::new(TestDriver {
++            current_sandboxes: vec![exited.clone()],
++            ..Default::default()
++        }))
++        .await;
+         let mut sandbox = sandbox_record("sb-1", "sandbox-a", SandboxPhase::Ready);
+         sandbox.status = Some(SandboxStatus {
++            phase: SandboxPhase::Ready as i32,
+             sandbox_name: "sandbox-a".to_string(),
+             main_process_instance_id: "instance-1".to_string(),
+             ..Default::default()
+         });
+         runtime.store.put_message(&sandbox).await.unwrap();
+-        let mut exited = ready_driver_sandbox("sb-1", "sandbox-a");
+-        exited.status = Some(make_driver_status(make_driver_condition(
+-            "ContainerExited",
+-            "container exited unexpectedly",
+-        )));
+-
+         runtime.apply_sandbox_update(exited).await.unwrap();
+ 
+         let stored = runtime
+@@ -7976,6 +8162,389 @@ mod tests {
+         assert_eq!(status.exit_code, None);
+     }
+ 
++    fn exited_driver_sandbox(id: &str, name: &str) -> DriverSandbox {
++        let mut sandbox = ready_driver_sandbox(id, name);
++        sandbox.status = Some(make_driver_status(make_driver_condition(
++            "ContainerExited",
++            "queued exit",
++        )));
++        sandbox
++    }
++
++    #[tokio::test]
++    async fn exit_recheck_waits_for_start_without_delaying_unrelated_watch_event() {
++        let driver = ControlledDriver::new();
++        driver.block_start();
++        let runtime = test_runtime(driver.clone()).await;
++        runtime
++            .store
++            .put_message(&sandbox_record("sb-a", "sandbox-a", SandboxPhase::Stopped))
++            .await
++            .unwrap();
++        runtime
++            .store
++            .put_message(&sandbox_record("sb-b", "sandbox-b", SandboxPhase::Ready))
++            .await
++            .unwrap();
++        let (shutdown_tx, watch_handle) = start_watch_loop(&runtime, &driver).await;
++        let start_runtime = runtime.clone();
++        let start =
++            tokio::spawn(async move { start_runtime.start_sandbox("default", "sandbox-a").await });
++        tokio::time::timeout(Duration::from_secs(1), driver.start_started.notified())
++            .await
++            .unwrap();
++
++        let gate = runtime.lifecycle_gates.gate_for("sb-a");
++        let mut changed_b = runtime.sandbox_watch_bus.subscribe("sb-b");
++        driver.send_event(sandbox_watch_event(exited_driver_sandbox(
++            "sb-a",
++            "sandbox-a",
++        )));
++        driver.send_event(deleted_watch_event("sb-b"));
++        tokio::time::timeout(Duration::from_secs(1), changed_b.recv())
++            .await
++            .unwrap()
++            .unwrap();
++        tokio::time::timeout(Duration::from_secs(1), async {
++            while Arc::strong_count(&gate) < 3 {
++                tokio::task::yield_now().await;
++            }
++        })
++        .await
++        .expect("exit recheck did not wait for the active start");
++        assert_eq!(driver.get_calls.load(Ordering::SeqCst), 0);
++        assert_eq!(
++            runtime
++                .store
++                .get_message::<Sandbox>("sb-a")
++                .await
++                .unwrap()
++                .unwrap()
++                .phase(),
++            SandboxPhase::Starting as i32
++        );
++
++        let mut changed_a = runtime.sandbox_watch_bus.subscribe("sb-a");
++        driver.set_get_outcome(ControlledGetOutcome::Sandbox(Box::new(
++            ready_driver_sandbox("sb-a", "sandbox-a"),
++        )));
++        driver.release_start();
++        tokio::time::timeout(Duration::from_secs(1), start)
++            .await
++            .unwrap()
++            .unwrap()
++            .unwrap();
++        tokio::time::timeout(Duration::from_secs(1), changed_a.recv())
++            .await
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            runtime
++                .store
++                .get_message::<Sandbox>("sb-a")
++                .await
++                .unwrap()
++                .unwrap()
++                .phase(),
++            SandboxPhase::Starting as i32
++        );
++        assert_eq!(driver.get_calls.load(Ordering::SeqCst), 1);
++        stop_watch_loop(shutdown_tx, watch_handle).await;
++    }
++
++    #[tokio::test]
++    async fn exit_recheck_missing_failed_or_wrong_identity_preserves_state() {
++        for outcome in [
++            ControlledGetOutcome::Missing,
++            ControlledGetOutcome::Error("backend unavailable"),
++            ControlledGetOutcome::Sandbox(Box::new(exited_driver_sandbox("wrong-id", "sandbox-a"))),
++        ] {
++            let expected_error = !matches!(outcome, ControlledGetOutcome::Missing);
++            let driver = ControlledDriver::new();
++            driver.set_get_outcome(outcome);
++            let runtime = test_runtime(driver).await;
++            runtime
++                .store
++                .put_message(&sandbox_record("sb-a", "sandbox-a", SandboxPhase::Starting))
++                .await
++                .unwrap();
++            let before = runtime
++                .store
++                .get(Sandbox::object_type(), "sb-a")
++                .await
++                .unwrap()
++                .unwrap();
++            let result = runtime
++                .apply_sandbox_update(exited_driver_sandbox("sb-a", "sandbox-a"))
++                .await;
++            assert_eq!(result.is_err(), expected_error);
++            let after = runtime
++                .store
++                .get(Sandbox::object_type(), "sb-a")
++                .await
++                .unwrap()
++                .unwrap();
++            assert_eq!(after.resource_version, before.resource_version);
++            assert_eq!(after.payload, before.payload);
++        }
++    }
++
++    #[tokio::test]
++    async fn exit_recheck_does_not_overwrite_concurrent_write_or_revive_main_exit() {
++        for main_exit in [false, true] {
++            let driver = ControlledDriver::new();
++            driver.block_get();
++            driver.set_get_outcome(ControlledGetOutcome::Sandbox(Box::new(
++                ready_driver_sandbox("sb-a", "sandbox-a"),
++            )));
++            let runtime = test_runtime(driver.clone()).await;
++            let mut sandbox = sandbox_record("sb-a", "sandbox-a", SandboxPhase::Ready);
++            sandbox.status.as_mut().unwrap().main_process_instance_id = "main-1".to_string();
++            runtime.store.put_message(&sandbox).await.unwrap();
++            let update_runtime = runtime.clone();
++            let update = tokio::spawn(async move {
++                update_runtime
++                    .apply_sandbox_update(exited_driver_sandbox("sb-a", "sandbox-a"))
++                    .await
++            });
++            tokio::time::timeout(Duration::from_secs(1), driver.get_started.notified())
++                .await
++                .unwrap();
++            let before = runtime
++                .store
++                .get(Sandbox::object_type(), "sb-a")
++                .await
++                .unwrap()
++                .unwrap();
++            runtime
++                .store
++                .update_message_cas::<Sandbox, _>("sb-a", before.resource_version, |sandbox| {
++                    if main_exit {
++                        apply_main_process_exit(sandbox, "main-1", 7);
++                    } else {
++                        sandbox.status.as_mut().unwrap().current_policy_version = 42;
++                    }
++                })
++                .await
++                .unwrap();
++            let expected = runtime
++                .store
++                .get(Sandbox::object_type(), "sb-a")
++                .await
++                .unwrap()
++                .unwrap();
++            driver.release_get();
++            tokio::time::timeout(Duration::from_secs(1), update)
++                .await
++                .unwrap()
++                .unwrap()
++                .unwrap();
++            let after = runtime
++                .store
++                .get(Sandbox::object_type(), "sb-a")
++                .await
++                .unwrap()
++                .unwrap();
++            assert_eq!(after.resource_version, expected.resource_version);
++            assert_eq!(after.payload, expected.payload);
++        }
++    }
++
++    #[tokio::test]
++    async fn exit_rechecks_are_bounded_coalesced_and_cancelable_without_blocking_watch() {
++        let driver = ControlledDriver::new();
++        driver.block_get();
++        let runtime = test_runtime(driver.clone()).await;
++        for index in 0..=EXIT_RECHECK_CONCURRENCY {
++            runtime
++                .store
++                .put_message(&sandbox_record(
++                    &format!("sb-{index}"),
++                    &format!("sandbox-{index}"),
++                    SandboxPhase::Ready,
++                ))
++                .await
++                .unwrap();
++        }
++        runtime
++            .store
++            .put_message(&sandbox_record(
++                "sb-unrelated",
++                "unrelated",
++                SandboxPhase::Ready,
++            ))
++            .await
++            .unwrap();
++        let mut unrelated = runtime.sandbox_watch_bus.subscribe("sb-unrelated");
++        let (shutdown_tx, watch_handle) = start_watch_loop(&runtime, &driver).await;
++        // Duplicates must consume only one slot; unique IDs fill the bounded window.
++        for index in 0..EXIT_RECHECK_CONCURRENCY {
++            for _ in 0..3 {
++                driver.send_event(sandbox_watch_event(exited_driver_sandbox(
++                    &format!("sb-{index}"),
++                    &format!("sandbox-{index}"),
++                )));
++            }
++        }
++        tokio::time::timeout(Duration::from_secs(1), async {
++            while driver.get_calls.load(Ordering::SeqCst) < EXIT_RECHECK_CONCURRENCY {
++                tokio::task::yield_now().await;
++            }
++        })
++        .await
++        .expect("exit rechecks did not fill their concurrency window");
++        driver.send_event(sandbox_watch_event(exited_driver_sandbox(
++            &format!("sb-{EXIT_RECHECK_CONCURRENCY}"),
++            &format!("sandbox-{EXIT_RECHECK_CONCURRENCY}"),
++        )));
++        driver.send_event(deleted_watch_event("sb-unrelated"));
++        tokio::time::timeout(Duration::from_secs(1), unrelated.recv())
++            .await
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            driver.get_calls.load(Ordering::SeqCst),
++            EXIT_RECHECK_CONCURRENCY
++        );
++        stop_watch_loop(shutdown_tx, watch_handle).await;
++        // No detached lookup may retain the lifecycle gate after watch shutdown.
++        for index in 0..=EXIT_RECHECK_CONCURRENCY {
++            let _guard = tokio::time::timeout(
++                Duration::from_secs(1),
++                runtime.lifecycle_gates.lock_for(&format!("sb-{index}")),
++            )
++            .await
++            .unwrap();
++            assert_eq!(
++                runtime
++                    .store
++                    .get_message::<Sandbox>(&format!("sb-{index}"))
++                    .await
++                    .unwrap()
++                    .unwrap()
++                    .phase(),
++                SandboxPhase::Ready as i32
++            );
++        }
++    }
++
++    #[tokio::test]
++    async fn exit_recheck_lookup_deadline_releases_lifecycle_gate() {
++        let driver = ControlledDriver::new();
++        driver.block_get();
++        let runtime = test_runtime(driver).await;
++        runtime
++            .store
++            .put_message(&sandbox_record("sb-a", "sandbox-a", SandboxPhase::Ready))
++            .await
++            .unwrap();
++        let before = runtime
++            .store
++            .get(Sandbox::object_type(), "sb-a")
++            .await
++            .unwrap()
++            .unwrap();
++        let error = tokio::time::timeout(
++            EXIT_RECHECK_TIMEOUT + Duration::from_secs(1),
++            runtime.apply_sandbox_update(exited_driver_sandbox("sb-a", "sandbox-a")),
++        )
++        .await
++        .expect("driver lookup exceeded its deadline")
++        .unwrap_err();
++        assert!(error.contains("lookup timed out"));
++        let _guard = tokio::time::timeout(
++            Duration::from_secs(1),
++            runtime.lifecycle_gates.lock_for("sb-a"),
++        )
++        .await
++        .unwrap();
++        let after = runtime
++            .store
++            .get(Sandbox::object_type(), "sb-a")
++            .await
++            .unwrap()
++            .unwrap();
++        assert_eq!(after.resource_version, before.resource_version);
++        assert_eq!(after.payload, before.payload);
++    }
++
++    #[tokio::test]
++    async fn reconciliation_waits_for_start_before_lookup() {
++        for prune in [false, true] {
++            let driver = ControlledDriver::new();
++            driver.block_start();
++            let runtime = test_runtime(driver.clone()).await;
++            runtime
++                .store
++                .put_message(&sandbox_record("sb-a", "sandbox-a", SandboxPhase::Stopped))
++                .await
++                .unwrap();
++            let start_runtime = runtime.clone();
++            let start =
++                tokio::spawn(
++                    async move { start_runtime.start_sandbox("default", "sandbox-a").await },
++                );
++            tokio::time::timeout(Duration::from_secs(1), driver.start_started.notified())
++                .await
++                .unwrap();
++            let record = runtime
++                .store
++                .get(Sandbox::object_type(), "sb-a")
++                .await
++                .unwrap()
++                .unwrap();
++            let gate = runtime.lifecycle_gates.gate_for("sb-a");
++            let reconcile_runtime = runtime.clone();
++            let reconcile = tokio::spawn(async move {
++                if prune {
++                    reconcile_runtime
++                        .prune_missing_sandbox(record, i64::MAX, 0)
++                        .await
++                } else {
++                    reconcile_runtime
++                        .reconcile_snapshot_sandbox(
++                            exited_driver_sandbox("sb-a", "sandbox-a"),
++                            i64::MAX,
++                        )
++                        .await
++                }
++            });
++            tokio::time::timeout(Duration::from_secs(1), async {
++                while Arc::strong_count(&gate) < 3 {
++                    tokio::task::yield_now().await;
++                }
++            })
++            .await
++            .expect("reconciliation did not wait for start");
++            assert_eq!(driver.get_calls.load(Ordering::SeqCst), 0);
++            driver.set_get_outcome(ControlledGetOutcome::Sandbox(Box::new(
++                ready_driver_sandbox("sb-a", "sandbox-a"),
++            )));
++            driver.release_start();
++            tokio::time::timeout(Duration::from_secs(1), start)
++                .await
++                .unwrap()
++                .unwrap()
++                .unwrap();
++            tokio::time::timeout(Duration::from_secs(1), reconcile)
++                .await
++                .unwrap()
++                .unwrap()
++                .unwrap();
++            assert_eq!(
++                runtime
++                    .store
++                    .get_message::<Sandbox>("sb-a")
++                    .await
++                    .unwrap()
++                    .unwrap()
++                    .phase(),
++                SandboxPhase::Starting as i32
++            );
++            assert_eq!(driver.get_calls.load(Ordering::SeqCst), 1);
++        }
++    }
++
+     #[tokio::test]
+     async fn apply_sandbox_update_without_status_preserves_existing_status() {
+         let runtime = test_runtime(Arc::new(TestDriver::default())).await;

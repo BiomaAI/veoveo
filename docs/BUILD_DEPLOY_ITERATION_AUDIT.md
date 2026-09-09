@@ -2143,3 +2143,29 @@ throughput needs a separate measured ingress/uplink experiment. The final UI ima
 build, qualification, and GitOps rollout total 76.9 s; the hours spent on this
 feature also include implementation, real long-transfer recovery, and avoidable
 test/source-coordination retries. Available host disk is about 314 GiB at closure.
+
+## Computers Runtime Adoption: September 9
+
+The Computers and contract-evolution goal starts from Veoveo main `cc80fcb2`.
+Upstream main remains `11f59d55`. The existing host had 253 GiB available and the
+Bioma Kubernetes node was Ready; neither disk capacity nor cluster availability
+blocked the initial port. The installed OpenShell CLI reports `0.0.14`, so it is
+not accepted as evidence for the selected `0.0.116` profile.
+
+The private provider adapter now has its own workspace crate and does not bring
+OpenShell, SSH or code generation into the gateway. The first compile identified
+the handoff's omitted generated-type Regress dependency. Typify's unused macro and
+Russh's unused RSA/compression defaults were disabled; the canonical Ed25519 SSH
+path uses the existing Ring backend. Cargo.lock adds the adapter's dependency graph
+without removing or upgrading any original locked package identity.
+
+| Initial check | Measured cost | Meaning |
+|---|---:|---|
+| Recorded adapter test command | 60.55 s | 52 passing local transport/policy/stream fixtures; Cargo compilation 39.47 s and fixture execution 20.44 s |
+| Recorded adapter Clippy | 12.95 s | All targets pass with warnings denied; first check-profile preparation included |
+
+The missing-replay fixture deliberately consumes its timeout window. A future
+focused virtual-time check may reduce that cost while preserving one real transport
+deadline test. These measurements do not establish native provider behavior, physical
+storage enforcement, a warm edit budget, or installed browser/CLI acceptance. Provider
+source, native recovery, retained storage and deployment remain active work.

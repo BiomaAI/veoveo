@@ -23,6 +23,7 @@ members = [
     "platform/recordings/reader",
     "platform/recordings/video",
     "platform/runtimes/duckdb",
+    "platform/runtimes/computers",
     "platform/store",
     "platform/task-runtime",
     "servers/artifact-mcp",

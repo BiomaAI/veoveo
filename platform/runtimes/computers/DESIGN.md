@@ -1,0 +1,72 @@
+# Computers Provider Runtime
+
+Status: native adapter port in progress. No Computer service or installed provider
+is qualified by this source checkpoint. The owning domain is planned in
+[Computers](../../../docs/COMPUTERS_PLAN.md).
+
+## Standards And Protocols
+
+| Boundary | Selected profile |
+|---|---|
+| OpenShell `0.0.116` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
+| OpenShell retained Docker provider | Candidate gateway `0.0.117-dev.6+g32efe0b` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
+| SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
+| `veoveo.io/computer-storage/v1` | Bounded mTLS allocation/restore adapter generated from `protocol/storage.json`; allocator implementation and physical volume qualification pending |
+| Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
+| Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
+
+Upstream stable versions were checked through crates.io and the NVIDIA GitHub
+release API on 2026-09-09. Workspace `tokio-rustls` remains on its qualified
+`0.26.4` pin; advancing it to `0.26.5` is independent of this adapter port.
+OpenShell `0.0.116` remains the latest published release at this checkpoint.
+The provider patches implement retained restart, process groups, owned terminals,
+exit-event correlation, log bounds, and explicit replay completion. They require
+their own qualification and upstream/removal tracking before release.
+
+Russh enables the existing Ring crypto backend and omits its unused RSA/compression
+defaults. Canonical-main pins an Ed25519 host identity. The stable Russh release
+requires the prerelease `ssh-key` version recorded in Cargo.lock; this transitive
+constraint remains part of provider qualification until upstream ships a compatible
+stable key crate. Typify's procedural macro is disabled because this crate uses only
+its build-time type generator. Generated schema regex validation requires Regress
+`0.12.0`, verified from crates.io at the same checkpoint.
+
+## Ownership
+
+`client` handles provider transport and lifecycle observation. `models`, `binding`,
+`canonical` and `policy_json` validate the admitted template and exact identity.
+`terminal` and `terminal_output` own the byte stream and replay boundary. `execution`
+owns bounded command streams. `allocation` and `storage` bind retained volumes;
+`policy_continuity` checks retained-instance replacement authority.
+
+The gateway and BFF must not depend on this crate. The Computers worker applies
+canonical authorization and shared durable Task transactions before invoking it.
+The adapter returns typed outcomes without secrets or provider text in errors.
+
+## Completion And Recovery
+
+Healthy lifecycle observation uses native WatchSandbox. The supplied event/log tails
+are best effort and lag warnings do not establish complete history. Transport loss
+returns uncertainty and never proves a failed mutation. A follow-up change introduces
+the bounded, identity-correlated reconciliation required by
+[CE-01](../../../docs/CONTRACT_EVOLUTION.md#ce-01-provider-completion-follows-qualified-semantics).
+
+Create uses deterministic binding identity. Start/Stop must preserve the selected
+provider instance and run epoch. A fresh snapshot proves only the state it contains;
+it cannot certify an arbitrary past command. The owning durable operation remains
+fenced until its effect can be settled. Cancellation is distinct from stopping a
+provider process, and a terminal transport deadline is distinct from Computer lifetime.
+
+## Verification And Delivery Gaps
+
+The focused crate fixtures cover real local mTLS, generated provider RPCs, policy
+validation, binding mismatches, bounded command/terminal streams, and replay. A fixture
+provider is not native OpenShell execution evidence. Production admission additionally
+requires retained storage, physical writer fencing, provider restart, command outcome
+correlation, revocation under backpressure, and the supported browser/stock CLI journey.
+
+Source provenance is the reviewed September 9 handoff with SHA-256
+`b330a4016a25d182e206421c4eb019a1cd2fc0ae94e40b7d2056dcd654cba061`.
+The imported selected source excludes the downstream domain/gateway integration.
+The runtime is adapted independently against Veoveo main; provider patches retain
+their original upstream base and declared branch/tree identities.
