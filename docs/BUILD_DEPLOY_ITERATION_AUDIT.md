@@ -1964,3 +1964,10 @@ At staging, RustFS contains 123 GiB on the same 1.8 TiB host filesystem, with 34
 available. Its host-path PVC requests 10 GiB but does not impose a filesystem quota.
 The explicit upload ledger quota governs artifact admission; independent storage and
 large-scale capacity benchmarking remain follow-up infrastructure work.
+
+The three runtime images stage in 104.9 s, including an 86.1 s compilation window.
+Qualification reuses those staged artifacts and completes in 10.3 s without another
+compilation. The committed installation policy validates, and the final GitOps/Helm
+configuration check passes in 6.1 s. Image locks select qualified runtime digests;
+the policy and image updates travel in one push. These measurements cover publication
+and configuration checks, not rollout or public upload acceptance.
