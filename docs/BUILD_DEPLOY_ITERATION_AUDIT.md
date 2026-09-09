@@ -2039,3 +2039,16 @@ the exact runtime digests and takes 9.2 s. The final warm checks take 2.0 s for
 97 backend tests, 0.4 s for 58 UI tests, 6.0 s for the production UI build, 4.5 s
 for lint, and 5.5 s for both browser-harness consumers. The latter emits an unused
 re-export warning in the flight harness; both binaries compile successfully.
+
+The session-recovery rollout converges in 30.3 s with explicit reconciliation.
+The original browser upload resumes at 3,523,215,360 accepted bytes and passes
+4 GiB without restarting its identity. Completion remains under observation.
+
+The Python repository wrapper now forwards the consumer's explicit byte ceiling;
+Datasheet applies its configured dataset/report limits before reading bytes. SDK
+and isolated template enforcement passes in 13.8 s. Publishing the Datasheet image
+also installs the streaming SDK in the running Python reference consumer. Staging
+from `2856e416` takes 34.0 s and qualification takes 19.8 s; Python layer export
+accounts for much of this time. This component can roll out while the independent
+browser transfer continues. The main source checkout stays unchanged while its
+acceptance recorder is active; the isolated worktree supplies this qualified image.
