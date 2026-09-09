@@ -14,6 +14,7 @@ use sha2::{Digest as _, Sha256};
 use tokio::io::AsyncWriteExt as _;
 
 pub mod multipart;
+mod s3_multipart;
 
 pub type BlobStream = Pin<Box<dyn Stream<Item = Result<Bytes, BlobStoreError>> + Send + 'static>>;
 
@@ -106,6 +107,7 @@ impl std::error::Error for BlobStoreError {}
 pub struct ArtifactObjectStore {
     inner: Arc<dyn ObjectStore>,
     multipart: Option<Arc<dyn object_store::multipart::MultipartStore>>,
+    reconciliation: Option<s3_multipart::Reconciliation>,
 }
 
 impl ArtifactObjectStore {
@@ -113,16 +115,35 @@ impl ArtifactObjectStore {
         Self {
             inner,
             multipart: None,
+            reconciliation: None,
         }
     }
 
+    #[cfg(test)]
     pub fn with_multipart<T: ObjectStore + object_store::multipart::MultipartStore>(
         inner: Arc<T>,
     ) -> Self {
         Self {
             inner: inner.clone(),
             multipart: Some(inner),
+            reconciliation: Some(s3_multipart::Reconciliation::MemoryFixture),
         }
+    }
+
+    pub(crate) fn with_s3(
+        inner: Arc<object_store::aws::AmazonS3>,
+        endpoint: Option<&str>,
+        bucket: &str,
+        region: &str,
+        allow_http: bool,
+    ) -> Result<Self, BlobStoreError> {
+        let reconciliation =
+            s3_multipart::S3Multipart::new(inner.clone(), endpoint, bucket, region, allow_http)?;
+        Ok(Self {
+            inner: inner.clone(),
+            multipart: Some(inner),
+            reconciliation: Some(s3_multipart::Reconciliation::S3(Arc::new(reconciliation))),
+        })
     }
 
     fn path(object_key: &str) -> Result<Path, BlobStoreError> {

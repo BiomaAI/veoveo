@@ -11,6 +11,7 @@
 | Persistence | Typed platform Store records and ordered SurrealQL migrations through `0050`; native durability acceptance uses SurrealDB 3.2.4 |
 | Content and credential identity | SHA-256 for immutable blobs and domain-separated secret hashes |
 | S3 multipart adapter | `object_store` 0.14.1 low-level `MultipartStore`, one-based public parts mapped to zero-based adapter indices; private provider handles and receipts |
+| S3 reconciliation | General-purpose S3 `ListMultipartUploads` and `ListParts`, SigV4 through the storage SDK; bounded XML decoding with `quick-xml` 0.42.0 |
 | Veoveo upload ledger functions | `fn::artifact_upload_profile_digest` and `fn::artifact_upload_authority_matches` bind transactions to current profile and Work Context policy |
 
 This service implements the internal Artifact plane. `servers/artifact-mcp` owns its
@@ -37,8 +38,8 @@ The focused `uploads/` modules orchestrate admission, transfer, public projectio
 and recovery. A dropped request schedules release of its part lease; process failure
 leaves the lease for durable recovery. Two local background workers bound simultaneous
 whole-object verification streams. Session lease renewal checks terminal state and
-current authority while verification proceeds. Public activation still requires S3
-enumeration for uncertain create acknowledgements and integrated HTTP acceptance.
+current authority while verification proceeds. S3 enumeration reconciles uncertain
+create and part acknowledgements; integrated HTTP acceptance precedes public activation.
 
 Blob registration is immutable by tenant and whole-file SHA-256. The shared Store
 transaction inserts a new mapping or retains the existing mapping, including its
@@ -91,6 +92,17 @@ comes from one separately bounded sequential object read after completion. A HEA
 the upload's unique object key recovers a lost storage completion acknowledgement;
 it never substitutes for the whole-file hash check. In-memory adapter tests establish
 these mechanics, while real S3 and multi-GB acceptance remain rollout requirements.
+Initialization removes abandoned handles at the session's exact unique key before
+creating a replacement. Finalization reconciles ordered provider receipts against
+accepted part numbers and sizes, while whole-file verification remains mandatory.
+Enumeration uses 64-entry pages, at most 1 MiB of XML per response, and the SDK's SigV4
+signer. It never deletes the completed object while removing unfinished handles.
+`quick-xml` 0.42.0 is the latest stable release verified from its
+[upstream crate documentation](https://docs.rs/quick-xml/0.42.0/quick_xml/).
+The native `s3_upload` integration target owns a port-forward to the selected installed
+RustFS service and an isolated object prefix. Credentials stay in process memory.
+Set `VEOVEO_UPLOAD_S3_CONTEXT` to qualify lost acknowledgements, restored handles,
+part enumeration, completion replay, exact SHA-256, and physical cleanup.
 S3 connections retain the SDK's connection timeout and use a 30-second read-idle
 timeout. Whole-object streams have no total request timeout; transfer handlers bound
 each part independently. The SDK's default 30-second total timeout would otherwise

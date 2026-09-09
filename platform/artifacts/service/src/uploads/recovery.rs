@@ -106,6 +106,12 @@ impl UploadService {
         if row.multipart_id.is_some() {
             return Ok(());
         }
+        tokio::time::timeout(
+            CONTROL_TIMEOUT,
+            self.objects.remove_upload_orphans(&row.object_key, None),
+        )
+        .await
+        .map_err(|_| UploadFault::unavailable())??;
         let multipart = tokio::time::timeout(
             CONTROL_TIMEOUT,
             self.objects
@@ -119,8 +125,8 @@ impl UploadService {
             .await
         {
             // An acknowledged provider handle is never abandoned on a failed
-            // ledger write. TODO: enumerate session-prefixed S3 multipart handles
-            // to recover a crash or lost create acknowledgement before activation.
+            // ledger write. A crash or lost acknowledgement is reconciled by the
+            // next initialization's enumeration of this session's unique key.
             let _ = tokio::time::timeout(
                 CONTROL_TIMEOUT,
                 self.objects.abort_upload(&row.object_key, &multipart),
@@ -240,14 +246,48 @@ impl UploadService {
                     .as_deref()
                     .ok_or_else(UploadFault::unavailable)?;
                 if row.state == Finalizing {
+                    tokio::time::timeout(
+                        CONTROL_TIMEOUT,
+                        self.objects
+                            .remove_upload_orphans(&row.object_key, Some(multipart)),
+                    )
+                    .await
+                    .map_err(|_| UploadFault::unavailable())??;
                     let parts = self
                         .database
                         .artifact_upload_parts(fence.upload_id, 0, 10001, true)
                         .await?;
-                    let content_ids = parts
+                    let expected_parts = parts
                         .into_iter()
-                        .map(|part| part.content_id.ok_or_else(UploadFault::unavailable))
-                        .collect::<Result<Vec<_>, _>>()?;
+                        .map(|part| {
+                            Ok(crate::store::multipart::StoredUploadPart {
+                                number: NonZeroU32::new(
+                                    u32::try_from(part.part_number)
+                                        .map_err(|_| UploadFault::unavailable())?,
+                                )
+                                .ok_or_else(UploadFault::unavailable)?,
+                                byte_len: u64::try_from(part.byte_len)
+                                    .map_err(|_| UploadFault::unavailable())?,
+                                content_id: part.content_id.ok_or_else(UploadFault::unavailable)?,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, UploadFault>>()?;
+                    let content_ids = if self.objects.upload_object_len(&row.object_key).await?
+                        == Some(manifest.byte_len as u64)
+                    {
+                        Vec::new()
+                    } else {
+                        tokio::time::timeout(
+                            CONTROL_TIMEOUT,
+                            self.objects.reconciled_upload_parts(
+                                &row.object_key,
+                                multipart,
+                                expected_parts,
+                            ),
+                        )
+                        .await
+                        .map_err(|_| UploadFault::unavailable())??
+                    };
                     tokio::time::timeout(
                         CONTROL_TIMEOUT,
                         self.objects.complete_upload(
@@ -293,6 +333,12 @@ impl UploadService {
                     .await
                     .map_err(|_| UploadFault::unavailable())??;
                 }
+                tokio::time::timeout(
+                    CONTROL_TIMEOUT,
+                    self.objects.remove_upload_orphans(&row.object_key, None),
+                )
+                .await
+                .map_err(|_| UploadFault::unavailable())??;
                 tokio::time::timeout(CONTROL_TIMEOUT, self.objects.delete(&row.object_key))
                     .await
                     .map_err(|_| UploadFault::unavailable())??;

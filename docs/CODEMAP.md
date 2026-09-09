@@ -442,6 +442,7 @@ plane and its bounded durable task-read delegation.
 | `http/read_capability.rs` | current task scope, Artifact read routes and gateway-authenticated issuance/revocation |
 | `store.rs` | memory/S3 blob storage and signed download behavior |
 | `store/multipart.rs` and `uploads/` | restartable multipart storage adapter, bounded transfer orchestration, safe session projections, and service-owned finalization/cleanup recovery |
+| `store/s3_multipart.rs` and `tests/s3_upload.rs` | bounded S3 enumeration and native installed-storage acceptance for uncertain acknowledgements, restored handles, and physical cleanup |
 | `auth.rs` | internal assertion verification and plane caller |
 | `http.rs` | internal artifact API plus `/s/{token}` redemption |
 | `config.rs` | fail-closed store/database/audience configuration |
