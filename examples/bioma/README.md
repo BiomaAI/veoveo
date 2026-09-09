@@ -67,6 +67,23 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 ## Release publication
 
+The admin and operator profiles explicitly admit artifact uploads for their existing
+human roles and machine clients with `artifact:upload` scope and contributor membership.
+The Console requests that scope through its BFF. Existing sign-ins need a new login
+to acquire a newly granted scope.
+
+The reference policy admits objects up to 100 GiB under a 200 GiB tenant storage quota.
+It starts with 16 MiB parts and at most four concurrent parts per file. Shared in-flight
+payloads are limited to 128 MiB across replicas. These are installation limits, not
+product limits. The policy does not certify that a consumer can load a file of that
+size into memory. Deployed transfer evidence separately records the sizes exercised.
+
+Uploads use `/artifacts/{profile}/uploads`; Console uses its same-origin
+`/console/api/artifact-uploads` proxy. The whole file never becomes one HTTP request.
+Its Gateway ConfigMap revision hashes the complete public bundle, including all JWKS
+files, through the deployment contract's `veoveo.io/gateway-activation/v1` encoding.
+
+
 Production workloads use the repository and digest maps under `images/`. Each release
 receives only the images consumed by its rendered objects. The
 platform and UAV OCI sources select immutable chart manifest digests independently in

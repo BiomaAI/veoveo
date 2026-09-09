@@ -1,19 +1,25 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:65f661125967bfc87b8e7a14e530841b2be7e517947edc60e26214c90a23981c",
-  "updatedAt": "2026-09-09T01:01:38Z",
+  "buildDigest": "sha256:73e7229d75efd816fbdbafa6aafcc99f44f8fe1f5fb2800f205cead588bcc31b",
+  "updatedAt": "2026-09-09T01:10:20Z",
   "checks": [
     {
-      "name": "artifact-upload-python",
+      "name": "artifact-upload-bioma-policy",
       "command": [
         "cargo",
-        "xtask",
-        "enforce",
-        "python"
+        "run",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway",
+        "--",
+        "validate",
+        "--control-plane",
+        "examples/bioma/gateway.json"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T01:01:38Z",
-      "durationSeconds": 9.519047225,
+      "finishedAt": "2026-09-09T01:10:20Z",
+      "durationSeconds": 0.644300216,
       "detail": "completed successfully"
     }
   ]

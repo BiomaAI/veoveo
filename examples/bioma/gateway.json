@@ -1239,6 +1239,36 @@
       ],
       "metadata": {
         "tenant": "bioma"
+      },
+      "artifact_upload": {
+        "max_object_bytes": 107374182400,
+        "tenant_quota_bytes": 214748364800,
+        "max_active_uploads_per_tenant": 8,
+        "part_bytes": 16777216,
+        "max_part_bytes": 67108864,
+        "max_parts": 10000,
+        "parallel_parts": 4,
+        "max_inflight_bytes": 134217728,
+        "inactivity_seconds": 86400,
+        "lifetime_seconds": 604800,
+        "part_timeout_seconds": 120,
+        "allowed_mime_types": [
+          "application/json",
+          "application/octet-stream",
+          "application/pdf",
+          "application/vnd.apache.parquet",
+          "application/vnd.rerun.rrd",
+          "application/x-ndjson",
+          "application/zip",
+          "audio/mpeg",
+          "audio/wav",
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "text/csv",
+          "text/plain",
+          "video/mp4"
+        ]
       }
     },
     {
@@ -1247,7 +1277,9 @@
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/agent",
       "policy_version": "2026-07-02",
-      "auth_modes": ["oauth_client_credentials"],
+      "auth_modes": [
+        "oauth_client_credentials"
+      ],
       "discovery_failure_mode": "fail_closed",
       "required_scopes": [
         "operator:use",
@@ -1271,8 +1303,18 @@
               "execute_vehicle_mission_plan"
             ]
           },
-          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "uav-sim"}]},
-          "prompts": {"mode": "none"},
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "uav-sim"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
           "completions": "enabled",
           "tasks": "enabled"
         },
@@ -1291,21 +1333,54 @@
               "prepare_route_handoff"
             ]
           },
-          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "map"}]},
-          "prompts": {"mode": "listed", "items": ["prepare_route_request", "review_route"]},
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "map"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "prepare_route_request",
+              "review_route"
+            ]
+          },
           "completions": "enabled",
           "tasks": "enabled"
         },
         {
           "server": "time",
-          "tools": {"mode": "listed", "items": ["assess_clock", "convert_time", "resolve_time"]},
-          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "time"}]},
-          "prompts": {"mode": "none"},
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "assess_clock",
+              "convert_time",
+              "resolve_time"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "time"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
           "completions": "disabled",
           "tasks": "disabled"
         }
       ],
-      "metadata": {"tenant": "bioma"}
+      "metadata": {
+        "tenant": "bioma"
+      }
     },
     {
       "id": "admin",
@@ -1750,6 +1825,36 @@
       ],
       "metadata": {
         "tenant": "bioma"
+      },
+      "artifact_upload": {
+        "max_object_bytes": 107374182400,
+        "tenant_quota_bytes": 214748364800,
+        "max_active_uploads_per_tenant": 8,
+        "part_bytes": 16777216,
+        "max_part_bytes": 67108864,
+        "max_parts": 10000,
+        "parallel_parts": 4,
+        "max_inflight_bytes": 134217728,
+        "inactivity_seconds": 86400,
+        "lifetime_seconds": 604800,
+        "part_timeout_seconds": 120,
+        "allowed_mime_types": [
+          "application/json",
+          "application/octet-stream",
+          "application/pdf",
+          "application/vnd.apache.parquet",
+          "application/vnd.rerun.rrd",
+          "application/x-ndjson",
+          "application/zip",
+          "audio/mpeg",
+          "audio/wav",
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "text/csv",
+          "text/plain",
+          "video/mp4"
+        ]
       }
     },
     {
@@ -4786,6 +4891,102 @@
             "admin:manage"
           ],
           "metadata": {}
+        },
+        {
+          "id": "allow_operator_artifact_upload",
+          "effect": "allow",
+          "actions": [
+            "artifact_upload"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "artifact:upload"
+          ],
+          "metadata": {},
+          "roles": [
+            "operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_artifact_upload",
+          "effect": "allow",
+          "actions": [
+            "artifact_upload"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "artifact:upload"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service"
+          ]
+        },
+        {
+          "id": "allow_admin_artifact_upload",
+          "effect": "allow",
+          "actions": [
+            "artifact_upload"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "artifact:upload"
+          ],
+          "metadata": {},
+          "roles": [
+            "administrator"
+          ]
+        },
+        {
+          "id": "allow_admin_service_artifact_upload",
+          "effect": "allow",
+          "actions": [
+            "artifact_upload"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "artifact:upload"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ]
         }
       ],
       "metadata": {}
@@ -5016,7 +5217,8 @@
         "time:event:write",
         "time:read",
         "time:schedule",
-        "time:timeline"
+        "time:timeline",
+        "artifact:upload"
       ],
       "metadata": {
         "client_boundary": "local_public"
@@ -5081,7 +5283,8 @@
         "time:event:write",
         "time:read",
         "time:schedule",
-        "time:timeline"
+        "time:timeline",
+        "artifact:upload"
       ],
       "metadata": {
         "client_boundary": "hosted_public"
@@ -5138,7 +5341,8 @@
         "time:event:write",
         "time:read",
         "time:schedule",
-        "time:timeline"
+        "time:timeline",
+        "artifact:upload"
       ],
       "metadata": {
         "client_boundary": "admin_console"
@@ -5190,7 +5394,8 @@
         "time:event:write",
         "time:read",
         "time:schedule",
-        "time:timeline"
+        "time:timeline",
+        "artifact:upload"
       ],
       "metadata": {
         "client_boundary": "operator_service"
@@ -5243,7 +5448,8 @@
         "time:event:write",
         "time:read",
         "time:schedule",
-        "time:timeline"
+        "time:timeline",
+        "artifact:upload"
       ],
       "metadata": {
         "client_boundary": "admin_service"
@@ -5261,9 +5467,15 @@
       "invocation_mode": "automated",
       "display_name": "UAV 1 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": ["https://veoveo.bioma.ai/mcp/agent"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/agent"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
@@ -5271,7 +5483,9 @@
         "map:route",
         "time:read"
       ],
-      "metadata": {"client_boundary": "agent"},
+      "metadata": {
+        "client_boundary": "agent"
+      },
       "jwks": {
         "source": "file",
         "path": "/etc/veoveo/gateway/uav-pilot-jwks.json"
@@ -5285,9 +5499,15 @@
       "invocation_mode": "automated",
       "display_name": "UAV 2 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": ["https://veoveo.bioma.ai/mcp/agent"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/agent"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
@@ -5295,7 +5515,9 @@
         "map:route",
         "time:read"
       ],
-      "metadata": {"client_boundary": "agent"},
+      "metadata": {
+        "client_boundary": "agent"
+      },
       "jwks": {
         "source": "file",
         "path": "/etc/veoveo/gateway/uav-pilot-jwks.json"
@@ -5309,9 +5531,15 @@
       "invocation_mode": "automated",
       "display_name": "UAV 3 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": ["https://veoveo.bioma.ai/mcp/agent"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/agent"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
@@ -5319,7 +5547,9 @@
         "map:route",
         "time:read"
       ],
-      "metadata": {"client_boundary": "agent"},
+      "metadata": {
+        "client_boundary": "agent"
+      },
       "jwks": {
         "source": "file",
         "path": "/etc/veoveo/gateway/uav-pilot-jwks.json"
@@ -5333,9 +5563,15 @@
       "invocation_mode": "automated",
       "display_name": "UAV 4 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": ["https://veoveo.bioma.ai/mcp/agent"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/agent"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
@@ -5343,7 +5579,9 @@
         "map:route",
         "time:read"
       ],
-      "metadata": {"client_boundary": "agent"},
+      "metadata": {
+        "client_boundary": "agent"
+      },
       "jwks": {
         "source": "file",
         "path": "/etc/veoveo/gateway/uav-pilot-jwks.json"
