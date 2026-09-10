@@ -317,6 +317,54 @@ async fn operation_status_is_a_cookie_scoped_read_and_rejects_extra_query_author
 }
 
 #[tokio::test]
+async fn access_revocation_keeps_csrf_even_when_it_only_reduces_authority() {
+    let fixture = Fixture::new().await;
+    let computer = Uuid::new_v4();
+    let grant = Uuid::new_v4();
+    let path = format!("/console/api/computers/{computer}/access/{grant}/revoke");
+    let denied = fixture
+        .call(
+            Request::builder()
+                .method("POST")
+                .uri(&path)
+                .header(header::COOKIE, fixture.cookie(false))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+    assert!(fixture.observed.lock().unwrap().is_empty());
+    let accepted = fixture
+        .call(
+            fixture
+                .mutation(&path, false)
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(accepted.status(), StatusCode::OK);
+    {
+        let observed = fixture.observed.lock().unwrap();
+        assert_eq!(observed.len(), 1);
+        assert_eq!(
+            observed[0].path,
+            format!("/computers/admin/{computer}/access/{grant}/revoke")
+        );
+    }
+    let query = fixture
+        .call(
+            fixture
+                .mutation(&format!("{path}?owner=bob"), false)
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(query.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(fixture.observed.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn origin_queries_and_body_limits_fail_before_refresh() {
     let fixture = Fixture::new().await;
     let path = format!("/console/api/computers/{}/terminal-ticket", Uuid::new_v4());

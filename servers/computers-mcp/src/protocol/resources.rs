@@ -7,6 +7,7 @@ use veoveo_mcp_contract::docs::ServerDocs;
 
 pub const COLLECTION: &str = veoveo_computers::api::COMPUTERS_URI;
 pub const COMPUTER_TEMPLATE: &str = "computer://computers/{computer_id}";
+pub const ACCESS_TEMPLATE: &str = "computer://computers/{computer_id}/access";
 pub const PAGE_TEMPLATE: &str = "computer://computers?after={after}";
 pub const DOC_TEMPLATE: &str = "computer://docs/{doc_id}";
 pub static DOCS: LazyLock<ServerDocs> =
@@ -16,6 +17,7 @@ pub static DOCS: LazyLock<ServerDocs> =
 pub enum ResourceId<'a> {
     Collection(Option<Uuid>),
     Computer(Uuid),
+    Access(Uuid),
     Docs,
     Doc(&'a str),
     Contract,
@@ -27,6 +29,9 @@ pub fn parse(uri: &str) -> Option<ResourceId<'_>> {
         "computer://contract" => Some(ResourceId::Contract),
         _ => {
             if let Some(id) = uri.strip_prefix("computer://computers/") {
+                if let Some(id) = id.strip_suffix("/access") {
+                    return canonical_uuid(id).map(ResourceId::Access);
+                }
                 return canonical_uuid(id).map(ResourceId::Computer);
             }
             if let Some(id) = uri.strip_prefix("computer://computers?after=") {
@@ -71,6 +76,11 @@ pub fn roots() -> Vec<Resource> {
 pub fn templates() -> Vec<ResourceTemplate> {
     [
         (COMPUTER_TEMPLATE, "computer", "One private Computer"),
+        (
+            ACCESS_TEMPLATE,
+            "computer-access",
+            "Outstanding access grants for your Computer",
+        ),
         (
             PAGE_TEMPLATE,
             "computer-page",
@@ -121,6 +131,14 @@ impl ComputersMcp {
                 &self
                     .app
                     .computer(&actor, id)
+                    .await
+                    .map_err(super::read_error)?,
+            )?,
+            ResourceId::Access(id) => json(
+                uri,
+                &self
+                    .app
+                    .access_grants(&actor, id)
                     .await
                     .map_err(super::read_error)?,
             )?,

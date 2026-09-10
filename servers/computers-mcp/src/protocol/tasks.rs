@@ -12,6 +12,12 @@ enum LifecycleOutput {
     Completed(LifecycleResult),
     Rejected(ApiError),
 }
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+enum AccessOutput {
+    Completed(AccessRevocation),
+    Rejected(ApiError),
+}
 pub fn tools() -> Vec<Tool> {
     let create = Tool::new("create", "Create a retained Computer using the installation default. Reuse requestId when retrying. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<CreateInput>())
         .with_title("Create Computer").with_output_schema::<LifecycleOutput>()
@@ -33,6 +39,10 @@ pub fn tools() -> Vec<Tool> {
     };
     vec![
         create,
+        Tool::new("revoke_access", "Revoke your Computer access grant. The attachment closes within its access deadline; the Computer keeps running. Repeating revocation is safe.", rmcp::handler::server::tool::schema_for_type::<RevokeAccessInput>())
+            .with_title("Revoke Computer access")
+            .with_output_schema::<AccessOutput>()
+            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
         lifecycle(
             "start",
             "Start a stopped Computer with its retained home. Reuse requestId when retrying. Requires the Tasks extension.",
@@ -77,6 +87,24 @@ impl ComputersMcp {
         mut request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
+        if request.name == "revoke_access" {
+            let actor = auth::actor(&context)?;
+            return match self
+                .app
+                .revoke_access(&actor, input(request.arguments)?)
+                .await
+            {
+                Ok(result) => {
+                    let mut response = CallToolResult::success(vec![ContentBlock::text(
+                        "Access revoked. The Computer keeps running.",
+                    )]);
+                    response.structured_content =
+                        Some(serde_json::to_value(result).map_err(|_| auth::unavailable())?);
+                    Ok(response.into())
+                }
+                Err(error) => rejection(error),
+            };
+        }
         let action = match request.name.as_ref() {
             "create" => Action::Create,
             "start" => Action::Start,

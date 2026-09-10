@@ -22,7 +22,17 @@ and unavailable capacity. An unconfigured installation has no default template o
 capacity limits. Action flags combine current policy, admitted state and availability;
 the server still arbitrates concurrent admission.
 
-The native Console and MCP projections will share this schema. Implemented endpoint
+`access.rs` defines the bounded inventory and idempotent revocation receipt. An access
+grant ID locates an owned record and grants no authority. The inventory includes at
+most 128 outstanding browser grants. Redemption records a past event; it does not
+claim a live attachment. `currentSession` identifies the caller's sign-in family,
+which may include other tabs. `expiresAt` is an upper bound; policy, idle expiry and
+revocation can close access sooner. Public values omit tokens, provider identifiers
+and session-family IDs. These additions reuse the existing stored grant format and
+terminal v2. Older endpoints reject the new routes without mutating a grant; retries
+use the same Computer and grant IDs after the coordinated application rollout.
+
+The native Console and MCP projections share this schema. Implemented endpoint
 coverage belongs in their own designs. Terminal tokens deliberately cannot be
 formatted through Debug or Display; serialization is an explicit secret boundary.
 

@@ -773,7 +773,8 @@
       "tools": [
         "create",
         "start",
-        "stop"
+        "stop",
+        "revoke_access"
       ],
       "prompts": [
         "develop"
@@ -1279,7 +1280,8 @@
             "items": [
               "create",
               "start",
-              "stop"
+              "stop",
+              "revoke_access"
             ]
           },
           "resources": {
@@ -1418,7 +1420,8 @@
             "items": [
               "create",
               "start",
-              "stop"
+              "stop",
+              "revoke_access"
             ]
           },
           "resources": {
@@ -1891,7 +1894,8 @@
             "items": [
               "create",
               "start",
-              "stop"
+              "stop",
+              "revoke_access"
             ]
           },
           "resources": {
@@ -4923,7 +4927,8 @@
           "tools": [
             "create",
             "start",
-            "stop"
+            "stop",
+            "revoke_access"
           ],
           "resource_schemes": [
             "computer"
@@ -4971,7 +4976,8 @@
           "tools": [
             "create",
             "start",
-            "stop"
+            "stop",
+            "revoke_access"
           ],
           "resource_schemes": [
             "computer"

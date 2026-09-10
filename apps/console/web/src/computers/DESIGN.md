@@ -41,6 +41,13 @@ are retained. Storage failure prevents a fresh mutation; clearing ambiguous reco
 state requires explicit review. Late reads cannot restore dismissed receipts or cross
 controller scopes.
 
+`AccessPanel.tsx` shows outstanding browser grants for the selected Computer. The
+existing scope-owned query client isolates results across actors and Work Contexts.
+Collection invalidations refresh the inventory; there is no periodic status query.
+The UI labels sign-in ownership and configured expiry without asserting transport
+liveness. Revoke sends the exact grant ID and keeps the Computer running. A lost
+response can safely retry the same reduction. The panel never receives a grant token.
+
 The terminal module is a separate lazy production chunk. Explicit Connect requests a
 fresh one-use ticket and sends it in the first WebSocket frame. Navigation unmounts
 the attachment and never calls Stop. Disconnect stays disconnected until another

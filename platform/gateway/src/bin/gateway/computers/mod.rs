@@ -35,6 +35,11 @@ pub(crate) fn router(state: ComputersState) -> Router {
             get(control::proxy).post(control::proxy),
         )
         .route("/computers/{profile}/{id}", get(control::proxy))
+        .route("/computers/{profile}/{id}/access", get(control::proxy))
+        .route(
+            "/computers/{profile}/{id}/access/{grant_id}/revoke",
+            post(control::proxy),
+        )
         .route(
             "/computers/{profile}/{id}/operations/{operation_id}",
             get(control::proxy),

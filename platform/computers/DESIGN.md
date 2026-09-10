@@ -149,6 +149,15 @@ a fresh connection. The accepted token may expire while its family and grant rem
 valid. Logout, replay revocation or family expiry ends access without stopping processes.
 An owner can revoke a grant from another authenticated browser family.
 
+The inventory uses the indexed owner/Computer boundary and returns at most 128
+outstanding grants. Expired, revoked and unredeemed expired-ticket rows are excluded.
+Grant IDs are addresses; the domain verifies their parent and current owner before
+revocation. Revocation requires current Computer read authority and only reduces the
+owner's existing access. It does not require permission to issue new access or stop
+the Computer. A repeat preserves the first revocation and emits no duplicate event.
+This owner reduction is available through native HTTP. MCP invocation additionally
+passes the gateway's normal tool-exposure and `tools/call` admission.
+
 Every grant read has a five-second budget. The resulting monotonic lease lasts at most
 thirty seconds from the start of the read, capped by database-relative absolute, idle and
 family expiry. The transport renews within ten seconds and closes on failed renewal.

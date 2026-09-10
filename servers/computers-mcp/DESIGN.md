@@ -142,6 +142,15 @@ operation status. Current Computer read authority and original operation ownersh
 apply; a mismatched parent is not found. The read neither dispatches work nor queries
 the provider. MCP clients retain `tasks/get` as their canonical Task read path.
 
+GET `/admin/computers/{id}/access` and resource
+`computer://computers/{computer_id}/access` read the same owned grant inventory.
+POST `/admin/computers/{id}/access/{grant_id}/revoke` accepts a closed empty JSON body;
+the synchronous `revoke_access` tool accepts the same IDs as arguments. Both return a
+typed revocation receipt. Revocation is idempotent and needs no provider mutation or
+Tasks extension. The domain applies current owner/read authority even when new access
+is no longer admitted. Current service leases close the attachment; execution remains
+running. Grant outbox events invalidate the collection, Computer and access resource.
+
 Each request admits at most 64 KiB and has a thirty-second response deadline.
 A timeout does not certify whether admission committed; retry uses the same request
 ID. The shared MCP middleware enforces the final serialized 8 MiB response cap.

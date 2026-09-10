@@ -18,6 +18,12 @@ and TLS trust. Public callers cannot choose a host, provider or internal route.
 GET `/computers/{profile}/{id}/operations/{operation_id}` projects a stored operation
 receipt under its parent's current `resources/read` authority. It requires no mutation
 permission. Both returned IDs must match the route; inputs cannot add query authority.
+
+The `/access` child exposes outstanding grants and POST `/access/{grant_id}/revoke`
+reduces the owner's existing access under current parent read authority. It accepts
+only an empty JSON body; contributor and new-attachment permission are unnecessary.
+Returned parent/grant IDs and the bounded inventory are validated before forwarding.
+Revocation stays within the Computer domain and never issues a provider command.
 These are gateway-owned routes, independent of extension-owned route declarations.
 
 Read uses ResourcesRead on the canonical collection or exact Computer resource.

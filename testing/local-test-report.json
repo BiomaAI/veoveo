@@ -1,10 +1,27 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:8ff21b9fcda09462f125f682364acbd4bed4e2ddfc4a3d7e63e66f52befe38ab",
-  "updatedAt": "2026-09-10T16:14:45Z",
+  "buildDigest": "sha256:d4be2d64190316ab45a8f49ccb18dd1e0ecbfa2332e3dd55655bd0f781033710",
+  "updatedAt": "2026-09-10T16:35:22Z",
   "checks": [
     {
-      "name": "computers-receipts-installation",
+      "name": "computers-access-application",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-mcp",
+        "--test",
+        "application"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:34:51Z",
+      "durationSeconds": 2.359267333,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-catalog",
       "command": [
         "cargo",
         "xtask",
@@ -12,8 +29,156 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T16:14:45Z",
-      "durationSeconds": 6.385485504,
+      "finishedAt": "2026-09-10T16:34:10Z",
+      "durationSeconds": 10.789185796,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-client-types",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "client-types",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:35:19Z",
+      "durationSeconds": 0.814957342,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-edges",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "--bins",
+        "computers::"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:35:05Z",
+      "durationSeconds": 2.224368408,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:35:22Z",
+      "durationSeconds": 2.681589437,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-http",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-mcp",
+        "--test",
+        "http"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:35:02Z",
+      "durationSeconds": 10.455559119,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-installation-contract",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-bioma-acceptance",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:34:26Z",
+      "durationSeconds": 14.562156019,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-lint",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-mcp",
+        "-p",
+        "veoveo-console-bff",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:34:29Z",
+      "durationSeconds": 1.468829367,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-store",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers",
+        "--test",
+        "session_grants"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:34:47Z",
+      "durationSeconds": 17.324997258,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-web-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:35:12Z",
+      "durationSeconds": 6.315282901,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-access-web-lint",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:35:17Z",
+      "durationSeconds": 4.466607125,
       "detail": "completed successfully"
     }
   ]

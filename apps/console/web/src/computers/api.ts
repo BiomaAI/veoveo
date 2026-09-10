@@ -56,6 +56,23 @@ export async function terminalTicket(id: string, signal?: AbortSignal) {
   }
   return ticket;
 }
+export async function readAccessGrants(computerId: string, signal?: AbortSignal) {
+  const grants = parseComputer("access_grants", await consoleJson(
+    `computers/${encodeURIComponent(computerId)}/access`, undefined, signal,
+  ));
+  if (grants.computerId !== computerId)
+    throw new Error("The access inventory could not be verified.");
+  return grants;
+}
+export async function revokeAccess(computerId: string, grantId: string, signal?: AbortSignal) {
+  const receipt = parseComputer("access_revocation", await consoleJson(
+    `computers/${encodeURIComponent(computerId)}/access/${encodeURIComponent(grantId)}/revoke`,
+    {}, signal,
+  ));
+  if (receipt.computerId !== computerId || receipt.grantId !== grantId || !receipt.revoked)
+    throw new Error("The access revocation could not be verified.");
+  return receipt;
+}
 export function computerError(error: unknown): string {
   if (error instanceof ConsoleHttpError) {
     let fault: ApiError | undefined;

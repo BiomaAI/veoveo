@@ -191,7 +191,10 @@ impl ServerHandler for ComputersMcp {
         let actor = auth::actor(&context)?;
         if let (Reference::Resource(reference), "computer_id") =
             (&request.r#ref, request.argument.name.as_str())
-            && reference.uri == resources::COMPUTER_TEMPLATE
+            && matches!(
+                reference.uri.as_str(),
+                resources::COMPUTER_TEMPLATE | resources::ACCESS_TEMPLATE
+            )
         {
             let authority = self
                 .app

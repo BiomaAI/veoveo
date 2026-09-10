@@ -2,6 +2,7 @@
 //! handle; current family, policy, Computer run and grant state bound every renewal.
 mod admission;
 mod authority;
+mod inventory;
 mod model;
 mod policy;
 mod renewal;
