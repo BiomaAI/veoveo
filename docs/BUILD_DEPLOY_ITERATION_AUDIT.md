@@ -2988,3 +2988,29 @@ correction invalidated the v2 report's unrelated successful checks and required 
 again. That cost remains an explicit input to the scoped-receipt workstream. The HTTP
 fixture also corrected an invalid assumption: cancellation request acceptance does not
 settle a lifecycle operation before the worker proves it remained undispatched.
+
+Access-inventory and revocation publication from `16349e88` took 124.303 seconds
+for Computers MCP, gateway and Console. Compilation took 70.297 seconds with 51
+changed paths. Extraction took 5.765 seconds. Observed SBOM, provenance, timestamp,
+export and push windows overlapped; the 44.330-second export window cannot be added
+to their individual durations. Host and template digests remained unchanged. Helm
+revision 145 installed the matching gateway catalog and application images.
+
+The public Console issued browser access at 16:47:35 UTC. Clicking Revoke closed
+the attachment within 897 ms of arming the browser observation; this includes
+interaction overhead and is not a direct network-close measurement. Inventory became
+empty while the Computer remained Ready at its previous lifecycle revision. A fresh
+connection read `public-retention-check.txt` from the original home and returned UID
+10001. Headed Chrome and the terminal canvas reported NVIDIA RTX 4090 WebGL; WebGPU
+reported a fallback adapter. The inspected capture is in the ignored development
+artifact `computers-provider/public-access-revocation-20260910.png`.
+
+Post-rollout access briefly failed around 16:41–16:43 UTC. The gateway reported
+five-second current access-token session read deadlines; some Console requests took
+10–15 seconds. Reads recovered without a restart, with four subsequent access reads
+at 119–169 ms. SurrealDB had an eight-core limit and used approximately two cores.
+A new independent connection completed a clock query in 0.378 seconds, which does
+not establish that persisted session records were readable during the failure.
+Connection backpressure and record-level contention remain unproven causes. This
+recurring availability defect stays open; the successful later journey does not
+qualify rollout continuity.
