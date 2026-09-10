@@ -104,6 +104,19 @@ impl ComputersStore {
             {
                 return Err(ComputerError::RequestConflict);
             }
+            for (message, error) in [
+                ("computer_not_found", ComputerError::NotFound),
+                ("computer_operation_busy", ComputerError::OperationBusy),
+                ("computer_state_conflict", ComputerError::StateConflict),
+                ("computer_invalid_state", ComputerError::InvalidState),
+            ] {
+                if errors
+                    .values()
+                    .any(|e| e.is_thrown() && e.message().contains(message))
+                {
+                    return Err(error);
+                }
+            }
             let conflict = errors.values().any(|e| {
                 matches!(
                     e.query_details(),

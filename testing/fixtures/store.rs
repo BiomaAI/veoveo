@@ -19,7 +19,9 @@ impl Drop for PendingContainer {
     }
 }
 fn stop(name: &str) {
-    let _ = Command::new("docker").args(["stop", name]).output();
+    let _ = Command::new("docker")
+        .args(["rm", "--force", name])
+        .output();
 }
 impl Drop for TestDb {
     fn drop(&mut self) {

@@ -3,10 +3,13 @@ mod admission;
 mod capacity;
 mod identity;
 mod model;
+mod operation;
+mod operation_admission;
 mod store;
 
 pub use admission::{CapacityPolicy, Reservation};
 pub use model::{Computer, ComputerPage};
+pub use operation::{Operation, OperationStage};
 pub use store::ComputersStore;
 pub use veoveo_computers_contract as api;
 
@@ -16,12 +19,20 @@ pub enum ComputerError {
     NotFound,
     #[error("Computer input is invalid")]
     InvalidInput,
+    #[error("Current Work Context authority does not permit this Computer action")]
+    Forbidden,
     #[error("Computer capacity is full")]
     CapacityFull,
     #[error("Request ID was already used with different inputs")]
     RequestConflict,
     #[error("Computer capacity policy changed")]
     PolicyConflict,
+    #[error("Computer already has an active operation")]
+    OperationBusy,
+    #[error("Computer state changed")]
+    StateConflict,
+    #[error("Computer action requires a different lifecycle state")]
+    InvalidState,
     #[error("Computer state is unavailable")]
     Unavailable,
 }

@@ -59,6 +59,7 @@ impl ComputersStore {
     /// An exact retry resolves its original Computer, including after a quota reduction.
     pub async fn reserve(&self, owner: &TaskOwner, input: &Reservation) -> Result<Computer> {
         input.validate()?;
+        can_mutate(owner)?;
         let key = owner_key(owner)?;
         let request_key = digest(&("veoveo.computer.create.v1", &key, input.request_id))?;
         let request = RecordId::new("computer_request", request_key);
