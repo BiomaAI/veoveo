@@ -7,6 +7,7 @@
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
+| XChaCha20-Poly1305 and HMAC-SHA-256 | Private queued-command envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
 | Shared Tasks | Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
@@ -290,6 +291,38 @@ Console validators enforce bounds and closed input objects. The selected Zod
 converter does not enforce JSON Schema `uniqueItems`; Rust represents permissions
 as a set. Public protocol integration must qualify its schema validation, including
 duplicate permissions. These checks do not establish public agent execution.
+
+## Queued Command Confidentiality
+
+`command_secrets/` protects argv, environment and finite stdin before durable
+admission. The envelope authenticates the Computer, named grant, actual actor,
+owner, request and execution identities together with the selected provider run
+and template. Time and output limits are inside the encrypted payload. It reuses
+the qualified guest frame rather than defining another command serializer.
+
+Installation-owned 256-bit keys derive separate encryption and fingerprint keys
+through HMAC-SHA-256 with fixed domain labels. XChaCha20-Poly1305 uses a fresh random
+192-bit nonce for every seal. The private request fingerprint is keyed; a database
+copy does not expose an unkeyed digest for guessing command secrets. Opening checks
+both envelope authentication and the exact bounded guest frame, including refusal
+of trailing bytes. Errors contain no command or parser excerpts. Secret-bearing
+payloads and envelopes have no Debug or Display surface. Plaintext buffers and raw
+keys are zeroized on ordinary drop; this is not a claim against privileged memory
+inspection or forensic recovery from an arbitrary host.
+
+A bounded key ring writes with one active key and retains up to four keys for reads.
+Exact request comparisons use the original envelope's key after rotation. A missing
+key or damaged envelope fails closed and cannot create a fresh dispatch. Key removal
+requires draining or re-encrypting all work and backups that need it. Automatic
+re-encryption, Secret mounting and Task-ledger admission remain integration work;
+the codec itself does not authorize a command or establish installed key rotation.
+
+The implementation uses the existing RustCrypto dependencies. The authoritative
+crates.io registry confirmed stable chacha20poly1305 0.11.0, hmac 0.13.0 and zeroize
+1.9.0 on 2026-09-10; the workspace now pins these exact versions without changing
+the selected releases. Tests cover run/owner/grant rebinding, authenticated limits,
+randomized ciphertext, retained-key retry, key removal, corrupt envelopes and strict
+framing. No provider or installation is needed for these pure checks.
 
 ## Lifecycle Dispatch
 

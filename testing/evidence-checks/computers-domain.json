@@ -6,6 +6,27 @@
         "cargo",
         "test",
         "-p",
+        "veoveo-computers",
+        "--lib"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
         "veoveo-computers-contract"
       ],
       "inputs": {

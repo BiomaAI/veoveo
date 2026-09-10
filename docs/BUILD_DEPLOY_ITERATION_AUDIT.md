@@ -3234,3 +3234,12 @@ The additive automation migration does not require unrelated service rebuilds:
 ordinary runtime connections do not run the migration catalog. Deployment must use
 the new qualified migration runner before enabling the new surface. A rollback
 retains that runner because an older catalog rejects a database ahead of it.
+
+
+Adding command encryption to the Computers domain changed its dependency feature
+composition and rebuilt the SurrealDB client graph, even though selected dependency
+versions were unchanged. The first pure six-case test took 1 minute 48 seconds to
+compile and 0.01 seconds to execute. This was a local Cargo build, with no provider
+recompilation or installation restart. Domain feature boundaries remain a measurable
+source of iteration cost; the following recorded warm check separates that compile
+cost from test execution.

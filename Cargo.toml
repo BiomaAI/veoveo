@@ -72,7 +72,7 @@ axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 base64 = "0.23.1"
 bevy = { version = "=0.19.1", default-features = false }
 bytes = "1.12.1"
-chacha20poly1305 = { version = "0.11.0", features = ["alloc", "getrandom", "rand_core"] }
+chacha20poly1305 = { version = "=0.11.0", features = ["alloc", "getrandom", "rand_core"] }
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
 clap = { version = "4.6.6", features = ["derive", "env"] }
 dotenvy = "0.15.7"
@@ -91,7 +91,7 @@ geojson = { version = "1.0.0", features = ["geo-types"] }
 getrandom = "0.4.3"
 http = "1.5.0"
 hex = "=0.4.3"
-hmac = "0.13.0"
+hmac = "=0.13.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
 hifitime = { version = "4.3.1", default-features = false, features = ["std"] }
 h264-reader = "=0.8.0"
@@ -178,7 +178,7 @@ traci-rs = "0.2.0"
 url = "=2.5.8"
 uuid = { version = "1.24.1", features = ["serde", "v4", "v5", "v7"] }
 x509-parser = "=0.18.1"
-zeroize = "1.9.0"
+zeroize = "=1.9.0"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-deploy-contract = { path = "deploy/contract" }

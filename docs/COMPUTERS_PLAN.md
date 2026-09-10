@@ -526,6 +526,12 @@ generated DTOs are local implementation work until the public grant surface and
 fenced command Tasks are deployed. A current authority read is not a dispatch permit,
 and revoking a grant alone does not establish process termination.
 
+The private queued-command codec now encrypts the qualified guest frame under
+installation-owned keys and authenticates the exact owner, actor, grant and native
+run. Pure tests cover secret-free envelopes, rebinding refusal, tampering and request
+comparison after key rotation. Command admission, key mounting and Task dispatch are
+still required before this becomes usable agent execution.
+
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
 
