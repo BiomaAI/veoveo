@@ -1,6 +1,7 @@
 //! Shared pure authorization rules. Authentication and durable freshness are callers' responsibilities.
 mod catalog;
 mod evaluation;
+pub mod session;
 pub use catalog::{PolicyCatalog, PolicyCatalogView};
 pub use evaluation::{
     PolicyRequest, RecordingIngestPolicyDecision, RecordingIngestPolicyRequest, decide,

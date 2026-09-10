@@ -2616,3 +2616,19 @@ identity in CE-06 receipts. A service-only check and a combined runtime check ca
 different Cargo closures even when source is unchanged. The native provider and
 Computer image were not rebuilt for this checkpoint. Packaging and public rollout
 remain active work.
+
+The shared browser-family decision now serves gateway authentication and Computers
+control. Local real-store subscription cases cover logout and absolute family expiry
+before assertion expiry. Rotation preserves the family, while mismatched authority
+fields fail closed. A test-client initialization race surfaced when HTTP cases ran
+independently; both client constructors now explicitly install their TLS provider.
+Review also found that awaiting renewal inside a timer branch could delay closure.
+The guard now polls expiry and cancellation during that read and during blocked I/O.
+
+A broad gateway all-target lint found existing warnings in
+`admin/console/projection.rs` (`BTreeSet<RecordId>` interior mutability) and
+`artifact_upload.rs` (eight extractor arguments). Those binary paths are unchanged
+by this checkpoint and remain recorded cleanup work before the gateway route work.
+The current receipt scopes gateway lint to its changed library. Combining its feature
+graph with the Computers runtime also rebuilt SurrealDB lint metadata; stable command
+and feature closures remain relevant to CE-06. No provider or image rebuild was needed.

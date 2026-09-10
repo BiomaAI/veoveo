@@ -8,6 +8,7 @@
 | MCP 2026-07-28 | Canonical method/action names and domain resource ownership; evaluation itself performs no protocol I/O |
 | JSON / JSON Schema 2020-12 | Models remain owned by `mcp/contract`; this extraction adds no wire fields or policy versions |
 | SurrealDB 3.2.4 | Caller-owned current revision read in `platform/store`; the evaluator has no database dependency |
+| Veoveo session-family authority | Internal read-only projection of the stored refresh family and verified request context; no new token or stored wire format |
 
 Gateway requests and Computers workers need the same policy decision. This library
 owns the pure evaluator previously embedded in the gateway. It depends on canonical
@@ -32,3 +33,12 @@ exact retained revision in one round trip. It distinguishes an absent installati
 pointer from a dangling or inconsistent revision. The gateway uses this same reader.
 Readers capture monotonic time before the request and charge all read and validation
 latency against any authority lease they issue afterwards.
+
+`session::SessionFamilyAuthority` owns the pure browser-family binding decision used
+by gateway requests and Computer control. The caller reads the exact signed family ID
+from its authority store and verifies the returned record ID. The projection validates
+identity, authorization server, profile, client, Work Context, scopes and family state.
+Refresh rotation preserves access within that family. Display metadata has no role in
+this decision. Corrupt authority fields fail decoding without exposing their values.
+Callers still authenticate the token and enforce its issuer, audience and time bounds.
+This helper neither reads a database nor authorizes renewal from a cached family.

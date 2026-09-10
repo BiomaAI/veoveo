@@ -329,6 +329,7 @@ async fn sdk(
     server: &Server,
     bearer: String,
 ) -> rmcp::service::RunningService<rmcp::RoleClient, rmcp::model::ClientInfo> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     use rmcp::{
         ClientServiceExt,
         model::ClientInfo,
@@ -514,4 +515,84 @@ async fn subscription_assertion_expiry_and_foreign_targets_deliver_no_private_up
         .expect("expired subscription remained open");
     assert!(end.is_err() || matches!(end, Ok(None)));
     alice.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn subscription_closes_on_current_family_logout_or_expiry_before_assertion_expiry() {
+    use rmcp::model::{ServerNotification, SubscriptionFilter};
+    use veoveo_platform_store::{GatewayRefreshFamilyRecord, gateway_refresh_family_record_id};
+    let db = support::TestDb::new().await;
+    app_support::identities(&db).await;
+    let signing = Signing::new();
+    let a = Server::new(app_support::application(&db, false).await.0, &signing).await;
+    for ending in ["logout", "expiry"] {
+        let id = Uuid::now_v7();
+        let record = gateway_refresh_family_record_id(id);
+        let mut identity = support::identity(&support::owner("alice"));
+        identity
+            .request_context
+            .as_mut()
+            .unwrap()
+            .access_token
+            .session_family = Some(GatewayRefreshFamilyId::new(id.to_string()).unwrap());
+        let source = &identity.request_context.as_ref().unwrap().principal;
+        let now = chrono::Utc::now();
+        let family = GatewayRefreshFamilyRecord {
+            id: record.clone(),
+            authorization_server: "veoveo".into(),
+            profile: "operator".into(),
+            oauth_client_id: "console".into(),
+            work_context: identity.authority.work_context.to_string(),
+            principal_id: source.id.to_string(),
+            tenant: source.tenant.as_ref().map(ToString::to_string),
+            scopes: source.scopes.iter().map(ToString::to_string).collect(),
+            principal: serde_json::from_value(
+                json!({"principal":source,"principal_display_name":"fixture"}),
+            )
+            .unwrap(),
+            current_generation: 0,
+            issued_at: now,
+            expires_at: now + chrono::TimeDelta::seconds(if ending == "expiry" { 3 } else { 120 }),
+            revoked_at: None,
+            revocation_reason: None,
+        };
+        let _: Option<GatewayRefreshFamilyRecord> =
+            db.b.client()
+                .create(record.clone())
+                .content(family)
+                .await
+                .unwrap();
+        let peer = sdk(
+            &a,
+            signing.identity(identity, "computers", now + chrono::TimeDelta::minutes(2)),
+        )
+        .await;
+        let mut updates = tokio::time::timeout(
+            Duration::from_secs(5),
+            peer.listen(
+                SubscriptionFilter::builder()
+                    .resource_subscription("computer://computers")
+                    .build(),
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(matches!(
+            tokio::time::timeout(Duration::from_secs(2), updates.next())
+                .await
+                .unwrap()
+                .unwrap(),
+            Some(ServerNotification::ResourceUpdatedNotification(_))
+        ));
+        if ending == "logout" {
+            db.b.client().query("UPDATE ONLY $family SET revoked_at = time::now(), revocation_reason = 'logout';")
+                .bind(("family", record)).await.unwrap().check().unwrap();
+        }
+        let end = tokio::time::timeout(Duration::from_secs(7), updates.next())
+            .await
+            .expect("session-bound subscription exceeded its access deadline");
+        assert!(end.is_err() || matches!(end, Ok(None)));
+        peer.cancel().await.unwrap();
+    }
 }

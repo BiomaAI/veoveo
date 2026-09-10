@@ -1,4 +1,5 @@
 mod auth;
+mod guard;
 pub(crate) mod resources;
 mod subscriptions;
 mod tasks;

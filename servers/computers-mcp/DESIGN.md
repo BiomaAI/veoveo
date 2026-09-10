@@ -141,9 +141,11 @@ Task notifications use the shared durable Task subscription helper. All notifica
 remain filtered by current ownership and requested targets. Provider events and terminal
 contents never enter these streams.
 
-Current policy is checked every five seconds, with a five-second authority-read bound.
-The signed assertion expiry caps the entire listener, including initialization and a
-blocked sink. Cancellation and expiry run outside the data pump. Loss of current
+Current policy and the signed browser family are checked every five seconds, with a
+shared five-second authority-read bound. The earliest assertion, token, known family
+expiry or current-policy deadline caps the entire listener, including initialization
+and a blocked sink. The guard polls cancellation and expiry while the data pump or
+an authority read is blocked. Loss of current
 authority closes the stream; a client must present renewed authority on a new request.
 This is control-state subscription behavior, distinct from renewable terminal grants.
 
@@ -195,7 +197,7 @@ proves truthful control availability and validated configuration, not native cap
 Real-store HTTP fixtures use distinct database connections and service replicas. They
 exercise missing-capability admission, exact retry identity, private Task/resource
 access, schema bounds, current cancellation policy, reconnect baselines and subscription
-closure after revocation or assertion expiry. Capacity health is synthetic in these
+closure after policy removal, logout, family expiry or assertion expiry. Capacity health is synthetic in these
 fixtures; they establish neither provider execution nor installed acceptance.
 Its native fixture uses the actual current-policy reader, isolated installation
 revision, production retained allocator and native OpenShell provider. Two worker

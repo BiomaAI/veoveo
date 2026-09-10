@@ -36,7 +36,18 @@ impl Signing {
         audience: &str,
         expires: chrono::DateTime<chrono::Utc>,
     ) -> String {
-        let id = support::identity(&support::owner(subject));
+        self.identity(
+            support::identity(&support::owner(subject)),
+            audience,
+            expires,
+        )
+    }
+    pub fn identity(
+        &self,
+        id: GatewayInternalIdentity,
+        audience: &str,
+        expires: chrono::DateTime<chrono::Utc>,
+    ) -> String {
         self.issuer
             .issue(
                 id.profile,

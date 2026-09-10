@@ -18,7 +18,7 @@ impl ComputersMcp {
         request: &RequestContext<RoleServer>,
         uris: &[String],
         tasks: &[String],
-    ) -> Result<ComputerActor, ErrorData> {
+    ) -> Result<(ComputerActor, std::time::Instant), ErrorData> {
         let actor = auth::actor(request)?;
         let control = self
             .app
@@ -62,7 +62,7 @@ impl ComputersMcp {
                 .require_read(Some(operation.computer_id))
                 .map_err(|_| auth::forbidden())?;
         }
-        Ok(actor)
+        Ok((actor, control.valid_until()))
     }
     pub(super) async fn listen_updates(
         &self,
@@ -88,16 +88,12 @@ impl ComputersMcp {
                 None,
             ));
         }
-        let actor = tokio::time::timeout(
+        let (actor, deadline) = tokio::time::timeout(
             Duration::from_secs(5),
             self.validate_listener(context.request_context(), &uris, &task_ids),
         )
         .await
         .map_err(|_| auth::unavailable())??;
-        let remaining = (auth::identity(context.request_context())?.expires_at
-            - chrono::Utc::now())
-        .to_std()
-        .map_err(|_| auth::forbidden())?;
         let pump = async {
             let mut tasks: DurableTaskUpdateStream = if task_ids.is_empty() {
                 Box::pin(futures::stream::pending())
@@ -163,23 +159,21 @@ impl ComputersMcp {
                 }
             }
         };
-        tokio::pin!(pump);
-        let expires = tokio::time::sleep(remaining);
-        tokio::pin!(expires);
-        let mut recheck = tokio::time::interval(Duration::from_secs(5));
-        recheck.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        recheck.tick().await;
-        loop {
-            // The authority guard is outside the pump, including a blocked sink.
-            tokio::select! {
-                biased;
-                _ = &mut expires => return Err(auth::forbidden()),
-                _ = context.cancelled() => return Ok(()),
-                result = &mut pump => return result,
-                _ = recheck.tick() => {
-                    tokio::time::timeout(Duration::from_secs(5), self.validate_listener(context.request_context(), &uris, &task_ids)).await.map_err(|_| auth::unavailable())??;
-                }
-            }
-        }
+        super::guard::run(
+            deadline,
+            Duration::from_secs(5),
+            context.cancelled(),
+            pump,
+            || async {
+                tokio::time::timeout(
+                    Duration::from_secs(5),
+                    self.validate_listener(context.request_context(), &uris, &task_ids),
+                )
+                .await
+                .map_err(|_| auth::unavailable())?
+                .map(|(_, deadline)| deadline)
+            },
+        )
+        .await
     }
 }
