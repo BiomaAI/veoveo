@@ -35,4 +35,5 @@ typify = { version = "=0.8.0", default-features = false }
 
 [dev-dependencies]
 rcgen.workspace = true
+tokio = { workspace = true, features = ["process"] }
 tokio-stream = { version = "=0.1.19", features = ["net"] }
