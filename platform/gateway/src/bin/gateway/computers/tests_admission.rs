@@ -2,6 +2,7 @@
 #[path = "../../../../../../testing/fixtures/store.rs"]
 mod store;
 use super::*;
+use axum::extract::{Extension, State};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{TimeDelta, Utc};
 use routes::{Operation, Route};
@@ -70,6 +71,55 @@ fn subject() -> AuthenticatedSubject {
         principal_display_name: None,
         authority,
     }
+}
+
+#[tokio::test]
+async fn session_bootstrap_is_available_without_inventory_authority_and_tracks_current_policy() {
+    let state = crate::console::ConsoleState {
+        catalog: GatewayCatalogHandle::new(Arc::new(
+            GatewayCatalog::from_control_plane(control()).unwrap(),
+        )),
+        offline_mode: true,
+    };
+    let profile = GatewayProfileId::new("operator").unwrap();
+    for admin in [false, true, false] {
+        let mut next = control();
+        if admin {
+            let rule = &mut next.policies[0].rules[0];
+            rule.actions = [GatewayAction::AdminRead].into_iter().collect();
+            rule.servers.clear();
+            rule.tools.clear();
+        }
+        state
+            .catalog
+            .replace(Arc::new(GatewayCatalog::from_control_plane(next).unwrap()));
+        let response = crate::console::bootstrap(
+            State(state.clone()),
+            axum::extract::Path(profile.clone()),
+            Extension(subject()),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
+            .await
+            .unwrap();
+        let bootstrap: ConsoleBootstrap = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(bootstrap.can_read_installation, admin);
+        assert_eq!(bootstrap.session.actor_id, subject().actor.id);
+        assert_eq!(
+            bootstrap.session.work_context,
+            subject().authority.work_context
+        );
+        assert!(bootstrap.installation.offline_mode);
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(value.get("principals").is_none());
+        assert!(value.get("servers").is_none());
+    }
+    assert_eq!(
+        crate::runtime::profile_id_from_gateway_path("/console-api/operator/session"),
+        Some(profile)
+    );
 }
 
 #[tokio::test]

@@ -103,6 +103,12 @@ enum ImageCommand {
 
 #[derive(Debug, Subcommand)]
 enum ReleaseCommand {
+    /// Generate browser models from the canonical Rust wire schemas.
+    ClientTypes {
+        /// Verify the committed outputs without modifying them.
+        #[arg(long)]
+        check: bool,
+    },
     /// Check host and optional Kubernetes headroom before an expensive release.
     Preflight(ReleasePreflightArgs),
     /// Inspect or reclaim older regenerable host Cargo outputs.
@@ -527,6 +533,9 @@ fn main() -> Result<()> {
             }
         },
         Command::Release { command } => match command {
+            ReleaseCommand::ClientTypes { check } => {
+                commands::client_types::run(&repository, check)
+            }
             ReleaseCommand::Preflight(args) => release_preflight::run(&repository, &args),
             ReleaseCommand::CachePrune(args) => commands::release_cache::run(&repository, &args),
             ReleaseCommand::Images(args) => {

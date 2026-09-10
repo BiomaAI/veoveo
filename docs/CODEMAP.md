@@ -160,6 +160,12 @@ Hub, administration, and GPU policy.
 | `platform/computers/src/session_grants/` and `queries/*session_grant*` | durable browser tickets, installation grant limits, one-use redemption, current family/policy/run renewal and exact-connection revocation; service terminal composition lives in `servers/computers-mcp`; public Console/CLI and agent grants remain delivery work |
 | `platform/computers/transport/` | shared gateway/BFF WebSocket handshake and bounded terminal-v2 relays, service-issued deadline enforcement and clock allowance; independent of the domain store and private provider SDK; integration qualification remains in progress |
 | `platform/gateway/src/bin/gateway/computers/` | fixed profile-scoped Computer control and terminal routes, domain action policy and audit, admitted upstream trust and bounded terminal relay |
+| [`platform/gateway/src/bin/gateway/console/`](../platform/gateway/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap independent of administrator inventory, current navigation permission and shared branding/identity presentation |
+| [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session edge with bounded typed responses and refresh settlement |
+| [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | canonical Rust schema export and pinned TypeScript conversion; `release client-types --check` detects generated-model drift |
+| `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
+| [`apps/console/web/src/computers/`](../apps/console/web/src/computers/DESIGN.md) | native collection, retained lifecycle request recovery, bounded live invalidations, lazy hardware terminal and replay/lease state machine; installed acceptance remains in progress |
+| `apps/console/web/src/generated/`, `generatedContracts.ts` | generated Computer/Console schemas and TypeScript models plus qualified pinned-Zod runtime validation |
 | `apps/console/bff/src/computers/` | native Computer HTTP/WebSocket edge, Console cookie/CSRF and Origin admission, ticket endpoint projection and shared relay; native page and installed acceptance remain in progress |
 | `apps/console/bff/src/mcp_client/resources.rs` | shared App/native resource subscriptions, exact acknowledgment, bounded capacity, cancellation cleanup and explicit source-loss retirement |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
@@ -955,14 +961,14 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
+| `App.tsx`, `bootstrap.ts` | authenticated application shell, identity-scoped query clients, core Computers navigation, permission-gated inventory and catalog-driven MCP App entries |
 | `uploads/` | persistent, identity-scoped artifact upload queue, bounded worker hashing, progress transport, and accessible selection/recovery panel; governed by its local `DESIGN.md` |
 | `csrf.ts` | ephemeral CSRF state shared by JSON and raw-body upload transports |
 | `appHost.tsx`, `StandaloneAppHost.tsx`, `standaloneBootstrap.ts` | minimal standalone App entry, authorized same-path bootstrap, shared OAuth/CSRF settlement, authorized title, and Console return link |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, exact same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
 | `views/Agents.tsx`, `agentControl.ts` | reactive agent state, actor-attributed conversation, durable message submission, pending input-request decisions, and client-owned UUIDv7 retry identity |
-| `views/` | remaining platform-plane views (overview, work, artifacts, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
+| `views/` | platform-plane views (overview, work, artifacts, MCP, apps, access, audit, cluster); core Computers has an accepted projection in `computers/`, and other domain views ship as MCP Apps |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF previews with explicit governed-access failures |
@@ -1011,6 +1017,8 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 - Change a domain administrative surface in its owning server as scope-gated MCP tools and
   resources, and represent it in the browser through the server's MCP App view — never a
   bespoke admin REST router, BFF proxy route, or hardcoded console page.
+  The accepted core Computers exception uses its domain-owned commands and generated
+  contracts through the native Console projection indexed above.
 - Change browser behavior through `apps/console/bff` plus `apps/console/web`; do not expose gateway
   tokens to JavaScript.
 - Change Recording Explorer bulk projection delivery through

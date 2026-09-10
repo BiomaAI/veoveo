@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "ConsoleInstallation": {
+      "additionalProperties": false,
+      "properties": {
+        "accentColor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "logo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "offlineMode": {
+          "type": "boolean"
+        },
+        "productLabel": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "productLabel",
+        "version",
+        "offlineMode",
+        "generatedAt"
+      ],
+      "type": "object"
+    },
+    "ConsoleSession": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "availableTenants": {
+          "items": {
+            "$ref": "#/$defs/ConsoleTenant"
+          },
+          "type": "array"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "invocationMode": {
+          "$ref": "#/$defs/InvocationMode"
+        },
+        "membership": {
+          "$ref": "#/$defs/WorkContextMembershipLevel"
+        },
+        "principalId": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "tenantId": {
+          "$ref": "#/$defs/TenantId"
+        },
+        "tenantName": {
+          "type": "string"
+        },
+        "workContext": {
+          "$ref": "#/$defs/WorkContextId"
+        },
+        "workContextTitle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "displayName",
+        "principalId",
+        "actorId",
+        "tenantId",
+        "tenantName",
+        "workContext",
+        "workContextTitle",
+        "membership",
+        "invocationMode",
+        "availableTenants"
+      ],
+      "type": "object"
+    },
+    "ConsoleTenant": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/TenantId"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "GatewayProfileId": {
+      "description": "Veoveo profile id exposed under `/mcp/{profile}`.",
+      "type": "string"
+    },
+    "InvocationMode": {
+      "description": "How the current actor obtained authority to perform the work.",
+      "enum": [
+        "direct",
+        "delegated",
+        "automated"
+      ],
+      "type": "string"
+    },
+    "PrincipalId": {
+      "description": "Stable authenticated user or service-principal identity.",
+      "type": "string"
+    },
+    "TenantId": {
+      "description": "Tenant, organization, or customer boundary identifier.",
+      "type": "string"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    },
+    "WorkContextMembershipLevel": {
+      "description": "A member's authority inside one Work Context.\n\nOrdering is intentional. It lets an enforcement point compare the current\nmembership with the minimum level required by an operation.",
+      "enum": [
+        "viewer",
+        "contributor",
+        "custodian",
+        "owner"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canReadInstallation": {
+      "type": "boolean"
+    },
+    "installation": {
+      "$ref": "#/$defs/ConsoleInstallation"
+    },
+    "profile": {
+      "$ref": "#/$defs/GatewayProfileId"
+    },
+    "session": {
+      "$ref": "#/$defs/ConsoleSession"
+    }
+  },
+  "required": [
+    "profile",
+    "installation",
+    "session",
+    "canReadInstallation"
+  ],
+  "title": "ConsoleBootstrap",
+  "type": "object"
+}

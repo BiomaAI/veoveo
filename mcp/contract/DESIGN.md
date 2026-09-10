@@ -61,6 +61,13 @@ contract does not prescribe Isaac, USD paths, a scene mirror, or a common render
 
 ## Scope And Discovery
 
+The shared crate also owns the closed Console bootstrap DTOs in
+`src/gateway/console.rs`. This repository-owned HTTP projection carries authenticated
+session presentation and branding. It is separate from the MCP protocol and from
+administrator inventory. The [gateway projection design](../../platform/gateway/src/bin/gateway/console/DESIGN.md)
+defines its authority boundary. Browser models are generated with
+`cargo xtask release client-types`; Rust remains the wire source of truth.
+
 The contract governs the servers in `servers/*-mcp/` and any independently
 deployed extension whose gateway entry joins an installation's catalog.
 

@@ -48,6 +48,13 @@ impl Fixture {
                 if path == "/oauth/token" {
                     return Json(serde_json::json!({"access_token":"rotated-fixture-access", "token_type":"Bearer", "expires_in":300, "refresh_token":"rotated-fixture-refresh", "refresh_token_expires_in":3600, "scope":"admin:manage"})).into_response();
                 }
+                if path == "/console-api/admin/session" {
+                    return ([(header::SET_COOKIE, "upstream=forbidden")], Json(serde_json::json!({
+                        "profile":"admin", "canReadInstallation":false,
+                        "installation":{"name":"Veoveo","productLabel":"Workspace","version":"fixture","offlineMode":false,"generatedAt":Utc::now()},
+                        "session":{"displayName":"Alice","principalId":"https://test#alice","actorId":"https://test#alice","tenantId":"test","tenantName":"Test","workContext":"work","workContextTitle":"Work","membership":"contributor","invocationMode":"direct","availableTenants":[{"id":"test","name":"Test"}]}
+                    }))).into_response();
+                }
                 if path.ends_with("/start") { return (StatusCode::TEMPORARY_REDIRECT, [(header::LOCATION, "/must-not-follow")]).into_response(); }
                 if path.ends_with("/stop") { return fault(StatusCode::SERVICE_UNAVAILABLE); }
                 if path.ends_with("/terminal-ticket") {
@@ -82,13 +89,16 @@ impl Fixture {
             app_tasks: crate::apps::AppTaskRegistry::default(),
             computers: Transport::new(&trust).unwrap(),
         };
-        let router =
-            super::router()
-                .with_state(state.clone())
-                .layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    api::enforce_csrf,
-                ));
+        let router = super::router()
+            .route(
+                "/console/api/session",
+                axum::routing::get(crate::bootstrap::session),
+            )
+            .with_state(state.clone())
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                api::enforce_csrf,
+            ));
         Self {
             state,
             router,
@@ -129,6 +139,69 @@ impl Fixture {
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::ORIGIN, self.state.config.public_origin())
     }
+}
+
+#[tokio::test]
+async fn session_bootstrap_uses_cookie_authority_and_preserves_rotation_without_admin_inventory() {
+    let fixture = Fixture::new().await;
+    let anonymous = fixture
+        .call(
+            Request::builder()
+                .uri("/console/api/session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
+    let invalid = fixture
+        .call(
+            Request::builder()
+                .uri("/console/api/session?profile=foreign")
+                .header(header::COOKIE, fixture.cookie(true))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    assert!(fixture.observed.lock().unwrap().is_empty());
+    let response = fixture
+        .call(
+            Request::builder()
+                .uri("/console/api/session")
+                .header(header::COOKIE, fixture.cookie(true))
+                .header(header::AUTHORIZATION, "Bearer forged")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(response.headers().contains_key(api::CSRF_HEADER));
+    assert_eq!(
+        response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .count(),
+        1
+    );
+    assert!(
+        !response.headers()[header::SET_COOKIE]
+            .to_str()
+            .unwrap()
+            .contains("upstream=")
+    );
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+    let value: veoveo_mcp_contract::ConsoleBootstrap =
+        serde_json::from_slice(&to_bytes(response.into_body(), 256 * 1024).await.unwrap()).unwrap();
+    assert!(!value.can_read_installation);
+    let observed = fixture.observed.lock().unwrap();
+    assert_eq!(observed.len(), 2);
+    assert_eq!(observed[1].path, "/console-api/admin/session");
+    assert_eq!(
+        observed[1].headers[header::AUTHORIZATION],
+        "Bearer rotated-fixture-access"
+    );
+    assert!(!observed[1].headers.contains_key(header::COOKIE));
 }
 
 #[tokio::test]

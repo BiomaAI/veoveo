@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { AuthenticationRequiredError } from "./auth";
 
-export const queryClient = new QueryClient({
+export function createConsoleQueryClient(): QueryClient { return new QueryClient({
   defaultOptions: {
     queries: {
       retry: (failureCount, error) =>
@@ -10,4 +10,6 @@ export const queryClient = new QueryClient({
       staleTime: 30_000
     }
   }
-});
+}); }
+
+export const queryClient = createConsoleQueryClient();

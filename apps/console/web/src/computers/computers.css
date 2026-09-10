@@ -1,0 +1,25 @@
+.computers-workspace { display: grid; gap: 1rem; min-width: 0; }
+.computers-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.computers-toolbar h2, .computers-toolbar h3 { margin: 0; }
+.computers-toolbar p { margin: .5rem 0; color: var(--muted); }
+.computers-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.computers-status, .computers-template { color: var(--muted); margin: 0; }
+.computers-error { border: 1px solid var(--border); padding: 1rem; border-radius: .5rem; }
+.computers-layout { display: grid; grid-template-columns: minmax(12rem, 17rem) minmax(0, 1fr); gap: 1rem; }
+.computers-collection { display: flex; flex-direction: column; gap: .5rem; }
+.computer-card { display: flex; text-align: left; gap: .75rem; padding: 1rem; border: 1px solid var(--border); border-radius: .5rem; color: inherit; background: var(--surface); cursor: pointer; }
+.computer-card small { display: block; margin-top: .4rem; }
+.computer-selected { outline: 2px solid var(--brand-accent); outline-offset: -2px; }
+.computer-detail { min-width: 0; padding: 1rem; border: 1px solid var(--border); border-radius: .5rem; }
+.computer-detail dd { overflow-wrap: anywhere; margin: .25rem 0 .75rem; }
+.computer-terminal-pending { padding: 3rem 1rem; color: var(--muted); }
+.computer-operation { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; padding: 1rem 0; border-top: 1px solid var(--border); }
+.computer-operation > div { flex: 1; min-width: 15rem; }
+.computer-operation small { overflow-wrap: anywhere; }
+.computer-operation p { margin: .5rem 0; }
+@media (max-width: 900px) { .computers-layout { grid-template-columns: 1fr; } .computers-collection { max-height: 15rem; overflow: auto; } }
+
+.computer-terminal { margin: 1rem 0; }
+.computer-terminal-screen { min-height: 24rem; height: min(60vh, 40rem); padding: .5rem; background: #111113; border: 1px solid var(--border); }
+.computer-terminal-screen .xterm { height: 100%; }
+.computer-terminal-note { font-size: var(--text-xs); color: var(--muted); }

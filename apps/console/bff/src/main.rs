@@ -2,6 +2,7 @@ mod api;
 mod app_host;
 mod apps;
 mod artifact_upload;
+mod bootstrap;
 mod cluster;
 mod computers;
 mod config;
@@ -102,6 +103,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/callback", get(oauth::callback))
         .route("/auth/logout", post(oauth::logout))
         .route("/console/api/snapshot", get(api::snapshot))
+        .route("/console/api/session", get(bootstrap::session))
         .route(
             "/console/api/artifacts/{artifact_id}",
             get(api::artifact_details),

@@ -2741,3 +2741,28 @@ both `-p` arguments, causing a 34.03-second preliminary build. The final checks 
 `--lib --bins` consistently. Package selection alone does not identify a reusable build
 closure; requested target kinds and dependency features also matter for scoped evidence
 and iteration tooling.
+
+The native Console checkpoint adds a pure contract generator and a lazy terminal chunk.
+The production Vite phase takes 2.77 seconds; TypeScript plus Vite through the recorder
+takes 6.56 seconds. The 74 Node behavior tests take 0.32 seconds (0.44 seconds including
+the npm invocation). Frontend lint takes 3.92 seconds. Warm generated-schema/model
+verification takes 0.90 seconds and performs no provider or domain-store build. The
+terminal chunk is 469.62 kB before compression, 122.80 kB gzip, and is loaded separately
+from the Console entry. These are local build measurements, not browser latency claims.
+
+Adding xtask to the gateway/BFF all-target lint invocation changed the Cargo feature
+closure and triggered an 85-second preliminary metadata build. Its warm repeat takes
+0.63 seconds inside Cargo. Keep the chosen target/feature closure stable; future
+ordinary UI work should invoke neither this combined Rust closure nor provider builds.
+The shared session DTO and embedded contract documentation initially required a
+14.70-second Rust test rebuild. The 196-case gateway/BFF run took 26.93 seconds including
+a slower isolated database fixture startup. A subsequent UI-only callback race fix
+invalidated the whole-tree v2 evidence digest and required a new Rust receipt despite
+unchanged Rust inputs; that repeat took 2.21 seconds overall and reused compilation in 0.55 seconds. CE-06 scoped
+receipts should preserve the first qualified Rust result through this frontend edit.
+
+The npm install exposed pre-existing Browserslist and baseline-browser-mapping
+advisories. Their locked versions are now 4.28.9 and 2.11.21, with the required browser
+data dependency closure refreshed; npm reports no vulnerabilities. New terminal and
+generator packages have exact verified pins. No provider binary, Computer image or
+installed workload changed. The latest filesystem observation has 272 GiB free.

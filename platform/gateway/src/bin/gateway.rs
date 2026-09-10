@@ -14,6 +14,8 @@ mod audit;
 mod auth;
 #[path = "gateway/computers/mod.rs"]
 mod computers;
+#[path = "gateway/console/mod.rs"]
+mod console;
 #[path = "gateway/host.rs"]
 mod host;
 #[path = "gateway/http_util.rs"]

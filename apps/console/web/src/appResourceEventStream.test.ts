@@ -39,6 +39,15 @@ test("fetch SSE decoder preserves chunked names and multiline data", async () =>
   ]);
 });
 
+test("resource SSE rejects oversized UTF-8 frames and cancels inactive reads", async () => {
+  await assert.rejects(consumeServerSentEvents(byteStream(["data: ééééé\n\n"]), () => {}, { maxEventBytes: 12 }), /size limit/);
+  await assert.rejects(consumeServerSentEvents(byteStream(["data: ", "x".repeat(40)]), () => {}, { maxEventBytes: 32 }), /size limit/);
+  let cancelled = false;
+  const idle = new ReadableStream<Uint8Array>({ cancel() { cancelled = true; } });
+  await assert.rejects(consumeServerSentEvents(idle, () => {}, { idleMilliseconds: 5 }), /inactive/);
+  assert.equal(cancelled, true);
+});
+
 test("fetch resource stream opens and forwards wake events", async () => {
   let opened = 0;
   const events: ServerSentEvent[] = [];

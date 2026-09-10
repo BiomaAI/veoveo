@@ -106,8 +106,9 @@ pub use gateway::{
     ArtifactAudience, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
     AuthReasonCode, AuthorizationServerEndpoint, AuthorizationServerId, CanonicalTaskId,
     CertificateAuthorityFilePath, CertificateAuthoritySource, CompatibilityHelperId,
-    CompletionExposure, ComposedGatewayControlPlane, CompositionDigest, DataLabelDefinition,
-    DataLabelId, DelegationId, DiscoveryFailureMode, Exposure, GATEWAY_BINDING_SCHEMA,
+    CompletionExposure, ComposedGatewayControlPlane, CompositionDigest, ConsoleBootstrap,
+    ConsoleInstallation, ConsoleSession, ConsoleTenant, DataLabelDefinition, DataLabelId,
+    DelegationId, DiscoveryFailureMode, Exposure, GATEWAY_BINDING_SCHEMA,
     GATEWAY_COMPOSITION_PROVENANCE_SCHEMA, GATEWAY_SERVER_FRAGMENT_SCHEMA, GatewayAction,
     GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayBinding,
     GatewayBindingSchema, GatewayCompositionContribution, GatewayCompositionError,
@@ -141,8 +142,8 @@ pub use gateway::{
     SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
     ServerManifest, ServerSlug, TaskExposure, TenantDefinition, TenantId, TokenIssuer,
     TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity,
-    UpstreamUrl, WorkContextId, compose_gateway_control_plane, gateway_binding_schema,
-    gateway_composition_provenance_schema, gateway_server_fragment_schema,
+    UpstreamUrl, WorkContextId, compose_gateway_control_plane, console_bootstrap_schema,
+    gateway_binding_schema, gateway_composition_provenance_schema, gateway_server_fragment_schema,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{

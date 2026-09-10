@@ -1,3 +1,7 @@
+import { useConsoleBootstrap, consoleIdentityScope } from "./bootstrap";
+import { createConsoleQueryClient } from "./queryClient";
+import type { ConsoleBootstrap } from "./generated/console";
+import { ComputersPage } from "./computers/ComputersPage";
 import { Fragment, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Activity,
@@ -11,15 +15,15 @@ import {
   LayoutGrid,
   LogOut,
   Menu,
+  Monitor,
   Network,
   Palette,
-  RefreshCw,
   ShieldCheck,
   UserRound,
   Users,
   X
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { loadArtifact, logoutConsole } from "./api";
 import { UploadQueue, type QueueState } from "./uploads/queue";
 import { UploadPanel } from "./uploads/UploadPanel";
@@ -43,9 +47,9 @@ import { consoleThemes, useTheme, type ConsoleTheme } from "./theme";
 import { isFullBleedApp } from "./appPresentation";
 import { groupAppsByServer, namespacedAppTitle } from "./apps/catalogPresentation";
 
-// Platform-plane views only. Domain servers contribute their own entries
-// through the MCP app catalog — never add a domain page here.
+// Core Computers has an accepted native projection. Other domain pages come from the MCP App catalog.
 const navItems = [
+  { id: "computers", label: "Computers", icon: Monitor },
   { id: "overview", label: "Overview", icon: Gauge },
   { id: "work", label: "Work", icon: Activity },
   { id: "artifacts", label: "Artifacts", icon: Archive },
@@ -79,7 +83,7 @@ function appRoute(resourceUri: string): string {
 
 function initialRoute(): { view: ViewId; recordingId?: string; appUri?: string } {
   const [value, ...rest] = window.location.hash.replace(/^#\/?/, "").split("/");
-  const view = navItems.some((item) => item.id === value) ? (value as ViewId) : "overview";
+  const view = navItems.some((item) => item.id === value) ? (value as ViewId) : "computers";
   return {
     view,
     recordingId: view === "recordings" && rest[0] ? rest[0] : undefined,
@@ -92,13 +96,31 @@ function logoSource(logo: string): string {
 }
 
 export function App() {
+  const bootstrap = useConsoleBootstrap();
+  if (bootstrap.isLoading) return <div className="center-state"><div className="loading-mark" aria-label="Loading session" /></div>;
+  if (!bootstrap.data) return <div className="center-state error-state"><h1>Console unavailable</h1>
+    <p>{bootstrap.error instanceof Error ? bootstrap.error.message : "The session could not be loaded."}</p>
+    <button className="button button-primary" onClick={() => void bootstrap.refetch()}>Retry</button>
+    <a className="button button-secondary" href="/auth/login">Sign in</a></div>;
+  return <ScopedConsole key={consoleIdentityScope(bootstrap.data)} bootstrap={bootstrap.data} />;
+}
+
+function ScopedConsole({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
+  const [client] = useState(createConsoleQueryClient);
+  useEffect(() => () => { void client.cancelQueries(); client.clear(); }, [client]);
+  return <QueryClientProvider client={client}><Console bootstrap={bootstrap} /></QueryClientProvider>;
+}
+
+function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
   const initial = initialRoute();
   const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
-  const { data: snapshot, error, isLoading } = useSnapshot();
-  const { data: appsCatalog } = useApps(Boolean(snapshot));
-  useAppCatalogLive(Boolean(snapshot));
-  const [view, setView] = useState<ViewId>(initial.view);
+  const inventory = useSnapshot(bootstrap.canReadInstallation);
+  const snapshot = bootstrap.canReadInstallation ? inventory.data : undefined;
+  const { data: appsCatalog } = useApps();
+  useAppCatalogLive(true);
+  const [selectedView, setView] = useState<ViewId>(initial.view);
+  const view = bootstrap.canReadInstallation || selectedView === "computers" || selectedView === "apps" ? selectedView : "computers";
   const [selectedAppUri, setSelectedAppUri] = useState<string | undefined>(initial.appUri);
   const [mobileNav, setMobileNav] = useState(false);
   const [artifactSelection, setArtifactSelection] = useState<{ artifact: ArtifactSummary; scope: string }>();
@@ -108,9 +130,9 @@ export function App() {
   const [signOutError, setSignOutError] = useState<string>();
   const [signingOut, setSigningOut] = useState(false);
   const [openAppServers, setOpenAppServers] = useState(storedOpenAppServers);
-  const actor = snapshot?.session.actorId;
-  const workContext = snapshot?.session.workContext;
-  const tenant = snapshot?.session.tenantId;
+  const actor = bootstrap.session.actorId;
+  const workContext = bootstrap.session.workContext;
+  const tenant = bootstrap.session.tenantId;
   const artifactScope = JSON.stringify([tenant, actor, workContext]);
   const selectedArtifact = artifactSelection?.scope === artifactScope ? artifactSelection.artifact : undefined;
   const setSelectedArtifact = (artifact?: ArtifactSummary) => setArtifactSelection(artifact ? { artifact, scope: artifactScope } : undefined);
@@ -122,7 +144,7 @@ export function App() {
     }));
     void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
   }, [queryClient]);
-  const uploadQueue = useMemo(() => actor && workContext && tenant ? new UploadQueue(actor, workContext, tenant, receiveUpload) : undefined, [actor, workContext, tenant, receiveUpload]);
+  const uploadQueue = useMemo(() => bootstrap.canReadInstallation && actor && workContext && tenant ? new UploadQueue(actor, workContext, tenant, receiveUpload) : undefined, [bootstrap.canReadInstallation, actor, workContext, tenant, receiveUpload]);
   const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor, uploadQueue?.reconcile);
   useEffect(() => {
     if (!uploadQueue) return;
@@ -165,7 +187,7 @@ export function App() {
 
   const retrySnapshot = () => void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
 
-  const installation = snapshot?.installation;
+  const installation = bootstrap.installation;
   useEffect(() => {
     if (!installation) return;
     document.title = `${installation.name} Console`;
@@ -193,62 +215,33 @@ export function App() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="center-state">
-        <div className="loading-mark" aria-label="Loading" />
-      </div>
-    );
-  }
-
-  if (!snapshot) {
-    const message =
-      signOutError ??
-      (error instanceof Error ? error.message : "No installation snapshot was returned.");
-    return (
-      <div className="center-state error-state">
-        <Boxes size={30} />
-        <h1>Console unavailable</h1>
-        <p>{message}</p>
-        <div className="error-actions">
-          <button className="button button-primary" onClick={retrySnapshot}>
-            <RefreshCw size={15} /> Retry
-          </button>
-          <button className="button button-secondary" onClick={() => void signOut()} disabled={signingOut}>
-            <LogOut size={15} /> Sign out and authenticate again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const title =
     view === "apps" && selectedApp
       ? namespacedAppTitle(selectedApp)
       : navItems.find((item) => item.id === view)?.label ?? "Overview";
-  const currentArtifact = selectedArtifact && (snapshot.artifacts.find((item) => item.id === selectedArtifact.id) ?? selectedArtifact);
-  const currentTask = selectedTask && snapshot.tasks.find((item) => item.id === selectedTask.id);
-  const accountName = snapshot.session.displayName.trim();
+  const currentArtifact = selectedArtifact && (snapshot?.artifacts.find((item) => item.id === selectedArtifact.id) ?? selectedArtifact);
+  const currentTask = selectedTask && snapshot?.tasks.find((item) => item.id === selectedTask.id);
+  const accountName = bootstrap.session.displayName.trim();
 
   return (
     <><div className="app-shell">
       <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">
-            {snapshot.installation.logo
-              ? <img src={logoSource(snapshot.installation.logo)} alt="" />
-              : snapshot.installation.name.charAt(0).toUpperCase()}
+            {bootstrap.installation.logo
+              ? <img src={logoSource(bootstrap.installation.logo)} alt="" />
+              : bootstrap.installation.name.charAt(0).toUpperCase()}
           </div>
           <div>
-            <strong>{snapshot.installation.name}</strong>
-            <span>{snapshot.installation.productLabel}</span>
+            <strong>{bootstrap.installation.name}</strong>
+            <span>{bootstrap.installation.productLabel}</span>
           </div>
           <button className="icon-button mobile-close" onClick={() => setMobileNav(false)} title="Close navigation">
             <X size={18} />
           </button>
         </div>
         <nav aria-label="Primary navigation">
-          {navItems.map(({ id, label, icon: Icon }) => (
+          {navItems.filter((item) => bootstrap.canReadInstallation || item.id === "computers" || item.id === "apps").map(({ id, label, icon: Icon }) => (
             <Fragment key={id}>
               <button
                 className={view === id && !(id === "apps" && selectedApp) ? "nav-active" : ""}
@@ -297,13 +290,13 @@ export function App() {
             </Fragment>
           ))}
         </nav>
-        <div className="sidebar-foot">
+        {snapshot && <div className="sidebar-foot">
           <div className={`live-dot ${liveStatus === "reconnecting" || snapshot.services.some((service) => service.state === "offline") ? "live-off" : ""}`} />
           <div>
             <strong>{liveStatus === "live" ? "Live" : liveStatus === "reconnecting" ? "Reconnecting" : "Status"}</strong>
             <span>{snapshot.services.filter((service) => service.state === "healthy").length}/{snapshot.services.length} platform services healthy</span>
           </div>
-        </div>
+        </div>}
       </aside>
 
       {mobileNav && <button className="nav-scrim" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
@@ -315,14 +308,14 @@ export function App() {
               <Menu size={19} />
             </button>
             <div>
-              <span>{snapshot.installation.name}</span>
+              <span>{bootstrap.installation.name}</span>
               <h1>{title}</h1>
             </div>
           </div>
           <div className="topbar-actions">
-            <button className="button button-secondary" onClick={() => setUploadsOpen(true)} aria-label="Open uploads">
+            {snapshot && <button className="button button-secondary" onClick={() => setUploadsOpen(true)} aria-label="Open uploads">
               Uploads{uploadState.entries.length ? ` (${uploadState.entries.filter((entry) => !["Ready", "Cancelled"].includes(entry.phase)).length} active · ${uploadState.entries.filter((entry) => entry.phase === "Ready").length} ready)` : ""}
-            </button>
+            </button>}
             <label className="theme-select" title="Console theme">
               <Palette size={15} />
               <select
@@ -339,8 +332,8 @@ export function App() {
             </label>
             <label className="tenant-select">
               <Users size={15} />
-              <select value={snapshot.session.tenantId} aria-label="Tenant" disabled={snapshot.session.availableTenants.length <= 1}>
-                {snapshot.session.availableTenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
+              <select value={bootstrap.session.tenantId} aria-label="Tenant" disabled={bootstrap.session.availableTenants.length <= 1}>
+                {bootstrap.session.availableTenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
               </select>
             </label>
             <div
@@ -367,15 +360,20 @@ export function App() {
                 : "content"
           }
         >
-          {view === "overview" && <Overview snapshot={snapshot} onArtifact={setSelectedArtifact} onTask={setSelectedTask} />}
-          {view === "work" && <WorkView tasks={snapshot.tasks} onSelect={setSelectedTask} />}
-          {view === "artifacts" && <ArtifactsView artifacts={snapshot.artifacts} onSelect={setSelectedArtifact} onUpload={() => setUploadsOpen(true)} />}
-          {view === "agents" && <AgentsView snapshot={snapshot} />}
-          {view === "recordings" && <RecordingsView snapshot={snapshot} initialRecordingId={selectedRecordingId} onRecordingSelect={(recordingId) => {
+          {signOutError && <p role="alert">{signOutError}</p>}
+          {view === "computers" && <ComputersPage scope={consoleIdentityScope(bootstrap)} canReadInstallation={bootstrap.canReadInstallation} />}
+          {view !== "computers" && view !== "apps" && !snapshot && <div className="center-state">
+            <p>{inventory.isLoading ? "Loading installation…" : inventory.error instanceof Error ? inventory.error.message : "Installation inventory is unavailable."}</p>
+            <button className="button button-secondary" onClick={retrySnapshot}>Retry</button></div>}
+          {snapshot && view === "overview" && <Overview snapshot={snapshot} onArtifact={setSelectedArtifact} onTask={setSelectedTask} />}
+          {snapshot && view === "work" && <WorkView tasks={snapshot.tasks} onSelect={setSelectedTask} />}
+          {snapshot && view === "artifacts" && <ArtifactsView artifacts={snapshot.artifacts} onSelect={setSelectedArtifact} onUpload={() => setUploadsOpen(true)} />}
+          {snapshot && view === "agents" && <AgentsView snapshot={snapshot} />}
+          {snapshot && view === "recordings" && <RecordingsView snapshot={snapshot} initialRecordingId={selectedRecordingId} onRecordingSelect={(recordingId) => {
             setSelectedRecordingId(recordingId);
             window.history.replaceState(null, "", `#/recordings/${encodeURIComponent(recordingId)}`);
           }} />}
-          {view === "mcp" && <McpView snapshot={snapshot} />}
+          {snapshot && view === "mcp" && <McpView snapshot={snapshot} />}
           {view === "apps" && (
             <AppsView
               selectedUri={selectedAppUri}
@@ -383,13 +381,13 @@ export function App() {
               onPlatformSelect={navigate}
             />
           )}
-          {view === "access" && <AccessView snapshot={snapshot} />}
-          {view === "audit" && <AuditView snapshot={snapshot} />}
-          {view === "cluster" && <ClusterView snapshot={snapshot} />}
+          {snapshot && view === "access" && <AccessView snapshot={snapshot} />}
+          {snapshot && view === "audit" && <AuditView snapshot={snapshot} />}
+          {snapshot && view === "cluster" && <ClusterView snapshot={snapshot} />}
         </main>
       </div>
 
-      {currentArtifact && <ArtifactDrawer key={currentArtifact.id} artifact={currentArtifact} principalId={snapshot.session.actorId} identityDirectory={snapshot} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
+      {snapshot && currentArtifact && <ArtifactDrawer key={currentArtifact.id} artifact={currentArtifact} principalId={bootstrap.session.actorId} identityDirectory={snapshot} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
         setSelectedArtifact(undefined);
         navigate("recordings", recordingId);
       }} />}

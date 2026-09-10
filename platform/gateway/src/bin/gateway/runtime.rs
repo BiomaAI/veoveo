@@ -142,7 +142,7 @@ pub(super) fn public_authorization_server<'a>(
 pub(super) fn profile_id_from_gateway_path(path: &str) -> Option<GatewayProfileId> {
     let mut segments = path.trim_start_matches('/').split('/');
     match segments.next()? {
-        "mcp" | "admin" | "artifacts" | "recordings" | "computers" => {}
+        "mcp" | "admin" | "artifacts" | "recordings" | "computers" | "console-api" => {}
         _ => return None,
     }
     let profile = segments.next()?;
