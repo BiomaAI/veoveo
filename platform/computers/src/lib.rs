@@ -11,6 +11,7 @@ mod lifecycle;
 mod model;
 mod operation;
 mod operation_admission;
+pub mod session_grants;
 mod store;
 mod worker_journal;
 mod worker_queue;
@@ -38,6 +39,8 @@ pub enum ComputerError {
     Forbidden,
     #[error("Computer capacity is full")]
     CapacityFull,
+    #[error("Computer access limit reached; close an existing connection before connecting again")]
+    AccessLimit,
     #[error("Request ID was already used with different inputs")]
     RequestConflict,
     #[error("Computer capacity policy changed")]

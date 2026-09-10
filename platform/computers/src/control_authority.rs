@@ -40,6 +40,10 @@ impl ComputersStore {
     }
 }
 impl ControlAuthority {
+    pub fn require_attach(&self, computer: Uuid) -> Result<()> {
+        self.check_fresh()?;
+        crate::session_grants::require_attach(&self.snapshot, computer)
+    }
     pub fn valid_until(&self) -> Instant {
         self.admission_deadline.min(self.snapshot.deadline)
     }

@@ -1,37 +1,74 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c50ebceff36e2a79862a7990b840c4eb17bd89fc2a6e6c00afc900b2253b46b1",
-  "updatedAt": "2026-09-10T09:15:08Z",
+  "buildDigest": "sha256:be93f19a17c56b81d4d111c686551c80c32f4f081bc9d17c6623e9b95e12f667",
+  "updatedAt": "2026-09-10T09:50:33Z",
   "checks": [
     {
-      "name": "computers-session",
+      "name": "computers-browser-grants",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-policy",
-        "-p",
         "veoveo-computers",
         "-p",
         "veoveo-computers-mcp",
+        "-p",
+        "veoveo-policy",
         "--tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T09:13:22Z",
-      "durationSeconds": 57.175103573,
+      "finishedAt": "2026-09-10T09:44:29Z",
+      "durationSeconds": 85.564983267,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-session-lint",
+      "name": "computers-grant-contract",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-mcp-contract",
+        "-p",
+        "veoveo-platform-store",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T09:46:53Z",
+      "durationSeconds": 114.803077109,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-grant-contract-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-policy",
+        "veoveo-mcp-contract",
+        "-p",
+        "veoveo-platform-store",
+        "--lib",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T09:48:57Z",
+      "durationSeconds": 18.141411836,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-grant-lint",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
         "-p",
         "veoveo-computers",
         "-p",
@@ -42,44 +79,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T09:14:37Z",
-      "durationSeconds": 0.682272681,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "gateway-session",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--test",
-        "session_family"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T09:13:30Z",
-      "durationSeconds": 2.111879807,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "gateway-session-lint",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--lib",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T09:14:59Z",
-      "durationSeconds": 12.902058142,
+      "finishedAt": "2026-09-10T09:48:03Z",
+      "durationSeconds": 1.3460895929999999,
       "detail": "completed successfully"
     },
     {
@@ -92,8 +93,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T09:15:08Z",
-      "durationSeconds": 2.358757575,
+      "finishedAt": "2026-09-10T09:50:33Z",
+      "durationSeconds": 2.713149328,
       "detail": "completed successfully"
     }
   ]

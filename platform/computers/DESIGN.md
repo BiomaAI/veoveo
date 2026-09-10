@@ -9,6 +9,7 @@
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | Shared Tasks | Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
+| Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 
 The domain owns retained Computer identity. Provider transport belongs to
 `platform/runtimes/computers`. Native Console and MCP will project these commands
@@ -42,8 +43,9 @@ lifecycle checkpoint. The retained Computer UUID is also the home allocation ide
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated
-domain settlement. The native worker lives in `servers/computers-mcp`. Explicit
-delegation, renewable grant persistence, deletion with
+domain settlement. The native worker lives in `servers/computers-mcp`. The domain now
+retains browser grants and checks their renewal. Public terminal composition, explicit
+agent delegation, CLI pairing, deletion with
 storage acknowledgement, agent execution and Artifact movement remain active work in
 `docs/COMPUTERS_PLAN.md`. Reservation alone is not a usable or deployed Computer.
 
@@ -87,8 +89,8 @@ session identity from a Task owner.
 
 The accepted record is evidence for one operation. Its source token may expire
 while the worker completes or reconciles accepted work. Dispatch reads current action
-policy through the shared evaluator. Attachment renewal requires separate current
-grant and family checks; those grants remain implementation work.
+policy through the shared evaluator. Browser grants have separate current grant and
+family checks, described below. Their transport composition remains implementation work.
 
 No supported installed Computers records precede this migration. Pre-profile
 candidate journals with missing context cannot admit new work or infer authority;
@@ -116,6 +118,57 @@ of the original assertion/token expiry, known family expiry and current-policy l
 A missing, revoked or mismatched family denies control. Tokens without a family keep
 their admitted request lifetime and gain no session-bound renewal rights. Background
 dispatch continues to use its independent accepted execution authority.
+
+## Browser Access Grants
+
+`session_grants` owns browser ticket issuance, one-use redemption, renewal and
+revocation. The installation selects `SessionGrantPolicy`: a per-Computer grant limit,
+an absolute lifetime and an idle lifetime. A compare-and-set policy transition prevents
+an old replica from restoring previous settings. Zero grants closes new admission and
+renewal. Active tickets and connections share the limit. Expired tickets and revoked or
+expired families consume no admission slot.
+
+Admission requires current contributor membership, `computer_attach` and resource-read
+permission on the exact Computer URI. `computer_attach` has no MCP method. Lifecycle
+tool permission supplies no interactive access. The caller must own the Computer and
+retain clearance for its labels. The Computer must be Ready without an active operation.
+The transaction verifies the selected control revision, enabled identities, live family,
+current limits and exact provider resource/process before recording the grant and outbox
+event. Concurrent admissions serialize through the provider policy and Computer guard.
+
+A ticket contains a grant UUID and 256 random bits. Storage keeps only a domain-separated
+SHA-256 hash. Redemption requires the same authenticated owner, profile, OAuth client,
+Work Context and browser family. Its transaction consumes the ticket once across replicas.
+The ticket expires within thirty seconds. Lost delivery requires a fresh ticket; no
+recoverable bearer is retained. A redeemed handle cannot be constructed from public JSON.
+
+The service must obtain a successful `SessionGrantLease` before opening provider I/O.
+Each renewal rereads the grant, current installation limits, family, policy and directory.
+It also compares the Computer's exact process with the admitted run. Stop/Start requires
+a fresh connection. The accepted token may expire while its family and grant remain
+valid. Logout, replay revocation or family expiry ends access without stopping processes.
+An owner can revoke a grant from another authenticated browser family.
+
+Every grant read has a five-second budget. The resulting monotonic lease lasts at most
+thirty seconds from the start of the read, capped by database-relative absolute, idle and
+family expiry. The transport renews within ten seconds and closes on failed renewal.
+Database latency consumes the lease. Timer ticks and output leave idle expiry unchanged;
+accepted terminal input may extend it. Activity cannot extend absolute lifetime or revive
+an expired grant. Tightened current limits further restrict an existing grant. Transport
+cleanup revokes only its exact consumed connection and changes no Computer lifecycle state.
+
+Migration 0058 adds private schema-full tables and leaves existing Computer and operation
+rows intact. Install every policy reader that recognizes `computer_attach` before activating
+a revision using it. An older service cannot resume these grants. Rollback drains attachment
+admission and closes existing access through the bounded leases before replacing readers;
+retain the ledger for revocation and expiry. Grant rollback never removes a retained home.
+
+Six real-store cases use independent clients and synthetic Ready rows. They prove private
+redemption, one-use races, quota contention, stale installer rejection, passive idle behavior,
+absolute expiry, logout, current action/label/membership changes and process replacement.
+They do not establish terminal behavior, public routing, CLI pairing or agent delegation.
+
+## Lifecycle Dispatch
 
 The public Create request resolves its first reservation before selecting a new
 installation default. The original template and provider remain attached to that

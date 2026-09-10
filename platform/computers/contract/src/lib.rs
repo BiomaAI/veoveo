@@ -212,6 +212,7 @@ pub enum ErrorCode {
     InvalidInput,
     InvalidState,
     CapacityFull,
+    AccessLimit,
     StorageUnavailable,
     StorageHeadroom,
     TemplateMismatch,

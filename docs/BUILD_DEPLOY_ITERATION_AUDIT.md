@@ -2632,3 +2632,22 @@ by this checkpoint and remain recorded cleanup work before the gateway route wor
 The current receipt scopes gateway lint to its changed library. Combining its feature
 graph with the Computers runtime also rebuilt SurrealDB lint metadata; stable command
 and feature closures remain relevant to CE-06. No provider or image rebuild was needed.
+
+The browser grant ledger is qualified independently of terminal transport and provider
+images. Its first six real-store cases run in 4.77 s after a 12.36 s compile. They use
+synthetic Ready rows and do not establish provider execution. Two implementation errors
+were found before qualification: `session` is a protected SurrealQL parameter, and a
+transaction's final COMMIT also produces a response entry. The queries now use a distinct
+family variable and return their admission receipt after commit. No production record
+or retained home was used to debug these cases. The new `computer_attach` action avoids
+inventing an MCP tool that would deliver browser credentials to automation consumers.
+
+Final recorded grant/service/policy coverage passes 44 cases in 85.6 s, including a
+52.29 s compile; the six grant cases themselves take 4.63 s. The shared contract/store
+command passes another 187 cases in 114.8 s, with only 0.31 s in test bodies. Selecting
+`veoveo-mcp-contract` directly enabled its default analytics feature and pulled DuckDB
+into that command's feature graph. Future checks of the minimal policy/identity surface
+should declare `--no-default-features` when that matches the affected consumers, with
+analytics qualified separately. The full result here remains valid. Service/domain
+lint reuses its graph in 1.3 s; shared-library lint takes 18.1 s. No native provider or
+Computer image was rebuilt. Last disk observation showed 212 GiB free.
