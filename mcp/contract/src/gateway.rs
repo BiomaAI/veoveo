@@ -42,6 +42,8 @@ mod tenant;
 pub use tenant::*;
 mod branding;
 pub use branding::*;
+mod console;
+pub use console::*;
 mod recording_ingest;
 pub use recording_ingest::*;
 

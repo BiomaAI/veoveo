@@ -1,10 +1,24 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:3f4b44d0885261064a9e894e33722379575c52e957e533acd3f763ec80424dab",
-  "updatedAt": "2026-09-10T11:39:40Z",
+  "buildDigest": "sha256:051b1ab7c4d43c628da8ab6ac8558453314fc35827756b6b456025f5e3f32b36",
+  "updatedAt": "2026-09-10T12:29:31Z",
   "checks": [
     {
-      "name": "computers-live-feed",
+      "name": "computers-console-client-types",
+      "command": [
+        "cargo",
+        "xtask",
+        "release",
+        "client-types",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T12:26:54Z",
+      "durationSeconds": 0.896572536,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-console-rust",
       "command": [
         "env",
         "VEOVEO_SURREAL_BINARY=/home/rozgo/BiomaAI/veoveo/output/tools/surreal/3.2.4/surreal",
@@ -22,12 +36,12 @@
         "--include-ignored"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T11:38:40Z",
-      "durationSeconds": 16.026715168,
+      "finishedAt": "2026-09-10T12:27:29Z",
+      "durationSeconds": 2.205315449,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-live-format",
+      "name": "computers-console-rust-format",
       "command": [
         "cargo",
         "fmt",
@@ -36,12 +50,12 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T11:39:40Z",
-      "durationSeconds": 2.62596521,
+      "finishedAt": "2026-09-10T12:29:31Z",
+      "durationSeconds": 2.615615076,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-live-lint",
+      "name": "computers-console-rust-lint",
       "command": [
         "cargo",
         "clippy",
@@ -51,14 +65,57 @@
         "veoveo-mcp-gateway",
         "-p",
         "veoveo-console-bff",
+        "-p",
+        "veoveo-xtask",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T11:38:55Z",
-      "durationSeconds": 4.353196496,
+      "finishedAt": "2026-09-10T12:29:02Z",
+      "durationSeconds": 0.768776463,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-console-web-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T12:25:59Z",
+      "durationSeconds": 6.556506894,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-console-web-lint",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T12:26:10Z",
+      "durationSeconds": 3.917257148,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-console-web-tests",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "test"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T12:25:25Z",
+      "durationSeconds": 0.438838417,
       "detail": "completed successfully"
     }
   ]

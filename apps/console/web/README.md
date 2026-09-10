@@ -41,6 +41,15 @@ configured for this development origin. Vite leaves redirects and cookie policy 
 
 ## Verification And Publication
 
+Computers is a native Console workspace. Its [design](src/computers/DESIGN.md) describes
+lifecycle recovery, terminal input, authority deadlines and the remaining installed
+qualification. Session bootstrap opens Computers and permitted Apps without loading
+administrator inventory. Terminal assets load as a separate chunk.
+
+After changing the shared Rust wire types, run `cargo xtask release client-types`.
+Verify committed output with `cargo xtask release client-types --check` after `npm ci`.
+Ordinary frontend edits use Vite refresh and require no schema generation or Rust build.
+
 `npm --prefix apps/console/web run build` checks TypeScript and builds production
 assets. Visual verification additionally requires a headed browser and hardware-backed
 WebGPU or WebGL; probe both exposed APIs before interacting with the Console.

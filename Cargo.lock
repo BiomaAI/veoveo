@@ -17872,6 +17872,7 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "url",
+ "veoveo-computers-contract",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
  "veoveo-extension-contract",

@@ -1,0 +1,756 @@
+{
+  "$defs": {
+    "Action": {
+      "enum": [
+        "create",
+        "start",
+        "stop"
+      ],
+      "type": "string"
+    },
+    "ApiError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "CapacityAvailability": {
+      "enum": [
+        "setup_required",
+        "available",
+        "exhausted",
+        "compute_unavailable",
+        "storage_unavailable",
+        "maintenance"
+      ],
+      "type": "string"
+    },
+    "ComputerEvent": {
+      "additionalProperties": false,
+      "description": "An authorized invalidation; clients reread current state after each event.",
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ComputerEventKind"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ComputerEventKind": {
+      "enum": [
+        "snapshot_changed"
+      ],
+      "type": "string"
+    },
+    "ComputerLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "perOwner": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "perTenant": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "perOwner",
+        "perTenant",
+        "provider"
+      ],
+      "type": "object"
+    },
+    "ComputerPhase": {
+      "enum": [
+        "reserved",
+        "provisioning",
+        "starting",
+        "ready",
+        "stopping",
+        "stopped",
+        "error",
+        "recovery_required"
+      ],
+      "type": "string"
+    },
+    "ComputerSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/CapacityAvailability"
+        },
+        "canCreate": {
+          "type": "boolean"
+        },
+        "computers": {
+          "items": {
+            "$ref": "#/$defs/ComputerView"
+          },
+          "type": "array"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerLimits"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextCursor": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "availability",
+        "canCreate",
+        "computers"
+      ],
+      "type": "object"
+    },
+    "ComputerView": {
+      "additionalProperties": false,
+      "properties": {
+        "activeTaskId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "busy": {
+          "type": "boolean"
+        },
+        "canConnect": {
+          "type": "boolean"
+        },
+        "canCreate": {
+          "description": "An authorized reserved Computer can be provisioned once unfenced.",
+          "type": "boolean"
+        },
+        "canDelete": {
+          "type": "boolean"
+        },
+        "canStart": {
+          "description": "An authorized stopped Computer can be started once unfenced.",
+          "type": "boolean"
+        },
+        "canStop": {
+          "description": "A ready Computer can be stopped once unfenced.",
+          "type": "boolean"
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/ComputerPhase"
+        },
+        "templateId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "templateId",
+        "phase",
+        "busy",
+        "canCreate",
+        "canStart",
+        "canStop",
+        "canDelete",
+        "canConnect",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "CreateInput": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "description": "Continue provisioning an owned reservation, or omit for a new Computer.",
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId"
+      ],
+      "type": "object"
+    },
+    "ErrorCode": {
+      "enum": [
+        "forbidden",
+        "not_found",
+        "busy",
+        "invalid_input",
+        "invalid_state",
+        "capacity_full",
+        "access_limit",
+        "storage_unavailable",
+        "storage_headroom",
+        "template_mismatch",
+        "ticket_rejected",
+        "unavailable",
+        "operation_failed"
+      ],
+      "type": "string"
+    },
+    "LifecycleInput": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "requestId"
+      ],
+      "type": "object"
+    },
+    "LifecycleResult": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "operationId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "result_uri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "computerId",
+        "operationId",
+        "action"
+      ],
+      "type": "object"
+    },
+    "OperationReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/OperationStatus"
+        },
+        "taskId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId",
+        "computerId",
+        "action",
+        "status"
+      ],
+      "type": "object"
+    },
+    "OperationStatus": {
+      "enum": [
+        "queued",
+        "running",
+        "waiting",
+        "cancel_requested",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "recovery_required"
+      ],
+      "type": "string"
+    },
+    "OperationView": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "completedAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "computer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApiError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/OperationStatus"
+        },
+        "taskId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId",
+        "computerId",
+        "action",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "StartInput": {
+      "additionalProperties": false,
+      "properties": {
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId"
+      ],
+      "type": "object"
+    },
+    "StopInput": {
+      "additionalProperties": false,
+      "properties": {
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId"
+      ],
+      "type": "object"
+    },
+    "TemplateView": {
+      "additionalProperties": false,
+      "properties": {
+        "cpus": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "homeCapacityMib": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "memoryMib": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "templateId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "templateId",
+        "cpus",
+        "memoryMib"
+      ],
+      "type": "object"
+    },
+    "TerminalAttach": {
+      "additionalProperties": false,
+      "description": "The relay enforces version, dimensions and a 1024-byte first-frame bound.",
+      "properties": {
+        "cols": {
+          "format": "uint32",
+          "maximum": 500,
+          "minimum": 2,
+          "type": "integer"
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "rows": {
+          "format": "uint32",
+          "maximum": 200,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "token": {
+          "$ref": "#/$defs/TerminalToken"
+        },
+        "type": {
+          "$ref": "#/$defs/TerminalAttachKind"
+        },
+        "version": {
+          "format": "uint8",
+          "maximum": 2,
+          "minimum": 2,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "type",
+        "computerId",
+        "token",
+        "cols",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "TerminalAttachKind": {
+      "enum": [
+        "attach"
+      ],
+      "type": "string"
+    },
+    "TerminalLease": {
+      "additionalProperties": false,
+      "description": "A current service-issued deadline. Relays preserve it and cannot extend it.",
+      "properties": {
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "sequence": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/$defs/TerminalLeaseKind"
+        }
+      },
+      "required": [
+        "type",
+        "sequence",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "TerminalLeaseKind": {
+      "enum": [
+        "lease"
+      ],
+      "type": "string"
+    },
+    "TerminalReady": {
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/TerminalReadyKind"
+        },
+        "version": {
+          "format": "uint8",
+          "maximum": 2,
+          "minimum": 2,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "type",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "TerminalReadyKind": {
+      "enum": [
+        "ready"
+      ],
+      "type": "string"
+    },
+    "TerminalReplayComplete": {
+      "additionalProperties": false,
+      "description": "This fence is not permission to send input until historical rendering drains.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/TerminalReplayCompleteKind"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "TerminalReplayCompleteKind": {
+      "enum": [
+        "replay_complete"
+      ],
+      "type": "string"
+    },
+    "TerminalResize": {
+      "additionalProperties": false,
+      "properties": {
+        "cols": {
+          "format": "uint32",
+          "maximum": 500,
+          "minimum": 2,
+          "type": "integer"
+        },
+        "rows": {
+          "format": "uint32",
+          "maximum": 200,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/$defs/TerminalResizeKind"
+        }
+      },
+      "required": [
+        "type",
+        "cols",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "TerminalResizeKind": {
+      "enum": [
+        "resize"
+      ],
+      "type": "string"
+    },
+    "TerminalServerControl": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TerminalReady"
+        },
+        {
+          "$ref": "#/$defs/TerminalReplayComplete"
+        },
+        {
+          "$ref": "#/$defs/TerminalLease"
+        }
+      ]
+    },
+    "TerminalTicket": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "endpoint": {
+          "description": "Same-origin authenticated WebSocket path; the BFF rewrites its own edge.",
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "token": {
+          "$ref": "#/$defs/TerminalToken"
+        }
+      },
+      "required": [
+        "computerId",
+        "token",
+        "expiresAt",
+        "endpoint"
+      ],
+      "type": "object"
+    },
+    "TerminalTicketInput": {
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TerminalToken": {
+      "description": "Explicit serialization is the only public exposure path. No Debug or Display.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Schema root is a bundle of DTO definitions, not a route response.",
+  "properties": {
+    "computer": {
+      "$ref": "#/$defs/ComputerView"
+    },
+    "create_input": {
+      "$ref": "#/$defs/CreateInput"
+    },
+    "error": {
+      "$ref": "#/$defs/ApiError"
+    },
+    "event": {
+      "$ref": "#/$defs/ComputerEvent"
+    },
+    "lifecycle_input": {
+      "$ref": "#/$defs/LifecycleInput"
+    },
+    "lifecycle_result": {
+      "$ref": "#/$defs/LifecycleResult"
+    },
+    "limits": {
+      "$ref": "#/$defs/ComputerLimits"
+    },
+    "operation": {
+      "$ref": "#/$defs/OperationView"
+    },
+    "receipt": {
+      "$ref": "#/$defs/OperationReceipt"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/ComputerSnapshot"
+    },
+    "start_input": {
+      "$ref": "#/$defs/StartInput"
+    },
+    "stop_input": {
+      "$ref": "#/$defs/StopInput"
+    },
+    "template": {
+      "$ref": "#/$defs/TemplateView"
+    },
+    "terminal_attach": {
+      "$ref": "#/$defs/TerminalAttach"
+    },
+    "terminal_ready": {
+      "$ref": "#/$defs/TerminalReady"
+    },
+    "terminal_resize": {
+      "$ref": "#/$defs/TerminalResize"
+    },
+    "terminal_server_control": {
+      "$ref": "#/$defs/TerminalServerControl"
+    },
+    "terminal_ticket": {
+      "$ref": "#/$defs/TerminalTicket"
+    },
+    "terminal_ticket_input": {
+      "$ref": "#/$defs/TerminalTicketInput"
+    }
+  },
+  "required": [
+    "snapshot",
+    "computer",
+    "template",
+    "limits",
+    "receipt",
+    "lifecycle_result",
+    "operation",
+    "create_input",
+    "start_input",
+    "stop_input",
+    "lifecycle_input",
+    "terminal_ticket_input",
+    "terminal_ticket",
+    "error",
+    "event",
+    "terminal_attach",
+    "terminal_resize",
+    "terminal_ready",
+    "terminal_server_control"
+  ],
+  "title": "ComputersApi",
+  "type": "object"
+}

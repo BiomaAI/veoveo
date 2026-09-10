@@ -279,6 +279,16 @@ impl Config {
             .expect("validated profile and Computer path")
     }
 
+    pub(crate) fn session_url(&self) -> Url {
+        self.gateway_url
+            .join(&format!("/console-api/{}/session", self.admin_profile))
+            .expect("validated gateway URL and profile")
+    }
+
+    pub(crate) fn profile(&self) -> &str {
+        &self.admin_profile
+    }
+
     pub(crate) fn secure_cookie(&self) -> bool {
         self.public_base_url.scheme() == "https"
     }

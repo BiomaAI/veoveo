@@ -30,18 +30,25 @@ function isAbort(error: unknown): boolean {
 export async function consumeServerSentEvents(
   body: ReadableStream<Uint8Array>,
   emit: (event: ServerSentEvent) => void,
+  options: { maxEventBytes?: number; idleMilliseconds?: number } = {},
 ): Promise<void> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let type = "message";
   let data: string[] = [];
+  let eventSize = 0;
+  const maximum = options.maxEventBytes ?? 1024 * 1024;
+  const encoder = new TextEncoder();
 
   const consumeLine = (value: string) => {
+    eventSize += encoder.encode(value).byteLength;
+    if (eventSize > maximum) throw new Error("Resource event exceeded its size limit");
     if (value.length === 0) {
       if (data.length > 0) emit({ type, data: data.join("\n") });
       type = "message";
       data = [];
+      eventSize = 0;
       return;
     }
     if (value.startsWith(":")) return;
@@ -55,7 +62,11 @@ export async function consumeServerSentEvents(
 
   try {
     while (true) {
-      const { value, done } = await reader.read();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const read = reader.read();
+      const { value, done } = await (options.idleMilliseconds ? Promise.race([
+        read, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Resource event stream became inactive")), options.idleMilliseconds); }),
+      ]) : read).finally(() => { if (timer !== undefined) clearTimeout(timer); });
       buffer += decoder.decode(value, { stream: !done });
       let newline = buffer.indexOf("\n");
       while (newline >= 0) {
@@ -64,12 +75,14 @@ export async function consumeServerSentEvents(
         consumeLine(rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine);
         newline = buffer.indexOf("\n");
       }
+      if (encoder.encode(buffer).byteLength + eventSize > maximum) throw new Error("Resource event exceeded its size limit");
       if (!done) continue;
       if (buffer.length > 0) consumeLine(buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer);
       consumeLine("");
       return;
     }
   } finally {
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

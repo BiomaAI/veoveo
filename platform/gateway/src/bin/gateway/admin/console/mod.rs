@@ -14,8 +14,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, InvocationMode, PrincipalDisplayName, ServerSlug,
-    WorkContextMembershipLevel,
+    ConsoleInstallation, ConsoleSession, GatewayAction, GatewayControlPlane, ServerSlug,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
 use veoveo_platform_store::{ChangefeedCursor, RecordingLayerState, deterministic_tenant_id};
@@ -40,8 +39,7 @@ use crate::{
     runtime::AdminState,
 };
 
-const DEFAULT_INSTALLATION_NAME: &str = "Veoveo";
-const DEFAULT_PRODUCT_LABEL: &str = "Operations";
+use crate::console::{console_display_name, presentation};
 
 pub(crate) async fn authorize_console_cluster(
     State(state): State<AdminState>,
@@ -143,8 +141,8 @@ pub(crate) async fn read_console_snapshot(
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConsoleSnapshot {
-    installation: InstallationSummary,
-    session: SessionSummary,
+    installation: ConsoleInstallation,
+    session: ConsoleSession,
     principals: Vec<PrincipalSummary>,
     stream: StreamInfo,
     services: Vec<ServiceSummary>,
@@ -155,41 +153,6 @@ struct ConsoleSnapshot {
     servers: Vec<ServerSummary>,
     policies: Vec<PolicySummary>,
     audit: Vec<AuditSummary>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct InstallationSummary {
-    name: String,
-    product_label: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    logo: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    accent_color: Option<String>,
-    version: &'static str,
-    offline_mode: bool,
-    generated_at: DateTime<Utc>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SessionSummary {
-    display_name: String,
-    principal_id: String,
-    actor_id: String,
-    tenant_id: String,
-    tenant_name: String,
-    work_context: String,
-    work_context_title: String,
-    membership: WorkContextMembershipLevel,
-    invocation_mode: InvocationMode,
-    available_tenants: Vec<TenantSummary>,
-}
-
-#[derive(Serialize)]
-struct TenantSummary {
-    id: String,
-    name: String,
 }
 
 /// Console live-stream bootstrap: the changefeed cursor the browser passes
@@ -267,20 +230,6 @@ fn build_snapshot(
             summary
         })
         .collect();
-    let tenant_name = control
-        .tenants
-        .iter()
-        .find(|tenant| tenant.id.as_str() == tenant_key)
-        .and_then(|tenant| tenant.title.clone())
-        .unwrap_or_else(|| tenant_key.to_owned());
-    let work_context_title = control
-        .work_contexts
-        .iter()
-        .find(|context| context.id == subject.authority.work_context)
-        .map_or_else(
-            || subject.authority.work_context.to_string(),
-            |context| context.title.clone(),
-        );
     let blob_lengths: BTreeMap<_, _> = projection
         .blobs
         .iter()
@@ -406,36 +355,11 @@ fn build_snapshot(
         .map(|event| audit_summary(event, &principal_names))
         .collect::<anyhow::Result<Vec<_>>>()?;
 
-    let branding = control.branding.as_ref();
+    let (installation, mut session) = presentation(control, subject, offline_mode)?;
+    session.display_name = display_name;
     Ok(ConsoleSnapshot {
-        installation: InstallationSummary {
-            name: branding
-                .map(|branding| branding.name.trim().to_owned())
-                .unwrap_or_else(|| DEFAULT_INSTALLATION_NAME.to_owned()),
-            product_label: branding
-                .and_then(|branding| branding.product_label.clone())
-                .unwrap_or_else(|| DEFAULT_PRODUCT_LABEL.to_owned()),
-            logo: branding.and_then(|branding| branding.logo.clone()),
-            accent_color: branding.and_then(|branding| branding.accent_color.clone()),
-            version: env!("CARGO_PKG_VERSION"),
-            offline_mode,
-            generated_at: now,
-        },
-        session: SessionSummary {
-            display_name,
-            principal_id: subject.principal.id.to_string(),
-            actor_id: subject.actor.id.to_string(),
-            tenant_id: tenant_key.to_owned(),
-            tenant_name: tenant_name.clone(),
-            work_context: subject.authority.work_context.to_string(),
-            work_context_title,
-            membership: subject.authority.membership,
-            invocation_mode: subject.authority.provenance.mode(),
-            available_tenants: vec![TenantSummary {
-                id: tenant_key.to_owned(),
-                name: tenant_name,
-            }],
-        },
+        installation,
+        session,
         principals,
         stream: StreamInfo {
             cursor: stream_cursor.versionstamp().to_string(),
@@ -449,102 +373,4 @@ fn build_snapshot(
         policies,
         audit,
     })
-}
-
-fn console_display_name(
-    authenticated: Option<&PrincipalDisplayName>,
-    projected: Option<&str>,
-    principal_id: &str,
-    principal_subject: &str,
-) -> String {
-    if let Some(authenticated) = authenticated {
-        return authenticated.to_string();
-    }
-    if let Some(projected) = projected {
-        let candidate = projected.trim();
-        if PrincipalDisplayName::new(candidate).is_ok()
-            && candidate != principal_id
-            && candidate != principal_subject
-            && principal_identifier_segment(principal_id) != candidate
-        {
-            return candidate.to_owned();
-        }
-    }
-    compact_principal_label(principal_subject)
-}
-
-fn principal_identifier_segment(principal_id: &str) -> &str {
-    principal_id
-        .split(['#', '/'])
-        .rfind(|segment| !segment.trim().is_empty())
-        .unwrap_or(principal_id)
-        .trim()
-}
-
-fn compact_principal_label(subject: &str) -> String {
-    let candidate = principal_identifier_segment(subject);
-    if candidate.is_empty() {
-        return "User".to_owned();
-    }
-    let mut label = String::new();
-    for (index, character) in candidate.chars().enumerate() {
-        if index == 61 {
-            label.push_str("...");
-            break;
-        }
-        label.push(character);
-    }
-    label
-}
-
-#[cfg(test)]
-mod tests {
-    use veoveo_mcp_contract::PrincipalDisplayName;
-
-    use super::console_display_name;
-
-    #[test]
-    fn console_display_name_prefers_authenticated_identity_metadata() {
-        assert_eq!(
-            console_display_name(
-                Some(&PrincipalDisplayName::new("Mara Chen").unwrap()),
-                Some("Stored Operator"),
-                "https://login.example/tenant#object-id",
-                "object-id"
-            ),
-            "Mara Chen"
-        );
-    }
-
-    #[test]
-    fn console_display_name_uses_human_projection_before_subject_fallback() {
-        assert_eq!(
-            console_display_name(
-                None,
-                Some("Stored Operator"),
-                "https://login.example/tenant#object-id",
-                "object-id"
-            ),
-            "Stored Operator"
-        );
-        assert_eq!(
-            console_display_name(
-                None,
-                Some("https://login.example/tenant#object-id"),
-                "https://login.example/tenant#object-id",
-                "object-id"
-            ),
-            "object-id"
-        );
-        assert_eq!(
-            console_display_name(
-                None,
-                Some("object-id"),
-                "https://login.example/tenant#object-id",
-                "https://login.example/users/mara"
-            ),
-            "mara"
-        );
-        assert_eq!(console_display_name(None, Some("  "), "   ", "   "), "User");
-    }
 }

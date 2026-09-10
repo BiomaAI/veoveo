@@ -264,6 +264,22 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         ));
     router = router.merge(recording_playback_router);
 
+    router = router.merge(
+        Router::new()
+            .route(
+                "/console-api/{profile}/session",
+                get(crate::console::bootstrap),
+            )
+            .with_state(crate::console::ConsoleState {
+                catalog: catalog.clone(),
+                offline_mode,
+            })
+            .layer(middleware::from_fn_with_state(
+                auth_state.clone(),
+                authenticate_mcp,
+            )),
+    );
+
     let server_health =
         spawn_server_health_prober(catalog.clone(), upstream_http.clone(), ct.child_token());
     let console_stream =

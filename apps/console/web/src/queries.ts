@@ -29,13 +29,14 @@ export const queryKeys = {
   accessRequests: ["artifact-access-requests"] as const,
 };
 
-export function useSnapshot() {
+export function useSnapshot(enabled = true) {
   return useQuery({
     queryKey: queryKeys.snapshot,
     queryFn: ({ signal }) => loadSnapshot(signal),
     // The live stream keeps the snapshot current; background refetch would
     // only race it. Stream resets invalidate explicitly.
     staleTime: Infinity,
+    enabled,
   });
 }
 

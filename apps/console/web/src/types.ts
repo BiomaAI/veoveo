@@ -1,3 +1,5 @@
+import type { ConsoleInstallation, ConsoleSession, InvocationMode, WorkContextMembershipLevel } from "./generated/console";
+export type { InvocationMode } from "./generated/console";
 export type HealthState = "healthy" | "degraded" | "offline";
 export type TaskState =
   | "queued"
@@ -10,27 +12,8 @@ export type TaskState =
 export type ReleaseState = "private" | "releasable" | "released";
 
 export interface InstallationSnapshot {
-  installation: {
-    name: string;
-    productLabel: string;
-    logo?: string;
-    accentColor?: string;
-    version: string;
-    offlineMode: boolean;
-    generatedAt: string;
-  };
-  session: {
-    displayName: string;
-    principalId: string;
-    actorId: string;
-    tenantId: string;
-    tenantName: string;
-    workContext: string;
-    workContextTitle: string;
-    membership: WorkContextMembership;
-    invocationMode: InvocationMode;
-    availableTenants: Array<{ id: string; name: string }>;
-  };
+  installation: ConsoleInstallation;
+  session: ConsoleSession;
   principals: PrincipalSummary[];
   stream: {
     cursor: string;
@@ -50,8 +33,7 @@ export interface PrincipalSummary {
   displayName: string;
 }
 
-export type WorkContextMembership = "viewer" | "contributor" | "custodian" | "owner";
-export type InvocationMode = "direct" | "delegated" | "automated";
+export type WorkContextMembership = WorkContextMembershipLevel;
 
 export interface ServiceHealth {
   id: string;

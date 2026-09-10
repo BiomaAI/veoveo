@@ -561,3 +561,18 @@ outgoing event queued, and releases its reference on disconnect, source loss or 
 expiry. Unexpected source termination is explicit and triggers fresh client admission;
 normal unsubscribe preserves other observers. The local gateway/BFF suite passes
 194 cases. Native page integration and installed end-to-end qualification remain open.
+
+The first native Console workspace now uses a small authenticated session projection,
+with installation inventory loaded only for authorized administrators. Rust schemas
+generate the Console and Computer TypeScript models and runtime validators. The page
+shows current capacity, phases and action flags; lifecycle request IDs survive reload
+and ambiguous responses. The lazy xterm WebGL terminal enforces replay callback drain,
+bounded input/output, current lease deadlines and explicit disconnected state. Current
+behavior coverage includes stale read/subscription epochs, same-ID recovery and blocked
+rendering. These are local protocol/controller results, not headed browser acceptance.
+
+Before release, qualify the real browser and full gateway/BFF/service subscription chain,
+add the reactive operation read projection and health invalidations, expose exact replay
+truncation, and finish the CLI, delegated execution, file and retention journeys. The
+provider/allocator/service image and installation closure remain delivery work. The
+Console checkpoint does not change the installed workloads or claim public availability.
