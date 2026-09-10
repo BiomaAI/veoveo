@@ -393,6 +393,12 @@ indefinite blockers for a usable, secure selected profile. Extend the source-con
 
 ## Release Acceptance Matrix
 
+The native stock CLI probe now passes across provider SSH admission-token expiry.
+The exact `0.0.116` client retains its shell and exchanges data after the configured
+three-second credential expires. This supports renewing Veoveo connection authority
+without reconnecting solely to replace the provider admission credential. Platform
+lease enforcement, pairing and the public ingress journey remain implementation work.
+
 | Area | Required evidence |
 |---|---|
 | Core | Standard release surfaces, valid configured/unconfigured states, clean install and selected offline topology |

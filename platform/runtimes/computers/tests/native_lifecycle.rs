@@ -1,4 +1,6 @@
 mod native_support;
+#[path = "native_support/stock_cli.rs"]
+mod stock_cli;
 use native_support::Provider;
 use std::time::{Duration, SystemTime};
 use uuid::Uuid;

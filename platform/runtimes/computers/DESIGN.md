@@ -110,6 +110,16 @@ Reconciliation observes the expected stopped and restarted epochs without dispat
 This fixture uses the container writable layer. It does not qualify retained external
 volumes, host restart, storage quotas, renewable access, stock CLI or public ingress.
 
+The stock CLI fixture uses the verified `0.0.116` binary supplied by
+`VEOVEO_COMPUTERS_NATIVE_CLI`. It registers an isolated mTLS gateway with a three-second
+SSH session TTL. The unmodified client keeps the same shell and exchanges input/output
+after that admission credential expires. The pinned provider validates SSH credentials
+when admitting a tunnel; it does not expire an established bridge with that credential.
+Veoveo must enforce its own renewable connection authority and close both directions on
+expiry or revocation. This direct native probe establishes the transport prerequisite;
+it does not qualify platform renewal, browser pairing or public ingress. Run the same
+`native_lifecycle` target with the additional CLI environment variable to include it.
+
 `tests/native_retention.rs` adds isolated privileged block-device setup to the native
 fixture. It preallocates a 512 MiB ext4 image and uses Docker's local block-volume
 mounting path with `nodev,nosuid`. Actual user writes encounter ENOSPC; the existing

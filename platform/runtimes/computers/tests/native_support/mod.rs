@@ -68,6 +68,10 @@ fn quoted(path: &std::path::Path) -> String {
 
 impl Provider {
     pub async fn start() -> Self {
+        Self::start_with_session_ttl(3600).await.0
+    }
+
+    pub async fn start_with_session_ttl(ssh_session_ttl_secs: u64) -> (Self, String) {
         let gateway = required_path("VEOVEO_COMPUTERS_NATIVE_GATEWAY");
         let supervisor = required_path("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR");
         let output = required_path("VEOVEO_COMPUTERS_NATIVE_OUTPUT");
@@ -96,6 +100,7 @@ version = 1
 bind_address = "127.0.0.1:{port}"
 compute_drivers = ["docker"]
 log_level = "warn"
+ssh_session_ttl_secs = {ssh_session_ttl_secs}
 [openshell.gateway.gateway_jwt]
 signing_key_path = {jwt_key}
 public_key_path = {jwt_public}
@@ -186,12 +191,13 @@ enable_bind_mounts = false
             )
         });
         eprintln!("Native provider diagnostics: {}", dir.display());
-        Self {
+        let provider = Self {
             dir,
             runtime,
             image,
             cleanup,
-        }
+        };
+        (provider, format!("https://{endpoint}"))
     }
 
     pub fn assert_running(&mut self) {
