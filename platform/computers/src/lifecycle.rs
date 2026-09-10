@@ -10,6 +10,7 @@ pub struct DispatchTicket {
     operation: Box<Operation>,
     id: Uuid,
     deadline: Instant,
+    authority_deadline: Instant,
 }
 impl DispatchTicket {
     pub fn operation(&self) -> &Operation {
@@ -17,6 +18,14 @@ impl DispatchTicket {
     }
     pub fn remaining(&self) -> Duration {
         self.deadline.saturating_duration_since(Instant::now())
+    }
+    /// Fresh dispatch authority includes all policy and journal read latency.
+    pub fn authority_remaining(&self) -> Duration {
+        self.authority_deadline
+            .saturating_duration_since(Instant::now())
+    }
+    pub fn authority_deadline(&self) -> Instant {
+        self.authority_deadline
     }
 }
 pub struct ObservationTicket {
@@ -77,20 +86,41 @@ impl ReachedState {
 }
 
 impl ComputersStore {
-    /// The caller checks current action authority and retained-home readiness first.
+    /// Check current action authority here; the caller prepares the retained home.
     /// A lost reply returns no ticket. Recovery can observe, but cannot redispatch.
     pub async fn begin_dispatch(&self, claimed: &ClaimedTask) -> Result<DispatchTicket> {
-        let before = self.worker_operation(claimed).await?.operation;
+        let mut before = self.worker_operation(claimed).await?.operation;
         if before.stage != OperationStage::Queued {
             return Err(ComputerError::StateConflict);
         }
+        let permit = self.authorize_execution(&before).await?;
+        let evidence = serde_json::from_value::<veoveo_platform_store::OpenObject>(
+            serde_json::to_value(&permit.evidence).map_err(|_| ComputerError::Unavailable)?,
+        )
+        .map_err(|_| ComputerError::Unavailable)?;
+        let expires_at = permit.evidence.valid_until;
+        before.dispatch_authority = Some(permit.evidence);
         let id = Uuid::now_v7();
         self.worker_commit(
             claimed,
             &before,
             ProviderCommit::Dispatch,
             include_str!("../queries/dispatch.surql"),
-            vec![("dispatch_id", id.into_value())],
+            vec![
+                ("dispatch_id", id.into_value()),
+                ("dispatch_authority", evidence.into_value()),
+                ("authority_expires_at", expires_at.into_value()),
+                ("authority_revision", permit.revision_record.into_value()),
+                (
+                    "authority_enterprise",
+                    veoveo_platform_store::deterministic_enterprise_id()
+                        .record_id()
+                        .into_value(),
+                ),
+                ("authority_tenant", permit.tenant.into_value()),
+                ("authority_source", permit.source.into_value()),
+                ("authority_actor", permit.actor.into_value()),
+            ],
             "computer.operation_dispatched",
         )
         .await?;
@@ -100,13 +130,14 @@ impl ComputersStore {
         if operation.dispatch_id != Some(id) || operation.stage != OperationStage::Dispatched {
             return Err(ComputerError::StateConflict);
         }
-        if remaining.is_zero() {
+        if remaining.is_zero() || permit.deadline <= Instant::now() {
             return Err(ComputerError::StateConflict);
         }
         Ok(DispatchTicket {
             operation: Box::new(operation),
             id,
             deadline: Instant::now() + remaining,
+            authority_deadline: permit.deadline,
         })
     }
 

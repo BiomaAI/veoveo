@@ -37,6 +37,7 @@ pub struct Operation {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub dispatch_id: Option<Uuid>,
+    pub dispatch_authority: Option<crate::ExecutionDecision>,
     pub dispatched_at: Option<DateTime<Utc>>,
     pub observation_deadline: Option<DateTime<Utc>>,
     pub observation_reads: u32,
@@ -76,6 +77,7 @@ pub(crate) struct OperationRecord {
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     dispatch_id: Option<Uuid>,
+    dispatch_authority: Option<OpenObject>,
     dispatched_at: Option<DateTime<Utc>>,
     observation_deadline: Option<DateTime<Utc>>,
     observation_reads: u32,
@@ -117,6 +119,10 @@ impl TryFrom<OperationRecord> for Operation {
                 created_at: value.created_at,
                 updated_at: value.updated_at,
                 dispatch_id: value.dispatch_id,
+                dispatch_authority: value
+                    .dispatch_authority
+                    .map(|value| serde_json::from_value(serde_json::to_value(value)?))
+                    .transpose()?,
                 dispatched_at: value.dispatched_at,
                 observation_deadline: value.observation_deadline,
                 observation_reads: value.observation_reads,
@@ -139,6 +145,11 @@ impl TryFrom<OperationRecord> for Operation {
             .map_err(|_| ComputerError::Unavailable)?;
         if operation.execution_authority.task_owner() != operation.actor {
             return Err(ComputerError::Unavailable);
+        }
+        match (&operation.dispatch_authority, operation.dispatch_id) {
+            (Some(decision), Some(_)) => decision.validate(&operation)?,
+            (None, None) => {}
+            _ => return Err(ComputerError::Unavailable),
         }
         Ok(operation)
     }

@@ -18,6 +18,8 @@ veoveo-computers-runtime = { path = "../../platform/runtimes/computers" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
+sha2.workspace = true
+hex.workspace = true
 chrono.workspace = true
 rcgen.workspace = true
 surrealdb = { version = "=3.2.4", default-features = false, features = ["protocol-ws", "rustls"] }

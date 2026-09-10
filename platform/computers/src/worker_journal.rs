@@ -102,12 +102,14 @@ fn operation_event(operation: &Operation, event: &str) -> Result<OutboxDraft> {
         operation_id: Uuid,
         actor: &'a str,
         authority: &'a veoveo_mcp_contract::InvocationAuthority,
+        dispatch_authority: Option<&'a crate::ExecutionDecision>,
     }
     let serde_json::Value::Object(fields) = serde_json::to_value(Event {
         computer_id: operation.computer_id,
         operation_id: operation.operation_id,
         actor: &operation.actor.principal_key,
         authority: &operation.actor.authority,
+        dispatch_authority: operation.dispatch_authority.as_ref(),
     })
     .map_err(|_| ComputerError::Unavailable)?
     else {

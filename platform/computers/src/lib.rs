@@ -2,6 +2,7 @@
 mod admission;
 mod authority;
 mod capacity;
+mod current_authority;
 mod identity;
 mod lifecycle;
 mod model;
@@ -13,6 +14,7 @@ mod worker_queue;
 
 pub use admission::{CapacityPolicy, Reservation};
 pub use authority::{AcceptedAuthority, ComputerActor};
+pub use current_authority::ExecutionDecision;
 pub use lifecycle::{
     DispatchTicket, ObservationAdmission, ObservationTicket, ReachedPhase, ReachedState,
 };

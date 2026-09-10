@@ -408,7 +408,9 @@ charges a persisted observation budget and settles a matching resource/process b
 Task publication. Deadline or read-budget exhaustion preserves the Computer fence in
 Recovery Required. Real-store contention tests also enforce capacity and operation
 admission on conditional writes. The worker now integrates native lifecycle dispatch and shared Task projection. The
-production allocator and current grant/action authority remain integration work.
+production allocator and current attachment/delegation grants remain integration work.
+Lifecycle dispatch now reads current policy and canonical account state and persists
+the actual decision with its dispatch. Storage fixtures cannot override that check.
 
 | Area | Required evidence |
 |---|---|
@@ -475,8 +477,8 @@ terminal replay, shell continuity on reattach, numeric UID 10001 and a new proce
 after Stop/Start. A separate native ext4 fixture also proves a 512 MiB physical capacity bound, ENOSPC,
 confined writes and offline block backup/restore into a new provider resource with
 preserved files and UID. That fixture explicitly removes the source containers;
-production allocation, automatic writer fencing, renewable access, durable lifecycle
-dispatch and installation remain required.
+production allocation, automatic writer fencing, durable renewable grants and
+installation remain required. Native durable dispatch is qualified below.
 
 Source package: `veoveo-openshell-handoff-2026-09-09.zip`, SHA-256
 `b330a4016a25d182e206421c4eb019a1cd2fc0ae94e40b7d2056dcd654cba061`.
@@ -502,9 +504,9 @@ The domain operation journal now admits one fenced action transactionally, prese
 the previous provider run and reconstructs its shared Task after interrupted linking.
 Current context membership and output clearance are checked before mutation admission.
 The Computers worker now connects this journal to native lifecycle dispatch and
-bounded reconciliation. It repairs Task links and domain-to-Task projection. Current
-production authority, retained allocation and public/installed surfaces remain delivery
-work. The local fixture gate is not evidence for those remaining boundaries.
+bounded reconciliation. It repairs Task links and domain-to-Task projection. Dispatch
+reads current action policy and enabled account state. Current attachment/delegation
+grants, retained allocation and public/installed surfaces remain delivery work.
 
 The native worker checkpoint passes against the pinned provider and isolated SurrealDB:
 two replicas contend for Create, files survive Stop/Start, a successor observes a Stop
@@ -512,5 +514,6 @@ whose completion reply was lost to the domain, and cancellation remains in the T
 history when that known effect succeeds. Pre-dispatch cancellation/denial sends no
 mutation. A lost Start ticket is never replayed; eight charged reads end in Recovery
 Required with the original fence. Task-link/projection/pin repair has real-store
-coverage. The fixture supplies its own prepared ext4 volume and explicit test gate;
-production allocation and current policy/grant authority are still required.
+coverage. The fixture supplies its own prepared ext4 volume and storage adapter.
+It now uses the domain's current policy checker and a real isolated control revision;
+production allocation and attachment/delegation grant authority are still required.

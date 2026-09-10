@@ -1,0 +1,332 @@
+{
+  "identity_providers": [
+    {
+      "id": "enterprise",
+      "issuer": "https://idp.example.com",
+      "jwks": {
+        "source": "file",
+        "path": "configs/jwks.smoke.json"
+      },
+      "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
+      "token_endpoint": "https://idp.example.com/oauth2/token",
+      "enterprise_managed_authorization_endpoint": "https://idp.example.com/oauth2/id-jag",
+      "metadata": {}
+    }
+  ],
+  "authorization_servers": [
+    {
+      "id": "veoveo",
+      "issuer": "https://computers.test",
+      "jwks": {
+        "source": "file",
+        "path": "configs/jwks.smoke.json"
+      },
+      "access_token_key_id": "test-key",
+      "access_token_signing_key": "veoveo_access_token_private_key",
+      "identity_provider": "enterprise",
+      "authorization_endpoint": "https://veoveo.example/oauth/authorize",
+      "token_endpoint": "https://veoveo.example/oauth/token",
+      "metadata": {}
+    }
+  ],
+  "servers": [
+    {
+      "slug": "computers",
+      "uri_scheme": "computer",
+      "mount_path": "/computers",
+      "mcp_path": "/computers/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://127.0.0.1:18802/computers/mcp",
+        "health_url": "http://127.0.0.1:18802/computers/healthz",
+        "security": "loopback_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "resources_list_changed": true
+      },
+      "tools": [
+        "create",
+        "start",
+        "stop"
+      ],
+      "compatibility_helpers": [],
+      "prompts": [],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "owned_routes": [],
+      "metadata": {}
+    }
+  ],
+  "profiles": [
+    {
+      "id": "operator",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://computers.test/mcp/operator",
+      "policy_version": "test-1",
+      "auth_modes": [
+        "enterprise_managed_authorization",
+        "oauth_client_credentials",
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "servers": [
+        {
+          "server": "computers",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "computer"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "recording_ingest_resources": [],
+  "policies": [
+    {
+      "version": "test-1",
+      "rules": [
+        {
+          "id": "computer-lifecycle",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "computers"
+          ],
+          "tools": [
+            "create",
+            "start",
+            "stop"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ]
+        }
+      ]
+    }
+  ],
+  "data_labels": [
+    {
+      "id": "cui",
+      "title": "Controlled Unclassified Information",
+      "regulated": true,
+      "metadata": {}
+    },
+    {
+      "id": "itar",
+      "title": "ITAR-controlled data",
+      "regulated": true,
+      "metadata": {}
+    },
+    {
+      "id": "pii",
+      "title": "Personally Identifiable Information",
+      "regulated": true,
+      "metadata": {}
+    }
+  ],
+  "tenants": [
+    {
+      "id": "test",
+      "title": "Computer test tenant"
+    }
+  ],
+  "work_contexts": [
+    {
+      "id": "computers-test",
+      "tenant": "test",
+      "title": "Computers tests",
+      "policy_revision": "test-1",
+      "output_policy": {
+        "owner": {
+          "kind": "principal",
+          "id": "https://computers.test#alice"
+        }
+      },
+      "memberships": [
+        {
+          "level": "contributor",
+          "oauth_clients": [
+            "console",
+            "service",
+            "delegated"
+          ]
+        }
+      ]
+    }
+  ],
+  "oauth_clients": [
+    {
+      "id": "console",
+      "authorization_server": "veoveo",
+      "default_work_context": "computers-test",
+      "invocation_mode": "direct",
+      "display_name": "Veoveo Operator Local Client",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://computers.test/mcp/operator"
+      ],
+      "grant_types": [
+        "authorization_code_pkce",
+        "refresh_token"
+      ],
+      "auth_methods": [
+        "none"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "client_boundary": "local_public"
+      },
+      "redirect_uris": [
+        "http://localhost:6274/oauth/callback",
+        "http://localhost:6274/oauth/callback/debug",
+        "http://127.0.0.1:6274/oauth/callback",
+        "http://127.0.0.1:6274/oauth/callback/debug",
+        "http://localhost:8789/callback",
+        "http://127.0.0.1:8789/callback",
+        "http://localhost:8789/oauth/callback",
+        "http://127.0.0.1:8789/oauth/callback"
+      ]
+    },
+    {
+      "id": "service",
+      "authorization_server": "veoveo",
+      "default_work_context": "computers-test",
+      "invocation_mode": "automated",
+      "display_name": "Veoveo Operator Service",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://computers.test/mcp/operator"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "client_boundary": "operator_service"
+      },
+      "jwks": {
+        "source": "file",
+        "path": "configs/jwks.smoke.json"
+      },
+      "tenant": "test"
+    },
+    {
+      "id": "delegated",
+      "authorization_server": "veoveo",
+      "default_work_context": "computers-test",
+      "invocation_mode": "delegated",
+      "display_name": "Operator Delegated Client",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://computers.test/mcp/operator"
+      ],
+      "grant_types": [
+        "enterprise_managed_authorization"
+      ],
+      "auth_methods": [
+        "none"
+      ],
+      "redirect_uris": [
+        "http://localhost:8789/oauth/callback"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "client_boundary": "delegated"
+      }
+    }
+  ],
+  "oidc_clients": [
+    {
+      "id": "enterprise",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "allowed_resources": [
+        "https://computers.test/mcp/operator"
+      ],
+      "client_id": "veoveo",
+      "redirect_uri": "https://veoveo.example/oauth/callback",
+      "auth_method": "client_secret_post",
+      "credential_secret": "enterprise_oidc_client_secret",
+      "scopes": [
+        "openid",
+        "profile",
+        "email"
+      ],
+      "metadata": {}
+    }
+  ],
+  "secrets": [
+    {
+      "id": "enterprise_oidc_client_secret",
+      "source": "env",
+      "purpose": "oauth_client_secret",
+      "locator": "VEOVEO_IDP_OIDC_CLIENT_SECRET",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "veoveo_access_token_private_key",
+      "source": "env",
+      "purpose": "jwks_private_key",
+      "locator": "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "gateway_internal_signing_private_key",
+      "source": "env",
+      "purpose": "gateway_signing_key",
+      "locator": "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "environment": "smoke"
+  }
+}

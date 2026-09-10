@@ -10,6 +10,7 @@ use veoveo_computers::{
 use veoveo_task_runtime::{ClaimedTask, TaskRuntime, TaskStatus};
 
 async fn setup(db: &TestDb) -> (ComputersStore, ComputersStore, TaskRuntime) {
+    support::policy::install_default(&db.a).await;
     let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
     let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(1)).unwrap();
     a.install_capacity(
@@ -149,6 +150,9 @@ async fn lost_dispatch_receipt_recovers_by_one_charged_observation_without_repla
     let (a, b, tasks) = setup(&db).await;
     let (op, claimed) = create(&a, &tasks).await;
     drop(a.begin_dispatch(&claimed).await.unwrap());
+    let mut denied = support::policy::control();
+    denied.policies[0].rules[0].effect = veoveo_mcp_contract::PolicyEffect::Deny;
+    support::policy::install(&db.b, denied).await;
     db.a.client()
         .query("UPDATE ONLY $task SET lease_expires_at = time::now() - 1s;")
         .bind(("task", op.task_id().record_id()))

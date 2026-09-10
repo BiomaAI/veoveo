@@ -2,6 +2,8 @@ use veoveo_task_runtime::TaskOwner;
 #[path = "../../../../testing/fixtures/store.rs"]
 mod store;
 pub use store::TestDb;
+#[allow(dead_code)] // Only dispatch scenarios consume current policy.
+pub mod policy;
 
 pub const FINGERPRINT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -19,6 +21,11 @@ pub fn owner(subject: &str) -> TaskOwner {
 /// Explicit local request fixture. This is not installed authentication or policy evidence.
 #[allow(dead_code)] // Collection-only scenarios do not admit lifecycle operations.
 pub fn authenticated(owner: &TaskOwner) -> veoveo_computers::ComputerActor {
+    veoveo_computers::ComputerActor::from_verified(&identity(owner)).unwrap()
+}
+
+#[allow(dead_code)]
+pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdentity {
     use veoveo_mcp_contract::*;
     let principal = Principal {
         id: PrincipalId::new(owner.principal_key.clone()).unwrap(),
@@ -70,7 +77,7 @@ pub fn authenticated(owner: &TaskOwner) -> veoveo_computers::ComputerActor {
         not_before: None,
         expires_at: now + chrono::TimeDelta::hours(1),
     };
-    veoveo_computers::ComputerActor::from_verified(&GatewayInternalIdentity {
+    GatewayInternalIdentity {
         issuer: TokenIssuer::new("veoveo-internal").unwrap(),
         profile: GatewayProfileId::new(owner.profile.clone()).unwrap(),
         server: ServerSlug::new("computers").unwrap(),
@@ -84,6 +91,5 @@ pub fn authenticated(owner: &TaskOwner) -> veoveo_computers::ComputerActor {
         issued_at: now,
         not_before: now,
         expires_at: now + chrono::TimeDelta::minutes(1),
-    })
-    .unwrap()
+    }
 }
