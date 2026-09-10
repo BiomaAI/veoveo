@@ -125,6 +125,41 @@ impl BlockHome {
             checked(remove);
         }
     }
+    pub fn assert_registered_no_copy(&self) {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct Mount {
+            source: Option<String>,
+            target: String,
+            volume_options: Option<Options>,
+        }
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct Options {
+            no_copy: bool,
+            subpath: String,
+        }
+        let mut list = Command::new("docker");
+        list.args(["ps", "--all", "--quiet", "--filter"])
+            .arg(format!("volume={}", self.volume));
+        let consumers = checked(list);
+        let ids = consumers.split_whitespace().collect::<Vec<_>>();
+        assert_eq!(ids.len(), 1, "expected one registered provider container");
+        let mut inspect = Command::new("docker");
+        inspect.args(["inspect", "--format", "{{json .HostConfig.Mounts}}", ids[0]]);
+        let mounts: Vec<Mount> = serde_json::from_str(&checked(inspect)).unwrap();
+        let home = mounts
+            .iter()
+            .find(|mount| mount.source.as_deref() == Some(&self.volume))
+            .unwrap();
+        assert_eq!(home.target, "/sandbox/persistent");
+        let options = home.volume_options.as_ref().unwrap();
+        assert!(
+            options.no_copy,
+            "retained provider mount must skip pre-registration copy"
+        );
+        assert_eq!(options.subpath, "home");
+    }
     fn detach(&mut self) {
         self.remove_consumers();
         let mut remove = Command::new("docker");

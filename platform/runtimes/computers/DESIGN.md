@@ -9,7 +9,7 @@ or installed provider is qualified by this source checkpoint. The owning domain 
 | Boundary | Selected profile |
 |---|---|
 | OpenShell `0.0.116` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
-| OpenShell retained Docker provider | Candidate gateway `0.0.117-dev.6+g32efe0b` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
+| OpenShell retained Docker provider | Candidate gateway `0.0.117-veoveo.1` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
 | SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
 | `veoveo.io/computer-storage/v1` | Bounded mTLS allocation/restore adapter generated from `protocol/storage.json`; allocator implementation and physical volume qualification pending |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
@@ -23,7 +23,8 @@ release API on 2026-09-09. Workspace `tokio-rustls` remains on its qualified
 `0.26.4` pin; advancing it to `0.26.5` is independent of this adapter port.
 OpenShell `0.0.116` remains the latest published release at this checkpoint.
 The provider patches implement retained restart, process groups, owned terminals,
-exit-event correlation, log bounds, and explicit replay completion. They require
+exit-event correlation, log bounds, explicit replay completion, and Docker volume
+NoCopy. They require
 their own qualification and upstream/removal tracking before release.
 
 Russh enables the existing Ring crypto backend and omits its unused RSA/compression
@@ -64,8 +65,9 @@ removal. It does not establish quota enforcement, backup safety or production al
 
 The selected producer must use `volume-nocopy`. Docker otherwise populates a volume
 before the new container enters its registry, which prevents container enumeration
-from identifying that caller. The current provider requires an explicit adapter update
-before it can adopt this boundary. Production binding must also include the provider,
+from identifying that caller. The provider's seventh patch passes `no_copy` through
+to Docker, and retained templates require it with the `home` subpath. This changes
+the template fingerprint. Production binding must also include the provider,
 template and admitted instance; a Computer label alone is insufficient for handoff.
 The [Docker volume protocol](https://docs.docker.com/engine/extend/plugins_volume/) and
 [Moby mount implementation](https://github.com/moby/moby/blob/6bc6209/daemon/volume/mounts/mounts.go)

@@ -86,14 +86,14 @@ fn sandbox(phase: Phase) -> api::Sandbox {
     }
 }
 #[test]
-fn python_fingerprint_and_full_binding_goldens() {
+fn template_fingerprint_and_full_binding_goldens() {
     assert_eq!(
         template(false).fingerprint(),
         "e5fade003b74055ca5103c7277a0259879617098235ec72ba3afe561fc83f77d"
     );
     assert_eq!(
         template(true).fingerprint(),
-        "7c3ad949f9ca4a4876541bdb3e322b99251ce7a7f1c61aac56c52366744aceb4"
+        "932ffab604f3d5f0db8b91f7fb4e26b648e1cec95fe0618da5192b64dec582c8"
     );
     assert_eq!(binding().name(), "cqnayesomb432fipnee");
     assert_eq!(
@@ -905,7 +905,7 @@ async fn gateway_admission_auth_and_identity_fail_closed() {
     let running = Running::start().await;
     {
         let mut s = running.fake.0.lock().unwrap();
-        s.version = "0.0.117-dev.6+g32efe0b-extra".into();
+        s.version = format!("{GATEWAY_VERSION}-extra");
     }
     assert!(matches!(
         running.runtime.ready().await,

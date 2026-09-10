@@ -2402,3 +2402,33 @@ data; failure cleanup preserves diagnostic logs. The installation daemon is unch
 This fixture avoids both cached-plugin churn and a host-wide Docker restart. The
 registered-consumer check still needs exact provider/instance admission and native
 allocator qualification before it can establish production writer exclusion.
+
+The seventh provider patch adds typed Docker volume `no_copy`; retained templates
+require it and acquire a new fingerprint. All seven patch applications reproduce
+their exact trees, and every gateway export file matches the new tree after the
+declared workspace-version materialization. The archive normalized one documentation
+symlink's trailing slash; its target is unchanged. The six imported patches retain
+their original bytes. The new gateway/driver version is `0.0.117-veoveo.1`.
+
+The initial Docker-driver test build took 39.34 s and downloaded the previously
+uncached, locked `temp-env` dependency. Its 137 tests pass in 0.05 s. An accidental
+`--no-default-features` gateway build was stopped when inspection showed that it
+changed the qualified provider profile; the corrected build preserves default
+features and takes 1 min 29 s. A subsequent recorded driver test takes 22.61 s to
+compile after that feature-graph switch. Reusing one target directory does not avoid
+recompilation when test and binary feature graphs differ. Store the exact feature
+selection with the provider build recipe before packaging this path.
+
+The new provider passes native terminal/renewal/CLI checks in 11.85 s and physical
+retention/ENOSPC/backup-restore in 23.61 s. The retention case also inspects actual
+Docker mount options for the original and replacement container. Runtime's 72 checks
+pass in 20.49 s after a 6.85 s compile; all-target Clippy takes 4.32 s. The existing
+supervisor binary and Computer image are reused. Provider OCI packaging and the
+production allocator remain outstanding; these native results do not establish
+installed writer exclusion or public availability.
+
+The same new provider also passes the real-store two-worker lifecycle/recovery case
+in 24.27 s after an 8.57 s consumer compile. Candidate binary SHA-256 identities are
+gateway `20fd9afa9662d4fff62a8de0be8c9ad53ba2d096c9137dde82958417c1ec3ef6`
+and Docker driver `eee64d2a0c973071c74fe160eb02bbe5c4094724dee1190be99f742e081bbcf9`.
+The reused supervisor is `18966e201952608891fad4b570bab45fdaaf88f4cfd627d7709e3f71743a4844`.

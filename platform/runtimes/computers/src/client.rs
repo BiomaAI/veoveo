@@ -11,7 +11,7 @@ use tonic::{
 };
 use uuid::Uuid;
 use zeroize::Zeroizing;
-pub const GATEWAY_VERSION: &str = "0.0.117-dev.6+g32efe0b";
+pub const GATEWAY_VERSION: &str = "0.0.117-veoveo.1";
 pub(crate) type Client = api::open_shell_client::OpenShellClient<Channel>;
 
 pub struct GatewayConfig {
