@@ -161,9 +161,10 @@ Hub, administration, and GPU policy.
 | `platform/computers/images/` | candidate Computer user environment with pinned Ubuntu base/archive inputs and numeric process identity; separate from the privileged provider and retained allocator |
 | `platform/runtimes/computers/tests/native_volume_plugin.rs` and `tests/native_support/docker_daemon.rs` | native registered-writer probe with a disposable Docker daemon, pinned image import and daemon-scoped plugin cleanup |
 | `platform/runtimes/computers/src/retained_writer.rs` | exact Docker engine, provider namespace and Computer-instance matching for retained volume admission; persisted physical handoff remains allocator work |
-| `servers/computers-mcp/` | bounded lifecycle worker, production retained-storage preparation, domain-enforced current policy, native dispatch and Task projection; authenticated public projection; runnable package and live grants remain active work |
+| `servers/computers-mcp/` | bounded lifecycle worker, production retained-storage preparation, domain-enforced current policy, native dispatch and Task projection; authenticated public projection; runnable service with validated configuration; installation package and live grants remain active work |
 | `servers/computers-mcp/src/application.rs` and `templates.rs` | shared lifecycle/read projection, current action flags, availability/quota states and original Create selection across default-template changes |
-| `servers/computers-mcp/src/protocol/` and `server/` | authenticated stateless MCP, lifecycle/resource/Task projection, bounded shared-outbox subscriptions and canonical Console HTTP routes; installation wiring remains pending |
+| `servers/computers-mcp/src/protocol/` and `server/` | authenticated stateless MCP, lifecycle/resource/Task projection, bounded shared-outbox subscriptions and canonical Console HTTP routes; service startup and bounded provider readiness in `server/run.rs` and `provider.rs` |
+| `servers/computers-mcp/src/config.rs` and `src/bin/computers-mcp.rs` | closed installation configuration, template/trust validation, database-scoped credentials and thin service entrypoint |
 | `servers/` | independently deployed MCP servers and protocol projections |
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |

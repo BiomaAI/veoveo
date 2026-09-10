@@ -7,7 +7,6 @@ mod app_support;
 mod support;
 #[path = "../../../platform/runtimes/computers/tests/native_support/template.rs"]
 mod template;
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use rmcp::model::{
     ClientCapabilities, Implementation, JsonObject, ProtocolVersion, RequestMetaObject,
     TASKS_EXTENSION_ID,
@@ -18,54 +17,9 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use veoveo_mcp_contract::*;
 
-struct Signing {
-    issuer: GatewayInternalTokenIssuer,
-    verifier: GatewayInternalTokenVerifier,
-}
-impl Signing {
-    fn new() -> Self {
-        let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
-        let trust = GatewayInternalTrustBundle::from_json(&json!({"keys":[{"kty":"OKP","crv":"Ed25519","x":URL_SAFE_NO_PAD.encode(key.public_key_raw()),"alg":"EdDSA","use":"sig","kid":"fixture"}]}).to_string()).unwrap();
-        let issuer = TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap();
-        Self {
-            issuer: GatewayInternalTokenIssuer::new(
-                issuer.clone(),
-                GatewayInternalSigningKey::new("fixture", key.serialize_der()).unwrap(),
-            ),
-            verifier: GatewayInternalTokenVerifier::new(
-                issuer,
-                ServerSlug::new("computers").unwrap(),
-                trust,
-            ),
-        }
-    }
-    fn bearer(&self, subject: &str, audience: &str) -> String {
-        self.bearer_until(
-            subject,
-            audience,
-            chrono::Utc::now() + chrono::TimeDelta::minutes(2),
-        )
-    }
-    fn bearer_until(
-        &self,
-        subject: &str,
-        audience: &str,
-        expires: chrono::DateTime<chrono::Utc>,
-    ) -> String {
-        let id = support::identity(&support::owner(subject));
-        self.issuer
-            .issue(
-                id.profile,
-                ServerSlug::new(audience).unwrap(),
-                id.actor,
-                id.authority,
-                id.request_context,
-                expires,
-            )
-            .unwrap()
-            .bearer_token
-    }
-}
+#[path = "support/signing.rs"]
+mod signing;
+use signing::Signing;
 struct Server {
     base: String,
     stop: CancellationToken,

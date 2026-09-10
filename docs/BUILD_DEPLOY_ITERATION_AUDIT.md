@@ -2599,3 +2599,20 @@ The failed attempt was a test HTTP-status expectation; all domain/application ca
 had passed. The corrected full run is green. CE-06 must preserve immutable attempt
 history and reuse the unaffected receipt closure. Runnable installation wiring and
 public rollout remain pending at this checkpoint.
+
+The runnable Computers service checkpoint validates the selected JSON profile and
+trust references before platform-store writes. Its isolated startup fixture serves
+Setup Required or Compute Unavailable as appropriate, rejects a stale quota overwrite,
+and shuts down without waiting for an unreachable provider. The executable rejects
+root-scoped store credentials without echoing environment secrets. Four startup/config
+cases take 1.56 s. Together with application and HTTP cases, the service's 11 tests take
+42.3 s including a 23.08 s compile. The four application cases took 11.04 s in that run;
+the three HTTP cases took 6.46 s. These are local observations, not deployment timings.
+
+The affected runtime suite passes 73 cases in 20.49 s after a 9.86 s compile. The
+combined first lint of the service and runtime took 22.15 s as their feature sets
+converged; the final recorded lint reused that graph in 0.98 s. Keep command/feature
+identity in CE-06 receipts. A service-only check and a combined runtime check can have
+different Cargo closures even when source is unchanged. The native provider and
+Computer image were not rebuilt for this checkpoint. Packaging and public rollout
+remain active work.

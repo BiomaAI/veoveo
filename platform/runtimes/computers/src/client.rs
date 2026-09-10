@@ -23,6 +23,26 @@ pub struct GatewayConfig {
     key_path: PathBuf,
 }
 impl GatewayConfig {
+    /// Validate referenced trust material before installation-side writes, without
+    /// requiring the provider to be online. This creates no qualified runtime.
+    pub async fn validate(&self) -> Result<()> {
+        self.transport().await.map(|_| ())
+    }
+    async fn transport(&self) -> Result<Endpoint> {
+        let (host, _) = endpoint_parts(&self.endpoint)?;
+        let ca = read_file(&self.ca_path).await?;
+        let cert = read_file(&self.cert_path).await?;
+        let key = read_file(&self.key_path).await?;
+        let tls = ClientTlsConfig::new()
+            .domain_name(host)
+            .ca_certificate(Certificate::from_pem(&*ca))
+            .identity(Identity::from_pem(&*cert, &*key));
+        Endpoint::from_shared(format!("https://{}", self.endpoint))
+            .map_err(|_| RuntimeFailure::InvalidConfiguration)?
+            .connect_timeout(Duration::from_secs(10))
+            .tls_config(tls)
+            .map_err(|_| RuntimeFailure::InvalidConfiguration)
+    }
     pub fn new(
         provider_instance_id: Uuid,
         endpoint: String,
@@ -126,19 +146,7 @@ impl OpenShellRuntime {
     }
     /// Establish an installation-owned mTLS connection and admit the exact pin.
     pub async fn connect(config: GatewayConfig) -> Result<Self> {
-        let (host, _) = endpoint_parts(&config.endpoint)?;
-        let ca = read_file(&config.ca_path).await?;
-        let cert = read_file(&config.cert_path).await?;
-        let key = read_file(&config.key_path).await?;
-        let tls = ClientTlsConfig::new()
-            .domain_name(host)
-            .ca_certificate(Certificate::from_pem(&*ca))
-            .identity(Identity::from_pem(&*cert, &*key));
-        let endpoint = Endpoint::from_shared(format!("https://{}", config.endpoint))
-            .map_err(|_| RuntimeFailure::InvalidConfiguration)?
-            .connect_timeout(Duration::from_secs(10))
-            .tls_config(tls)
-            .map_err(|_| RuntimeFailure::InvalidConfiguration)?;
+        let endpoint = config.transport().await?;
         let channel = endpoint
             .connect()
             .await

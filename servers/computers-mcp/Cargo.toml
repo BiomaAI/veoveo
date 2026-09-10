@@ -5,15 +5,18 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+anyhow.workspace = true
+clap.workspace = true
 axum.workspace = true
 chrono.workspace = true
 futures.workspace = true
 schemars.workspace = true
+rustls.workspace = true
 rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util.workspace = true
 tracing.workspace = true
 uuid.workspace = true
@@ -29,7 +32,6 @@ rmcp = { workspace = true, features = ["client", "transport-streamable-http-clie
 base64.workspace = true
 reqwest = { workspace = true, features = ["json", "stream", "rustls-no-provider"] }
 nix = { workspace = true, features = ["fs", "user", "mount"] }
-rustls.workspace = true
 tokio = { workspace = true, features = ["process"] }
 tokio-rustls.workspace = true
 sha2.workspace = true

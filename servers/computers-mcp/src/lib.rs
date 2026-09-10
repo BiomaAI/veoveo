@@ -1,5 +1,6 @@
 //! Computers worker and public projections share one domain journal.
 mod application;
+pub mod config;
 mod preflight;
 pub mod protocol;
 pub mod server;

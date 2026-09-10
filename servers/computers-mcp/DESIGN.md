@@ -9,9 +9,63 @@
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
 | MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions; installed conformance remains pending |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
+| `veoveo.io/computers-service/v1` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
 
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
-ordinary catalog and action policy without importing the provider SDK. The HTTP router is callable by fixtures; the runnable installation entrypoint remains pending.
+ordinary catalog and action policy without importing the provider SDK. The `computers-mcp` executable serves the same HTTP router used by fixtures.
+
+## Installation Configuration And Process
+
+`computers-mcp --config /etc/veoveo/computers.json` starts the service. The equivalent
+configuration reference is `VEOVEO_COMPUTERS_CONFIG`. It uses the installation's
+`VEOVEO_SURREAL_ENDPOINT`, `VEOVEO_SURREAL_NAMESPACE`, `VEOVEO_SURREAL_DATABASE`,
+`VEOVEO_SURREAL_AUTH_LEVEL`, `VEOVEO_SURREAL_USERNAME`, `VEOVEO_SURREAL_PASSWORD` and
+`VEOVEO_INTERNAL_TRUST_JWKS`. Store credentials must be database-scoped. Apply store
+migrations through the installation owner before starting this process.
+
+The configuration schema is `veoveo.io/computers-service/v1`. Its closed root fields
+are `schema`, `listen`, `allowedHosts`, `providerInstanceId` and `capacity`.
+The provider UUID identifies the installation's retained capacity boundary and survives
+ordinary service restarts. Explicit `capacity: {"kind":"unconfigured"}` keeps the
+core collection available with Setup Required. It creates no capacity policy.
+
+The qualified local variant uses `kind: "openshell_docker"`. Its fields are `gateway`,
+`allocator`, `limits`, `templates` and `defaultTemplate`. Gateway contains `workspace`
+and `transport`; allocator is itself a transport. Each transport provides `endpoint`
+as a private host:port plus absolute `caFile`, `certificateFile` and `keyFile` paths.
+Provider and allocator trust are separate installation inputs. No credential belongs
+in the JSON document. Kubernetes supplies the referenced secrets through mounted files.
+
+Limits use `perOwner`, `perTenant` and `provider`. Every template contains `id`,
+`fingerprint`, `image`, `cpus`, `memoryMib`, `homeCapacityMib`, `temporaryMib` and
+`policy`. The policy uses the pinned provider's protobuf JSON mapping. The service
+selects the canonical retained login command and verifies the entire template against
+its declared fingerprint. `defaultTemplate` names one admitted fingerprint; historical
+fingerprints remain available for retained Computers. A new default does not alter them.
+
+Configuration loading and validation each have a ten-second deadline. The regular JSON
+file is capped at 1 MiB. Validate all referenced trust material and selected templates
+before connecting to or writing the platform store. Operator errors identify the
+configuration boundary or template index without echoing policy or credential bytes.
+A provider outage does not turn complete configuration into a malformed installation.
+
+The service installs capacity through the existing compare-and-set transaction. Startup
+admits an initial policy or its exact retry. Changing a persisted quota requires the
+installation owner to supply the previous policy to the domain's explicit transition;
+a stale replica cannot restore its former limits. Binding or configuration failure
+never starts a worker.
+
+The process connects to the qualified native provider in the background. Readiness is
+observed every five seconds and expires through the shared availability projection.
+Allocator readiness checks each admitted template with at most eight concurrent calls.
+These are readiness probes; lifecycle completion retains its operation-correlated watch
+and recovery profile. An unavailable allocator still permits Stop.
+
+Provider readiness loss cancels local worker futures and reconnects through the pinned
+handshake. The journal retains every outstanding dispatch and Task lease. Shutdown and
+outer-future cancellation propagate to background workers. Their cancellation ends local
+observation and access, leaving provider execution and retained homes under domain policy.
+The worker never owns a Computer's lifetime through a process-local connection.
 
 ## Public Application Projection
 
@@ -134,9 +188,10 @@ Audit events contain identities and provenance, without commands or credentials.
 
 ## Contract Compliance
 
-The router implements the protocol and HTTP projection described above. A runnable
-installation entrypoint, registration, live grants, execution/file tools and production
-packaging remain delivery work. The checklist in AGENTS.md declares those gaps.
+The router implements the protocol and HTTP projection described above. Registration, live grants, execution/file tools and production
+packaging remain delivery work. The runnable entrypoint and its startup/shutdown path
+are qualified with an isolated store and unavailable provider endpoints. That evidence
+proves truthful control availability and validated configuration, not native capacity. The checklist in AGENTS.md declares those gaps.
 Real-store HTTP fixtures use distinct database connections and service replicas. They
 exercise missing-capability admission, exact retry identity, private Task/resource
 access, schema bounds, current cancellation policy, reconnect baselines and subscription
