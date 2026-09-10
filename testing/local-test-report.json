@@ -1,24 +1,65 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4f81e252d81b7f59b26a7fc08a3bcc4c13f1fee09c855f5e55ab67f92066513f",
-  "updatedAt": "2026-09-10T00:11:00Z",
+  "buildDigest": "sha256:b7f7a9d23f47227e8ec03d22f031b75ca482db9e5822f8e34bb62d99d595443d",
+  "updatedAt": "2026-09-10T00:22:36Z",
   "checks": [
     {
-      "name": "computers-image",
+      "name": "computers-native-clippy",
       "command": [
-        "docker",
-        "build",
-        "--platform",
-        "linux/amd64",
-        "--tag",
-        "veoveo-computer-candidate:20260909",
-        "--file",
-        "platform/computers/images/Dockerfile",
-        "platform/computers/images"
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--test",
+        "native_lifecycle",
+        "--",
+        "-D",
+        "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:11:00Z",
-      "durationSeconds": 0.204383141,
+      "finishedAt": "2026-09-10T00:22:17Z",
+      "durationSeconds": 3.635521165,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-native-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:22:36Z",
+      "durationSeconds": 2.430517387,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-native-lifecycle",
+      "command": [
+        "env",
+        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
+        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-sandbox",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--test",
+        "native_lifecycle",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:22:24Z",
+      "durationSeconds": 13.238051457,
       "detail": "completed successfully"
     }
   ]

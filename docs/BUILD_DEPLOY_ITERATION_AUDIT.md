@@ -2219,3 +2219,11 @@ its dynamic-library loading but does not prove confinement or lifecycle behavior
 The local candidate image is
 `localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c`.
 It is available for isolated native acceptance and has not been installed on Bioma.
+
+The first native provider fixture exposed a required provider JWT signer alongside
+mTLS. Adding the separate Ed25519 signer resolved creation admission. The complete
+native create/terminal/reattach/Stop/Start check then passed in 11.51 s. Its isolated
+Docker namespace is cleaned on exit. This evidence does not cover retained external
+storage or production; no user workload was changed. Provider-specific validation
+currently returns a safe but broad adapter error, which made this setup fault harder
+to diagnose. Typed rejection diagnostics remain an integration improvement.
