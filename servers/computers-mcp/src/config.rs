@@ -8,6 +8,7 @@ use std::{
 };
 use uuid::Uuid;
 use veoveo_computers::CapacityPolicy;
+use veoveo_computers::session_grants::SessionGrantPolicy;
 use veoveo_computers_runtime::{
     AllocationConfig, DevelopmentTemplate, GatewayConfig, PERSISTENT_COMMAND, PersistentHome,
     parse_policy,
@@ -26,6 +27,8 @@ pub enum ConfigurationError {
     Identity,
     #[error("Computers requires 1 to 64 valid allowedHosts authorities")]
     Hosts,
+    #[error("Computers requires explicit canonical allowedOrigins and valid access lifetimes")]
+    Access,
     #[error("Computer template {index} has an invalid profile or fingerprint")]
     Template { index: usize },
     #[error(
@@ -50,6 +53,8 @@ pub struct Configuration {
     schema: ConfigSchema,
     listen: SocketAddr,
     allowed_hosts: Vec<String>,
+    allowed_origins: Vec<String>,
+    access: SessionGrantPolicy,
     provider_instance_id: Uuid,
     capacity: Capacity,
 }
@@ -110,6 +115,8 @@ struct Template {
 pub struct PreparedConfiguration {
     pub(crate) listen: SocketAddr,
     pub(crate) allowed_hosts: Vec<String>,
+    pub(crate) allowed_origins: crate::server::BrowserOrigins,
+    pub(crate) access: SessionGrantPolicy,
     pub(crate) provider_instance_id: Uuid,
     pub(crate) templates: Templates,
     pub(crate) provider: Option<PreparedProvider>,
@@ -171,6 +178,11 @@ impl Configuration {
         {
             return Err(ConfigurationError::Hosts);
         }
+        let allowed_origins = crate::server::BrowserOrigins::new(self.allowed_origins)
+            .map_err(|_| ConfigurationError::Access)?;
+        self.access
+            .validate()
+            .map_err(|_| ConfigurationError::Access)?;
         let (templates, provider) = match self.capacity {
             Capacity::Unconfigured => (
                 Templates::new(vec![], None).map_err(|_| ConfigurationError::Templates)?,
@@ -241,6 +253,8 @@ impl Configuration {
         Ok(PreparedConfiguration {
             listen: self.listen,
             allowed_hosts: self.allowed_hosts,
+            allowed_origins,
+            access: self.access,
             provider_instance_id: self.provider_instance_id,
             templates,
             provider,

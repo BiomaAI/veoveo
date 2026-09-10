@@ -525,3 +525,14 @@ Required with the original fence. Task-link/projection/pin repair has real-store
 coverage. The fixture supplies its own prepared ext4 volume and storage adapter.
 It now uses the domain's current policy checker and a real isolated control revision;
 production allocation and attachment/delegation grant authority are still required.
+
+The browser service checkpoint now uses production retained allocation and durable
+access grants. Its native fixture creates one Computer through competing workers,
+issues a ticket on one HTTP replica and redeems it on another. Real shell I/O and
+resize cross the replay fence. Ticket replay is rejected, and the attachment continues
+after source JWT expiry through current grant renewal. Policy removal and family
+logout close access within the five-second fixture bound while the Computer stays
+Ready. Shared service watchers accelerate revocation and invalidate their former
+attachment epoch on observer loss. The recorded local suite passes 114 cases plus
+this native composition. Public gateway/BFF transport, Console rendering, stock CLI
+pairing, delegated execution, file movement and installed acceptance remain required.

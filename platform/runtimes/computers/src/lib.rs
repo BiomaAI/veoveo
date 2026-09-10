@@ -58,7 +58,7 @@ pub use recovery::{LifecycleCheckpoint, LifecycleObservation};
 pub use remote_access::OpenShellAccess;
 pub use retained_writer::{RegisteredConsumer, RetainedWriter};
 pub use storage::{PERSISTENT_BUILD_COMMAND, PERSISTENT_COMMAND, PERSISTENT_HOME, PersistentHome};
-pub use terminal::Terminal;
+pub use terminal::{Terminal, TerminalInput};
 pub use terminal_output::TerminalOutput;
 
 #[cfg(test)]

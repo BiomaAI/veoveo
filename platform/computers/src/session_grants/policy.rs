@@ -44,6 +44,21 @@ impl SessionGrantPolicy {
     }
 }
 impl ComputersStore {
+    pub async fn session_grant_policy(&self) -> Result<SessionGrantPolicy> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let mut response = self
+                .query(
+                    "SELECT * FROM ONLY $policy;",
+                    vec![("policy", self.session_policy_record().into_value())],
+                )
+                .await?;
+            let policy: Option<StoredPolicy> =
+                response.take(0).map_err(|_| ComputerError::Unavailable)?;
+            policy.ok_or(ComputerError::Unavailable)?.checked()
+        })
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
+    }
     pub(super) fn session_policy_record(&self) -> RecordId {
         RecordId::new(
             "computer_session_grant_policy",

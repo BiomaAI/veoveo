@@ -269,6 +269,7 @@ async fn generated_grpc_tunnel_uses_retained_ssh_bytes_resize_and_revoke() {
         .await
         .unwrap();
     assert_eq!(terminal.main_process_instance_id(), "main-1");
+    assert_eq!(terminal.sandbox_id(), "sandbox-1");
     assert!(terminal.read().await.unwrap().unwrap() == TerminalOutput::Data(vec![0, 255, 13, 10]));
     assert!(terminal.read().await.unwrap().unwrap() == TerminalOutput::ReplayComplete);
     terminal

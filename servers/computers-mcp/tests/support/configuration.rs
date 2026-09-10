@@ -60,5 +60,5 @@ impl Drop for Files {
     }
 }
 pub fn unconfigured(address: SocketAddr) -> Value {
-    json!({"schema":"veoveo.io/computers-service/v1","listen":address,"allowedHosts":[address.to_string()],"providerInstanceId":Uuid::from_u128(100),"capacity":{"kind":"unconfigured"}})
+    json!({"schema":"veoveo.io/computers-service/v1","listen":address,"allowedHosts":[address.to_string()],"allowedOrigins":[format!("http://{address}")],"access":{"maxGrants":4,"absoluteSeconds":28800,"idleSeconds":1800},"providerInstanceId":Uuid::from_u128(100),"capacity":{"kind":"unconfigured"}})
 }

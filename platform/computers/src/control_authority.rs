@@ -40,6 +40,14 @@ impl ComputersStore {
     }
 }
 impl ControlAuthority {
+    pub fn has_browser_session(&self) -> bool {
+        self.snapshot
+            .accepted
+            .request_context
+            .access_token
+            .session_family
+            .is_some()
+    }
     pub fn require_attach(&self, computer: Uuid) -> Result<()> {
         self.check_fresh()?;
         crate::session_grants::require_attach(&self.snapshot, computer)

@@ -20,6 +20,11 @@ pub async fn serve(
     let _cancel_on_drop = shutdown.clone().drop_guard();
     let listener = tokio::net::TcpListener::bind(config.listen).await?;
     let store = ComputersStore::new(tasks.platform_store().clone(), config.provider_instance_id)?;
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        store.install_session_grant_policy(None, config.access),
+    )
+    .await??;
     if let Some(provider) = &config.provider {
         // First install or an exact retry only. A changed quota requires an
         // explicit compare-and-set transition; replicas cannot overwrite it.
@@ -38,13 +43,21 @@ pub async fn serve(
         observed_at: Instant::now(),
     });
     let templates = config.templates.runtimes();
+    let (runtime_sender, runtime_access) = crate::RuntimeAccess::channel();
     let app = Arc::new(Application::new(
         store.clone(),
         tasks.clone(),
         config.templates,
         receiver,
+        runtime_access,
     )?);
-    let router = super::router(app, verifier, config.allowed_hosts, shutdown.clone())?;
+    let router = super::router(
+        app,
+        verifier,
+        config.allowed_hosts,
+        config.allowed_origins,
+        shutdown.clone(),
+    )?;
     let background = config.provider.map(|provider| {
         tokio::spawn(super::provider::maintain(
             provider,
@@ -52,6 +65,7 @@ pub async fn serve(
             tasks,
             templates,
             health,
+            runtime_sender,
             shutdown.clone(),
         ))
     });
