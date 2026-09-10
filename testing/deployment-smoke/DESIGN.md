@@ -22,6 +22,11 @@ This focused Rust harness owns Helm configuration assertions, deployment-profile
 dispatch, and exact-revision GitOps observation. Installation mutation remains with
 Helm and the installation's GitOps controllers.
 
+The `computers_helm` integration target renders the two standard presets and the
+configured Computers boundary with real Helm. It checks no-op configuration/Pod
+stability, unprivileged control, explicit configuration/trust references and rejected
+missing store dependencies. It creates no cluster resources or provider capacity.
+
 `gitops-converge` defaults to `--reconciliation observe`. It reads Flux resources,
 watches their status, and observes Deployment rollout and availability. It issues no
 reconciliation annotations. `--reconciliation request` explicitly annotates the named

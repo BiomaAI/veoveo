@@ -82,7 +82,33 @@ common tree `d6c991caf64220519382d93342ef88876a561324`. This procedure modifies
 only the scratch index/object store; it needs no provider binaries, running
 gateway or private source commit.
 
-## Upstream decision needed
+## OCI Build
+
+The `computer-provider` Bake target builds the selected gateway, Docker driver and
+supervisor from the public base plus this manifest's exact patch graph. It verifies
+each patch hash and resulting Git tree before exporting source. The exported trees
+have no parent Git checkout; explicit workspace and lockfile versions retain the
+qualified component identities. Cargo builds with `--locked` using the profile's
+Rust 1.95.0 toolchain, independently of Veoveo's compiler.
+
+The compiler uses the official Rust bookworm image pinned in `Dockerfile`. The
+runtime uses Debian bookworm-slim index
+`sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171`.
+Both archive inputs resolve from signed Debian snapshot `20260910T000000Z`.
+The runtime closure contains Z3 `4.8.12-3.1` and glibc `2.36-9+deb12u14`.
+The provider toolchain remains pinned under CE-07; this package does not upgrade
+its protocol or runtime behavior to another upstream release.
+
+The image retains package inventory, binary SHA-256 identities, the source manifest,
+patches and the upstream Apache-2.0 license. Source inputs alone enter compilation;
+documentation changes reuse compiled layers. A dedicated provider Cargo cache keeps
+this dependency graph outside ordinary Console and Veoveo service builds.
+
+The initial source build and executable version checks pass. Containerized provider
+execution and the installed capacity topology still require qualification against
+this OCI runtime closure. Earlier host-native artifact evidence is recorded separately.
+
+## Upstream Support
 
 VeoVeo needs a supported source/artifact path for the required behavior: provider
 maintainer acceptance, explicitly maintained patches, or a separately selected

@@ -20,7 +20,8 @@
     "telemetry",
     "ingress",
     "networkPolicy",
-    "podDisruptionBudget"
+    "podDisruptionBudget",
+    "computers"
   ],
   "properties": {
     "veoveo-extension": {
@@ -70,7 +71,8 @@
           "rerun",
           "recording",
           "stream",
-          "reason"
+          "reason",
+          "computers"
         ]
       }
     },
@@ -1219,6 +1221,75 @@
           }
         },
         "additionalProperties": false
+      }
+    },
+    "computers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "replicas",
+        "capacityMode",
+        "existingConfigMap",
+        "configurationRevision",
+        "existingTrustSecret",
+        "access",
+        "resources"
+      ],
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "capacityMode": {
+          "enum": [
+            "unconfigured",
+            "openshell-docker"
+          ]
+        },
+        "existingConfigMap": {
+          "type": "string"
+        },
+        "configurationRevision": {
+          "type": "string",
+          "pattern": "^([a-f0-9]{64})?$"
+        },
+        "existingTrustSecret": {
+          "type": "string"
+        },
+        "access": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maxGrants",
+            "absoluteSeconds",
+            "idleSeconds"
+          ],
+          "properties": {
+            "maxGrants": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 128
+            },
+            "absoluteSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "idleSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            }
+          }
+        },
+        "resources": {
+          "type": "object"
+        }
       }
     }
   },

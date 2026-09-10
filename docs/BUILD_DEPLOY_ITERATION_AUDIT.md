@@ -2766,3 +2766,42 @@ advisories. Their locked versions are now 4.28.9 and 2.11.21, with the required 
 data dependency closure refreshed; npm reports no vulnerabilities. New terminal and
 generator packages have exact verified pins. No provider binary, Computer image or
 installed workload changed. The latest filesystem observation has 272 GiB free.
+
+The first core Computers packaging pass adds four independent Bake targets. The
+service and storage helper reuse Veoveo's Rust compiler. The provider builds the
+verified OpenShell patch trees with its own pinned Rust 1.95.0 cache. The Computer
+template has no Rust build dependency. The initial service/helper image build took
+281.20 seconds, with an observed compile window of 250.94 seconds. The first
+source-built provider image took 382.69 seconds; its gateway and supervisor Cargo
+phases reported 228 and 89 seconds respectively.
+
+The final four-target packaging run took 177.55 seconds. It rebuilt embedded service
+documentation and re-exported provider source after narrowing the compiler COPY
+inputs to the manifest and patches. That source export changed mtimes and recompiled
+the provider's local crates against retained dependencies. Future provider source
+updates can reuse the existing source-freshness approach to avoid changing every
+exported file's timestamp. Provider documentation now changes only image documentation
+layers. This is a recorded optimization, not a selected-profile correctness blocker.
+
+The managed builder also assembled the previously qualified Computer template for the
+first time. Its Ubuntu snapshot invocation fetched current archive indexes as well as
+snapshot indexes, although package downloads used the pinned snapshot. A direct
+snapshot-only source list can remove that redundant metadata work in a focused image
+change. The resulting image still needs the exact installed template qualification.
+
+An immediate unchanged four-target repeat took **5.134 seconds**, 5.654 seconds through
+the evidence recorder, and performed no compilation. Every image retained both its
+configuration digest and runnable manifest digest. Both core Helm renders remain
+byte-stable across repeated runs. The 67 deployment-contract tests take 1.96 seconds;
+the two real Helm configuration tests take 1.36 seconds. The first affected lint takes
+21.29 seconds and formatting takes 3.00 seconds. An initial Helm test used a non-digest
+fixture revision and failed schema admission; replacing it with an explicitly synthetic
+64-character digest fixed the test input without relaxing chart validation.
+
+Concurrent BuildKit phase windows are not additive. The final mixed build reported an
+export window of 112.93 seconds while other targets were still compiling; that window
+includes gaps between target exports. Use command wall time and individual vertices
+for causal attribution rather than treating the aggregate window as export CPU time.
+The registry returned HTTP 200 and the host had 284 GiB free. Installed GitOps smoke
+and public acceptance follow immutable publication and the installation's complete
+new image/configuration closure; this packaging checkpoint changes no live workload.

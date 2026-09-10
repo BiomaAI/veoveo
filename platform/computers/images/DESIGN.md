@@ -15,6 +15,11 @@ required by the supervisor. It has no installation credentials or host control
 socket. Installed policy governs filesystem and network access. The provider's
 control process and retained allocator are separate trust boundaries.
 
+The canonical Bake target is `computer-template`, included with the Computers build
+artifacts. It has no dependency on the Console, service binary or provider compiler.
+Installation templates select its exact runnable digest and retain that identity
+until explicit Computer maintenance adopts another template.
+
 The upstream community image contains a wider agent/tool set and pins older tool
 versions. The initial Veoveo image owns its smaller package closure. Additional
 developer tools can become admitted templates after their inputs and behavior are

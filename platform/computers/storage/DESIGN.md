@@ -19,6 +19,13 @@ orchestration, release packaging and installed acceptance remain implementation 
 
 ## Ownership And Deployment
 
+The `computer-storage` Bake target uses the shared Veoveo Rust compiler and a
+digest-pinned Debian trixie runtime. Signed archive snapshot `20260910T000000Z`
+fixes e2fsprogs, util-linux and their package closure; the image retains its package
+inventory. The image runs the storage executable as root at the trusted compute-host
+boundary. Image construction alone does not qualify a container's mount propagation,
+loop devices or retained restart. The selected installed topology must prove them.
+
 The Computers worker owns policy, quota admission and the durable lifecycle operation.
 This helper owns physical allocation and the admitted writer on one compute host. It
 uses a separate process because it needs mount/loop privileges and a stable lifetime

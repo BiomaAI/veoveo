@@ -93,6 +93,7 @@ material they operate:
 | [`testing/deployment-smoke/DESIGN.md`](../testing/deployment-smoke/DESIGN.md) | focused Helm checks, passive or requested GitOps observation, and convergence evidence limits |
 | `testing/deployment-smoke/src/flux_cancellation/` | isolated live OCI source and Helm health-check cancellation, typed observations, latency evidence, and namespace cleanup |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
+| [`deploy/helm/veoveo/DESIGN.md`](../deploy/helm/veoveo/DESIGN.md) | chart-owned Computers core/configured boundary, trust references and stable control deployment |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
 | [`tools/image-build/DESIGN.md`](../tools/image-build/DESIGN.md) | Cargo-derived compilation inputs, artifact reuse, normalized dependency publication, and source identity |
 | [`apps/console/web/README.md`](../apps/console/web/README.md) | local Console refresh loop, proxy routes, and authentication origin |
@@ -150,6 +151,7 @@ Hub, administration, and GPU policy.
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
 | `platform/` | internal platform services, persistence, and reusable runtimes |
 | `platform/runtimes/computers/` | private native OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and bounded SSH-only CLI bridge; domain/service and installed qualification remain in the Computers plan |
+| `platform/runtimes/computers/provider-patches/Dockerfile` | independent OpenShell OCI build, verified upstream/patch trees and exact provider toolchain; compute-host topology remains separate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
 | `platform/policy/` | shared policy evaluator, immutable catalog view and pure current session-family predicate; authentication, store reads and freshness remain caller-owned |
 | `platform/computers/src/authority.rs` | verified operation-admission identity and retained source context for explicit current execution policy |

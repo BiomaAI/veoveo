@@ -11,11 +11,18 @@
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
 | `veoveo.io/computers-service/v1` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
+| OCI Linux AMD64 | `computers-mcp` Bake target, shared Veoveo Rust compiler and digest-pinned Debian trixie runtime with signed archive snapshot `20260910T000000Z` |
 
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
 ordinary catalog and action policy without importing the provider SDK. The `computers-mcp` executable serves the same HTTP router used by fixtures.
 
 ## Installation Configuration And Process
+
+The service image runs as UID 10001 and contains the production executable and
+runtime package inventory. The core chart mounts configuration and dedicated
+worker trust as described in [`deploy/helm/veoveo/DESIGN.md`](../../deploy/helm/veoveo/DESIGN.md).
+It gives the service no compute-host socket or retained-home mount. Core presets
+include its control deployment even when capacity is explicitly unconfigured.
 
 `computers-mcp --config /etc/veoveo/computers.json` starts the service. The equivalent
 configuration reference is `VEOVEO_COMPUTERS_CONFIG`. It uses the installation's

@@ -48,6 +48,10 @@ function "registry_cache_export" {
 
 group "platform-core" {
   targets = [
+    "computers-mcp",
+    "computer-storage",
+    "computer-provider",
+    "computer-template",
     "mcp-gateway",
     "artifact-service",
     "recording-forwarder",
@@ -59,6 +63,10 @@ group "platform-core" {
 
 group "platform-full" {
   targets = [
+    "computers-mcp",
+    "computer-storage",
+    "computer-provider",
+    "computer-template",
     "mcp-gateway",
     "artifact-service",
     "recording-forwarder",
@@ -203,6 +211,44 @@ target "_rust-bookworm-runtime" {
   inherits = ["base"]
   contexts = {
     veoveo-rust-artifacts = "target:rust-bookworm-artifacts"
+  }
+}
+
+target "computer-provider" {
+  inherits   = ["base"]
+  dockerfile = "platform/runtimes/computers/provider-patches/Dockerfile"
+  tags       = [image_ref("computer-provider")]
+}
+
+target "computer-template" {
+  inherits   = ["base"]
+  dockerfile = "platform/computers/images/Dockerfile"
+  tags       = [image_ref("computer-template")]
+}
+
+target "computers-mcp" {
+  inherits   = ["_rust-trixie-runtime"]
+  dockerfile = "servers/computers-mcp/Dockerfile"
+  tags       = [image_ref("computers-mcp")]
+  labels = {
+    "io.veoveo.build.mode"      = "rust-shared"
+    "io.veoveo.build.package"   = "veoveo-computers-mcp"
+    "io.veoveo.build.binaries"  = "computers-mcp"
+    "io.veoveo.build.family"    = "rust-trixie-v1"
+    "io.veoveo.build.auxiliary" = ""
+  }
+}
+
+target "computer-storage" {
+  inherits   = ["_rust-trixie-runtime"]
+  dockerfile = "platform/computers/storage/Dockerfile"
+  tags       = [image_ref("computer-storage")]
+  labels = {
+    "io.veoveo.build.mode"      = "rust-shared"
+    "io.veoveo.build.package"   = "veoveo-computer-storage"
+    "io.veoveo.build.binaries"  = "veoveo-computer-storage"
+    "io.veoveo.build.family"    = "rust-trixie-v1"
+    "io.veoveo.build.auxiliary" = ""
   }
 }
 

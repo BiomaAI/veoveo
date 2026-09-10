@@ -185,6 +185,13 @@ prove the absence of concurrent writes. Runtime storage and reuse rules belong i
 
 ## Deployment Profile
 
+Both standard presets include the core `computers` MCP server. Custom partial
+selections require the gateway and platform store when they include it. Its control
+image closure is `computers-mcp`; provider, storage and Computer template images
+belong to the configured capacity topology. An explicitly unconfigured core surface
+does not select privileged host workloads. The matching chart boundary is documented
+in [`../helm/veoveo/DESIGN.md`](../helm/veoveo/DESIGN.md).
+
 The installation repository owns the profile, registry selection, Kubernetes
 destination, pre-Helm resources, and `installationValues` files. Each named source owns
 its repository, independently resolved revision, source chart, `sourceValues`, and
