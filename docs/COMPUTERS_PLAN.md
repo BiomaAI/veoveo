@@ -441,6 +441,21 @@ Bioma cluster is Ready. The installed stock CLI is `0.0.14` and cannot establish
 qualified `0.0.116` client profile. Runtime dependencies remain outside the gateway.
 No provider or Computers deployment has been accepted at this checkpoint.
 
+The next checkpoint adds `platform/computers` and its public contract crate.
+Three isolated real-store tests use two clients to prove collection admission,
+human/service ownership, unchanged-request replay, tenant/context isolation and
+owner/tenant/provider quotas. Limits are durable policy; an old replica cannot
+admit against a cached pre-reduction value. The checkpoint also passes public
+schema tests, shared-store unit checks and all-target Clippy. The shared store's
+environment-gated integration tests were not enabled; the Computers tests start
+their own exact 3.2.4 database and apply the complete migration catalog.
+
+Both provider patch branches reproduce their expected upstream trees. The stock
+0.0.116 Linux AMD64 CLI archive verifies as SHA-256
+`4fb4476d80a1875a0b83547ec3aba999cf0a2e2d75f95f2f709b622e2103520e`.
+Patched provider compilation is in progress. Lifecycle dispatch, renewable access,
+retained storage qualification and installation are still required.
+
 Source package: `veoveo-openshell-handoff-2026-09-09.zip`, SHA-256
 `b330a4016a25d182e206421c4eb019a1cd2fc0ae94e40b7d2056dcd654cba061`.
 The package selects downstream source revision

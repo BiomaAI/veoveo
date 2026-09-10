@@ -146,6 +146,8 @@ Hub, administration, and GPU policy.
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
 | `platform/` | internal platform services, persistence, and reusable runtimes |
 | `platform/runtimes/computers/` | private native OpenShell adapter, retained binding/storage protocol, terminal/exec streams and provider patch provenance; domain/service and installed qualification remain in the Computers plan |
+| `platform/computers/` | durable core Computer collections, private human/service ownership, transactional owner/tenant/provider capacity and request identity; lifecycle worker and attachments remain in progress |
+| `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
 | `servers/` | independently deployed MCP servers and protocol projections |
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |

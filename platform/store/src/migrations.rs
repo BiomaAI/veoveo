@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 51] = [
+const MIGRATIONS: [Migration; 52] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -334,6 +334,12 @@ const MIGRATIONS: [Migration; 51] = [
         filename: "0050_artifact_uploads.surql",
         sql: include_str!("../migrations/0050_artifact_uploads.surql"),
     },
+    Migration {
+        version: 51,
+        name: "computers",
+        filename: "0051_computers.surql",
+        sql: include_str!("../migrations/0051_computers.surql"),
+    },
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -505,7 +511,7 @@ impl PlatformStore {
                             version: migration.version,
                             statement,
                             name: migration.name,
-                            source: error,
+                            source: Box::new(error),
                         });
                     }
                 }
