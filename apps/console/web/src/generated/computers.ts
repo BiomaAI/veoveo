@@ -7,6 +7,11 @@
 export type AccessGrantKind = "browser" | "cli";
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationPermission".
+ */
+export type AutomationPermission = "read" | "execute" | "start" | "stop";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "CliPairingConfirmBody".
  */
 export type CliPairingConfirmBody = Record<string, never>;
@@ -141,6 +146,8 @@ export type TerminalTicketInput = Record<string, never>;
 export interface ComputersApi {
   access_grants: AccessGrantCollection;
   access_revocation: AccessRevocation;
+  automation_grant: AutomationGrantView;
+  automation_grants: AutomationGrantCollection;
   cli_pairing_challenge: CliPairingChallenge;
   cli_pairing_confirm_body: CliPairingConfirmBody;
   cli_pairing_input: CliPairingInput;
@@ -149,6 +156,7 @@ export interface ComputersApi {
   create_input: CreateInput;
   error: ApiError;
   event: ComputerEvent;
+  issue_automation_grant: IssueAutomationGrantInput;
   lifecycle_input: LifecycleInput;
   lifecycle_result: LifecycleResult;
   limits: ComputerLimits;
@@ -156,6 +164,7 @@ export interface ComputersApi {
   receipt: OperationReceipt;
   revoke_access_body: RevokeAccessBody;
   revoke_access_input: RevokeAccessInput;
+  revoke_automation_grant: RevokeAutomationGrantInput;
   snapshot: ComputerSnapshot;
   start_input: StartInput;
   stop_input: StopInput;
@@ -209,6 +218,41 @@ export interface AccessRevocation {
   computerId: string;
   grantId: string;
   revoked: boolean;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationGrantView".
+ */
+export interface AutomationGrantView {
+  computerId: string;
+  executionLimits?: AutomationExecutionLimits | null;
+  expiresAt: string;
+  grantId: string;
+  issuedAt: string;
+  name: string;
+  oauthClientId: string;
+  permissions: AutomationPermission[];
+  principalId: string;
+  revokedAt?: string | null;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationExecutionLimits".
+ */
+export interface AutomationExecutionLimits {
+  maximumOutputBytes: number;
+  maximumSeconds: number;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationGrantCollection".
+ */
+export interface AutomationGrantCollection {
+  computerId: string;
+  /**
+   * @maxItems 64
+   */
+  grants: AutomationGrantView[];
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -298,6 +342,28 @@ export interface ComputerEvent {
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "IssueAutomationGrantInput".
+ */
+export interface IssueAutomationGrantInput {
+  computerId: string;
+  executionLimits?: AutomationExecutionLimits | null;
+  expiresAt: string;
+  name: string;
+  oauthClientId: string;
+  /**
+   * @minItems 1
+   * @maxItems 4
+   */
+  permissions:
+    | [AutomationPermission]
+    | [AutomationPermission, AutomationPermission]
+    | [AutomationPermission, AutomationPermission, AutomationPermission]
+    | [AutomationPermission, AutomationPermission, AutomationPermission, AutomationPermission];
+  principalId: string;
+  requestId: string;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "LifecycleInput".
  */
 export interface LifecycleInput {
@@ -353,6 +419,14 @@ export interface OperationReceipt {
  * via the `definition` "RevokeAccessInput".
  */
 export interface RevokeAccessInput {
+  computerId: string;
+  grantId: string;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "RevokeAutomationGrantInput".
+ */
+export interface RevokeAutomationGrantInput {
   computerId: string;
   grantId: string;
 }

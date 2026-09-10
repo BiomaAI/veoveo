@@ -10,7 +10,8 @@
 | Shared Tasks | Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
-| Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059, public adapter integration pending |
+| Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
+| Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
 
 The domain owns retained Computer identity. Provider transport belongs to
 `platform/runtimes/computers`. Native Console and MCP will project these commands
@@ -44,11 +45,11 @@ lifecycle checkpoint. The retained Computer UUID is also the home allocation ide
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated
-domain settlement. The native worker lives in `servers/computers-mcp`. The domain now
-retains browser grants and checks their renewal. Public terminal composition, explicit
-agent delegation, CLI pairing, deletion with
-storage acknowledgement, agent execution and Artifact movement remain active work in
-`docs/COMPUTERS_PLAN.md`. Reservation alone is not a usable or deployed Computer.
+domain settlement. The native worker lives in `servers/computers-mcp`. The browser terminal and stock CLI project durable renewable grants through the
+installed service. Named automation grants now have a durable ledger and current
+authority checks. Their public projection and Task integration remain work alongside
+deletion with storage acknowledgement, execution and Artifact movement in
+`docs/COMPUTERS_PLAN.md`. Domain tests alone do not establish installed acceptance.
 
 ## Verification
 
@@ -181,8 +182,9 @@ They do not establish terminal behavior, public routing, CLI pairing or agent de
 ## CLI Pairing And Connection Grants
 
 `cli_grants` implements the private ledger for the stock OpenShell `0.0.116` adapter.
-This checkpoint exposes domain APIs; public pairing, tunnel routes and the grant panel
-remain integration work. The wire adapter must preserve the client's binary stream:
+The public pairing, restricted tunnel and grant panel consume these domain APIs;
+installed qualification is recorded in `docs/COMPUTERS_PLAN.md`. The wire adapter
+preserves the client's binary stream:
 its SDK writes received text frames into gRPC bytes as well. Browser terminal controls
 cannot enter that stream. This custom pairing is not an OAuth device authorization flow
 or proof of possession.
@@ -240,6 +242,54 @@ The isolated real-store tests exercise one-use confirmation, cross-replica grant
 connection limits, shared browser quota, code replay and rate limits, owner reduction,
 passive renewal, expired access, source-token expiry, current policy, process changes
 and logout. They do not qualify the public stock CLI or blocked network I/O.
+
+## Named Automation Grants
+
+`automation_grants/` owns a separate private ledger for named user or service
+principals. The owner chooses one Computer, OAuth client, permission set and absolute
+expiry. Execute additionally requires time and output limits. The domain requires
+current owner authority for every granted action and denies transitive grant issuance.
+The principal must already exist and be enabled in the same tenant. The admitted
+OAuth client must serve the same profile and authorization server.
+
+Issuance commits the request fingerprint, grant, quota guard and audit event together.
+Competing exact retries return one grant; changed input under the same request UUID
+fails. An exact retry after revocation or a policy reduction returns the original
+record without recreating authority. Revocation advances the durable revision and
+emits one event, including under concurrent retries. Inventory returns at most 64
+unexpired, unrevoked records for the owner. Grant IDs identify records and are never
+credentials. Automation grants use their own quota rather than consuming browser
+or CLI connection capacity.
+
+Every use binds the actual source principal, issuer, subject, kind, OAuth client,
+tenant, Work Context, profile, Computer and provider instance. Current principal,
+owner and action policy must still permit access. The source principal's actual
+labels must cover the retained data and output labels. A policy reduction clamps
+execution limits and the maximum lifetime; disabling issuance also denies new use.
+The original owner's browser logout does not revoke this separately issued agent
+authority. A caller using a browser-bound credential still needs its own live family.
+
+`AutomationAuthority` is a permission-specific read valid for at most 30 seconds.
+It is not a native dispatch ticket. A Task admission or dispatch must compare the
+stored grant revision and current installation policy atomically with its operation
+fence. Only an Execute read exposes execution limits. Public grant routes, scoped
+lifecycle Tasks, execution dispatch and active-job cancellation remain integration
+work. Revoking the ledger alone does not stop a running Computer.
+
+Migration 0060 adds private tables without rewriting Computers or transport grants.
+Apply it before enabling the automation surface. Existing runtime connections do not
+run migrations; additive tables do not require unrelated service rebuilds. Retain the
+qualified migration runner on rollback, disable automation admission and resolve its
+active work before withdrawing workers that understand it. Keep retained files and
+revocation records intact.
+
+Native tests use separate clients of an isolated pinned store. They cover competing
+issuance and revocation, request conflicts, quota and policy reductions, exact client
+binding, owner logout, disabled principals and retained-label enforcement. Generated
+Console validators enforce bounds and closed input objects. The selected Zod
+converter does not enforce JSON Schema `uniqueItems`; Rust represents permissions
+as a set. Public protocol integration must qualify its schema validation, including
+duplicate permissions. These checks do not establish public agent execution.
 
 ## Lifecycle Dispatch
 

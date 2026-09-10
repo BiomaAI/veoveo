@@ -518,6 +518,14 @@ uses Stop to fence a detached descendant and verifies retained bytes after resta
 That provider result does not establish public agent grants or Task cancellation.
 The template and runtime changes require deployment with the subsequent agent surface.
 
+The automation domain now persists grants for a named principal and OAuth client.
+Concurrent issuance, exact retries, quota reductions and revocation pass against the
+isolated store. Current access checks enforce both principals' policy and retained
+labels; an agent grant survives the owner's browser logout. Migration 0060 and the
+generated DTOs are local implementation work until the public grant surface and
+fenced command Tasks are deployed. A current authority read is not a dispatch permit,
+and revoking a grant alone does not establish process termination.
+
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
 

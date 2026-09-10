@@ -96,6 +96,17 @@ impl TestDb {
             loop {
                 match PlatformStore::connect(config.clone()).await {
                     Ok(store) => break store,
+                    // Retrying deterministic schema failures cannot make this
+                    // fresh fixture ready and previously hid the useful error
+                    // behind a full minute of reconnects. Migration diagnostics
+                    // contain only repository-owned SQL, never fixture secrets.
+                    Err(
+                        error @ (veoveo_platform_store::StoreError::MigrationExecution { .. }
+                        | veoveo_platform_store::StoreError::Migration(_)
+                        | veoveo_platform_store::StoreError::Config(_)),
+                    ) => {
+                        panic!("isolated store initialization failed: {error}");
+                    }
                     Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
                 }
             }

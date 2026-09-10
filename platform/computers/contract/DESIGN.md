@@ -7,6 +7,7 @@
 | JSON and JSON Schema | Serde DTOs and Schemars-generated schema bundle using the workspace's qualified pins; closed request objects and RFC 3339 timestamps |
 | Veoveo Computers projection | Collection snapshots, lifecycle receipts and public phases; this library does not serve an HTTP or MCP endpoint |
 | Veoveo terminal v2 | Bounded authenticated first frame, resize, ready, sequenced lease deadlines and explicit replay-complete controls; raw terminal bytes remain a separate frame type |
+| Veoveo automation grant v1 | Named principal and OAuth-client scope, explicit permissions and bounded execution limits; generated JSON projection, no bearer authority |
 | OpenShell CLI `0.0.116` pairing adapter | Custom confirmation-code and IPv4 loopback JSON callback; public requests select no host or authority |
 
 These types carry public state without provider resource identifiers or authority
@@ -52,3 +53,13 @@ A Lease control carries a strictly increasing connection-local sequence and a cu
 service-issued expiry. Relays preserve these values and enforce expiry with the clock
 allowance in `platform/computers/transport/DESIGN.md`. A client-originated Lease control
 is invalid. This addition is coordinated within unreleased terminal v2.
+
+`automation.rs` defines named-principal grant input, inventory and revocation DTOs.
+`principalId` identifies the grantee; it never selects the Computer owner.
+`oauthClientId` binds the application through which that principal may use the grant.
+Permissions are a nonempty unique set of Read, Execute, Start and Stop. Execute
+requires explicit time and output limits. The domain enforces that conditional rule
+and current installation ceilings in addition to schema validation. Public views
+show the original scope and expiry; current policy can narrow them. These types are
+available to projections, while public routes and command Tasks remain integration
+work in the domain plan.
