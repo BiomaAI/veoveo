@@ -2968,3 +2968,23 @@ Its Console publication took 82.150 seconds, including a 45.27-second Rust compi
 No BFF Rust source had changed since the prior deployed binary; the only shared
 lockfile difference added existing rcgen/uuid dependencies to xtask. Narrowing
 lockfile invalidation to each runtime dependency closure remains concrete build debt.
+
+Operation-receipt publication from `acba3a43` took 111.251 seconds for Computers MCP,
+gateway and Console. The shared compile window was 87.300 seconds with 480 changed
+input paths after changing the selected family inputs. Export took 5.624 seconds,
+including 3.694 seconds of timestamp normalization; push took 2.392 seconds. The
+retained host and template stayed on their qualified digests. Helm revision 144
+converged with two replicas of each affected service.
+
+At 16:17 UTC, the public Console reloaded its saved requests and read their durable
+receipts. Create, Stop and Start for Computer `9942151c` now show Succeeded. The older
+unresolved Create shows Recovery Required and retains its fence. The reads did not
+redispatch lifecycle work. Headed Chrome retained NVIDIA RTX 4090 WebGL; WebGPU still
+reported a fallback adapter. Warm public reads were 110–146 ms, while initial reads
+during reload took 643–1064 ms. These are observations, not throughput acceptance.
+
+The focused operation checks take about 37 seconds when warm. A one-line test lint
+correction invalidated the v2 report's unrelated successful checks and required them
+again. That cost remains an explicit input to the scoped-receipt workstream. The HTTP
+fixture also corrected an invalid assumption: cancellation request acceptance does not
+settle a lifecycle operation before the worker proves it remained undispatched.
