@@ -279,6 +279,24 @@ pub struct TerminalReplayComplete {
 pub enum TerminalServerControl {
     Ready(TerminalReady),
     ReplayComplete(TerminalReplayComplete),
+    Lease(TerminalLease),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalLeaseKind {
+    Lease,
+}
+
+/// A current service-issued deadline. Relays preserve it and cannot extend it.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TerminalLease {
+    #[serde(rename = "type")]
+    pub kind: TerminalLeaseKind,
+    #[schemars(range(min = 1))]
+    pub sequence: u64,
+    pub expires_at: DateTime<Utc>,
 }
 
 pub const TERMINAL_VERSION: u8 = 2;

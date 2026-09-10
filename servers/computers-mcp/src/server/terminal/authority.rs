@@ -4,18 +4,30 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
-use tokio::sync::Notify;
+use tokio::sync::{Notify, watch};
 use uuid::Uuid;
+use veoveo_computers::api::{TerminalLease, TerminalLeaseKind};
 use veoveo_computers::session_grants::SessionGrantHandle;
 use veoveo_computers_runtime::LeaseAuthority;
 use veoveo_platform_store::RecordId;
 
-#[derive(Default)]
 pub(super) struct Activity {
     input: AtomicBool,
     wake: Notify,
+    renewed: watch::Sender<Option<TerminalLease>>,
 }
 impl Activity {
+    pub fn new() -> (Self, watch::Receiver<Option<TerminalLease>>) {
+        let (renewed, receiver) = watch::channel(None);
+        (
+            Self {
+                input: AtomicBool::new(false),
+                wake: Notify::new(),
+                renewed,
+            },
+            receiver,
+        )
+    }
     pub fn record(&self) {
         self.input.store(true, Ordering::Release);
         self.wake.notify_one();
@@ -30,6 +42,7 @@ pub(super) async fn renew(
     computer: Uuid,
     family: RecordId,
 ) -> Result<(), ()> {
+    let mut sequence = 0u64;
     loop {
         tokio::select! {
             biased;
@@ -55,5 +68,15 @@ pub(super) async fn renew(
                 checked.valid_until() - checked.checked_at(),
             )
             .map_err(|_| ())?;
+        sequence = sequence.checked_add(1).ok_or(())?;
+        activity.renewed.send_replace(Some(TerminalLease {
+            kind: TerminalLeaseKind::Lease,
+            sequence,
+            expires_at: (std::time::SystemTime::now()
+                + checked
+                    .valid_until()
+                    .saturating_duration_since(std::time::Instant::now()))
+            .into(),
+        }));
     }
 }

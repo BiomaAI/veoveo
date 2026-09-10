@@ -13,6 +13,8 @@ mod signing;
 mod support;
 #[path = "../../../platform/runtimes/computers/tests/native_support/template.rs"]
 mod template;
+#[path = "support/terminal_hops.rs"]
+mod terminal_hops;
 use std::{
     sync::{
         Arc,

@@ -1,7 +1,8 @@
 # Computers Provider Runtime
 
-Status: the native lifecycle and retained-terminal fixture passes. No Computer service
-or installed provider is qualified by this source checkpoint. The owning domain is planned in
+Status: native lifecycle, retained terminal and renewable runtime leases are qualified
+in isolated fixtures. The owning service composes browser grants with this adapter;
+public ingress and installed qualification remain in
 [Computers](../../../docs/COMPUTERS_PLAN.md).
 
 ## Standards And Protocols

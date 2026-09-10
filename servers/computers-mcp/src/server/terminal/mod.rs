@@ -185,7 +185,7 @@ async fn attached(
     let (authority, lease) =
         LeaseAuthority::issue(checked, baseline.valid_until() - baseline.checked_at())
             .map_err(|_| ())?;
-    let activity = authority::Activity::default();
+    let (activity, updates) = authority::Activity::new();
     let binding =
         Binding::new(id, baseline.computer().template_fingerprint.clone()).map_err(|_| ())?;
     let family =
@@ -205,7 +205,7 @@ async fn attached(
         {
             return Err(());
         }
-        pump::run(socket, terminal, &activity).await
+        pump::run(socket, terminal, &activity, updates).await
     };
     tokio::select! {
         biased;

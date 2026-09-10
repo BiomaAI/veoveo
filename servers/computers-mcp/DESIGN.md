@@ -8,7 +8,7 @@
 | Veoveo Computers | Provider-independent operation, Computer, owner and Work Context records in `platform/computers` |
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
 | MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions; installed conformance remains pending |
-| WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize and replay fence; the gateway authenticates the upgrade |
+| WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
 | `veoveo.io/computers-service/v1` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
 
@@ -180,8 +180,10 @@ input and output futures share the same lease. The server sends Ready followed b
 bounded history and ReplayComplete. Input is rejected until that fence has been sent.
 The Console must additionally drain historical rendering before enabling keyboard
 input or terminal responses. Ready's expiry is the initial short authority projection;
-the service continues enforcing subsequent renewals. The client must not treat that
-initial timestamp as the Computer's lifetime.
+the service continues enforcing subsequent renewals. Successful renewal emits a Lease control with a strictly increasing connection-local
+sequence and the current expiry. The public relays preserve these controls and enforce
+the deadline with their declared clock allowance. The client must not treat an
+attachment deadline as the Computer's lifetime.
 
 The gateway relay, Console renderer and public ingress remain separate delivery work.
 Local native qualification exercises real shell bytes through this service; it is

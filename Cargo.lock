@@ -806,6 +806,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-tungstenite"
+version = "0.32.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8acc405d38be14342132609f06f02acaf825ddccfe76c4824a69281e0458ebd4"
+dependencies = [
+ "atomic-waker",
+ "futures-core",
+ "futures-io",
+ "futures-task",
+ "futures-util",
+ "log",
+ "pin-project-lite",
+ "tungstenite 0.28.0",
+]
+
+[[package]]
 name = "async_cell"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13044,6 +13060,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "reqwest-websocket"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7705b649c3b66b85c4e9c304a6898b1ae3eecb880c474720ebf925e4a932ae02"
+dependencies = [
+ "async-tungstenite",
+ "bytes",
+ "futures-util",
+ "reqwest 0.13.4",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tungstenite 0.28.0",
+ "web-sys",
+]
+
+[[package]]
 name = "rerun-tonic-web-wasm-client"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16672,6 +16706,7 @@ dependencies = [
  "uuid",
  "veoveo-computers",
  "veoveo-computers-runtime",
+ "veoveo-computers-transport",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
@@ -16710,6 +16745,26 @@ dependencies = [
  "typify",
  "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "veoveo-computers-transport"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "futures",
+ "reqwest 0.13.4",
+ "reqwest-websocket",
+ "rustls",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tokio-util",
+ "tungstenite 0.28.0",
+ "uuid",
+ "veoveo-computers-contract",
 ]
 
 [[package]]

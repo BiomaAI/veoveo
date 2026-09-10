@@ -1,0 +1,26 @@
+[package]
+name = "veoveo-computers-transport"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+axum = { workspace = true, features = ["ws"] }
+chrono.workspace = true
+futures.workspace = true
+reqwest = { workspace = true, features = ["stream"] }
+reqwest-websocket.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "macros"] }
+tokio-util.workspace = true
+uuid.workspace = true
+veoveo-computers-contract = { path = "../contract" }
+# Latest reqwest-websocket 0.6.0 exposes this version's configuration type.
+# Keep its upstream-selected wire engine until that adapter qualifies a successor.
+tungstenite = { version = "=0.28.0", default-features = false }
+
+[dev-dependencies]
+rustls.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-tungstenite.workspace = true
