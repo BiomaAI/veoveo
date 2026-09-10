@@ -26,6 +26,7 @@ pub struct Operation {
     pub operation_id: Uuid,
     pub computer_id: Uuid,
     pub actor: TaskOwner,
+    pub execution_authority: crate::AcceptedAuthority,
     pub provider_instance_id: Uuid,
     pub template_fingerprint: String,
     pub action: Action,
@@ -64,6 +65,7 @@ pub(crate) struct OperationRecord {
     computer_id: Uuid,
     task: RecordId,
     actor_context: OpenObject,
+    execution_authority: OpenObject,
     provider_instance_id: Uuid,
     template_fingerprint: String,
     action: String,
@@ -100,6 +102,9 @@ impl TryFrom<OperationRecord> for Operation {
                 operation_id: value.operation_id,
                 computer_id: value.computer_id,
                 actor: serde_json::from_value(serde_json::to_value(value.actor_context)?)?,
+                execution_authority: serde_json::from_value(serde_json::to_value(
+                    value.execution_authority,
+                )?)?,
                 provider_instance_id: value.provider_instance_id,
                 template_fingerprint: value.template_fingerprint,
                 action: serde_json::from_value(serde_json::Value::String(value.action))?,
@@ -127,6 +132,14 @@ impl TryFrom<OperationRecord> for Operation {
                 task_projected_at: value.task_projected_at,
             })
         };
-        decode().map_err(|_: serde_json::Error| ComputerError::Unavailable)
+        let operation = decode().map_err(|_: serde_json::Error| ComputerError::Unavailable)?;
+        operation
+            .execution_authority
+            .validate()
+            .map_err(|_| ComputerError::Unavailable)?;
+        if operation.execution_authority.task_owner() != operation.actor {
+            return Err(ComputerError::Unavailable);
+        }
+        Ok(operation)
     }
 }

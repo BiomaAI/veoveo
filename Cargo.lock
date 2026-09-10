@@ -16623,6 +16623,7 @@ dependencies = [
 name = "veoveo-computers-mcp"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "rcgen",
  "rmcp",
  "serde",
@@ -16635,6 +16636,7 @@ dependencies = [
  "uuid",
  "veoveo-computers",
  "veoveo-computers-runtime",
+ "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
 ]

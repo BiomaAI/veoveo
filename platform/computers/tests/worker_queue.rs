@@ -38,7 +38,12 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
             .await
             .unwrap();
         let op = a
-            .queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Create)
+            .queue_operation(
+                support::authenticated(&actor),
+                computer.computer_id,
+                Uuid::now_v7(),
+                Action::Create,
+            )
             .await
             .unwrap();
         // Discovery sees the orphaned operation before its Task link exists.
@@ -155,7 +160,12 @@ async fn undispatched_abort_cannot_clear_an_uncertain_dispatch() {
         .await
         .unwrap();
     let op = a
-        .queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Create)
+        .queue_operation(
+            support::authenticated(&actor),
+            computer.computer_id,
+            Uuid::now_v7(),
+            Action::Create,
+        )
         .await
         .unwrap();
     a.ensure_operation_task(&actor, op.operation_id)

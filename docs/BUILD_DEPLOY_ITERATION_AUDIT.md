@@ -2344,3 +2344,9 @@ control-plane and real-session-family checks pass. The first graph rebuild took
 1 min 59 s; the first Clippy graph took 1 min 10 s. These cold measurements are not a
 warm performance claim. The one-line manifest change removes a concrete native
 dependency from future gateway builds without changing provider or Computer artifacts.
+
+Accepted Computer operations now retain verified source identity for dispatch-time
+policy checks. Focused domain/worker qualification takes 43.6 s. The unchanged native
+provider and Computer image pass the worker lifecycle and recovery scenario in 24.21 s,
+with a 0.56 s incremental compile. All-target domain/worker Clippy takes 15.48 s.
+The provider binaries were reused; this authority change required no image rebuild.

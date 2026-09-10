@@ -51,7 +51,12 @@ async fn queue(
 ) -> (Operation, ClaimedTask) {
     let actor = owner("alice");
     let operation = store
-        .queue_operation(&actor, computer, Uuid::now_v7(), action)
+        .queue_operation(
+            support::authenticated(&actor),
+            computer,
+            Uuid::now_v7(),
+            action,
+        )
         .await
         .unwrap();
     store
