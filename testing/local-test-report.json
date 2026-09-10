@@ -1,18 +1,39 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:9d63c0112fed6578225c8ceb48c29cf75d7070d2aecb3096130db67b5caec9ac",
-  "updatedAt": "2026-09-10T03:21:55Z",
+  "buildDigest": "sha256:7e63fc38749a1e0eee2ab6c0db971b91b0dd2133fff072f3ee0d37ec8e0b1dad",
+  "updatedAt": "2026-09-10T03:26:50Z",
   "checks": [
     {
-      "name": "request-context-clippy",
+      "name": "gateway-without-analytics",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--lib",
+        "--bin",
+        "gateway",
+        "--test",
+        "session_family",
+        "--test",
+        "control_plane_fixtures",
+        "--test",
+        "shared_policy"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T03:24:59Z",
+      "durationSeconds": 132.579273699,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "gateway-without-analytics-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
-        "--no-default-features",
-        "-p",
-        "veoveo-mcp-contract",
         "-p",
         "veoveo-mcp-gateway",
         "--lib",
@@ -21,38 +42,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T03:21:55Z",
-      "durationSeconds": 14.459823341,
+      "finishedAt": "2026-09-10T03:26:47Z",
+      "durationSeconds": 70.426944328,
       "detail": "completed successfully"
     },
     {
-      "name": "request-context-consumers",
-      "command": [
-        "cargo",
-        "check",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-artifact-service",
-        "-p",
-        "veoveo-recording-reader",
-        "-p",
-        "veoveo-duckdb-mcp",
-        "-p",
-        "veoveo-media-mcp",
-        "-p",
-        "veoveo-smoke",
-        "-p",
-        "veoveo-mcp-conformance",
-        "--all-targets"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T03:21:08Z",
-      "durationSeconds": 76.658754558,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "request-context-format",
+      "name": "gateway-without-analytics-format",
       "command": [
         "cargo",
         "fmt",
@@ -61,56 +56,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T03:19:02Z",
-      "durationSeconds": 2.469242344,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "request-context-python",
-      "command": [
-        "uv",
-        "run",
-        "--project",
-        "sdk",
-        "--package",
-        "veoveo-mcp",
-        "--extra",
-        "dev",
-        "--frozen",
-        "--offline",
-        "python",
-        "-m",
-        "pytest",
-        "sdk/python/tests/test_internal_auth.py",
-        "sdk/python/tests/test_contract_models.py",
-        "-q"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T03:19:00Z",
-      "durationSeconds": 0.683186599,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "request-context-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "--no-default-features",
-        "-p",
-        "veoveo-mcp-contract",
-        "-p",
-        "veoveo-mcp-gateway",
-        "--lib",
-        "--bin",
-        "gateway",
-        "--test",
-        "session_family"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T03:19:34Z",
-      "durationSeconds": 34.670940386,
+      "finishedAt": "2026-09-10T03:26:50Z",
+      "durationSeconds": 2.541538938,
       "detail": "completed successfully"
     }
   ]

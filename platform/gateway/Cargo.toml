@@ -47,7 +47,7 @@ vaultrs.workspace = true
 veoveo-agent-runtime = { path = "../../agents/runtime" }
 veoveo-artifact-client = { path = "../artifacts/client" }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
-veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
+veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }
 veoveo-policy = { path = "../policy" }
 veoveo-recording-protocol.workspace = true
