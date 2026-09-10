@@ -24,6 +24,7 @@ global:
     podAnnotations: {}
 
 installationPreset: full
+computerCapacity: unconfigured
 components: []
 mcpServers: []
 
@@ -144,10 +145,31 @@ computers:
     digest: ""
   replicas: 2
   # Core control remains available while capacity awaits operator configuration.
-  capacityMode: unconfigured
   existingConfigMap: ""
   configurationRevision: ""
   existingTrustSecret: ""
+  host:
+    image:
+      repository: veoveo/computer-host
+      tag: 0.1.0
+      digest: ""
+    existingConfigMap: ""
+    configurationRevision: ""
+    existingTrustSecret: ""
+    persistence:
+      existingClaim: ""
+      size: 100Gi
+      storageClass: ""
+    nodeSelector: {}
+    tolerations: []
+    registryEgress: []
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "8"
+        memory: 12Gi
   # Used by the generated unconfigured configuration. Configured capacity reads
   # its access policy from the installation-owned computers.json file.
   access:

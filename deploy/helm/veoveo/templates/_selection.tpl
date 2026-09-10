@@ -35,6 +35,9 @@
 {{- define "veoveo.validateSelection" -}}
 {{- $components := include "veoveo.selectedComponents" . | fromYamlArray -}}
 {{- $servers := include "veoveo.selectedMcpServers" . | fromYamlArray -}}
+{{- if and (eq .Values.computerCapacity "openshell-docker") (not (has "computers" $servers)) -}}
+{{- fail "computerCapacity=openshell-docker requires mcpServer computers" -}}
+{{- end -}}
 {{- if and (ne .Values.installationPreset "custom") (or .Values.components .Values.mcpServers) -}}
 {{- fail "components and mcpServers are valid only with installationPreset=custom" -}}
 {{- end -}}

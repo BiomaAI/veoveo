@@ -1,10 +1,26 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:9850be5f9fe2ea65596d55d210a81c81dc0f03979d437f984668962448cb8346",
-  "updatedAt": "2026-09-10T14:16:02Z",
+  "buildDigest": "sha256:8b991cefbd20fcceec9856627b65887f9f7d33aaf825dc9d4ea8545d04bc44c2",
+  "updatedAt": "2026-09-10T14:30:04Z",
   "checks": [
     {
-      "name": "compute-host-fmt",
+      "name": "computers-capacity-contract",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-deploy-contract",
+        "--all-targets"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T14:29:21Z",
+      "durationSeconds": 1.372558332,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-capacity-fmt",
       "command": [
         "cargo",
         "fmt",
@@ -12,70 +28,72 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T14:15:30Z",
-      "durationSeconds": 2.636917155,
+      "finishedAt": "2026-09-10T14:30:04Z",
+      "durationSeconds": 2.598825933,
       "detail": "completed successfully"
     },
     {
-      "name": "compute-host-image",
-      "command": [
-        "cargo",
-        "xtask",
-        "image",
-        "build",
-        "--target",
-        "computer-host"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T14:14:57Z",
-      "durationSeconds": 11.191612191,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "compute-host-image-planner",
+      "name": "computers-capacity-helm",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-xtask",
-        "commands::image::"
+        "veoveo-deployment-smoke",
+        "--test",
+        "computers_helm"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T14:14:51Z",
-      "durationSeconds": 4.481263212,
+      "finishedAt": "2026-09-10T14:29:23Z",
+      "durationSeconds": 1.162699407,
       "detail": "completed successfully"
     },
     {
-      "name": "compute-host-lint",
+      "name": "computers-capacity-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computer-host",
+        "veoveo-deploy-contract",
         "-p",
-        "veoveo-computer-storage",
+        "veoveo-deploy-runtime",
         "-p",
-        "veoveo-xtask",
+        "veoveo-deployment-smoke",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T14:15:26Z",
-      "durationSeconds": 33.280617789,
+      "finishedAt": "2026-09-10T14:30:01Z",
+      "durationSeconds": 10.537832725,
       "detail": "completed successfully"
     },
     {
-      "name": "compute-host-native",
+      "name": "computers-capacity-renderer",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-deploy-runtime",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T14:29:49Z",
+      "durationSeconds": 25.316456062,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-published-host-native",
       "command": [
         "env",
-        "VEOVEO_COMPUTERS_HOST_IMAGE=veoveo/computer-host:0.1.0",
-        "VEOVEO_COMPUTERS_HOST_TEST_IMAGE=172.17.0.2:5000/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
+        "VEOVEO_COMPUTERS_HOST_IMAGE=localhost:5001/veoveo/computer-host@sha256:2e267c7dbd04dbd54a194994f992764be237fd94e6c0a86df158d12aff54e369",
+        "VEOVEO_COMPUTERS_HOST_TEST_IMAGE=172.17.0.2:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
         "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
         "cargo",
         "test",
@@ -90,26 +108,8 @@
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T14:16:02Z",
-      "durationSeconds": 36.621097846,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "compute-host-unit",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computer-host",
-        "-p",
-        "veoveo-computer-storage",
-        "--all-targets"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T14:14:46Z",
-      "durationSeconds": 5.945761598,
+      "finishedAt": "2026-09-10T14:29:59Z",
+      "durationSeconds": 39.413556687,
       "detail": "completed successfully"
     }
   ]

@@ -589,9 +589,31 @@ pub struct GpuSchedulingProfile {
 }
 
 /// Typed first-party platform selection.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ComputerCapacity {
+    #[default]
+    Unconfigured,
+    /// Private compute container with an owned daemon and retained local ext4 data.
+    OpenshellDocker,
+}
+impl ComputerCapacity {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unconfigured => "unconfigured",
+            Self::OpenshellDocker => "openshell-docker",
+        }
+    }
+}
+
+/// Typed first-party platform selection.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlatformSelection {
+    /// Physical capacity is independent of core Computers control registration.
+    #[serde(default)]
+    pub computer_capacity: ComputerCapacity,
     /// Predefined or explicit selection mode.
     pub installation_preset: InstallationPreset,
     /// Explicit components; valid only for `custom`.
@@ -614,6 +636,8 @@ pub struct PlatformSelection {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResolvedPlatformSelection {
+    #[serde(default)]
+    pub computer_capacity: ComputerCapacity,
     pub components: BTreeSet<PlatformComponent>,
     pub mcp_servers: BTreeSet<FirstPartyMcpServer>,
     pub artifact_audiences: BTreeSet<String>,
@@ -1249,6 +1273,7 @@ impl PlatformSelection {
             }
         };
         let resolved = ResolvedPlatformSelection {
+            computer_capacity: self.computer_capacity,
             components,
             mcp_servers,
             artifact_audiences: self.artifact_audiences.clone(),
@@ -1306,6 +1331,9 @@ impl ResolvedPlatformSelection {
     #[must_use]
     pub fn required_images(&self) -> BTreeSet<String> {
         let mut images = BTreeSet::new();
+        if self.computer_capacity == ComputerCapacity::OpenshellDocker {
+            images.extend(["computer-host".into(), "computer-template".into()]);
+        }
         for component in &self.components {
             images.extend(component.images().iter().map(|image| (*image).to_owned()));
         }
@@ -1317,6 +1345,12 @@ impl ResolvedPlatformSelection {
 
     /// Validates component dependencies without reading Helm state.
     pub fn validate_dependencies(&self) -> Result<()> {
+        if self.computer_capacity == ComputerCapacity::OpenshellDocker {
+            self.require_server(
+                FirstPartyMcpServer::Computers,
+                "configured Computer capacity requires core Computers control",
+            )?;
+        }
         for audience in &self.artifact_audiences {
             validate_name("artifact audience", audience)?;
         }
@@ -2587,6 +2621,7 @@ mod tests {
     #[test]
     fn requirements_fail_closed_when_runtime_servers_are_absent() {
         let selection = PlatformSelection {
+            computer_capacity: Default::default(),
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
                 PlatformComponent::Gateway,
@@ -2624,6 +2659,7 @@ mod tests {
     #[test]
     fn requirements_accept_all_declared_runtime_servers() {
         let selection = PlatformSelection {
+            computer_capacity: Default::default(),
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
                 PlatformComponent::Gateway,
@@ -2663,6 +2699,7 @@ mod tests {
     #[test]
     fn platform_image_closure_includes_service_and_rrd_transport_images() {
         let selection = PlatformSelection {
+            computer_capacity: Default::default(),
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
                 PlatformComponent::Gateway,
@@ -2716,6 +2753,7 @@ mod tests {
     #[test]
     fn agent_runtime_support_selects_the_external_agent_kernel_image() {
         let selection = PlatformSelection {
+            computer_capacity: Default::default(),
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
                 PlatformComponent::Gateway,
@@ -2748,6 +2786,7 @@ mod tests {
             BTreeSet::from([PlatformCapability::Optimization])
         );
         let selection = PlatformSelection {
+            computer_capacity: Default::default(),
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
                 PlatformComponent::Gateway,
@@ -2779,6 +2818,7 @@ mod tests {
     #[test]
     fn two_physical_groups_fail_on_one_device() {
         let error = PlatformSelection {
+            computer_capacity: Default::default(),
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
                 PlatformComponent::Gateway,
@@ -2857,6 +2897,7 @@ mod tests {
             }],
         };
         let selection = PlatformSelection {
+            computer_capacity: Default::default(),
             installation_preset: InstallationPreset::Custom,
             components: BTreeSet::from([
                 PlatformComponent::Gateway,
@@ -2892,5 +2933,41 @@ mod tests {
             let value = serde_json::to_value(schema).expect("serialize schema");
             Validator::new(&value).expect("compile schema");
         }
+    }
+
+    #[test]
+    fn computer_capacity_adds_the_host_closure_and_requires_core_control() {
+        let mut selection: PlatformSelection = serde_json::from_value(serde_json::json!({
+            "installationPreset": "custom", "computerCapacity": "openshell-docker",
+            "components": ["gateway", "platform-store"], "mcpServers": ["computers"]
+        }))
+        .unwrap();
+        let configured = selection.resolve().unwrap();
+        assert_eq!(
+            configured.required_images(),
+            BTreeSet::from(
+                [
+                    "computer-host",
+                    "computer-template",
+                    "computers-mcp",
+                    "mcp-gateway"
+                ]
+                .map(str::to_owned)
+            )
+        );
+        selection.computer_capacity = super::ComputerCapacity::Unconfigured;
+        assert_eq!(
+            selection.resolve().unwrap().required_images(),
+            BTreeSet::from(["computers-mcp", "mcp-gateway"].map(str::to_owned))
+        );
+        selection.computer_capacity = super::ComputerCapacity::OpenshellDocker;
+        selection.mcp_servers.clear();
+        assert!(
+            selection
+                .resolve()
+                .unwrap_err()
+                .to_string()
+                .contains("core Computers control")
+        );
     }
 }

@@ -353,6 +353,15 @@ image, Recording contributes the hub and MCP images, and an RRD requirement cont
 the producer-side recording forwarder. Only targets from the explicit platform source
 can satisfy this closure.
 
+`computerCapacity` defaults to `unconfigured` independently of the core Computers
+server selection. `openshell-docker` selects the qualified private compute-container
+topology, requires Computers control and contributes the `computer-host` and
+`computer-template` images. The renderer passes that exact value to Helm. Configured
+host/trust references and retained storage placement remain installation-owned values;
+the chart rejects incomplete references. Unconfigured control requires only its own
+service image. The additive selection field retains an explicit unconfigured default
+for existing v7 profiles and locks, without changing their installed capacity.
+
 Operational tools derive the platform source targets from the exact typed selection and
 resolve them in one Bake invocation. Platform profiles do not repeat that set through a
 named image group. Other sources retain ordered repository-owned groups. Pure contract

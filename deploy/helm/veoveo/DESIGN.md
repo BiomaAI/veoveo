@@ -8,6 +8,7 @@
 | Kubernetes apps/v1 and core/v1 | Deployments, Services, ConfigMaps and references to installation-owned Secrets |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
 | `veoveo.io/computers-service/v1` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
+| `veoveo.io/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
 
 ## Computers Control
@@ -25,7 +26,7 @@ probe controls traffic admission. Provider availability remains a domain state,
 which keeps the collection and unrelated services usable during a capacity outage.
 The probe does not restart a worker when the store is unavailable.
 
-`computers.capacityMode: unconfigured` renders the complete public configuration in
+`computerCapacity: unconfigured` renders the complete public configuration in
 `computers-configuration`, including the canonical public origin and
 `computers.access` limits. It reports Setup Required. The unconfigured provider UUID
 is the first 128 bits of SHA-256 over
@@ -34,8 +35,8 @@ with its version nibble set to 8 and variant nibble set to `a`. It identifies on
 this unconfigured control installation. Repeated renders preserve the exact
 configuration and Pod template. Configured capacity supplies its own stable identity.
 
-`computers.capacityMode: openshell-docker` requires `existingConfigMap`,
-`configurationRevision` and `existingTrustSecret`. The ConfigMap contains the closed
+`computerCapacity: openshell-docker` requires `computers.existingConfigMap`,
+`computers.configurationRevision` and `computers.existingTrustSecret`. The ConfigMap contains the closed
 `computers.json` service document. Its SHA-256 is the configuration revision that
 enters the Pod template. The installation owner verifies those bytes and publishes
 the public ConfigMap through its own reconciliation path. Dedicated worker
@@ -51,9 +52,47 @@ The chart supplies no provider administrator credentials or guest trust to Conso
 
 External configuration fields in unconfigured mode are rejected. Missing configured
 references fail rendering; malformed files, templates and certificate material fail
-service startup before writes. The private compute host, retained maintenance,
-installation-owned gateway registration and full installed/offline qualification
-remain separate delivery gates.
+service startup before writes. The former unreleased `computers.capacityMode` field
+is replaced by `computerCapacity`, shared with the typed deployment selection.
+
+## Configured Compute Host
+
+Configured capacity also deploys one [private compute host](../../../platform/computers/host/DESIGN.md).
+`computers.host.existingConfigMap` supplies `host.json`, and its exact SHA-256 enters
+`computers.host.configurationRevision`. `computers.host.existingTrustSecret` provides
+only the host-side fixed trust files. Worker private keys remain in the control
+service's separate Secret. Host trust is projected read-only with mode 0400.
+
+The host uses its own network, PID and mount namespaces, root privileges and a
+private Docker socket inside the container. It receives no installation host socket,
+hostPath volume, shared service-account token or external mount propagation. Its
+Service exposes only provider/storage mTLS ports 8805 and 8806 inside the cluster.
+The deployment uses one replica and Recreate, with 60 seconds for ordered shutdown.
+An image/configuration update is a retained maintenance boundary. The control service
+and Console retain their independent rollout behavior.
+
+The default PVC is `computer-host-data`, with ReadWriteOnce access and
+`helm.sh/resource-policy: keep`. An installation may supply
+`computers.host.persistence.existingClaim`. The backing filesystem must be persistent
+ext4; a PVC capacity field alone does not prove that filesystem or enforce allocation
+quotas. The storage helper preallocates each admitted home and enforces its configured
+free-space reserve. Storage/node placement belongs to the installation. The runtime
+directory uses a bounded memory-backed volume and retains no key material after Pod
+replacement. Routine chart removal cannot purge retained Computer data.
+
+When NetworkPolicy is enabled, the compute host is excluded from general installation
+traffic and external-egress rules. Its ingress admits only Computers workers on the
+two mTLS ports. `computers.host.registryEgress` supplies exact CIDR/port entries for
+the declared installation registry; DNS uses the existing namespace-bound policy.
+Configured capacity requires those registry rules when policy is enabled. The guest's
+own sandbox egress policy remains an independent enforcement boundary.
+
+The typed deployment selection uses the same `computerCapacity` values. Configured
+capacity requires Computers control and contributes `computer-host` and
+`computer-template` to the exact/offline image closure. Unconfigured core control
+requires neither image. Image digests in the supplied JSON catalogs must match the
+installation's qualified image records. Kubernetes topology, retained maintenance,
+gateway registration and public/offline acceptance remain separate release gates.
 
 ## Configuration Qualification
 

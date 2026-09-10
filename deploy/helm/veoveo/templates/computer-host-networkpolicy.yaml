@@ -1,0 +1,37 @@
+{{- if and (eq .Values.computerCapacity "openshell-docker") .Values.networkPolicy.enabled -}}
+{{- if not .Values.computers.host.registryEgress -}}
+{{- fail "configured Computer host with NetworkPolicy requires computers.host.registryEgress CIDR/port rules" -}}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "veoveo.fullname" . }}-computer-host
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: computer-host
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: computers-mcp
+      ports:
+        - protocol: TCP
+          port: 8805
+        - protocol: TCP
+          port: 8806
+  egress:
+    {{- range .Values.computers.host.registryEgress }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+{{- end }}
