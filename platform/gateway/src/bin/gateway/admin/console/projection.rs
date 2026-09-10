@@ -85,7 +85,9 @@ pub(crate) async fn load_projection(
         .await?
         .check()?;
     let artifacts: Vec<ArtifactOccurrenceRecord> = response.take(2)?;
-    let blob_ids: BTreeSet<RecordId> = artifacts.iter().map(|row| row.blob.clone()).collect();
+    let mut blob_ids: Vec<RecordId> = artifacts.iter().map(|row| row.blob.clone()).collect();
+    blob_ids.sort();
+    blob_ids.dedup();
     // Read at most the selected occurrences' exact blob keys. A WHERE ... IN
     // subquery scans the blob table and can reevaluate the occurrence query per row.
     let blobs =
@@ -108,7 +110,7 @@ pub(crate) async fn load_projection(
 async fn load_referenced_blobs(
     store: &veoveo_platform_store::PlatformStore,
     tenant: &RecordId,
-    blob_ids: BTreeSet<RecordId>,
+    blob_ids: Vec<RecordId>,
 ) -> anyhow::Result<Vec<ArtifactBlobRecord>> {
     if blob_ids.is_empty() {
         return Ok(Vec::new());
@@ -116,7 +118,7 @@ async fn load_referenced_blobs(
     Ok(store
         .client()
         .query("SELECT * FROM $blobs WHERE tenant = $tenant;")
-        .bind(("blobs", blob_ids.into_iter().collect::<Vec<_>>()))
+        .bind(("blobs", blob_ids))
         .bind(("tenant", tenant.clone()))
         .await?
         .check()?
@@ -1019,18 +1021,15 @@ mod tests {
             .check()
             .unwrap();
         let missing = RecordId::new("artifact_blob", "missing");
-        let blobs = load_referenced_blobs(
-            &store,
-            &tenant,
-            BTreeSet::from([requested.clone(), foreign, missing]),
-        )
-        .await
-        .unwrap();
+        let blobs =
+            load_referenced_blobs(&store, &tenant, vec![requested.clone(), foreign, missing])
+                .await
+                .unwrap();
         assert_eq!(blobs.len(), 1);
         assert_eq!(blobs[0].id, requested);
         assert_eq!(blobs[0].byte_len, 14_288_899);
         assert!(
-            load_referenced_blobs(&store, &tenant, BTreeSet::new())
+            load_referenced_blobs(&store, &tenant, Vec::new())
                 .await
                 .unwrap()
                 .is_empty()

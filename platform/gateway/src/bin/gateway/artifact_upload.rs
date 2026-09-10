@@ -3,7 +3,7 @@
 use axum::{
     Json, Router,
     body::Body,
-    extract::{Extension, MatchedPath, OriginalUri, Path, State},
+    extract::{Extension, MatchedPath, Path, Request, State},
     http::{HeaderMap, Method, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -47,11 +47,12 @@ async fn proxy(
     Extension(subject): Extension<AuthenticatedSubject>,
     route: Result<Path<Route>, axum::extract::rejection::PathRejection>,
     matched: MatchedPath,
-    OriginalUri(uri): OriginalUri,
-    method: Method,
-    headers: HeaderMap,
-    body: Body,
+    request: Request,
 ) -> Response {
+    let (parts, body) = request.into_parts();
+    let uri = parts.uri;
+    let method = parts.method;
+    let headers = parts.headers;
     let Path(route) = match route {
         Ok(route) => route,
         Err(_) => return fault(Code::Malformed),

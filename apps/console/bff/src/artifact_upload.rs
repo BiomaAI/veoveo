@@ -57,7 +57,7 @@ async fn proxy(
     // old cookie here can replay a refresh token consumed by a concurrent short
     // request. Parts use their current access token; short control reads refresh.
     let session = match if is_part {
-        part_session(&state, &request_headers)
+        part_session(&state, &request_headers).map_err(IntoResponse::into_response)
     } else {
         api::upstream_session(&state, &request_headers).await
     } {
@@ -137,12 +137,20 @@ async fn proxy(
         .into_response()
 }
 
+#[derive(Debug)]
+struct PartSessionRejected;
+impl IntoResponse for PartSessionRejected {
+    fn into_response(self) -> Response {
+        part_unauthorized()
+    }
+}
+
 fn part_session(
     state: &AppState,
     headers: &HeaderMap,
-) -> Result<crate::oauth::UpstreamSession, Response> {
+) -> Result<crate::oauth::UpstreamSession, PartSessionRejected> {
     let session =
-        crate::session::read_session(headers, &state.sessions).ok_or_else(part_unauthorized)?;
+        crate::session::read_session(headers, &state.sessions).ok_or(PartSessionRejected)?;
     validate_part_session(
         session,
         state.config.oauth_scopes(),
@@ -154,12 +162,12 @@ fn validate_part_session(
     session: crate::session::ConsoleSession,
     scopes: &std::collections::BTreeSet<veoveo_mcp_contract::ScopeName>,
     now: i64,
-) -> Result<crate::oauth::UpstreamSession, Response> {
+) -> Result<crate::oauth::UpstreamSession, PartSessionRejected> {
     if session.is_expired(now)
         || session.access_expires_at <= now
         || !scopes.is_subset(&session.granted_scopes)
     {
-        return Err(part_unauthorized());
+        return Err(PartSessionRejected);
     }
     Ok(crate::oauth::UpstreamSession {
         session,
@@ -206,7 +214,8 @@ mod tests {
     fn expired_parts_cannot_clear_a_newer_browser_cookie() {
         let response = validate_part_session(session(100), &BTreeSet::new(), 100)
             .err()
-            .unwrap();
+            .unwrap()
+            .into_response();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert!(!response.headers().contains_key(header::SET_COOKIE));
         let scopes =

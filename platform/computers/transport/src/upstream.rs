@@ -8,6 +8,12 @@ pub struct Upstream(pub(crate) reqwest_websocket::WebSocket);
 
 #[derive(Clone)]
 pub struct Client(reqwest::Client);
+
+impl std::fmt::Debug for Client {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ComputerTransportClient")
+    }
+}
 /// The owning application supplies its admitted destination and current authority.
 /// No Debug implementation can expose the authorization header.
 pub struct UpstreamRequest {

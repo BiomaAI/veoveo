@@ -12,6 +12,8 @@ mod artifact_upload;
 mod audit;
 #[path = "gateway/auth.rs"]
 mod auth;
+#[path = "gateway/computers/mod.rs"]
+mod computers;
 #[path = "gateway/host.rs"]
 mod host;
 #[path = "gateway/http_util.rs"]

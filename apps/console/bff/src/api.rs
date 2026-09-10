@@ -1045,6 +1045,7 @@ mod tests {
             sessions,
             mcp: Arc::new(AuthScopedMcpClientPool::new(&Default::default()).unwrap()),
             app_tasks: AppTaskRegistry::default(),
+            computers: crate::computers::Transport::new(&Default::default()).unwrap(),
         };
         let response = stream(State(state), RawQuery(None), request_headers).await;
         let body = to_bytes(response.into_body(), 1_024).await.unwrap();
