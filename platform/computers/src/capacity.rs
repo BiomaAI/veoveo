@@ -10,6 +10,32 @@ struct StoredCapacity {
 }
 
 impl ComputersStore {
+    /// Current quota hint for the collection. The reservation transaction still
+    /// owns admission and arbitrates races against these counts and policy.
+    pub async fn capacity_for(
+        &self,
+        owner: &veoveo_task_runtime::TaskOwner,
+    ) -> Result<(CapacityPolicy, bool)> {
+        let capacity = self.capacity().await?;
+        let tenant = veoveo_platform_store::deterministic_tenant_id(owner.tenant_key())
+            .map_err(|_| ComputerError::InvalidInput)?;
+        let mut response = self.query(
+            "SELECT VALUE retained FROM ONLY $owner; SELECT VALUE retained FROM ONLY $tenant; SELECT VALUE retained FROM ONLY $provider;",
+            vec![
+                ("owner", RecordId::new("computer_usage", format!("owner:{}", crate::identity::quota_key(owner)?)).into_value()),
+                ("tenant", RecordId::new("computer_usage", format!("tenant:{tenant}")).into_value()),
+                ("provider", RecordId::new("computer_usage", format!("provider:{}", self.provider_instance_id)).into_value()),
+            ],
+        ).await?;
+        let owner: Option<u64> = response.take(0).map_err(|_| ComputerError::Unavailable)?;
+        let tenant: Option<u64> = response.take(1).map_err(|_| ComputerError::Unavailable)?;
+        let provider: Option<u64> = response.take(2).map_err(|_| ComputerError::Unavailable)?;
+        let available = owner.unwrap_or(0) < u64::from(capacity.per_owner)
+            && tenant.unwrap_or(0) < u64::from(capacity.per_tenant)
+            && provider.unwrap_or(0) < u64::from(capacity.provider);
+        Ok((capacity, available))
+    }
+
     pub(crate) fn capacity_record(&self) -> RecordId {
         RecordId::new(
             "computer_capacity",

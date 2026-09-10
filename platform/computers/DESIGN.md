@@ -101,6 +101,19 @@ Journal methods never call the provider.
 
 ## Dispatch And Observation
 
+`authority_snapshot` loads and verifies the current catalog and directory records
+once. Dispatch and public control use that same evaluator. A public request obtains
+`ControlAuthority`, whose lifetime also ends with its admission token; it has no
+dispatch rights. Current and accepted Work Context membership both constrain action
+flags. Resource reads use the canonical Computer URI policy and separately enforce
+ownership and retained labels. Each new request reads current authority again.
+Accepted background execution retains its separate token-lifetime rule below.
+
+The public Create request resolves its first reservation before selecting a new
+installation default. The original template and provider remain attached to that
+request. `capacity_for` supplies a current quota hint using the same usage keys as
+reservation; its result cannot reserve space or replace transactional admission.
+
 `begin_dispatch` commits a unique dispatch ID before returning a non-cloneable ticket.
 Only the queued stage can obtain it. The worker prepares the retained home, then
 the domain checks current action authority. It records the original provider/resource/process

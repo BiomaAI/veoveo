@@ -77,6 +77,12 @@ pub struct DevelopmentTemplate {
     persistent_home: Option<PersistentHome>,
 }
 impl DevelopmentTemplate {
+    pub fn cpus(&self) -> u32 {
+        self.cpus
+    }
+    pub fn memory_mib(&self) -> u32 {
+        self.memory_mib
+    }
     pub fn new(
         image: String,
         cpus: u32,

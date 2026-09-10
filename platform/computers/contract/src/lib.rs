@@ -64,10 +64,23 @@ pub struct ComputerLimits {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ComputerSnapshot {
-    pub template: TemplateView,
-    pub limits: ComputerLimits,
+    pub availability: CapacityAvailability,
+    pub template: Option<TemplateView>,
+    pub limits: Option<ComputerLimits>,
+    pub can_create: bool,
     pub computers: Vec<ComputerView>,
     pub next_cursor: Option<Uuid>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CapacityAvailability {
+    SetupRequired,
+    Available,
+    Exhausted,
+    ComputeUnavailable,
+    StorageUnavailable,
+    Maintenance,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -77,9 +90,9 @@ pub struct ComputerView {
     pub template_id: String,
     pub phase: ComputerPhase,
     pub busy: bool,
-    /// A new reservation or failed unbound Computer can be provisioned once unfenced.
+    /// An authorized reserved Computer can be provisioned once unfenced.
     pub can_create: bool,
-    /// A stopped or failed Computer with a retained provider can be started once unfenced.
+    /// An authorized stopped Computer can be started once unfenced.
     pub can_start: bool,
     /// A ready Computer can be stopped once unfenced.
     pub can_stop: bool,
@@ -132,15 +145,20 @@ pub struct CreateInput {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartInput {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub request_id: Option<Uuid>,
+    pub request_id: Uuid,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StopInput {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub request_id: Option<Uuid>,
+    pub request_id: Uuid,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LifecycleInput {
+    pub computer_id: Uuid,
+    pub request_id: Uuid,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -307,6 +325,7 @@ struct SchemaBundle {
     create_input: CreateInput,
     start_input: StartInput,
     stop_input: StopInput,
+    lifecycle_input: LifecycleInput,
     terminal_ticket_input: TerminalTicketInput,
     terminal_ticket: TerminalTicket,
     error: ApiError,

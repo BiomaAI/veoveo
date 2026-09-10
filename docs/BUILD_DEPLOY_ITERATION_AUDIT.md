@@ -2560,3 +2560,19 @@ fault case in 6.55 s and the service/handoff case in 11.13 s. Combined all-targe
 Clippy passes in 4.57 s. Local registry health remains HTTP 200 after cleanup. The
 existing Computer image and provider binaries remain unchanged; public rollout is
 still pending.
+
+Public projection work now shares a current policy/directory snapshot with dispatch,
+avoiding one independent authority read per action button. Initial application cases
+run in 1.88 s after a 7.96 s compile and require neither provider nor image rebuild.
+They use the real store for concurrent Create retries, default-template rotation,
+quota exhaustion, current membership/policy changes and Setup Required. Provider
+health is an explicit synthetic input in these cases; it is not runtime evidence.
+The full focused domain/contract/application run compiles in 16.35 s, then passes
+25 cases across admission, authority, lifecycle, queue recovery, public types and
+projection. The native worker case is explicitly ignored in that command and keeps
+its separate recorded qualification. Final all-target lint takes 1.46 s.
+
+The MCP contract still described the removed per-tool task-support handshake while
+the pinned runtime implements the final extension. Checking the actual SDK and
+upstream Tasks schema prevented introducing an unsupported compatibility field.
+The documentation now follows the negotiated extension and required-capability error.

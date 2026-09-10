@@ -151,15 +151,20 @@ boundary. It never records tool arguments, provider payloads, credentials, or
 an upstream error message. Both records carry the same trace identity, which
 keeps policy admission distinct from domain or protocol completion.
 
-Every tool declares its exact MCP task support as `required`, `optional`, or
-`forbidden`. A full-MCP client receives that declaration unchanged. A
-`tools_compat` registration may explicitly enable the direct task-call
-adapter. For that registration alone, the gateway projects `required` as
-`optional`; it leaves `optional` and `forbidden` unchanged. A direct call to
-the projected tool starts the same final-extension task, waits on its canonical
-subscription, returns the terminal tool result, and attaches the canonical
-task ID. The typed `veoveo://task/{task_id}` resource exposes its current
-status and terminal result without introducing another task store.
+The final Tasks extension negotiates `io.modelcontextprotocol/tasks` in Discover
+and each request's client capabilities. The server decides whether an admitted
+`tools/call` returns a durable Task. An operation that requires Tasks rejects a
+client without the extension using `-32021` and its required-capabilities payload,
+before accepting work. The published
+[Tasks extension](https://github.com/modelcontextprotocol/ext-tasks/blob/main/schema/2026-07-28/schema.ts)
+replaces the older per-tool `execution.taskSupport` and request `task` handshake;
+those fields are not part of this profile.
+
+A `tools_compat` registration may explicitly enable the direct task-call adapter.
+That adapter supplies the negotiated capability upstream, waits on the canonical
+subscription and returns the terminal result with its canonical Task ID. It shares
+the original Task and authority. The typed `veoveo://task/{task_id}` resource exposes
+current status and terminal result without introducing another task store.
 
 ## Stateless Transport And Explicit State
 

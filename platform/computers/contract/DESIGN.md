@@ -12,6 +12,12 @@ These types carry public state without provider resource identifiers or authorit
 envelopes. Computer limits describe installation policy; a default of one does not
 change the collection shape. Recovery Required describes an unresolved operation
 whose domain fence remains held. A new Create requires a stable request UUID.
+Start and Stop now require that UUID as well. Their unreleased optional-request-ID
+shape is removed before client generation. Lifecycle inputs never select an owner
+or provider. Collection availability distinguishes Setup Required, quota exhaustion
+and unavailable capacity. An unconfigured installation has no default template or
+capacity limits. Action flags combine current policy, admitted state and availability;
+the server still arbitrates concurrent admission.
 
 The native Console and MCP projections will share this schema. Implemented endpoint
 coverage belongs in their own designs. Terminal tokens deliberately cannot be
