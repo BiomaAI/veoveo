@@ -1,59 +1,85 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:54d3214dc110f6f0790ea050ac50b2526c137e5a9c4c7b717eb03ad370e69cb3",
-  "updatedAt": "2026-09-10T08:51:20Z",
+  "buildDigest": "sha256:c50ebceff36e2a79862a7990b840c4eb17bd89fc2a6e6c00afc900b2253b46b1",
+  "updatedAt": "2026-09-10T09:15:08Z",
   "checks": [
     {
-      "name": "computers-runtime",
+      "name": "computers-session",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-runtime",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T08:50:05Z",
-      "durationSeconds": 30.43396477,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-service",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
+        "veoveo-policy",
+        "-p",
+        "veoveo-computers",
         "-p",
         "veoveo-computers-mcp",
         "--tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T08:49:06Z",
-      "durationSeconds": 42.344965124,
+      "finishedAt": "2026-09-10T09:13:22Z",
+      "durationSeconds": 57.175103573,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-service-lint",
+      "name": "computers-session-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-mcp",
+        "veoveo-policy",
         "-p",
-        "veoveo-computers-runtime",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-mcp",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T08:50:57Z",
-      "durationSeconds": 1.069886411,
+      "finishedAt": "2026-09-10T09:14:37Z",
+      "durationSeconds": 0.682272681,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "gateway-session",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--test",
+        "session_family"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T09:13:30Z",
+      "durationSeconds": 2.111879807,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "gateway-session-lint",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--lib",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T09:14:59Z",
+      "durationSeconds": 12.902058142,
       "detail": "completed successfully"
     },
     {
@@ -66,8 +92,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T08:51:20Z",
-      "durationSeconds": 2.509778797,
+      "finishedAt": "2026-09-10T09:15:08Z",
+      "durationSeconds": 2.358757575,
       "detail": "completed successfully"
     }
   ]

@@ -109,6 +109,14 @@ flags. Resource reads use the canonical Computer URI policy and separately enfor
 ownership and retained labels. Each new request reads current authority again.
 Accepted background execution retains its separate token-lifetime rule below.
 
+`control_session` reads the exact signed browser family from the shared store and uses
+the same pure binding predicate as the gateway. Policy, directory and family reads
+share one five-second deadline. `ControlAuthority::valid_until` exposes the earliest
+of the original assertion/token expiry, known family expiry and current-policy lease.
+A missing, revoked or mismatched family denies control. Tokens without a family keep
+their admitted request lifetime and gain no session-bound renewal rights. Background
+dispatch continues to use its independent accepted execution authority.
+
 The public Create request resolves its first reservation before selecting a new
 installation default. The original template and provider remain attached to that
 request. `capacity_for` supplies a current quota hint using the same usage keys as

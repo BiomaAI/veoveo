@@ -30,6 +30,12 @@ subject, kind and tenant while checking the verified principal against the signe
 token issuer. Equating the IdP issuer with the gateway token issuer would reject a
 valid federated login.
 
+The pure family predicate lives in `platform/policy/src/session.rs`. The gateway and
+Computers use that same read-only projection of the stored record. Database identity
+and read deadlines remain the caller's responsibility; display-name decoding is outside
+the authority predicate. Refresh issuance and display projections retain their owning
+gateway types.
+
 Logout already revokes the refresh family before the Console clears its session.
 The signed family claim extends that revocation to subsequent bound access-token
 requests on every replica. Refresh-token replay has the same effect. This follows

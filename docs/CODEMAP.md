@@ -151,10 +151,11 @@ Hub, administration, and GPU policy.
 | `platform/` | internal platform services, persistence, and reusable runtimes |
 | `platform/runtimes/computers/` | private native OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and bounded SSH-only CLI bridge; domain/service and installed qualification remain in the Computers plan |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
-| `platform/policy/` | shared policy evaluator and validated immutable catalog view for gateway and background authority checks; authentication and freshness remain caller-owned |
+| `platform/policy/` | shared policy evaluator, immutable catalog view and pure current session-family predicate; authentication, store reads and freshness remain caller-owned |
 | `platform/computers/src/authority.rs` | verified operation-admission identity and retained source context for explicit current execution policy |
 | `platform/computers/src/current_authority.rs` | fresh immutable policy and directory checks, bounded dispatch authority, and retained current policy decisions |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | shared current policy/directory snapshot and request-scoped action/read permissions; public projections cannot obtain a dispatch ticket |
+| `platform/computers/src/control_session.rs` | exact signed browser-family read and shared binding decision; logout and family expiry constrain control without cancelling accepted work |
 | `platform/computers/` | durable core Computer collections, private human/service ownership, conditional capacity/fence admission, shared Task linking, dispatch receipts, persisted observation budgets and correlated settlement; worker integration lives in `servers/computers-mcp`; grant persistence remains in progress |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
 | `platform/computers/storage/` | privileged host journal/ext4 filesystem, exact Docker observation and recorded physical claims, durable handoff with loop detachment, bounded plugin/mTLS service; native filesystem/shared-mount faults; installed worker maintenance remains active implementation |

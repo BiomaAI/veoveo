@@ -4,6 +4,7 @@ mod authority;
 mod authority_snapshot;
 mod capacity;
 mod control_authority;
+mod control_session;
 mod current_authority;
 mod identity;
 mod lifecycle;

@@ -18,14 +18,18 @@ impl ComputersStore {
     /// A new request must obtain a new snapshot. The worker still rechecks dispatch.
     pub async fn control_authority(&self, actor: &ComputerActor) -> Result<ControlAuthority> {
         actor.check_admission()?;
-        let snapshot = tokio::time::timeout(
-            Duration::from_secs(5),
-            self.read_authority(actor.accepted()),
-        )
+        let (snapshot, session_expires_at) = tokio::time::timeout(Duration::from_secs(5), async {
+            let snapshot = self.read_authority(actor.accepted()).await?;
+            let expires = self.check_control_session(&snapshot).await?;
+            Ok::<_, ComputerError>((snapshot, expires))
+        })
         .await
         .map_err(|_| ComputerError::Unavailable)??;
         actor.check_admission()?;
-        let remaining = (actor.admission_expires_at() - Utc::now())
+        let expires_at = session_expires_at.map_or(actor.admission_expires_at(), |expires| {
+            expires.min(actor.admission_expires_at())
+        });
+        let remaining = (expires_at - Utc::now())
             .to_std()
             .map_err(|_| ComputerError::Forbidden)?;
         Ok(ControlAuthority {
@@ -36,6 +40,9 @@ impl ComputersStore {
     }
 }
 impl ControlAuthority {
+    pub fn valid_until(&self) -> Instant {
+        self.admission_deadline.min(self.snapshot.deadline)
+    }
     fn check_fresh(&self) -> Result<()> {
         if self.admission_deadline <= Instant::now() {
             return Err(ComputerError::Forbidden);
