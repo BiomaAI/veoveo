@@ -10,6 +10,7 @@
 | Shared Tasks | Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
+| Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059, public adapter integration pending |
 
 The domain owns retained Computer identity. Provider transport belongs to
 `platform/runtimes/computers`. Native Console and MCP will project these commands
@@ -176,6 +177,69 @@ Six real-store cases use independent clients and synthetic Ready rows. They prov
 redemption, one-use races, quota contention, stale installer rejection, passive idle behavior,
 absolute expiry, logout, current action/label/membership changes and process replacement.
 They do not establish terminal behavior, public routing, CLI pairing or agent delegation.
+
+## CLI Pairing And Connection Grants
+
+`cli_grants` implements the private ledger for the stock OpenShell `0.0.116` adapter.
+This checkpoint exposes domain APIs; public pairing, tunnel routes and the grant panel
+remain integration work. The wire adapter must preserve the client's binary stream:
+its SDK writes received text frames into gRPC bytes as well. Browser terminal controls
+cannot enter that stream. This custom pairing is not an OAuth device authorization flow
+or proof of possession.
+
+An authenticated browser starts a challenge for one owned Ready Computer. The request
+contains a name, the stock client's eight-character confirmation code and a port in
+1024–65535. The only admitted callback destination is the native client's fixed
+`http://127.0.0.1:{port}/callback`; an HTTP projection must never accept a callback host.
+It must enforce session and CSRF, show the exact code for comparison with the terminal,
+and require explicit confirmation before calling `confirm_cli_pairing`. The domain
+cannot infer human confirmation from an HTTP request.
+
+Challenges expire after 120 seconds and bind the owner, Computer, profile, OAuth client,
+Work Context and sign-in family. An owner/context guard limits admission to five
+challenges per minute across replicas, including consumed challenges. Reusing a code
+for that Computer is rejected. Only its domain-separated hash is stored. Challenge
+confirmation consumes the row atomically with a fresh named grant and its audit event.
+Competing confirmations produce one bearer. A lost response requires new pairing;
+the database cannot recover the secret.
+
+The credential is a versioned locator with 256 random bits. It has no Debug, Display
+or implicit serialization implementation. Storage retains only its domain-separated
+SHA-256 hash. It authorizes attachment to the recorded Computer under the recorded
+session family and current policy. It carries no lifecycle, arbitrary forwarding,
+agent-execution or provider-administration authority. The shared installation policy
+limits outstanding browser and CLI grants together. The grant's absolute expiry and
+idle expiry cannot exceed that policy or the sign-in family's lifetime.
+
+Each accepted connection has its own durable UUID and exact provider resource/process.
+At most sixteen unexpired connections share one grant across all worker replicas.
+Closing a connection leaves the parent grant valid for subsequent stock CLI commands.
+Stopping or replacing a process invalidates old connections; a fresh connection may
+bind the current Ready run of the same Computer. Only successful current renewal may
+open provider I/O. Renewal checks the grant, connection, policy, directory, family and
+exact Computer run. It records a lease of at most thirty seconds, with database latency
+charged against the returned monotonic deadline. A closed or expired connection cannot
+revive. Timer ticks, output and transport keepalives cannot extend idle access.
+
+Owner inventory returns names and lifetime metadata without credentials or family IDs.
+Current read authority permits an owner to revoke a grant, including after losing
+contributor membership. Revocation ends every attached connection under its bounded
+lease while leaving Computer execution and retained storage unchanged.
+
+Migration 0059 adds private schema-full tables without rewriting browser grants or
+retained Computers. Apply it before the updated admission query runs. Deploy all
+Computers workers that count the shared browser/CLI quota before enabling public CLI
+pairing. Rolling overlap is safe while CLI admission remains disabled. The older
+runtime clients use database-scoped connections without schema migration, so additive
+tables do not change their reads. An older migration binary rejects a database ahead
+of its catalog; rollback must retain the qualified migration runner. Drain CLI admission
+and let existing connection leases close before rolling back a CLI-capable worker.
+Keep the grant ledger for expiry and revocation; rollback removes no retained files.
+
+The isolated real-store tests exercise one-use confirmation, cross-replica grant and
+connection limits, shared browser quota, code replay and rate limits, owner reduction,
+passive renewal, expired access, source-token expiry, current policy, process changes
+and logout. They do not qualify the public stock CLI or blocked network I/O.
 
 ## Lifecycle Dispatch
 

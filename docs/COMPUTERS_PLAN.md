@@ -459,6 +459,13 @@ stock CLI and agent journey, retained storage/recovery, core packaging, and Biom
 installation pass. Future group, editor, preview, GPU and additional-provider profiles
 retain their own acceptance and do not silently enter the supported matrix.
 
+The CLI domain checkpoint adds durable one-use pairing, named session-bound grants,
+shared browser/CLI quota and separately fenced connection leases. Closing a connection
+preserves the pairing; a new connection may bind a later Ready run of the same Computer.
+The isolated real-store cases cover independent replicas, rate/connection limits,
+revocation and expiry. Public SSO confirmation, stock-client tunnel transport and
+installed CLI acceptance remain required before this checkpoint becomes usable.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

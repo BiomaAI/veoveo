@@ -3014,3 +3014,12 @@ not establish that persisted session records were readable during the failure.
 Connection backpressure and record-level contention remain unproven causes. This
 recurring availability defect stays open; the successful later journey does not
 qualify rollout continuity.
+
+The private CLI-ledger checkpoint passes 32 domain tests including its compile-fail
+credential-formatting check, 46 store unit tests and nine application/HTTP cases.
+Recorded command times were 36.919 seconds for the domain, 13.627 seconds for store,
+and 43.691 seconds for the service. Their Cargo compile phases took 15.77, 13.53 and
+22.92 seconds respectively. Selecting the standalone store tests then the service
+compiled the shared store again under their different feature selections. Warm lint
+took 2.93 seconds. These measurements cover the additive ledger and its browser quota
+interaction; they do not establish public stock CLI performance or deployment.

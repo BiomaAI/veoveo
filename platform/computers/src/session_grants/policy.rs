@@ -11,7 +11,7 @@ pub struct SessionGrantPolicy {
     pub idle_seconds: u32,
 }
 #[derive(Deserialize, SurrealValue)]
-pub(super) struct StoredPolicy {
+pub(crate) struct StoredPolicy {
     pub fingerprint: String,
     pub max_grants: u32,
     pub absolute_seconds: u32,
@@ -59,7 +59,7 @@ impl ComputersStore {
         .await
         .map_err(|_| ComputerError::Unavailable)?
     }
-    pub(super) fn session_policy_record(&self) -> RecordId {
+    pub(crate) fn session_policy_record(&self) -> RecordId {
         RecordId::new(
             "computer_session_grant_policy",
             surrealdb::types::Uuid::from(self.provider_instance_id),
