@@ -53,6 +53,10 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
     let mut fixture = fixture::Fixture::start(&template, &image).await?;
     let engine = fixture.engine().await?;
     let runtime = fixture.runtime().await?;
+    ensure!(
+        fixture.runtime_in("not-provisioned").await.is_err(),
+        "a missing provider workspace advertised ready capacity"
+    );
     guest_authority::assert_denied(&fixture.dir.join("provider"), &fixture.endpoint).await;
     let allocator = fixture.allocator(&template).await?;
     allocator.ready().await?;

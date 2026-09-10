@@ -263,8 +263,13 @@ installation uses its authenticated TLS registry and removes that local exceptio
 Controller images select exact release tags and immutable OCI index digests.
 The Kustomize and Helm controllers enable `CancelHealthCheckOnNewRevision`.
 A corrected source revision can interrupt an obsolete root health check, and the
-resulting release update can interrupt Helm's old health check. Releases retain
-their bounded rollback remediation. Verify this behavior with the isolated
+resulting release update can interrupt Helm's old health check. Veoveo retries failed
+upgrades in place after one minute. Health checks remain required, and a failed
+release remains visible until its workloads recover. Automatic rollback could remove
+new Computers services and repeatedly restart retained workloads when an unrelated
+service fails. Rollback therefore requires an explicitly qualified installation
+revision and storage transition. The isolated cancellation fixture retains rollback
+remediation to exercise that controller path. Verify cancellation with the isolated
 `cargo xtask smoke gitops-cancel-verify` scenario described in
 [`testing/deployment-smoke/DESIGN.md`](../../testing/deployment-smoke/DESIGN.md).
 

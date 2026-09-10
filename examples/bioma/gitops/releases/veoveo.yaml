@@ -29,8 +29,8 @@ spec:
       retries: 5
   upgrade:
     serverSideApply: enabled
-    remediation:
-      retries: 5
-      strategy: rollback
+    strategy:
+      name: RetryOnFailure
+      retryInterval: 1m
   driftDetection:
     mode: enabled
