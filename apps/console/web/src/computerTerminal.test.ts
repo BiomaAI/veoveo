@@ -6,6 +6,29 @@ import {
   type TerminalStatus,
 } from "./computers/terminalSession.ts";
 
+test("the default clock preserves the browser timer receiver", async (t) => {
+  const timeout = globalThis.setTimeout;
+  const clear = globalThis.clearTimeout;
+  t.mock.method(globalThis, "setTimeout", function (this: unknown, ...args: Parameters<typeof setTimeout>) {
+    assert.ok(this === undefined || this === globalThis, "illegal browser timer receiver");
+    return Reflect.apply(timeout, globalThis, args) as ReturnType<typeof setTimeout>;
+  });
+  t.mock.method(globalThis, "clearTimeout", function (this: unknown, ...args: Parameters<typeof clearTimeout>) {
+    assert.ok(this === undefined || this === globalThis, "illegal browser timer receiver");
+    return Reflect.apply(clear, globalThis, args);
+  });
+  // Evaluate the real module with browser-like native APIs, independently of
+  // the injected deterministic clock used by the protocol tests below.
+  const specifier = "./computers/terminalSession.ts?browser-timer-receiver";
+  const browser = (await import(specifier)) as typeof import("./computers/terminalSession.ts");
+  const session = new browser.TerminalSession(
+    { bufferedAmount: 0, send: () => {}, close: () => {} },
+    { input: () => {}, write: (_bytes, done) => done() },
+    () => {},
+  );
+  session.close();
+});
+
 function fixture() {
   let now = 0;
   const timers = new Map<ReturnType<typeof setTimeout>, { callback: () => void; at: number }>();

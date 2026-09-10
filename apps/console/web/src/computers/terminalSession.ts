@@ -19,8 +19,8 @@ export interface TerminalClock {
 const clock: TerminalClock = {
   wall: Date.now,
   monotonic: () => performance.now(),
-  timer: setTimeout,
-  clear: clearTimeout,
+  timer: (callback, ms) => setTimeout(callback, ms),
+  clear: (timer) => clearTimeout(timer),
 };
 const FRAME_LIMIT = 64 * 1024;
 const QUEUE_LIMIT = 256 * 1024;
