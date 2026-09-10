@@ -293,3 +293,10 @@ must pass the supported user journey on a clean installation and on Veoveo with
 the Bioma configuration. Broader provider matrices, throughput experiments, and
 future CI infrastructure have separate checkpoints. Functional or security failures
 in the selected profile remain release blockers; unrelated experiments do not.
+
+Implementation checkpoint: shared Tasks now admit a separate `provider_wait` class.
+Recovery preserves nonterminal state and cancellation; observation claims use the
+shared lease transaction and cannot enter ordinary execution claims. The additive
+stored enum requires compatible readers before admission. Computers still needs its
+provider dispatch journal, budget accounting and settlement integration. The current
+store-backed fixtures exercise competing replicas and unchanged existing profiles.
