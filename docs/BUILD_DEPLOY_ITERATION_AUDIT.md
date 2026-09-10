@@ -2207,3 +2207,15 @@ build in 3m 22s. Both binaries report the expected selected version. The gateway
 links the host's libz3; a deployable image must include that exact runtime dependency
 or a qualified static build. Upstream's example distroless Dockerfile does not by
 itself establish that runtime closure.
+
+The supervisor's optimized build took 1m 29s and reports
+`0.0.117-dev.5+gea0c605`. The candidate Computer image uses Ubuntu 26.04 and the
+September 9 archive snapshot. Minimal Ubuntu needed a pinned CA-package bootstrap
+and an explicit APT CA-bundle path to fetch that snapshot with TLS verification;
+the initial two attempts failed closed. A cached rebuild takes under one second.
+The supervisor's version command runs inside this image as UID 10001, which verifies
+its dynamic-library loading but does not prove confinement or lifecycle behavior.
+
+The local candidate image is
+`localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c`.
+It is available for isolated native acceptance and has not been installed on Bioma.
