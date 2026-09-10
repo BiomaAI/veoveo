@@ -64,6 +64,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`platform/policy/DESIGN.md`](../platform/policy/DESIGN.md) | shared gateway/worker policy decisions, indexed revision boundary and caller-owned current authority |
+| [`platform/gateway/src/auth/DESIGN.md`](../platform/gateway/src/auth/DESIGN.md) | signed access-token session families, current cross-replica revocation and bounded rollout into renewable Computer grants |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
@@ -425,6 +426,7 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 | `state/audit.rs` | durable policy/audit evidence |
 | `state/auth_state.rs` | durable OAuth authorization and replay state |
 | `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC plus signed-in display-label continuity |
+| `state/session.rs` | authoritative access-token session-family binding and revocation checks |
 | `state/subscriptions.rs` | durable subscription ownership and forwarding |
 | `secrets.rs` | secret-source models and environment/file/Vault resolution |
 

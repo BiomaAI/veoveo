@@ -25,6 +25,8 @@ struct AccessTokenClaims {
     #[serde(skip_serializing_if = "Option::is_none")]
     principal_display_name: Option<String>,
     client_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_family: Option<veoveo_mcp_contract::GatewayRefreshFamilyId>,
     work_context: String,
     invocation_mode: veoveo_mcp_contract::InvocationMode,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -53,6 +55,7 @@ struct AccessTokenClaims {
 
 #[derive(Debug, Clone)]
 pub(super) struct AccessTokenInvocation {
+    pub(super) session_family: Option<veoveo_mcp_contract::GatewayRefreshFamilyId>,
     pub(super) work_context: WorkContextId,
     pub(super) provenance: InvocationProvenance,
 }
@@ -92,6 +95,7 @@ pub(super) async fn issue_client_credentials_access_token(
         None,
         None,
         AccessTokenInvocation {
+            session_family: None,
             work_context,
             provenance: InvocationProvenance::Automated,
         },
@@ -163,6 +167,7 @@ pub(super) async fn issue_access_token(
         principal_id: principal_id.to_string(),
         principal_display_name: principal_display_name.map(ToString::to_string),
         client_id: client_id.to_string(),
+        session_family: invocation.session_family,
         work_context: invocation.work_context.to_string(),
         invocation_mode: invocation.provenance.mode(),
         initiator: invocation.provenance.initiator().map(ToString::to_string),

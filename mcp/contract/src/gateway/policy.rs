@@ -246,6 +246,9 @@ pub struct AccessTokenSubject {
     pub issuer: TokenIssuer,
     pub subject: TokenSubject,
     pub oauth_client_id: OAuthClientId,
+    /// Durable browser session binding. Absence cannot authorize session-bound renewal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_family: Option<GatewayRefreshFamilyId>,
     pub audience: ProtectedResourceId,
     pub work_context: WorkContextId,
     pub invocation_mode: crate::InvocationMode,

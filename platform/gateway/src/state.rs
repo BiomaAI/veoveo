@@ -4,6 +4,7 @@ use veoveo_platform_store::{PlatformStore, StoreConfig};
 mod audit;
 mod auth_state;
 mod refresh_tokens;
+mod session;
 mod subscriptions;
 mod task_routes;
 

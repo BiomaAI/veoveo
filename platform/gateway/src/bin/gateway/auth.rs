@@ -253,6 +253,47 @@ pub(super) async fn authenticate_mcp(
             return unauthorized(&state, profile, "invalid invocation authority");
         }
     };
+    match state
+        .gateway_state
+        .access_token_session_valid(
+            &profile.id,
+            &authorization_server.id,
+            &subject.access_token,
+            &subject.principal,
+        )
+        .await
+    {
+        Ok(true) => {}
+        outcome => {
+            let (reason, response) = match outcome {
+                Ok(false) => (
+                    AuthReasonCode::TokenRevoked,
+                    unauthorized(&state, profile, "session revoked or expired"),
+                ),
+                Err(error) => {
+                    tracing::error!(%error, "failed to read current access-token session");
+                    (
+                        AuthReasonCode::AuthStateUnavailable,
+                        StatusCode::SERVICE_UNAVAILABLE.into_response(),
+                    )
+                }
+                Ok(true) => unreachable!(),
+            };
+            if let Err(error) = record_auth_audit(
+                &state,
+                profile,
+                AuthOutcome::Deny,
+                reason,
+                Some(&subject),
+                started_at,
+            )
+            .await
+            {
+                return auth_audit_error_response(error);
+            }
+            return response;
+        }
+    }
     if let Some(jwt_id) = &subject.access_token.jwt_id {
         match state
             .gateway_state
