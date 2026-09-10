@@ -774,7 +774,16 @@ impl TaskRuntime {
             return Err(TaskError::Conflict(task_id));
         }
         let next = transition.status();
-        if !allowed_transition(current.status, next) {
+        // An observation claim preserves Queued, and cancellation can race an
+        // already dispatched effect. Its qualified owner may publish the known
+        // successful outcome after committing the domain result.
+        let provider_completion = current.recovery_class == RecoveryClass::ProviderWait
+            && next == StoreTaskStatus::Succeeded
+            && matches!(
+                current.status,
+                StoreTaskStatus::Queued | StoreTaskStatus::CancelRequested
+            );
+        if !provider_completion && !allowed_transition(current.status, next) {
             return Err(TaskError::InvalidTransition {
                 from: current.status,
                 to: next,
