@@ -24,6 +24,12 @@ struct Entry {
     modified: SystemTime,
 }
 
+struct FreshnessChanges {
+    paths: usize,
+    refreshed_files: usize,
+    removed_paths: usize,
+}
+
 fn entries(root: &Path) -> io::Result<BTreeMap<PathBuf, Entry>> {
     fn visit(
         root: &Path,
@@ -75,7 +81,7 @@ fn stamp(path: &Path, modified: SystemTime) -> io::Result<()> {
     fs::File::open(path)?.set_times(fs::FileTimes::new().set_modified(modified))
 }
 
-fn synchronize(source: &Path, state: &Path) -> io::Result<usize> {
+fn synchronize(source: &Path, state: &Path) -> io::Result<FreshnessChanges> {
     fs::create_dir_all(state)?;
     let source = source.canonicalize()?;
     let state = state.canonicalize()?;
@@ -86,24 +92,36 @@ fn synchronize(source: &Path, state: &Path) -> io::Result<usize> {
     }
     let current = entries(&source)?;
     let previous = entries(&state)?;
-    // A removed file or changed link can affect directory traversal and indirect
-    // inputs. Conservatively refresh the local source tree on these rare changes.
-    let structural_change = previous.keys().any(|path| !current.contains_key(path))
-        || current.iter().any(|(path, entry)| {
-            matches!(entry.content, Content::Link(_))
-                && previous
-                    .get(path)
-                    .is_none_or(|old| old.content != entry.content)
-        });
+    let previous_root_modified = fs::metadata(&state)?.modified()?;
+    // Symlinks can hide the path Cargo actually recorded. Keep conservative
+    // invalidation for link changes. Ordinary removal needs only its directory
+    // watchers: a recorded dependency that disappeared is already stale to Cargo.
+    let changed_link = previous.iter().any(|(path, entry)| {
+        matches!(entry.content, Content::Link(_))
+            && current
+                .get(path)
+                .is_none_or(|new| new.content != entry.content)
+    }) || current.iter().any(|(path, entry)| {
+        matches!(entry.content, Content::Link(_))
+            && previous
+                .get(path)
+                .is_none_or(|old| old.content != entry.content)
+    });
     let now = SystemTime::now();
-    if previous.values().any(|entry| entry.modified >= now) {
+    if previous.values().any(|entry| entry.modified >= now)
+        || (!previous.is_empty() && previous_root_modified >= now)
+    {
         return Err(Error::other(
             "compiler freshness clock did not advance; refusing stale cache reuse",
         ));
     }
-    let mut changed = BTreeSet::new();
+    let mut changed = previous
+        .keys()
+        .filter(|path| !current.contains_key(*path))
+        .cloned()
+        .collect::<BTreeSet<_>>();
     for (path, entry) in &current {
-        if structural_change
+        if changed_link
             || previous
                 .get(path)
                 .is_none_or(|old| old.content != entry.content)
@@ -172,7 +190,28 @@ fn synchronize(source: &Path, state: &Path) -> io::Result<usize> {
             stamp(&source.join(path), modified)?;
         }
     }
-    Ok(changed.len())
+    // A build script can watch the workspace root itself. This also covers a
+    // removed top-level input whose ancestors contain no nonempty relative path.
+    let root_modified = if changed.is_empty() {
+        previous_root_modified
+    } else {
+        now
+    };
+    stamp(&state, root_modified)?;
+    stamp(&source, root_modified)?;
+    Ok(FreshnessChanges {
+        paths: changed.len(),
+        refreshed_files: current
+            .iter()
+            .filter(|(path, entry)| {
+                changed.contains(*path) && matches!(entry.content, Content::File(..))
+            })
+            .count(),
+        removed_paths: previous
+            .keys()
+            .filter(|path| !current.contains_key(*path))
+            .count(),
+    })
 }
 
 #[cfg(not(test))]
@@ -184,7 +223,10 @@ fn main() -> io::Result<()> {
         ));
     }
     let changed = synchronize(Path::new(&arguments[0]), Path::new(&arguments[1]))?;
-    println!("Cargo input freshness: {changed} changed paths");
+    println!(
+        "Cargo input freshness: {} changed paths ({} files refreshed, {} paths removed)",
+        changed.paths, changed.refreshed_files, changed.removed_paths
+    );
     Ok(())
 }
 
@@ -217,13 +259,33 @@ mod tests {
             self.0.join("state")
         }
         fn sync(&self) -> usize {
-            synchronize(&self.source(), &self.state()).unwrap()
+            synchronize(&self.source(), &self.state()).unwrap().paths
         }
         fn write(&self, relative: &str, bytes: &str) {
             let path = self.source().join(relative);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, bytes).unwrap();
             stamp(&path, UNIX_EPOCH + Duration::from_secs(1)).unwrap();
+        }
+        fn project(&self, source: &str) {
+            self.write("Cargo.toml", "[package]\nname='freshness-fixture'\nversion='0.1.0'\nedition='2024'\n[workspace]\n");
+            self.write("src/main.rs", source);
+        }
+        fn build(&self) -> std::process::Output {
+            self.sync();
+            Command::new("cargo")
+                .current_dir(self.source())
+                .args(["build", "--offline", "--verbose", "--target-dir"])
+                .arg(self.0.join("target"))
+                .output()
+                .unwrap()
+        }
+        fn run(&self) -> String {
+            let run = Command::new(self.0.join("target/debug/freshness-fixture"))
+                .output()
+                .unwrap();
+            assert!(run.status.success());
+            String::from_utf8(run.stdout).unwrap().trim().to_owned()
         }
     }
     impl Drop for Fixture {
@@ -313,5 +375,131 @@ mod tests {
     fn source_and_cache_state_must_not_overlap() {
         let fixture = Fixture::new();
         assert!(synchronize(&fixture.source(), &fixture.source().join("nested")).is_err());
+    }
+
+    #[test]
+    fn removing_unselected_sources_preserves_an_unchanged_cargo_binary() {
+        let fixture = Fixture::new();
+        fixture.project("fn main() { println!(\"kept\"); }");
+        fixture.write("unused/src/private.rs", "not selected\n");
+        let first = fixture.build();
+        assert!(
+            first.status.success(),
+            "{}",
+            String::from_utf8_lossy(&first.stderr)
+        );
+        // Include Cargo's generated lockfile in the mirror before the comparison.
+        fixture.sync();
+        let original = fs::metadata(fixture.source().join("src/main.rs"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        fs::remove_dir_all(fixture.source().join("unused")).unwrap();
+        let changes = synchronize(&fixture.source(), &fixture.state()).unwrap();
+        assert_eq!(changes.refreshed_files, 0);
+        assert_eq!(changes.removed_paths, 3);
+        assert_eq!(
+            fs::metadata(fixture.source().join("src/main.rs"))
+                .unwrap()
+                .modified()
+                .unwrap(),
+            original
+        );
+        let next = fixture.build();
+        let log = String::from_utf8_lossy(&next.stderr);
+        assert!(next.status.success(), "{log}");
+        assert!(
+            log.contains("Fresh freshness-fixture"),
+            "unchanged Cargo unit was recompiled: {log}"
+        );
+        assert!(!log.contains("Compiling freshness-fixture"), "{log}");
+        assert_eq!(fixture.run(), "kept");
+    }
+
+    #[test]
+    fn removed_directory_and_root_inputs_rerun_cargo_build_scripts() {
+        for (watch, input) in [("inputs", "inputs/flag"), (".", "flag")] {
+            let fixture = Fixture::new();
+            fixture.project("fn main() { println!(\"{}\", env!(\"OBSERVATION\")); }");
+            fixture.write("build.rs", &format!(
+                "fn main() {{ println!(\"cargo:rerun-if-changed={watch}\"); println!(\"cargo:rustc-env=OBSERVATION={{}}\", if std::path::Path::new(\"{input}\").exists() {{ \"present\" }} else {{ \"absent\" }}); }}"
+            ));
+            fixture.write(input, "selected input");
+            let first = fixture.build();
+            assert!(
+                first.status.success(),
+                "{}",
+                String::from_utf8_lossy(&first.stderr)
+            );
+            assert_eq!(fixture.run(), "present");
+            fixture.sync();
+            fs::remove_file(fixture.source().join(input)).unwrap();
+            let next = fixture.build();
+            assert!(
+                next.status.success(),
+                "{}",
+                String::from_utf8_lossy(&next.stderr)
+            );
+            assert_eq!(
+                fixture.run(),
+                "absent",
+                "Cargo missed removal under {watch}"
+            );
+        }
+    }
+
+    #[test]
+    fn removing_a_used_rust_module_cannot_reuse_its_old_binary() {
+        let fixture = Fixture::new();
+        fixture.project("mod required; fn main() { required::run(); }");
+        fixture.write("src/required.rs", "pub fn run() {}\n");
+        let first = fixture.build();
+        assert!(
+            first.status.success(),
+            "{}",
+            String::from_utf8_lossy(&first.stderr)
+        );
+        fixture.sync();
+        fs::remove_file(fixture.source().join("src/required.rs")).unwrap();
+        let next = fixture.build();
+        assert!(
+            !next.status.success(),
+            "Cargo reused a binary with a missing module"
+        );
+        assert!(
+            String::from_utf8_lossy(&next.stderr).contains("file not found for module `required`")
+        );
+    }
+
+    #[test]
+    fn changed_and_removed_symlinks_do_not_reuse_an_old_embedded_input() {
+        let fixture = Fixture::new();
+        fixture.project("fn main() { println!(\"{}\", include_str!(\"link\")); }");
+        fixture.write("src/first", "first");
+        fixture.write("src/other", "other");
+        symlink("first", fixture.source().join("src/link")).unwrap();
+        let first = fixture.build();
+        assert!(
+            first.status.success(),
+            "{}",
+            String::from_utf8_lossy(&first.stderr)
+        );
+        assert_eq!(fixture.run(), "first");
+        fixture.sync();
+        fs::remove_file(fixture.source().join("src/link")).unwrap();
+        symlink("other", fixture.source().join("src/link")).unwrap();
+        let next = fixture.build();
+        assert!(
+            next.status.success(),
+            "{}",
+            String::from_utf8_lossy(&next.stderr)
+        );
+        assert_eq!(fixture.run(), "other");
+        fs::remove_file(fixture.source().join("src/link")).unwrap();
+        let removed = fixture.build();
+        assert!(
+            !removed.status.success(),
+            "Cargo reused a removed symlink's content"
+        );
     }
 }
