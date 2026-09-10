@@ -30,7 +30,7 @@ pub(crate) fn require_attach(snapshot: &AuthoritySnapshot, computer: Uuid) -> Re
     }
     Ok(())
 }
-pub(super) fn ready(computer: &Computer, provider: Uuid) -> Result<()> {
+pub(crate) fn ready(computer: &Computer, provider: Uuid) -> Result<()> {
     if computer.provider_instance_id != provider
         || computer.phase != ComputerPhase::Ready
         || computer.active_operation.is_some()
@@ -44,7 +44,7 @@ pub(super) fn ready(computer: &Computer, provider: Uuid) -> Result<()> {
     }
     Ok(())
 }
-pub(super) fn bindings(snapshot: &AuthoritySnapshot) -> Vec<(&'static str, Value)> {
+pub(crate) fn bindings(snapshot: &AuthoritySnapshot) -> Vec<(&'static str, Value)> {
     vec![
         (
             "authority_revision",
@@ -67,7 +67,7 @@ pub(super) fn bindings(snapshot: &AuthoritySnapshot) -> Vec<(&'static str, Value
         ("authority_actor", snapshot.actor.clone().into_value()),
     ]
 }
-pub(super) fn event(
+pub(crate) fn event(
     accepted: &crate::AcceptedAuthority,
     computer: Uuid,
     grant: Uuid,

@@ -3,6 +3,7 @@ mod admission;
 mod authority;
 mod authority_snapshot;
 mod capacity;
+pub mod cli_grants;
 mod control_authority;
 mod control_session;
 mod current_authority;
