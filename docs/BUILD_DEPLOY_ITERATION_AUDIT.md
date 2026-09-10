@@ -2950,3 +2950,21 @@ behind the other xtask operation. Do not launch dependent image work as concurre
 xtask commands and then count queueing as compiler time. The fault fixture removes
 private loop-device nodes and interrupts allocation before Ready publication, because
 the installed container had missed a device created after its own startup.
+
+Publishing the qualified storage host from `9d06bb1a` took 14.468 seconds and reused
+the compiled runtime. The exact published image passed the missing-device,
+interrupted-allocation and full host-replacement fixture in 31.62 seconds. The
+installation reached Helm revision 142 successfully. Its pending Computer became
+Ready after recovering the existing incomplete allocation. Recording Hub also became
+healthy; the quarantined journal retained its exact SHA-256, 201484 bytes, terminal
+cutoff 4356 and unchanged database revision 8711.
+
+The first public terminal exposed a JavaScript receiver error that Node's native timers
+do not reproduce. Calling a browser timer through a clock object's raw function
+property throws `Illegal invocation`. The actual browser confirmed the exception;
+the regression now runs the real terminal module with receiver-sensitive timers.
+The frontend fix passed seven focused tests, TypeScript/Vite build and ESLint.
+Its Console publication took 82.150 seconds, including a 45.27-second Rust compile.
+No BFF Rust source had changed since the prior deployed binary; the only shared
+lockfile difference added existing rcgen/uuid dependencies to xtask. Narrowing
+lockfile invalidation to each runtime dependency closure remains concrete build debt.
