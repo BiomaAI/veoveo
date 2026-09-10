@@ -7,6 +7,9 @@ IF $prior != NONE {
   LET $current = SELECT * FROM ONLY $computer;
   IF $current = NONE OR $current.owner_key != $owner_key { THROW "computer_not_found"; };
   IF $current.active_operation != NONE { THROW "computer_operation_busy"; };
+  IF $previous_phase = "stopped" AND (SELECT * FROM ONLY $execution_slot) != NONE {
+    THROW "computer_operation_busy";
+  };
   IF $current.updated_at != $expected_updated_at
     OR $current.provider_instance_id != $content.provider_instance_id
     OR $current.template_fingerprint != $content.template_fingerprint {

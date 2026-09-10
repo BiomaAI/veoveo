@@ -25,8 +25,22 @@ pub struct AutomationAuthority {
     limits: Option<AutomationExecutionLimits>,
     deadline: Instant,
     expires_at: DateTime<Utc>,
+    source_snapshot: AuthoritySnapshot,
+    owner_snapshot: AuthoritySnapshot,
+    policy_fingerprint: String,
+    admission_end: DateTime<Utc>,
 }
 impl AutomationAuthority {
+    pub(crate) fn require_actor(&self, actor: &ComputerActor) -> Result<()> {
+        self.check_fresh()?;
+        actor.check_admission()?;
+        if crate::identity::digest(&self.source_snapshot.accepted)?
+            != crate::identity::digest(actor.accepted())?
+        {
+            return Err(ComputerError::Forbidden);
+        }
+        Ok(())
+    }
     pub fn computer(&self) -> Result<&Computer> {
         self.check_fresh()?;
         Ok(&self.computer)
@@ -52,6 +66,52 @@ impl AutomationAuthority {
     }
     pub fn valid_until(&self) -> Instant {
         self.deadline
+    }
+    pub(crate) fn transaction_bindings(&self) -> Result<Vec<(&'static str, Value)>> {
+        self.check_fresh()?;
+        self.source_snapshot.check_fresh()?;
+        self.owner_snapshot.check_fresh()?;
+        let mut bindings = crate::session_grants::authority::bindings(&self.source_snapshot);
+        let family = self
+            .source_snapshot
+            .accepted
+            .request_context
+            .access_token
+            .session_family
+            .as_ref()
+            .map(|id| {
+                id.as_str()
+                    .parse::<Uuid>()
+                    .map(gateway_refresh_family_record_id)
+            })
+            .transpose()
+            .map_err(|_| ComputerError::Forbidden)?;
+        bindings.extend([
+            (
+                "authority_owner_source",
+                self.owner_snapshot.source.clone().into_value(),
+            ),
+            (
+                "authority_owner_actor",
+                self.owner_snapshot.actor.clone().into_value(),
+            ),
+            (
+                "authority_expires_at",
+                self.admission_end
+                    .min(self.source_snapshot.checked_at + TimeDelta::seconds(30))
+                    .min(self.owner_snapshot.checked_at + TimeDelta::seconds(30))
+                    .into_value(),
+            ),
+            ("family", family.into_value()),
+            ("grant", super::record(self.grant_id).into_value()),
+            ("grant_revision", self.grant_revision.into_value()),
+            ("grant_expires_at", self.expires_at.into_value()),
+            (
+                "policy_fingerprint",
+                self.policy_fingerprint.clone().into_value(),
+            ),
+        ]);
+        Ok(bindings)
     }
     fn check_fresh(&self) -> Result<()> {
         if Instant::now() >= self.deadline {
@@ -232,7 +292,8 @@ impl ComputersStore {
         {
             return Err(ComputerError::Forbidden);
         }
-        let policy = self.stored_automation_policy().await?.checked()?;
+        let stored_policy = self.stored_automation_policy().await?;
+        let policy = stored_policy.checked()?;
         if policy.max_grants == 0 {
             return Err(ComputerError::Forbidden);
         }
@@ -311,6 +372,10 @@ impl ComputersStore {
             limits,
             deadline,
             expires_at,
+            source_snapshot,
+            owner_snapshot,
+            policy_fingerprint: stored_policy.fingerprint,
+            admission_end,
         })
     }
 }

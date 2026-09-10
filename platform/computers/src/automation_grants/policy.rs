@@ -47,7 +47,7 @@ impl AutomationGrantPolicy {
     }
 }
 impl ComputersStore {
-    pub(super) fn automation_policy_record(&self) -> RecordId {
+    pub(crate) fn automation_policy_record(&self) -> RecordId {
         RecordId::new(
             "computer_automation_policy",
             surrealdb::types::Uuid::from(self.provider_instance_id),

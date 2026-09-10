@@ -8,7 +8,7 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private queued-command envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
-| Shared Tasks | Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| Shared Tasks | Queued command references carry only Computer/execution IDs; migration 0061 adds private command admission. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
@@ -323,6 +323,47 @@ crates.io registry confirmed stable chacha20poly1305 0.11.0, hmac 0.13.0 and zer
 the selected releases. Tests cover run/owner/grant rebinding, authenticated limits,
 randomized ciphertext, retained-key retry, key removal, corrupt envelopes and strict
 framing. No provider or installation is needed for these pure checks.
+
+## Durable Command Admission
+
+`commands/` consumes a current Execute authority read and an encrypted payload. Its
+transaction rechecks the control revision, enabled source and owner principals,
+caller session family, grant revision and installation policy fingerprint. The
+retained Computer owner context and exact provider run must still match. It commits
+the command, request identity, exclusive execution slot and outbox event together.
+An authority read prepared before revocation or a policy reduction cannot admit work.
+
+Request identity binds the actual source principal and OAuth client as well as the
+canonical actor, Computer and Work Context. Concurrent exact retries return the same
+command. Changing argv, environment, stdin, limits or grant under that identity
+fails. Comparisons use the original encrypted envelope, including its original key
+and run binding. Exact retries resolve accepted input before applying tightened
+execution limits; a subsequent dispatch still requires current limits and authority.
+The original grant must remain usable to obtain a fresh admission read.
+
+The execution slot is separate from the lifecycle fence. Queued work leaves browser
+and CLI attachment authority available. Stop remains an explicit owner action. Start
+refuses an unresolved command slot, because a new run cannot make an old command's
+outcome known. The worker must settle or fence that command before releasing its slot.
+
+A bounded provider-scoped scan recovers commands after a lost admission response.
+`ensure_command_task` rereads the ledger in the same store and creates one shared
+ProviderWait Task using its original identity and actual actor. The Task contains
+only Computer/execution IDs and a retention pin. Neither its request nor the audit
+event contains command bodies, ciphertext or input fingerprints. The private ledger
+holds the authenticated envelope until its execution lifecycle permits disposal.
+
+Migration 0061 introduces queued admission only. Native dispatch, command settlement,
+output Artifacts and public projection remain delivery work. The current module
+cannot launch a command. Apply the migration before updating lifecycle admission,
+and upgrade all workers that can Start before enabling command admission. Rollback
+must drain and settle execution slots before an older lifecycle worker returns;
+removing a slot without termination evidence is forbidden.
+
+Native cases cover competing retries, changed input, distinct-request contention,
+private Task reconstruction, stale authority, policy reductions, principal disablement,
+continued browser admission and blocked replacement Start. The fixture owns its
+isolated database and creates no provider processes.
 
 ## Lifecycle Dispatch
 

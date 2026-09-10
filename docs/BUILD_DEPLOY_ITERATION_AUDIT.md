@@ -3243,3 +3243,9 @@ compile and 0.01 seconds to execute. This was a local Cargo build, with no provi
 recompilation or installation restart. Domain feature boundaries remain a measurable
 source of iteration cost; the following recorded warm check separates that compile
 cost from test execution.
+
+
+The three command-admission cases passed in 1.56 seconds after the five grant cases
+ran in 3.02 seconds; their combined incremental compile took 6.98 seconds. They use
+the same maintained isolated-store fixture and shared automation policy setup.
+No provider launch is needed to qualify admission races or Task reconstruction.

@@ -532,6 +532,13 @@ run. Pure tests cover secret-free envelopes, rebinding refusal, tampering and re
 comparison after key rotation. Command admission, key mounting and Task dispatch are
 still required before this becomes usable agent execution.
 
+Command admission now commits its encrypted request, exclusive execution slot and
+audit event atomically. Native races resolve one command and one recoverable shared
+Task; stale grant or policy reads cannot admit work. Browser attachment remains
+available, while an unresolved command blocks a replacement Start. Migration 0061
+currently covers queued admission. Dispatch, termination settlement and public agent
+execution remain required; no command is launched by this checkpoint.
+
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
 

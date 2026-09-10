@@ -132,6 +132,10 @@ impl ComputersStore {
                 ),
                 ("fingerprint", fingerprint.into_value()),
                 ("computer", computer_record(computer_id).into_value()),
+                (
+                    "execution_slot",
+                    crate::commands::slot(computer_id).into_value(),
+                ),
                 ("owner_key", key.into_value()),
                 ("operation", operation_record(id).into_value()),
                 ("content", content.into_value()),
