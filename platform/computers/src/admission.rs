@@ -56,6 +56,34 @@ struct Content {
 }
 
 impl ComputersStore {
+    /// Resolve a public Create retry before selecting the current default template.
+    /// The request had no template input; its first accepted selection remains binding.
+    pub async fn reserved_for_request(
+        &self,
+        owner: &TaskOwner,
+        request_id: Uuid,
+    ) -> Result<Option<Computer>> {
+        if request_id.is_nil() {
+            return Err(ComputerError::InvalidInput);
+        }
+        let key = owner_key(owner)?;
+        let request = RecordId::new(
+            "computer_request",
+            digest(&("veoveo.computer.create.v1", &key, request_id))?,
+        );
+        let mut response = self
+            .query(
+                "SELECT VALUE computer.computer_id FROM ONLY $request;",
+                vec![("request", request.into_value())],
+            )
+            .await?;
+        let id: Option<Uuid> = response.take(0).map_err(|_| ComputerError::Unavailable)?;
+        match id {
+            Some(id) => self.get(owner, id).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
     /// An exact retry resolves its original Computer, including after a quota reduction.
     pub async fn reserve(&self, owner: &TaskOwner, input: &Reservation) -> Result<Computer> {
         input.validate()?;

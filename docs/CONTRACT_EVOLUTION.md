@@ -299,8 +299,9 @@ Recovery preserves nonterminal state and cancellation; observation claims use th
 shared lease transaction and cannot enter ordinary execution claims. The additive
 stored enum requires compatible readers before admission. Computers now journals dispatch, charges a persisted observation budget and commits
 domain settlement before shared Task projection. The worker integrates those boundaries
-with the native runtime. Current policy/grant authority, the production allocator and
-installed browser/CLI qualification remain active work. Store-backed fixtures exercise
+with the native runtime and production retained allocator. Current dispatch authority
+and public action/read projection use the same fresh policy and directory snapshot.
+Durable grants and installed browser/CLI qualification remain active work. Store-backed fixtures exercise
 competing replicas and unchanged existing profiles.
 
 The shared evaluator now lives in `platform/policy`. Gateway policy calls delegate to
@@ -308,3 +309,9 @@ that implementation, while background services can validate a revision without i
 the gateway's agent runtime or analytics dependencies. This extraction preserves policy
 semantics. Authentication, current Work Context, grant/session revocation and authoritative
 revision freshness remain required inputs to a Computer access or dispatch lease.
+
+The MCP contract now follows the final Tasks extension handshake. The former
+per-tool task-support requirement was stale documentation from the removed core
+Tasks model. The existing pinned runtime already uses per-request extension
+capabilities; the Computers facade must reject missing support before accepting
+durable work. This correction adds no alternate protocol version or provider profile.

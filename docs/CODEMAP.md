@@ -154,6 +154,7 @@ Hub, administration, and GPU policy.
 | `platform/policy/` | shared policy evaluator and validated immutable catalog view for gateway and background authority checks; authentication and freshness remain caller-owned |
 | `platform/computers/src/authority.rs` | verified operation-admission identity and retained source context for explicit current execution policy |
 | `platform/computers/src/current_authority.rs` | fresh immutable policy and directory checks, bounded dispatch authority, and retained current policy decisions |
+| `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | shared current policy/directory snapshot and request-scoped action/read permissions; public projections cannot obtain a dispatch ticket |
 | `platform/computers/` | durable core Computer collections, private human/service ownership, conditional capacity/fence admission, shared Task linking, dispatch receipts, persisted observation budgets and correlated settlement; worker integration lives in `servers/computers-mcp`; grant persistence remains in progress |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
 | `platform/computers/storage/` | privileged host journal/ext4 filesystem, exact Docker observation and recorded physical claims, durable handoff with loop detachment, bounded plugin/mTLS service; native filesystem/shared-mount faults; installed worker maintenance remains active implementation |
@@ -161,6 +162,7 @@ Hub, administration, and GPU policy.
 | `platform/runtimes/computers/tests/native_volume_plugin.rs` and `tests/native_support/docker_daemon.rs` | native registered-writer probe with a disposable Docker daemon, pinned image import and daemon-scoped plugin cleanup |
 | `platform/runtimes/computers/src/retained_writer.rs` | exact Docker engine, provider namespace and Computer-instance matching for retained volume admission; persisted physical handoff remains allocator work |
 | `servers/computers-mcp/` | bounded lifecycle worker, production retained-storage preparation, domain-enforced current policy, native dispatch and Task projection; public facade and package remain active work |
+| `servers/computers-mcp/src/application.rs` and `templates.rs` | shared lifecycle/read projection, current action flags, availability/quota states and original Create selection across default-template changes |
 | `servers/` | independently deployed MCP servers and protocol projections |
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |

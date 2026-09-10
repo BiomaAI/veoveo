@@ -14,6 +14,27 @@ The worker and future MCP/relay run in one Computers deployment. The gateway own
 ordinary catalog and action policy without importing the provider SDK. The worker
 library does not expose an HTTP endpoint at this checkpoint.
 
+## Public Application Projection
+
+`Application` owns the command/read projection shared by the forthcoming MCP and
+Console HTTP adapters. Each request obtains one current policy and directory snapshot
+from the domain. It serves all action flags for that response and expires within
+thirty seconds, capped by the request's admission lifetime. A new request does not
+reuse that snapshot. The worker independently obtains its dispatch permit later.
+
+The collection reports Setup Required without a fabricated template or quota. Quota
+exhaustion reflects the owner's usage across Work Contexts plus tenant/provider
+counts; reservation remains transactional. A provider availability observation expires
+after fifteen seconds. Storage unavailability does not prohibit Stop. Connect and
+Delete remain unavailable until their grant and purge implementations are connected.
+
+The installation retains admitted templates by fingerprint and selects a default for
+new Create requests. A retry resolves its first reservation before consulting that
+default. Concurrent replicas that select different defaults converge on the same
+first accepted Computer and Task. Caller input cannot choose arbitrary images.
+Closed public lifecycle inputs require stable request UUIDs. Native transport,
+provider work and terminal grants are separate from this projection's store tests.
+
 ## Lifecycle Execution
 
 A bounded queue repairs accepted operations whose shared Task link was lost. It
