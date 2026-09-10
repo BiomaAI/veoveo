@@ -106,8 +106,13 @@ as metadata inputs, in which case planning fails.
 The generated directory preserves source permissions and modification times. Before
 Cargo executes, `source-freshness.rs` compares the admitted bytes, modes and links with
 an input mirror inside the locked target cache. It gives changed files a fresh timestamp
-and retains the mirror's timestamp for unchanged files. Removal or changed symlink
-inputs conservatively refresh the local source tree. The source mount is writable for
+and retains the mirror's timestamp for unchanged files. Ordinary removals refresh
+their parent directories and the workspace root while preserving unchanged file
+timestamps. Cargo detects a missing recorded dependency itself; build scripts that
+watch a directory observe its changed timestamp. This prevents narrowing the image
+selection from recompiling every retained source file. Symlink addition, retargeting,
+removal or replacement retains conservative refresh of the entire input tree because
+an indirect dependency may have been recorded through its resolved target. The source mount is writable for
 this timestamp adjustment; BuildKit discards its writes after the action. Original
 worktree files remain untouched. Registry and Git dependencies retain their Cargo cache.
 
@@ -117,6 +122,14 @@ reuse a binary compiled from newer, different bytes in the shared target cache. 
 mirror follows executed compilation, including failed attempts, rather than planner
 visits or BuildKit cache hits. The helper rejects a backwards freshness clock. Every
 Rust compiler family uses the same helper, compiled by its existing pinned compiler.
+Its output distinguishes files actually refreshed from paths removed. Native Cargo
+fixtures prove unchanged-unit reuse after removing unselected sources, rebuild after
+directory and root input removal, failure after deleting a used module, and correct
+behavior for retargeted or removed embedded symlinks. They retain the older-checkout
+and equal-length revert checks. This qualifies the freshness bridge; Cargo still owns
+legitimate feature-unification and toolchain invalidation. Cargo's build-script
+[change detection](https://doc.rust-lang.org/cargo/reference/build-scripts.html#change-detection)
+defines the directory and timestamp boundary.
 
 The planner runs locked, offline Cargo metadata against the generated workspace before
 handing it to BuildKit. Temporary contexts remain alive through the solve and are removed

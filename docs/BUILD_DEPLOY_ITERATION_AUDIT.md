@@ -3136,3 +3136,15 @@ attachment verified the post-logout marker was absent, read the original retaine
 file, and returned UID 10001. The site's local-device permission was restored to its
 original default after qualification. The browser remains headed with hardware
 NVIDIA WebGL; its SwiftShader WebGPU adapter is not accepted as GPU evidence.
+
+Inspection traced the 491-path invalidation to `source-freshness.rs`: any input
+removal marked every remaining file changed. Selecting Console after a three-service
+build therefore refreshed unchanged BFF dependencies. The helper now refreshes the
+directories affected by ordinary removals and preserves unchanged source timestamps.
+Symlink changes keep conservative invalidation. Seven owning tests pass, including
+real offline Cargo builds that require a Fresh result after an unrelated removal,
+rebuild a directory-watching generator after deletion, and reject missing source
+modules and embedded symlinks. The fixture group took 0.75 seconds after compilation.
+No new service image or deployment is needed for this build-helper change. A measured
+production comparison will use the next affected image publication; these fixture
+results do not establish a new end-to-end release budget.
