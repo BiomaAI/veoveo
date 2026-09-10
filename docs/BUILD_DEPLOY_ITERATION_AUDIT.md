@@ -3148,3 +3148,32 @@ modules and embedded symlinks. The fixture group took 0.75 seconds after compila
 No new service image or deployment is needed for this build-helper change. A measured
 production comparison will use the next affected image publication; these fixture
 results do not establish a new end-to-end release budget.
+
+
+The CE-06 source recorder now preserves immutable per-attempt receipts and selects
+results by admitted command identity. Its initial xtask closure contains 547 source
+inputs. Sixteen owning cases pass, including actual mid-command input mutation,
+concurrent publication, orphan recovery, tracked deletion across staging, ignored
+symlink-target refusal and runtime coverage rejection. A warm recorder suite
+ran in about 0.5 seconds, with 0.06 seconds in its test bodies. The final recorded
+run, after the display optimization changed the binary, took 3.7 seconds including
+compilation. The image-input group
+still passes 13 cases in 1.55 seconds of fixture execution.
+
+Qualification exposed two avoidable feedback costs. An unfiltered all-feature Cargo
+metadata query attempted to resolve unused platform packages while offline; the
+planner now filters to the observed host target. Creating the coverage profile after
+the first successful suite legitimately invalidated that suite's input boundary.
+The profile should be finalized before qualification; the required rerun was warm.
+These are tooling observations, not an installed performance claim. V3 required
+checks earned fresh receipts; old v2 results were not copied into the new format.
+
+The first four-check display took 4.87 seconds; coverage verification took 5.37
+seconds. Both recomputed identical Cargo/input boundaries per check. An invocation
+now observes each distinct boundary once and shares identical source toolchain
+observations within coverage verification. Subsequent concurrent warm observations
+took 2.79 seconds for display and 2.78 seconds for verification. These are individual
+measurements under different contention, not a controlled throughput benchmark.
+Eleven immutable attempts occupy about 1.6 MiB for this transition. Input manifests
+are currently inline; content-addressed manifest deduplication and bounded archival
+remain storage-efficiency work as history grows.

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "veoveo.io/test-coverage-profile/v1",
+  "name": "iteration-tools",
+  "requirements": [
+    {
+      "checkId": "sha256:9eac235f3a7dca7920c9ef48d030fb331d6ef94fa713a75bb6cd91162fbc2e14",
+      "class": "source",
+      "maxAgeSeconds": null,
+      "bindings": {}
+    },
+    {
+      "checkId": "sha256:cd0110811a555c32b4e5d92a38ac4bc8e6b252d3280961221882277aa248eb8e",
+      "class": "source",
+      "maxAgeSeconds": null,
+      "bindings": {}
+    },
+    {
+      "checkId": "sha256:005346a6d4003ebe001e7e7be4a6a34b36a011c3e70dd458f5d30efcf5505ee4",
+      "class": "source",
+      "maxAgeSeconds": null,
+      "bindings": {}
+    },
+    {
+      "checkId": "sha256:d21c1efc9944cce71c30223547fd5a391c696b4c914e2e80afd7b5f13fd0fee7",
+      "class": "source",
+      "maxAgeSeconds": null,
+      "bindings": {}
+    }
+  ]
+}

@@ -56,7 +56,7 @@ Git push credentials never enter an author job.
 | Git object identity and SHA-256 | Source bases, candidate trees, patches, policies, images, evidence, evaluations, and promotion inputs carry immutable identities. |
 | OCI Image and Distribution Specifications | Factory and harness images are prebuilt and selected by digest. Veoveo runtime images retain their existing runnable-manifest and publication-index identities. |
 | SPDX SBOM and SLSA provenance | Qualified Veoveo publications retain the attestations required by [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). A candidate or staging build is not release evidence. |
-| [`veoveo.io/local-test-report/v2`](CONTINUOUS_INTEGRATION.md) | The committed local report remains an engineering status note. The factory never treats it as independent verification, release provenance, or a security boundary. |
+| [`veoveo.io/local-test-report/v3`](CONTINUOUS_INTEGRATION.md) | The committed local report remains an engineering status note. The factory never treats it as independent verification, release provenance, or a security boundary. |
 | [`veoveo.io/deployment-lock/v7`](ENTERPRISE_DEPLOYMENT.md) | Qualified release closure for installation promotion. Development image locks remain ineligible for production release. |
 | Helm, Kubernetes, and Flux 2.9.4 | Installation-owned desired state and reconciliation. The factory does not patch live Kubernetes workloads or become a second reconciliation owner. |
 | NVIDIA CUDA, Vulkan, RTX, NVENC, WebGPU, WebGL, and Chrome DevTools Protocol | Hardware-GPU execution and headed-browser proof remain mandatory for visual, simulation, perception, rendering, encode, and visual-verification acceptance. |

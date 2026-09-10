@@ -168,6 +168,7 @@ Hub, administration, and GPU policy.
 | [`platform/gateway/src/bin/gateway/console/`](../platform/gateway/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap independent of administrator inventory, current navigation permission and shared branding/identity presentation |
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session edge with bounded typed responses and refresh settlement |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | canonical Rust schema export and pinned TypeScript conversion; `release client-types --check` detects generated-model drift |
+| [`tools/xtask/src/commands/test_report/`](../tools/xtask/src/commands/test_report/DESIGN.md) | CE-06 immutable receipts, exact-command source planning, publication/integrity and explicit coverage verification; installed adapters and release-lock coverage composition remain work |
 | [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT enrollment with separate host, worker and operator outputs |
 | `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
 | [`apps/console/web/src/computers/`](../apps/console/web/src/computers/DESIGN.md) | native collection, retained lifecycle request recovery, bounded live invalidations, lazy hardware terminal and replay/lease state machine; installed acceptance remains in progress |
@@ -1016,7 +1017,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
 | `testing/smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |
-| `testing/local-test-report.json` | committed informational result of checks executed on the qualified development host, bound to product build inputs rather than documentation-only content |
+| `testing/local-test-report.json` and `testing/test-receipts/` | committed v3 per-check index and immutable attempt history, with materialized input manifests and observed toolchains |
+| `testing/evidence-checks.json` and `testing/coverage/` | owner-reviewed exact source commands, Cargo dependency selection, external test inputs and explicit required coverage profiles |
 | `.github/workflows/local-test-report.yml` | lightweight presentation of the committed local test report; it performs no substantive build, deployment, GPU, or browser acceptance |
 
 There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell recipes.
