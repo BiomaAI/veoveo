@@ -1,56 +1,24 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4f0d1c2bab50c60e92b1e5e36b70b58f6b58eaeb2ae4284da9b7bac408300ce3",
-  "updatedAt": "2026-09-10T00:03:16Z",
+  "buildDigest": "sha256:4f81e252d81b7f59b26a7fc08a3bcc4c13f1fee09c855f5e55ab67f92066513f",
+  "updatedAt": "2026-09-10T00:11:00Z",
   "checks": [
     {
-      "name": "test-report-clippy",
+      "name": "computers-image",
       "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-xtask",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
+        "docker",
+        "build",
+        "--platform",
+        "linux/amd64",
+        "--tag",
+        "veoveo-computer-candidate:20260909",
+        "--file",
+        "platform/computers/images/Dockerfile",
+        "platform/computers/images"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:03:16Z",
-      "durationSeconds": 21.09011339,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "test-report-concurrency",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-xtask",
-        "commands::test_report::tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:02:22Z",
-      "durationSeconds": 8.372016556,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "test-report-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "-p",
-        "veoveo-xtask",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:02:55Z",
-      "durationSeconds": 0.237285245,
+      "finishedAt": "2026-09-10T00:11:00Z",
+      "durationSeconds": 0.204383141,
       "detail": "completed successfully"
     }
   ]
