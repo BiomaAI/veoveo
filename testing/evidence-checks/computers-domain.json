@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computers-contract"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers-contract"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-platform-store",
+        "migrations::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-contract",
+        "-p",
+        "veoveo-platform-store",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers",
+          "veoveo-computers-contract",
+          "veoveo-platform-store"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-contract",
+        "-p",
+        "veoveo-platform-store",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers",
+          "veoveo-computers-contract",
+          "veoveo-platform-store"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}

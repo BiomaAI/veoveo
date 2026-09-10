@@ -3,6 +3,30 @@ import test from "node:test";
 import { parseComputer, parseConsoleBootstrap } from "./generatedContracts.ts";
 
 const id = "01994bed-e0d0-7000-8000-000000000001";
+test("named Computer grants require an application binding and bounded closed permissions", () => {
+  const grant = {
+    computerId: id,
+    requestId: id,
+    principalId: "https://test#agent",
+    oauthClientId: "agent",
+    name: "Build work",
+    permissions: ["read", "execute"],
+    executionLimits: { maximumSeconds: 30, maximumOutputBytes: 1024 },
+    expiresAt: "2026-09-10T11:00:00Z",
+  };
+  assert.equal(parseComputer("issue_automation_grant", grant).oauthClientId, "agent");
+  for (const altered of [
+    { ...grant, owner: "forged" },
+    { ...grant, oauthClientId: undefined },
+    { ...grant, oauthClientId: "" },
+    { ...grant, permissions: [] },
+    { ...grant, permissions: ["admin"] },
+    { ...grant, executionLimits: { maximumSeconds: 0, maximumOutputBytes: 1024 } },
+    { ...grant, expiresAt: "tomorrow" },
+  ]) {
+    assert.throws(() => parseComputer("issue_automation_grant", altered));
+  }
+});
 test("canonical Computer schemas reject unknown properties, invalid UUIDs, enums and missing flags", () => {
   const computer = {
     computerId: id,

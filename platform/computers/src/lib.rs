@@ -2,6 +2,7 @@
 mod admission;
 mod authority;
 mod authority_snapshot;
+pub mod automation_grants;
 mod capacity;
 pub mod cli_grants;
 mod control_authority;

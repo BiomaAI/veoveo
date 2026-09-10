@@ -3218,3 +3218,19 @@ packaged binary, 100,000-byte input, enabled command-log privacy, initial shell 
 and Stop fencing of a detached descendant after an uncertain timeout. Failed fixture
 Computers and their isolated block homes were removed by their owners; installed
 user Computers and their retained storage were not used by these experiments.
+
+
+The automation ledger's first native run spent 63.12 seconds retrying an invalid
+schema before reporting readiness failure. The shared isolated-store fixture now
+fails immediately on deterministic migration or configuration errors. The same
+broken migration then reported its exact statement in 4.85 seconds, including
+container startup. Healthy tests retain transient connection retries. Syntax-only
+validation accepted both an incompatible array/child declaration and a protected
+SurrealQL variable; native execution caught them before deployment. The corrected
+five-case grant suite ran in 2.92 seconds after 3.12 seconds of compilation. These
+are individual local observations, not release timings.
+
+The additive automation migration does not require unrelated service rebuilds:
+ordinary runtime connections do not run the migration catalog. Deployment must use
+the new qualified migration runner before enabling the new surface. A rollback
+retains that runner because an older catalog rejects a database ahead of it.

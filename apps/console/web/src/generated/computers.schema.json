@@ -123,6 +123,123 @@
       ],
       "type": "object"
     },
+    "AutomationExecutionLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "maximumOutputBytes": {
+          "format": "uint32",
+          "maximum": 67108864,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumSeconds": {
+          "format": "uint32",
+          "maximum": 7200,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maximumSeconds",
+        "maximumOutputBytes"
+      ],
+      "type": "object"
+    },
+    "AutomationGrantCollection": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/AutomationGrantView"
+          },
+          "maxItems": 64,
+          "type": "array"
+        }
+      },
+      "required": [
+        "computerId",
+        "grants"
+      ],
+      "type": "object"
+    },
+    "AutomationGrantView": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "executionLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationExecutionLimits"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "grantId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "issuedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "oauthClientId": {
+          "type": "string"
+        },
+        "permissions": {
+          "items": {
+            "$ref": "#/$defs/AutomationPermission"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "principalId": {
+          "type": "string"
+        },
+        "revokedAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "computerId",
+        "grantId",
+        "principalId",
+        "oauthClientId",
+        "name",
+        "permissions",
+        "issuedAt",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "AutomationPermission": {
+      "enum": [
+        "read",
+        "execute",
+        "start",
+        "stop"
+      ],
+      "type": "string"
+    },
     "CapacityAvailability": {
       "enum": [
         "setup_required",
@@ -451,6 +568,67 @@
       ],
       "type": "string"
     },
+    "IssueAutomationGrantInput": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "executionLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationExecutionLimits"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "oauthClientId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "permissions": {
+          "items": {
+            "$ref": "#/$defs/AutomationPermission"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "principalId": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "requestId",
+        "principalId",
+        "oauthClientId",
+        "name",
+        "permissions",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
     "LifecycleInput": {
       "additionalProperties": false,
       "properties": {
@@ -604,6 +782,24 @@
       "type": "object"
     },
     "RevokeAccessInput": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "grantId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "grantId"
+      ],
+      "type": "object"
+    },
+    "RevokeAutomationGrantInput": {
       "additionalProperties": false,
       "properties": {
         "computerId": {
@@ -897,6 +1093,12 @@
     "access_revocation": {
       "$ref": "#/$defs/AccessRevocation"
     },
+    "automation_grant": {
+      "$ref": "#/$defs/AutomationGrantView"
+    },
+    "automation_grants": {
+      "$ref": "#/$defs/AutomationGrantCollection"
+    },
     "cli_pairing_challenge": {
       "$ref": "#/$defs/CliPairingChallenge"
     },
@@ -921,6 +1123,9 @@
     "event": {
       "$ref": "#/$defs/ComputerEvent"
     },
+    "issue_automation_grant": {
+      "$ref": "#/$defs/IssueAutomationGrantInput"
+    },
     "lifecycle_input": {
       "$ref": "#/$defs/LifecycleInput"
     },
@@ -941,6 +1146,9 @@
     },
     "revoke_access_input": {
       "$ref": "#/$defs/RevokeAccessInput"
+    },
+    "revoke_automation_grant": {
+      "$ref": "#/$defs/RevokeAutomationGrantInput"
     },
     "snapshot": {
       "$ref": "#/$defs/ComputerSnapshot"
@@ -974,6 +1182,10 @@
     }
   },
   "required": [
+    "issue_automation_grant",
+    "automation_grant",
+    "automation_grants",
+    "revoke_automation_grant",
     "cli_pairing_input",
     "cli_pairing_challenge",
     "cli_pairing_confirm_body",
