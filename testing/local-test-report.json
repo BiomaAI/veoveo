@@ -1,71 +1,67 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2fbdce6cc9d64f391dcee2e2a27b02da7e9d3759d89b3485888ae7259b27850a",
-  "updatedAt": "2026-09-09T23:43:57Z",
+  "buildDigest": "sha256:2538552263a93cf9affd9e3267b90dc0b0a813c5e3750e25178171ee1ea610d3",
+  "updatedAt": "2026-09-09T23:59:57Z",
   "checks": [
     {
-      "name": "computers-recovery",
+      "name": "computers-domain",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-runtime",
-        "recovery_tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-09T23:39:11Z",
-      "durationSeconds": 11.429106541,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-runtime",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
+        "veoveo-computers",
         "-p",
-        "veoveo-computers-runtime"
+        "veoveo-computers-contract",
+        "-p",
+        "veoveo-platform-store"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T23:43:57Z",
-      "durationSeconds": 21.604831214,
+      "finishedAt": "2026-09-09T23:59:57Z",
+      "durationSeconds": 22.848909363,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-runtime-clippy",
+      "name": "computers-domain-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-runtime",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-contract",
+        "-p",
+        "veoveo-platform-store",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T23:42:46Z",
-      "durationSeconds": 5.331191248,
+      "finishedAt": "2026-09-09T23:59:02Z",
+      "durationSeconds": 23.547679832,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-runtime-format",
+      "name": "computers-domain-format",
       "command": [
         "cargo",
         "fmt",
         "-p",
-        "veoveo-computers-runtime",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-contract",
+        "-p",
+        "veoveo-platform-store",
         "--",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-09T23:43:03Z",
-      "durationSeconds": 0.14313049,
+      "finishedAt": "2026-09-09T23:59:34Z",
+      "durationSeconds": 0.218443957,
       "detail": "completed successfully"
     }
   ]

@@ -13879,6 +13879,7 @@ dependencies = [
  "schemars_derive 1.2.2",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -16584,6 +16585,38 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.30.0",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "veoveo-computers"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "getrandom 0.4.3",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "surrealdb",
+ "thiserror 2.0.20",
+ "tokio",
+ "uuid",
+ "veoveo-computers-contract",
+ "veoveo-mcp-contract",
+ "veoveo-platform-store",
+ "veoveo-task-runtime",
+]
+
+[[package]]
+name = "veoveo-computers-contract"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
  "uuid",
 ]
 

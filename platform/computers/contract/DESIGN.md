@@ -1,0 +1,18 @@
+# Computers Public Types
+
+## Standards And Protocols
+
+| Boundary | Supported profile |
+|---|---|
+| JSON and JSON Schema | Serde DTOs and Schemars-generated schema bundle using the workspace's qualified pins; closed request objects and RFC 3339 timestamps |
+| Veoveo Computers projection | Collection snapshots, lifecycle receipts and public phases; this library does not serve an HTTP or MCP endpoint |
+| Veoveo terminal v2 | Bounded authenticated first frame, resize, ready and explicit replay-complete controls; raw terminal bytes remain a separate frame type |
+
+These types carry public state without provider resource identifiers or authority
+envelopes. Computer limits describe installation policy; a default of one does not
+change the collection shape. Recovery Required describes an unresolved operation
+whose domain fence remains held. A new Create requires a stable request UUID.
+
+The native Console and MCP projections will share this schema. Implemented endpoint
+coverage belongs in their own designs. Terminal tokens deliberately cannot be
+formatted through Debug or Display; serialization is an explicit secret boundary.

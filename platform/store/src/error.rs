@@ -74,7 +74,7 @@ pub enum StoreError {
         version: u32,
         statement: usize,
         name: &'static str,
-        source: surrealdb::Error,
+        source: Box<surrealdb::Error>,
     },
     #[error("artifact upload rejected: {0:?}")]
     ArtifactUpload(crate::ArtifactUploadRejection),

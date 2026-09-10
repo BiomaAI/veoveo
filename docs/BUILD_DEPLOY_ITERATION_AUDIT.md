@@ -2175,3 +2175,22 @@ The recovery checkpoint adds eight tests; the full 60-test suite still executes 
 suite passed, but another check overwrote its receipt. The recorder is serialized
 until CE-06 supplies immutable receipts and a concurrency-safe aggregate. Restoring
 the missing receipt required one unnecessary repeat of the 20-second fixture suite.
+
+The collection/admission fixture runs the complete migration catalog in isolated
+SurrealDB containers and tests two clients. Its three scenarios execute in 2.1–4.8 s;
+the higher measurement overlaps the provider's first release build. New domain
+dependencies reuse all existing registry package identities. Enabling Schemars UUID
+support initially rebuilt the shared contract/Surreal dependency closure, which is
+a real feature-unification cost of the Rust workspace.
+
+The SQL skill's suggested formatter (`@surrealdb/surql-fmt` 0.1.0-beta.2) corrupted a
+CREATE CONTENT expression. Database validation rejected its output, and the query
+was repaired and reviewed manually. The formatter has no stable published release;
+its output is not accepted without validation. Clippy also identified the existing
+large migration-error variant in the shared store. Boxing that rare source error
+removed 105 repeated size diagnostics without changing database error semantics.
+
+Provider qualification now has verified source exports for both patch branches and
+an independently downloaded, checksum-verified stock CLI. The provider build uses a
+separate target cache and eight compile jobs; it leaves the installed CLI and user
+Computers untouched. No native provider, storage or public acceptance is claimed yet.

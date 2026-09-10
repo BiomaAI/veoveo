@@ -1,0 +1,25 @@
+[package]
+name = "veoveo-computers"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+chrono.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+surrealdb = { version = "=3.2.4", default-features = false, features = ["protocol-ws", "rustls"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["time"] }
+uuid = { workspace = true, features = ["serde", "v7"] }
+veoveo-computers-contract = { path = "contract" }
+veoveo-mcp-contract.workspace = true
+veoveo-platform-store = { path = "../store" }
+veoveo-task-runtime = { path = "../task-runtime" }
+
+[dev-dependencies]
+futures.workspace = true
+getrandom.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

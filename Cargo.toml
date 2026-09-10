@@ -15,6 +15,8 @@ members = [
     "mcp/contract",
     "platform/artifacts/client",
     "platform/artifacts/service",
+    "platform/computers",
+    "platform/computers/contract",
     "platform/gateway",
     "platform/recordings/forwarder",
     "platform/recordings/protocol",
