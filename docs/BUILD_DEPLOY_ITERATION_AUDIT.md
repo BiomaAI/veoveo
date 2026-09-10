@@ -2849,3 +2849,35 @@ The storage image rebuild takes 11.18 seconds, with a 7.00-second compile window
 Eight storage unit tests, affected lint and formatting pass. This fixture retains
 propagated host mounts; replacement of the whole compute-host mount namespace remains
 a separate topology qualification case.
+
+The new private `computer-host` target now composes the qualified provider, allocator
+and Docker daemon in one owned container. Its first solve exposed a planner defect:
+transitive Rust image dependencies contributed source identity but not their exported
+binaries. Expanding compiler units over the complete Bake context graph fixes that
+failure. Publication still emits only directly selected targets, and asset/standalone
+contexts follow the same dependency set. The real planner regression passes alongside
+42 image-planning tests; the optional worker-quota experiment remains ignored.
+
+The first successful composite image took 34.38 seconds. A startup probe caught a
+group-writable fixture config, which was corrected to the production read-only input
+contract. The next probe created a Computer and wrote retained bytes, then exposed
+an overly strict restart check on Docker's own data-directory permissions. Restart
+now preserves root-owned, non-writable Docker directories below the private 0700 state
+root. The image also includes nftables and bounded per-Computer Docker logs.
+
+The final code rebuild took 9.20 seconds. The final recorded image pass took 10.35
+seconds after documentation changes; all runnable host layers were reused. The actual
+composite-image native test passes in 35.49 seconds. It replaces the full container
+and its mount/network namespaces, preserves Docker and provider resource identities,
+starts a new process over the original files and denies provider user authority to
+the guest certificate. This is stronger than the earlier helper-only restart fixture.
+It is still isolated evidence, rather than Kubernetes or public-endpoint acceptance.
+
+The host image's local configuration digest is
+`sha256:05c7d166f694bf34a8e348ebc0105e5c0555919230f5961aad982acd88ebb694`;
+its declared local size is 480,150,126 bytes. The provider executables retain their
+previous hashes. Eleven host/storage unit tests pass. Combined all-target lint takes
+33.16 seconds because selecting xtask together with the runtime changes the Cargo
+feature union and checks an additional TLS/crypto closure. The native runner briefly
+waits for the shared local build directory. Separate focused package invocations can
+retain a stable feature selection; parallel commands do not eliminate Cargo's lock.

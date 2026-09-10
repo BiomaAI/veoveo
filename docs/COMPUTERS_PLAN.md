@@ -426,6 +426,15 @@ daemon's volume-plugin activation dependency. Physical operations retain their e
 engine checks. This case preserves the existing propagated mounts; compute-host
 mount-namespace replacement and installed reboot retention remain separate gates.
 
+The composite `computer-host` OCI image now passes the mount-namespace replacement
+case. Its Rust launcher coordinates a private Docker daemon, provider and storage
+helper with separate worker/guest trust and bounded startup/shutdown. An isolated
+Computer retains its files across replacement of the entire host container, keeps its
+Docker/provider identity and starts a new process. Packaging reuses provider artifacts
+and the existing compiler families. Kubernetes manifests, installation-owned image and
+configuration publication, retained maintenance and public journeys continue after
+this checkpoint.
+
 | Area | Required evidence |
 |---|---|
 | Core | Standard release surfaces, valid configured/unconfigured states, clean install and selected offline topology |

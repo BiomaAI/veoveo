@@ -7,7 +7,7 @@ use tokio::sync::{Mutex, Semaphore};
 use uuid::Uuid;
 use veoveo_computers_runtime::{Binding, PersistentHome};
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Template {
     pub fingerprint: String,

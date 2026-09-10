@@ -18,7 +18,7 @@ use veoveo_computers_runtime::storage_protocol as wire;
 const SCHEMA: &str = "veoveo.io/computer-storage/v1";
 const MAX_FRAME: usize = 1024;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TlsConfig {
     pub worker_ca: PathBuf,

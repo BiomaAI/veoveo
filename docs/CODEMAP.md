@@ -65,6 +65,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`platform/policy/DESIGN.md`](../platform/policy/DESIGN.md) | shared gateway/worker policy decisions, indexed revision boundary and caller-owned current authority |
 | [`platform/computers/storage/DESIGN.md`](../platform/computers/storage/DESIGN.md) | retained-home journal/ext4 backend, private worker mTLS service and Docker plugin; native shared-mount restart and durable physical writer handoff |
+| [`platform/computers/host/DESIGN.md`](../platform/computers/host/DESIGN.md) | private compute-container composition, owned daemon/provider/storage process order, retained local state and installation trust |
 | [`platform/gateway/src/auth/DESIGN.md`](../platform/gateway/src/auth/DESIGN.md) | signed access-token session families, current cross-replica revocation and bounded rollout into renewable Computer grants |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
@@ -174,6 +175,7 @@ Hub, administration, and GPU policy.
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
 | `platform/computers/storage/` | privileged host journal/ext4 filesystem, exact Docker observation and recorded physical claims, durable handoff with loop detachment, bounded plugin/mTLS service; native filesystem/shared-mount faults; installed worker maintenance remains active implementation |
 | `platform/computers/images/` | candidate Computer user environment with pinned Ubuntu base/archive inputs and numeric process identity; separate from the privileged provider and retained allocator |
+| `platform/computers/host/` | private compute-host launcher and composite OCI image; fixed configuration/trust projection, ordered process startup/shutdown and isolated topology qualification |
 | `platform/runtimes/computers/tests/native_volume_plugin.rs` and `tests/native_support/docker_daemon.rs` | native registered-writer probe with a disposable Docker daemon, pinned image import and daemon-scoped plugin cleanup |
 | `platform/runtimes/computers/src/retained_writer.rs` | exact Docker engine, provider namespace and Computer-instance matching for retained volume admission; persisted physical handoff remains allocator work |
 | `servers/computers-mcp/` | bounded lifecycle worker, production retained-storage preparation, domain-enforced current policy, native dispatch and Task projection; authenticated public projection; runnable service with validated configuration; browser grant transport; installation packaging and public Console/CLI remain active work |

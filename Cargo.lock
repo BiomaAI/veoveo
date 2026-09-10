@@ -16623,6 +16623,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-computer-host"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "nix",
+ "rcgen",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tonic",
+ "uuid",
+ "veoveo-computer-storage",
+ "veoveo-computers-runtime",
+]
+
+[[package]]
 name = "veoveo-computer-storage"
 version = "0.1.0"
 dependencies = [

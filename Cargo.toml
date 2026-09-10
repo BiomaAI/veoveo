@@ -17,6 +17,7 @@ members = [
     "platform/artifacts/service",
     "platform/computers",
     "platform/computers/contract",
+    "platform/computers/host",
     "platform/computers/storage",
     "platform/computers/transport",
     "platform/gateway",
