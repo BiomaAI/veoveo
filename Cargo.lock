@@ -16605,6 +16605,7 @@ dependencies = [
  "veoveo-computers-contract",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-policy",
  "veoveo-task-runtime",
 ]
 
@@ -16624,10 +16625,12 @@ name = "veoveo-computers-mcp"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "hex",
  "rcgen",
  "rmcp",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "surrealdb",
  "thiserror 2.0.20",
  "tokio",

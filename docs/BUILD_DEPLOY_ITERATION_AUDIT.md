@@ -2360,3 +2360,15 @@ used the wrong gateway package name and failed before compilation; the corrected
 receipt uses `veoveo-mcp-gateway`. Cargo's `--tests` applies to every selected package,
 so mixing it with a targeted `--test` also ran the gateway's other integration tests.
 Future focused consumers use separate commands to avoid that scope expansion.
+
+Dispatch authority is now mandatory inside the Computers domain, removing the worker
+adapter's ability to supply an allow decision. Focused qualification compiles in
+19.99 s; its four current-policy cases execute in 4.18 s, including actual source-token
+expiry. All-target Clippy takes 10.95 s. The native worker passes in 24.44 s against
+the real policy reader and existing provider/image, with a 0.58 s incremental compile.
+Neither artifact needed rebuilding. Fixture setup initially retained an unrelated
+Media secret, selected an unsupported OAuth method, and omitted a declared auth-mode
+client. The policy matrix also attempted a forbidden immutable-revision update.
+Those setup errors were corrected against the existing schema; no production contract
+was weakened to make the fixtures pass. The store-backed policy fixture is shared by
+domain and native-worker cases to avoid repeating that setup across harnesses.

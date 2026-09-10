@@ -17,6 +17,7 @@ uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-computers-contract = { path = "contract" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }
+veoveo-policy = { path = "../policy" }
 veoveo-task-runtime = { path = "../task-runtime" }
 
 [dev-dependencies]

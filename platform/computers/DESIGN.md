@@ -86,10 +86,9 @@ this evidence agrees with the Task owner. It never reconstructs missing client o
 session identity from a Task owner.
 
 The accepted record is evidence for one operation. Its source token may expire
-while the worker completes or reconciles accepted work. Production dispatch still
-requires a fresh action decision; renewal requires its own current grant and family
-checks. This storage checkpoint does not implement either decision. Existing native
-fixtures retain their explicit fixture gate.
+while the worker completes or reconciles accepted work. Dispatch reads current action
+policy through the shared evaluator. Attachment renewal requires separate current
+grant and family checks; those grants remain implementation work.
 
 No supported installed Computers records precede this migration. Pre-profile
 candidate journals with missing context cannot admit new work or infer authority;
@@ -103,10 +102,38 @@ Journal methods never call the provider.
 ## Dispatch And Observation
 
 `begin_dispatch` commits a unique dispatch ID before returning a non-cloneable ticket.
-Only the queued stage can obtain it. The worker checks current action authority and
-home readiness first. It records the operation's original provider/resource/process
+Only the queued stage can obtain it. The worker prepares the retained home, then
+the domain checks current action authority. It records the original provider/resource/process
 identity and a 180-second observation deadline. Losing the ticket or its reply cannot
 authorize another dispatch. The active Computer fence remains held.
+
+`current_authority.rs` reads the active immutable control revision, verifies its
+normalized typed-document SHA-256, and uses `platform/policy` for the exact lifecycle
+tool. Current client, authorization server, profile audience, scopes and invocation
+mode must still admit the accepted identity. Current Work Context membership must
+permit mutation. Both retained output labels and current output defaults require
+clearance. The installation, tenant, source principal and actor must exist with
+their recorded bindings and remain enabled. No positive policy or account result is
+cached. The complete read has a five-second deadline.
+
+Migration 0057 records the current policy revision and decision with the dispatch
+and its outbox event. The journal transaction rechecks the selected policy pointer
+and current account enablement under the exact Task lease. The non-cloneable ticket
+expires monotonically thirty seconds after the authority read began; database and
+policy work consume that same interval. Provider submission must fit within it.
+Storage adapters cannot provide or replace an action-policy decision.
+
+Current platform policy and directory state govern this check. Group, role and
+assurance claims retain their authenticated source snapshot; an external IdP change
+without a platform signal is not a committed platform revocation. Source-token
+expiry or browser logout does not cancel an already accepted operation. Neither fact
+permits a new attachment. Observing an already dispatched effect also remains allowed
+after policy removal, because accurate settlement must retain its original identity.
+
+Queued rows may have no dispatch decision. A dispatched candidate row without one
+cannot be read as qualified execution evidence or repaired by inventing a decision.
+Update all Computers readers and workers before admission; no supported deployed
+Computers rows precede this profile. Prior candidate fences require explicit handling.
 
 `admit_observation` charges each reconciliation read before it can reach the provider.
 Eight reads share the original persisted deadline. Exponential delay with deterministic

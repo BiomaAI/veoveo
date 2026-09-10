@@ -27,11 +27,11 @@ automatic work queue after its waiting projection, avoiding repeated claims fore
 
 Create, Start and Stop resolve the recorded template fingerprint. A new default
 cannot replace it. Configured runtime and store provider identities must agree.
-Every worker template requires a retained home. Installation preflight must verify
-the exact allocation and current action authority; the library supplies no default
-permission or empty-home behavior. Stop does not depend on allocator availability.
-Authority is checked after potentially slow
-storage preparation. The permit includes read latency in its thirty-second maximum
+Every worker template requires a retained home. Installation preflight verifies
+the exact allocation. The domain enforces current action authority during dispatch;
+the storage adapter cannot override it. Stop does not depend on allocator availability.
+Authority is checked after potentially slow storage preparation. The ticket includes
+read latency in its thirty-second maximum
 and covers journal admission and provider submission. Observation can continue after
 that submission permit expires because it records an existing effect.
 
@@ -57,4 +57,5 @@ Audit events contain identities and provenance, without commands or credentials.
 The current library has no public protocol surface or runnable installation entrypoint.
 Discovery, tools, resources, subscriptions, completion/prompts, well-known resources,
 conformance, live grant authority, retained allocator and production packaging remain
-delivery work. Its native fixture qualifies worker/provider integration only.
+delivery work. Its native fixture uses the actual current-policy reader and an isolated
+installation revision, while retained storage preparation still uses a fixture adapter.

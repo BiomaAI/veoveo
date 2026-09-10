@@ -2,7 +2,7 @@
 mod lease;
 mod projection;
 mod scheduler;
-use crate::{Preflight, PreflightError};
+use crate::Preflight;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use veoveo_computers::{
     ComputersStore, ObservationAdmission, Operation, OperationStage, ReachedPhase, ReachedState,
@@ -158,43 +158,32 @@ impl<G: Preflight> LifecycleWorker<G> {
                 return Ok(WorkerStep::Waiting);
             }
         }
-        // Home preparation may be slow. Authority is checked afterwards, immediately
-        // before journaling and dispatch, with read latency inside its stale bound.
-        let permit = match self
-            .with_lease(
-                claimed,
-                tokio::time::timeout(Duration::from_secs(10), self.preflight.authorize(operation)),
-            )
-            .await?
-        {
-            Ok(Ok(permit)) => permit,
-            Ok(Err(PreflightError::Denied)) => {
-                let aborted = self
-                    .store
-                    .abort_undispatched(claimed, UndispatchedOutcome::AuthorityDenied)
-                    .await?;
-                self.project(&aborted).await?;
-                return Ok(WorkerStep::Settled);
-            }
-            _ => {
-                self.waiting(&id, "Current action authority is unavailable")
-                    .await?;
-                return Ok(WorkerStep::Waiting);
-            }
-        };
-        if permit.check(operation.operation_id).is_err() {
-            return Ok(WorkerStep::Waiting);
-        }
-        // Domain commit is bounded; no heartbeat can silently replace its exact
-        // lease receipt while the transaction is in flight.
+        // The domain reads current policy and journals its decision under the
+        // exact Task lease. No external gate can mint dispatch authority.
         let ticket =
-            tokio::time::timeout(Duration::from_secs(5), self.store.begin_dispatch(claimed))
+            match tokio::time::timeout(Duration::from_secs(10), self.store.begin_dispatch(claimed))
                 .await
-                .map_err(|_| WorkerError::LeaseLost)??;
+            {
+                Ok(Ok(ticket)) => ticket,
+                Ok(Err(veoveo_computers::ComputerError::Forbidden)) => {
+                    let aborted = self
+                        .store
+                        .abort_undispatched(claimed, UndispatchedOutcome::AuthorityDenied)
+                        .await?;
+                    self.project(&aborted).await?;
+                    return Ok(WorkerStep::Settled);
+                }
+                _ => {
+                    self.waiting(&id, "Current action authority is unavailable")
+                        .await?;
+                    return Ok(WorkerStep::Waiting);
+                }
+            };
+        let authority_deadline = tokio::time::Instant::from_std(ticket.authority_deadline());
         let dispatched = async {
-            permit
-                .check(operation.operation_id)
-                .map_err(|_| veoveo_computers_runtime::RuntimeFailure::LeaseExpired)?;
+            if ticket.authority_remaining().is_zero() {
+                return Err(veoveo_computers_runtime::RuntimeFailure::LeaseExpired);
+            }
             match operation.action {
                 Action::Create => self.runtime.create(&binding, template).await,
                 Action::Start => {
@@ -222,7 +211,7 @@ impl<G: Preflight> LifecycleWorker<G> {
         let outcome = self
             .with_lease(
                 claimed,
-                tokio::time::timeout_at(permit.deadline(), dispatched),
+                tokio::time::timeout_at(authority_deadline, dispatched),
             )
             .await?;
         if let Ok(Ok(current)) = outcome {

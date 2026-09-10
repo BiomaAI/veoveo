@@ -11,6 +11,7 @@ use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskStatus, TaskTransit
 #[tokio::test]
 async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interruption() {
     let db = TestDb::new().await;
+    support::policy::install_default(&db.a).await;
     let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
     let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(1)).unwrap();
     a.install_capacity(
@@ -136,6 +137,7 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
 #[tokio::test]
 async fn undispatched_abort_cannot_clear_an_uncertain_dispatch() {
     let db = TestDb::new().await;
+    support::policy::install_default(&db.a).await;
     let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
     a.install_capacity(
         None,

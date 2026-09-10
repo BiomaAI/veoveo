@@ -10,7 +10,7 @@ mod template;
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicU32, Ordering},
     },
     time::Duration,
 };
@@ -19,19 +19,16 @@ use veoveo_computers::{
     CapacityPolicy, ComputersStore, Operation, OperationStage, Reservation,
     api::{Action, ComputerPhase},
 };
-use veoveo_computers_mcp::{
-    DispatchPermit, LifecycleWorker, Preflight, PreflightError, WorkerStep,
-};
+use veoveo_computers_mcp::{LifecycleWorker, Preflight, PreflightError, WorkerStep};
 use veoveo_computers_runtime::{Binding, DevelopmentTemplate, ExecIntent, PERSISTENT_HOME};
 use veoveo_task_runtime::{TaskRuntime, TaskStatus};
 
 /// Test-only gate over the explicitly prepared isolated block volume. This is not
-/// evidence for production policy, delegation or allocator implementation.
+/// evidence for the production allocator. Dispatch uses real current policy.
 #[derive(Clone)]
 struct FixtureGate {
     computer: Uuid,
     fingerprint: String,
-    denied: Arc<AtomicBool>,
     preparations: Arc<AtomicU32>,
 }
 impl Preflight for FixtureGate {
@@ -46,13 +43,6 @@ impl Preflight for FixtureGate {
         assert_eq!(template.fingerprint(), self.fingerprint);
         self.preparations.fetch_add(1, Ordering::SeqCst);
         Ok(())
-    }
-    async fn authorize(&self, operation: &Operation) -> Result<DispatchPermit, PreflightError> {
-        let started = tokio::time::Instant::now();
-        if self.denied.load(Ordering::SeqCst) {
-            return Err(PreflightError::Denied);
-        }
-        DispatchPermit::issue(operation.operation_id, started, Duration::from_secs(30))
     }
 }
 async fn expire(tasks: &TaskRuntime, operation: &Operation) {
@@ -90,6 +80,7 @@ async fn shell(
 #[ignore = "requires pinned native provider/image; owns isolated database and privileged 512 MiB block-volume fixture"]
 async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_fenced() {
     let db = support::TestDb::new().await;
+    support::policy::install_default(&db.a).await;
     let mut provider = provider::Provider::start().await;
     let selected = template::retained_template(provider.image.clone());
     let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
@@ -124,7 +115,6 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     let gate = FixtureGate {
         computer: computer.computer_id,
         fingerprint: selected.fingerprint(),
-        denied: Arc::new(AtomicBool::new(false)),
         preparations: Arc::new(AtomicU32::new(0)),
     };
     let tasks_a = TaskRuntime::new(db.a.clone(), "computers", "worker-a");
@@ -284,7 +274,11 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         if cancelled {
             tasks_a.cancel(&start.task_id().to_string()).await.unwrap();
         }
-        gate.denied.store(!cancelled, Ordering::SeqCst);
+        if !cancelled {
+            let mut denied = support::policy::control();
+            denied.policies[0].rules[0].effect = veoveo_mcp_contract::PolicyEffect::Deny;
+            support::policy::install(&db.b, denied).await;
+        }
         assert_eq!(
             worker_a.step(start.clone()).await.unwrap(),
             WorkerStep::Settled
@@ -314,7 +308,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             ComputerPhase::Stopped
         );
     }
-    gate.denied.store(false, Ordering::SeqCst);
+    support::policy::install_default(&db.b).await;
 
     // Lost dispatch ticket before an RPC: even a known stopped resource cannot
     // authorize Start replay. The persisted budget eventually requires recovery.
