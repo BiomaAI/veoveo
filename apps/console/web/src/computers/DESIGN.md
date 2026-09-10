@@ -9,6 +9,7 @@
 | Server-sent events | CSRF-protected POST subscription; canonical snapshot reread after each collection invalidation |
 | WebSocket, RFC 6455 | Same-origin terminal, one-use first-frame ticket, no URL credentials |
 | OpenShell CLI `0.0.116` pairing adapter | Explicit code comparison and bounded CORS JSON delivery to the validated IPv4 loopback port; custom profile |
+| Browser local-network access permission | Loopback callback may require user consent; the site requests access only to the exact admitted local CLI port |
 | Veoveo terminal v2 | Ready, binary output/input, bounded resize, ReplayComplete and increasing service lease sequence |
 | xterm.js | `@xterm/xterm` 6.0.0, fit 0.11.0, WebGL 0.19.0; versions verified at the authoritative npm registry on 2026-09-10 |
 | WebGL 2 | Required hardware-backed xterm renderer; software adapters and lost graphics contexts fail closed |
@@ -52,13 +53,20 @@ response can safely retry the same reduction. The panel never receives a grant t
 `CliConnect.tsx` presents uncredentialed registration and shell commands using the
 public Computer UUID. The dedicated `CliPairingPage.tsx` uses existing SSO, current
 Computer action flags, a named grant and explicit confirmation that the displayed
-code matches the initiating terminal. A single confirmed gesture creates and consumes
-the one-use challenge through `pairing.ts`. The credential stays in function-local
+code matches the initiating terminal. A single confirmed gesture first sends a
+credential-free OPTIONS request to the stock callback, allowing at most sixty seconds
+for local browser consent and reachability. No grant exists during this check. The
+stock callback's qualified OPTIONS handler accepts the origin and changes no pairing
+state. Only a 204 response permits creating and consuming the one-use challenge
+through `pairing.ts`. The credential stays in function-local
 memory while a bounded CORS POST delivers it to the exact validated IPv4 loopback
-callback. It enters no query cache, browser storage, copied command or diagnostic.
+callback within ten seconds. It enters no query cache, browser storage, copied command or diagnostic.
 Failed delivery revokes a known grant; lost confirmation or revocation responses
 direct the user to review Computer access. No delivery retry can replay a consumed
 challenge. Closing the page after success does not log out or stop the Computer.
+The browser owns the permission prompt; Veoveo cannot grant itself permission.
+The UI explains the local-device request before the action. Chrome's boundary is
+documented in its [local network access guidance](https://developer.chrome.com/blog/local-network-access).
 
 The terminal module is a separate lazy production chunk. Explicit Connect requests a
 fresh one-use ticket and sends it in the first WebSocket frame. Navigation unmounts

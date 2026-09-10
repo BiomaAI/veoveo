@@ -25,6 +25,7 @@ function PairingForm({ location, identity, scope }: { location: PairingLocation;
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [failure, setFailure] = useState<string>();
+  const nameTooLong = new TextEncoder().encode(name.trim()).length > 64;
   const computer = useQuery({
     queryKey: ["cli-pairing-computer", scope, location.computerId],
     queryFn: async ({ signal }) => parseComputer("computer", await consoleJson(`computers/${location.computerId}`, undefined, signal)),
@@ -32,7 +33,7 @@ function PairingForm({ location, identity, scope }: { location: PairingLocation;
   });
   async function connect(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || done || !matches || !computer.data?.canConnect || failure) return;
+    if (busy || done || !matches || !computer.data?.canConnect || failure || nameTooLong) return;
     setBusy(true);
     try { await pairCli(location, name); setDone(true); }
     catch (error) { setFailure(error instanceof PairingFailure ? error.message : "Pairing could not be completed. Review this Computer’s access before trying again."); }
@@ -47,13 +48,15 @@ function PairingForm({ location, identity, scope }: { location: PairingLocation;
         <output className="computer-pairing-code" aria-label="Confirmation code">{location.code}</output>
         <label className="computer-pairing-check"><input type="checkbox" checked={matches} disabled={busy || !!failure}
           onChange={event => setMatches(event.target.checked)} /> The codes match and I started this login.</label>
-        <label className="computer-pairing-name">Name this CLI<input value={name} maxLength={64} required disabled={busy || !!failure} autoComplete="off"
+        <label className="computer-pairing-name">Name this CLI<input name="cliName" value={name} maxLength={64} required disabled={busy || !!failure} autoComplete="off" aria-invalid={nameTooLong}
           onChange={event => setName(event.target.value)} /></label>
+        {nameTooLong && <p role="alert">Use a shorter name for this CLI.</p>}
         <p>This CLI can open a shell on this Computer. Logging out ends its access. You can revoke it from Computer access.</p>
+        <p>If your browser asks, allow Veoveo to connect to apps on this device. Keep the CLI open.</p>
         {computer.isPending && <p role="status">Checking Computer access…</p>}
         {(computer.error || (computer.data && !computer.data.canConnect)) && <p role="alert">This Computer cannot be connected with your current access. Open it in Veoveo to check its status.</p>}
         {failure && <p role="alert" className="computers-error">{failure}</p>}
-        <button className="button button-primary" type="submit" disabled={busy || !!failure || !matches || !name.trim() || !computer.data?.canConnect}>
+        <button className="button button-primary" type="submit" disabled={busy || !!failure || !matches || !name.trim() || nameTooLong || !computer.data?.canConnect}>
           {busy ? "Connecting CLI…" : "Connect this CLI"}
         </button>
       </form>}

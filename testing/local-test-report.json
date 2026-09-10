@@ -1,52 +1,47 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d8b3ff55bee31f726bbe23e3f070f2b15045faa8242339e3092a1a26dd0315b3",
-  "updatedAt": "2026-09-10T18:39:03Z",
+  "buildDigest": "sha256:3fb5f1eba475fc00865272566b4ec0d2072baaf82537214bd16c5579742582fa",
+  "updatedAt": "2026-09-10T18:48:04Z",
   "checks": [
     {
-      "name": "computers-cli-bioma-gitops",
+      "name": "computers-cli-loopback-build",
       "command": [
-        "kubectl",
-        "kustomize",
-        "examples/bioma"
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T18:39:03Z",
-      "durationSeconds": 0.061734144,
+      "finishedAt": "2026-09-10T18:47:54Z",
+      "durationSeconds": 5.91144994,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-cli-bioma-release",
+      "name": "computers-cli-loopback-contracts",
       "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-bioma-acceptance"
+        "node",
+        "--experimental-strip-types",
+        "--test",
+        "apps/console/web/src/computerPairing.test.ts"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T18:38:04Z",
-      "durationSeconds": 7.134529007,
+      "finishedAt": "2026-09-10T18:47:47Z",
+      "durationSeconds": 0.209810102,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-cli-bioma-render",
+      "name": "computers-cli-loopback-lint",
       "command": [
-        "helm",
-        "template",
-        "veoveo",
-        "deploy/helm/veoveo",
-        "--namespace",
-        "veoveo",
-        "-f",
-        "examples/bioma/values.yaml",
-        "-f",
-        "examples/bioma/k3d-values.yaml",
-        "-f",
-        "examples/bioma/images/veoveo.lock.yaml"
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T18:38:28Z",
-      "durationSeconds": 0.077036286,
+      "finishedAt": "2026-09-10T18:48:04Z",
+      "durationSeconds": 4.071423866,
       "detail": "completed successfully"
     }
   ]

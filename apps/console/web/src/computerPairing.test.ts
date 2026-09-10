@@ -31,6 +31,11 @@ test("pairing keeps credentials in the one local callback and revokes failed del
           assert.equal(path, "http://127.0.0.1:49152/callback");
           assert.equal(init?.credentials, "omit");
           assert.equal(init?.redirect, "error");
+          if (init?.method === "OPTIONS") {
+            assert.equal(calls.length, 1, "permission must resolve before access issuance");
+            assert.equal(init.body, undefined);
+            return new Response(null, { status: 204 });
+          }
           assert.deepEqual(JSON.parse(String(init?.body)), { token, code: location.code });
           if (failDelivery) throw new Error("local connection unavailable");
           return Response.json({ ok: true });
@@ -47,8 +52,27 @@ test("pairing keeps credentials in the one local callback and revokes failed del
         assert.equal(calls.at(-1), `/console/api/computers/${computerId}/access/${grantId}/revoke`);
       } else {
         await pairCli(location, "Laptop");
-        assert.equal(calls.length, 3);
+        assert.equal(calls.length, 4);
       }
+    }
+  } finally { globalThis.fetch = previous; }
+});
+
+test("denied local permission or unreachable CLI issues no access", async () => {
+  const previous = globalThis.fetch;
+  try {
+    for (const reject of [false, true]) {
+      let calls = 0;
+      globalThis.fetch = async (input, init) => {
+        calls++;
+        assert.equal(String(input), "http://127.0.0.1:49152/callback");
+        assert.equal(init?.method, "OPTIONS");
+        assert.equal(init.body, undefined);
+        if (reject) throw new TypeError("permission denied");
+        return new Response(null, { status: 403 });
+      };
+      await assert.rejects(pairCli(location, "Laptop"), /No access was issued/);
+      assert.equal(calls, 1);
     }
   } finally { globalThis.fetch = previous; }
 });
