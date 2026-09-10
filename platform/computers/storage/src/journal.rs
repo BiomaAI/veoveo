@@ -176,6 +176,9 @@ impl Journal {
     pub fn identity(&self) -> &HostIdentity {
         &self.identity
     }
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
     pub fn directory(&self, computer: Uuid) -> Result<PathBuf> {
         if computer.is_nil() {
             return Err(StorageError::InvalidIdentity);

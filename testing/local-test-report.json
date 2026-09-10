@@ -1,22 +1,27 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b023a084e28c4e9e395325542f51addba49a83762c269b20df11320e064396bd",
-  "updatedAt": "2026-09-10T05:21:11Z",
+  "buildDigest": "sha256:57e789642b71b4268b5aafe8a33277571ba9d9ef5329ef688adae3f0d00a37e7",
+  "updatedAt": "2026-09-10T05:52:17Z",
   "checks": [
     {
-      "name": "computer-storage-journal",
+      "name": "computer-storage",
       "command": [
+        "env",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
         "veoveo-computer-storage",
-        "--lib"
+        "--",
+        "--include-ignored",
+        "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T05:18:55Z",
-      "durationSeconds": 1.315148414,
+      "finishedAt": "2026-09-10T05:49:41Z",
+      "durationSeconds": 14.111313907,
       "detail": "completed successfully"
     },
     {
@@ -34,8 +39,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T05:21:00Z",
-      "durationSeconds": 0.953055504,
+      "finishedAt": "2026-09-10T05:51:09Z",
+      "durationSeconds": 9.455155942,
       "detail": "completed successfully"
     },
     {
@@ -48,8 +53,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T05:21:11Z",
-      "durationSeconds": 2.582042133,
+      "finishedAt": "2026-09-10T05:52:17Z",
+      "durationSeconds": 2.495785053,
       "detail": "completed successfully"
     }
   ]
