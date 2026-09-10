@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:994c5578c2bd02bb7281b772bc87dd043001b241ef61284a8f9e73667e0b608c",
-  "updatedAt": "2026-09-10T14:49:28Z",
+  "buildDigest": "sha256:d0581dc3bee8d0bb18def54de5112677c75cc192bba0b1877ab0b41df3e2ea48",
+  "updatedAt": "2026-09-10T14:57:58Z",
   "checks": [
     {
-      "name": "computers-bioma-helm",
+      "name": "computers-rollout-recovery-helm",
       "command": [
         "cargo",
         "xtask",
@@ -12,75 +12,8 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T14:49:23Z",
-      "durationSeconds": 6.484735786,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-bioma-policy",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-bioma-acceptance"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T14:49:14Z",
-      "durationSeconds": 0.683401161,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-enrollment",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-xtask",
-        "computers_trust"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T14:49:15Z",
-      "durationSeconds": 0.533550844,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-enrollment-fmt",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T14:49:28Z",
-      "durationSeconds": 2.691430325,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-enrollment-lint",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-xtask",
-        "-p",
-        "veoveo-computers-runtime",
-        "-p",
-        "veoveo-bioma-acceptance",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T14:49:24Z",
-      "durationSeconds": 0.744789709,
+      "finishedAt": "2026-09-10T14:57:58Z",
+      "durationSeconds": 7.209422572,
       "detail": "completed successfully"
     }
   ]

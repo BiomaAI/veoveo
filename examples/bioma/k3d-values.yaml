@@ -1,4 +1,9 @@
 surrealdb:
+  resources:
+    requests:
+      cpu: "1"
+    limits:
+      cpu: "8"
   persistence:
     size: 5Gi
 objectStore:
