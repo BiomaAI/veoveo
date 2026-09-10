@@ -1,8 +1,8 @@
 # Retained Computer Storage
 
-Status: the durable journal and filesystem backend pass isolated native qualification.
-Docker plugin integration, authenticated service, physical handoff and installed
-acceptance remain implementation work. This component is not yet an installed allocator.
+Status: the journal, filesystem backend, private mTLS service and Docker volume plugin
+pass isolated native qualification, including shared mounts across helper replacement.
+Physical handoff, release packaging and installed acceptance remain implementation work.
 
 ## Standards And Protocols
 
@@ -26,8 +26,9 @@ Docker socket, private trust material or backing-file paths.
 
 The selected host root is an operator-owned local filesystem directory with private
 permissions. Docker and the allocator must observe the same mounted paths. A container
-installation requires a dedicated shared mount subtree with bidirectional propagation;
-qualification must prove that boundary before activation. The installation must not
+installation publishes the allocator's mounts through a dedicated `rshared` bind;
+the daemon receives them through its corresponding `rslave` bind. Qualification must
+prove that boundary before activation. The installation must not
 change mount propagation for unrelated host paths or restart the host Docker daemon to
 install the helper. Packaging and installed qualification remain delivery work.
 
@@ -81,6 +82,53 @@ perform that purge. Backups require a fenced source and synchronized bytes; a ve
 offline block backup is the initial supported mechanism. Local reboot retention is
 distinct from host-loss durability. Encryption-at-rest and backup-key ownership remain
 installation profile requirements before release acceptance.
+
+## Private Service And Docker Plugin
+
+`veoveo-computer-storage --config <absolute-json-file>` runs both private endpoints.
+The closed configuration binds host identity, persistent root, free-space reserve,
+admitted template fingerprints/capacities, exact Docker Unix socket, plugin name/socket,
+listen address and dedicated worker TLS files. It accepts no ambient Docker endpoint.
+TLS permits version 1.3 with required worker certificates. Trust inputs cannot be group
+or world writable; the private key is restricted to its process owner. The plugin
+socket resides in a root-owned 0700 directory and has mode 0600. The journal lock must
+be held before replacing a stale socket; a live listener is never unlinked.
+
+The worker transport admits at most sixteen concurrent connections. TLS handshake and
+frame reads each have a five-second deadline; an entire request has 180 seconds. Each
+connection carries one request and reply, bounded at 1024 bytes. The service parses
+the concrete generated IDL types from the original bytes, retaining duplicate-key
+rejection. Successful replies echo the request identity and configured capacity.
+Readiness requires the configured provider/template and current engine identity.
+
+The Docker client uses API 1.53 over its explicit Unix socket, bounded replies and
+five-second request deadlines. It disables redirects, proxies and automatic retries.
+Volume creation first reads the exact canonical name and refuses another driver or
+caller options. A missing response cannot authorize formatting. Preparing/restoring
+the filesystem releases its mutex before Docker volume creation, because that call
+can synchronously invoke the plugin's Create/Get methods.
+
+The plugin accepts the selected Docker volume API shape, including null or empty
+Create options. Create confirms an admitted Ready allocation and cannot allocate one.
+Mount observes the recorded engine and all registered consumers, including stopped
+containers, before restoring the exact admitted home. The same filesystem mutex
+serializes that check with storage mutations. The plugin has 32 concurrent call slots,
+4096-byte requests and a 180-second operation deadline, separate from worker slots.
+Unmount preserves authority, and Remove requires governed deletion. Metadata listing
+is bounded at 4096 allocations and never reads Computer file contents.
+
+`tests/native_service.rs` launches the actual binary in a disposable privileged
+container, using the pinned Computer image and a separate isolated Docker 29.8 daemon.
+The maintained runtime daemon fixture now has an explicit mount-propagation choice.
+An independently signed guest certificate and a foreign provider cannot use the
+allocator. The production client prepares a 512 MiB home twice without replacement.
+A registered Computer writes it, uses nested Docker copy, survives helper removal
+while continuing to write, and reopens the same files after helper restart and
+Stop/Start. An unadmitted replacement fails both during contention and after the
+original resource is removed. The fixture removes its containers before unmounting,
+verifies loop detachment and removes only its own retained data and trust material.
+This qualifies the helper/daemon boundary; native provider lifecycle, durable handoff
+and public installed acceptance retain their separate tests.
 
 ## Filesystem Backend And Native Evidence
 

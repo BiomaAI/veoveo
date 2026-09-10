@@ -1,12 +1,18 @@
 //! Private durable metadata for the privileged retained-storage host.
 mod command;
+mod docker;
 mod filesystem;
 mod identity;
 mod journal;
+pub mod plugin;
+mod service;
+pub mod transport;
 
+pub use docker::Docker;
 pub use filesystem::Filesystem;
 pub use identity::{HomeIdentity, HostIdentity};
 pub use journal::{AllocationRecord, AllocationState, BackingIdentity, Journal, Reservation};
+pub use service::{Service, Template};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
@@ -24,5 +30,9 @@ pub enum StorageError {
     CapacityExceeded,
     #[error("retained storage physical backend is unavailable")]
     BackendUnavailable,
+    #[error("mount requires the current registered Computer writer")]
+    WriterDenied,
+    #[error("retained home requires governed deletion")]
+    PurgeRequired,
 }
 pub type Result<T> = std::result::Result<T, StorageError>;

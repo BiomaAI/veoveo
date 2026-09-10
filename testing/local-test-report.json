@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:57e789642b71b4268b5aafe8a33277571ba9d9ef5329ef688adae3f0d00a37e7",
-  "updatedAt": "2026-09-10T05:52:17Z",
+  "buildDigest": "sha256:80771f8629347ada4a03209539e4c5ae7e47bcd67efd531ecc1cd9b2c6dfde84",
+  "updatedAt": "2026-09-10T06:33:24Z",
   "checks": [
     {
       "name": "computer-storage",
@@ -20,8 +20,8 @@
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T05:49:41Z",
-      "durationSeconds": 14.111313907,
+      "finishedAt": "2026-09-10T06:31:29Z",
+      "durationSeconds": 20.812515135,
       "detail": "completed successfully"
     },
     {
@@ -39,8 +39,31 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T05:51:09Z",
-      "durationSeconds": 9.455155942,
+      "finishedAt": "2026-09-10T06:32:36Z",
+      "durationSeconds": 7.072262689,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computer-volume-boundary",
+      "command": [
+        "env",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--test",
+        "native_volume_plugin",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T06:33:20Z",
+      "durationSeconds": 12.868550614,
       "detail": "completed successfully"
     },
     {
@@ -49,12 +72,11 @@
         "cargo",
         "fmt",
         "--all",
-        "--",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T05:52:17Z",
-      "durationSeconds": 2.495785053,
+      "finishedAt": "2026-09-10T06:33:24Z",
+      "durationSeconds": 2.659747868,
       "detail": "completed successfully"
     }
   ]

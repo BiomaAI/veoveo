@@ -20,7 +20,12 @@ pub struct DockerDaemon {
     finished: bool,
 }
 impl DockerDaemon {
-    pub async fn start(diagnostics: &Path, plugin_socket: &Path, computer_image: &str) -> Self {
+    pub async fn start(
+        diagnostics: &Path,
+        plugin_socket: &Path,
+        computer_image: &str,
+        shared_storage: bool,
+    ) -> Self {
         let name = format!("veoveo-docker-probe-{}", Uuid::now_v7().simple());
         let root = std::env::temp_dir().join(&name);
         std::fs::create_dir(&root).unwrap();
@@ -85,10 +90,16 @@ impl DockerDaemon {
             (diagnostics.to_owned(), diagnostics.to_owned()),
             (plugin_socket.to_owned(), plugin_socket.to_owned()),
         ] {
+            let propagation = if shared_storage && source == diagnostics {
+                ",bind-propagation=rslave"
+            } else {
+                ""
+            };
             command.arg("--mount").arg(format!(
-                "type=bind,source={},target={}",
+                "type=bind,source={},target={}{}",
                 source.display(),
-                target.display()
+                target.display(),
+                propagation,
             ));
         }
         command

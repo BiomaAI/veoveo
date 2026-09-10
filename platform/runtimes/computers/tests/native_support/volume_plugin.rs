@@ -153,7 +153,7 @@ impl VolumeFixture {
         std::fs::create_dir_all(dir.join("home")).unwrap();
         let socket_dir = std::env::temp_dir().join(format!("vv-volume-{}", uuid.simple()));
         std::fs::create_dir(&socket_dir).unwrap();
-        let daemon = DockerDaemon::start(&dir, &socket_dir, &image).await;
+        let daemon = DockerDaemon::start(&dir, &socket_dir, &image, false).await;
         let image = daemon.image_id.clone();
         let engine_id = checked(daemon.command().args(["info", "--format", "{{.ID}}"]))
             .await
