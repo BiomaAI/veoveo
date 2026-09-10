@@ -105,6 +105,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
             contract::ServerSlug::new("artifact").unwrap(),
             verified.identity.actor.clone(),
             verified.identity.authority.clone(),
+            None,
             Utc::now() + TimeDelta::minutes(5),
         )
         .unwrap();

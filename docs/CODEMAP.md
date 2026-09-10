@@ -294,6 +294,7 @@ schema merely because the server is first-party.
 | `gateway/server_config.rs` | hosted server and profile exposure contracts, including exact cross-server App resource dependencies |
 | `gateway/policy.rs` | actions, targets, rules, effects, audit reason model |
 | `gateway/runtime_state.rs` | durable auth/runtime record contracts, including display metadata continuity across authorization-code and refresh grants |
+| `internal_auth/request.rs` | signed request-context consistency, original JWT principal and bounded source-token metadata for current authority consumers; shared Rust/Python fixtures in `testing/fixtures/gateway-request-context.json` |
 | `gateway/validation.rs` | fail-closed cross-reference and invariant validation |
 | `gateway/composition.rs` | typed external server fragments, installation bindings, deterministic pure composition, requirements, and provenance |
 | `internal_auth.rs` | Ed25519 signing keys, JWKS trust, internal issuer/verifier |

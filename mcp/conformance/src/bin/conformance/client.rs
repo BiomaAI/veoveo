@@ -146,6 +146,7 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
         ServerSlug::new(args.internal_server.clone())?,
         principal,
         authority,
+        None,
         Utc::now() + TimeDelta::minutes(30),
     )?;
     Ok(token.bearer_token)

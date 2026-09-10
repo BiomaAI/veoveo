@@ -2,6 +2,9 @@ import base64
 import json
 import time
 import uuid
+from pathlib import Path
+from copy import deepcopy
+from datetime import datetime, timezone
 
 import jwt as pyjwt
 import pytest
@@ -127,6 +130,54 @@ def test_verifies_a_valid_gateway_assertion():
     assert "operator:use" in identity.actor.scopes
     assert identity.authority.work_context == "operations"
     assert identity.authority.provenance.mode == "automated"
+    assert identity.request_context is None
+
+
+def _request_context_fixtures():
+    return json.loads(
+        (Path(__file__).parents[3] / "testing/fixtures/gateway-request-context.json").read_text()
+    )
+
+
+@pytest.mark.parametrize("fixture", _request_context_fixtures(), ids=lambda f: f["name"])
+def test_preserves_the_shared_rust_request_context_fixture(fixture):
+    from veoveo_mcp.contract import GatewayRequestContext
+
+    pem, jwks = _keypair()
+    claims = _claims(
+        actor=fixture["actor"], authority=fixture["authority"],
+        request_context=fixture["request_context"],
+    )
+    received = _verifier(jwks).verify(_token(pem, claims))
+    assert received.request_context == GatewayRequestContext.model_validate(fixture["request_context"])
+
+
+@pytest.mark.parametrize("fixture", _request_context_fixtures(), ids=lambda f: f["name"])
+@pytest.mark.parametrize("mismatch", ["subject", "issuer", "tenant", "context", "scope", "mode", "actor", "expiry"])
+def test_rejects_mismatched_signed_request_context(fixture, mismatch):
+    pem, jwks = _keypair()
+    candidate = deepcopy(fixture)
+    context = candidate["request_context"]
+    token = context["access_token"]
+    if mismatch == "subject":
+        token["subject"] = "foreign"
+    elif mismatch == "issuer":
+        token["issuer"] = "https://foreign.example"
+    elif mismatch == "tenant":
+        context["principal"]["tenant"] = "foreign"
+    elif mismatch == "context":
+        token["work_context"] = "foreign"
+    elif mismatch == "scope":
+        token["scopes"].append("admin:use")
+    elif mismatch == "mode":
+        token["invocation_mode"] = "automated" if token["invocation_mode"] == "direct" else "direct"
+    elif mismatch == "actor":
+        candidate["actor"]["id"] = "foreign"
+    else:
+        token["expires_at"] = datetime.fromtimestamp(time.time() + 10, tz=timezone.utc).isoformat()
+    claims = _claims(actor=candidate["actor"], authority=candidate["authority"], request_context=context)
+    with pytest.raises(InternalTokenError):
+        _verifier(jwks).verify(_token(pem, claims))
 
 
 @pytest.mark.parametrize("mode", ["direct", "delegated", "automated"])

@@ -92,6 +92,7 @@ pub(crate) async fn proxy_server_admin(
         server_slug.clone(),
         subject.actor.clone(),
         subject.authority.clone(),
+        Some(subject.request_context()),
         expires_at,
     ) {
         Ok(token) => token,

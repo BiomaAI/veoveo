@@ -9,8 +9,9 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field
 
 GATEWAY_INTERNAL_TOKEN_ISSUER = "veoveo-internal"
 DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID = "veoveo-internal-1"
@@ -198,12 +199,98 @@ class InvocationAuthority(BaseModel):
         return None
 
 
+def _session_family(value: str) -> str:
+    if UUID(value).version != 7:
+        raise ValueError("session family must be a UUIDv7")
+    return value
+
+
+class AccessTokenSubject(BaseModel):
+    """Verified token metadata; never contains the signed bearer value."""
+
+    issuer: TokenIssuer
+    subject: TokenSubject
+    oauth_client_id: Annotated[str, _identifier(512)]
+    session_family: Annotated[str, AfterValidator(_session_family)] | None = None
+    audience: Annotated[str, _identifier(2048)]
+    work_context: WorkContextId
+    invocation_mode: Literal["direct", "delegated", "automated"]
+    initiator: PrincipalId | None = None
+    delegation_id: DelegationId | None = None
+    scopes: set[ScopeName] = Field(default_factory=set)
+    jwt_id: JwtId | None = None
+    issued_at: AwareDatetime
+    not_before: AwareDatetime | None = None
+    expires_at: AwareDatetime
+
+
+class GatewayRequestContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    access_token: AccessTokenSubject
+    principal: Principal
+
+    def validate_for(self, actor: Principal, authority: InvocationAuthority) -> None:
+        source, token = self.principal, self.access_token
+        common = (
+            token.issuer == source.issuer
+            and token.subject == source.subject
+            and token.scopes == source.scopes
+            and token.work_context == authority.work_context
+            and source.tenant == authority.tenant
+            and actor.tenant == source.tenant
+            and token.invocation_mode == authority.invocation_mode
+        )
+        if token.invocation_mode == "direct":
+            provenance = (
+                actor == source
+                and authority.initiator == source.id == token.initiator
+                and token.delegation_id is None
+            )
+        elif token.invocation_mode == "automated":
+            provenance = (
+                actor == source
+                and source.kind == PrincipalKind.SERVICE
+                and source.subject == token.oauth_client_id
+                and token.initiator is None
+                and token.delegation_id is None
+                and token.session_family is None
+            )
+        else:
+            provenance = (
+                source.kind == PrincipalKind.USER
+                and authority.initiator == source.id == token.initiator
+                and token.delegation_id == authority.delegation_id
+                and actor.kind == PrincipalKind.SERVICE
+                and actor.id == f"{token.issuer}#{token.oauth_client_id}"
+                and actor.issuer == token.issuer
+                and actor.subject == token.oauth_client_id
+                and actor.scopes == source.scopes
+                and actor.data_labels == source.data_labels
+                and actor.assurances == source.assurances
+                and not actor.groups
+                and not actor.group_roles
+                and not actor.roles
+                and token.session_family is None
+            )
+        if (
+            not common
+            or not provenance
+            or (
+                token.session_family is not None
+                and (source.kind != PrincipalKind.USER or token.invocation_mode != "direct")
+            )
+        ):
+            raise ValueError("request context does not match its actor and authority")
+
+
 class GatewayInternalIdentity(BaseModel):
     issuer: TokenIssuer
     profile: GatewayProfileId
     server: ServerSlug
     actor: Principal
     authority: InvocationAuthority
+    request_context: GatewayRequestContext | None = None
     jwt_id: JwtId
     issued_at: datetime
     not_before: datetime

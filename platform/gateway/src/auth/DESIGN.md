@@ -8,6 +8,7 @@
 | JWT, RFC 7519 | Signed access tokens with the installation's qualified asymmetric algorithms; issuer, audience and time validation |
 | RFC 7009 / RFC 9700 | Refresh-family revocation and rotation; current family checks also deny bound access tokens |
 | Veoveo `session_family` claim | Repository-owned optional UUIDv7 refresh-family identity; it is signed metadata, not a bearer credential or standardized device authorization |
+| Veoveo internal `request_context` | Verified source principal and token metadata carried into a signed upstream assertion; the source token bounds that assertion's lifetime |
 | SurrealDB 3.2.4 | Shared refresh family, replay, JWT revocation and audit records; no process-local positive revocation cache |
 
 An authorization-code exchange creates its refresh family before signing the access
@@ -41,6 +42,14 @@ Computer attachment renewal must require an explicit verified family binding and
 recheck it under the attachment's own bounded lease. A normal access-token request
 is not that lease. Logout does not authorize stopping the Computer or cancelling
 accepted background execution.
+
+Authenticated MCP and HTTP proxies propagate `GatewayRequestContext`. The source
+principal is the JWT-verified principal before delegated actor derivation. The
+shared contract checks internal consistency at issuance and verification. The
+gateway creates request authority for each upstream request while reusing only the
+transport pool. No bearer token is stored in the context. Computers must persist a
+separate accepted authorization and re-evaluate current policy before dispatch or
+grant renewal; the assertion alone cannot extend access after its source expires.
 
 ## Rollout And Qualification
 

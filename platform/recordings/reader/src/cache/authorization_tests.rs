@@ -267,6 +267,7 @@ fn caller(name: &str) -> PlaneCaller {
                 },
             },
             actor,
+            request_context: None,
             jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
             issued_at: now,
             not_before: now,

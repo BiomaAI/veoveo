@@ -618,6 +618,7 @@ pub(crate) async fn issue_internal_token(
             ServerSlug::new(server)?,
             principal,
             authority,
+            None,
             Utc::now() + TimeDelta::minutes(30),
         )?
         .bearer_token)

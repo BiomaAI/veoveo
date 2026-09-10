@@ -30,6 +30,7 @@ impl GatewayInternalTokenIssuer {
             ServerSlug::new(ARTIFACT_UPLOAD_AUDIENCE).map_err(InternalTokenError::Identifier)?,
             actor,
             authority,
+            None,
             expires_at,
         )?;
         let claims = UploadClaims {

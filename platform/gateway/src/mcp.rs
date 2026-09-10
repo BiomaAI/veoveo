@@ -125,8 +125,7 @@ impl GatewayMcp {
             self.internal_token_issuer.clone(),
             self.profile_id.clone(),
             server_slug.clone(),
-            subject.actor.clone(),
-            subject.authority.clone(),
+            subject,
             (server_slug.as_str() == "recording")
                 .then(|| ServerSlug::new("artifact").expect("artifact is a valid server slug")),
         );

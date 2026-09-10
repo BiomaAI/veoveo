@@ -623,6 +623,7 @@ fn issue_view_token(subject: &str) -> Result<String> {
             ServerSlug::new("view")?,
             principal,
             authority,
+            None,
             Utc::now() + TimeDelta::minutes(30),
         )?
         .bearer_token)

@@ -5,6 +5,13 @@ hosted by a Veoveo installation. It provides the hosted-server contract, interna
 identity verification, task-extension transport, durable task runtime, artifact
 client, schema helpers, pagination, host validation, and the telemetry boundary.
 
+Verified internal identities may carry `GatewayRequestContext`, which preserves the
+source principal and signed access-token metadata across delegated calls. Its session
+family is an identifier, and the context contains no bearer token. A consumer must
+require this context before admitting renewable access, then check current policy and
+grant state itself. The verifier rejects inconsistent context and an assertion that
+outlives its source token. Context omission does not supply renewal authority.
+
 Simulation implementations own their authoritative world, camera products, and
 simulation-specific SDK integration. They conform to the provider-neutral live-view
 contract through their hosted MCP server rather than publishing a visualization-only
