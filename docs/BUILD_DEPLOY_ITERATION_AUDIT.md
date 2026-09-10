@@ -2909,3 +2909,17 @@ took 76.6 seconds. Parallel Cargo entrypoints then waited on the same target dir
 This is measurable build churn: narrow catalog ownership and stable feature selections
 belong in the efficiency checkpoint. Final checks run after installation inputs are
 settled; an input change during an earlier check invalidates that receipt as designed.
+
+The first installed Computers host became ready after pulling its template; both
+control replicas reported capacity available at 14:50:26 UTC. Public reads exposed
+database session deadlines under the installation's two-core CPU limit. Cgroup counters
+showed throttling in 168 of 278 observed periods. Read-only EXPLAIN checks confirmed
+that current outbox baseline and replay queries use the sequence index; an independent
+connection completed both plans and a clock read in 0.443 seconds. Connection-level
+backpressure remains a separate cause to investigate rather than assuming CPU alone.
+
+Helm also waited on an existing Recording Hub crash while replaying a finished stream.
+The fix and real-store regression were already committed in `2c5df379e`; its image had
+not reached this installation. Publishing current Recording Hub took 142.178 seconds,
+including a 45.604-second Rust compile and rebuilding its Python/Rerun runtime layer.
+The installation now selects that immutable image and allows eight database CPUs.
