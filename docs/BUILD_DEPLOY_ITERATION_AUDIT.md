@@ -3068,3 +3068,21 @@ At 18:24 UTC, the browser still displayed an OAuth callback failure loaded at
 17:49:54 UTC. A fresh Console navigation succeeded; its session read returned 200
 in 115 ms. No service restart was needed. This distinguishes the stale error page
 from current availability without closing the earlier sign-in/rollout defect.
+
+Publishing the three CLI application images from `ba2161c8` took 153.823 seconds.
+The optimized Cargo phase took approximately 88 seconds after source freshness
+reported 948 changed paths. The compiler's operating-system package layer also ran
+again; cache eviction is a possible cause, not an established diagnosis. Extraction
+took 4.443 seconds and the overlapping export window took 17.724 seconds. The
+qualified host and template images were reused. The matching chart published as
+`0.1.0-ba2161c8`, digest
+`sha256:26327edafb5ff8ac5034c60178b0f3abb8dbafce322f62567e283bcf75172e41`.
+
+The installation's existing bootstrap Job specification, trust references and mounted
+catalog were reused with the new gateway image for the additive 0059 migration.
+Job `veoveo-cli-ledger-ba2161c8` completed and verified runtime database authentication;
+the active catalog remained unchanged. The coordinated transition then drains
+Computers control workers before admitting new public CLI traffic. The compute host
+continues running the retained Computer. Encoding this migration/drain dependency in
+release coordination remains deployment debt; a new ledger must not depend on
+accidental Kubernetes startup order.
