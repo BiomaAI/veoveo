@@ -2337,3 +2337,10 @@ probe compiled in 1 min 46 s. Disabling top-level default features alone does no
 remove analytics: the gateway explicitly enables that contract feature. Its source
 has no remaining analytics consumer. Removing that edge is the next focused build
 improvement, with consumer compilation required before accepting it.
+
+The gateway's unused analytics feature edge is removed. Its normal Cargo dependency
+tree now excludes DuckDB and libduckdb-sys. All gateway unit, binary, policy-parity,
+control-plane and real-session-family checks pass. The first graph rebuild took
+1 min 59 s; the first Clippy graph took 1 min 10 s. These cold measurements are not a
+warm performance claim. The one-line manifest change removes a concrete native
+dependency from future gateway builds without changing provider or Computer artifacts.
