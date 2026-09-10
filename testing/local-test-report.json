@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d0581dc3bee8d0bb18def54de5112677c75cc192bba0b1877ab0b41df3e2ea48",
-  "updatedAt": "2026-09-10T14:57:58Z",
+  "buildDigest": "sha256:d71c338282cfcaeddbe524312365a364c4ac7c8cb77a85ea4510affae12c30f1",
+  "updatedAt": "2026-09-10T15:06:41Z",
   "checks": [
     {
-      "name": "computers-rollout-recovery-helm",
+      "name": "computers-workspace-helm",
       "command": [
         "cargo",
         "xtask",
@@ -12,8 +12,23 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T14:57:58Z",
-      "durationSeconds": 7.209422572,
+      "finishedAt": "2026-09-10T15:06:41Z",
+      "durationSeconds": 6.646472656,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-workspace-policy",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-bioma-acceptance"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T15:06:33Z",
+      "durationSeconds": 0.722127285,
       "detail": "completed successfully"
     }
   ]

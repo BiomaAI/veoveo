@@ -22,7 +22,7 @@
         "certificateFile": "/etc/veoveo/computers/trust/provider-worker.pem",
         "keyFile": "/etc/veoveo/computers/trust/provider-worker-key.pem"
       },
-      "workspace": "computers"
+      "workspace": "default"
     },
     "allocator": {
       "endpoint": "computer-host.veoveo.svc.cluster.local:8806",
