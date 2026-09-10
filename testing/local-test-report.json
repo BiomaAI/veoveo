@@ -1,89 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:8a2fab069916f944f34134e39161840226a3f2e047d0593431ac76b6023006c9",
-  "updatedAt": "2026-09-10T04:49:11Z",
+  "buildDigest": "sha256:e475255bc61b994eebc602dd5634704a871be2647d2bc598f9932dd54ddb5ef8",
+  "updatedAt": "2026-09-10T04:54:39Z",
   "checks": [
     {
-      "name": "computer-provider-driver",
-      "command": [
-        "env",
-        "GIT_CEILING_DIRECTORIES=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider",
-        "CARGO_TARGET_DIR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target",
-        "cargo",
-        "+1.95.0",
-        "test",
-        "--manifest-path",
-        "output/development/computers-provider/gateway/Cargo.toml",
-        "--locked",
-        "--offline",
-        "--release",
-        "-j",
-        "8",
-        "-p",
-        "openshell-driver-docker",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T04:47:17Z",
-      "durationSeconds": 22.718737635,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-native-provider",
-      "command": [
-        "env",
-        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
-        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-sandbox",
-        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
-        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
-        "VEOVEO_COMPUTERS_NATIVE_CLI=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/cli-0.0.116/openshell",
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers-runtime",
-        "--test",
-        "native_lifecycle",
-        "--test",
-        "native_retention",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T04:47:29Z",
-      "durationSeconds": 41.417995381,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-native-worker",
-      "command": [
-        "env",
-        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
-        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-sandbox",
-        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
-        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
-        "VEOVEO_COMPUTERS_NATIVE_CLI=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/cli-0.0.116/openshell",
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers-mcp",
-        "--test",
-        "native_worker",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T04:49:11Z",
-      "durationSeconds": 32.931238822,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-runtime",
+      "name": "computer-allocation-identity",
       "command": [
         "cargo",
         "test",
@@ -91,11 +12,12 @@
         "--offline",
         "-p",
         "veoveo-computers-runtime",
-        "--lib"
+        "--lib",
+        "allocation_tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T04:44:24Z",
-      "durationSeconds": 27.443295191,
+      "finishedAt": "2026-09-10T04:53:38Z",
+      "durationSeconds": 0.536995851,
       "detail": "completed successfully"
     },
     {
@@ -113,8 +35,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T04:45:27Z",
-      "durationSeconds": 4.467357044,
+      "finishedAt": "2026-09-10T04:54:30Z",
+      "durationSeconds": 6.302556638,
       "detail": "completed successfully"
     },
     {
@@ -127,8 +49,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T04:46:12Z",
-      "durationSeconds": 2.507235075,
+      "finishedAt": "2026-09-10T04:54:39Z",
+      "durationSeconds": 2.436613457,
       "detail": "completed successfully"
     }
   ]

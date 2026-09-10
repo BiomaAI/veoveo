@@ -11,7 +11,7 @@ or installed provider is qualified by this source checkpoint. The owning domain 
 | OpenShell `0.0.116` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
 | OpenShell retained Docker provider | Candidate gateway `0.0.117-veoveo.1` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
 | SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
-| `veoveo.io/computer-storage/v1` | Bounded mTLS allocation/restore adapter generated from `protocol/storage.json`; allocator implementation and physical volume qualification pending |
+| `veoveo.io/computer-storage/v1` | Bounded mTLS allocation/restore adapter generated from Veoveo-owned `protocol/storage.json`, with mandatory provider and instance identity; allocator implementation and physical volume qualification pending |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
@@ -53,6 +53,27 @@ bounded SSH-only CLI bridge and its independent closure task.
 The gateway and BFF must not depend on this crate. The Computers worker applies
 canonical authorization and shared durable Task transactions before invoking it.
 The adapter returns typed outcomes without secrets or provider text in errors.
+
+## Retained Allocation Identity
+
+The allocation client pins a non-nil provider UUID alongside its template fingerprint
+and capacity. Ready must echo that provider. Prepare and Restore also carry the
+Computer UUID and admitted instance UUID; every reply must echo all identities exactly.
+The initial instance UUID equals the Computer UUID. A replacement uses its distinct
+durable instance UUID while preserving the original Computer's volume name.
+
+This private protocol has no deployed callers. The existing unreleased v1 shape is
+replaced without an identity-omitting adapter. Missing, duplicate, null and malformed
+identities fail decoding. A reply for another valid provider or instance also fails.
+The local TLS fixture exercises initial and replacement bindings; it establishes
+transport integrity, not physical handoff authority.
+
+Restore is an idempotent reopen of the currently admitted allocation and instance.
+It cannot seed missing storage, change the admitted writer, resize a home or authorize
+template replacement. The production allocator must persist that binding and require
+an explicit handoff after physical source removal. Its Docker engine identity and
+provider namespace must match the recorded storage host. The allocator implementation
+and native handoff qualification remain active work.
 
 ## Native Storage Boundary Probe
 

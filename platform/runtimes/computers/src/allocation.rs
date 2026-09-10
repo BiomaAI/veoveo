@@ -13,10 +13,17 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+use uuid::Uuid;
 const SCHEMA: &str = "veoveo.io/computer-storage/v1";
 const MAXIMUM_FRAME: usize = 1024;
 
-// Generated from the NEXT-owned IDL; these are private installation wire types.
+fn storage_identity(id: Uuid) -> Result<wire::IdentityId> {
+    id.to_string()
+        .parse()
+        .map_err(|_| RuntimeFailure::BindingMismatch)
+}
+
+// Generated from the Veoveo-owned IDL; these are private installation wire types.
 // No credential, TLS configuration, or provider token is part of this schema.
 #[allow(dead_code)]
 pub(super) mod wire {
@@ -53,14 +60,17 @@ pub struct HomeAllocator {
     tls: Arc<ClientConfig>,
     fingerprint: String,
     capacity_bytes: u64,
+    provider_id: Uuid,
 }
 impl HomeAllocator {
     pub async fn new(
         config: AllocationConfig,
+        provider_id: Uuid,
         fingerprint: String,
         capacity_bytes: u64,
     ) -> Result<Self> {
-        if !valid_fingerprint(&fingerprint)
+        if provider_id.is_nil()
+            || !valid_fingerprint(&fingerprint)
             || !(512 * 1024 * 1024..=256 * 1024 * 1024 * 1024).contains(&capacity_bytes)
         {
             return Err(RuntimeFailure::InvalidConfiguration);
@@ -94,10 +104,12 @@ impl HomeAllocator {
             tls: Arc::new(tls),
             fingerprint,
             capacity_bytes,
+            provider_id,
         })
     }
     pub async fn ready(&self) -> Result<()> {
         let request = wire::ReadyRequest {
+            provider_id: storage_identity(self.provider_id)?,
             schema: SCHEMA
                 .parse()
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
@@ -110,6 +122,7 @@ impl HomeAllocator {
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
         };
         let expected = wire::ReadyReply {
+            provider_id: request.provider_id.clone(),
             schema: request.schema,
             operation: "ready"
                 .parse()
@@ -135,6 +148,12 @@ impl HomeAllocator {
             return Err(RuntimeFailure::BindingMismatch);
         }
         let request = wire::BoundRequest {
+            provider_id: storage_identity(self.provider_id)?,
+            instance_id: storage_identity(
+                binding
+                    .replacement_instance_id()
+                    .unwrap_or(binding.computer_id()),
+            )?,
             schema: SCHEMA
                 .parse()
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
@@ -150,6 +169,8 @@ impl HomeAllocator {
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
         };
         let expected = wire::BoundReply {
+            provider_id: request.provider_id.clone(),
+            instance_id: request.instance_id.clone(),
             schema: request.schema,
             operation: request.operation,
             status: "ready"

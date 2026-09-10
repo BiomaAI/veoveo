@@ -31,7 +31,20 @@ async fn allocator_fixture(mode: u8) -> (HomeAllocator, tokio::task::JoinHandle<
     let endpoint = listener.local_addr().unwrap().to_string();
     let task = tokio::spawn(async move {
         let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(config));
-        for expected in ["ready", "prepare", "restore"] {
+        let initial = binding();
+        let replacement = Binding::replacement(
+            initial.computer_id(),
+            Uuid::from_u128(999),
+            initial.template_fingerprint().into(),
+        )
+        .unwrap();
+        for (expected, binding) in [
+            ("ready", &initial),
+            ("prepare", &initial),
+            ("restore", &initial),
+            ("prepare", &replacement),
+            ("restore", &replacement),
+        ] {
             let (tcp, _) = listener.accept().await.unwrap();
             let mut socket = acceptor.accept(tcp).await.unwrap();
             let size = socket.read_u32().await.unwrap();
@@ -42,12 +55,21 @@ async fn allocator_fixture(mode: u8) -> (HomeAllocator, tokio::task::JoinHandle<
             assert_eq!(request["operation"], expected);
             assert_eq!(
                 request["templateFingerprint"],
-                binding().template_fingerprint()
+                binding.template_fingerprint()
             );
+            assert_eq!(request["providerId"], Uuid::from_u128(100).to_string());
             if expected != "ready" {
-                assert_eq!(request["computerId"], binding().computer_id().to_string());
+                assert_eq!(request["computerId"], binding.computer_id().to_string());
+                assert_eq!(
+                    request["instanceId"],
+                    binding
+                        .replacement_instance_id()
+                        .unwrap_or(binding.computer_id())
+                        .to_string()
+                );
             } else {
                 assert!(request.get("computerId").is_none());
+                assert!(request.get("instanceId").is_none());
             }
             request["status"] = "ready".into();
             request["capacityBytes"] = (1024u64 * 1024 * 1024).into();
@@ -61,6 +83,10 @@ async fn allocator_fixture(mode: u8) -> (HomeAllocator, tokio::task::JoinHandle<
                     return;
                 }
                 6 => return,
+                8 => request["providerId"] = Uuid::from_u128(101).to_string().into(),
+                9 if expected != "ready" => {
+                    request["instanceId"] = Uuid::from_u128(999).to_string().into()
+                }
                 _ => {}
             }
             let mut raw = serde_json::to_vec(&request).unwrap();
@@ -71,7 +97,7 @@ async fn allocator_fixture(mode: u8) -> (HomeAllocator, tokio::task::JoinHandle<
             socket.write_u32(raw.len() as u32).await.unwrap();
             socket.write_all(&raw).await.unwrap();
             socket.flush().await.unwrap();
-            if mode != 0 {
+            if mode != 0 && !(mode == 9 && expected == "ready") {
                 return;
             }
         }
@@ -86,6 +112,7 @@ async fn allocator_fixture(mode: u8) -> (HomeAllocator, tokio::task::JoinHandle<
     (
         HomeAllocator::new(
             config,
+            Uuid::from_u128(100),
             binding().template_fingerprint().into(),
             1024 * 1024 * 1024,
         )
@@ -101,11 +128,19 @@ async fn exact_tls13_allocation_ready_prepare_restore() {
     allocator.ready().await.unwrap();
     allocator.prepare(&binding()).await.unwrap();
     allocator.restore(&binding()).await.unwrap();
+    let replacement = Binding::replacement(
+        binding().computer_id(),
+        Uuid::from_u128(999),
+        binding().template_fingerprint().into(),
+    )
+    .unwrap();
+    allocator.prepare(&replacement).await.unwrap();
+    allocator.restore(&replacement).await.unwrap();
     task.await.unwrap();
 }
 #[tokio::test]
 async fn allocation_invalid_unknown_and_duplicate_results_fail_closed() {
-    for mode in 1..=7 {
+    for mode in 1..=8 {
         let (allocator, task, _tls) = allocator_fixture(mode).await;
         assert!(matches!(
             allocator.ready().await,
@@ -113,6 +148,13 @@ async fn allocation_invalid_unknown_and_duplicate_results_fail_closed() {
         ));
         task.await.unwrap();
     }
+    let (allocator, task, _tls) = allocator_fixture(9).await;
+    allocator.ready().await.unwrap();
+    assert!(matches!(
+        allocator.prepare(&binding()).await,
+        Err(RuntimeFailure::AllocationFailed)
+    ));
+    task.await.unwrap();
 }
 
 mod generated_contract {
@@ -127,9 +169,11 @@ mod generated_contract {
             "schema": "veoveo.io/computer-storage/v1",
             "operation": operation,
             "templateFingerprint": "a".repeat(64),
+            "providerId": "00000000-0000-0000-0000-000000000100",
         });
         if operation != "ready" {
             value["computerId"] = "3c4c49ee-4f42-442d-a761-71a15466b992".into();
+            value["instanceId"] = "3c4c49ee-4f42-442d-a761-71a15466b992".into();
         }
         value
     }
@@ -254,9 +298,11 @@ mod generated_contract {
             "3c4c49ee-4f42-442d-a761-71a15466b992\n",
             "../other",
         ] {
-            let mut value = request("prepare");
-            value["computerId"] = identity.into();
-            assert!(serde_json::from_slice::<wire::BoundRequest>(&bytes(&value)).is_err());
+            for field in ["computerId", "providerId", "instanceId"] {
+                let mut value = request("prepare");
+                value[field] = identity.into();
+                assert!(serde_json::from_slice::<wire::BoundRequest>(&bytes(&value)).is_err());
+            }
         }
         for fingerprint in [
             "A".repeat(64),
@@ -300,6 +346,8 @@ mod generated_contract {
         for (field, replacement) in [
             ("operation", "prepare"),
             ("computerId", "00000000-0000-0000-0000-000000000001"),
+            ("providerId", "00000000-0000-0000-0000-000000000001"),
+            ("instanceId", "00000000-0000-0000-0000-000000000001"),
             (
                 "templateFingerprint",
                 "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

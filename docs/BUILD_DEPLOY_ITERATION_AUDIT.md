@@ -2432,3 +2432,10 @@ in 24.27 s after an 8.57 s consumer compile. Candidate binary SHA-256 identities
 gateway `20fd9afa9662d4fff62a8de0be8c9ad53ba2d096c9137dde82958417c1ec3ef6`
 and Docker driver `eee64d2a0c973071c74fe160eb02bbe5c4094724dee1190be99f742e081bbcf9`.
 The reused supervisor is `18966e201952608891fad4b570bab45fdaaf88f4cfd627d7709e3f71743a4844`.
+
+The allocation protocol now requires provider and instance identity. Its eight
+schema/TLS cases pass in 0.04 s, with a 0.44 s recorded incremental compile after
+the generator's initial 14.81 s rebuild. Runtime all-target Clippy takes 6.21 s.
+This client-only private wire change does not rebuild the OpenShell provider or
+Computer image. The production allocator must enforce the echoed identity; a
+successful transport fixture does not establish that enforcement.
