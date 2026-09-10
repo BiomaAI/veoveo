@@ -127,10 +127,15 @@ installation profile requirements before release acceptance.
 The closed configuration supplies `providerId`, `namespace`, persistent root, free-space reserve,
 admitted template fingerprints/capacities, exact Docker Unix socket, plugin name/socket,
 listen address and dedicated worker TLS files. It accepts no ambient Docker endpoint.
-Startup reads the engine UUID through that exact socket, verifies it again, and opens
-the journal with the resulting full host identity before binding either listener.
-Initial enrollment requires an empty private journal. An existing journal requires
-its original provider, engine and namespace; observing a new engine cannot adopt it.
+Initial enrollment reads the engine UUID through that exact socket, verifies it again,
+and opens an empty private journal with the resulting full host identity before binding
+either listener. Restart reopens the recorded journal under its exclusive lock, checks
+the configured provider and namespace, and binds the Docker client to the original
+engine UUID. It may serve metadata before Docker's API becomes available. Docker
+activates its volume plugin while restoring that API, so requiring API readiness before
+the plugin listens creates a circular startup dependency. Metadata calls cannot mount,
+allocate or transfer a writer. Readiness and every physical operation still verify the
+reachable engine; a replacement engine cannot adopt the journal or gain write admission.
 This removes an install-time dependency on manually copying the newly created daemon
 UUID into configuration while retaining the durable identity boundary. Operational
 calls still verify the bound engine. The former configuration `identity` object is
@@ -170,7 +175,11 @@ An independently signed guest certificate and a foreign provider cannot use the
 allocator. The production client prepares a 512 MiB home twice without replacement.
 A registered Computer writes it, uses nested Docker copy, survives helper removal
 while continuing to write, and reopens the same files after helper restart and
-Stop/Start. An unadmitted replacement fails both during contention and after the
+Stop/Start. It also replaces both the helper and private daemon processes with the
+original Docker data and journal, then verifies the retained bytes and writer admission.
+This proves process cold restart with propagated mounts still present; whole-host
+reboot and mount-namespace replacement require their own installed-topology case.
+An unadmitted replacement fails both during contention and after the
 original resource is removed. The fixture removes its containers before unmounting,
 verifies loop detachment and removes only its own retained data and trust material.
 The same fixture exercises durable handoff. It holds a separate private mount after

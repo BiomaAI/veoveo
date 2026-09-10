@@ -69,6 +69,11 @@ async fn native_service_shared_mount_and_restart() {
             .args(["stop", "--time", "1", &fixture.container("a")]),
     )
     .await;
+    // Replace both processes with retained daemon data and journal in place.
+    // The helper must serve retained metadata while Docker restores its API.
+    fixture.cold_restart().await;
+    worker.ready().await.unwrap();
+    worker.restore(&fixture.initial).await.unwrap();
     fixture.start_container("a", true).await;
     fixture.copy_and_assert("during restart").await;
 

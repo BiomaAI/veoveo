@@ -279,6 +279,54 @@ impl DockerDaemon {
             .arg(format!("unix://{}", self.socket.display()));
         command
     }
+    #[allow(dead_code)] // Retained-storage qualification also replaces the daemon process.
+    pub async fn restart(&self) {
+        checked(host().args(["stop", "--time", "3", &self.name])).await;
+        checked(host().args(["start", &self.name])).await;
+        // Its volume restore needs the helper before the HTTP API can start.
+        // The caller starts that helper before waiting for API readiness.
+    }
+    #[allow(dead_code)] // Restore host-user access after the private socket is recreated.
+    pub async fn restore_socket_access(&self) {
+        let endpoint = format!("unix://{}", self.socket.display());
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            // Version checks API readiness without requiring a volume-plugin
+            // inventory. The caller has restarted the storage helper.
+            let result = bounded(host().args([
+                "exec",
+                &self.name,
+                "docker",
+                "--host",
+                &endpoint,
+                "version",
+                "--format",
+                "{{.Server.Version}}",
+            ]))
+            .await;
+            if result.status.success() {
+                break;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "isolated daemon restart readiness"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let uid = checked(Command::new("id").arg("-u")).await;
+        let gid = checked(Command::new("id").arg("-g")).await;
+        checked(
+            host()
+                .args(["exec", &self.name, "chown", &format!("{uid}:{gid}")])
+                .arg(&self.socket),
+        )
+        .await;
+        assert_eq!(
+            host_bridge(),
+            self.host_bridge,
+            "restart changed host bridge identity"
+        );
+    }
     pub async fn register(&self, name: &str, address: &str, home: &Path) {
         checked(host().args(["exec", &self.name, "/bin/sh", "-c", "mkdir -p /etc/docker/plugins && (set -C; printf '%s' \"$1\" > \"$2\") && chown 10001:10001 \"$3\"", "fixture", address, &format!("/etc/docker/plugins/{name}.spec")]).arg(home)).await;
     }

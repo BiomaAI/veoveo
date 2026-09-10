@@ -27,7 +27,7 @@ pub(crate) struct Volume {
     pub mountpoint: PathBuf,
 }
 impl Service {
-    pub async fn new(
+    pub fn new(
         filesystem: Filesystem,
         docker: Docker,
         templates: Vec<Template>,
@@ -49,7 +49,10 @@ impl Service {
                 return Err(StorageError::InvalidIdentity);
             }
         }
-        if docker.verify_engine().await? != filesystem.journal().identity().engine_id {
+        // Startup must serve metadata while Docker restores its API. This
+        // checks the durable binding; readiness and every physical operation
+        // independently verify the currently reachable engine.
+        if docker.engine_id() != filesystem.journal().identity().engine_id {
             return Err(StorageError::IdentityMismatch);
         }
         Ok(Arc::new(Self {

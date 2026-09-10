@@ -2837,3 +2837,15 @@ The new test rejects replacement-engine adoption. Eight storage tests pass, and 
 native retained worker fixture passes in 79.56 seconds with the canonical configuration.
 Only the storage image is rebuilt: 35.97 seconds overall, with a 31.42-second observed
 compile window. The provider, Computer template and live installation are unchanged.
+
+The next isolated process-cold-restart probe exposed a real startup cycle. Docker
+29.8 activates retained plugins before opening its API, while the allocator initially
+required that API before listening. The failed probe hit its 30-second command bound;
+its owned daemon and test data were cleaned up. Restart now reopens the locked journal
+and serves metadata before Docker readiness. Every physical operation still verifies
+the original engine identity. The final native fixture passes in 13.55 seconds,
+including retained bytes, helper/daemon replacement and physical writer handoff.
+The storage image rebuild takes 11.18 seconds, with a 7.00-second compile window.
+Eight storage unit tests, affected lint and formatting pass. This fixture retains
+propagated host mounts; replacement of the whole compute-host mount namespace remains
+a separate topology qualification case.

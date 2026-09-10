@@ -119,6 +119,9 @@ impl Docker {
         }
         Ok(engine.id)
     }
+    pub(crate) fn engine_id(&self) -> Uuid {
+        self.engine_id
+    }
     pub async fn consumers(&self, volume: &str) -> Result<Vec<RegisteredConsumer>> {
         crate::service::volume_id(volume)?;
         let filters = serde_json::to_string(&BTreeMap::from([("volume", [volume])]))

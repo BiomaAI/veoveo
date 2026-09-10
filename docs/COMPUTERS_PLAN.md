@@ -420,6 +420,12 @@ identities cannot be reused. Native provider/worker integration, recovery for a 
 that never acquired a physical writer, installed maintenance and public journeys remain
 delivery work; this checkpoint does not establish release acceptance.
 
+The helper and its private Docker daemon also pass process cold restart together.
+The helper reopens its locked journal before Docker API readiness, resolving the
+daemon's volume-plugin activation dependency. Physical operations retain their exact
+engine checks. This case preserves the existing propagated mounts; compute-host
+mount-namespace replacement and installed reboot retention remain separate gates.
+
 | Area | Required evidence |
 |---|---|
 | Core | Standard release surfaces, valid configured/unconfigured states, clean install and selected offline topology |
