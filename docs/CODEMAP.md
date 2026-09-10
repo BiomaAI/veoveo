@@ -64,7 +64,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`platform/policy/DESIGN.md`](../platform/policy/DESIGN.md) | shared gateway/worker policy decisions, indexed revision boundary and caller-owned current authority |
-| [`platform/computers/storage/DESIGN.md`](../platform/computers/storage/DESIGN.md) | privileged retained-home metadata and storage-host boundary; physical backend and transport implementation in progress |
+| [`platform/computers/storage/DESIGN.md`](../platform/computers/storage/DESIGN.md) | privileged retained-home metadata, fixed-size ext4 backend and native container-restart qualification; transport and physical handoff in progress |
 | [`platform/gateway/src/auth/DESIGN.md`](../platform/gateway/src/auth/DESIGN.md) | signed access-token session families, current cross-replica revocation and bounded rollout into renewable Computer grants |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
@@ -156,7 +156,7 @@ Hub, administration, and GPU policy.
 | `platform/computers/src/current_authority.rs` | fresh immutable policy and directory checks, bounded dispatch authority, and retained current policy decisions |
 | `platform/computers/` | durable core Computer collections, private human/service ownership, conditional capacity/fence admission, shared Task linking, dispatch receipts, persisted observation budgets and correlated settlement; worker integration lives in `servers/computers-mcp`; grant persistence remains in progress |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
-| `platform/computers/storage/` | private storage-host journal, exact host/home identities and backing-file receipts; production filesystem, Docker plugin and mTLS service remain active implementation |
+| `platform/computers/storage/` | private storage-host journal, exact host/home identities, fixed-size ext4 preparation/restoration and native filesystem faults; Docker plugin, physical handoff and mTLS service remain active implementation |
 | `platform/computers/images/` | candidate Computer user environment with pinned Ubuntu base/archive inputs and numeric process identity; separate from the privileged provider and retained allocator |
 | `platform/runtimes/computers/tests/native_volume_plugin.rs` and `tests/native_support/docker_daemon.rs` | native registered-writer probe with a disposable Docker daemon, pinned image import and daemon-scoped plugin cleanup |
 | `platform/runtimes/computers/src/retained_writer.rs` | exact Docker engine, provider namespace and Computer-instance matching for retained volume admission; persisted physical handoff remains allocator work |

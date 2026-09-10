@@ -2458,3 +2458,19 @@ to compile; final all-target Clippy takes 0.87 s. An initial style lint was corr
 before commit. These tests deliberately use sparse metadata fixtures and establish
 neither physical quota nor mount safety. No provider or Computer artifact rebuild
 was needed. The allocator's filesystem backend and authenticated service remain next.
+
+The production filesystem backend now passes its own native fixture. It preallocates
+and formats a new ext4 home once, enforces the free-space reserve before reservation,
+reaches ENOSPC, and restores files in a different helper container. Restore preserves
+owner-selected home permissions while checking UID/GID, backing-file identity, ext4
+UUID and mount options. The initial native run took 3.60 s. The complete recorded case,
+including reserve and permission checks, takes 12.24 s after a 1.67 s compile. These are
+individual observations, not a stable throughput or latency benchmark. All-target
+Clippy takes 9.36 s after the mount-feature graph change. The existing image is reused.
+
+A concurrent journal test fork transiently inherited another fixture's open lock
+before exec. The process-containing metadata fixtures now run serially; production
+still refuses ownership while any descriptor holds the lock. The filesystem fixture
+uses the explicit local Docker socket, removes its own containers, verifies loop
+detachment and removes only its own backing files. Docker plugin/service wiring and
+durable physical handoff remain outstanding; no installation acceptance is claimed.

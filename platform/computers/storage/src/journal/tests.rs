@@ -2,6 +2,15 @@
 use super::*;
 use std::os::unix::fs::{PermissionsExt, symlink};
 
+// A concurrent fork can inherit another test's open lock until exec closes it.
+// Keep these filesystem fixtures outside that transient inherited-FD window.
+static CASE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+fn isolated_case() -> std::sync::MutexGuard<'static, ()> {
+    CASE_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 fn host() -> HostIdentity {
     HostIdentity {
         provider_id: Uuid::from_u128(100),
@@ -45,6 +54,7 @@ fn lock_and_host_identity_survive_reopening_without_adopting_another_engine() {
         }
         return;
     }
+    let _case = isolated_case();
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("retained");
     let journal = Journal::open(root.clone(), host()).unwrap();
@@ -85,6 +95,7 @@ fn assert_child_lock(root: &Path, state: &str) {
 
 #[test]
 fn incomplete_reservations_retain_identity_capacity_and_bytes_across_restart() {
+    let _case = isolated_case();
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("retained");
     let mut journal = Journal::open(root.clone(), host()).unwrap();
@@ -129,6 +140,7 @@ fn incomplete_reservations_retain_identity_capacity_and_bytes_across_restart() {
 
 #[test]
 fn ready_record_is_idempotent_and_rejects_backing_file_substitution() {
+    let _case = isolated_case();
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("retained");
     let mut journal = Journal::open(root.clone(), host()).unwrap();
@@ -152,6 +164,7 @@ fn ready_record_is_idempotent_and_rejects_backing_file_substitution() {
 
 #[test]
 fn unknown_initial_state_missing_records_and_metadata_links_fail_closed() {
+    let _case = isolated_case();
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("retained");
     let mut journal = Journal::open(root.clone(), host()).unwrap();
@@ -191,6 +204,7 @@ fn unknown_initial_state_missing_records_and_metadata_links_fail_closed() {
 
 #[test]
 fn malformed_private_records_and_non_private_paths_are_not_repaired_implicitly() {
+    let _case = isolated_case();
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("retained");
     let mut journal = Journal::open(root.clone(), host()).unwrap();

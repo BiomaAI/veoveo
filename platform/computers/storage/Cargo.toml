@@ -5,10 +5,11 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-nix = { workspace = true, features = ["fs", "user"] }
+nix = { workspace = true, features = ["fs", "user", "mount"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "process", "rt-multi-thread", "time"] }
 uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-computers-runtime = { path = "../../runtimes/computers" }
 

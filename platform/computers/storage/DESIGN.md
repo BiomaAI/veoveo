@@ -1,8 +1,8 @@
 # Retained Computer Storage
 
-Status: implementation in progress. The runtime has qualified the native filesystem
-and registered-writer primitives. This component supplies their durable host boundary;
-it is not yet an installed or qualified allocator.
+Status: the durable journal and filesystem backend pass isolated native qualification.
+Docker plugin integration, authenticated service, physical handoff and installed
+acceptance remain implementation work. This component is not yet an installed allocator.
 
 ## Standards And Protocols
 
@@ -14,6 +14,7 @@ it is not yet an installed or qualified allocator.
 | Linux ext4 and loop devices | Fixed, preallocated backing files, `nodev,nosuid`, numeric UID/GID 10001 and a confined `home` subdirectory |
 | `veoveo.io/retained-storage-host/v1` and `veoveo.io/retained-home/v1` | Closed local JSON records, atomic publication, explicit incomplete-allocation state and host/engine binding |
 | Linux file locks and filesystem durability | One helper owns the metadata root; file and parent-directory synchronization precede success |
+| util-linux and e2fsprogs command profiles | Bounded `fallocate`, `mkfs.ext4`, `blkid`, `losetup` and `findmnt` calls from the pinned Computer-image environment; selected outputs are parsed explicitly |
 
 ## Ownership And Deployment
 
@@ -80,3 +81,36 @@ perform that purge. Backups require a fenced source and synchronized bytes; a ve
 offline block backup is the initial supported mechanism. Local reboot retention is
 distinct from host-loss durability. Encryption-at-rest and backup-key ownership remain
 installation profile requirements before release acceptance.
+
+## Filesystem Backend And Native Evidence
+
+`filesystem` requires root, a persistent ext-family host volume and a free-space
+reserve. The native profile uses ext4; volatile, overlay and remote roots are rejected.
+A new reservation creates its
+backing file exclusively, preallocates its complete size and formats ext4 with the
+Computer UUID. An existing incomplete reservation returns Recovery Required. Ready
+restoration verifies the recorded file device/inode/length, ext4 type and UUID, exact
+loop mapping, mount target/options and home UID/GID. New homes start with mode 0700.
+Owners may change permissions inside their Computer, including on the home directory;
+ordinary restore preserves those choices. The surrounding host metadata and allocation
+directories remain private to the helper. Missing or changed identities
+cannot trigger formatting. Helper exit does not purge an allocation or release a writer.
+
+`command` owns the finite filesystem-tool calls. Arguments are separate process
+arguments, the environment is fixed, output is bounded and an expired operation kills
+its child. Command output is never a public failure payload. Kernel mount operations
+use the qualified Nix crate. No new dependency version is selected for this backend.
+
+`tests/native_filesystem.rs` runs the production backend as root in two disposable
+containers using the existing pinned Computer image. It preallocates 512 MiB, reaches
+ENOSPC, preserves a file and reopens the allocation after the original helper container
+exits, including an owner's changed home permissions. It rejects another instance and a changed ext4 UUID without changing the stored
+identity. A separate cleanup phase verifies loop detachment before removing fixture
+files. The fixture uses an explicit local Docker socket, isolated mount namespaces and
+no network. It does not qualify bidirectional mount propagation, Docker plugin access,
+writer handoff or host-loss durability.
+
+Journal process tests run outside concurrent fixture forks. An inherited descriptor can
+retain a file lock until exec closes it, as specified by
+[`std::fs::File`](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock).
+Production continues to report Busy while another descriptor retains ownership.
