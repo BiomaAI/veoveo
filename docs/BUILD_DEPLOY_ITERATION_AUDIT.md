@@ -3101,3 +3101,21 @@ with 204. The frontend now resolves that permission and reachability with a boun
 credential-free OPTIONS request before creating any grant, and explains the browser
 prompt. Its negative test proves that rejected local consent issues no access.
 This is a real-browser gap that the mocked fetch test could not establish.
+
+After allowing Apps on device for the Veoveo origin in Chrome's site settings,
+public pairing authenticated the unmodified CLI. The shell returned UID 10001 and
+the original retained file. Its variable and file survived more than one connection
+lease. Revoking the named CLI returned 200 in 119 ms, removed it from inventory,
+closed the SSH connection and rejected a new stock connection with HTTP 403. A fresh
+browser attachment confirmed the post-confirmation command had not created its
+marker and the retained file remained unchanged. A command submitted immediately
+after clicking Revoke ran before the response had been confirmed; that does not
+measure the revocation bound. Its owned marker was removed. The native fixture
+remains the precise five-second relay-closure measurement.
+
+The consent-first frontend publication from `d3832c35` took 54.111 seconds. Although
+only Console TypeScript and documentation changed, narrowing the selected compiler
+family from three services to Console reported 491 changed paths and caused a
+31.81-second optimized compile. The operating-system and npm dependency layers were
+cached. Reusing the BFF binary across frontend-only changes is still concrete build
+work; calling this publication a cache hit would hide most of its cost.

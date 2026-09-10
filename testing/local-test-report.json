@@ -1,47 +1,39 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:3fb5f1eba475fc00865272566b4ec0d2072baaf82537214bd16c5579742582fa",
-  "updatedAt": "2026-09-10T18:48:04Z",
+  "buildDigest": "sha256:8b6c2148d6f873f5b5d11cbc87fa181f49a299ef545b552f1689afb5f45c99e8",
+  "updatedAt": "2026-09-10T18:51:07Z",
   "checks": [
     {
-      "name": "computers-cli-loopback-build",
+      "name": "computers-cli-loopback-bioma-gitops",
       "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "build"
+        "kubectl",
+        "kustomize",
+        "examples/bioma"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T18:47:54Z",
-      "durationSeconds": 5.91144994,
+      "finishedAt": "2026-09-10T18:51:07Z",
+      "durationSeconds": 0.065775813,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-cli-loopback-contracts",
+      "name": "computers-cli-loopback-bioma-render",
       "command": [
-        "node",
-        "--experimental-strip-types",
-        "--test",
-        "apps/console/web/src/computerPairing.test.ts"
+        "helm",
+        "template",
+        "veoveo",
+        "deploy/helm/veoveo",
+        "--namespace",
+        "veoveo",
+        "-f",
+        "examples/bioma/values.yaml",
+        "-f",
+        "examples/bioma/k3d-values.yaml",
+        "-f",
+        "examples/bioma/images/veoveo.lock.yaml"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T18:47:47Z",
-      "durationSeconds": 0.209810102,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-cli-loopback-lint",
-      "command": [
-        "npm",
-        "--prefix",
-        "apps/console/web",
-        "run",
-        "lint"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T18:48:04Z",
-      "durationSeconds": 4.071423866,
+      "finishedAt": "2026-09-10T18:51:06Z",
+      "durationSeconds": 0.08213488,
       "detail": "completed successfully"
     }
   ]
