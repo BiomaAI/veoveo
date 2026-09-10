@@ -36,6 +36,8 @@ tonic-prost-build = "=0.14.6"
 typify = { version = "=0.8.0", default-features = false }
 
 [dev-dependencies]
+axum.workspace = true
+reqwest = { workspace = true, features = ["json", "query"] }
 rcgen.workspace = true
 tokio = { workspace = true, features = ["process"] }
 tokio-stream = { version = "=0.1.19", features = ["net"] }
