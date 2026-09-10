@@ -111,6 +111,26 @@ impl Reservation {
     }
 }
 impl Journal {
+    /// Bounded local metadata enumeration. Incomplete allocations are retained
+    /// and validated; callers choose whether their surface can expose them.
+    pub fn list(&self) -> Result<Vec<AllocationRecord>> {
+        let mut records = Vec::new();
+        for entry in fs::read_dir(self.root.join("homes")).map_err(|_| StorageError::Unavailable)? {
+            if records.len() == 4096 {
+                return Err(StorageError::CapacityExceeded);
+            }
+            let entry = entry.map_err(|_| StorageError::Unavailable)?;
+            let name = entry.file_name();
+            let name = name.to_str().ok_or(StorageError::RecoveryRequired)?;
+            let id = Uuid::parse_str(name).map_err(|_| StorageError::RecoveryRequired)?;
+            if name != id.simple().to_string() {
+                return Err(StorageError::RecoveryRequired);
+            }
+            records.push(self.load(id)?.ok_or(StorageError::RecoveryRequired)?);
+        }
+        records.sort_by_key(|record| record.identity.computer_id);
+        Ok(records)
+    }
     pub fn open(root: PathBuf, identity: HostIdentity) -> Result<Self> {
         identity.validate()?;
         if !root.is_absolute() {

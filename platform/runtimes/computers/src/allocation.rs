@@ -26,7 +26,7 @@ fn storage_identity(id: Uuid) -> Result<wire::IdentityId> {
 // Generated from the Veoveo-owned IDL; these are private installation wire types.
 // No credential, TLS configuration, or provider token is part of this schema.
 #[allow(dead_code)]
-pub(super) mod wire {
+pub mod wire {
     include!(concat!(env!("OUT_DIR"), "/allocation.rs"));
 }
 pub struct AllocationConfig {

@@ -5,13 +5,19 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+axum.workspace = true
+clap.workspace = true
 nix = { workspace = true, features = ["fs", "user", "mount"] }
+reqwest = { workspace = true, features = ["json", "query"] }
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "process", "rt-multi-thread", "time"] }
+tokio-rustls.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-computers-runtime = { path = "../../runtimes/computers" }
 
 [dev-dependencies]
+rcgen.workspace = true
 tempfile.workspace = true

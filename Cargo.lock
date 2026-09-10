@@ -16592,12 +16592,18 @@ dependencies = [
 name = "veoveo-computer-storage"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "clap",
  "nix",
+ "rcgen",
+ "reqwest 0.13.4",
+ "rustls",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
+ "tokio-rustls",
  "uuid",
  "veoveo-computers-runtime",
 ]

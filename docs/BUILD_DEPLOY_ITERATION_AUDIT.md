@@ -2474,3 +2474,26 @@ still refuses ownership while any descriptor holds the lock. The filesystem fixt
 uses the explicit local Docker socket, removes its own containers, verifies loop
 detachment and removes only its own backing files. Docker plugin/service wiring and
 durable physical handoff remain outstanding; no installation acceptance is claimed.
+
+The allocator now runs as its own binary with the private worker mTLS service and
+Docker volume plugin. Its native fixture reuses the existing Computer image and
+isolated Docker daemon image; neither the provider nor a container image was rebuilt.
+The initial added HTTP/TLS consumer graph checked in 7.68 s. Recorded storage tests
+compile in 2.92 s, then run six local cases in 0.03 s, the ext4 fault case in 7.85 s,
+and the shared-mount/restart case in 9.80 s. The latter keeps a Computer writable
+while replacing the allocator and rejects an unadmitted instance after source removal.
+These are individual fixture timings, not installed latency measurements.
+
+The host root already provides shared mount propagation. A dedicated allocator
+`rshared` bind and daemon `rslave` bind work without changing unrelated mount flags
+or restarting the installation daemon. Worker and plugin request limits are separate;
+the filesystem lock is released before Docker volume creation calls back into the
+plugin. This avoids an allocator/plugin callback deadlock during admission.
+
+Fixture churn included a wrong relative helper path, trust files created with the
+developer's group-writable umask, and a root-owned socket directory that the parent
+could not remove. The harness now creates explicit trust permissions, preserves
+startup stderr before cleanup, detects early process exit, and restores ownership
+of its empty socket directory. The failed fixtures' exact empty directories were
+removed. No user home or installed workload was involved. Physical handoff, provider
+integration with this allocator, packaging and public deployment remain next.

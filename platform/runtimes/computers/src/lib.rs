@@ -42,6 +42,8 @@ mod terminal;
 mod terminal_output;
 
 pub use allocation::{AllocationConfig, HomeAllocator};
+// Private installation protocol shared with the privileged storage service.
+pub use allocation::wire as storage_protocol;
 pub use binding::Binding;
 pub use client::{GATEWAY_VERSION, GatewayConfig, OpenShellRuntime};
 pub use execution::{ExecChunk, ExecInput, ExecIntent, ExecResult, OutputStream};
