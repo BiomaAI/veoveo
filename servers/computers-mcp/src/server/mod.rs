@@ -1,8 +1,11 @@
 mod admin;
 mod auth;
+mod provider;
+mod run;
 use crate::{Application, ApplicationError, protocol::ComputersMcp};
 use axum::{Router, extract::DefaultBodyLimit, http::StatusCode, middleware, routing::get};
 use rmcp::transport::streamable_http_server::StreamableHttpService;
+pub use run::serve;
 use std::{sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalTokenVerifier, parse_allowed_host_authority};

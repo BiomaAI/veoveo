@@ -25,8 +25,8 @@ Record affected checks with `cargo xtask test-report` as required by root instru
 Contract revision: 3
 
 The library implements shared lifecycle admission, its worker, and authenticated MCP
-and HTTP projections. Installation wiring, grants, agent execution, file movement and
-packaging remain active work. Fixture evidence is not installed-user qualification.
+and HTTP projections. The executable uses validated installation configuration. Grants, agent execution,
+file movement, catalog registration and packaging remain active work. Fixture evidence is not installed-user qualification.
 
 - C01: met
 - C02: met
@@ -42,7 +42,7 @@ packaging remain active work. Fixture evidence is not installed-user qualificati
 - C12: met
 - C13: met
 - C14: met
-- C15: pending — runnable service and OCI/Helm packaging remain delivery work
+- C15: pending — OCI/Helm packaging remains delivery work
 - C16: pending — installed typed control-plane registration remains delivery work
 - C17: pending — crate revision is declared; installation registration is pending
 - C18: met

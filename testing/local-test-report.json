@@ -1,49 +1,59 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:69416d2b3faeca9a66c78b143246f9844c2174084eb6299c49e1d8358793c40b",
-  "updatedAt": "2026-09-10T08:31:42Z",
+  "buildDigest": "sha256:54d3214dc110f6f0790ea050ac50b2526c137e5a9c4c7b717eb03ad370e69cb3",
+  "updatedAt": "2026-09-10T08:51:20Z",
   "checks": [
     {
-      "name": "computers-protocol",
+      "name": "computers-runtime",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-contract",
-        "-p",
-        "veoveo-computers",
+        "veoveo-computers-runtime",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T08:50:05Z",
+      "durationSeconds": 30.43396477,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-service",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
         "-p",
         "veoveo-computers-mcp",
         "--tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T08:31:22Z",
-      "durationSeconds": 27.250425427,
+      "finishedAt": "2026-09-10T08:49:06Z",
+      "durationSeconds": 42.344965124,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-protocol-lint",
+      "name": "computers-service-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-contract",
-        "-p",
-        "veoveo-computers",
-        "-p",
         "veoveo-computers-mcp",
+        "-p",
+        "veoveo-computers-runtime",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T08:31:31Z",
-      "durationSeconds": 1.5718320810000002,
+      "finishedAt": "2026-09-10T08:50:57Z",
+      "durationSeconds": 1.069886411,
       "detail": "completed successfully"
     },
     {
@@ -56,8 +66,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T08:31:42Z",
-      "durationSeconds": 2.5491019919999998,
+      "finishedAt": "2026-09-10T08:51:20Z",
+      "durationSeconds": 2.509778797,
       "detail": "completed successfully"
     }
   ]

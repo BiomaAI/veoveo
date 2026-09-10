@@ -19,6 +19,17 @@ pub struct RetainedHomes {
     allocators: BTreeMap<String, HomeAllocator>,
 }
 impl RetainedHomes {
+    /// Each admitted template must agree with the allocator's selected capacity.
+    pub async fn ready(&self) -> Result<(), PreflightError> {
+        use futures::{StreamExt, TryStreamExt};
+        futures::stream::iter(self.allocators.values().cloned().collect::<Vec<_>>())
+            .map(|allocator| async move { allocator.ready().await })
+            .buffer_unordered(8)
+            .try_collect::<Vec<_>>()
+            .await
+            .map(|_| ())
+            .map_err(|_| PreflightError::Unavailable)
+    }
     pub async fn new(
         provider_id: Uuid,
         config: AllocationConfig,

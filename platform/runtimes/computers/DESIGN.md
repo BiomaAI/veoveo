@@ -42,7 +42,10 @@ verified on 2026-09-09. No transitive package versions changed with this direct 
 
 ## Ownership
 
-`client` handles provider transport and lifecycle observation. `models`, `binding`,
+`client` handles provider transport and lifecycle observation. Gateway configuration
+can validate its referenced TLS material without connecting; only the existing pinned
+handshake constructs an admitted runtime. This separates invalid installation inputs
+from temporary provider unavailability. `models`, `binding`,
 `canonical` and `policy_json` validate the admitted template and exact identity.
 `terminal` and `terminal_output` own the byte stream and replay boundary. `execution`
 owns bounded command streams. `allocation` and `storage` bind retained volumes;
