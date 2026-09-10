@@ -16589,6 +16589,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-computer-storage"
+version = "0.1.0"
+dependencies = [
+ "nix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+ "uuid",
+ "veoveo-computers-runtime",
+]
+
+[[package]]
 name = "veoveo-computers"
 version = "0.1.0"
 dependencies = [

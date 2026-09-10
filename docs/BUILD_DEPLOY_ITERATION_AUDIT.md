@@ -2448,3 +2448,13 @@ extended run failed on Docker CLI error wording; the fixture now checks the exac
 Engine HTTP 404 from the same isolated daemon. It does not turn arbitrary command
 failure into source-removal evidence. Durable handoff and filesystem preparation are
 still allocator work; the fixture's explicit admission change is held in memory.
+
+The storage-host journal now records private host/home identities and distinguishes
+new reservations from incomplete existing work. Five filesystem-metadata tests pass
+in 0.01 s after a 1.24 s incremental compile, including exclusion across separate
+processes. They cover restart, identity changes, missing/corrupt records, symlinks,
+hardlinks and backing-file substitution. The initial dependency graph took 11.70 s
+to compile; final all-target Clippy takes 0.87 s. An initial style lint was corrected
+before commit. These tests deliberately use sparse metadata fixtures and establish
+neither physical quota nor mount safety. No provider or Computer artifact rebuild
+was needed. The allocator's filesystem backend and authenticated service remain next.
