@@ -2,7 +2,10 @@
 //!
 //! The caller persists the checkpoint and charges its durable recovery budget before
 //! each call. This adapter never retries a mutation or starts a background poller.
-use crate::{Binding, Observation, OpenShellRuntime, Phase, Result, RuntimeFailure};
+use crate::{
+    Binding, Observation, OpenShellRuntime, Phase, Result, RuntimeFailure, client::request,
+    protocol::v1 as api,
+};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use uuid::Uuid;
@@ -182,6 +185,67 @@ pub enum LifecycleObservation {
 }
 
 impl OpenShellRuntime {
+    /// Watch a dispatched intent without polling or repeating its mutation. Both
+    /// synchronous and streamed observations obey the persisted process epoch.
+    /// `current` is the checked response returned by this runtime's mutation/get.
+    pub async fn wait_for_lifecycle(
+        &self,
+        checkpoint: &LifecycleCheckpoint,
+        current: &Observation,
+        remaining: Duration,
+    ) -> Result<Observation> {
+        if self.provider_instance_id != checkpoint.provider_instance_id {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
+        if remaining.is_zero() {
+            return Err(RuntimeFailure::WatchFailed);
+        }
+        if let LifecycleObservation::Reached(seen) = checkpoint.assess(current.clone())? {
+            return Ok(seen);
+        }
+        let budget = remaining.min(Duration::from_secs(180));
+        tokio::time::timeout(budget, async {
+            let mut stream = self
+                .client
+                .clone()
+                .watch_sandbox(request(
+                    api::WatchSandboxRequest {
+                        id: current.sandbox_id.clone(),
+                        follow_status: true,
+                        ..Default::default()
+                    },
+                    budget.as_secs().max(1),
+                ))
+                .await
+                .map_err(|_| RuntimeFailure::WatchFailed)?
+                .into_inner();
+            while let Some(event) = stream
+                .message()
+                .await
+                .map_err(|_| RuntimeFailure::WatchFailed)?
+            {
+                use api::sandbox_stream_event::Payload;
+                match event.payload {
+                    Some(Payload::Warning(_)) | None => return Err(RuntimeFailure::WatchFailed),
+                    Some(Payload::Sandbox(sandbox)) => {
+                        let seen =
+                            Observation::checked(sandbox, &checkpoint.binding, &self.workspace)?;
+                        if seen.sandbox_id != current.sandbox_id {
+                            return Err(RuntimeFailure::BindingMismatch);
+                        }
+                        if let LifecycleObservation::Reached(seen) = checkpoint.assess(seen)? {
+                            return Ok(seen);
+                        }
+                    }
+                    _ => {} // Unrequested logs/events carry no lifecycle evidence.
+                }
+            }
+            Err(RuntimeFailure::WatchFailed)
+        })
+        .await
+        .map_err(|_| RuntimeFailure::WatchFailed)?
+    }
+
     /// Observe once after a lost reply/watch. The caller owns the persisted budget
     /// and selects this runtime from its installation-owned provider identity.
     pub async fn reconcile_lifecycle(

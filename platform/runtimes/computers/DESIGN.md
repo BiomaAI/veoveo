@@ -46,7 +46,11 @@ The adapter returns typed outcomes without secrets or provider text in errors.
 
 ## Completion And Recovery
 
-Healthy lifecycle observation uses native WatchSandbox. The supplied event/log tails
+Healthy lifecycle observation uses native WatchSandbox. `wait_for_lifecycle` takes
+the persisted checkpoint, the checked dispatch response and a remaining budget.
+Synchronous responses and watch events use the same epoch checks as recovery. The
+watch performs no status reads and lasts at most 180 seconds or the smaller caller
+budget. An old Ready process cannot complete Start. The supplied event/log tails
 are best effort and lag warnings do not establish complete history. Transport loss
 returns uncertainty and never proves a failed mutation. `recovery` implements one
 bounded, identity-correlated reconciliation read under

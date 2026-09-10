@@ -1,42 +1,8 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b7f7a9d23f47227e8ec03d22f031b75ca482db9e5822f8e34bb62d99d595443d",
-  "updatedAt": "2026-09-10T00:22:36Z",
+  "buildDigest": "sha256:fcdd8c7423d0ad1f75f9a388bc5050df42ee0dec46b2d82fefbe06d22dc51480",
+  "updatedAt": "2026-09-10T00:26:42Z",
   "checks": [
-    {
-      "name": "computers-native-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers-runtime",
-        "--test",
-        "native_lifecycle",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:22:17Z",
-      "durationSeconds": 3.635521165,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-native-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:22:36Z",
-      "durationSeconds": 2.430517387,
-      "detail": "completed successfully"
-    },
     {
       "name": "computers-native-lifecycle",
       "command": [
@@ -58,8 +24,57 @@
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:22:24Z",
-      "durationSeconds": 13.238051457,
+      "finishedAt": "2026-09-10T00:25:50Z",
+      "durationSeconds": 19.685236229,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-runtime",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:25:51Z",
+      "durationSeconds": 27.26160272,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-runtime-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:25:38Z",
+      "durationSeconds": 8.151022539,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-runtime-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:26:42Z",
+      "durationSeconds": 2.42675154,
       "detail": "completed successfully"
     }
   ]
