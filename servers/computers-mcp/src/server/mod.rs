@@ -5,6 +5,7 @@ mod auth;
 mod cli;
 mod http_error;
 mod origins;
+mod pairing;
 mod provider;
 mod run;
 mod terminal;
@@ -58,12 +59,14 @@ pub fn router(
         .nest("/mcp", mcp)
         .nest(
             "/admin",
-            admin::router(app.clone()).merge(terminal::router(
-                app.clone(),
-                allowed_origins,
-                shutdown,
-                events,
-            )),
+            admin::router(app.clone())
+                .merge(pairing::router(app.clone(), allowed_origins.clone()))
+                .merge(terminal::router(
+                    app.clone(),
+                    allowed_origins,
+                    shutdown,
+                    events,
+                )),
         )
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(middleware::from_fn(auth::deadline))

@@ -165,21 +165,19 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     let computers_origin = url::Url::parse(deployment.base_url())?
         .origin()
         .ascii_serialization();
-    router = router.merge(
-        crate::computers::router(crate::computers::ComputersState {
-            catalog: catalog.clone(),
-            gateway_state: gateway_state.clone(),
-            issuer: internal_token_issuer.clone(),
-            upstream: upstream_http.clone(),
-            origin: axum::http::HeaderValue::from_str(&computers_origin)?,
-            slots: Arc::new(tokio::sync::Semaphore::new(128)),
-            stop: ct.child_token(),
-        })
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_mcp,
-        )),
-    );
+    let computers_state = crate::computers::ComputersState {
+        catalog: catalog.clone(),
+        gateway_state: gateway_state.clone(),
+        issuer: internal_token_issuer.clone(),
+        upstream: upstream_http.clone(),
+        origin: axum::http::HeaderValue::from_str(&computers_origin)?,
+        slots: Arc::new(tokio::sync::Semaphore::new(128)),
+        stop: ct.child_token(),
+    };
+    router = router.merge(crate::computers::cli_router(computers_state.clone()));
+    router = router.merge(crate::computers::router(computers_state).layer(
+        middleware::from_fn_with_state(auth_state.clone(), authenticate_mcp),
+    ));
 
     router = router.merge(recording_ingest_router(RecordingIngestGatewayState {
         catalog: catalog.clone(),

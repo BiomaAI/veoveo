@@ -9,6 +9,7 @@
 | Veoveo internal assertions | Computers audience, verified actor and retained source request context; initial expiry bounded by the source access token |
 | WebSocket, RFC 6455 | HTTP/1.1 through the shared terminal-v2 transport; deployment-owned TLS roots and optional client identity |
 | Veoveo terminal v2 | Same-origin one-use attach, binary bytes, resize, replay fence and service-issued renewable deadlines |
+| OpenShell CLI `0.0.116` adapter | Closed browser pairing projection and profile-bound internal binary tunnel; authority remains in the Computers ledger |
 
 The gateway exposes `/computers/{profile}` for list and Create, with exact Computer
 children for read, Start, Stop, terminal ticket and terminal upgrade. The selected
@@ -58,3 +59,18 @@ This is an unreleased route addition. The terminal contract's coordinated initia
 release requires matching service, gateway and BFF versions. Installed acceptance
 must include the real public chain, session-family revocation and the platform clock
 bound specified by the shared transport design.
+
+The CLI pairing POST and confirmation child use the same attachment actions,
+contributor requirement, browser-family requirement and exact Origin as terminal
+admission. The gateway validates the closed shared inputs and binds the returned
+Computer/pairing IDs before forwarding a no-store response. Only the worker consumes
+the challenge and issues its one-time credential.
+
+GET `/computers/{profile}/cli/{id}/_ws_tunnel` and its root counterpart
+`/computers/{profile}/cli/_ws_tunnel` accept the narrow internal CLI Bearer framing.
+They sit outside ordinary OAuth JWT decoding. The configured profile must contain
+Computers; its current manifest and trust select the sole upstream destination.
+The worker compares that route profile with the grant's persisted profile and owns
+current authorization. No assertion is synthesized from an expired browser token.
+This internal relay preserves service-issued Ready/Lease controls for the BFF, which
+removes them before the stock CLI sees bytes. The private provider SDK remains absent.

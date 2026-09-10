@@ -6,33 +6,6 @@ use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::{OpenObject, gateway_refresh_family_record_id};
 
-/// Typed internal input. HTTP projections must additionally enforce session/CSRF
-/// and show the exact code before invoking confirmation.
-pub struct CliPairingRequest {
-    pub name: String,
-    pub code: String,
-    pub callback_port: u16,
-}
-impl CliPairingRequest {
-    pub fn validate(&self) -> Result<()> {
-        let code = self.code.as_bytes();
-        if self.name.is_empty()
-            || self.name.len() > 64
-            || self.name.trim() != self.name
-            || self.name.chars().any(char::is_control)
-            || self.callback_port < 1024
-            || code.len() != 8
-            || code[3] != b'-'
-            || code
-                .iter()
-                .enumerate()
-                .any(|(i, c)| i != 3 && !b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789".contains(c))
-        {
-            return Err(ComputerError::InvalidInput);
-        }
-        Ok(())
-    }
-}
 pub struct CliPairing {
     pub pairing_id: Uuid,
     pub computer_id: Uuid,

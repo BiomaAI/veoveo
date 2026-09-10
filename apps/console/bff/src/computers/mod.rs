@@ -1,6 +1,8 @@
 //! Native Computers use the Console session and the gateway's current domain policy.
+mod cli;
 mod control;
 mod events;
+mod pairing;
 mod terminal;
 
 use crate::{AppState, outbound_http::OutboundTrust};
@@ -32,6 +34,9 @@ impl Transport {
 }
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
+        .route("/_ws_tunnel", get(cli::root))
+        .route("/console/computers/{id}/_ws_tunnel", get(cli::scoped))
+        .route("/console/computers/{id}/auth/connect", get(pairing::entry))
         .route(
             "/console/api/computers/events",
             post(events::events).layer(axum::extract::DefaultBodyLimit::max(1024)),
@@ -42,6 +47,14 @@ pub(crate) fn router() -> Router<AppState> {
         )
         .route("/console/api/computers/{id}", get(control::proxy))
         .route("/console/api/computers/{id}/access", get(control::proxy))
+        .route(
+            "/console/api/computers/{id}/cli-pairings",
+            post(control::proxy),
+        )
+        .route(
+            "/console/api/computers/{id}/cli-pairings/{pairing_id}/confirm",
+            post(control::proxy),
+        )
         .route(
             "/console/api/computers/{id}/access/{grant_id}/revoke",
             post(control::proxy),

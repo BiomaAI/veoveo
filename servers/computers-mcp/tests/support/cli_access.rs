@@ -1,5 +1,5 @@
 //! Actual stock CLI and native provider through two bounded relay hops. The
-//! fixture installs a domain-issued credential in the stock client's private file;
+//! fixture obtains a credential through actual worker HTTP pairing and confirmation;
 //! browser SSO confirmation and the installed public endpoint are separate checks.
 use crate::{browser_terminal::Server, cli_edges::Edges, signing::Signing, support};
 use chrono::{TimeDelta, Utc};
@@ -16,8 +16,8 @@ use tokio::{
     process::Command,
 };
 use uuid::Uuid;
-use veoveo_computers::{ComputerActor, ComputersStore, cli_grants::CliPairingRequest};
-use veoveo_computers_runtime::{Binding, DevelopmentTemplate, OpenShellRuntime};
+use veoveo_computers::{ComputerActor, ComputersStore, api::CliPairingInput};
+use veoveo_computers_runtime::{DevelopmentTemplate, OpenShellRuntime};
 
 struct Cli {
     child: tokio::process::Child,
@@ -134,23 +134,68 @@ async fn run(
         .unwrap()
         .access_token
         .expires_at = identity.expires_at;
-    let actor = ComputerActor::from_verified(&identity).unwrap();
-    let challenge = store
-        .begin_cli_pairing(
-            &actor,
-            computer,
-            &CliPairingRequest {
-                name: "Native CLI fixture".into(),
-                code: "ABC-2345".into(),
-                callback_port: 49152,
-            },
-        )
+    let auth = crate::browser_terminal::bearer(&signing, &identity);
+    let http = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let pairing_url = format!("{}/computers/{computer}/cli-pairings", a.base);
+    let input = CliPairingInput {
+        name: "Native CLI fixture".into(),
+        code: "ABC-2345".into(),
+        callback_port: 49152,
+    };
+    for origin in [None, Some("null"), Some("https://foreign.invalid")] {
+        let mut request = http.post(&pairing_url).bearer_auth(&auth).json(&input);
+        if let Some(origin) = origin {
+            request = request.header("origin", origin);
+        }
+        assert_eq!(
+            request.send().await.unwrap().status(),
+            reqwest::StatusCode::FORBIDDEN
+        );
+    }
+    let response = http
+        .post(&pairing_url)
+        .bearer_auth(&auth)
+        .header("origin", &a.origin)
+        .json(&input)
+        .send()
         .await
         .unwrap();
-    let grant = other
-        .confirm_cli_pairing(&actor, computer, challenge.pairing_id)
+    assert_eq!(response.status(), reqwest::StatusCode::CREATED);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let challenge: veoveo_computers::api::CliPairingChallenge = response.json().await.unwrap();
+    assert_eq!(challenge.computer_id, computer);
+    let confirmation_url = format!(
+        "{}/computers/{computer}/cli-pairings/{}/confirm",
+        b.base, challenge.pairing_id
+    );
+    let response = http
+        .post(&confirmation_url)
+        .bearer_auth(&auth)
+        .header("origin", &b.origin)
+        .json(&veoveo_computers::api::CliPairingConfirmBody::default())
+        .send()
         .await
         .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::CREATED);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let grant: veoveo_computers::api::CliPairingResult = response.json().await.unwrap();
+    assert_eq!(grant.pairing_id, challenge.pairing_id);
+    assert_eq!(grant.computer_id, computer);
+    assert_eq!(
+        http.post(&confirmation_url)
+            .bearer_auth(&auth)
+            .header("origin", &b.origin)
+            .json(&veoveo_computers::api::CliPairingConfirmBody::default())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::FORBIDDEN
+    );
     let gateway = directory.join("config/openshell/gateways/cli-native");
     fs::create_dir_all(&gateway).unwrap();
     fs::set_permissions(&gateway, fs::Permissions::from_mode(0o700)).unwrap();
@@ -164,10 +209,9 @@ async fn run(
     );
     write_private(
         &gateway.join("edge_token"),
-        grant.credential.expose_secret().as_bytes(),
+        grant.token.expose_secret().as_bytes(),
     );
-    drop(grant.credential);
-    let binding = Binding::new(computer, template.fingerprint()).unwrap();
+    drop(grant.token);
     let stderr = fs::File::create(directory.join("stock-cli.log")).unwrap();
     let mut child = command(&binary, &directory)
         .args([
@@ -175,7 +219,7 @@ async fn run(
             "cli-native",
             "sandbox",
             "connect",
-            &binding.name(),
+            &computer.to_string(),
         ])
         .process_group(0)
         .stdin(Stdio::piped())
@@ -214,7 +258,7 @@ async fn run(
     let fresh =
         ComputerActor::from_verified(&support::browser::identity(db, "alice").await).unwrap();
     other
-        .revoke_cli_grant(&fresh, computer, grant.grant_id)
+        .revoke_access(&fresh, computer, grant.grant_id)
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_secs(5), async {
@@ -250,7 +294,7 @@ async fn run(
         store.get(fresh.owner(), computer).await.unwrap().phase,
         veoveo_computers::api::ComputerPhase::Ready
     );
-    write_private(&directory.join("result.txt"), b"stock CLI 0.0.116 retains shell through source-token and initial-lease expiry across two service replicas and two relay hops; owner revocation closes all relay hops within five seconds without stopping Computer; idle stock ProxyCommand may need local input to finish shutdown; public SSO and ingress remain unqualified\n");
+    write_private(&directory.join("result.txt"), b"HTTP pairing and one-use confirmation across replicas; stock CLI 0.0.116 retains shell through source-token and initial-lease expiry across two service replicas and two relay hops; owner revocation closes all relay hops within five seconds without stopping Computer; idle stock ProxyCommand may need local input to finish shutdown; public SSO and ingress remain unqualified\n");
     println!("Native CLI diagnostics: {}", directory.display());
     support::policy::install_default(&db.a).await;
 }

@@ -73,3 +73,10 @@ Local tests exercise two real WebSocket relay hops, early HTTP/2 input, byte pre
 across renewal, control stripping, forged input, invalid service order and expiry with
 either direction blocked. They use synthetic authority and do not establish pairing,
 provider method restrictions, actual stock-client behavior or public ingress acceptance.
+`cli_headers.rs` owns the stock adapter's credential framing. It requires one
+`Cf-Access-Token`; the stock assertion header and `CF_Authorization` cookie, when
+present, must carry the same opaque token. No ordinary Authorization header or
+other cookie is admitted at that edge. Internal hops accept only one sensitive
+Bearer header and reject stock headers and cookies. All CLI hops reject Origin,
+query parameters, subprotocols and extensions. These checks validate framing;
+only the Computers ledger authenticates the credential and grants authority.

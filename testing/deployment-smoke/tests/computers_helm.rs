@@ -36,7 +36,7 @@ fn object<'a>(objects: &'a [Value], kind: &str, name: &str) -> Result<&'a Value>
     objects
         .iter()
         .find(|o| o["kind"] == kind && o["metadata"]["name"] == name)
-        .context("expected rendered Computers object")
+        .with_context(|| format!("expected rendered {kind} {name}"))
 }
 
 #[test]
@@ -70,6 +70,20 @@ fn core_presets_render_stable_unconfigured_control_without_privileged_capacity()
                 .all(|v| v.get("hostPath").is_none())
         );
         let config = object(&first, "ConfigMap", "computers-configuration")?;
+        if preset == "full" {
+            let ingress = object(&first, "Ingress", "computers-test-veoveo")?;
+            let paths = ingress["spec"]["rules"][0]["http"]["paths"]
+                .as_array()
+                .context("ingress paths")?;
+            let root_cli = paths
+                .iter()
+                .find(|path| path["path"] == "/_ws_tunnel")
+                .context("stock root CLI tunnel")?;
+            ensure!(root_cli["pathType"] == "Exact");
+            ensure!(root_cli["backend"]["service"]["name"] == "console-bff");
+        } else {
+            ensure!(object(&first, "Ingress", "computers-test-veoveo").is_err());
+        }
         ensure!(config == object(&second, "ConfigMap", "computers-configuration")?);
         let config: Value =
             serde_json::from_str(config["data"]["computers.json"].as_str().unwrap())?;

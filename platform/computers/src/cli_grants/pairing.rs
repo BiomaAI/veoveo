@@ -1,4 +1,4 @@
-use super::{CliPairing, CliPairingRequest, PairedCliGrant, model, secret};
+use super::{CliPairing, PairedCliGrant, model, secret};
 use crate::{
     ComputerActor, ComputerError, ComputersStore, Result,
     identity::owner_key,
@@ -14,10 +14,12 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer_id: Uuid,
-        request: &CliPairingRequest,
+        request: &crate::api::CliPairingInput,
     ) -> Result<CliPairing> {
         tokio::time::timeout(Duration::from_secs(5), async {
-            request.validate()?;
+            if !request.is_valid() {
+                return Err(ComputerError::InvalidInput);
+            }
             let control = self.control_authority(actor).await?;
             control.require_attach(computer_id)?;
             let computer = self.get(actor.owner(), computer_id).await?;

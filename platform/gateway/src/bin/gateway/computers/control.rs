@@ -41,6 +41,7 @@ pub(super) async fn proxy(
         route.id,
         route.operation_id,
         route.grant_id,
+        route.pairing_id,
     )?;
     if (operation != Operation::List && request.uri().query().is_some())
         || page.after.is_some_and(|id| id.is_nil())
@@ -81,6 +82,15 @@ async fn forward(
         Operation::Stop(_) => normalize::<api::StopInput>(&bytes),
         Operation::Ticket(_) => normalize::<api::TerminalTicketInput>(&bytes),
         Operation::RevokeAccess { .. } => normalize::<api::RevokeAccessBody>(&bytes),
+        Operation::Pairing(_) => {
+            let input: api::CliPairingInput =
+                serde_json::from_slice(&bytes).map_err(|_| Fault::invalid())?;
+            if !input.is_valid() {
+                return Err(Fault::invalid());
+            }
+            serde_json::to_vec(&input).map_err(|_| ())
+        }
+        Operation::ConfirmPairing { .. } => normalize::<api::CliPairingConfirmBody>(&bytes),
         Operation::List | Operation::Read(_) | Operation::Receipt { .. } | Operation::Access(_)
             if bytes.is_empty() =>
         {
@@ -140,6 +150,12 @@ async fn forward(
             Operation::Ticket(id) if status == StatusCode::CREATED => {
                 rewrite_ticket(&bytes, id, route.profile.as_str())
             }
+            Operation::Pairing(computer) if status == StatusCode::CREATED => {
+                pairing_challenge(&bytes, computer)
+            }
+            Operation::ConfirmPairing { computer, pairing } if status == StatusCode::CREATED => {
+                pairing_result(&bytes, computer, pairing)
+            }
             Operation::Create | Operation::Start(_) | Operation::Stop(_)
                 if matches!(status, StatusCode::OK | StatusCode::ACCEPTED) =>
             {
@@ -160,6 +176,26 @@ async fn forward(
         body,
     )
         .into_response())
+}
+
+fn pairing_challenge(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
+    let value: api::CliPairingChallenge = serde_json::from_slice(bytes).map_err(|_| ())?;
+    if value.computer_id != computer || value.pairing_id.is_nil() {
+        return Err(());
+    }
+    serde_json::to_vec(&value).map_err(|_| ())
+}
+fn pairing_result(bytes: &[u8], computer: Uuid, pairing: Uuid) -> Result<Vec<u8>, ()> {
+    let value: api::CliPairingResult = serde_json::from_slice(bytes).map_err(|_| ())?;
+    if value.computer_id != computer
+        || value.pairing_id != pairing
+        || value.grant_id.is_nil()
+        || value.callback_port < 1024
+        || value.token.expose_secret().len() != 107
+    {
+        return Err(());
+    }
+    serde_json::to_vec(&value).map_err(|_| ())
 }
 
 fn read_receipt(bytes: &[u8], computer: Uuid, operation: Uuid) -> Result<Vec<u8>, ()> {

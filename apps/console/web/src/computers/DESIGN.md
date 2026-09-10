@@ -8,6 +8,7 @@
 | HTTP, RFC 9110 | Same-origin cookie requests, CSRF mutations, bounded JSON, fixed BFF destinations |
 | Server-sent events | CSRF-protected POST subscription; canonical snapshot reread after each collection invalidation |
 | WebSocket, RFC 6455 | Same-origin terminal, one-use first-frame ticket, no URL credentials |
+| OpenShell CLI `0.0.116` pairing adapter | Explicit code comparison and bounded CORS JSON delivery to the validated IPv4 loopback port; custom profile |
 | Veoveo terminal v2 | Ready, binary output/input, bounded resize, ReplayComplete and increasing service lease sequence |
 | xterm.js | `@xterm/xterm` 6.0.0, fit 0.11.0, WebGL 0.19.0; versions verified at the authoritative npm registry on 2026-09-10 |
 | WebGL 2 | Required hardware-backed xterm renderer; software adapters and lost graphics contexts fail closed |
@@ -41,12 +42,23 @@ are retained. Storage failure prevents a fresh mutation; clearing ambiguous reco
 state requires explicit review. Late reads cannot restore dismissed receipts or cross
 controller scopes.
 
-`AccessPanel.tsx` shows outstanding browser grants for the selected Computer. The
+`AccessPanel.tsx` shows outstanding browser and named CLI grants for the selected Computer. The
 existing scope-owned query client isolates results across actors and Work Contexts.
 Collection invalidations refresh the inventory; there is no periodic status query.
 The UI labels sign-in ownership and configured expiry without asserting transport
 liveness. Revoke sends the exact grant ID and keeps the Computer running. A lost
 response can safely retry the same reduction. The panel never receives a grant token.
+
+`CliConnect.tsx` presents uncredentialed registration and shell commands using the
+public Computer UUID. The dedicated `CliPairingPage.tsx` uses existing SSO, current
+Computer action flags, a named grant and explicit confirmation that the displayed
+code matches the initiating terminal. A single confirmed gesture creates and consumes
+the one-use challenge through `pairing.ts`. The credential stays in function-local
+memory while a bounded CORS POST delivers it to the exact validated IPv4 loopback
+callback. It enters no query cache, browser storage, copied command or diagnostic.
+Failed delivery revokes a known grant; lost confirmation or revocation responses
+direct the user to review Computer access. No delivery retry can replay a consumed
+challenge. Closing the page after success does not log out or stop the Computer.
 
 The terminal module is a separate lazy production chunk. Explicit Connect requests a
 fresh one-use ticket and sends it in the first WebSocket frame. Navigation unmounts

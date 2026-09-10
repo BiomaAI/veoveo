@@ -10,6 +10,7 @@ use veoveo_computers_runtime::{
 #[derive(Clone)]
 pub(super) struct Restricted {
     pub access: OpenShellAccess,
+    pub computer: uuid::Uuid,
     pub activity: Arc<Activity>,
 }
 type Output = Pin<Box<dyn futures::Stream<Item = Result<api::TcpForwardFrame, Status>> + Send>>;
@@ -37,11 +38,22 @@ impl OpenShell for Restricted {
         request: Request<api::GetSandboxRequest>,
     ) -> Result<Response<api::SandboxResponse>, Status> {
         let request = request.into_inner();
-        self.access
-            .get_sandbox(&request.name, &request.workspace)
+        if request.name != self.computer.to_string() || request.workspace != "default" {
+            return Err(Status::permission_denied("Computer target denied"));
+        }
+        let mut response = self
+            .access
+            .get_sandbox(&self.access.sandbox_name(), self.access.workspace())
             .await
-            .map(Response::new)
-            .map_err(error)
+            .map_err(error)?;
+        let metadata = response
+            .sandbox
+            .as_mut()
+            .and_then(|s| s.metadata.as_mut())
+            .ok_or_else(|| Status::unavailable("Computer connection interrupted"))?;
+        metadata.name = self.computer.to_string();
+        metadata.workspace = "default".into();
+        Ok(Response::new(response))
     }
     async fn create_ssh_session(
         &self,

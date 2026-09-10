@@ -108,9 +108,9 @@ impl Edges {
                     };
                     let path = if mode == CliRelayMode::Internal {
                         if is_root {
-                            "/cli/_ws_tunnel".to_owned()
+                            "/cli/operator/_ws_tunnel".to_owned()
                         } else {
-                            format!("/cli/{computer}/_ws_tunnel")
+                            format!("/cli/operator/{computer}/_ws_tunnel")
                         }
                     } else {
                         suffix

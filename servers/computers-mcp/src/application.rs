@@ -162,7 +162,7 @@ impl Application {
         input: RevokeAccessInput,
     ) -> Result<AccessRevocation> {
         self.store
-            .revoke_browser_grant(actor, input.computer_id, input.grant_id)
+            .revoke_access(actor, input.computer_id, input.grant_id)
             .await?;
         Ok(AccessRevocation {
             computer_id: input.computer_id,

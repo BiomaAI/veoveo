@@ -55,7 +55,7 @@ pub(super) fn upstream(capture: Arc<Mutex<Vec<Observed>>>) -> Router {
     )
 }
 
-async fn listen(fixture: &mut Fixture) -> String {
+pub(super) async fn listen(fixture: &mut Fixture) -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("ws://{}", listener.local_addr().unwrap());
     let router = fixture.router.clone();

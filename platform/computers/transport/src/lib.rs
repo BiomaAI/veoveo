@@ -1,9 +1,11 @@
 //! Bounded Computer terminal transport shared by the gateway and Console BFF.
 mod cli;
+mod cli_headers;
 mod deadline;
 mod relay;
 mod upstream;
 pub use cli::{CliRelayMode, relay_cli};
+pub use cli_headers::{CliCredentialFraming, cli_authorization};
 pub use relay::relay;
 pub use upstream::{CliUpstreamRequest, Client, Upstream, UpstreamRequest};
 

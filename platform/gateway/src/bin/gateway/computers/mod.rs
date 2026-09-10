@@ -1,5 +1,6 @@
 //! Core Computer HTTP admission; the hosted domain owns lifecycle and renewal.
 mod authority;
+mod cli;
 mod control;
 mod routes;
 mod terminal;
@@ -37,6 +38,14 @@ pub(crate) fn router(state: ComputersState) -> Router {
         .route("/computers/{profile}/{id}", get(control::proxy))
         .route("/computers/{profile}/{id}/access", get(control::proxy))
         .route(
+            "/computers/{profile}/{id}/cli-pairings",
+            post(control::proxy),
+        )
+        .route(
+            "/computers/{profile}/{id}/cli-pairings/{pairing_id}/confirm",
+            post(control::proxy),
+        )
+        .route(
             "/computers/{profile}/{id}/access/{grant_id}/revoke",
             post(control::proxy),
         )
@@ -52,6 +61,9 @@ pub(crate) fn router(state: ComputersState) -> Router {
         )
         .route("/computers/{profile}/{id}/terminal", get(terminal::upgrade))
         .with_state(state)
+}
+pub(crate) fn cli_router(state: ComputersState) -> Router {
+    cli::router(state)
 }
 
 #[derive(Debug)]

@@ -214,8 +214,8 @@ build/deploy audit.
 
 ## Stock CLI Access
 
-GET `/computers/cli/{id}/_ws_tunnel` binds an exact Computer. GET
-`/computers/cli/_ws_tunnel` resolves the parent from the authenticated retained grant
+GET `/computers/cli/{profile}/{id}/_ws_tunnel` binds an exact Computer and retained
+profile. GET `/computers/cli/{profile}/_ws_tunnel` resolves the parent from the authenticated retained grant
 because the stock SSH ProxyCommand reconnects through the root tunnel route. Both
 require exactly one opaque CLI credential in the Authorization Bearer header. Query
 parameters, Origin, Cookie, WebSocket subprotocols and extensions are rejected.
@@ -241,12 +241,25 @@ and SSH-only ForwardTcp. All other methods return Unimplemented. Provider token
 revocation cannot be exposed without proving the token belongs to this Computer;
 the admitted stock sandbox-connect workflow does not require that RPC. Provider
 administration, general TCP forwarding and cross-Computer targets remain denied.
+GetSandbox accepts the public Computer UUID in the stock `default` workspace and
+maps it to the admitted private provider binding. Its returned name stays the public
+UUID. A copied command never needs the provider's hashed resource name.
 
 Only incoming SSH data marks CLI activity. HTTP/2 and WebSocket keepalives, output
 and lease controls cannot extend idle time. Encrypted SSH data can itself contain
 SSH keepalives, so this profile measures channel activity rather than human
 keystroke inactivity. The independent absolute and browser-family deadlines still
-apply. Public SSO pairing and installed CLI qualification remain delivery work.
+apply. Installed public CLI qualification remains delivery work.
+
+POST `/admin/computers/{id}/cli-pairings` requires the admitted browser Origin and
+current attach authority, then creates a two-minute one-use challenge. POST
+`/admin/computers/{id}/cli-pairings/{pairing_id}/confirm` takes a closed empty body.
+It repeats Origin and authority admission before consuming the retained challenge.
+Both routes return HTTP 201 and `no-store`; only confirmation returns the opaque
+credential and its persisted callback port. Replay cannot recover a lost credential.
+The BFF supplies CSRF enforcement and the browser's explicit code-confirmation UI.
+The native fixture exercises these HTTP routes across two replicas before running
+the real CLI. It does not establish installed SSO or public ingress.
 
 ## Resource And Task Subscriptions
 

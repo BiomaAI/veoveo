@@ -4,6 +4,70 @@ use routes::Operation;
 use veoveo_mcp_contract::{GatewayAction, PolicyTarget};
 
 #[test]
+fn pairing_requires_attachment_authority_and_exact_confirmation_identity() {
+    let computer = uuid::Uuid::new_v4();
+    let pairing = uuid::Uuid::new_v4();
+    let path = "/computers/{profile}/{id}/cli-pairings/{pairing_id}/confirm";
+    let confirmed = Operation::from_route(
+        path,
+        &Method::POST,
+        Some(computer),
+        None,
+        None,
+        Some(pairing),
+    )
+    .unwrap();
+    assert_eq!(
+        confirmed.service_path(),
+        format!("computers/{computer}/cli-pairings/{pairing}/confirm")
+    );
+    for operation in [confirmed, Operation::Pairing(computer)] {
+        assert!(
+            operation.is_attachment()
+                && operation.requires_json()
+                && operation.requires_contributor()
+        );
+        assert_eq!(
+            operation.authorization(),
+            Operation::Terminal(computer).authorization()
+        );
+    }
+    assert!(
+        Operation::from_route(
+            path,
+            &Method::GET,
+            Some(computer),
+            None,
+            None,
+            Some(pairing)
+        )
+        .is_err()
+    );
+    assert!(
+        Operation::from_route(
+            path,
+            &Method::POST,
+            Some(computer),
+            None,
+            Some(pairing),
+            Some(pairing)
+        )
+        .is_err()
+    );
+    assert!(
+        Operation::from_route(
+            path,
+            &Method::POST,
+            Some(computer),
+            None,
+            None,
+            Some(uuid::Uuid::nil())
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn origin_requires_one_exact_value() {
     let expected = HeaderValue::from_static("https://veoveo.example");
     let mut headers = HeaderMap::new();
@@ -65,6 +129,7 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             Some(uuid::Uuid::new_v4()),
             None,
             None,
+            None
         )
         .is_err()
     );
@@ -75,6 +140,7 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             Some(uuid::Uuid::nil()),
             None,
             None,
+            None
         )
         .is_err()
     );
@@ -85,6 +151,7 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             Some(uuid::Uuid::new_v4()),
             None,
             None,
+            None
         )
         .is_err()
     );
@@ -101,8 +168,15 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
     let computer = uuid::Uuid::new_v4();
     let receipt = uuid::Uuid::new_v4();
     let path = "/computers/{profile}/{id}/operations/{operation_id}";
-    let operation =
-        Operation::from_route(path, &Method::GET, Some(computer), Some(receipt), None).unwrap();
+    let operation = Operation::from_route(
+        path,
+        &Method::GET,
+        Some(computer),
+        Some(receipt),
+        None,
+        None,
+    )
+    .unwrap();
     assert_eq!(
         operation.service_path(),
         format!("computers/{computer}/operations/{receipt}")
@@ -118,7 +192,15 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
         veoveo_computers_contract::computer_uri(computer)
     );
     assert!(
-        Operation::from_route(path, &Method::POST, Some(computer), Some(receipt), None).is_err()
+        Operation::from_route(
+            path,
+            &Method::POST,
+            Some(computer),
+            Some(receipt),
+            None,
+            None
+        )
+        .is_err()
     );
     assert!(
         Operation::from_route(
@@ -126,6 +208,7 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
             &Method::GET,
             Some(computer),
             Some(uuid::Uuid::nil()),
+            None,
             None
         )
         .is_err()
@@ -138,7 +221,8 @@ fn self_revocation_is_a_json_mutation_bound_to_the_parents_read_authority() {
     let grant = uuid::Uuid::new_v4();
     let path = "/computers/{profile}/{id}/access/{grant_id}/revoke";
     let operation =
-        Operation::from_route(path, &Method::POST, Some(computer), None, Some(grant)).unwrap();
+        Operation::from_route(path, &Method::POST, Some(computer), None, Some(grant), None)
+            .unwrap();
     assert!(operation.requires_json());
     assert!(!operation.requires_contributor());
     assert_eq!(
@@ -154,14 +238,17 @@ fn self_revocation_is_a_json_mutation_bound_to_the_parents_read_authority() {
         uri.as_str(),
         veoveo_computers_contract::computer_uri(computer)
     );
-    assert!(Operation::from_route(path, &Method::GET, Some(computer), None, Some(grant)).is_err());
+    assert!(
+        Operation::from_route(path, &Method::GET, Some(computer), None, Some(grant), None).is_err()
+    );
     assert!(
         Operation::from_route(
             path,
             &Method::POST,
             Some(computer),
             Some(grant),
-            Some(grant)
+            Some(grant),
+            None
         )
         .is_err()
     );
@@ -171,7 +258,8 @@ fn self_revocation_is_a_json_mutation_bound_to_the_parents_read_authority() {
             &Method::POST,
             Some(computer),
             None,
-            Some(uuid::Uuid::nil())
+            Some(uuid::Uuid::nil()),
+            None
         )
         .is_err()
     );
