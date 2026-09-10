@@ -8,6 +8,7 @@ use std::{
 };
 use uuid::Uuid;
 use veoveo_computers_runtime::{GatewayConfig, OpenShellRuntime};
+mod guest_authority;
 
 pub struct ComputeHost {
     pub socket: PathBuf,
@@ -63,7 +64,12 @@ impl Drop for Cleanup {
             .output();
         // Preserve non-secret diagnostics at the requested fixture output location.
         // Keys are always removed, including when startup or an assertion fails.
-        for name in ["client-key.pem", "server-key.pem", "jwt-key.pem"] {
+        for name in [
+            "client-key.pem",
+            "guest-key.pem",
+            "server-key.pem",
+            "jwt-key.pem",
+        ] {
             let _ = fs::remove_file(self.dir.join(name));
         }
         for name in ["gateway.sqlite", "gateway.sqlite-wal", "gateway.sqlite-shm"] {
@@ -142,6 +148,9 @@ bind_address = "127.0.0.1:{port}"
 compute_drivers = ["docker"]
 log_level = "warn"
 ssh_session_ttl_secs = {ssh_session_ttl_secs}
+[openshell.gateway.mtls_auth]
+enabled = true
+user_common_names = ["veoveo-computers-worker"]
 [openshell.gateway.gateway_jwt]
 signing_key_path = {jwt_key}
 public_key_path = {jwt_public}
@@ -167,8 +176,8 @@ enable_bind_mounts = false
             socket = quoted(&socket),
             supervisor = quoted(&supervisor),
             ca = quoted(&dir.join("ca.pem")),
-            cert = quoted(&dir.join("client.pem")),
-            key = quoted(&dir.join("client-key.pem")),
+            cert = quoted(&dir.join("guest.pem")),
+            key = quoted(&dir.join("guest-key.pem")),
             jwt_key = quoted(&dir.join("jwt-key.pem")),
             jwt_public = quoted(&dir.join("jwt-public.pem")),
             jwt_kid = quoted(&dir.join("jwt-kid")),
@@ -235,6 +244,7 @@ enable_bind_mounts = false
             )
         });
         eprintln!("Native provider diagnostics: {}", dir.display());
+        guest_authority::assert_denied(&dir, &endpoint).await;
         let provider = Self {
             dir,
             runtime,
@@ -292,9 +302,19 @@ fn certificates(dir: &std::path::Path) {
             ExtendedKeyUsagePurpose::ServerAuth,
         ),
         ("client", vec![], ExtendedKeyUsagePurpose::ClientAuth),
+        ("guest", vec![], ExtendedKeyUsagePurpose::ClientAuth),
     ] {
         let mut params = CertificateParams::new(names).unwrap();
         params.extended_key_usages = vec![usage];
+        params.distinguished_name = rcgen::DistinguishedName::new();
+        params.distinguished_name.push(
+            rcgen::DnType::CommonName,
+            match name {
+                "client" => "veoveo-computers-worker",
+                "guest" => "veoveo-computer-supervisor",
+                _ => "veoveo-computers-provider",
+            },
+        );
         let key = KeyPair::generate().unwrap();
         fs::write(
             dir.join(format!("{name}.pem")),

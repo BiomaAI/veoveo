@@ -7,7 +7,7 @@ The inspected profile uses stock CLI **0.0.116**, based on public OpenShell
 with separately qualified gateway and supervisor repairs. These are downstream
 patches, not an NVIDIA release or a claim that upstream has accepted them.
 
-The native client currently requires gateway `0.0.117-veoveo.1` and the
+The native client currently requires gateway `0.0.117-veoveo.2` and the
 Docker driver. The retained terminal requires the matching metadata-capable
 supervisor `0.0.117-dev.5+gea0c605`. Stock CLI version and patched provider
 versions are deliberately different components of one recorded profile.
@@ -21,14 +21,15 @@ OpenShell v0.0.116 / d1155aa7
   3. owned terminals / path policy      -> 92d36947
        |-- 4. stale exit-event recheck   -> f03c0f7d
        |     5. bounded logs            -> 32efe0b3
-       |     7. retained volume NoCopy  -> 9ccd1611  [gateway tree]
+       |     7. retained volume NoCopy  -> 9ccd1611
+       |     8. mTLS user admission     -> b9d0916b  [gateway tree]
        `-- 6. explicit replay boundary  -> ea0c605b  [supervisor]
 ```
 
 The replay patch branches from the common third patch. It is not applied after
-the two gateway patches to reproduce the recorded supervisor tree. The seventh
-repair is Veoveo-authored and extends only the gateway branch. Its manifest entry
-binds the exact base and resulting trees without claiming an upstream commit.
+the gateway patches to reproduce the recorded supervisor tree. The seventh and
+eighth repairs are Veoveo-authored and extend only the gateway branch. Their manifest
+entries bind exact base and resulting trees without claiming upstream commits.
 Source qualification and native artifact evidence remain separate.
 
 | Repair | Required behavior |
@@ -40,6 +41,7 @@ Source qualification and native artifact evidence remain separate.
 | Log bounds | Bound Docker rotation and supervisor log tmpfs without consuming retained-home capacity indefinitely |
 | Replay boundary | Preserve raw bytes and deliver generated per-attachment ReplayComplete metadata before enabling terminal input |
 | Retained volume NoCopy | Pass typed `no_copy` to Docker's volume options with or without a subpath; retained Computer templates require it to prevent initialization before container registration |
+| mTLS user admission | Only explicitly admitted certificate common names become provider users; guest transport certificates still require their scoped sandbox JWT |
 
 ## Provenance and review
 
@@ -57,6 +59,23 @@ Cargo.toml and local-package Cargo.lock versions; this prevents an enclosing Veo
 Git revision from becoming the provider version. Keep the supervisor export separate.
 The new retained-home fingerprint includes `no_copy: true`. This unreleased profile
 rejects the older gateway version; it does not silently run without the mount option.
+
+The eighth patch extends that gateway tree. The earlier native fixture reused its
+worker certificate as the guest supervisor transport certificate. The provider's
+authentication-only mTLS mode mapped every accepted client certificate to a user
+principal. That credential placement is outside the selected installed trust profile.
+`[openshell.gateway.mtls_auth]` now includes `user_common_names`, an exact allowlist
+with no wildcard or default user identity. An empty or malformed list admits no user.
+Missing or ambiguous certificate common names cannot become user identities.
+
+The supported host admits only `veoveo-computers-worker`. Supervisors receive distinct
+`veoveo-computer-supervisor` certificates, with private keys owned by root. Their TLS
+trust establishes transport; their sandbox JWT supplies scoped provider authority.
+The native fixture checks that the guest certificate reaches TLS but cannot invoke
+ListSandboxes without a JWT before it creates a Computer. Worker admission and actual
+supervisor execution then prove the positive paths. The stock CLI version and
+supervisor source tree are unchanged. Provider configuration must deploy with the new
+gateway image; earlier native artifact evidence remains a historical checkpoint.
 
 The package verifier applies each patch to a temporary Git index in the graph
 above and compares each resulting tree to its recorded expected tree. It does
@@ -91,6 +110,10 @@ have no parent Git checkout; explicit workspace and lockfile versions retain the
 qualified component identities. Cargo builds with `--locked` using the profile's
 Rust 1.95.0 toolchain, independently of Veoveo's compiler.
 
+The compiler runs the provider's focused mTLS admission tests before building the
+gateway. Full native execution and installed trust qualification remain separate from
+these configuration predicates.
+
 The compiler uses the official Rust bookworm image pinned in `Dockerfile`. The
 runtime uses Debian bookworm-slim index
 `sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171`.
@@ -103,6 +126,12 @@ The image retains package inventory, binary SHA-256 identities, the source manif
 patches and the upstream Apache-2.0 license. Source inputs alone enter compilation;
 documentation changes reuse compiled layers. A dedicated provider Cargo cache keeps
 this dependency graph outside ordinary Console and Veoveo service builds.
+
+Gateway and supervisor compilation are independent stages. Each copies only its own
+verified exported source tree from the source stage, while both reuse the compiler
+and dependency caches. A gateway-only repair therefore has no supervisor source input
+to invalidate. This replaces the former sequential compiler stage that rebuilt the
+unchanged supervisor after every gateway repair.
 
 The initial source build and executable version checks pass. Containerized provider
 execution and the installed capacity topology still require qualification against

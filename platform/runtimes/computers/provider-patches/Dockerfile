@@ -21,6 +21,8 @@ RUN apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends ca-certificates git jq build-essential pkg-config libz3-dev \
     && rm -rf /var/lib/apt/lists/*
 ENV RUSTUP_TOOLCHAIN=1.95.0 CARGO_TARGET_DIR=/provider-target
+
+FROM compiler AS source
 WORKDIR /source
 # Fetch once by immutable object identity; no branch or tag resolves during builds.
 RUN git init --quiet \
@@ -44,16 +46,24 @@ for branch in gateway supervisor; do
     sed -i "s/^version = \"0.0.0\"$/version = \"$version\"/" "/$branch/Cargo.toml" "/$branch/Cargo.lock"
 done
 EOF
+
+FROM compiler AS gateway-build
+COPY --from=source /gateway /gateway
 WORKDIR /gateway
 RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=veoveo-openshell-rust195-bookworm-target,target=/provider-target,sharing=locked \
-    cargo build --locked --release -p openshell-server -p openshell-driver-docker \
+    cargo test --locked --release -p openshell-core --test mtls_user_admission \
+    && cargo build --locked --release -p openshell-server -p openshell-driver-docker \
     && mkdir /binaries \
     && cp /provider-target/release/openshell-gateway /provider-target/release/openshell-driver-docker /binaries/
+
+FROM compiler AS supervisor-build
+COPY --from=source /supervisor /supervisor
 WORKDIR /supervisor
 RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=veoveo-openshell-rust195-bookworm-target,target=/provider-target,sharing=locked \
     cargo build --locked --release -p openshell-sandbox \
+    && mkdir /binaries \
     && cp /provider-target/release/openshell-sandbox /binaries/
 
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
@@ -62,8 +72,9 @@ RUN apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends ca-certificates libz3-4 libstdc++6 \
     && dpkg-query -W > /usr/share/veoveo-computer-provider-packages.txt \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=compiler /binaries/ /usr/local/bin/
-COPY --from=compiler /gateway/LICENSE /usr/share/doc/veoveo-computer-provider/LICENSE
+COPY --from=gateway-build /binaries/ /usr/local/bin/
+COPY --from=supervisor-build /binaries/ /usr/local/bin/
+COPY --from=source /gateway/LICENSE /usr/share/doc/veoveo-computer-provider/LICENSE
 COPY platform/runtimes/computers/provider-patches /usr/share/veoveo-computer-provider/source
 RUN cd /usr/local/bin && sha256sum openshell-gateway openshell-driver-docker openshell-sandbox > /usr/share/veoveo-computer-provider/binaries.sha256
 ENTRYPOINT ["/usr/local/bin/openshell-gateway"]

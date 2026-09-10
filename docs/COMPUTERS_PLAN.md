@@ -588,3 +588,12 @@ An unchanged four-image build takes 5.134 seconds on this host. Private compute-
 startup, full installed provider/storage qualification, gateway registration, immutable
 publication and Bioma activation remain the next delivery gates. These images and
 render checks do not establish a working public Computer.
+
+Before compute-host installation, provider adoption uncovered the native fixture's
+shared worker/guest certificate. Gateway `0.0.117-veoveo.2` now admits only explicitly
+named mTLS user certificates. Native fixtures give the supervisor its own transport
+certificate, require its scoped sandbox JWT, and prove that the guest cannot call
+ListSandboxes as a user. The OCI-built provider binaries pass the retained two-worker
+lifecycle and renewed terminal fixture with this separation. Provider and supervisor
+compilation now have separate source inputs. The installed compute-host topology and
+public browser/CLI/agent journeys remain delivery work.
