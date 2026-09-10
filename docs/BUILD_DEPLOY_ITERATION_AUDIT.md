@@ -3023,3 +3023,22 @@ and 43.691 seconds for the service. Their Cargo compile phases took 15.77, 13.53
 compiled the shared store again under their different feature selections. Warm lint
 took 2.93 seconds. These measurements cover the additive ledger and its browser quota
 interaction; they do not establish public stock CLI performance or deployment.
+
+The stock CLI worker checkpoint records 49 regular domain/service cases and one
+native retained-lifecycle fixture. The combined regular command took 165.088 seconds;
+76 seconds were compilation. Its first three store fixtures took 56.31 seconds,
+while later store groups took roughly two to five seconds. That startup discrepancy
+is observed without an established cause. Selecting both packages widened the test
+compilation compared with the earlier focused native target.
+
+The recorded native command took 112.059 seconds, including a 1.37-second Cargo
+phase and 110.61 seconds in the fixture. It uses the previously qualified native
+provider binaries and helper image, which are distinct from installed product image
+acceptance. Two earlier retries were test churn: a process-exit assertion conflated
+closed access with the stock client's blocking stdin shutdown, and reordering the
+fixture exposed TLS initialization hidden in the browser check. Shared initialization
+now precedes both consumers. Actual relay closure is asserted within five seconds;
+a subsequent command cannot execute and the Computer stays Ready. The stock idle
+ProxyCommand may await local input before its process exits. Public SSO pairing and
+ingress remain unqualified at this checkpoint. No image publication was needed for
+these local checks.

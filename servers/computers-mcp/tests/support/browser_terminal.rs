@@ -20,8 +20,8 @@ use veoveo_mcp_contract::{GatewayAction, GatewayInternalIdentity, PolicyRuleId};
 use veoveo_task_runtime::TaskRuntime;
 
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
-struct Server {
-    base: String,
+pub(crate) struct Server {
+    pub(crate) base: String,
     terminal: String,
     origin: String,
     stop: CancellationToken,
@@ -36,7 +36,7 @@ impl Drop for Server {
     }
 }
 impl Server {
-    async fn start(
+    pub(crate) async fn start(
         platform: veoveo_platform_store::PlatformStore,
         runtime: OpenShellRuntime,
         template: DevelopmentTemplate,

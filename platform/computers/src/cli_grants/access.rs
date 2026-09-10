@@ -11,15 +11,16 @@ use uuid::Uuid;
 impl ComputersStore {
     pub async fn open_cli_connection(
         &self,
-        computer_id: Uuid,
+        expected_computer: Option<Uuid>,
         credential: &CliGrantCredential,
     ) -> Result<CliConnectionHandle> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let (grant_id, hash) = secret::parse(credential)?;
             let grant = self.cli_grant(grant_id).await?;
-            if grant.computer_id != computer_id {
+            if expected_computer.is_some_and(|id| id != grant.computer_id) {
                 return Err(ComputerError::Forbidden);
             }
+            let computer_id = grant.computer_id;
             let accepted = grant.accepted()?;
             let snapshot = self.read_authority(&accepted).await?;
             let family_end = self

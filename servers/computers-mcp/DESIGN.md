@@ -9,6 +9,7 @@
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
 | MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions; installed conformance remains pending |
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
+| Stock OpenShell CLI `0.0.116`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five qualified SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
 | `veoveo.io/computers-service/v1` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
 | OCI Linux AMD64 | `computers-mcp` Bake target, shared Veoveo Rust compiler and digest-pinned Debian trixie runtime with signed archive snapshot `20260910T000000Z` |
@@ -207,9 +208,45 @@ sequence and the current expiry. The public relays preserve these controls and e
 the deadline with their declared clock allowance. The client must not treat an
 attachment deadline as the Computer's lifetime.
 
-The gateway relay, Console renderer and public ingress remain separate delivery work.
-Local native qualification exercises real shell bytes through this service; it is
-not headed-browser or installed-user evidence.
+The gateway and BFF compose the shared relay. Native fixture evidence and installed
+headed-browser qualification are recorded separately in the Computers plan and
+build/deploy audit.
+
+## Stock CLI Access
+
+GET `/computers/cli/{id}/_ws_tunnel` binds an exact Computer. GET
+`/computers/cli/_ws_tunnel` resolves the parent from the authenticated retained grant
+because the stock SSH ProxyCommand reconnects through the root tunnel route. Both
+require exactly one opaque CLI credential in the Authorization Bearer header. Query
+parameters, Origin, Cookie, WebSocket subprotocols and extensions are rejected.
+An ordinary gateway assertion cannot replace the narrow credential. The public edge
+owns the stock client's edge-token header adaptation; it must strip cookies before
+forwarding and cannot inherit browser-cookie authority.
+
+Admission uses the shared 128-stream replica limit and atomically allocates one of
+at most sixteen live connections for the named grant. Every connection binds a
+current provider resource and process. Closing it preserves the parent grant.
+Failed upgrades release the exact connection; its durable deadline bounds cleanup
+when the service disappears. No provider I/O begins before fresh domain renewal.
+
+Browser and CLI attachments share `attachment_authority.rs` and one `AccessEvents`
+observer per replica. Authority renewal, observer loss and monotonic expiry retain
+the browser enforcement bounds. Each relay independently enforces Ready/Lease
+controls. The public relay consumes those controls because the stock client treats
+WebSocket text as gRPC data. CLI binary frames are bounded at 64 KiB, internal duplex
+storage at 64 KiB, gRPC messages at 1 MiB and concurrent HTTP/2 streams at sixteen.
+
+The facade supports Health, GetGatewayInfo, exact GetSandbox, exact CreateSshSession
+and SSH-only ForwardTcp. All other methods return Unimplemented. Provider token
+revocation cannot be exposed without proving the token belongs to this Computer;
+the admitted stock sandbox-connect workflow does not require that RPC. Provider
+administration, general TCP forwarding and cross-Computer targets remain denied.
+
+Only incoming SSH data marks CLI activity. HTTP/2 and WebSocket keepalives, output
+and lease controls cannot extend idle time. Encrypted SSH data can itself contain
+SSH keepalives, so this profile measures channel activity rather than human
+keystroke inactivity. The independent absolute and browser-family deadlines still
+apply. Public SSO pairing and installed CLI qualification remain delivery work.
 
 ## Resource And Task Subscriptions
 

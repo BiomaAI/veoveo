@@ -1,5 +1,5 @@
 //! Browser-only attachment. The gateway supplies verified identity and preserves Origin.
-mod authority;
+use super::attachment_authority as authority;
 mod pump;
 use super::{
     BrowserOrigins,
@@ -36,8 +36,8 @@ pub(super) fn router(
     app: Arc<Application>,
     origins: BrowserOrigins,
     stop: CancellationToken,
+    events: Arc<AccessEvents>,
 ) -> Router {
-    let events = AccessEvents::start(app.tasks.platform_store().clone(), stop.clone());
     Router::new()
         .route("/computers/{id}/terminal-ticket", post(ticket))
         .route("/computers/{id}/terminal", get(upgrade))
@@ -210,7 +210,7 @@ async fn attached(
     tokio::select! {
         biased;
         _ = lease.closed() => {},
-        _ = authority::renew(&transport.app, handle, &authority, &activity, events, id, family) => {},
+        _ = authority::renew(&transport.app, authority::Grant::Browser(handle), &authority, &activity, events, id, family) => {},
         _ = work => {},
     }
     authority.revoke();

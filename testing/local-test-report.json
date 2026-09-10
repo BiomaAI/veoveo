@@ -1,50 +1,85 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:2bc1e05b9fc644fa990350feebc50759d3b3c1abbde15b5a00b3d6f86d15bda0",
-  "updatedAt": "2026-09-10T17:20:15Z",
+  "buildDigest": "sha256:61933a1b9a5128c15cb58e91486995484fa3ecbc9b14f772e1ffd92b95c511f7",
+  "updatedAt": "2026-09-10T17:53:59Z",
   "checks": [
     {
-      "name": "computers-cli-relay",
+      "name": "computers-cli-native",
+      "command": [
+        "env",
+        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/oci-mtls-2/openshell-gateway",
+        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/oci-mtls-2/openshell-sandbox",
+        "VEOVEO_COMPUTERS_NATIVE_ALLOCATOR=/home/rozgo/BiomaAI/veoveo/target/debug/veoveo-computer-storage",
+        "VEOVEO_COMPUTERS_NATIVE_CLI=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/cli-0.0.116/openshell",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computers-mcp",
+        "--test",
+        "native_worker",
+        "worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_fenced",
+        "--",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T17:53:15Z",
+      "durationSeconds": 112.058752451,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-cli-worker",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-computers-transport"
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-mcp",
+        "--lib",
+        "--tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T17:19:22Z",
-      "durationSeconds": 7.766695571,
+      "finishedAt": "2026-09-10T17:51:02Z",
+      "durationSeconds": 165.087838405,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-cli-relay-format",
+      "name": "computers-cli-worker-format",
       "command": [
         "cargo",
         "fmt",
         "-p",
-        "veoveo-computers-transport",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-mcp",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T17:20:15Z",
-      "durationSeconds": 0.084433058,
+      "finishedAt": "2026-09-10T17:53:59Z",
+      "durationSeconds": 0.242010511,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-cli-relay-lint",
+      "name": "computers-cli-worker-lint",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-computers-transport",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-mcp",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T17:19:58Z",
-      "durationSeconds": 0.471117177,
+      "finishedAt": "2026-09-10T17:53:51Z",
+      "durationSeconds": 18.093814576,
       "detail": "completed successfully"
     }
   ]

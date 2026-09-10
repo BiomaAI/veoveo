@@ -121,25 +121,29 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
             .contains(hash.as_ref().unwrap())
     );
     let foreign = CliGrantCredential::new(format!("vcli1.{}.{}", paired.grant_id, "f".repeat(64)));
-    assert!(a.open_cli_connection(computer, &foreign).await.is_err());
     assert!(
-        a.open_cli_connection(Uuid::now_v7(), &paired.credential)
+        a.open_cli_connection(Some(computer), &foreign)
+            .await
+            .is_err()
+    );
+    assert!(
+        a.open_cli_connection(Some(Uuid::now_v7()), &paired.credential)
             .await
             .is_err()
     );
     let first = a
-        .open_cli_connection(computer, &paired.credential)
+        .open_cli_connection(None, &paired.credential)
         .await
         .unwrap();
     let second = b
-        .open_cli_connection(computer, &paired.credential)
+        .open_cli_connection(Some(computer), &paired.credential)
         .await
         .unwrap();
     b.close_cli_connection(&first).await.unwrap();
     assert!(a.renew_cli_grant(&first, true).await.is_err());
     assert!(a.renew_cli_grant(&second, false).await.is_ok());
     assert!(
-        b.open_cli_connection(computer, &paired.credential)
+        b.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_ok()
     );
@@ -169,7 +173,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
         .unwrap();
     assert!(a.renew_cli_grant(&second, true).await.is_err());
     assert!(
-        b.open_cli_connection(computer, &paired.credential)
+        b.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_err()
     );
@@ -242,7 +246,7 @@ async fn connection_slots_are_shared_and_expired_connections_cannot_revive() {
     let paired = pair(&a, &b, &actor, computer, "ABC-2345").await;
     let results = futures::future::join_all((0..20).map(|i| {
         let store = if i % 2 == 0 { &a } else { &b };
-        store.open_cli_connection(computer, &paired.credential)
+        store.open_cli_connection(Some(computer), &paired.credential)
     }))
     .await;
     assert_eq!(results.iter().filter(|r| r.is_ok()).count(), 16);
@@ -255,14 +259,14 @@ async fn connection_slots_are_shared_and_expired_connections_cannot_revive() {
     let handles: Vec<_> = results.into_iter().filter_map(Result::ok).collect();
     b.close_cli_connection(&handles[0]).await.unwrap();
     assert!(
-        a.open_cli_connection(computer, &paired.credential)
+        a.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_ok()
     );
     db.b.client().query("UPDATE computer_cli_connection SET expires_at = time::now() - 1s WHERE grant_id = $grant;").bind(("grant", paired.grant_id)).await.unwrap().check().unwrap();
     assert!(b.renew_cli_grant(&handles[1], true).await.is_err());
     assert!(
-        a.open_cli_connection(computer, &paired.credential)
+        a.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_ok()
     );
@@ -283,7 +287,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     let (a, b, computer) = ready(&db, &actor).await;
     let paired = pair(&a, &b, &actor, computer, "ABC-2345").await;
     let handle = a
-        .open_cli_connection(computer, &paired.credential)
+        .open_cli_connection(Some(computer), &paired.credential)
         .await
         .unwrap();
     tokio::time::sleep(Duration::from_millis(3100)).await;
@@ -294,7 +298,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     support::policy::install(&db.b, deny).await;
     assert!(a.renew_cli_grant(&handle, true).await.is_err());
     assert!(
-        b.open_cli_connection(computer, &paired.credential)
+        b.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_err()
     );
@@ -308,7 +312,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
         .unwrap();
     assert!(a.renew_cli_grant(&handle, false).await.is_err());
     let next = b
-        .open_cli_connection(computer, &paired.credential)
+        .open_cli_connection(Some(computer), &paired.credential)
         .await
         .unwrap();
     let lease = a.renew_cli_grant(&next, false).await.unwrap();
@@ -335,7 +339,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
         .unwrap();
     assert!(b.renew_cli_grant(&next, true).await.is_err());
     assert!(
-        a.open_cli_connection(computer, &paired.credential)
+        a.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_err()
     );
@@ -367,7 +371,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     );
     let paired = pair(&a, &b, &actor, computer, "DEF-6789").await;
     let handle = a
-        .open_cli_connection(computer, &paired.credential)
+        .open_cli_connection(Some(computer), &paired.credential)
         .await
         .unwrap();
     let mut before =
@@ -410,7 +414,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .unwrap();
     assert!(b.renew_cli_grant(&handle, true).await.is_err());
     assert!(
-        a.open_cli_connection(computer, &paired.credential)
+        a.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_err()
     );
@@ -426,7 +430,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .unwrap();
     assert!(a.renew_cli_grant(&handle, true).await.is_err());
     assert!(
-        b.open_cli_connection(computer, &paired.credential)
+        b.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_err()
     );
@@ -442,7 +446,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .unwrap();
     assert!(b.renew_cli_grant(&handle, true).await.is_err());
     assert!(
-        a.open_cli_connection(computer, &paired.credential)
+        a.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_err()
     );
@@ -451,7 +455,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .await.unwrap().check().unwrap();
     assert!(b.renew_cli_grant(&handle, true).await.is_err());
     assert!(
-        a.open_cli_connection(computer, &paired.credential)
+        a.open_cli_connection(Some(computer), &paired.credential)
             .await
             .is_err()
     );

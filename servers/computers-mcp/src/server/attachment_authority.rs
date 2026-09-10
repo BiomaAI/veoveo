@@ -1,4 +1,4 @@
-use super::super::access_events::Listener;
+use super::access_events::Listener;
 use crate::Application;
 use std::{
     sync::atomic::{AtomicBool, Ordering},
@@ -33,9 +33,14 @@ impl Activity {
         self.wake.notify_one();
     }
 }
+pub(super) enum Grant<'a> {
+    Browser(&'a SessionGrantHandle),
+    Cli(&'a veoveo_computers::cli_grants::CliConnectionHandle),
+}
+
 pub(super) async fn renew(
     app: &Application,
-    handle: &SessionGrantHandle,
+    grant: Grant<'_>,
     authority: &LeaseAuthority,
     activity: &Activity,
     mut events: Listener,
@@ -56,26 +61,34 @@ pub(super) async fn renew(
         events.check()?;
         app.runtime.current().map_err(|_| ())?;
         let input = activity.input.swap(false, Ordering::AcqRel);
-        let checked = app
-            .store
-            .renew_browser_grant(handle, input)
-            .await
-            .map_err(|_| ())?;
+        let (checked_at, valid_until) = match grant {
+            Grant::Browser(handle) => {
+                let checked = app
+                    .store
+                    .renew_browser_grant(handle, input)
+                    .await
+                    .map_err(|_| ())?;
+                (checked.checked_at(), checked.valid_until())
+            }
+            Grant::Cli(handle) => {
+                let checked = app
+                    .store
+                    .renew_cli_grant(handle, input)
+                    .await
+                    .map_err(|_| ())?;
+                (checked.checked_at(), checked.valid_until())
+            }
+        };
         events.check()?;
         authority
-            .renew(
-                checked.checked_at().into(),
-                checked.valid_until() - checked.checked_at(),
-            )
+            .renew(checked_at.into(), valid_until - checked_at)
             .map_err(|_| ())?;
         sequence = sequence.checked_add(1).ok_or(())?;
         activity.renewed.send_replace(Some(TerminalLease {
             kind: TerminalLeaseKind::Lease,
             sequence,
             expires_at: (std::time::SystemTime::now()
-                + checked
-                    .valid_until()
-                    .saturating_duration_since(std::time::Instant::now()))
+                + valid_until.saturating_duration_since(std::time::Instant::now()))
             .into(),
         }));
     }
