@@ -549,7 +549,10 @@ The private command journal now returns one dispatch ticket under a current Task
 lease, exact native run and current named grant. Native-store cases reject replay
 after ticket loss and recheck cancellation, current limits and principal state.
 Execution grants explicitly consent to whole-run Stop for interruption containment.
-The command worker, containment results and public agent journey remain required.
+The domain also journals original-run containment, bounded observations and
+interruption settlement. Store tests cover independent owner Stop races, lost Stop
+receipts, exhausted budgets and preserved replacement runs. Native worker integration,
+successful-command output and the public agent journey remain required.
 
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.

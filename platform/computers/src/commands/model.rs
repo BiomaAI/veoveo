@@ -14,6 +14,10 @@ use veoveo_task_runtime::{TaskId, TaskOwner};
 pub enum CommandStage {
     Queued,
     Dispatched,
+    Containing,
+    RecoveryRequired,
+    Failed,
+    Cancelled,
 }
 
 /// Private durable command; public projections must select metadata explicitly.
@@ -28,8 +32,41 @@ pub struct CommandOperation {
     pub(super) execution_deadline: Option<DateTime<Utc>>,
     pub(super) effective_limits: Option<crate::api::AutomationExecutionLimits>,
     pub(super) dispatch_authority: Option<super::CommandDispatchDecision>,
+    pub(super) containment_id: Option<Uuid>,
+    pub(super) interruption: Option<super::CommandInterruption>,
+    pub(super) containment_dispatch_id: Option<Uuid>,
+    pub(super) containment_started_at: Option<DateTime<Utc>>,
+    pub(super) containment_deadline: Option<DateTime<Utc>>,
+    pub(super) containment_reads: u32,
+    pub(super) next_containment_read: Option<DateTime<Utc>>,
+    pub(super) last_containment_read_id: Option<Uuid>,
+    pub(super) settled_at: Option<DateTime<Utc>>,
+    pub(super) refusal: Option<super::CommandRefusal>,
+    pub(super) terminated_at: Option<DateTime<Utc>>,
+    pub(super) termination_evidence: Option<super::outcome::TerminationEvidence>,
+    pub(super) task_projected_at: Option<DateTime<Utc>>,
 }
 impl CommandOperation {
+    pub fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    pub fn is_terminal(&self) -> bool {
+        matches!(self.stage, CommandStage::Failed | CommandStage::Cancelled)
+    }
+    pub fn outcome(&self) -> Option<super::CommandOutcome> {
+        if !self.is_terminal() {
+            return None;
+        }
+        self.refusal
+            .map(super::CommandOutcome::Undispatched)
+            .or_else(|| self.interruption.map(super::CommandOutcome::Terminated))
+    }
+    pub fn containment_id(&self) -> Option<Uuid> {
+        self.containment_id
+    }
+    pub fn task_projected(&self) -> bool {
+        self.task_projected_at.is_some()
+    }
     pub fn execution_id(&self) -> Uuid {
         self.binding.execution_id
     }
@@ -84,6 +121,19 @@ pub(super) struct Record {
     execution_deadline: Option<DateTime<Utc>>,
     effective_limits: Option<OpenObject>,
     dispatch_authority: Option<OpenObject>,
+    containment_id: Option<Uuid>,
+    interruption: Option<String>,
+    containment_dispatch_id: Option<Uuid>,
+    containment_started_at: Option<DateTime<Utc>>,
+    containment_deadline: Option<DateTime<Utc>>,
+    containment_reads: u32,
+    next_containment_read: Option<DateTime<Utc>>,
+    last_containment_read_id: Option<Uuid>,
+    settled_at: Option<DateTime<Utc>>,
+    refusal: Option<String>,
+    terminated_at: Option<DateTime<Utc>>,
+    termination_evidence: Option<OpenObject>,
+    task_projected_at: Option<DateTime<Utc>>,
 }
 impl TryFrom<Record> for CommandOperation {
     type Error = ComputerError;
@@ -106,6 +156,28 @@ impl TryFrom<Record> for CommandOperation {
                     .dispatch_authority
                     .map(|v| serde_json::from_value(serde_json::to_value(v)?))
                     .transpose()?,
+                containment_id: row.containment_id,
+                interruption: row
+                    .interruption
+                    .map(|v| serde_json::from_value(serde_json::Value::String(v)))
+                    .transpose()?,
+                containment_dispatch_id: row.containment_dispatch_id,
+                containment_started_at: row.containment_started_at,
+                containment_deadline: row.containment_deadline,
+                containment_reads: row.containment_reads,
+                next_containment_read: row.next_containment_read,
+                last_containment_read_id: row.last_containment_read_id,
+                settled_at: row.settled_at,
+                refusal: row
+                    .refusal
+                    .map(|v| serde_json::from_value(serde_json::Value::String(v)))
+                    .transpose()?,
+                terminated_at: row.terminated_at,
+                termination_evidence: row
+                    .termination_evidence
+                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
+                    .transpose()?,
+                task_projected_at: row.task_projected_at,
             })
         };
         let command = decode().map_err(|_| ComputerError::Unavailable)?;
@@ -124,8 +196,8 @@ impl TryFrom<Record> for CommandOperation {
         {
             return Err(ComputerError::Unavailable);
         }
-        match command.stage {
-            CommandStage::Queued => {
+        match command.dispatch_id {
+            None => {
                 if command.dispatch_id.is_some()
                     || command.dispatched_at.is_some()
                     || command.execution_deadline.is_some()
@@ -135,7 +207,7 @@ impl TryFrom<Record> for CommandOperation {
                     return Err(ComputerError::Unavailable);
                 }
             }
-            CommandStage::Dispatched => {
+            Some(_) => {
                 let dispatched = command.dispatched_at.ok_or(ComputerError::Unavailable)?;
                 let deadline = command
                     .execution_deadline
@@ -160,6 +232,92 @@ impl TryFrom<Record> for CommandOperation {
                     .validate(&command)?;
             }
         }
+        command.validate_lifecycle()?;
         Ok(command)
+    }
+}
+
+impl CommandOperation {
+    fn validate_lifecycle(&self) -> Result<()> {
+        let failed = || ComputerError::Unavailable;
+        if self.termination_evidence.is_some() != self.terminated_at.is_some() {
+            return Err(failed());
+        }
+        if let Some(evidence) = self.termination_evidence {
+            let expected = match evidence.kind {
+                super::outcome::TerminationSource::Stop => self.containment_dispatch_id,
+                super::outcome::TerminationSource::Read => self.last_containment_read_id,
+            };
+            if Some(evidence.id) != expected {
+                return Err(failed());
+            }
+        }
+        if let Some(id) = self.containment_id {
+            let started = self.containment_started_at.ok_or_else(failed)?;
+            let deadline = self.containment_deadline.ok_or_else(failed)?;
+            if id.get_version_num() != 7
+                || self.dispatch_id.is_none()
+                || self.interruption.is_none()
+                || started < self.dispatched_at.ok_or_else(failed)?
+                || deadline - started != chrono::TimeDelta::seconds(180)
+                || self.containment_reads > 8
+                || self.last_containment_read_id.is_some() != (self.containment_reads > 0)
+                || self.next_containment_read.is_some() != (self.containment_reads > 0)
+                || self
+                    .containment_dispatch_id
+                    .is_some_and(|id| id.get_version_num() != 7)
+                || self
+                    .last_containment_read_id
+                    .is_some_and(|id| id.get_version_num() != 7)
+            {
+                return Err(failed());
+            }
+        } else if self.interruption.is_some()
+            || self.containment_dispatch_id.is_some()
+            || self.containment_started_at.is_some()
+            || self.containment_deadline.is_some()
+            || self.containment_reads != 0
+            || self.next_containment_read.is_some()
+            || self.last_containment_read_id.is_some()
+            || self.terminated_at.is_some()
+        {
+            return Err(failed());
+        }
+        match self.stage {
+            CommandStage::Queued if self.dispatch_id.is_some() => return Err(failed()),
+            CommandStage::Dispatched
+                if self.dispatch_id.is_none() || self.containment_id.is_some() =>
+            {
+                return Err(failed());
+            }
+            CommandStage::Containing | CommandStage::RecoveryRequired
+                if self.containment_id.is_none() =>
+            {
+                return Err(failed());
+            }
+            _ => {}
+        }
+        if self.is_terminal() {
+            if self.settled_at.is_none_or(|at| at < self.created_at)
+                || self.refusal.is_some() != self.dispatch_id.is_none()
+                || self.terminated_at.is_some() != self.containment_id.is_some()
+                || self
+                    .terminated_at
+                    .is_some_and(|at| Some(at) != self.settled_at)
+                || (self.refusal.is_none() && self.containment_id.is_none())
+                || (self.stage == CommandStage::Cancelled)
+                    != (self.refusal == Some(super::CommandRefusal::CancelledBeforeDispatch)
+                        || self.interruption == Some(super::CommandInterruption::Cancelled))
+            {
+                return Err(failed());
+            }
+        } else if self.settled_at.is_some()
+            || self.refusal.is_some()
+            || self.terminated_at.is_some()
+            || self.task_projected_at.is_some()
+        {
+            return Err(failed());
+        }
+        Ok(())
     }
 }

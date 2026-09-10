@@ -13,6 +13,14 @@ pub(super) struct ClockedCommand {
     pub database_time: DateTime<Utc>,
     pub read_started: Instant,
 }
+impl ClockedCommand {
+    pub fn remaining(&self, until: Option<DateTime<Utc>>) -> std::time::Duration {
+        until
+            .and_then(|deadline| (deadline - self.database_time).to_std().ok())
+            .unwrap_or_default()
+            .saturating_sub(self.read_started.elapsed())
+    }
+}
 impl ComputersStore {
     pub async fn command_for_claim(&self, claim: &ClaimedTask) -> Result<CommandOperation> {
         Ok(self.worker_command(claim).await?.operation)
@@ -64,6 +72,9 @@ impl ComputersStore {
             grant_id: Uuid,
             actor: &'a crate::AcceptedAuthority,
             dispatch_authority: Option<&'a super::CommandDispatchDecision>,
+            interruption: Option<super::CommandInterruption>,
+            refusal: Option<super::CommandRefusal>,
+            termination_evidence: Option<super::outcome::TerminationEvidence>,
         }
         let payload = serde_json::from_value(
             serde_json::to_value(Event {
@@ -72,6 +83,9 @@ impl ComputersStore {
                 grant_id: operation.binding.grant_id,
                 actor: &operation.authority,
                 dispatch_authority: operation.dispatch_authority.as_ref(),
+                interruption: operation.interruption,
+                refusal: operation.refusal,
+                termination_evidence: operation.termination_evidence,
             })
             .map_err(|_| ComputerError::Unavailable)?,
         )

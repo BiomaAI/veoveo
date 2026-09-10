@@ -3255,3 +3255,9 @@ seconds of compilation. One refusal matrix uses six fresh isolated databases,
 which explains most of the runtime; it proves lease, revocation, cancellation,
 run and ciphertext failures without rebuilding or launching the provider. This
 separation keeps authority and journal iteration independent of image publication.
+
+The expanded command checks passed seven containment cases in 7.31 seconds and six
+admission/dispatch cases in 8.45 seconds after a 12.91-second incremental compile.
+The deadline fixture backdates coherent private event times in its disposable store
+instead of waiting three minutes. Shared command setup avoids duplicating service
+identity, named-grant and encrypted-request fixtures. No provider image changed.

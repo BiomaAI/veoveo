@@ -1,0 +1,15 @@
+DEFINE FIELD OVERWRITE stage ON computer_execution TYPE "queued" | "dispatched" | "containing" | "recovery_required" | "failed" | "cancelled";
+DEFINE FIELD containment_id ON computer_execution TYPE option<uuid>;
+DEFINE FIELD interruption ON computer_execution TYPE option<"cancelled" | "deadline" | "authority_lost" | "execution_unknown">;
+DEFINE FIELD containment_dispatch_id ON computer_execution TYPE option<uuid>;
+DEFINE FIELD containment_started_at ON computer_execution TYPE option<datetime>;
+DEFINE FIELD containment_deadline ON computer_execution TYPE option<datetime>;
+DEFINE FIELD containment_reads ON computer_execution TYPE int DEFAULT 0 ASSERT $value >= 0 AND $value <= 8;
+DEFINE FIELD next_containment_read ON computer_execution TYPE option<datetime>;
+DEFINE FIELD last_containment_read_id ON computer_execution TYPE option<uuid>;
+DEFINE FIELD settled_at ON computer_execution TYPE option<datetime>;
+DEFINE FIELD refusal ON computer_execution TYPE option<"cancelled_before_dispatch" | "authority_denied" | "run_changed">;
+DEFINE FIELD terminated_at ON computer_execution TYPE option<datetime>;
+DEFINE FIELD termination_evidence ON computer_execution TYPE option<object> FLEXIBLE;
+DEFINE FIELD task_projected_at ON computer_execution TYPE option<datetime>;
+UPDATE computer_execution SET containment_reads = 0 WHERE containment_reads = NONE;

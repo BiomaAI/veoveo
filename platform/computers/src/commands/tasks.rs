@@ -18,6 +18,8 @@ impl ComputersStore {
             .query(
                 "SELECT * FROM computer_execution WHERE provider_instance_id = $provider
              AND ($after = NONE OR execution_id > $after)
+             AND (stage != 'recovery_required' OR task.status = NONE OR task.status IN ['queued', 'running'])
+             AND (task_projected_at = NONE OR task.retention_pins CONTAINS string::concat('computer-execution/', <string>execution_id))
              ORDER BY execution_id LIMIT $limit;",
                 vec![
                     ("provider", self.provider_instance_id.into_value()),
@@ -57,6 +59,9 @@ impl ComputersStore {
             return Err(ComputerError::StateConflict);
         }
         let command = &saved;
+        if command.task_projected() {
+            return Err(ComputerError::InvalidState);
+        }
         let id = command.execution_id();
         let reference = command.task_reference()?;
         let pin = TaskRetentionPin::new(format!("computer-execution/{id}"))
@@ -86,6 +91,30 @@ impl ComputersStore {
         {
             return Err(ComputerError::Unavailable);
         }
+        Ok(())
+    }
+
+    /// A terminal shared Task acknowledges delivery; its retention pin is released
+    /// afterward. Discovery retains a lost pin acknowledgement without recreating work.
+    pub async fn acknowledge_command_task(&self, command: &CommandOperation) -> Result<()> {
+        let status = match command.stage() {
+            super::CommandStage::Failed => "failed",
+            super::CommandStage::Cancelled => "cancelled",
+            _ => return Err(ComputerError::InvalidState),
+        };
+        self.query(
+            include_str!("../../queries/acknowledge_command_task.surql"),
+            vec![
+                (
+                    "execution",
+                    super::record(command.execution_id()).into_value(),
+                ),
+                ("task", command.task_id().record_id().into_value()),
+                ("provider", self.provider_instance_id.into_value()),
+                ("status", status.into_value()),
+            ],
+        )
+        .await?;
         Ok(())
     }
 }

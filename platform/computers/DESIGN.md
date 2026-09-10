@@ -8,7 +8,7 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private queued-command envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
-| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0062 add private command admission and one-shot dispatch. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0063 add private command admission, one-shot dispatch and containment. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
@@ -387,13 +387,59 @@ and containment stop the admitted Computer run, which can end other processes on
 that run. Retained files remain. This consent grants no independent agent Stop
 action and never permits stopping a replacement run. The private envelope's v1
 profile admits only this interruption scope; a future scope requires an explicit
-codec change. Active containment and terminal result publication remain worker work.
+codec change. The domain now journals containment and interruption settlement. Native worker
+integration and successful-command output publication remain delivery work.
 
 Isolated-store tests qualify one dispatch under contention, a successor refusing
 redispatch after loss of the original ticket, cancellation, grant revocation,
 principal disablement, changed native run, lost lease, corrupt command ciphertext,
 current limit reduction and accepted-work continuity after caller-family revocation.
 They launch no provider process and are not installed execution evidence.
+
+## Command Interruption And Containment
+
+Migration 0063 adds interruption intent, a single Stop dispatch receipt, bounded
+termination observations and terminal Task delivery. Cancellation while Queued
+releases the command slot only when the shared Task records cancellation and no
+dispatch escaped. A current authority refusal or changed run can also abort queued
+work. These paths leave the Computer phase and retained files intact.
+
+After dispatch, cancellation, deadline expiry, authority loss or an unknown command
+outcome enters Containing under the Task lease. Cancellation and deadline reasons
+are checked against durable state. The original `stop_computer` execution scope
+authorizes containment even after the named grant is revoked. It permits one Stop
+of the saved resource and process; a replacement run cannot receive that Stop.
+
+An owner may already have admitted a lifecycle Stop. Containment observes that run
+without acquiring a second Stop ticket. If the owner's Stop is definitively aborted
+before dispatch, containment can acquire its first ticket after Ready is restored.
+Its transaction sets Stopping while preserving the separate command slot. Once
+that ticket is committed, a lost reply cannot authorize another submission.
+
+Authenticated native Stop completion or a charged authoritative read can prove that
+the original run ended. Settlement records the exact evidence identity and ingestion
+time with the outcome and releases the command slot atomically. An independently
+owned lifecycle fence remains intact until that lifecycle operation settles. A
+Cancelled result means termination was observed after cancellation. Other interrupted
+commands become Failed with an explicit interruption reason; observed termination
+does not recover the foreground exit code or undo command writes.
+
+Observation admits at most eight reads within the original 180-second deadline.
+Backoff and read identity persist across workers. Each local read also fits the
+remaining Task lease and a ten-second request bound. Exhaustion records Recovery
+Required without releasing the command slot. Worker discovery stops scheduling a
+waiting recovery Task until explicit recovery changes its state.
+
+The shared Task is projected after domain settlement. A durable delivery marker
+precedes retention-pin acknowledgement. Discovery can repair a lost acknowledgement;
+it cannot recreate an already delivered command Task. Successful command results,
+Artifact output and native worker integration remain required before public execution.
+
+Isolated-store tests cover cancelled-before-dispatch refusal, revoked-grant containment,
+competing Stop receipts, lost Stop replies, independent owner Stop completion or
+pre-dispatch abort, replacement-run refusal, count/deadline exhaustion and interrupted
+Task delivery. These fixtures supply internal observations and do not establish
+provider termination or installed cancellation latency.
 
 ## Lifecycle Dispatch
 
