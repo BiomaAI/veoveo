@@ -15,6 +15,10 @@ The configured Console profile and gateway URL select the upstream. Input cannot
 override the profile, actor, owner or destination. The existing gateway and Computers
 domain own current authorization. This module has no lifecycle state machine.
 
+GET `/console/api/computers/{id}/operations/{operation_id}` forwards a stored receipt
+read under the current cookie session and configured profile. It accepts no query
+parameters and does not retry a lifecycle mutation.
+
 Mutations traverse the existing CSRF middleware. Ticket requests additionally require
 one exact public Origin. Control bodies must complete within five seconds and fit
 64 KiB before a session refresh can occur. Responses fit 2 MiB. Typed pagination is

@@ -62,7 +62,8 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
         Operation::from_route(
             "/computers/{profile}/{id}/start",
             &Method::GET,
-            Some(uuid::Uuid::new_v4())
+            Some(uuid::Uuid::new_v4()),
+            None,
         )
         .is_err()
     );
@@ -70,7 +71,8 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
         Operation::from_route(
             "/computers/{profile}/{id}",
             &Method::GET,
-            Some(uuid::Uuid::nil())
+            Some(uuid::Uuid::nil()),
+            None,
         )
         .is_err()
     );
@@ -78,7 +80,8 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
         Operation::from_route(
             "/computers/{profile}/{id}/provider-admin",
             &Method::POST,
-            Some(uuid::Uuid::new_v4())
+            Some(uuid::Uuid::new_v4()),
+            None,
         )
         .is_err()
     );
@@ -87,5 +90,32 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             .unwrap()
             .as_str(),
         "operator"
+    );
+}
+
+#[test]
+fn receipt_route_uses_the_parent_computers_read_authority() {
+    let computer = uuid::Uuid::new_v4();
+    let receipt = uuid::Uuid::new_v4();
+    let path = "/computers/{profile}/{id}/operations/{operation_id}";
+    let operation =
+        Operation::from_route(path, &Method::GET, Some(computer), Some(receipt)).unwrap();
+    assert_eq!(
+        operation.service_path(),
+        format!("computers/{computer}/operations/{receipt}")
+    );
+    assert!(!operation.requires_contributor());
+    let (target, actions) = operation.authorization();
+    assert_eq!(actions, &[GatewayAction::ResourcesRead]);
+    let PolicyTarget::Resource { uri, .. } = target else {
+        panic!("Computer resource required")
+    };
+    assert_eq!(
+        uri.as_str(),
+        veoveo_computers_contract::computer_uri(computer)
+    );
+    assert!(Operation::from_route(path, &Method::POST, Some(computer), Some(receipt)).is_err());
+    assert!(
+        Operation::from_route(path, &Method::GET, Some(computer), Some(uuid::Uuid::nil())).is_err()
     );
 }

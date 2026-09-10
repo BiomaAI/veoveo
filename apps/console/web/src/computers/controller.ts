@@ -2,7 +2,7 @@ import { z } from "zod";
 import { uuidV7 } from "../agentControl.ts";
 import { parseComputer } from "../generatedContracts.ts";
 import type { Action, ComputerSnapshot, OperationReceipt } from "../generated/computers.ts";
-import { computerError, lifecycle, readComputers } from "./api.ts";
+import { computerError, lifecycle, readComputers, readOperation } from "./api.ts";
 import { watchComputers, type LiveState } from "./events.ts";
 
 const savedIntent = z
@@ -33,6 +33,7 @@ export interface ComputersState {
 type StoragePort = Pick<Storage, "getItem" | "setItem">;
 export interface ComputerPorts {
   read: typeof readComputers;
+  operation: typeof readOperation;
   command: typeof lifecycle;
   watch: typeof watchComputers;
   storage: StoragePort;
@@ -43,6 +44,7 @@ export class ComputersController {
   private stop = new AbortController();
   private unwatch?: () => void;
   private fetching = false;
+  private readingReceipts = new Set<string>();
   private dirty = false;
   private pages = 1;
   private started = false;
@@ -126,6 +128,7 @@ export class ComputersController {
     this.listeners.clear();
     this.started = false;
     this.fetching = false;
+    this.readingReceipts.clear();
     this.dirty = false;
   }
   refresh = () => {
@@ -168,6 +171,7 @@ export class ComputersController {
             stale: this.state.live !== "live",
             error: undefined,
           });
+          await this.refreshReceipts(epoch);
         } catch (error) {
           if (!epoch.signal.aborted && epoch === this.stop)
             this.update({ error: computerError(error), loading: false, stale: true });
@@ -190,6 +194,39 @@ export class ComputersController {
       ),
     );
     this.update({ intents, persistenceError: undefined });
+  }
+  private async refreshReceipts(epoch: AbortController) {
+    const pending = this.state.intents.filter((intent) => intent.receipt && !intent.sending &&
+      ["queued", "running", "recovery_required"].includes(intent.receipt.status));
+    // Bound read fanout independently of the saved receipt limit. These reads
+    // never redispatch a lifecycle command or query the provider.
+    for (let offset = 0; offset < pending.length && !epoch.signal.aborted; offset += 4) {
+      await Promise.all(pending.slice(offset, offset + 4).map((intent) => this.readReceipt(intent.requestId, epoch)));
+    }
+  }
+  private async readReceipt(requestId: string, epoch = this.stop) {
+    const intent = this.state.intents.find((intent) => intent.requestId === requestId);
+    const previous = intent?.receipt;
+    if (!previous || epoch.signal.aborted || epoch !== this.stop || this.readingReceipts.has(requestId)) return;
+    this.readingReceipts.add(requestId);
+    try {
+      const receipt = await this.ports.operation(previous.computerId, previous.taskId, epoch.signal);
+      if (receipt.action !== intent.action) throw new Error("Operation action changed");
+      if (epoch.signal.aborted || epoch !== this.stop) return;
+      const intents = this.state.intents.map((current) => current.requestId === requestId
+        ? { ...current, receipt, error: undefined } : current);
+      if (!intents.some((current) => current.requestId === requestId)) return;
+      try { this.persist(intents); }
+      catch {
+        this.update({ intents, persistenceError: "Current operation status could not be saved in this browser." });
+      }
+    } catch (error) {
+      if (!epoch.signal.aborted && epoch === this.stop)
+        this.update({intents: this.state.intents.map((current) => current.requestId === requestId
+          ? {...current, error: computerError(error)} : current)});
+    } finally {
+      if (epoch === this.stop) this.readingReceipts.delete(requestId);
+    }
   }
   clearSavedAfterReview = () => {
     try {
@@ -225,6 +262,7 @@ export class ComputersController {
     const epoch = this.stop;
     const intent = this.state.intents.find((intent) => intent.requestId === requestId);
     if (!intent || intent.sending || this.stop.signal.aborted) return;
+    if (intent.receipt) return this.readReceipt(requestId, epoch);
     this.update({
       intents: this.state.intents.map((candidate) =>
         candidate === intent ? { ...candidate, sending: true, error: undefined } : candidate,

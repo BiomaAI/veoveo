@@ -14,6 +14,7 @@ use veoveo_computers_contract::TerminalTicket;
 #[derive(Deserialize)]
 pub(super) struct Route {
     id: Option<Uuid>,
+    operation_id: Option<Uuid>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -31,7 +32,7 @@ pub(super) async fn proxy(
     let (Ok(Path(route)), Ok(Query(page))) = (route, page) else {
         return fault(StatusCode::BAD_REQUEST);
     };
-    let Some(path) = upstream_path(matched.as_str(), route.id) else {
+    let Some(path) = upstream_path(matched.as_str(), route.id, route.operation_id) else {
         return fault(StatusCode::BAD_REQUEST);
     };
     if (request.uri().query().is_some() && !(path.is_empty() && request.method() == Method::GET))
@@ -114,9 +115,14 @@ pub(super) async fn proxy(
     response
 }
 
-fn upstream_path(matched: &str, id: Option<Uuid>) -> Option<String> {
-    if id.is_some_and(|id| id.is_nil()) {
+fn upstream_path(matched: &str, id: Option<Uuid>, operation_id: Option<Uuid>) -> Option<String> {
+    if id.is_some_and(|id| id.is_nil()) || operation_id.is_some_and(|id| id.is_nil()) {
         return None;
+    }
+    if let Some(operation) = operation_id {
+        return (matched == "/console/api/computers/{id}/operations/{operation_id}")
+            .then(|| id.map(|id| format!("/{id}/operations/{operation}")))
+            .flatten();
     }
     match (matched, id) {
         ("/console/api/computers", None) => Some(String::new()),

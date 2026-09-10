@@ -32,6 +32,16 @@ export async function lifecycle(
     throw new Error("The operation response could not be verified.");
   return receipt;
 }
+export async function readOperation(computerId: string, operationId: string, signal?: AbortSignal) {
+  const receipt = parseComputer("receipt", await consoleJson(
+    `computers/${encodeURIComponent(computerId)}/operations/${encodeURIComponent(operationId)}`,
+    undefined,
+    signal,
+  ));
+  if (receipt.computerId !== computerId || receipt.taskId !== operationId)
+    throw new Error("The operation response could not be verified.");
+  return receipt;
+}
 export async function terminalTicket(id: string, signal?: AbortSignal) {
   const ticket = parseComputer(
     "terminal_ticket",

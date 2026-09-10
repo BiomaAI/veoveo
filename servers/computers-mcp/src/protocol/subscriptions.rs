@@ -125,10 +125,23 @@ impl ComputersMcp {
                     .map_err(|_| auth::unavailable())?;
             }
             let mut replay = false;
+            let mut health = self.app.capacity_health();
+            let mut health_open = true;
+            let mut availability = self.app.availability();
             loop {
+                let health_deadline = tokio::time::Instant::from_std(
+                    health.borrow().observed_at + Duration::from_secs(15),
+                );
                 tokio::select! {
                     biased;
                     _ = context.cancelled() => return Ok(()),
+                    changed = health.changed(), if health_open => {
+                        health_open = changed.is_ok();
+                    }
+                    _ = tokio::time::sleep_until(health_deadline),
+                        if !matches!(availability,
+                            veoveo_computers::api::CapacityAvailability::SetupRequired |
+                            veoveo_computers::api::CapacityAvailability::ComputeUnavailable) => {}
                     update = tasks.next() => {
                         let Some(update) = update else { return Err(auth::unavailable()); };
                         context.sink().notify_task_status(update?).await.map_err(|_| auth::unavailable())?;
@@ -156,6 +169,17 @@ impl ComputersMcp {
                         }
                         cursor = page.next_sequence;
                     }
+                }
+                let current = self.app.availability();
+                if current != availability {
+                    for uri in &uris {
+                        context
+                            .sink()
+                            .notify_resource_updated(uri.clone())
+                            .await
+                            .map_err(|_| auth::unavailable())?;
+                    }
+                    availability = current;
                 }
             }
         };

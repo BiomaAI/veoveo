@@ -35,7 +35,12 @@ pub(super) async fn proxy(
 ) -> Result<Response, Fault> {
     let Path(route) = route.map_err(|_| Fault::invalid())?;
     let Query(page) = page.map_err(|_| Fault::invalid())?;
-    let operation = Operation::from_route(matched.as_str(), request.method(), route.id)?;
+    let operation = Operation::from_route(
+        matched.as_str(),
+        request.method(),
+        route.id,
+        route.operation_id,
+    )?;
     if (operation != Operation::List && request.uri().query().is_some())
         || page.after.is_some_and(|id| id.is_nil())
     {
@@ -74,7 +79,9 @@ async fn forward(
         Operation::Start(_) => normalize::<api::StartInput>(&bytes),
         Operation::Stop(_) => normalize::<api::StopInput>(&bytes),
         Operation::Ticket(_) => normalize::<api::TerminalTicketInput>(&bytes),
-        Operation::List | Operation::Read(_) if bytes.is_empty() => Ok(Vec::new()),
+        Operation::List | Operation::Read(_) | Operation::Receipt { .. } if bytes.is_empty() => {
+            Ok(Vec::new())
+        }
         _ => Err(()),
     }
     .map_err(|_| Fault::invalid())?;
@@ -116,6 +123,10 @@ async fn forward(
             Operation::Read(_) if status == StatusCode::OK => {
                 normalize::<api::ComputerView>(&bytes)
             }
+            Operation::Receipt {
+                computer,
+                operation,
+            } if status == StatusCode::OK => read_receipt(&bytes, computer, operation),
             Operation::Ticket(id) if status == StatusCode::CREATED => {
                 rewrite_ticket(&bytes, id, route.profile.as_str())
             }
@@ -139,6 +150,14 @@ async fn forward(
         body,
     )
         .into_response())
+}
+
+fn read_receipt(bytes: &[u8], computer: Uuid, operation: Uuid) -> Result<Vec<u8>, ()> {
+    let receipt: api::OperationReceipt = serde_json::from_slice(bytes).map_err(|_| ())?;
+    if receipt.computer_id != computer || receipt.task_id != operation {
+        return Err(());
+    }
+    serde_json::to_vec(&receipt).map_err(|_| ())
 }
 
 fn require_json(headers: &HeaderMap) -> Result<(), Fault> {

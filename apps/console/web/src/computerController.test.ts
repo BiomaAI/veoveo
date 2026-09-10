@@ -19,6 +19,7 @@ const settled = async () => {
 function fixture() {
   const saved = new Map<string, string>();
   const calls: string[] = [];
+  const operations = new Map<string, OperationReceipt>();
   let change = () => {};
   let live: (state: LiveState) => void = () => {};
   const ports: ComputerPorts = {
@@ -29,9 +30,16 @@ function fixture() {
       },
     },
     read: async () => snapshot(),
+    operation: async (_computer, id) => {
+      const receipt = operations.get(id);
+      if (!receipt) throw new Error("Unknown fixture operation");
+      return receipt;
+    },
     command: async (action, requestId) => {
       calls.push(requestId);
-      return { action, computerId, taskId: requestId, status: "queued" };
+      const receipt: OperationReceipt = { action, computerId, taskId: requestId, status: "queued" };
+      operations.set(requestId, receipt);
+      return receipt;
     },
     watch: (changed, status) => {
       change = changed;
@@ -40,8 +48,30 @@ function fixture() {
       return () => {};
     },
   };
-  return { ports, saved, calls, change: () => change(), live: (state: LiveState) => live(state) };
+  return { ports, saved, calls, operations, change: () => change(), live: (state: LiveState) => live(state) };
 }
+test("live operation reads settle saved receipts without redispatching commands", async () => {
+  const f = fixture();
+  const controller = new ComputersController("alice", f.ports);
+  controller.start();
+  await settled();
+  await controller.command("create");
+  await settled();
+  const intent = controller.snapshot().intents[0];
+  const receipt = intent.receipt!;
+  f.operations.set(receipt.taskId, {...receipt, status: "running"});
+  f.change();
+  await settled();
+  assert.equal(controller.snapshot().intents[0].receipt?.status, "running");
+  f.operations.set(receipt.taskId, {...receipt, status: "succeeded"});
+  await controller.retry(intent.requestId);
+  assert.equal(controller.snapshot().intents[0].receipt?.status, "succeeded");
+  assert.equal(f.calls.length, 1);
+  controller.dispose();
+  const reloaded = new ComputersController("alice", f.ports);
+  assert.equal(reloaded.snapshot().intents[0].receipt?.status, "succeeded");
+  reloaded.dispose();
+});
 test("Computer reload retries the exact saved lifecycle identity after an ambiguous response", async () => {
   const f = fixture();
   let fail = true;

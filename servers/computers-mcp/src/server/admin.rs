@@ -60,6 +60,17 @@ async fn create(
 ) -> Result<(StatusCode, Json<OperationReceipt>), HttpError> {
     Ok(receipt(app.create(actor(&identity)?, request).await?))
 }
+async fn operation(
+    State(app): State<Arc<Application>>,
+    Extension(identity): Extension<GatewayInternalIdentity>,
+    Path((computer_id, operation_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<OperationReceipt>, HttpError> {
+    let (_, receipt) = receipt(
+        app.operation(&actor(&identity)?, computer_id, operation_id)
+            .await?,
+    );
+    Ok(receipt)
+}
 async fn start(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
@@ -122,6 +133,7 @@ pub fn router(app: Arc<Application>) -> Router {
         )
         .route("/computers", get(collection).post(create))
         .route("/computers/{id}", get(computer))
+        .route("/computers/{id}/operations/{operation_id}", get(operation))
         .route("/computers/{id}/start", post(start))
         .route("/computers/{id}/stop", post(stop))
         .with_state(app)
