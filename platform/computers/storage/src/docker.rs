@@ -1,10 +1,25 @@
 //! The local engine is an observed trust boundary, never an ambient endpoint.
+use crate::PhysicalWriter;
 use crate::{Result, StorageError};
 use reqwest::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, path::Path, time::Duration};
 use uuid::Uuid;
 use veoveo_computers_runtime::RegisteredConsumer;
+
+/// This proof only establishes Docker removal. Filesystem detachment is separate.
+pub(crate) struct RemovedWriter {
+    writer: PhysicalWriter,
+    engine_id: Uuid,
+}
+impl RemovedWriter {
+    pub(crate) fn writer(&self) -> &PhysicalWriter {
+        &self.writer
+    }
+    pub(crate) fn engine_id(&self) -> Uuid {
+        self.engine_id
+    }
+}
 
 const API: &str = "http://localhost/v1.53";
 const MAX_RESPONSE: usize = 1024 * 1024;
@@ -34,6 +49,31 @@ struct Create<'a> {
     driver: &'a str,
 }
 impl Docker {
+    pub(crate) async fn prove_removed(
+        &self,
+        writer: &PhysicalWriter,
+        volume: &str,
+    ) -> Result<RemovedWriter> {
+        writer.validate()?;
+        self.verify_engine().await?;
+        let response = self
+            .client
+            .get(format!("{API}/containers/{}/json", writer.container_id()))
+            .send()
+            .await
+            .map_err(|_| StorageError::BackendUnavailable)?;
+        if response.status() != StatusCode::NOT_FOUND {
+            return Err(StorageError::WriterDenied);
+        }
+        if !self.consumers(volume).await?.is_empty() {
+            return Err(StorageError::WriterDenied);
+        }
+        self.verify_engine().await?;
+        Ok(RemovedWriter {
+            writer: writer.clone(),
+            engine_id: self.engine_id,
+        })
+    }
     pub fn new(socket: &Path, engine_id: Uuid, driver: String) -> Result<Self> {
         if !socket.is_absolute()
             || engine_id.is_nil()

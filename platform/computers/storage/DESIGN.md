@@ -2,7 +2,8 @@
 
 Status: the journal, filesystem backend, private mTLS service and Docker volume plugin
 pass isolated native qualification, including shared mounts across helper replacement.
-Physical handoff, release packaging and installed acceptance remain implementation work.
+Durable physical handoff also passes its native fault case. Worker maintenance
+orchestration, release packaging and installed acceptance remain implementation work.
 
 ## Standards And Protocols
 
@@ -69,12 +70,42 @@ Stopped containers still reserve ownership. Mount/Unmount retries and nested `do
 cp` never decrement a counter that grants another writer. Producer mounts require
 Docker NoCopy, as qualified by the selected provider patch.
 
+The first successful mount persists the exact Docker container ID and provider
+resource ID before returning its path. A later container that copies the same labels
+cannot acquire that writer's admission. The qualified provider's Stop/Start retains
+its Docker container and creates a new process inside it. Physical container removal
+requires explicit maintenance, rather than silently claiming the old instance again.
+
 Changing the admitted instance requires an explicit source-to-target transition. The
 helper must prove removal of the exact source resource on the recorded engine and
 serialize that proof with admission updates. A late source instance remains denied.
 Persist the new binding before admitting its mount. A lost handoff response is resolved
-from the durable binding; it never permits reviving the old identity. The native fixture
-currently supplies an in-memory transition; it is not evidence for this implementation.
+from the durable binding; it never permits reviving the old identity.
+
+Handoff carries the durable operation UUID, source/target instance and template, and
+the recorded source provider resource ID. The helper requires an exact 404 for its
+recorded Docker container, zero registered volume consumers and unchanged engine
+identity. It synchronizes the filesystem, normally unmounts it, detaches its loop and
+verifies that no association remains. Linux may acknowledge detach while autoclear
+waits for another namespace's mount; that state requires recovery and cannot admit
+the target. A failed attempt retains the recorded source. A later bounded request
+may resume after authoritative physical observation; it never reformats a home.
+
+Each target instance has an immutable transition file outside the user's filesystem.
+That file is synchronized before the home record admits the target and clears its
+physical claim. The target is then restored and may acquire its own exact container.
+The same operation can resolve a lost reply while that target remains current,
+including after helper restart. A different operation cannot claim that transition,
+and a stale operation cannot restore a superseded instance. Reusing a previous
+instance as a new target is rejected before physical mutation. A rollback uses a
+fresh instance with the selected old template, after fencing the current writer.
+Template changes must preserve the recorded capacity; resizing remains unsupported.
+
+The current handoff requires a previously claimed source writer. A maintenance
+target that never mounted needs an explicit abandoned-admission recovery path in
+worker maintenance integration; this helper does not infer a provider outcome from
+the absence of a physical claim. The unreleased v1 home record now requires its
+writer state. No installed record or rolling compatibility profile is admitted yet.
 
 Delete must first remove physical consumers, then unmount and verify loop detachment.
 Only an explicitly governed purge may remove retained files. Plugin Remove cannot
@@ -85,7 +116,7 @@ installation profile requirements before release acceptance.
 
 ## Private Service And Docker Plugin
 
-`veoveo-computer-storage --config <absolute-json-file>` runs both private endpoints.
+`veoveo-computer-storage --config <json-file>` runs both private endpoints.
 The closed configuration binds host identity, persistent root, free-space reserve,
 admitted template fingerprints/capacities, exact Docker Unix socket, plugin name/socket,
 listen address and dedicated worker TLS files. It accepts no ambient Docker endpoint.
@@ -127,8 +158,13 @@ while continuing to write, and reopens the same files after helper restart and
 Stop/Start. An unadmitted replacement fails both during contention and after the
 original resource is removed. The fixture removes its containers before unmounting,
 verifies loop detachment and removes only its own retained data and trust material.
-This qualifies the helper/daemon boundary; native provider lifecycle, durable handoff
-and public installed acceptance retain their separate tests.
+The same fixture exercises durable handoff. It holds a separate private mount after
+source removal, proves the failed transfer leaves that writer physically active, then
+releases it and completes the transfer with the original bytes. It drops the first
+handoff response, retries the exact operation, restarts the helper, rejects a late old
+instance as the sole consumer, and transfers to a new template without reusing an
+instance identity. Native provider integration and public installed acceptance retain
+their separate tests.
 
 ## Filesystem Backend And Native Evidence
 

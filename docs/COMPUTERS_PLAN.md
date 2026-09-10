@@ -412,6 +412,14 @@ production allocator and current attachment/delegation grants remain integration
 Lifecycle dispatch now reads current policy and canonical account state and persists
 the actual decision with its dispatch. Storage fixtures cannot override that check.
 
+The production storage helper now passes isolated native mTLS, shared-mount restart
+and physical writer-handoff cases. It records the exact source container, refuses a
+transfer while a separate mount still holds the filesystem, resolves a lost handoff
+response from durable state and preserves bytes across template changes. Old instance
+identities cannot be reused. Native provider/worker integration, recovery for a target
+that never acquired a physical writer, installed maintenance and public journeys remain
+delivery work; this checkpoint does not establish release acceptance.
+
 | Area | Required evidence |
 |---|---|
 | Core | Standard release surfaces, valid configured/unconfigured states, clean install and selected offline topology |

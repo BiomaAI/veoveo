@@ -95,7 +95,7 @@ impl Fixture {
         let config = serde_json::json!({
             "identity": {"providerId": Uuid::from_u128(100), "engineId": engine, "namespace": "storage-fixture"},
             "root": dir.join("retained"), "reserveBytes": 536870912,
-            "templates": [{"fingerprint": "f".repeat(64), "capacityBytes": 536870912}],
+            "templates": [{"fingerprint": "f".repeat(64), "capacityBytes": 536870912}, {"fingerprint": "e".repeat(64), "capacityBytes": 536870912}],
             "dockerSocket": daemon.socket, "pluginName": "veoveo-retained",
             "pluginSocket": socket_dir.join("volume.sock"), "listen": endpoint,
             "tls": {"workerCa": dir.join("tls/ca.pem"), "certificate": dir.join("tls/server.pem"), "privateKey": dir.join("tls/server-key.pem")},
@@ -132,6 +132,9 @@ impl Fixture {
         fixture
     }
     pub async fn worker(&self, provider: Uuid) -> HomeAllocator {
+        self.worker_template(provider, &"f".repeat(64)).await
+    }
+    pub async fn worker_template(&self, provider: Uuid, fingerprint: &str) -> HomeAllocator {
         HomeAllocator::new(
             AllocationConfig::new(
                 self.endpoint.clone(),
@@ -141,7 +144,7 @@ impl Fixture {
             )
             .unwrap(),
             provider,
-            "f".repeat(64),
+            fingerprint.into(),
             536870912,
         )
         .await
@@ -358,6 +361,129 @@ impl Fixture {
             expected
         );
     }
+    pub async fn assert_content(&self, suffix: &str, expected: &str) {
+        assert_eq!(
+            checked(
+                self.docker()
+                    .args(["exec", &self.container(suffix), "cat", "/probe/value"])
+            )
+            .await,
+            expected
+        );
+    }
+    pub async fn hold_home(&self) {
+        let mount = self
+            .dir
+            .join("retained/homes")
+            .join(self.initial.computer_id().simple().to_string())
+            .join("mount");
+        checked(
+            host()
+                .args([
+                    "run",
+                    "--detach",
+                    "--pull",
+                    "never",
+                    "--name",
+                    &format!("{}-held", self.service_name),
+                    "--network",
+                    "none",
+                    "--user",
+                    "10001:10001",
+                    "--read-only",
+                    "--cap-drop",
+                    "ALL",
+                    "--security-opt",
+                    "no-new-privileges",
+                    "--pids-limit",
+                    "32",
+                    "--memory",
+                    "64m",
+                    "--cpus",
+                    "1",
+                    "--mount",
+                ])
+                .arg(format!(
+                    "type=bind,source={},target=/held,bind-propagation=rprivate",
+                    mount.display()
+                ))
+                .args(["--entrypoint", "/bin/sleep", &self.image, "infinity"]),
+        )
+        .await;
+    }
+    pub async fn write_held(&self, value: &str) {
+        checked(host().args([
+            "exec",
+            &format!("{}-held", self.service_name),
+            "/bin/sh",
+            "-c",
+            "printf '%s' \"$1\" > /held/home/value",
+            "fixture",
+            value,
+        ]))
+        .await;
+        assert_eq!(
+            checked(host().args([
+                "exec",
+                &format!("{}-held", self.service_name),
+                "cat",
+                "/held/home/value"
+            ]))
+            .await,
+            value
+        );
+    }
+    pub async fn release_home(&self) {
+        checked(host().args(["rm", "--force", &format!("{}-held", self.service_name)])).await;
+    }
+    pub async fn drop_handoff_reply(&self, operation: Uuid) {
+        use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, pem::PemObject};
+        use tokio::io::AsyncWriteExt;
+        let ca = fs::read(self.dir.join("tls/ca.pem")).unwrap();
+        let cert = fs::read(self.dir.join("tls/client.pem")).unwrap();
+        let key = fs::read(self.dir.join("tls/client-key.pem")).unwrap();
+        let mut roots = rustls::RootCertStore::empty();
+        for cert in CertificateDer::pem_slice_iter(&ca) {
+            roots.add(cert.unwrap()).unwrap();
+        }
+        let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_protocol_versions(&[&rustls::version::TLS13])
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_client_auth_cert(
+            CertificateDer::pem_slice_iter(&cert)
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .unwrap(),
+            PrivateKeyDer::from_pem_slice(&key).unwrap(),
+        )
+        .unwrap();
+        let request = serde_json::json!({
+            "schema": "veoveo.io/computer-storage/v1", "operation": "handoff", "providerId": self.provider,
+            "computerId": self.initial.computer_id(), "operationId": operation, "sourceInstanceId": self.initial.computer_id(),
+            "sourceTemplateFingerprint": self.initial.template_fingerprint(), "sourceResourceId": "resource-a",
+            "targetInstanceId": self.replacement.replacement_instance_id().unwrap(), "targetTemplateFingerprint": self.replacement.template_fingerprint(),
+        });
+        let raw = serde_json::to_vec(&request).unwrap();
+        assert!(raw.len() <= 1024);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let tcp = tokio::net::TcpStream::connect(&self.endpoint)
+                .await
+                .unwrap();
+            let mut socket = tokio_rustls::TlsConnector::from(std::sync::Arc::new(tls))
+                .connect(ServerName::try_from("127.0.0.1").unwrap(), tcp)
+                .await
+                .unwrap();
+            socket.write_u32(raw.len() as u32).await.unwrap();
+            socket.write_all(&raw).await.unwrap();
+            socket.flush().await.unwrap();
+            // No response read: the next identical request must resolve the
+            // durable transition, including a concurrently completing first one.
+        })
+        .await
+        .unwrap();
+    }
     fn cleanup_command(&self) -> Command {
         let mut command = host();
         command.args([
@@ -415,8 +541,8 @@ impl Fixture {
             ]);
         command
     }
-    pub async fn finish(mut self) {
-        self.remove("a").await;
+    pub async fn finish(mut self, remaining: &str) {
+        self.remove(remaining).await;
         self.daemon.take().unwrap().finish().await;
         self.stop_service().await;
         checked(&mut self.cleanup_command()).await;
@@ -429,6 +555,17 @@ impl Drop for Fixture {
         if self.finished {
             return;
         }
+        let _ = std::process::Command::new("timeout")
+            .args([
+                "10",
+                "docker",
+                "--host",
+                HOST,
+                "rm",
+                "--force",
+                &format!("{}-held", self.service_name),
+            ])
+            .output();
         if let Ok(logs) = std::process::Command::new("timeout")
             .args(["5", "docker", "--host", HOST, "logs", &self.service_name])
             .output()

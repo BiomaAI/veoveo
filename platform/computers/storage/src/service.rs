@@ -128,7 +128,15 @@ impl Service {
             }
             // Recheck the socket after observation, before exposing a mount.
             self.docker.verify_engine().await?;
-            filesystem.restore(home).await?
+            let physical = crate::PhysicalWriter::observed(&consumers[0])?;
+            if let crate::WriterState::Claimed { writer } = record.writer()
+                && writer != &physical
+            {
+                return Err(StorageError::WriterDenied);
+            }
+            let mountpoint = filesystem.restore(home).await?;
+            filesystem.claim_writer(home, physical)?;
+            mountpoint
         } else {
             filesystem.journal().directory(computer)?.join("mount")
         };

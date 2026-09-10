@@ -11,7 +11,7 @@ or installed provider is qualified by this source checkpoint. The owning domain 
 | OpenShell `0.0.116` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
 | OpenShell retained Docker provider | Candidate gateway `0.0.117-veoveo.1` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
 | SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
-| `veoveo.io/computer-storage/v1` | Bounded mTLS allocation/restore adapter generated from Veoveo-owned `protocol/storage.json`, with mandatory provider and instance identity; allocator implementation and physical volume qualification pending |
+| `veoveo.io/computer-storage/v1` | Bounded mTLS prepare/restore/handoff adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
@@ -70,10 +70,15 @@ transport integrity, not physical handoff authority.
 
 Restore is an idempotent reopen of the currently admitted allocation and instance.
 It cannot seed missing storage, change the admitted writer, resize a home or authorize
-template replacement. The production allocator must persist that binding and require
-an explicit handoff after physical source removal. Its Docker engine identity and
-provider namespace must match the recorded storage host. The allocator implementation
-and native handoff qualification remain active work.
+template replacement. Handoff uses a separate generated request with a durable
+operation UUID, exact source/target bindings and the source provider resource ID.
+Its reply echoes every field and the target's admitted capacity. The client rejects
+cross-Computer targets and a target without a distinct replacement instance.
+The production [allocator](../../computers/storage/DESIGN.md) persists those bindings,
+records the physical container and requires verified loop detachment before admitting
+a new writer. Its Docker engine identity and provider namespace match the recorded
+storage host. Native helper qualification does not establish installed provider or
+worker maintenance integration.
 
 ## Native Storage Boundary Probe
 
