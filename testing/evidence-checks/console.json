@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "test"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust",
+        "node"
+      ]
+    },
+    {
+      "arguments": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust",
+        "node"
+      ]
+    },
+    {
+      "arguments": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust",
+        "node"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "xtask",
+        "release",
+        "client-types",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust",
+        "node"
+      ]
+    }
+  ]
+}

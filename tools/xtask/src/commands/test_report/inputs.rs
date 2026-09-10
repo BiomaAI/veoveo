@@ -13,7 +13,7 @@ use super::{
     cargo_inputs,
     catalog::relative,
     model::{
-        CATALOG_PATH, FileContent, FileInput, INDEX_PATH, InputScope, PLANNER_VERSION,
+        CATALOG_DIRECTORY, FileContent, FileInput, INDEX_PATH, InputScope, PLANNER_VERSION,
         RECEIPT_DIRECTORY, SourceInputs,
     },
     storage::digest,
@@ -25,7 +25,6 @@ const COMMON: &[&str] = &[
     "rust-toolchain.toml",
     ".cargo",
     "AGENTS.md",
-    CATALOG_PATH,
     "tools/xtask/src/commands/test_report",
     "tools/xtask/src/main.rs",
     "tools/xtask/src/process.rs",
@@ -90,7 +89,11 @@ pub(super) fn snapshot_with_roots(
         relative(path)?;
         discovered.insert(path.to_owned());
         let workspace_manifest = path == "Cargo.toml" || path.ends_with("/Cargo.toml");
+        let unselected_catalog = !matches!(scope, InputScope::Repository)
+            && matches_root(path, CATALOG_DIRECTORY)
+            && !roots.iter().any(|root| root == path);
         if !excluded(path)
+            && !unselected_catalog
             && (matches!(scope, InputScope::Repository)
                 || workspace_manifest
                 || roots.iter().any(|selected| matches_root(path, selected)))

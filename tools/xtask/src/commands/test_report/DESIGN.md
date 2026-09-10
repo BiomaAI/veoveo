@@ -33,13 +33,14 @@ coverage, environment bindings and explicit freshness limits.
 ## Input Planning
 
 Every receipt includes its planner version, command, source manifest and toolchain
-identity. A catalog change conservatively invalidates all catalog-backed checks. The manifest records actual bytes and file modes. A Git clean filter cannot
+identity. Each check includes its owning catalog file; a declaration for an unrelated owner
+does not enter that boundary. The manifest records actual bytes and file modes. A Git clean filter cannot
 hide different materialized bytes from a check. Source additions, removals and changed
 symlink targets participate in invalidation. A source link cannot admit bytes outside
 its declared repository boundary.
 
 Cargo checks include selected local packages, their transitive dependency sources,
-workspace manifests, lockfile, Cargo configuration and pinned toolchain. Owner-reviewed exact commands in `testing/evidence-checks.json` add fixtures and
+workspace manifests, lockfile, Cargo configuration and pinned toolchain. Owner-reviewed exact commands in `testing/evidence-checks/` add fixtures and
 generators outside the package. Existing package image-input declarations also enter
 the test closure. The initial catalog is conservative and covers only admitted
 source checks; an unknown invocation cannot invent a narrower input claim. The initial

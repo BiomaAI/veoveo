@@ -38,7 +38,7 @@ cargo xtask test-report show
 ```
 
 The exact command and checked-in owner declaration select the input boundary.
-`testing/evidence-checks.json` initially admits the recorder, image-source helper,
+`testing/evidence-checks/` initially admits the recorder, image-source helper,
 xtask lint/format, Console checks and generated client-type verification. Cargo
 closures include transitive local development and build dependencies, workspace
 manifests, the complete lockfile and declared external fixtures. Console checks also

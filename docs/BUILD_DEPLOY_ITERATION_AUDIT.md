@@ -3177,3 +3177,11 @@ measurements under different contention, not a controlled throughput benchmark.
 Eleven immutable attempts occupy about 1.6 MiB for this transition. Input manifests
 are currently inline; content-addressed manifest deduplication and bounded archival
 remain storage-efficiency work as history grows.
+
+Registering the next Computers check exposed one remaining global boundary: the
+initial catalog was a single input file. Planner v2 splits it into owner catalogs
+and includes only the selected owner's declaration, even when a test also reads
+the broader `testing/` fixture directory. The seventeenth recorder case proves that
+another owner's registration preserves a result while editing its own declaration
+invalidates it. The real iteration-tools receipts also remained current while the
+independent Computers runtime source and design changed.

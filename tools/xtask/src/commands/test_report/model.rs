@@ -8,10 +8,10 @@ use uuid::Uuid;
 pub(super) const RECEIPT_SCHEMA: &str = "veoveo.io/test-receipt/v1";
 pub(super) const INDEX_SCHEMA: &str = "veoveo.io/local-test-report/v3";
 pub(super) const PROFILE_SCHEMA: &str = "veoveo.io/test-coverage-profile/v1";
-pub(super) const PLANNER_VERSION: u32 = 1;
+pub(super) const PLANNER_VERSION: u32 = 2;
 pub(super) const INDEX_PATH: &str = "testing/local-test-report.json";
 pub(super) const RECEIPT_DIRECTORY: &str = "testing/test-receipts";
-pub(super) const CATALOG_PATH: &str = "testing/evidence-checks.json";
+pub(super) const CATALOG_DIRECTORY: &str = "testing/evidence-checks";
 pub(super) const CATALOG_SCHEMA: &str = "veoveo.io/test-check-catalog/v1";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
