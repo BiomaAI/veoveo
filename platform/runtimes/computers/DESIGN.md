@@ -58,6 +58,11 @@ The gateway and BFF must not depend on this crate. The Computers worker applies
 canonical authorization and shared durable Task transactions before invoking it.
 The adapter returns typed outcomes without secrets or provider text in errors.
 
+The `retained_template` Cargo example computes installation fingerprints through the
+same canonical encoder used by admission. Its arguments are the pinned image, CPU
+count, memory/home/temporary sizes in MiB and provider-policy JSON path. It only
+prints the validated fingerprint; it does not create capacity or issue credentials.
+
 ## Retained Allocation Identity
 
 The allocation client pins a non-nil provider UUID alongside its template fingerprint

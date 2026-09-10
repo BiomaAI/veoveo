@@ -2895,3 +2895,17 @@ The published host/template pair passes the native retained restart test in 39.4
 seconds. Configured-capacity contract, Helm and renderer checks take 1.4, 1.2 and
 25.3 seconds respectively. These chart changes reuse the published application images.
 No additional throughput experiment blocks their installation.
+
+Installation configuration exposed an old acceptance constraint: Bioma's profiles,
+clients and policy had to equal the disposable local fixture. Recording publication
+and upload policy already differed. Typed catalog validation and shared server
+contracts remain enforced; the owner-local test now verifies selected Computer
+resource exposure instead of requiring installation policy equality.
+
+The first owner-local acceptance compile took 104.3 seconds because importing the
+gateway catalog also selected its SurrealDB dependency closure. The repeat took 2.57
+seconds. Combined enrollment/runtime/gateway lint selected another feature union and
+took 76.6 seconds. Parallel Cargo entrypoints then waited on the same target directory.
+This is measurable build churn: narrow catalog ownership and stable feature selections
+belong in the efficiency checkpoint. Final checks run after installation inputs are
+settled; an input change during an earlier check invalidates that receipt as designed.

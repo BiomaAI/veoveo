@@ -1,0 +1,87 @@
+{
+  "schema": "veoveo.io/computers-service/v1",
+  "listen": "0.0.0.0:8804",
+  "allowedHosts": [
+    "computers-mcp:8804"
+  ],
+  "allowedOrigins": [
+    "https://veoveo.bioma.ai"
+  ],
+  "access": {
+    "maxGrants": 4,
+    "absoluteSeconds": 28800,
+    "idleSeconds": 1800
+  },
+  "providerInstanceId": "1c1f108d-6cc9-469d-ae78-823c9a9f51c4",
+  "capacity": {
+    "kind": "openshell_docker",
+    "gateway": {
+      "transport": {
+        "endpoint": "computer-host.veoveo.svc.cluster.local:8805",
+        "caFile": "/etc/veoveo/computers/trust/provider-ca.pem",
+        "certificateFile": "/etc/veoveo/computers/trust/provider-worker.pem",
+        "keyFile": "/etc/veoveo/computers/trust/provider-worker-key.pem"
+      },
+      "workspace": "computers"
+    },
+    "allocator": {
+      "endpoint": "computer-host.veoveo.svc.cluster.local:8806",
+      "caFile": "/etc/veoveo/computers/trust/storage-ca.pem",
+      "certificateFile": "/etc/veoveo/computers/trust/storage-worker.pem",
+      "keyFile": "/etc/veoveo/computers/trust/storage-worker-key.pem"
+    },
+    "limits": {
+      "perOwner": 2,
+      "perTenant": 4,
+      "provider": 4
+    },
+    "templates": [
+      {
+        "id": "development",
+        "fingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
+        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
+        "cpus": 2,
+        "memoryMib": 2048,
+        "homeCapacityMib": 8192,
+        "temporaryMib": 256,
+        "policy": {
+          "version": 1,
+          "filesystem": {
+            "includeWorkdir": false,
+            "readOnly": [
+              "/usr",
+              "/lib",
+              "/lib64",
+              "/bin",
+              "/etc/passwd",
+              "/etc/group",
+              "/etc/profile",
+              "/etc/profile.d",
+              "/etc/bash.bashrc",
+              "/etc/nsswitch.conf",
+              "/etc/resolv.conf",
+              "/etc/ssl/certs",
+              "/proc",
+              "/sandbox"
+            ],
+            "readWrite": [
+              "/sandbox/persistent",
+              "/tmp",
+              "/dev/null",
+              "/dev/tty",
+              "/dev/pts"
+            ]
+          },
+          "landlock": {
+            "compatibility": "hard_requirement"
+          },
+          "process": {
+            "runAsUser": "10001",
+            "runAsGroup": "10001"
+          }
+        }
+      }
+    ],
+    "defaultTemplate": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+  }
+}

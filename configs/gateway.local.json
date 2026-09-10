@@ -748,6 +748,43 @@
         "upstream_kind": "stdio_bridge",
         "child": "rerun viewer-mcp"
       }
+    },
+    {
+      "slug": "computers",
+      "uri_scheme": "computer",
+      "mount_path": "/computers",
+      "mcp_path": "/computers/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://computers-mcp:8804/computers/mcp",
+        "health_url": "http://computers-mcp:8804/computers/healthz",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "resources_list_changed": true
+      },
+      "tools": [
+        "create",
+        "start",
+        "stop"
+      ],
+      "prompts": [
+        "develop"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "contract_revision": 3
+      },
+      "resource_projection": "server_owned"
     }
   ],
   "profiles": [
@@ -1206,11 +1243,11 @@
             "mode": "listed",
             "items": [
               "render_chart",
-                "compile_chart",
-                "validate_chart",
-                "list_chart_types",
-                "list_themes",
-                "create_chart_view"
+              "compile_chart",
+              "validate_chart",
+              "list_chart_types",
+              "list_themes",
+              "create_chart_view"
             ]
           },
           "resources": {
@@ -1234,6 +1271,34 @@
           },
           "completions": "disabled",
           "tasks": "disabled"
+        },
+        {
+          "server": "computers",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create",
+              "start",
+              "stop"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "computer"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "develop"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -1246,7 +1311,9 @@
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.example/mcp/agent",
       "policy_version": "2026-07-02",
-      "auth_modes": ["oauth_client_credentials"],
+      "auth_modes": [
+        "oauth_client_credentials"
+      ],
       "discovery_failure_mode": "fail_closed",
       "required_scopes": [
         "operator:use",
@@ -1270,8 +1337,18 @@
               "execute_vehicle_mission_plan"
             ]
           },
-          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "uav-sim"}]},
-          "prompts": {"mode": "none"},
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "uav-sim"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
           "completions": "enabled",
           "tasks": "enabled"
         },
@@ -1290,21 +1367,82 @@
               "prepare_route_handoff"
             ]
           },
-          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "map"}]},
-          "prompts": {"mode": "listed", "items": ["prepare_route_request", "review_route"]},
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "map"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "prepare_route_request",
+              "review_route"
+            ]
+          },
           "completions": "enabled",
           "tasks": "enabled"
         },
         {
           "server": "time",
-          "tools": {"mode": "listed", "items": ["assess_clock", "convert_time", "resolve_time"]},
-          "resources": {"mode": "listed", "items": [{"kind": "scheme", "scheme": "time"}]},
-          "prompts": {"mode": "none"},
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "assess_clock",
+              "convert_time",
+              "resolve_time"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "time"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
           "completions": "disabled",
           "tasks": "disabled"
+        },
+        {
+          "server": "computers",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create",
+              "start",
+              "stop"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "computer"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "develop"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
         }
       ],
-      "metadata": {"tenant": "enterprise"}
+      "metadata": {
+        "tenant": "enterprise"
+      }
     },
     {
       "id": "admin",
@@ -1717,11 +1855,11 @@
             "mode": "listed",
             "items": [
               "render_chart",
-                "compile_chart",
-                "validate_chart",
-                "list_chart_types",
-                "list_themes",
-                "create_chart_view"
+              "compile_chart",
+              "validate_chart",
+              "list_chart_types",
+              "list_themes",
+              "create_chart_view"
             ]
           },
           "resources": {
@@ -1745,6 +1883,34 @@
           },
           "completions": "disabled",
           "tasks": "disabled"
+        },
+        {
+          "server": "computers",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create",
+              "start",
+              "stop"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "computer"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "develop"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -2421,11 +2587,11 @@
           ],
           "tools": [
             "render_chart",
-          "compile_chart",
-          "validate_chart",
-          "list_chart_types",
-          "list_themes",
-          "create_chart_view"
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "list_themes",
+            "create_chart_view"
           ],
           "resource_schemes": [
             "charts",
@@ -2464,11 +2630,11 @@
           ],
           "tools": [
             "render_chart",
-          "compile_chart",
-          "validate_chart",
-          "list_chart_types",
-          "list_themes",
-          "create_chart_view"
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "list_themes",
+            "create_chart_view"
           ],
           "resource_schemes": [
             "charts",
@@ -2504,11 +2670,11 @@
           ],
           "tools": [
             "render_chart",
-          "compile_chart",
-          "validate_chart",
-          "list_chart_types",
-          "list_themes",
-          "create_chart_view"
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "list_themes",
+            "create_chart_view"
           ],
           "resource_schemes": [
             "charts",
@@ -2547,11 +2713,11 @@
           ],
           "tools": [
             "render_chart",
-          "compile_chart",
-          "validate_chart",
-          "list_chart_types",
-          "list_themes",
-          "create_chart_view"
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "list_themes",
+            "create_chart_view"
           ],
           "resource_schemes": [
             "charts",
@@ -4728,6 +4894,102 @@
             "admin:manage"
           ],
           "metadata": {}
+        },
+        {
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "computer_attach"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "agent"
+          ],
+          "servers": [
+            "computers"
+          ],
+          "tools": [
+            "create",
+            "start",
+            "stop"
+          ],
+          "resource_schemes": [
+            "computer"
+          ],
+          "prompts": [
+            "develop"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "id": "allow_personal_computers",
+          "roles": [
+            "operator",
+            "administrator"
+          ]
+        },
+        {
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "computer_attach"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "agent"
+          ],
+          "servers": [
+            "computers"
+          ],
+          "tools": [
+            "create",
+            "start",
+            "stop"
+          ],
+          "resource_schemes": [
+            "computer"
+          ],
+          "prompts": [
+            "develop"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "id": "allow_service_computers",
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service",
+            "https://veoveo.example/oauth#admin-service"
+          ]
         }
       ],
       "metadata": {}
@@ -5129,9 +5391,15 @@
       "invocation_mode": "automated",
       "display_name": "UAV 1 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": ["https://veoveo.example/mcp/agent"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
+      "allowed_resources": [
+        "https://veoveo.example/mcp/agent"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
@@ -5139,7 +5407,9 @@
         "map:route",
         "time:read"
       ],
-      "metadata": {"client_boundary": "agent"},
+      "metadata": {
+        "client_boundary": "agent"
+      },
       "jwks": {
         "source": "file",
         "path": "examples/bioma/uav-pilot-jwks.json"
@@ -5153,9 +5423,15 @@
       "invocation_mode": "automated",
       "display_name": "UAV 2 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": ["https://veoveo.example/mcp/agent"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
+      "allowed_resources": [
+        "https://veoveo.example/mcp/agent"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
@@ -5163,7 +5439,9 @@
         "map:route",
         "time:read"
       ],
-      "metadata": {"client_boundary": "agent"},
+      "metadata": {
+        "client_boundary": "agent"
+      },
       "jwks": {
         "source": "file",
         "path": "examples/bioma/uav-pilot-jwks.json"
@@ -5177,9 +5455,15 @@
       "invocation_mode": "automated",
       "display_name": "UAV 3 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": ["https://veoveo.example/mcp/agent"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
+      "allowed_resources": [
+        "https://veoveo.example/mcp/agent"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
@@ -5187,7 +5471,9 @@
         "map:route",
         "time:read"
       ],
-      "metadata": {"client_boundary": "agent"},
+      "metadata": {
+        "client_boundary": "agent"
+      },
       "jwks": {
         "source": "file",
         "path": "examples/bioma/uav-pilot-jwks.json"
@@ -5201,9 +5487,15 @@
       "invocation_mode": "automated",
       "display_name": "UAV 4 Pilot",
       "client_surface": "full_mcp",
-      "allowed_resources": ["https://veoveo.example/mcp/agent"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
+      "allowed_resources": [
+        "https://veoveo.example/mcp/agent"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
       "allowed_scopes": [
         "operator:use",
         "uav-sim:control",
@@ -5211,7 +5503,9 @@
         "map:route",
         "time:read"
       ],
-      "metadata": {"client_boundary": "agent"},
+      "metadata": {
+        "client_boundary": "agent"
+      },
       "jwks": {
         "source": "file",
         "path": "examples/bioma/uav-pilot-jwks.json"

@@ -21,6 +21,11 @@ identity, origins, capacity, and provider selection live here. The build and
 installation architecture does not contain Bioma-specific roles, scopes, or
 release machinery.
 
+Owner-local acceptance checks the shared server contract and validates the complete
+typed installation catalog. Profiles, clients and policy belong to this installation;
+they may differ from the disposable local fixture. Journey checks verify the selected
+resource exposure, including private Computers and the separate recording publisher.
+
 ## Ownership and layout
 
 The repository separates the local platform fixture from application desired state:
@@ -42,6 +47,7 @@ examples/bioma/
   images/veoveo.lock.yaml        platform image digests
   images/uav-sim.lock.yaml       UAV and pilot image digests
   gateway.json                  MCP catalog, OAuth, policy, and routes
+  computers/                    private host, control and retained-template policy
   acceptance/                   owner-local compiled composition checks
   recording-producer-jwks.json  public producer key
   service-client-jwks.json      public machine-client key
@@ -66,6 +72,43 @@ label. A values update therefore wakes the owning Helm controller immediately af
 Flux applies it. Chart publication alone does not replace unchanged Pod templates.
 
 ## Release publication
+
+Computers capacity is selected by `computerCapacity: openshell-docker`. Its public
+JSON files pin one provider identity and template. This initial development template
+has Python, Git and shell tools, an 8 GiB retained home, two CPUs and 2 GiB memory.
+It grants no outbound network access. Admission allows two Computers per owner and
+four for this installation. Console and Computers control each use two replicas;
+the private compute host owns a retained 100 GiB PVC. Host maintenance requires
+explicit lifecycle coordination before its single replica is replaced.
+
+Fresh installations enroll trust with the canonical command:
+
+```sh
+cargo xtask release computers-trust --output /private/new-computers-trust --host-name computer-host.veoveo.svc.cluster.local
+kubectl --context k3d-veoveo-bioma -n veoveo create secret generic bioma-computer-host-trust --from-file=/private/new-computers-trust/host
+kubectl --context k3d-veoveo-bioma -n veoveo create secret generic bioma-computers-worker-trust --from-file=/private/new-computers-trust/worker
+```
+
+The parent directory must already exist. Keep the operator CA keys outside the
+cluster and protect the bundle with installation-owned encrypted backup. Leaf
+certificates expire after 90 days; enrollment on 2026-09-10 requires renewal before
+2026-12-09. Rotation remains a required maintenance qualification before that date.
+Existing retained providers preserve their trust and JWT identity across rollouts.
+The command refuses existing output, and these Secret commands refuse existing names.
+
+Compute the admitted template fingerprint with the production encoder whenever a
+template input changes:
+
+```sh
+cargo run --locked --offline -p veoveo-computers-runtime --example retained_template -- <digest-pinned-image> 2 2048 8192 256 examples/bioma/computers/policy.json
+```
+
+Update the exact policy in `computers.json`, the admitted fingerprint in both JSON
+files, and the SHA-256 configuration revisions in `values.yaml` together. Existing
+Computers keep their admitted template and retained identity. The cluster-local
+development registry is explicit HTTP; this choice belongs to this k3d installation.
+Restricted-network deployments must set the actual registry CIDR and port. The
+provider and storage endpoints remain private and require separate worker mTLS keys.
 
 The admin and operator profiles explicitly admit artifact uploads for their existing
 human roles and machine clients with `artifact:upload` scope and contributor membership.

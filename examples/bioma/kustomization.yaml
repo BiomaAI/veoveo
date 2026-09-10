@@ -8,6 +8,18 @@ resources:
   - gitops/releases
   - gitops/cloudflared.yaml
 configMapGenerator:
+  - name: bioma-computers-configuration
+    namespace: veoveo
+    options:
+      disableNameSuffixHash: true
+    files:
+      - computers.json=computers/computers.json
+  - name: bioma-computer-host-configuration
+    namespace: veoveo
+    options:
+      disableNameSuffixHash: true
+    files:
+      - host.json=computers/host.json
   - name: bioma-gateway-control-plane
     namespace: veoveo
     options:

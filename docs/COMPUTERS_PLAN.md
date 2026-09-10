@@ -628,3 +628,12 @@ declared registry egress. The exact published host and template pass whole-conta
 replacement with retained bytes in 39.4 seconds. Contract, chart, renderer and lint
 checks pass. Installation-owned configuration, trust and public acceptance follow;
 this checkpoint does not claim that capacity is already installed on Bioma.
+
+Bioma now has installation-owned host/control JSON, the canonical retained template
+fingerprint and separate provider/storage trust. Fresh enrollment uses a reusable
+private-output command; CA keys stay outside the cluster. The selected capacity admits
+two Computers per owner and four total, with an 8 GiB retained home each. The initial
+Python/shell template has no outbound network permission. The gateway catalog exposes
+Computers through explicit user and service policy. Two-replica gateway, Console and
+Computers control are selected with the exact published images; Flux activation and
+public user journeys are the next installed checks.

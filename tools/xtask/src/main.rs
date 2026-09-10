@@ -103,6 +103,15 @@ enum ImageCommand {
 
 #[derive(Debug, Subcommand)]
 enum ReleaseCommand {
+    /// Issue a fresh installation-owned Computers trust bundle into a private directory.
+    ComputersTrust {
+        /// New directory; existing credentials are never overwritten.
+        #[arg(long)]
+        output: PathBuf,
+        /// Private compute host DNS name used by workers.
+        #[arg(long)]
+        host_name: String,
+    },
     /// Generate browser models from the canonical Rust wire schemas.
     ClientTypes {
         /// Verify the committed outputs without modifying them.
@@ -533,6 +542,9 @@ fn main() -> Result<()> {
             }
         },
         Command::Release { command } => match command {
+            ReleaseCommand::ComputersTrust { output, host_name } => {
+                commands::computers_trust::create(&output, &host_name)
+            }
             ReleaseCommand::ClientTypes { check } => {
                 commands::client_types::run(&repository, check)
             }

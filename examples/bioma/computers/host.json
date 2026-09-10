@@ -1,0 +1,22 @@
+{
+  "schema": "veoveo.io/computer-host/v1",
+  "providerId": "1c1f108d-6cc9-469d-ae78-823c9a9f51c4",
+  "namespace": "bioma-computers",
+  "defaultImage": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
+  "images": [
+    "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721"
+  ],
+  "templates": [
+    {
+      "fingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
+      "capacityBytes": 8589934592
+    }
+  ],
+  "reserveBytes": 8589934592,
+  "registry": {
+    "authority": "k3d-veoveo-registry.localhost:5000",
+    "transport": "development_http"
+  },
+  "bridgeAddress": "172.30.0.1",
+  "networkPool": "172.31.0.0"
+}

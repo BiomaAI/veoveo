@@ -167,6 +167,7 @@ Hub, administration, and GPU policy.
 | [`platform/gateway/src/bin/gateway/console/`](../platform/gateway/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap independent of administrator inventory, current navigation permission and shared branding/identity presentation |
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session edge with bounded typed responses and refresh settlement |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | canonical Rust schema export and pinned TypeScript conversion; `release client-types --check` detects generated-model drift |
+| [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT enrollment with separate host, worker and operator outputs |
 | `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
 | [`apps/console/web/src/computers/`](../apps/console/web/src/computers/DESIGN.md) | native collection, retained lifecycle request recovery, bounded live invalidations, lazy hardware terminal and replay/lease state machine; installed acceptance remains in progress |
 | `apps/console/web/src/generated/`, `generatedContracts.ts` | generated Computer/Console schemas and TypeScript models plus qualified pinned-Zod runtime validation |
