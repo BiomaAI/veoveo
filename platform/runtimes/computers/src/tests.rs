@@ -12,6 +12,7 @@ use tonic::{
 };
 use uuid::Uuid;
 mod allocation_tests;
+mod forward_tests;
 mod instance_tests;
 mod policy_tests;
 mod recovery_tests;
@@ -316,6 +317,7 @@ struct FakeState {
     ssh: terminal_tests::SshState,
     session_mode: u8,
     session_reply_gate: Option<terminal_tests::Gate>,
+    forward_probe: Option<forward_tests::Probe>,
 }
 #[derive(Clone)]
 struct Fake(Arc<Mutex<FakeState>>);
@@ -342,6 +344,7 @@ impl Fake {
             ssh: Default::default(),
             session_mode: 0,
             session_reply_gate: None,
+            forward_probe: None,
         })))
     }
     fn authorize(&self) -> std::result::Result<(), Status> {
@@ -803,6 +806,7 @@ impl Drop for TlsFiles {
     }
 }
 struct Running {
+    leases: Mutex<Vec<LeaseAuthority>>,
     fake: Fake,
     runtime: OpenShellRuntime,
     tls: TlsFiles,
@@ -810,6 +814,12 @@ struct Running {
     task: tokio::task::JoinHandle<()>,
 }
 impl Running {
+    fn lease(&self, duration: Duration) -> AttachmentLease {
+        let (authority, lease) =
+            LeaseAuthority::issue(tokio::time::Instant::now(), duration).unwrap();
+        self.leases.lock().unwrap().push(authority);
+        lease
+    }
     async fn start() -> Self {
         // Match the gateway/BFF entrypoints when a combined workspace test
         // unifies both Rustls provider features through other dependencies.
@@ -837,6 +847,7 @@ impl Running {
             .await
             .unwrap();
         Self {
+            leases: Mutex::new(Vec::new()),
             fake,
             runtime,
             tls,
@@ -950,12 +961,12 @@ async fn gateway_admission_auth_and_identity_fail_closed() {
         .connect()
         .await;
     if let Ok(channel) = channel {
-        assert!(matches!(
-            OpenShellRuntime::from_channel(channel, "computers".into(), Uuid::from_u128(100))
-                .ready()
-                .await,
-            Err(RuntimeFailure::Unavailable)
-        ));
+        assert!(
+            crate::client::Client::new(channel)
+                .get_gateway_info(crate::client::request(api::GetGatewayInfoRequest {}, 10))
+                .await
+                .is_err()
+        );
     }
 }
 #[tokio::test]

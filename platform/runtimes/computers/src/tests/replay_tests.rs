@@ -6,7 +6,7 @@ async fn attach(running: &Running) -> crate::Terminal {
         .attach(
             &binding(),
             TerminalSize::new(80, 24).unwrap(),
-            SystemTime::now() + Duration::from_secs(60),
+            running.lease(Duration::from_secs(30)),
         )
         .await
         .unwrap()

@@ -1,11 +1,11 @@
 //! Narrow provider adapter used only after Computers has authorized an exact binding.
 use crate::{
-    Binding, Observation, OpenShellRuntime, Phase, Result, RuntimeFailure, client::request,
-    protocol::v1 as api,
+    AttachmentLease, Binding, ForwardTunnel, Observation, OpenShellRuntime, Phase, Result,
+    RuntimeFailure, client::request, protocol::v1 as api,
 };
 use futures::Stream;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tonic::{Request, Response, Streaming};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tonic::Response;
 use zeroize::Zeroizing;
 
 #[derive(Clone)]
@@ -14,17 +14,22 @@ pub struct OpenShellAccess {
     binding: Binding,
     sandbox_id: String,
     main_process_id: String,
-    expires_at: SystemTime,
+    lease: AttachmentLease,
 }
 
 impl OpenShellRuntime {
     pub async fn open_shell_access(
         &self,
         binding: &Binding,
-        expires_at: SystemTime,
+        lease: AttachmentLease,
     ) -> Result<OpenShellAccess> {
-        remaining(expires_at)?;
-        let observed = self.get(binding).await?.ok_or(RuntimeFailure::NotFound)?;
+        lease.check()?;
+        let observed = tokio::select! {
+            biased;
+            _ = lease.closed() => return Err(RuntimeFailure::LeaseExpired),
+            result = self.get(binding) => result?,
+        }
+        .ok_or(RuntimeFailure::NotFound)?;
         if observed.phase != Phase::Ready || observed.main_process_instance_id.is_empty() {
             return Err(RuntimeFailure::InvalidState);
         }
@@ -33,7 +38,7 @@ impl OpenShellRuntime {
             binding: binding.clone(),
             sandbox_id: observed.sandbox_id,
             main_process_id: observed.main_process_instance_id,
-            expires_at,
+            lease,
         })
     }
 }
@@ -56,21 +61,25 @@ impl OpenShellAccess {
     }
 
     async fn current_sandbox(&self) -> Result<api::SandboxResponse> {
-        remaining(self.expires_at)?;
+        self.lease.check()?;
         let response = self
-            .runtime
-            .client
-            .clone()
-            .get_sandbox(request(
-                api::GetSandboxRequest {
-                    name: self.binding.name(),
-                    workspace: self.runtime.workspace.clone(),
-                },
-                10,
-            ))
-            .await
-            .map_err(|_| RuntimeFailure::Unavailable)?
-            .into_inner();
+            .lease
+            .enforce(async {
+                self.runtime
+                    .client
+                    .clone()
+                    .get_sandbox(request(
+                        api::GetSandboxRequest {
+                            name: self.binding.name(),
+                            workspace: self.runtime.workspace.clone(),
+                        },
+                        10,
+                    ))
+                    .await
+                    .map(Response::into_inner)
+                    .map_err(|_| RuntimeFailure::Unavailable)
+            })
+            .await?;
         let observed = Observation::checked(
             response
                 .sandbox
@@ -85,30 +94,39 @@ impl OpenShellAccess {
         {
             return Err(RuntimeFailure::BindingMismatch);
         }
+        self.lease.check()?;
         Ok(response)
     }
 
     pub async fn health(&self) -> Result<api::HealthResponse> {
         self.current_sandbox().await?;
-        self.runtime
-            .client
-            .clone()
-            .health(request(api::HealthRequest {}, 10))
+        self.lease
+            .enforce(async {
+                self.runtime
+                    .client
+                    .clone()
+                    .health(request(api::HealthRequest {}, 10))
+                    .await
+                    .map(Response::into_inner)
+                    .map_err(|_| RuntimeFailure::Unavailable)
+            })
             .await
-            .map(Response::into_inner)
-            .map_err(|_| RuntimeFailure::Unavailable)
     }
 
     pub async fn gateway_info(&self) -> Result<api::GetGatewayInfoResponse> {
         self.current_sandbox().await?;
         let mut response = self
-            .runtime
-            .client
-            .clone()
-            .get_gateway_info(request(api::GetGatewayInfoRequest {}, 10))
-            .await
-            .map(Response::into_inner)
-            .map_err(|_| RuntimeFailure::Unavailable)?;
+            .lease
+            .enforce(async {
+                self.runtime
+                    .client
+                    .clone()
+                    .get_gateway_info(request(api::GetGatewayInfoRequest {}, 10))
+                    .await
+                    .map(Response::into_inner)
+                    .map_err(|_| RuntimeFailure::Unavailable)
+            })
+            .await?;
         response.compute_drivers.clear();
         Ok(response)
     }
@@ -148,30 +166,24 @@ impl OpenShellAccess {
         if requested_sandbox_id != self.sandbox_id {
             return Err(RuntimeFailure::BindingMismatch);
         }
-        let mut response = self
-            .runtime
-            .client
-            .clone()
-            .create_ssh_session(request(
-                api::CreateSshSessionRequest {
-                    sandbox_id: self.sandbox_id.clone(),
-                },
-                10,
+        let (mut response, guard) = self
+            .lease
+            .enforce(crate::terminal::issue_session(
+                self.runtime.client.clone(),
+                self.sandbox_id.clone(),
             ))
-            .await
-            .map_err(|_| RuntimeFailure::TerminalFailed)?
-            .into_inner();
-        let token = Zeroizing::new(std::mem::take(&mut response.token));
-        let access_expires_at_ms =
-            system_time_ms(self.expires_at).ok_or(RuntimeFailure::TerminalFailed)?;
+            .await?;
+        let token = guard.into_token();
+        let access_expires_at_ms = self.lease.expires_at().ok().and_then(system_time_ms);
         let accepted = response.sandbox_id == self.sandbox_id
             && valid_token(&token)
-            && response.expires_at_ms > now_ms();
+            && response.expires_at_ms > now_ms()
+            && access_expires_at_ms.is_some();
         if !accepted {
             let _ = self.revoke_inner(token).await;
             return Err(RuntimeFailure::TerminalFailed);
         }
-        response.expires_at_ms = response.expires_at_ms.min(access_expires_at_ms);
+        response.expires_at_ms = response.expires_at_ms.min(access_expires_at_ms.unwrap());
         response.token = token.to_string();
         // A bearer-mode OpenShell CLI uses the registered external gateway URL.
         // Keep the private provider listener out of the public response anyway.
@@ -207,24 +219,22 @@ impl OpenShellAccess {
             .map_err(|_| RuntimeFailure::TerminalFailed)
     }
 
-    pub async fn forward_tcp<S>(&self, stream: S) -> Result<Streaming<api::TcpForwardFrame>>
+    pub async fn forward_tcp<S>(&self, stream: S) -> Result<ForwardTunnel>
     where
         S: Stream<Item = api::TcpForwardFrame> + Send + 'static,
     {
         self.current_sandbox().await?;
-        let mut request = Request::new(stream);
-        request.set_timeout(remaining(self.expires_at)?);
-        self.runtime
-            .client
-            .clone()
-            .forward_tcp(request)
-            .await
-            .map(Response::into_inner)
-            .map_err(|_| RuntimeFailure::TerminalFailed)
+        crate::forward_tunnel::open(
+            self.runtime.clone(),
+            self.sandbox_id.clone(),
+            self.lease.clone(),
+            stream,
+        )
+        .await
     }
 }
 
-fn valid_token(token: &str) -> bool {
+pub(crate) fn valid_token(token: &str) -> bool {
     !token.is_empty()
         && token.len() <= 4096
         && token
@@ -243,14 +253,6 @@ fn system_time_ms(value: SystemTime) -> Option<i64> {
         .and_then(|duration| i64::try_from(duration.as_millis()).ok())
 }
 
-fn remaining(expires_at: SystemTime) -> Result<Duration> {
-    expires_at
-        .duration_since(SystemTime::now())
-        .ok()
-        .filter(|duration| !duration.is_zero() && *duration <= Duration::from_secs(900))
-        .ok_or(RuntimeFailure::LeaseExpired)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -261,12 +263,5 @@ mod tests {
         assert!(!valid_token(""));
         assert!(!valid_token("space is rejected"));
         assert!(!valid_token(&"a".repeat(4097)));
-    }
-
-    #[test]
-    fn access_lifetime_never_exceeds_fifteen_minutes() {
-        assert!(remaining(SystemTime::now() + Duration::from_secs(30)).is_ok());
-        assert!(remaining(SystemTime::now() + Duration::from_secs(901)).is_err());
-        assert!(remaining(SystemTime::now() - Duration::from_secs(1)).is_err());
     }
 }

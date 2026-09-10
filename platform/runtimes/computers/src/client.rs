@@ -117,6 +117,8 @@ pub struct OpenShellRuntime {
     pub(crate) provider_instance_id: Uuid,
     pub(crate) client: Client,
     pub(crate) workspace: String,
+    pub(crate) endpoint: Endpoint,
+    pub(crate) address: String,
 }
 impl OpenShellRuntime {
     /// Establish an installation-owned mTLS connection and admit the exact pin.
@@ -138,24 +140,17 @@ impl OpenShellRuntime {
             .connect()
             .await
             .map_err(|_| RuntimeFailure::Unavailable)?;
-        let runtime = Self::from_channel(channel, config.workspace, config.provider_instance_id);
-        runtime.ready().await?;
-        Ok(runtime)
-    }
-    // Kept private: tests can exercise generated gRPC without providing an
-    // insecure constructor to platform callers.
-    pub(crate) fn from_channel(
-        channel: Channel,
-        workspace: String,
-        provider_instance_id: Uuid,
-    ) -> Self {
-        Self {
-            provider_instance_id,
+        let runtime = Self {
+            provider_instance_id: config.provider_instance_id,
             client: Client::new(channel)
                 .max_decoding_message_size(1024 * 1024)
                 .max_encoding_message_size(1024 * 1024),
-            workspace,
-        }
+            workspace: config.workspace,
+            endpoint,
+            address: config.endpoint,
+        };
+        runtime.ready().await?;
+        Ok(runtime)
     }
     pub async fn ready(&self) -> Result<()> {
         let response = self
