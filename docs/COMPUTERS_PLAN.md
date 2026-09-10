@@ -455,8 +455,11 @@ Both provider patch branches reproduce their expected upstream trees. The stock
 `4fb4476d80a1875a0b83547ec3aba999cf0a2e2d75f95f2f709b622e2103520e`.
 Both patched provider builds are complete. An isolated native test now proves create,
 terminal replay, shell continuity on reattach, numeric UID 10001 and a new process
-after Stop/Start. These checks use the container writable layer; retained external
-storage, renewable access, durable lifecycle dispatch and installation remain required.
+after Stop/Start. A separate native ext4 fixture also proves a 512 MiB physical capacity bound, ENOSPC,
+confined writes and offline block backup/restore into a new provider resource with
+preserved files and UID. That fixture explicitly removes the source containers;
+production allocation, automatic writer fencing, renewable access, durable lifecycle
+dispatch and installation remain required.
 
 Source package: `veoveo-openshell-handoff-2026-09-09.zip`, SHA-256
 `b330a4016a25d182e206421c4eb019a1cd2fc0ae94e40b7d2056dcd654cba061`.

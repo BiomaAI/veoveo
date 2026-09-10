@@ -109,3 +109,23 @@ state on reattachment, numeric UID 10001, and a new process identity after Stop/
 Reconciliation observes the expected stopped and restarted epochs without dispatch.
 This fixture uses the container writable layer. It does not qualify retained external
 volumes, host restart, storage quotas, renewable access, stock CLI or public ingress.
+
+`tests/native_retention.rs` adds isolated privileged block-device setup to the native
+fixture. It preallocates a 512 MiB ext4 image and uses Docker's local block-volume
+mounting path with `nodev,nosuid`. Actual user writes encounter ENOSPC; the existing
+file survives. Writes outside the home are denied. The fixture removes its source
+containers, unmounts the volume and verifies loop detachment before taking a block
+backup. It restores that backup into a distinct provider resource/process while
+preserving the Computer UUID, file contents and UID. No installed home is inspected
+or changed. This establishes the filesystem mechanism; it is not the implementation
+or qualification of a production allocator or automatic writer-handoff protocol.
+
+Docker's local driver can mount one volume into multiple containers. Its name alone
+cannot prove exclusive ownership. A production handoff must fence the old physical
+writer before admitting a replacement and retain uncertainty after lost dispatch.
+The volume-plugin protocol also permits repeated Mount/Unmount calls using the same
+consumer ID, including `docker cp`; a naive ID set cannot establish final release.
+The current host uses ext4 without project quotas, so an ordinary directory-backed
+volume cannot establish the required capacity bound. The fixed-size block profile
+uses the maintained [Docker local volume](https://docs.docker.com/engine/storage/volumes/)
+and Linux ext4/loop facilities. Production allocation and fencing remain delivery work.

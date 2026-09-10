@@ -2227,3 +2227,12 @@ Docker namespace is cleaned on exit. This evidence does not cover retained exter
 storage or production; no user workload was changed. Provider-specific validation
 currently returns a safe but broad adapter error, which made this setup fault harder
 to diagnose. Typed rejection diagnostics remain an integration improvement.
+
+The first native ext4 retention fixture passed in 23.80 s after its login-shell policy
+was corrected to permit the image's system profile files. It uses the existing pinned
+Computer image's e2fsprogs/util-linux tools; no additional image build was needed. The
+fixture preallocates 512 MiB and performs a real ENOSPC write, source-container removal,
+block backup/restore and replacement process check. These are isolated physical tests,
+not production allocator acceptance. Plain Docker volumes lack the required exclusive
+writer policy, and naive plugin mount-ID deduplication is insufficient because the
+Docker engine can use the same ID for nested mounts. That integration is still required.

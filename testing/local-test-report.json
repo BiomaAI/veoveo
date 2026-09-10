@@ -1,10 +1,43 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:fcdd8c7423d0ad1f75f9a388bc5050df42ee0dec46b2d82fefbe06d22dc51480",
-  "updatedAt": "2026-09-10T00:26:42Z",
+  "buildDigest": "sha256:5bd1f508f34ad1eccd5eb365a5cef6ec1486ebc2f46f3bfca3a74d4434e55cb5",
+  "updatedAt": "2026-09-10T00:36:48Z",
   "checks": [
     {
-      "name": "computers-native-lifecycle",
+      "name": "computers-native-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:35:34Z",
+      "durationSeconds": 0.856210954,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-native-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:36:48Z",
+      "durationSeconds": 2.364700686,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-native-retention",
       "command": [
         "env",
         "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
@@ -18,63 +51,16 @@
         "-p",
         "veoveo-computers-runtime",
         "--test",
+        "native_retention",
+        "--test",
         "native_lifecycle",
         "--",
         "--ignored",
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:25:50Z",
-      "durationSeconds": 19.685236229,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-runtime",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers-runtime",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:25:51Z",
-      "durationSeconds": 27.26160272,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-runtime-clippy",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers-runtime",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:25:38Z",
-      "durationSeconds": 8.151022539,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-runtime-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:26:42Z",
-      "durationSeconds": 2.42675154,
+      "finishedAt": "2026-09-10T00:36:08Z",
+      "durationSeconds": 34.256665768,
       "detail": "completed successfully"
     }
   ]
