@@ -363,3 +363,47 @@ fn an_unindexed_completed_failure_prevents_presenting_an_old_pass() {
     storage::ensure_index_complete(repo.path(), &storage::read_index(repo.path()).unwrap())
         .unwrap();
 }
+
+#[test]
+fn adding_another_owners_checks_preserves_the_selected_declaration() {
+    let repo = repository();
+    let args = ["cargo".to_owned(), "test".to_owned()];
+    let own = format!("{CATALOG_DIRECTORY}/service.json");
+    let definition = CheckDefinition {
+        arguments: args.to_vec(),
+        inputs: InputScope::Console {
+            roots: vec!["service".to_owned(), "testing".to_owned()],
+        },
+        toolchains: vec![],
+    };
+    let mut catalog = CheckCatalog {
+        schema_version: CATALOG_SCHEMA.to_owned(),
+        checks: vec![definition],
+    };
+    write(repo.path(), &own, &serde_json::to_string(&catalog).unwrap());
+    let selected = catalog::lookup(
+        repo.path(),
+        &args.iter().map(Into::into).collect::<Vec<_>>(),
+    )
+    .unwrap()
+    .unwrap();
+    let before = inputs::snapshot(repo.path(), &selected.inputs).unwrap();
+    assert!(before.files.iter().any(|input| input.path == own));
+    catalog.checks[0].arguments.push("another".to_owned());
+    write(
+        repo.path(),
+        &format!("{CATALOG_DIRECTORY}/another.json"),
+        &serde_json::to_string(&catalog).unwrap(),
+    );
+    assert_eq!(
+        inputs::snapshot(repo.path(), &selected.inputs).unwrap(),
+        before
+    );
+    catalog.checks[0].arguments.pop();
+    catalog.checks[0].toolchains.push(Toolchain::Rust);
+    write(repo.path(), &own, &serde_json::to_string(&catalog).unwrap());
+    assert_ne!(
+        inputs::snapshot(repo.path(), &selected.inputs).unwrap(),
+        before
+    );
+}

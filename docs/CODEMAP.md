@@ -1018,7 +1018,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `testing/smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |
 | `testing/local-test-report.json` and `testing/test-receipts/` | committed v3 per-check index and immutable attempt history, with materialized input manifests and observed toolchains |
-| `testing/evidence-checks.json` and `testing/coverage/` | owner-reviewed exact source commands, Cargo dependency selection, external test inputs and explicit required coverage profiles |
+| `testing/evidence-checks/` and `testing/coverage/` | owner-reviewed exact source commands, Cargo dependency selection, external test inputs and explicit required coverage profiles |
 | `.github/workflows/local-test-report.yml` | lightweight presentation of the committed local test report; it performs no substantive build, deployment, GPU, or browser acceptance |
 
 There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell recipes.
