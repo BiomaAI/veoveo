@@ -1,5 +1,7 @@
 //! Authenticated batch journal and materializer for external recording streams.
 
+mod recovery;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Cursor, Write};
@@ -712,7 +714,9 @@ impl RecordingIngestService {
         let mut reconciled = 0;
         for tenant_entry in std::fs::read_dir(&self.config.journal_root)? {
             let tenant_entry = tenant_entry?;
-            if !tenant_entry.file_type()?.is_dir() {
+            if tenant_entry.file_name() == recovery::QUARANTINE_DIRECTORY
+                || !tenant_entry.file_type()?.is_dir()
+            {
                 continue;
             }
             let tenant_id = TenantId::from_uuid(uuid::Uuid::parse_str(
@@ -753,6 +757,15 @@ impl RecordingIngestService {
                     let bytes = std::fs::read(&journal_path)?;
                     let batch = RecordingBatch::decode(bytes.as_slice())?;
                     batch.validate(self.config.maximum_batch_bytes)?;
+                    if recovery::quarantine_terminal_batch(
+                        &self.config.journal_root,
+                        &journal_path,
+                        &stream,
+                        &batch,
+                        &bytes,
+                    )? {
+                        continue;
+                    }
                     let relative_path = journal_path
                         .strip_prefix(&self.config.journal_root)?
                         .to_str()

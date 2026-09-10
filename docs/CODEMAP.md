@@ -782,10 +782,14 @@ types.
 
 ### `platform/recordings/hub`
 
+[`DESIGN.md`](../platform/recordings/hub/DESIGN.md) owns Hub's terminal journal
+quarantine and durable restart boundary.
+
 | File | Responsibility |
 |---|---|
 | `ingest_http.rs` | cluster-internal authenticated protobuf routes and typed error projection |
 | `ingest.rs` | producer authorization, atomic no-clobber journal and Blueprint publication, quota-bound append, ordered live parts, capture-layer rollover, publication recovery, and restart reconciliation |
+| `ingest/recovery.rs` | preserves unaccepted terminal-stream journal bytes and their immutable recovery receipt without changing stream acceptance |
 | `diagnostics.rs` | bounded authenticated-ingest acceptance, duplication, publication backlog, spool reservations, free-space headroom, and last-success counters |
 | `blueprint.rs` | complete Blueprint-store validation, application association, and confined immutable paths |
 | `spool.rs` | capture-layer encode, flush, fsync, freeze, idle completion, and recovery |
