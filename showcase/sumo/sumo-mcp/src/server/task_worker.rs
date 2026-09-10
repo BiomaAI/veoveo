@@ -59,6 +59,7 @@ pub(super) async fn start_operation(
                 .issue_write_capability(
                     &caller,
                     &IssueArtifactWriteCapabilityRequest {
+                        required_data_labels: Default::default(),
                         task_id: task_id.to_string(),
                         expires_at: Utc::now() + TimeDelta::hours(24),
                         max_artifact_count: NonZeroU32::new(1).expect("one is non-zero"),

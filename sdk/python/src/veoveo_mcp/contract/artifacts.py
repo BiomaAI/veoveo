@@ -124,10 +124,13 @@ class PutArtifactRequest(BaseModel):
 
 
 class IssueArtifactWriteCapabilityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     task_id: str
     expires_at: datetime
     max_artifact_count: int = Field(gt=0)
     max_total_bytes: int = Field(gt=0)
+    required_data_labels: set[str] = Field(default_factory=set, max_length=256)
 
 
 class IssuedArtifactWriteCapability(BaseModel):

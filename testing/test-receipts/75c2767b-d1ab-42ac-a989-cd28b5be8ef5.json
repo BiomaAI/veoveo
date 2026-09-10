@@ -1,0 +1,6236 @@
+{
+  "schemaVersion": "veoveo.io/test-receipt/v1",
+  "runId": "75c2767b-d1ab-42ac-a989-cd28b5be8ef5",
+  "name": "artifact-output-policy-producers",
+  "checkId": "sha256:559fee91cb4e9033464abb13fe5133ce652a80b782940aeb11d751710e8e1aca",
+  "command": {
+    "kind": "admitted",
+    "arguments": [
+      "cargo",
+      "check",
+      "-p",
+      "veoveo-duckdb-mcp",
+      "-p",
+      "veoveo-frames-mcp",
+      "-p",
+      "veoveo-map-mcp",
+      "-p",
+      "veoveo-media-mcp",
+      "-p",
+      "veoveo-reason-mcp",
+      "-p",
+      "veoveo-stream-mcp",
+      "-p",
+      "veoveo-timeseries-mcp",
+      "-p",
+      "veoveo-optimization-mcp",
+      "-p",
+      "veoveo-sumo-mcp",
+      "--bins"
+    ]
+  },
+  "provenance": {
+    "revision": "0d887e0ed5e450130052b158a03219f4b68303c3",
+    "dirty": true
+  },
+  "inputs": {
+    "plannerVersion": 2,
+    "scope": {
+      "kind": "cargo",
+      "packages": [
+        "veoveo-duckdb-mcp",
+        "veoveo-frames-mcp",
+        "veoveo-map-mcp",
+        "veoveo-media-mcp",
+        "veoveo-reason-mcp",
+        "veoveo-stream-mcp",
+        "veoveo-timeseries-mcp",
+        "veoveo-optimization-mcp",
+        "veoveo-sumo-mcp"
+      ],
+      "roots": [
+        "testing/fixtures",
+        "testing/evidence-checks/artifact-output.json"
+      ]
+    },
+    "digest": "sha256:b23cea95463e9fe9f0a9e7a5a0e394d1d789d351f987ffea1c0fe342f7c506ae",
+    "files": [
+      {
+        "path": ".cargo/config.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9143bae8195b97148e52880a97fa655a00cbc38871016384ec259799ff2f7a25",
+          "bytes": 89,
+          "mode": 436
+        }
+      },
+      {
+        "path": "AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ea38129e90a3781b9a7cafa0b5f72620eddc53c628925d999d35f2b24b03724d",
+          "bytes": 16466,
+          "mode": 436
+        }
+      },
+      {
+        "path": "Cargo.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c6bd9de50cecb383ff6a4c538c5a3b4f1219d21fc10d050f8f23c9d4764c2eb",
+          "bytes": 431739,
+          "mode": 436
+        }
+      },
+      {
+        "path": "Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:625e679adff224cee5bcebb373aa895787a4e435900fd157de53ecbc5f8d32e4",
+          "bytes": 7425,
+          "mode": 436
+        }
+      },
+      {
+        "path": "agents/kernel/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1f94e32e7747564280cd78533bf057cd574f9eeff56d869161039d0118ddbb11",
+          "bytes": 1267,
+          "mode": 436
+        }
+      },
+      {
+        "path": "agents/runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2806596d740cae740c9a3e9c951f8e1bcfe35aec6b4ebc246f00ce1286d879b9",
+          "bytes": 718,
+          "mode": 436
+        }
+      },
+      {
+        "path": "apps/console/bff/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c3f8474eab58b54fa505ff0dd46e73de50c13ef1c333d025eebffa15c101f4df",
+          "bytes": 1303,
+          "mode": 436
+        }
+      },
+      {
+        "path": "deploy/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:105605bc7e4309293b9bcf929e8bc4a392a4bceedcc749ce7d237d3fdafc264e",
+          "bytes": 380,
+          "mode": 436
+        }
+      },
+      {
+        "path": "deploy/runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e0f58abae577eb5a8bc84bc601537c192ebcbf2863a3af8eb98c6c2a8eae766d",
+          "bytes": 535,
+          "mode": 436
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19db6b0da730cd9d819349c9020015dea4d76094f46b041a0cdf760e5738512d",
+          "bytes": 250,
+          "mode": 436
+        }
+      },
+      {
+        "path": "extensions/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6f0fe93c4ed4707f1d0837954e7ca481f699900f0bafc092b7030f4450647fd0",
+          "bytes": 386,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d50f3288aadd9fca9f0ad1374687c552591e7745f9fa181907649a0ab93eadf0",
+          "bytes": 184,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0e0e52765c0e7b2548865097198a7feec2555a530f1eea7db5b465024d0c2c88",
+          "bytes": 17109,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/asset.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8be12dfd1e21d0a20badf0aa74bc95d41e92e6617ae2832c0f70c31182001a9a",
+          "bytes": 2659,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/client.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:17fdfc8ab755232ad2012240d5c322c1df79791eb14289cbd88070bf2544aa59",
+          "bytes": 5158,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7d4c08e5f8723beaadae85d8b4469fc3fdd529c41b2b60786b69cb3a93ef06b6",
+          "bytes": 640,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/models.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:44bc3aab5d60fe81b7e4d85e5eceaecb4d667879105b3ce76ee7488c6c3ffcc1",
+          "bytes": 5924,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95379dbbc8d96704ec24d021ba58fc67684bd322a886450da568e4b7d52700ce",
+          "bytes": 5439,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/workbench.html",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6bfc44e1d993e9b0a4878fe2ab6a1f67218588387ee558e5cf25f993f5814f0c",
+          "bytes": 12011,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/workbench.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3c2d23438ac4d63d7ee2f14a9962499160a3419375b12c53c62880696f74f38c",
+          "bytes": 2836,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/bridges/legacy/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:39c13496f2298641f4ebe05857c734f7eb1d4b07c8b9fb6f7512ae829a2a049d",
+          "bytes": 600,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/bridges/stdio/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5df01f12b0b554024fb737677d60748bc5ff6e7182640f500fd307fee402dcc1",
+          "bytes": 518,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/composer/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d8a26fc8446bfdb6ff3252f06a2db51049b2a683bd974c374a976b231696baac",
+          "bytes": 398,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/conformance/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7ccc8d8bd5c6d71b8de32898b766e03862c7e6512470266e5aefe1ac545df69a",
+          "bytes": 1150,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e616444befb1b7e3fb9f3d6af3517d6b4c2579067fdd1980022138f202e1058",
+          "bytes": 1264,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06dfe452a4a33db478211446bff4f8a9fdfe532fe790349025465885af54236d",
+          "bytes": 28253,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b9d0ee136bd4b81542f465883fc8e940cd9aefc715760f156eed7fff5d17bf6e",
+          "bytes": 20603,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/agents.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:de6bb932828d6038c22cbcdda3e07060f3cdc041b64ce209a1b20efb9cbd6166",
+          "bytes": 4849,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/analytics.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:07d653f86dcdebb90a1455727a6b02321400caf50a6ad4690056948034a1dd39",
+          "bytes": 9525,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4133315a59efe6bab8453a71badbb720f56b0cdca5aa061545fb42a008bfbf3f",
+          "bytes": 29052,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/read_capability.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0bbd5b67545ab58da6ecf2ff4dc52146a26ab6b3bc742edffa19087d8a88f2ee",
+          "bytes": 2962,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:740964023f0b721eefc19e216b803850dc8bc0e82e3fb28e7cb0a07d6b069c0e",
+          "bytes": 7328,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/upload/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2713b715d058e045e895577619d4aa9f2f460cbcbf3292e41f1b22b97b82ab80",
+          "bytes": 6427,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/bootstrap.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1e094db44ad464bb89bd05ab261ff55a203cd17dcf7841021bce80397b1be4f5",
+          "bytes": 7042,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:83fe28383c98a3edf1c46b0817d51a778333fa0df5d15acca927b6771dba498c",
+          "bytes": 3322,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/coordinates.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2814135bff76c2a3fd203d81b5097bc13c60cecde3a2fb493f215b7f88097a88",
+          "bytes": 19627,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/deployment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7caeaf78f0103534bb14ace09176c2c4c14c2c5732de9bf5d856b42882a08e07",
+          "bytes": 23523,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/deployment/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2bd9d46e5656d35470bdfe002fe14d5c8a35353dbf2471fcf38e074e2209c945",
+          "bytes": 3920,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/digest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31b6914c76c1a017948ba2883c51574be3f49129f6e23568709ee31516b41149",
+          "bytes": 2765,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/docs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:51da998d790d9d1a52b1d6e0708e8ce787f2a22faeb9f1711d3d3a653c2c747e",
+          "bytes": 9574,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/duckdb.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b7301c5511a402007702ea95b36646536cd38cc3686351976ec94fc0981c21b3",
+          "bytes": 7049,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97c981147966f15b8983f4db46ef66d509115af170dbd12afdf54e8d679d2b8b",
+          "bytes": 31734,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/auth_config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a4ba4cedbc12a3f732c982c24a5a302b202be4aacb1941d1e4c6d378b1761992",
+          "bytes": 7349,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/branding.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:299f45fc799f359007b676635fa9ca2ad126ce07be325f10a887e4786c6819ef",
+          "bytes": 5549,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/composition.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a831a90c223a5f195024b2b413b350f4ede9dbc89fe14deebda80c1b31290678",
+          "bytes": 15760,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/console.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3963f45f05040c6ccff46a9fc6f778eb1900746ce5291893aa38dc768fdf959e",
+          "bytes": 1851,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/data_label.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:40f13bc722b399b2700c0193fb1f2b6bd65b4d1a40a4228676d659b67458eacd",
+          "bytes": 535,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/error.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:428c9650478997c360f7794614673ec4777c7a79db241e7bfe7d03475cb54a7c",
+          "bytes": 34021,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/ids.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9fb21becb6c59e9a7faa227524222f17fd0ad2fbf1ef3fccbea5395452604c6e",
+          "bytes": 11328,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e46176f0004fcd3b2f0d65636800589813ee36ce4d642f323b72913cc97a86f",
+          "bytes": 20165,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/recording_ingest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f50649a172e821388092ddbf3e03e2e071f13f4685d6b34a941c29487a7c373f",
+          "bytes": 2108,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/runtime_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95135b2aaa8cceb73dd0277ee8c9fba62f24edc9f26fd3a740208cd64ca754d9",
+          "bytes": 5107,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/server_config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ef4361775461ae75d0ae797c21380f553355bf3523cdc14a5ebb985ec7315e62",
+          "bytes": 21792,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/tenant.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:546cb4c5152724a2adf00ef51352f31d5ffd3a4995ec2a99c2d6b3540faf033b",
+          "bytes": 479,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cba7baa5d005c0c0a36e0adf397d67fc3166d3d85f7789410178db200919b11c",
+          "bytes": 80831,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/validation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0feebfa3bc825220d19111fed32613246dcade68cf569053ab40ec4c7e7a3c20",
+          "bytes": 47145,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/wire.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:28f0ba2fbc0c6cfbce8dc2d360c85dfbee18de17cf220cb71e7280cbe3db1751",
+          "bytes": 17013,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/generation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa69fec4382356f4ca328d78eca5c29f5c104ba97e3ab6d1c111ca5f476ce063",
+          "bytes": 1100,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e3d248db8b6f5706cbd05d8bc7aabd24e8d06861f9366c806c18277dcd0c9fc",
+          "bytes": 6640,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8f4584182cf71f693b42fdfc053f5ae4d2d781af5b0c26a2d8ce25839962d300",
+          "bytes": 33898,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/request.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f8e02d93edaf92b06dd4b8187951b163b945c586d30d21895dd14277a0f3b88b",
+          "bytes": 3215,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/request_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:de6b7da52f551b0fce4543a41b1e95ec930e2c838b98a18bba63db102f3b87ce",
+          "bytes": 5126,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9e8f99740c1032ac0470e9bd933e9d6e93cf70e0caf0a622885d582f048643d",
+          "bytes": 2360,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b50a36888cebfa0136f3796a8c5c545751b62a206b86398e3379b9bc9f21e49a",
+          "bytes": 12012,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/live_view.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85bcef90f1834aa703c63be281dea1c9a6205cfb18b0dbff90c29c1b1f6263b5",
+          "bytes": 31600,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/pagination.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a3d564a0d137db0d83af9c2020848a4f20d6d2d993451f3e65e8d588e46f735a",
+          "bytes": 2690,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/protocol.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85c3f581716bed023925b668e204bbfb10edd1a17ca7c778deeec67d33edc0be",
+          "bytes": 5587,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/provider.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:693d141de28a15a15cbf3ae3531235273f980c6ffa781843bbc0a7702e1f57ef",
+          "bytes": 2065,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/recording_catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:75142c71bc3875bcdc78cf2590f5c02559c29bf5c39a674bad298f69fdf16450",
+          "bytes": 3210,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/storage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:956555ed683f528aae1339c9c978e47436bba418a936f921eed538d7e54c933d",
+          "bytes": 5714,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/subscriptions.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3bce5077b8bf8d69605a0c3735cff2d832df2d7e130773454830ccef79de236b",
+          "bytes": 4971,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/tasks.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d0c01309c16724ede792e1e5b1cd23cb1f61dd070d4bc1c51b5c1eb24b38397a",
+          "bytes": 6795,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/telemetry.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f96142d7ef8660d7d2092b7eede1ccd2fffa6f652fd1cec32d908f5c3bc4e2b",
+          "bytes": 6159,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/transport.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:167c1c568073bcba66bd8b96456dd96dd12bab012708a52f9d4fa108ac87b2af",
+          "bytes": 7437,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/uri.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1763e9723053f083ad22d71ede25f0680b4cad4250a8451af9558583b02452e",
+          "bytes": 14954,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/usage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:39ad5769f53c44e2574c190b63fe4f59952a25b8e73a1facb9443b83fbde92f3",
+          "bytes": 5497,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/waiters.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:47f104c2f8ed7451fc31cdd6212ad16e4cb3d20908aaa4bcdc8db9fe291caab6",
+          "bytes": 959,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/work_context.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1d4c0b816e62fef7c2ba5e44334b6a30dd7b8dcf0b10588075db9ee35a825d21",
+          "bytes": 8820,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/tests/artifact_upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:533fb42d5a8d1d785b049f32305b765203a65f4b6f015cd09a318eeb5d40c534",
+          "bytes": 6525,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/tests/external_simulation_fixture.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:364c58861d541c97d4e3c3ae83df5964d0c41123f11135b02b0254e49cdfe59a",
+          "bytes": 2545,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/tests/sha256_digest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6697c59530fb249ee95ce12d68ebc47e0090ea3af8d46b8f7a9ab1866aecc24d",
+          "bytes": 826,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/tests/streamable_notifications.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:290a59a5bc1b01383e8491939847c4ecc33ff3202dad403d1d8281eb615ec71c",
+          "bytes": 2665,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/artifacts/client/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b20f806859f510236deabdc19d79a934cfdaab1b4246b02f7d391dd767b97e68",
+          "bytes": 482,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/artifacts/client/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fd61e25305375968433abdb6c75d7aa85235ba923ed8276d6b0f292c17768a43",
+          "bytes": 20278,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/artifacts/client/src/read_capability.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8da9d5fcf32ba1cd3417124d6ea74ef8259fb22bb73b5e41381e3d667e12bac7",
+          "bytes": 5527,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/artifacts/service/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:25c2267bbf32fc4f6a275c8ae10f1bf02c9bfc1e6d4f6948a5a0458cb030fda1",
+          "bytes": 1250,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f1e01910b87096ce64551cb9874669d7d7845f6765283ebc80908bbfdece58c",
+          "bytes": 990,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97253215011f60be54669ff322605d24a1b0d0ca7f5f7709975cd0d33934aac7",
+          "bytes": 318,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94d4bf714b49bc8a13b831186b775e52d30dc44af0fc11b916f7597c82a39f2b",
+          "bytes": 391,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5310e1db048c0b5d1cf2d36e7321de530eb3566e5fd61cba2da59c737cf586bb",
+          "bytes": 713,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa5333a81363ecc035d68ea89bd17291334d3262e014650e3425192ed752fd26",
+          "bytes": 716,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6681124ea0c6c09c86f846ba83ed512837bffa1a674e592b126bf911310750e",
+          "bytes": 902,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/gateway/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cb47c98fea80c1a41a5a3567522bc911fc4c79536dfb945d94e187fc8421cdb0",
+          "bytes": 1895,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e82d18fc53d606e8cbdb9ab66da2c6245df6d762817f2afee69c0746e52a2038",
+          "bytes": 251,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/forwarder/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1fd5782ef727d57295b4f29016bf86c6754a833fe3c890303bd5fe9531aa4d78",
+          "bytes": 1216,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/hub/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:359bbbd0684a5c65beb84e2d255b69091b1dbf68b5cd326c7badcafd0ba88f11",
+          "bytes": 1718,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/protocol/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:411dab3d469273d4663bf24daaf70a84bd89c09464ac98854aa272aa61aac454",
+          "bytes": 280,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94a78aaf3fd108752729b428744114ca1489c77ae7908ec5ea7d7be61f1f790e",
+          "bytes": 588,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:12e8b868cdc5b2243ce2fd4897973cf8ed8dee8a2d335b2699d4156296d0ac9f",
+          "bytes": 4861,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/src/access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e5428a0ddee9332f03a9e6398e91dc2cadb799993fa00e0295771be9a359f028",
+          "bytes": 4252,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/src/cache.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4a0eb6be6c52aff41e473ee2627f505b487eb3e9998b8e6cd92565ad9afd3ad5",
+          "bytes": 22354,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/src/cache/authorization_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1c4a46a9299b7669132d832626150b1dc66b9095c495fe27860016baebc907d4",
+          "bytes": 13070,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/src/cache/cancellation_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95ce9a2a71614eb8a619b85b788a2d667693ac354734516e672203aa7937239b",
+          "bytes": 4165,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f62eb51e299a291c58e4ef55635607727b5c6a934f7464bb994362e4ea74d97d",
+          "bytes": 1240,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/src/read.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9facc2ceba38ea9d11f36a64a45fbc78e9333d9ab014afa3b4ec98008cf4ac66",
+          "bytes": 18819,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bc30ee6b038c71a51ec950b2943d8893fa7488b0ff1081cbda838bd7ab112222",
+          "bytes": 237,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf489348bb63113fb7e713e49e02ff38ee009dc435c6096a57e9e3b23ad998eb",
+          "bytes": 673,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4d8cd40dc3821cd2f8355e2230edffe0f072bad6757e1794dbed32b8d00c30dd",
+          "bytes": 2109,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/ingest_parts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bdf98e5b83837d94c9a8ec0cec79732ebbd30974e824d7ee2ab4d7652607405d",
+          "bytes": 4986,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b35afafdacd1bd19a82950b9de27c774e3b23ce2e5c1f0fd6a7d45add03bf11b",
+          "bytes": 16595,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/projection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b38bfb794770336ba206d6d1e01d9ee2e8eb6f6ab04697e2c5bfeefc7a046c63",
+          "bytes": 18008,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/properties_layer.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0312bf045bd8361cc283613d44f111c8890a81ac3d6a06314253c65828cc1ff9",
+          "bytes": 7818,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/recording_layer.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f71ae3da35ab8b7adb7e92326127aba749d16651ed58e7b6e8fbcac645e4a88d",
+          "bytes": 10457,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/segment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c369062c4e4d4f35a014c19c19a7cc10fdfb7afd0b8ef3820912384a0813d0a3",
+          "bytes": 2190,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/video.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5524c0413d37a9caacdbadf1514acec9b7e1d826fac7629fa44c3d2351d54a8a",
+          "bytes": 4692,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/video_clip.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8b764c07bda12337fc20a2c6a1e8a6f89a3cdc27ebd90aa7a0488a97517011f9",
+          "bytes": 17473,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/src/video_clip/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8924bac7b903783a40899d25b7dc52297447e677bff1e6fcbb022b992b88074d",
+          "bytes": 2664,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/tests/fixtures/video.h264",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6d519226bb542dce13014e7dfabc92925d4aeef0ab2d15ff15b29cb8dbae2870",
+          "bytes": 755,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/video/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c4d78e5920f5d4c7c3a7cc6437daf56233cb0fdfddf0a1a48fe645b8a3319b0",
+          "bytes": 582,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/video/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0123b095adb095001ad8a94c452a5c99d707585426278f5dc92c2d769fbc11c9",
+          "bytes": 1055,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/video/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7c598b8cb1ae6cdbd53afb23e004aa0a3655222af7dd05bdb37ce8e87215be3e",
+          "bytes": 8822,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/video/src/source_snapshot.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c94872a5b7f312ca111aa399b136f9f9d2f727fe9eaf16a5b04c70f70a1f3eb9",
+          "bytes": 2893,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/runtimes/computers/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dfb135c762adac3c37f796055595ca8f0250d99deb743d44940f65fc47012013",
+          "bytes": 1418,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/runtimes/duckdb/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d7a8b4c7b7068d05fed77933577baa7714c85cf1bc937792d291f0ea145484a",
+          "bytes": 368,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/runtimes/duckdb/src/engine.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c976bf05d88912da89bfdf0204c3408220ae7becbf3a469aa59dd1dd69edfd53",
+          "bytes": 35428,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/runtimes/duckdb/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:046a89f22d5ad2534e892f8b07dca455d566144ae282a5b270f7c1588c99a263",
+          "bytes": 865,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/runtimes/duckdb/src/source.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f80aef6a991a8e5ffee3938e46033f70423629b6de59cd604a657134ccf61eb6",
+          "bytes": 15948,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:596640dce9248c0ae2c5ba8e98cb1905f978e2ed5122d551196ec573d97b97e9",
+          "bytes": 677,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0000_schema_migrations.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:34abeedbc054293ba491c9f1fc62b539f71a41852893f5f8a461cda52f51d0de",
+          "bytes": 834,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0001_identity_control.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3143273473c04cc336aeab9cf7f0af83b419f225a05e4c233cee68f902a9b2ee",
+          "bytes": 8433,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0002_work_artifacts.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6b0b1c47d67572808f78b3a9d9564a66abef817267661d2cd0579eb49d3d19b5",
+          "bytes": 13190,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0003_recordings_agents.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:edc73603790c95e24a98eb29bebc2da5317de38437ab7296aa6183e428bdd57c",
+          "bytes": 6835,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0004_graph_edges.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:770139a4520326a253d3f990bece9baecaaa5ece6d97d0773ce0dec4d5bada90",
+          "bytes": 6241,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0005_search_and_counts.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06cf421f788558b1b0766bc836d0c7bda002ac56e6e70b6bee28f2f56285fccf",
+          "bytes": 1221,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0006_gateway_control_plane.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dd7b256906946ae5f285d7be5450a7a8beead1b6df9aecdf229ed9937854bf3d",
+          "bytes": 3154,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0007_artifact_plane.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:515e3e124b5a6b169b7445e30bfce8c8eab86096d6b92f6f66f91ad770430531",
+          "bytes": 3387,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0008_task_runtime.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:03840c761c2dd8f685c4ecec1b80c02a3fb56c05027c2c527edc3d60f51b59ff",
+          "bytes": 1233,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0009_task_inputs.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:784f1d1a8607e285b584149f4084c8d52f037fa1c96bf30b3758c1260130fc86",
+          "bytes": 996,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0010_agent_runtime.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99165577af8fbe14b4f279b273e18286412d6227d13723724a6fd5b64f6280e5",
+          "bytes": 7581,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0011_recording_plane.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95adc2d11a30c3eb486aeffb1d66caf5c53e85b1c1a554fd8053f6fa45488c53",
+          "bytes": 1705,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0012_task_retention_pins.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f8740fb85c25c9f7de3f1c240b07f015f7c6c77da6302e8d6f4a7ea499826803",
+          "bytes": 413,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0013_gateway_runtime.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a97bc9ec7be3e71b2b79dc48baa5a7cdb7f74c83f9052dffeea828bc94e84802",
+          "bytes": 6037,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0014_media_artifact_completion.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:76a37ca98ca9dfc17600f24097dd84514e154004e6ba37ea444f6810761f2c08",
+          "bytes": 4319,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0015_domain_usage.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f81ef8ea78a04dc223bb5b7dbe4df4df712d1d97f8994f9548fdf1cf4b0549c9",
+          "bytes": 1685,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0016_gateway_refresh_tokens.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:af2b550a5f6e4004c3abd254fa1b24b2f297026d68d1289336f9131a945ee0f1",
+          "bytes": 3317,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0017_coordinate_operations.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:32326c0ea103c468955b8c1627982dee7f5cbb0ef0d096bad54d85b623c4f4cf",
+          "bytes": 1505,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0018_map_domain.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:283ddda56e6c9e7acc7fa3aa2e058b92d965dab8b3a232289187e86f3598a1e7",
+          "bytes": 13062,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0019_time_domain.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ca4e0601e3a379843062257cb8f3bbcd2631cedf163fe05dbebbe7658e221d70",
+          "bytes": 10619,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0020_audit_write_path.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9fd45983c2570ba208fe64d1c3658d42a6a22f8bd4d918fa3b532eb32a6f80ba",
+          "bytes": 262,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0021_recording_ingest.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8ba3dc62277f216abe132cd349f01928bc9aaf163d65655ed049ade79ad10a85",
+          "bytes": 4324,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0022_recording_ingest_quotas.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ac5c64b1c7291d2941a00e972bfd6767805a6115d3bed0564db0d5b350195ef",
+          "bytes": 455,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0023_recording_lifecycle.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:20ef86ede4d1e850819b36cf7861f78960ade4941d5526f7718c5400df5c32f0",
+          "bytes": 867,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0024_work_context_governance.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:48c2ab9d29ba87970ba07d7e8d90482fabedd6271ad83ee6156b539490c0e5e2",
+          "bytes": 16818,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0025_map_authoring.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1c8d16f55818393ead9fbe221304307e2fbde6e35eed59f8c86a1a4ee17baa4a",
+          "bytes": 20820,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0026_map_authoring_products.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ae5bd6066ff89f0ef427027359b5381cc278d22457954d2ec6898b6668b11502",
+          "bytes": 7043,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0027_frame_world_graphs.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ca61a04cdc4e187b38d1e67e8939d4ecb88e1eb91f7c69f17d1962c42e185489",
+          "bytes": 2983,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0028_mcp_streamable_http.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d25f86611329bdf386be7b92a5ba81477bf5124c57d4180bea735c1c3064d0ea",
+          "bytes": 277,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0029_recording_blueprints.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6f0b74a41d09b34ead9aa519d3e198a3a45c05b7ff23585ac5792eefae886d97",
+          "bytes": 2209,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0030_simulation_view_reconciliation.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7a3eb9ee058a8e3911d4319bc20a16f464099fad4859ccbc315bfddbd09ba03f",
+          "bytes": 2163,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0031_simulation_view_desired_digest.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:16415e58588554880b6aa6ce19b305389ea1acd95c25181a7ce573f164c7f8dc",
+          "bytes": 766,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0032_simulation_view_ephemeral_viewer_leases.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b592dfede199bfc7e53e9a06bc5bc8a7db740cf19ee64a48135aece7f449f9de",
+          "bytes": 290,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0033_simulation_view_reject_durable_viewer_leases.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:436d8da11d09970a15cfef73f70e6994502d71cb4259d96ce2460f9f01a11f60",
+          "bytes": 138,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0034_simulation_view_reconciliation_deadlines.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c34822b2667c63d7df40479ad3af6d8e4d276da761b7fda03a405e6fcf84faa9",
+          "bytes": 3271,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0035_recording_ingest_quota_windows.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3a3683a6015842b252f2b8e56be78e0431ec2eb31ed259e2905cf4c8e7de42ec",
+          "bytes": 1582,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0036_remove_simulation_view_mirror_state.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:98de46bbcf85e01ee7814a701c68b60059c456cdd769ba1eeafda93ec2ab0901",
+          "bytes": 46,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0037_gateway_task_routes.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3d9bed4b79284a495c3b6aa905ac90ccdd132b0e9ca0d04ad8a5e4bfe089b8ad",
+          "bytes": 1511,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0038_mcp_interactions.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:409ab41ec4357104234e53b8b5c86768186c3c7976fad3e713a7bc0c938c2233",
+          "bytes": 4399,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0039_agent_opaque_task_ids.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:77f151cf803a3d638bf2f1704317eda2edae03cb1d20de8c6be0d8d72b783682",
+          "bytes": 675,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0040_uav_vehicle_authority.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c34c02e3852a45bf6be6af65b9dc1af93e9e06d66f07fa29c1af64bd550bf3d9",
+          "bytes": 6085,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0041_task_route_source_records.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d9d3a59d2ddd166a57c08660f8993c859b99bb70f46498c81409d90d1f20f55",
+          "bytes": 488,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0042_optimization_task_indexes.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e99b2787589a744b9a8008fa5e10e52d08e61bd57effa4e1d96e056b3337cc8b",
+          "bytes": 686,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0043_time_acquisition_release_index.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:541ecaa36a761a699e6d1fa286f76e5159070da9da87662ea3a6e26091daf00a",
+          "bytes": 250,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0044_audit_operation_outcomes.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:713986c3ce0838e3b34defbdd4a47217a11f46e48bbc2306c6f64c29313b2180",
+          "bytes": 186,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0045_map_geopackage_products.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f87f323683482e46bf1b53aeade78e4bc8543ef25c230152911f1d680b41fc9b",
+          "bytes": 276,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0046_recording_catalog_hard_cut.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85a653af4fa38f46ff54f6cc76650d0d4806deccdef2bb1b5b5b1959e6e18f3d",
+          "bytes": 9137,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0047_map_projection_sequence.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:70d32d879de3a0ab6ea7d44b6c3b22a9d0d5da7474bb33d55fdf174e811a7ef2",
+          "bytes": 1348,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0048_map_projection_head_backfill.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4db085b3ffd4ffec6311b9bddbad212821e57dbdf7a02a2fc6831f26acf44fc6",
+          "bytes": 422,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0049_artifact_read_delegation.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a332278d46dc4123fa193e40d7bb719e23f6f716deac9bb9c8831c54cb0e4a71",
+          "bytes": 4823,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0050_artifact_uploads.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e668df9c5bdf582f6137798859d78c7b1ebe54029e7c50dd6281fec983e0a0b7",
+          "bytes": 11807,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0051_computers.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7bd0571f23edd018434200f0d8d4f253a3990f9222a1ec3060c8c96ba96d4ac5",
+          "bytes": 2219,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0052_provider_wait.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cfdc9ca2452eb5c6d4b0b21b0c868f2a8eaf13e70b5f5388871d23132b202468",
+          "bytes": 276,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0053_computer_operations.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd9cd31b47cbd0db27d169c3e3e27e631bf0f6be0c469877e503358d6cdefaae",
+          "bytes": 1730,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0054_computer_observation_budget.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1622f8fa6f2d32fa88220f4624b257b54c15077f6cb87c19fa3ddf5b74a7701d",
+          "bytes": 849,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0055_computer_worker_projection.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e2bc8108ae165f705a46b9b4ca6f56c1f6f9122af4f1ae061fc0666a2b0d2cb5",
+          "bytes": 375,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0056_computer_execution_authority.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9ea5216414caae60a0872d64a1272c70e50e2d9a0c28b46546c5b00a53ed067",
+          "bytes": 238,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0057_computer_dispatch_authority.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:154f0182e3efbaf8a36d68fdb0baf4c5e4d98bbde4eeec2a7371b540e21d034a",
+          "bytes": 324,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0058_computer_session_grants.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5751d92b4b5d733f2ab45262b26bffa10f3c90f47e1879b4255c13635d8f0446",
+          "bytes": 2286,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0059_computer_cli_grants.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:07eb5985e07fc0471aaf20598eee95ce1753bffd90913fdc5b40b56b5965a701",
+          "bytes": 3439,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0060_computer_automation_grants.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:22e9427d9a98c7d7d00c5f7862765e0df9f3dd6a676976e3d1c1ca84d04ea082",
+          "bytes": 3203,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0061_computer_execution_admission.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2174f0cca52cb6822995e09d1b546eff3b50f04ea68f061afbdf12946136c603",
+          "bytes": 1502,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0062_computer_execution_dispatch.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:637ac069574e6aff1d3b3c93a3932b19caea8d2a63f75f9c0b50a284f7e988e7",
+          "bytes": 462,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0063_computer_execution_containment.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0caffbea7267520b924f54aa9864b4b1ad222cdc2b2352373b7278b144e1b9db",
+          "bytes": 1354,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/administration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0769e28683dd2e996bbd1d3e70409e56a283ad61ce6e2bba28490896d081c1e5",
+          "bytes": 1695,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_access_requests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf4771dc33c1d2b15e5d99298692209cdd934d4728e1f0b472368c16755d2c13",
+          "bytes": 19287,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31004d7b0050b92fde96a0ef7dbf6fdb5bde91706c701cdc16e9a94568e74a64",
+          "bytes": 7465,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads/admit.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:041c9e81db48da9d573d9a6aa0f7441c2a0c07b9847d7549bd44f3350337d9b7",
+          "bytes": 670,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads/authorize.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d6ec19d27114cc44801502bcb51fe714b97b1d4792c562ed4985bbbd4e19920f",
+          "bytes": 374,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads/context.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd3f8f883b7d69bca138a6133ffa050b061de429d93a2fe433afe404e704b81a",
+          "bytes": 125,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads/create.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7a5b0ace1fa2b2fc9ffeb1c5b80fd8a79608f33e5b376b3491635127ba1d4b01",
+          "bytes": 452,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:43737bf8bd4012069c08f69735e19af269d899ad79cabda336c85283592cf45d",
+          "bytes": 6795,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/admit.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:361831a772b30d33848eb223c46ad8a2095a8933342ac5dc8736a5a7aa728eca",
+          "bytes": 1422,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/authority.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:856e1c90e58f0253f460f59781aaf1f47d2693f61a361c88fac850cd3bc41b75",
+          "bytes": 311,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/claim_part.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d975774d144aafa725a6f4deaac4d92aec391d6cddd96c114ef613f07d500891",
+          "bytes": 4183,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/cleanup.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:58f521edf6d0d302ef0c7a481db74833d7066d4f40d785368c711ca889ffcc78",
+          "bytes": 1042,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/finish_part.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95ac1b6fb7a9e10bdeb966d7693440ecedf6649d3856c945856407819091f64a",
+          "bytes": 1546,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/freeze.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aea0a349928049d89dd9c715a0fc45a2bb1ae165ad94b36d1527d6275a5e60aa",
+          "bytes": 2148,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/lease.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2133c952b79619b891055decc6ff1b70e6f4ded908ccb156b3a1a7e2346f5311",
+          "bytes": 1747,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/lifecycle.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7deac06ce50d08ed9b4870841049e2a619e9f4ec60e76b5db10c614689cf01f8",
+          "bytes": 9842,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6bc1428de286c4fcf83531adfcf985f08a4317e02fd8c3bf5384e27a730f808c",
+          "bytes": 5299,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/parts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a2611678b15f40417f8c145f49880106715a4e846736495caa4d3267dcfb8283",
+          "bytes": 7207,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/publication.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ed324670629a4cd69f55b44eb795ddce870f0f469ce280af78d5ba10bad08444",
+          "bytes": 7410,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/publish_begin.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c5f6006359da73a83e43b433c80511ee19057d151874e7192a375f9dbc3e13df",
+          "bytes": 1032,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/publish_finish.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e61af26ad4d0dd92a13a1e1d1a56354a07b016fa10ba0ed3a08cb7f0b14cd768",
+          "bytes": 688,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/terminate.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4c45dac25d0aa28b9ce497894c6556110fc179ce5c3b13e0240bda7120d97edd",
+          "bytes": 1005,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:55fe6393858a8085588ad9cdaec311a6dde3ac476a0fc1bca1fcb411703fce63",
+          "bytes": 36356,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifacts/publication.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:446448f9ed55c9dedee7c65c92afc88bf4bcdf9134a74351dcd30261480023a8",
+          "bytes": 3734,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifacts/register.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3dce127181e86daffe4666ce2b5b01cf9b68fa870ee80658ebd1aa510c206439",
+          "bytes": 903,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/changefeed.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95d68eff7eb648b635ab153f5f39afa2668571d86778f73a8a81ad9e547095b4",
+          "bytes": 7536,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1f8d4a2d18dc55e2c9c064eaa2dc076413dc491386ec4e8655d5f0d3d32d737c",
+          "bytes": 14927,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/coordinates.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:24de9dd8f6fcb0a05e0343aabab233d3d5f470ae956232a476351af3944e80f1",
+          "bytes": 8256,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/error.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aee1f5d6a7399ed368e7ba29704ea272819094722951747f3d53ce4d085aeef9",
+          "bytes": 9166,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/frame_worlds.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:82fb370292808629be1ab09b7c69ee9bdbefd9a7196a5b2bf6207b48baed3990",
+          "bytes": 14763,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/gateway_control.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9895894542e5e08df59fab9c3b30d3ab510169e36ccfb2ba894c32c298259265",
+          "bytes": 1534,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/gateway_control/active.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2a06c6d982762251567b326b2b06bb4cd31a7f6aa5d792028a5cc5709f6935bc",
+          "bytes": 193,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/gateway_runtime.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:873d15e5548576646cbf3e420adf2cfd64e8e0227f7ea3eab0a20f1f1cd0334e",
+          "bytes": 39965,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/governance.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e7c33f7b8649c30993597efd2b7c94c05595ba7bf20d2cbaff6d2e1ab8bc014",
+          "bytes": 3210,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/identity.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ef3ac3b657719c39912807daee19c3c96ff9cf0644a350da1ce5610fbf9b7ab1",
+          "bytes": 17373,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/identity/ensure.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3763e6758bb4aebeed25a5d5cc3bdbf7a5906a7c4cb0ff2893dc864634ff227b",
+          "bytes": 1481,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/ids.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b7c2bc86465c8cd852528658fbc8133ef772058cde71299e27c0a55be9c63f0c",
+          "bytes": 4385,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f6d18cccf179d6c068dc1096b65d15d554bbb19bcda51efbe08b30b83d05beb9",
+          "bytes": 4230,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/live_views.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3d2889686df6edf41a45028a19299c69ab37cb30af9fe9b1d0890cabc5ed024d",
+          "bytes": 1338,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/map.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:644253022d763e47df586d1260340b1e68546feea5d4455c430a0c3b6bf2a422",
+          "bytes": 47292,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/map_authoring.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:060ed4cdbfc0bf0e43525b63489acf1ef1834a044547be7823e38c101ac3a660",
+          "bytes": 51093,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/map_presentations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cb5a14b4b50803d6aef8300c1cfc08cf75e1d6d23eaaec558bf856a15cd562b4",
+          "bytes": 21620,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/map_projection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ee2eccf86ef8bf0b3915f0b4290bb50495f2406f5b51eb6e1c92dd2df26ad851",
+          "bytes": 2949,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/migrations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8503ee246effcfe0fd8e00b38d8f168548bd93f948ac958a4c926ba75879347d",
+          "bytes": 25987,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/models.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d823dcf80952c562d422bcfd4787958bf32d2ddfa4935d662298692ffc986e39",
+          "bytes": 54897,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/outbox.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2aeea27edf4b4c5df8d9db55ef0afdcc38528996655d085e7f128a483fa66b50",
+          "bytes": 5976,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/recording_blueprints.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:16f2474b1944d2413630d33840417b6533258155e41dc1f2cc0b017de43b1766",
+          "bytes": 11070,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/recording_catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5ab838b478513018c3c403435b1d16cce411b3e9b4876443e85218b649723f0b",
+          "bytes": 55973,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/recording_ingest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cbe4b05f77954d6a13c5d5622122b10aeb7ed16e758683020441b9371fead579",
+          "bytes": 42411,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/recordings.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6ceac39d6afbd65fd1fe6e0b5b4c91f3e9ec2e9c0bc3d0a80a03a638f8b2aa00",
+          "bytes": 28412,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/store.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:60759ffbdeaf886d804086a99d273685badc990a282626b2926ca458b39ebe4c",
+          "bytes": 4418,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/table.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:49071033555e401f5eb55f3865e34a6f63277157d068722f886c9d8da0ec3cc6",
+          "bytes": 8642,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/time.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06a021b6672e2f602ac2b5d1c221c2a031d5c9b0eb37f070231e6cef8201c6f5",
+          "bytes": 42732,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/usage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3135cfa523cb35111b919f5409de554af706ab8c3365a14cb9a000c025817624",
+          "bytes": 11358,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/current_authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b63787a5094c4b877cca9b676e47baf97574733c3ca5442f6dd5838ce61212e4",
+          "bytes": 3175,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/identity_sync.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c4442be429bdf4f3ef4add6b3d277f439d358d8d92372d28ec742fe2a3d79f77",
+          "bytes": 6292,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/surreal_integration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6126b025927132c383970add6ad93e7c789a0cabcdb7d16041e499936b76aad3",
+          "bytes": 66543,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/surreal_integration/map_projection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f6a7efa04b7fcfb8f8539a57b899a86588767287b63b1640f52b82d7a93c5c6",
+          "bytes": 1301,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/surreal_integration/recording_ingest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f4bc9d0a693df46b7dcb53bfd02359948a6633c1bd4fcd09b379bf2882e87f0",
+          "bytes": 5102,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f4bd2027cf34d866c08003084086965f83247506c36ac4926088b9997a7abcc5",
+          "bytes": 606,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db75809a9778af87d2eacd9ac454828234bb9ac6707cd97f0a23304165917632",
+          "bytes": 751,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2a18a440614015508638b07750b09ea00b900603df7960de4a970f6a7b2fbf1f",
+          "bytes": 6215,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/leases.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d6587f04cb6e6c790ba4f8b23c5d3df3abd2daf2441853642a7594abf2764ab",
+          "bytes": 8425,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3bf1ccd9edcf01aa1e1979a043442358137111cb2d888fe4878c1fb6d3b840a8",
+          "bytes": 1373,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/mcp.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:caf2320581940b37238235504a7a600d0739083880073fe1d51ce5217a727b12",
+          "bytes": 4159,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/provider_transaction.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2c5e77bb78cb256e30529ea54f2f4ad9bbf61fe7166c80fc43efba6a34af3639",
+          "bytes": 3717,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/recovery.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9976666203700d7ef86370774294477c65271e7d15b5b2d8fe65f87cfcd38e6b",
+          "bytes": 6658,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/runtime.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cdbd4804873f37fb20180a8006c11589878b53f2b324268f94e459bc12bcd2bf",
+          "bytes": 54778,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9af33a1342655e01df1c2d8df870951c7b077a62e2292756e15d44e18b7e1d5",
+          "bytes": 15220,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/types.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:37fc90d568524cfe13e95277585ea71ec6a921b0d51545775cf5767b5ce78cb8",
+          "bytes": 19006,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/tests/provider_wait.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f0e2d6d68b13981b5d332768e81ac1ba34467ef688c9db64a0d1a2a9a58b7b2",
+          "bytes": 20993,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/tests/surreal_integration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4fe2e85a80054c123cdfd3c6e48781949356ba365ccf62b43e464a3d9ddb0cbb",
+          "bytes": 22005,
+          "mode": 436
+        }
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e390d6a0838315f972690f46ef8bae8b7ecc9ee6c1ed70140ef852869c2482e",
+          "bytes": 86,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/artifact-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4b663ad1a3d084a897c48b58efcc1d9054d0bbdac9c951248713334565f745b6",
+          "bytes": 1087,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/computers-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:189e99c394d9c652bdc4beeaaf65f6e6639d082d8703bc8f05793fd7fa589bfd",
+          "bytes": 1714,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:edd941cf61b3043d92949e5c4a5c3d7db76601b8d7a76c467cf739c7953848c4",
+          "bytes": 2749,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:211120cf85b8255ffb2cc8e705170463aea42bb547befd33b78904ae90b0b83b",
+          "bytes": 1365,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7d7d3f7d3b068190b12d6397d9e61c6ba82c688500ae4fe08cf936accd758efd",
+          "bytes": 35577,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9cbadba1a54eede4858a1e345232eb6a10ec74ace4dfcf7b746c57cb2eb63d8",
+          "bytes": 1989,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:efc98741f34a33461548d1ae43595d9a2c6b8b6fdf9eae4e9cc21f275f764e8d",
+          "bytes": 5675,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4d4c8b90aa4177c3192a696e09b9d307bf52dbfc0b078ad7c9ebfa96d54b1f59",
+          "bytes": 53626,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/admin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5c2a3d5a729243f33e25f2aac20e1556ac44b27ddb8fd95f4f756ad3b905a914",
+          "bytes": 2975,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/app_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4b1af560863dba469516f3968adf87b61fe8a4c80086f912a83847c96640b027",
+          "bytes": 2531,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:73de9f6b7d476ea3e5c1236dbec57df7e50a0d6d6062e3518761779210601d5f",
+          "bytes": 4808,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ffb7b7d2812fc6b7c1c20c2be56f90b94831442f66ca28581b93dc3b3878037",
+          "bytes": 1226,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f9239c1a725652544bdbcbe7e53a96239b389acc97e1b61f5c292aa246ed3f62",
+          "bytes": 2452,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/outputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:630a2776c7f38e9873c1997b2c4dc030e737dccec95122ba959dd2908c11a4c8",
+          "bytes": 5369,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8ae59412b475c5c45fe71846593e2376152ad6729c5e3ca7ae64e48488028afc",
+          "bytes": 14135,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/sql_ops.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c1ac4317062cf89f8717f86bc219a4aa6eb5baeb48e567e26f45399976aa9af",
+          "bytes": 30550,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/bin/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a38138b300a4dadb68832e71d9054fedf909176ecddfb522678b9653b52499fc",
+          "bytes": 3840,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c19f00682ed701585c9d206a403d4a4f7104e6035629b448fe8773d9a85ff40f",
+          "bytes": 7065,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/engine.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f6ffe2498168aabc800e42bfd9b5032a02e56de63dc302833d3c9dd030ee4c9e",
+          "bytes": 2994,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9311af70d082d659e5a69620e8fffd2b4370cd5f7608f2e10d791c6585427bb0",
+          "bytes": 332,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:11e2574d90710e66cc79649e00e2c69b82abf97bade917c63b4b0fc9e027fbdb",
+          "bytes": 745,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b09f098a721a9bacaa5c1fe75b22fe7612df8eebd54622667a1f9f1ac4f3236f",
+          "bytes": 2980,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:55080192e344bbdbd5efbeb30e107618f92bad186394b720725f9ed89f5aab98",
+          "bytes": 2864,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:36c81ef72d1953256253dd9ae721796bcd84ceff3987ebf88d66950d128f4914",
+          "bytes": 1325,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fb43fe52a2d47c2ccb798b92e682a311649ee7921b1e43e14c31b022ecaf1326",
+          "bytes": 7700,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ce2daf93033086b3bbe2a04dc6a6b5c144919f4ea636d4bd05765b2c724b9a42",
+          "bytes": 595,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:52fbcacc750d6fde475f5fc444c44c82769081d281e19476d868366a5836a57b",
+          "bytes": 4329,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7f7de34b92b645997e6b56dff7f62b37366fd002d97b5c27eecef34744f862e4",
+          "bytes": 54031,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/admin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5376cc25a3f3e95ad5e686222fcf3cb881369543ebb00e4c85090107f34ce4cb",
+          "bytes": 2975,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/app_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c735e365aecd55c7848de37aed5061b8f6e69bc37716a8006799994e1bc29d58",
+          "bytes": 572,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99bdd2c0cc2054a6a8c76aaefc17031ad01fd5657de57022f9ecca6cc3e0d2d2",
+          "bytes": 3001,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f45a9100b057ce5270bfb241a441cf888905e4d66339f6fd02f0f6ce6700c8df",
+          "bytes": 1226,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dfc8facf2ba155aa958cde85236fed32fb80e7513e9c13cfea1b79a19ab37b8f",
+          "bytes": 2345,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/outputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:04b24ddfbe7a5e8f305a7821807751a508a21d189439f3ab1a74e67cc2d0327e",
+          "bytes": 5591,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:62d670de774db752daf732ef612e739a7033b3850a8cfda93fb1f69e3d92d2b9",
+          "bytes": 4756,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/prompts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9a23232e550e3257927c9fffef0ccf04ceacd46b9b40ffe3d90e4c03aedafb2b",
+          "bytes": 6018,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/bin/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:592c056dd1f362e384bc5fd43ddb7236fabee034c97279226c79fae51d7dcff9",
+          "bytes": 7197,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:179375000814982fc960159cb99d13bd22b41218b7542293e099d1cffc3ae3db",
+          "bytes": 5046,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/engine.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6afa260ba19d61f4a6030e802221a375c36b63510232919ad7b71692af8062d",
+          "bytes": 14544,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:12b0125ea5f1d6fc6b29a120517aa1a65fe5945a9bcfcb7820f14119db1548e6",
+          "bytes": 97,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:52b2ed17796928abe4c972fdaaf3fecb70adcf121f9d6ae7be50f64b3b8aa845",
+          "bytes": 10057,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6a3f21cf46af76b82fbab1521d4d4d99a13e670b86c40a7d18033ced29987ae1",
+          "bytes": 4036,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/src/world.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:89e9ef0e951790db53353c7b0b197b90a7fbfd480648da9e816aded6cc9d7a8e",
+          "bytes": 16136,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:91c223bca6e558a29f74dce515942712299b5e71906a93eacd2d6eadc0efa0a0",
+          "bytes": 4652,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1c766b15eefa2ade317eace4602843eb000bf2026e076884efaf613cb4dd8a4",
+          "bytes": 1889,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c78cc90e2f2e8298ff86b1386df5238ed5f8c8dfba3a894626cdfe9827eef97c",
+          "bytes": 74537,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f3116b839ac6565d6b716751e8127688bb4d1e2068bf7b3eb63737b3403553a5",
+          "bytes": 5091,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/app/.gitignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4d56952b0fb13bf8f9b6c13a6d4c34a075bac3af447636a1df4335d7576e2f97",
+          "bytes": 14,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/app/build.mjs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:378bd942e53200ae207b421ceab360192882b30afd729ad7bdeb568d6c32776a",
+          "bytes": 2788,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/app/package-lock.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6da424a04604ec64d7e18eab0b74770f0a99a46dcab0d1718033e502a1d273e8",
+          "bytes": 23681,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/app/package.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95c9f1e0b380d869034bdb3446eeff6c347e057a84344d7c981ffea40e565a23",
+          "bytes": 300,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/app/workspace.js",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:81ec5bf94ef66af3f8f0ddede5ec6db192c66038f6feaf0b436e2ecd969ae39f",
+          "bytes": 76022,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/app/workspace.template.html",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:23522ddc4bc7cfd9be01bf6e8008f266d3594726bce33687cc9b1b1b4503bbd1",
+          "bytes": 23482,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/assets/workspace-app.html",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f0c4edc185125caff7f8eba8c05bc01bf98c87998c867257d39575ef72f225c6",
+          "bytes": 1582105,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/.gitignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:472f568478bff9056ec56b5c5e8a7ca3d280c651d527321e1eb80892801164be",
+          "bytes": 26,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/pyproject.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:82446e918763ee62bada6a258440c60544699f7cc6d314941b9ba9828a5a8619",
+          "bytes": 294,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:41ed7d301d144bc1a69aa7fc3770ada8a3b0728a78be5906284dd69c7a338849",
+          "bytes": 91,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/__main__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dba047cd4faf0b8632b1665c09195dc022db703e0c0743b81e6e0554b9876f6a",
+          "bytes": 57,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:96fed95105504ac90298f170ff63bce68863b77be8627cf6166c34e02dd2846b",
+          "bytes": 559,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/authority.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b5409e5fc00979586b608b895b0c319ab789065bbc0bf857171ca0757e5f9607",
+          "bytes": 1167,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/aviation.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f8822b92aeb41facec20f137ba6dcc10a3fe2adcda4c25d7e96285560679e1ab",
+          "bytes": 777,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/common.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b63325d04550445950777e7231f9a009ed8956fdbe05682b7ec722c241b88201",
+          "bytes": 972,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/gtfs.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cca4cd8489cf7a64a96a47eab08acb71061c4e43626ecfd4f34ec32071cd50e4",
+          "bytes": 2554,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/maritime.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2ff1e4ddb8c56e5d7ae28c3a79680fd668d7e5b8de747b926fd55dceaae51d6c",
+          "bytes": 772,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/osm.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d8d5d9da27786cdc1ff8d04bfcbe8f581e89e0373554ce0e9767d834be0f0b0c",
+          "bytes": 3655,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/osmconf.ini",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:060cc44c1f4d34222e933a5e0820f59e5da221d2cb9ca358bf7b22b2a87c5354",
+          "bytes": 834,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/adapters/raster.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:108962a58d57a1646c81239570210a9202a3828b8067ad66577af137ea88c12a",
+          "bytes": 6819,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/contract.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8de31db4fd8a0328e417ef3c6ab1fd409fd8c415e441995a77bbd3bf4fac32b8",
+          "bytes": 3386,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/feature_package.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fb1555e59c77240299fec2fbaf1d4725b6b9c20bf91f5292182f4073f909ca65",
+          "bytes": 29651,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/main.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2c77327dc131454552b6924c03d1526c94e31d00bbca8010093259e4a3e7294e",
+          "bytes": 2821,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/raster_ops.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:002eba365c9111ec4bc13d1809a037e1f66c75793e80f122f531938cbe5ac103",
+          "bytes": 23154,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/subprocesses.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:96a829face9f96202113d2d4bd4a4801bc6a24f89866772adde27245fe954135",
+          "bytes": 1866,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/src/map_data/terrain.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5e67d585c3bd487ac613936334f609c786452f368a1ea0ae905b281ad8136d57",
+          "bytes": 3500,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/tests/fixtures/authority.geojson",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:20341b897f6dafee67b8bb9dc68f4b9f6f1dec930c2cbcd09f86b4e501ea3723",
+          "bytes": 884,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/tests/fixtures/network.geojson",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8220a30cb6a7045496a3ddd9cff38fd8ca1c4ef1fd635d2259a2ff3a596b6da9",
+          "bytes": 1064,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/tests/fixtures/routing.osm",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:563985c4958f9bd0620e0f31b3eca1f6ae72bfe1b230ec35b2ce3bc633c24d2e",
+          "bytes": 721,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/tests/gdal_feature_package_smoke.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:91fab0435ca989f81efabf2ddfe5564e96ce700aded0a422182b55265cd3ac88",
+          "bytes": 4525,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/tests/test_contract.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7f04ac5718801586d6cc1adcc737704eb068c57e2b5642048a9a0cbf6d706c7e",
+          "bytes": 8351,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/tests/test_feature_package.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:416d1ae8f9e01513c16ceb12845b5a543d3030f65c9152468185bbcef4086684",
+          "bytes": 2204,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/tests/test_subprocesses.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:351773852b167a8c8874c32503a5337ff9b1af6e5354949a44d56a2d7e3d8200",
+          "bytes": 1113,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/data/uv.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:362a32e1b1d966b93e9299b7c241737a89173cde059f36093cc635cf06f16674",
+          "bytes": 136,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/acquisition/helper.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:76944534a36f3189b3bbcb3775a58d09664350013d7b4b22ace6a6208348fd91",
+          "bytes": 7310,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/acquisition/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:70c58ede049c283125b4e52df8ab84107a22589255f9d426c68c8abc986046bc",
+          "bytes": 170,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/acquisition/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3a0e34403ce4949d80cef17bd9c9f30eccc1eca260f896c440d60f721476ce3b",
+          "bytes": 23201,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/admin/handlers.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b6d236fcd242a591bd5530969f243d47060860b6306b0adcf202a41aeba330bf",
+          "bytes": 2491,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/admin/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:962db138037644719786750186ae1dbfbb7473e74e423f76a16486a0f11f2db6",
+          "bytes": 613,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/administration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:665465114389a60d16ded85c046203a8c88edf9835c6489e3acb0de201135a47",
+          "bytes": 9961,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/analytics.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:46db3df1a8ce7cd5cccc65b3643c7a2a9b162835c02c51e64bb86de1d6ffc231",
+          "bytes": 83904,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/analytics/performance.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7c0306c4dc65b3b879981dc0d118b564f474ca302a7ea2b01977f4ad03095b08",
+          "bytes": 10378,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/analytics/projection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:574ff9ea85965caddeaab35972ce9f6cfc2e913b27b768f8d3843d666ab81688",
+          "bytes": 18266,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:11d916248dcbf0d01019bffd4cf487f2bd321d71cf5d49bd26f20d751a78637a",
+          "bytes": 3395,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b729917c0374b638024417f613176806b40b2e5a73df17adbcc9eba1e4191bf2",
+          "bytes": 209,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/presentations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:18c1c6a92bbe570e8b4d80374090c204d60917e7b8aefd371226e866133614aa",
+          "bytes": 15057,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/projection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6d0698467dc6c1b823fbaea91b76d68f386805a8454cc7b886d9a5f2051395be",
+          "bytes": 14173,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/projection/recovery_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b016d11fd2a2923c3c2f05a03bd2b483540d3e9b64e37f3e2c086ab4db94f323",
+          "bytes": 14912,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/query.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e5426cbee09847b881ef90cb16b6b23393a118ccc84b9df0d56940c75f8a05d5",
+          "bytes": 15212,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/query/performance.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9bd746a12c3cce9faf5c17bb3bcc0215643baaa94e590e97241db4b82fd77631",
+          "bytes": 15589,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:083ef819e46e32d277eca1f9f01c7f08e9efdcf7873239807ad51b83e9422195",
+          "bytes": 50215,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/transfers.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fb33864d5c7588defed198322c8bb4015a5bb4bcc7dbe5bd431abc0794710b42",
+          "bytes": 30785,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/authoring/validation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eba7111821c9e4b0460617d161e34a8e0f3eb0f4882f1542e37bec0b40c8b34d",
+          "bytes": 10965,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e5e27427913e902d0dfaa031bd1197955609a42ee9a64b9c4d6745fedd31a3c8",
+          "bytes": 102,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bbb23344add46a14a04e73100e09a283dd0c969ad896ceabf611ff38127b95b1",
+          "bytes": 26646,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/admin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:21e64eeb0d3fa73ab6e686c2b4fbe8ab416c90c1db40a6ad89647be3e92ec7b6",
+          "bytes": 4663,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/compositions.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:64370038f95e11ec84b35f538246e064ed148abb1c9da219ace534f73441d7fa",
+          "bytes": 4419,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/datasets.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9cda14b78398d86c140564e3fc0260141eccf3b293052824b27ce7490d32cd2a",
+          "bytes": 18927,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/features.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:70d5875d60d071f8ead4e91e6b2e96ef1e1e4fd36bd7971d13d278bb70b2e7d4",
+          "bytes": 30558,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/geometry.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:080192484eb78dd6ed4b6eeab1c2629b598e6b65fb05b240141fcb8c873efa2d",
+          "bytes": 6459,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/ids.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e0e0ae07da8c154ed0ca13faff23b18411d2bec6eca0b31b46b11cb21a87081",
+          "bytes": 5579,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/mobility.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6604f0ec26216c754dea100fe4577f540e937363ad5216100ea9dd48d892c3b3",
+          "bytes": 29852,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:87ff847c3e2af5d5b3331b0d286ec357f97df8f26411e72b5850a23119a6f9b8",
+          "bytes": 538,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/operations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9b70ee4d93fc6802843fbbd330e8d4f1b26b21a8de0371fe04e0737995182b32",
+          "bytes": 8433,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/routes.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5c8898a27d89f513b2715b9c9df74e3364aeb60216eb2007649404c5c4fa7b69",
+          "bytes": 13896,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/source_products.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e7f0b13e3256a8cdc48644a9903dcac3850ad315c58b8f3c64d8dc589abf632a",
+          "bytes": 27244,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/spatial.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b65231d096ef445a8d0d38d159ae14e29911870fb1e209212b9a0febc05e81cf",
+          "bytes": 19956,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/transfers.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cc2d6781ae942e931aaaf51458eb8825c065499eac5bc3fd7011fd9ca6fc1ec9",
+          "bytes": 8670,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/travel_models.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9c3dbb54cbd703c49b2f9d97ff350b44f4ab8fecc0d53ddc5ad6c4958e4693f2",
+          "bytes": 8271,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/units.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97f5afecea21c6d725c6f6906fda5f3b19052b4de62cf08bad893011e6a6c490",
+          "bytes": 3176,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/contract/workspace.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7b7d7570520600a4ef426147fa916e61d2a1ac9f7eaa9be3fb72b0852ba1a371",
+          "bytes": 4788,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/feature_packages.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8f0622aa29b02d64144f30e48151b4f49684a8e20798cffd0a3cb097f434a17b",
+          "bytes": 11737,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/geodesy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fb30e02a6d7e63cf958bb47dfb5b9dcfb69a8da875e28d81f930f0cc317f88cd",
+          "bytes": 8289,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/geography.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f7248c2f0d537a72251600771da95d0a5f6b7c0c6966fd9c2c2afe184fa779fd",
+          "bytes": 8343,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d7ae485f6cbe9826d440d4a731f55be08e922d46e7496bed0041fb3c54c90d27",
+          "bytes": 620,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/mcp.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ff6bbecf6051b3c5f0753e480490f6219cd63f9e07d8797aec9f9293ed4fd530",
+          "bytes": 114294,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/mcp/authoring.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e21f7dae32b51ea8ad9b0276446b01a0ee0cf005b5fdd59e9b89f005a04baaa6",
+          "bytes": 22731,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/prompts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9681864af3cf406dd8e2030eaa9a9c78e6154d59ed30d296bdc72375da92276b",
+          "bytes": 12413,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/raster.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7c08e64a103e25c6c0ba7f585235ef99e7fff444cba2ccfcc68a86d8d23bd16f",
+          "bytes": 6942,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/release_products.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e15bffea02780c268fee160693e285fd1cd12c2ec48dbe916f8d64e4763b9228",
+          "bytes": 41422,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/routes/graph.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cd8aa3c2b3a8accb7f49e46ebde4018e33db3b17bf3a8b3577d4af8dccee2e87",
+          "bytes": 14051,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/routes/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:23883c69ad041c4f8f82707bea92529a0e284ab48e79a6fcef9367a6a47a91ad",
+          "bytes": 414,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/routes/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3b209fbc0ee85e3e79c5d5d9d4094b23d986438ef7ff9309fc93b585c9fca763",
+          "bytes": 36713,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/routes/valhalla/adapter.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f7d993a7895798515cf4c7458af0204724ef65c9ed9b8479d0c72cf56465e787",
+          "bytes": 31430,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/routes/valhalla/client.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ff3aefd7488b4ecef2d61baca59d8598b3abdd3195c36c036e679f4e4e86df20",
+          "bytes": 12745,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/routes/valhalla/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:af724e6998bba0b71e3ebd93fbfc5009361b23679b4862c9fceea2ac1631cd54",
+          "bytes": 222,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/routes/valhalla/process.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aebcf5aa3e42f6d201d85aa5314880332d8cfd78d2f7881ef6914134e397e410",
+          "bytes": 3906,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/server/auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0a684cf21797180d79826f7db40bbdb9a80d8ac3ba0da3ba71e0a67bb74d3293",
+          "bytes": 2153,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/server/bootstrap.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9c5a21e6f79a3ef5ff50ea71f2a96fec921e3ceab7ff24a615b5ef0b20aa3349",
+          "bytes": 5098,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ded5d97b6d2169d6c71dc2369ae6d68c9c8a279c4d661d44c553b0bcd286fa4e",
+          "bytes": 6422,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1b2f9454ea9a4249da4d39daf57d7789d9189b15818a7dc73ffe8184e6a4fb0a",
+          "bytes": 1034,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/server/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4d7018a413d8b1681f234b52a0ca748da9fadb1d4b662b34241a1db9bde8c05d",
+          "bytes": 11006,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/server/tasks.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:93ab393fd085a995f6093b69b8b2f8903a8a22a2badfdf8b27438602bd076e12",
+          "bytes": 53046,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/server/tasks/feature_transfers.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8f6b6f2ec975c3519037e951f61977261ffc76a1aa82aea55ca034a1911f05c4",
+          "bytes": 8688,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/spatial/derive.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fa96686f887049b198a901c91daa890d0cc53dcadd28df6b511a610bf473b40a",
+          "bytes": 27930,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/spatial/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:921319585c72f3bca7fd417d33c706d8c72193e5bad1dff3dbbab7e4aa762c13",
+          "bytes": 10849,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/spatial/projection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d42406782e1178dfced21aaa2d109f23167e911fd6a23b63eaeea39a13a0bbd1",
+          "bytes": 10572,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/spatial/validation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b8f0d70850c4f9b7ccfa5b7720132c15eb6c26d5267b4bdfc6237ed69ba33aff",
+          "bytes": 23309,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:792123ab0ee6f3dad758e93c6edf9866c37b96078f8a39248f33a0e95b41a10d",
+          "bytes": 3451,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:829f238d49ec60d6774fb4a9c8fcd38fe2e10c294e79eddb0e2e3425ad55b309",
+          "bytes": 18998,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/tests/travel_model_compatibility.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:efb8b08bc28de4c8405ad686e2885344cae959f6fc2ac42399005f72e7818ab8",
+          "bytes": 1639,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5ec0b5e461b2bf19b8a4c6fbf747cf73249b67f5a7a04e2887406760e8f91032",
+          "bytes": 2223,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:761b8a381e2e9b17e566d737fee6e42b74d450115591dbe45ff1f3b407e38bbd",
+          "bytes": 1257,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:efe9c13061c6eb20b8f060a47bb8f9d1fea8a8e25bebc13e05bb8ecf8b5cc21c",
+          "bytes": 1583,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c0962347a78b473e3dd86c4f3c4b1088b86f6c3b3ecf25d6e093113e2379a7fc",
+          "bytes": 653,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a2ecc8d9df0f11eebe467c52cde7716e53b370d62bce896a17bfa9e4f0b39094",
+          "bytes": 5415,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:508f531a9a11b3e26f32baa38ae163c7007bafc385e25707af9a3cfce9f9872e",
+          "bytes": 49523,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/admin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8d3d6c62208680ccee4fe9016364012daaadeaf1bcb05024268f7fc10d51ee5b",
+          "bytes": 2973,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/app_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eed62762e7b4b95578cc9a49417687e8f31ac66b123cca5d3fdb598480628367",
+          "bytes": 10594,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/artifact_tools.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ca9f0d0b4efab64e90e83b50e82001f02c1227a7abbf34a778ce7726fcd6f058",
+          "bytes": 4046,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0bddf0ba1937fa1b7270bf9140e4dc814721275c68c18a175053ca05687ccd82",
+          "bytes": 8631,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/generation_task.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a9c91efdffa70311558205e899e6ba8b41199babddd5cb323db700bd58cf7398",
+          "bytes": 4477,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ae48b6ee07f056035c9df174462f065dfa353ecbd29c1e618fb55f40b6ba852b",
+          "bytes": 1225,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c119541fddc478fa52ac87f19d3c7d175bfde87507a3cb8a751cd9213888a927",
+          "bytes": 2841,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/model_tools.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aab71eac3b27ba0978ee0aac9ffe2c38cb81a43eaece56e2760c9a11a6650919",
+          "bytes": 8858,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/outputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7ae8bc2203632aaa169b644538366a9d828aacf8e4068e4b37fbbba3837a715a",
+          "bytes": 5062,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94858361e2ebd4040d0f630884d753f9719faa5a7078a6321168662230399f4d",
+          "bytes": 7779,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/prompts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:08f09abe3070c84de82aa273422a1a079cd42b3f8d5de959cccc9189e481de20",
+          "bytes": 8578,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/retention.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f9cbc123336b3ed8f42eae89a361b91f7e0316320f3ff46cbd32b3051a46ea4c",
+          "bytes": 971,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:69a623844b960fbee6fe2da6a2fb9299e25bc1a0ca1f7a53e97ac9374c9a6bc7",
+          "bytes": 6502,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/bin/server/usage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf1d53ff635ac2172f47be904d3f91920744c2b371efa71f1b180ac71ba1e15b",
+          "bytes": 6980,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1fdf296c56ba533e58029a3948c210c8c82ba63d8f9348e374cc44c84152dae2",
+          "bytes": 83,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/provider.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d014fd87d087df9d20e24af35562c391cb308db06fa87f62c5e55d8f5f02e9fd",
+          "bytes": 12337,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bdd49a2d932811a188c98a404aa9248f5719aa85e0ad0ac4a98b2a2f8e9afa63",
+          "bytes": 48052,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ab3bcb155b01ef7c5b2c67acb95333dba1a3d568ed2ab0d3771bc73d830a645a",
+          "bytes": 4251,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/src/webhook.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a2c5618a43c19b2eca928e4f6e6245224131e7b1a893fc1e9e14350618be4aa2",
+          "bytes": 4688,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/tests/surreal_integration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1cd9df6c88965e10d8733f64bf011978a2d62efa1502bfc7ba7b789e5024daf7",
+          "bytes": 12114,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3482094cd8c0cd677292c0e1476f76dbd77c5ed09810ca853ba1ca41ffddd314",
+          "bytes": 4089,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:80f05fc71263a8ad08df258bc8ba896af143f6767749032ac4ad5db1ac057639",
+          "bytes": 1320,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:109d31190dceca6c336a35b6409e76dc87059864251b636f115fea75db11506a",
+          "bytes": 24082,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:393e9adb0165f52f8f4bee8f297e9522c33a73374de1b9ef1c015d43feb1cf1c",
+          "bytes": 681,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:207e4818b42cd04fe34d59e0fb5dd1f6353a46d97768fbf21238c325780d2ac7",
+          "bytes": 1042,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/tests/test_healthcheck.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a54b369086f368449b7de2ee276b68b8424ee81f70d0998eceb516077f81ed38",
+          "bytes": 1511,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/tests/test_mathematical.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e2e6cc23552411fad404df0068c87faae88addc47244789a2652192ce3e4f736",
+          "bytes": 1926,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/tests/test_protocol.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:032d5f66cd34ff1bb31890fd3d49cb99fe042008dc74f59319a3dc07318531b9",
+          "bytes": 1437,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/veoveo_cuopt_executor/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:98a483480ec991ce8e26ed6bef2326ed600013018fa69c8daa6cfd3d4dbd2d80",
+          "bytes": 123,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/veoveo_cuopt_executor/__main__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+          "bytes": 33,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/veoveo_cuopt_executor/gpu.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:01b32ae70db76d812f92422702f82854f06b5d48526003fc727de0579473f95d",
+          "bytes": 3593,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/veoveo_cuopt_executor/healthcheck.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:16a52c9b6d556987fb40707586b81017c8040ab180fcf5a08f3960d44569ce95",
+          "bytes": 1398,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/veoveo_cuopt_executor/mathematical.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1131610f9818c0c77a8fbfd3d20a6b9d88b27259e817564c49fa17d58be74502",
+          "bytes": 10954,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/veoveo_cuopt_executor/protocol.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f35d325c5bf365256089948d6de6c72309821b107f2f6485f14d4689eb05b3a0",
+          "bytes": 2786,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/veoveo_cuopt_executor/routing.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fae9f2178e011dd43a36f26d781a945382a0344e08765d0c50a9fd6aadd556e7",
+          "bytes": 10848,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/executor/veoveo_cuopt_executor/server.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:23d9b90bb506c76385c3772db63299fb5de1d14ff6c58ff0425be9883336a675",
+          "bytes": 8625,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:04cb6fb857588610a50a8bc91393f44da18dc7b880113c8ab2bcc6e08ff4a13a",
+          "bytes": 5684,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:218dcaf5e2ff8173be900af3973db403c765ce1c069e5545f5600bfb143bfa86",
+          "bytes": 10047,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/admin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:423ce5c42ed084d80f41bb286965175dc30fac31f23f0c4e44fea9038dd7fb90",
+          "bytes": 1744,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/app_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e944ba8650db2638e137cc2e6ac6f636f0a5b3d54efc466f6d47d033f3bc40a7",
+          "bytes": 1270,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:53cbc8e81485477c8e24e10c5a3573b62ccb3cc3e70cd7eba572e9b1de5ac73b",
+          "bytes": 3660,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b0dfe86a6010da01662938f4f730623219d5c001aa92c957cc7220050f9dc80b",
+          "bytes": 1232,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/index.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6f47ddb7e0c65213bb52230a692da8f80aba6e0deb576ce93909688fe6b9333",
+          "bytes": 21012,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:18ac1a13c1eed473fad2d6b92f86d983ba2092a6866e5468b2f6eca794a6501e",
+          "bytes": 2405,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/outputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:92266f160fd375b1cf24e24cdc7730663f438513b367443f9e49ff89b665b3ed",
+          "bytes": 13786,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:871bddabf5ca01b43640e001c87db720c8c31d0f0469704970cf04cbe9ba2160",
+          "bytes": 6033,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/problems.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4c3ef868576e0c63b2f0dfb09fc2b2c7b32e47a6e8a8fb00ae889af43ef3aaaa",
+          "bytes": 16203,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/prompts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd9ac9accc42fe00da025bc81841f464afa16ab2a88ced5cfea2180dea594c29",
+          "bytes": 7379,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/records.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c79b462b722aff2aa26634f5a289eac5a67a72e33615dca94a2be77b5c0957ec",
+          "bytes": 3015,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c118995afb54b911d7e00d964f862fd489ed521087275dddb4ab457b0a940a6",
+          "bytes": 48520,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/bin/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:da6fb310fe528703fc2abe8578c6ab956dc7a744ac97704a8ddf80be7772b06b",
+          "bytes": 44199,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/compiler/mathematical.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:02c31f21dff53e4063fc2f42d7dc75dc432b4936d29bd9341292e39e442fc64f",
+          "bytes": 11283,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/compiler/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2171217de0fe487f2d973a0ed8008e7a426049d38365a244c94831bac54776bf",
+          "bytes": 749,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/compiler/routing.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0516936763a3aeba89f629ddd0076224ffc29cc4033f5efa5af145610e0fd107",
+          "bytes": 20826,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/domain/common.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1a044e6c0d660d7a20ad781573ca2d886a7523a8e6bd258b9fdee00245f59d9e",
+          "bytes": 11778,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/domain/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3c734fe4a52f1cbabb6f4e96d3fb6fe4b1617336f90fbccaa3beb190892404af",
+          "bytes": 1214,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/domain/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:84a4f297d10917ccfc567da0982299b956d37c4349cb2feb80df5866ef315958",
+          "bytes": 16610,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/domain/profile.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31c45b1f6f4b8d848a6204d9b5f9470694fec2c1d4512ba6be4222f883cb732d",
+          "bytes": 1197,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/domain/routing.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a9284d11a03f1c9a56928942e3eeeb753ff0a0c6cefc3232a3ae3f53329a9ba1",
+          "bytes": 23658,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/domain/solution.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c673994034fdec28ee0f9c5811c0068597769b9cafb287959744f8f02a788485",
+          "bytes": 14351,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/executor/client.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1ed3300fa85fdcec92a511d7d10d23479e452b64502b84dcb3f830ccdc1649c9",
+          "bytes": 6495,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/executor/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bb1bc815a613e8fea3237d19d2a3191d076cfbf0384603f883a07f75d4f2dd7c",
+          "bytes": 222,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/executor/protocol.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19099c9715c26965ccdf627a3a77439d26eabdc456c409d8297f9f2d0752b66f",
+          "bytes": 13916,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5b9eeb64e0ff49719bebe24488e6dac7d42e4b582df46bea8053bb9c7a2751c3",
+          "bytes": 189,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/problem_store.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c35b4dcd78bf331beb89f91045db2647c80f0cb6092eaa2b811305f3c390e4e2",
+          "bytes": 5497,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/profiles.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:af00b343702f29ea8b18932f895cc773a94644483edaeefceac9c14075c5d934",
+          "bytes": 8883,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/solution_builder.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c019817247a6fd67b15bcc213771b03a1365769e255b23656f2e3b378e0bc07a",
+          "bytes": 14920,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9e29bd0cdc680879939de6569caf5a525aba58d6d55d73e270377344a7dba22b",
+          "bytes": 420,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ec5d24a58f123ddf07a08373c9487508ec1d4029fcd706f3de2f7652898f819c",
+          "bytes": 6678,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/verification/mathematical.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:762019ece1b81d2e390d4b74822d14864ce412bb3b3317822c321c9cd3459716",
+          "bytes": 15758,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/verification/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5078ad62ff02b7d4f0759ad84f0f182e1a518642949825d10ed0b0f61d1a398b",
+          "bytes": 2258,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/src/verification/routing.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:48a3c5a56b973bf64efef4fd62b12d27c1ef1e625ade820860a3f07955d4b99f",
+          "bytes": 20750,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/tests/cuopt_gpu.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d298fd3d2481d0bff915a0821fe5458eae862d9f213f276f8655b258ffacd815",
+          "bytes": 10906,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:75c8a0e11ed862cf0bdd8ac1cc0a173554644671d884c2dbb03d997f7e061111",
+          "bytes": 3277,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b412bfcc2425e9c8e28e04200f000b6268d5250d4205686cf8b637774af4434a",
+          "bytes": 1401,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3e6f66926bf8b8f5417f7853f2ac70550cdb1cc02fb8e6958c3fbf839869cf63",
+          "bytes": 16813,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:213f87e42b869ab593f5a14098b34584e46ba70d9da2387df9775edce6396ecb",
+          "bytes": 2633,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/pyproject.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fcb9c9eda3f47c87da77695325f9edead21f9887e8a0fcf8fa7800c9e1e7668e",
+          "bytes": 725,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/src/reason_runner/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a929f83e4f803dd909e0695f554a40c07a43ad9d591292df902d7d81390b340f",
+          "bytes": 404,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/src/reason_runner/gpu_model.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6d0f8d89f42a1ca145223999f7191e8a5d5d5641f7d06e929b0300925d20e96f",
+          "bytes": 5994,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/src/reason_runner/inference.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e358c056dc29e717422ed7619ddfa92dec7e929350660933d952b3511e6bb3e",
+          "bytes": 2951,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/src/reason_runner/main.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:67bceb79289e472c658c57cef5087d219eedef64029abec6e619c086dc17b13a",
+          "bytes": 1475,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/src/reason_runner/prompting.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cf9bfbdea918ebbf2062f3c1595513f2bc10ec4f2dc09326e67c336e322c5077",
+          "bytes": 5869,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/src/reason_runner/protocol.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ded56dd890f2d3bb0b1f82dd6213c487f68aa8d558e504bac6c3975bae9f9639",
+          "bytes": 4267,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/src/reason_runner/video.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2cf4bf9d97afe1a0707d89bfcd0de9052418d3afccd4ff36d1df914e9ea0527f",
+          "bytes": 4855,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/tests/test_normalization.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fc9e2b001cdd608431b00de04f680bd7582870f68e90a076ea9197787f507704",
+          "bytes": 2357,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/tests/test_protocol.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:76ff12f514454c834cbf782252d60c2888d25b10565584933f2998c7d04be40b",
+          "bytes": 4293,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/runner/uv.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a3a38249794ae39b302195fa2d0bef33639a06f1a956c6ac228f29cfbf7683a1",
+          "bytes": 40719,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/annotation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:823b838c59c3e581779d7fa387c978b1dfae610d14681f3f292e5ef712916e8e",
+          "bytes": 4304,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:20c765eddc4f2501d5bda43679d7fe1f8623f05f5563c9dfdf235f14e0aee92c",
+          "bytes": 3454,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f3c62f7407c96a10ad6d3420fb5ec293492a163c1cd7ae47ee8ffda3f076bf63",
+          "bytes": 39984,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/admin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c4e57f6e561ab1f3333d1aae77a201d2a72326b50aa99936c64da655a5197a65",
+          "bytes": 2976,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/app_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:757affb5dd195b2e07efb208421476a134a15c3ebaa55bfc39a07d7354a5afb4",
+          "bytes": 1578,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:41ec57407611d7c63a525230f0661857d5f14d90cc728c62555038b34167380a",
+          "bytes": 4409,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d45843bbd0c78e5e5c466e8ae45e66545f9825d08130cc4a8172fbf04f1c4b35",
+          "bytes": 1226,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19722f62c2757e1eeab942ca2f9f82a2398b8309d31e2cd0d35b8a04566524e8",
+          "bytes": 2210,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/outputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:82c903cfe5518a987ad2c258afb7f38ba36f69e2232f0aa0d51bc8cc843f360b",
+          "bytes": 11791,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:371095ddf5b867f2e0e4edbc09ae51f8c80e3aa7ba09b1e6f6ef4ef8808ae7ab",
+          "bytes": 4769,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/prompts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d07390b78332a2c9c0ae13b7b1585720506eae1d958dd130048fe01eeb5f9822",
+          "bytes": 4672,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:435967293cc45132c22f32c71a7dc134d08f6586ccf30d83f9a8b70f4956c461",
+          "bytes": 3967,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/bin/server/tasks.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2fcc2b4cbce4e0b09a66211640e2213f231a50c5ab7f6f52e3bba92e4fb7afba",
+          "bytes": 19536,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5b1cf82907dfeb3e3af5180bba449a286ce586dba99ff18a3d7eba3d456f9ee4",
+          "bytes": 12341,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:83cd9b60b96daaceb75368ea986c5aa64e99854d4e873ce35648afa9ee59e2fe",
+          "bytes": 11268,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/executor.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7391a2423a868f7baeb2cf29dfb28dd8b4934ae93d683ded018e5440a3b4b60c",
+          "bytes": 19952,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/grounding.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a2080314c4ba5e2a7979e4e88ff48e15a8cac5526e5a570fb9df130b3de7e348",
+          "bytes": 4372,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:144efe6428bfaa784a9e45e624a668a45d2d75f2e6153c2b6c25d6ff14e0718d",
+          "bytes": 259,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9718f8b30c42c5f68ac3924922cfd310adc939d7edcad8917f8a0a9ed79df70d",
+          "bytes": 3370,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/recording-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e58d8bb620973c4c5f5490eae14d4e3ddf8a85cb5df6a738f90b21775be04b55",
+          "bytes": 2418,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f2a8a48024e05bc2bf6004d8457338fd6bab21b5b7290d176f83ab1a51003316",
+          "bytes": 2819,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c074adef23307177b449169ced81590420ac93352a1263cc683a57b3e004d3aa",
+          "bytes": 1411,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dd2bdfd97723648e36201abc3ba0c341a8221b277301f5f2023bbcb764871361",
+          "bytes": 20146,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5873f8e44e6a8e1f8363eecc56181c5d6f4f4c09c8dd091b6d255326d52f1607",
+          "bytes": 2995,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/assets/live.html",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3dc607ca359d94dd464c118b7c81595707a3db3bd41677b9ef3091eaa0f18dc0",
+          "bytes": 15678,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/gst-runner/CMakeLists.txt",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b97ade9696a772acbaa2a58b17f5b884750e357608fd1ddc2d461a33095c856f",
+          "bytes": 1107,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/gst-runner/src/main.cpp",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fb34c4539d0c2290523e41113fc35485e3b1f1ecb4eeade45f2bb91d21bbbc21",
+          "bytes": 43071,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/annotation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d4b5f6d07efc982e7e5811125b8689d19f0deae0474418ce5be3b31e389727f9",
+          "bytes": 4178,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4dca4035b8c37e4005988cd7004ac7a0bafb8629f17210a51c10c76e8ebafe67",
+          "bytes": 3454,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:80f70f6c15925a2bd3e4485009ef1cfc637bead78e74b33b8c45e9024a49acb7",
+          "bytes": 46414,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/admin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dc58419eb8ca4a30b648cebf77ebcae9480b1f1d7b43b3de3c27cd5b0a720023",
+          "bytes": 2976,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/app.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0477366524c5eff6d2bf7a33128796505bfdc0901ada8e1ceb5814a6fd81624b",
+          "bytes": 1424,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/app_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1a099b138f23dde1fb8e4d8e873bd6cc7274e5b4d63e44eb97168760ac245938",
+          "bytes": 1682,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:44f6127a072c3669862ec16914ff141b181db6a6d923f06ac3f6b49a8205609a",
+          "bytes": 5077,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b966dca1ef646464fdb6b37146f2a1ab0a3e705780aa5d7957d93ab33c13eaaa",
+          "bytes": 1226,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:790b5c5f1a37addfb80e8240244fc9f3f1f0ada5685586028d2e8efc9221c2c3",
+          "bytes": 2210,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/live.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9155aaf72d85bb477e8da8b4fca9d0297dadee3b3c4c31e2efce99f93f78160c",
+          "bytes": 31051,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/outputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2621c18c1eda5d756a568d0c307225d33b0bd1ea403df396088ccfd04b5928c1",
+          "bytes": 11242,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4c790a6bd82ee33b1c6e97b6505a781cdc9849b1afc01b73fb2e1850539ce7ed",
+          "bytes": 4773,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/prompts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2ed53fda43d0af8bb1217ef5243cdab074e27a892dcf35c60ba520dc0836d136",
+          "bytes": 3947,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/recording_output.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6c9a10d670af4a6724deb4d7afae17626e03f2179fae140fcc1a50f878ce467d",
+          "bytes": 6150,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19ca55b398ec11d5d6953b571acd609dc1f753716129ca3e144987749c6d43d2",
+          "bytes": 3960,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/bin/server/tasks.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c1cf27926eb21e27795f1a8af6a6a51adea28d75de5ca8db231a4e9b4da99716",
+          "bytes": 18753,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a8fc49468ae1f35f3bc4cc845ea7ad598719ddcdff6f672b553d28bc376ea40a",
+          "bytes": 26528,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:410b79bb7cc6ea84c992893b5e0d34b0ae7618f38306a4f4ddceaf07a77723fa",
+          "bytes": 6185,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/contract/live.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:797b6db8a7e90b6ccbdfe5f6d9e657df0beee122f4cab5d3be351aec043c4199",
+          "bytes": 3625,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/executor.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f7e29781b46a340cd0de96eedf791650f3d61b4eae94c0be3882de55e275d4da",
+          "bytes": 17401,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f53732993642208514ea11f23ca758e52b0b37743921c403ab79f12eb99daa36",
+          "bytes": 224,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:81f1e91e36f6ac1ea0753d10a8ab7a72c4f21d84bd41b0ffd9950fb828e8a39d",
+          "bytes": 4842,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/time-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:153398c1837cb8845e5a3fc58e9934037d263152dc73fbd97f483ff95af030a4",
+          "bytes": 1328,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4dbcc3352eb6ac097177879191ae3bfd6eac32a1663ab8f1533f9638dcf65f2f",
+          "bytes": 2593,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f5197823ffd3be2c7cb34ad634cdeb8c594fc924177e3413322568087dd24f1",
+          "bytes": 1464,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1ec6fbcb49e6c89b280f2fdc0048ff94a9a3e244c537595de68524d488e73007",
+          "bytes": 5509,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:baee21b1d8a4a5cad9fabf053308fb0faed45155a33ed90c5e6d5f5cc18a0182",
+          "bytes": 674,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/assets/forecast-app.html",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:993564e516d93b49801d05c384dd110d4168f641067c45a0b5ac1f898d6ba3b7",
+          "bytes": 20034,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ad1cbf9dec82af84314de37f3c8208f61e87cf4b3845095cd4d0439a599dcd2d",
+          "bytes": 4744,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e8e4bd09860e840dc4d2cfcab96d7a055291bdddc9d433bc40178014aa42338",
+          "bytes": 34684,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/admin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b0dae516e7f3618e5556b66b5be2d81acaf554e917fdf63af53e5536fa8ad7ea",
+          "bytes": 3032,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/app_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:70ee2783460b4933ee378bb0bc1c3868711b64b24e0e397976282211e93d90af",
+          "bytes": 820,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6135da3be35709adae8b9aed6207b87ecd0b453425efe4a5299c3e1ca7187074",
+          "bytes": 3258,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ea8166f22f96bdc545ab2b768e203db7927c9a066e240c76a0326f87229cb089",
+          "bytes": 1230,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cc95fc54efecce1b44d9ec64d395e49cccbccf58d89c74fb5010550cf3e6c51e",
+          "bytes": 2403,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/outputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d3aed89ff1a0af5b0ce9b965cf5008d2e94a72518a57dc982ce89afa52393724",
+          "bytes": 5296,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eaae69d4776338430d2e7adb3671431d7282b485e40aac0172581a873b2b4eb9",
+          "bytes": 6249,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8ddffa1cacafd5e8c33e27db273e5623f389911131289582835fd0838ef0bbe8",
+          "bytes": 8321,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/bin/server/usage_index.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d416ddbaf19ecddea6bc02033e141f5896f615f7918ec7103c40c8b70d577b6c",
+          "bytes": 4039,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd487063b7df919dd4482061049917a42e3566e4bf326736563d7dbfbecda288",
+          "bytes": 5745,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/forecast.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4b07093c58a50c8b2ed12f2a1e5a65d169db557295283bb8cdd950220a1bd642",
+          "bytes": 33026,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a79f5fd119c9a5a9ffd1505c17666315ddfdef97b49d292994fa1715a1e114bd",
+          "bytes": 1888,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e959ca0d39fb7475d122e013b394d47821adb937aea5c2c9fec5ddbc8ed64eab",
+          "bytes": 352,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/src/uris.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5c3839a4fa60f53bec328b14c31ba92fbf8a4e6b2f155aaa6e08ae5d2a024272",
+          "bytes": 2907,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4bdd2f10eb06722d09e65e1f1a411fa337ae5d5b20a7c024b5f6226578c9cbb3",
+          "bytes": 348,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/energy_load_hourly.csv",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9dc8356368a2aa76328fbd2305ba4a574ca25c45245315eb3c5969b245222200",
+          "bytes": 43397,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/manifest.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2b84e12a210b3c893b53c8a3d652f634893c5c9cf69cc3e3b9d75991c1fa901d",
+          "bytes": 1669,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/parts_demand_daily.csv",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ab4f9d7440768d5f9f8afafd1e2ce43c6e91ff354a6c1e7aee26e67d432833cf",
+          "bytes": 17910,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/saas_revenue_daily.csv",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d5d6fd072dcc7a24c0c58d7b44c7ff64e7c16e992933c8af288c0d916d395e8",
+          "bytes": 35805,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/server_cpu_5min.csv",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aaf69c1f3c77b8a64820f4f68642179d0c048e8eb56cbb3d2c5260ed2ffa44f3",
+          "bytes": 46067,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/stock_returns_daily.csv",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b4206d4b0729542997bf2053ae89bf3d8e67cad32470ae29df90c650df2ce919",
+          "bytes": 26957,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/temperature_daily.csv",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b3c56401ef21c475472760890ce916b732330571a087edc0eaeb868c5e2c8d38",
+          "bytes": 41180,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/testdata/timesfm-showcase/web_traffic_hourly.csv",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1669269a613d36cc3e5b6b67fee0e6e274c9258b49b0de91ba8abb20cb53ff60",
+          "bytes": 43416,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/uav-sim-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bdc8a0e036c856827b220d62f088a5aca2e5c1791305f4c51bfc948c476886bf",
+          "bytes": 1405,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/view-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9bf0aa4859454db7b389563e76a27997d2336b1138e9185853ded6b15e94bc74",
+          "bytes": 1612,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6cd9e378c68ddd1ddf666bc59c24e16cde766dd87d1237b07122187c2cd674a",
+          "bytes": 1066,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06b946b2d1ddf46fd25cf5d3f8463eb3e39d7c73611bf6db53bc7326990d50b2",
+          "bytes": 2344,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b1d8a726f7123feec6c31fbafe79bf948e2cd41380d90ba6af1994f33d948428",
+          "bytes": 71,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:03d1d8d10fabd03c636c6446aa495cc76b3bdf9a4e04b55ead16b3e2818258be",
+          "bytes": 4589,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/driver.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:473a92182f9b9afaa89811713236f80f2e4427d29ccc5a9923dbe25eb4eec7d0",
+          "bytes": 17153,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cd17780aed4393007edfdb1ee76a67ca8eb70698e87a744082e32a4daeab8dee",
+          "bytes": 296,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/recording.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b6cacbbde8532813ab229fb59e8f311aeb264b0b523ca7c01a74fd7f023f82a6",
+          "bytes": 2565,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a22780d2121fc851895fe26e1c26235da03748a87231044b94b85b076de5778e",
+          "bytes": 2071,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9cbbf9c79d3d046f083919e8bb9da44443b39f9c6c6f2c5c3de6858b6b0b4e2f",
+          "bytes": 4564,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:45996ddde70e4bc4432a4f890301d1417521163f7eca7868d1a7c06217be3e6f",
+          "bytes": 1224,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f147370cf6a3795ef808354e94280bb0b2dfe4a8fe84ded12379c54dd2c37bc",
+          "bytes": 362,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8841dc744532115e9e0797e5bc933120cf51ec2021eed71b8b5a4c43d2150d40",
+          "bytes": 2553,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:70025f6136b548607d4d749c6e2c8b07d48bad2c5f02e6a163b16d9a2ef59988",
+          "bytes": 27501,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fd9fc245bf93ea59b46afd596c406533e5b7cadc7d89f547841d1b5d8eb3b461",
+          "bytes": 946,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:91f36ea113efde6c0a114184a6a5e222e4bedbfa0c23a66f7cff445a6e31ee46",
+          "bytes": 4870,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/task_worker.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6b1d9bc6fb788c598f5683cee59f77644a5a6a624932bd49d593904cd12ec09f",
+          "bytes": 19805,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/tests/deployment_contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:681d2eae0c275dd7203c468449eb3ffc169a86a95f7af3d097068291718c192e",
+          "bytes": 1571,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/browser-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bcf75607a9cb8c9aad2333473280d164c88a4c3896aa44f2026b8cfa12d1fb91",
+          "bytes": 621,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/deployment-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d057912c0b89a19c2425880be7a530db98b523dd78fe9cb2a5afc728aa9f70be",
+          "bytes": 582,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/evidence-checks/artifact-output.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2270246ad38e2ed4a1988a3170d2f6cb9af077c8001f29f7592f6583f3b3798d",
+          "bytes": 3383,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9d0fee127f34befb16ebd04141b3fb4a417fee16fe946bc94a1a1f774b6cb9e",
+          "bytes": 283,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bbd0f45206604bb6ec409fcc2e59db412c9f2a9c7495441e04fa538cea915fef",
+          "bytes": 1184,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/Chart.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9602e38ae8642deea3b9d85415a8c6e4a01cf83e3997bdbf54909fd254acea02",
+          "bytes": 244,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:133050f11b576ae56877827eba1699ab8a89e0c96d7c3a19a2ae8ba03192488b",
+          "bytes": 315,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/charts/veoveo-extension-0.1.0.tgz",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:17087c7d0662291504b400378fdc6335095ffc655c0cf49af9fc33d64e1b7d1e",
+          "bytes": 4109,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/templates/networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9cc201208716c75a6dbcb8dd7653459180027d97dd9c18704197f13b8fbf9868",
+          "bytes": 692,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/templates/workload.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2736bfab96f26101c0d56cf9053158af74c327c98405a2c95c7924416cb303eb",
+          "bytes": 2997,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d18fd4eb0891f476507eca438655987ac2765376460f8c930e989ffb61b548b4",
+          "bytes": 3566,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99b3fc6432f4d7f1a445e680bc7635750746c3e97d4228bc74b2f564362e62b1",
+          "bytes": 690,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-extension-installation/deployment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4740b00207fd9944effc3fc74a3b9f03d2701675b6cf396a6adee057ba9dd3d0",
+          "bytes": 2281,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-extension-installation/gateway-requirements.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2b5988076fa0c40043c3246efee4b63a8fc4405d949efd9599d89921dd325f65",
+          "bytes": 163,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-extension-installation/platform-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f2ec0cb8cbeca8210ab3453a5fa830b280785183da351886ccbf0ec25821bc3",
+          "bytes": 241,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/.dockerignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:abd97f4969cd78b5a50730dcca881e3955b1f7585a46f180868ed8ad44a5d65a",
+          "bytes": 59,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/.gitignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1786908e1e13cf3b8cab4f559c266300016ebffe18b90531575ad30ef3f41655",
+          "bytes": 53,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3d5a1aed4838a00f07966a93c72f4f4885de91a253de62d6bbb0e3e33b92b300",
+          "bytes": 1697,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b30c2377b3fcb12ce68487bc181ac253d436e2d6ebed851ede7efb2f443c69eb",
+          "bytes": 2695,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:93cfb278ad718d2d0830f3fdca2c687bb34d63e05811aa110c88f4165114d2a9",
+          "bytes": 1501,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:08f66399d68be86d5e400fe0fe0d5da42da58e76aface94504b620444c5919de",
+          "bytes": 1478,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/compatibility/manifest.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:81ff26ca806a10e9a093eff92f8cbae62e7c69ac83b6032305373e6e6d694320",
+          "bytes": 4666,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/conformance/hosted-server.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c554c11a1f46f596d1c7dc89d9080bd6b0c7e1ed75535c6b0ac23cbfe2fa5e0",
+          "bytes": 1386,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/Chart.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:176466cb1dfc4a20e07eaeb3e3aa5527bb649e45c92d39a1a4d177682999a848",
+          "bytes": 230,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa685dc6ca2378b92f5e5c417baa8c8209738293bcd1d9c0f61b9ea9e8ea7277",
+          "bytes": 310,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/charts/veoveo-extension-0.1.0.tgz",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:11bb0428eeb4a56c9378162c19b88012198480ce14510813ef87cd1130d4d7b5",
+          "bytes": 4104,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/templates/networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c86ec50b16bf2138eceba57903d8a7b9dc40e9f78b915ff0b9e8a338a5c97ed",
+          "bytes": 624,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/templates/workload.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5c8f3c5059428cfad4523b5cfab8bebb3f61b21cf49799b1508541b2296bcf00",
+          "bytes": 3222,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0a7af760b1051ca49848c33736ffc0acc5d922807a44f427eed84265ab7646c0",
+          "bytes": 3596,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/values.test.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:350e070a4b7daf2c03f0ca43ee3285a2e062ce695b38f1a6f8547a09f31a059d",
+          "bytes": 275,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b6a035e985243c74a585c1003ca7e5786384ba7078767c0c8cdf8022094e86eb",
+          "bytes": 724,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/docker-bake.hcl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b443cc9a5e1f78508b4be1902cc6c3fac86d10dee5437a629a6c8ad8eb24030c",
+          "bytes": 853,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/gateway-fragment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0d8caebcf4be73ec23713d759ac5176d024b3f5b51795aca2ce50d8d83e14d83",
+          "bytes": 1428,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/pyproject.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:51f3a64323107fda4de70572ab6fe29da0146bd6cd21c61474a93a09b71ac9bc",
+          "bytes": 993,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/release/extension-release.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94a64ba5ef5a8a6953f720f5fee930c6a1afc2de6d392ecdea71818f33aa6d0c",
+          "bytes": 2698,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0852f7a9a5bc6c0784ea3e2355236f8dd7157158d590907e4a154d4724ccb2fa",
+          "bytes": 83,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/config.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0b457b73a74053235922eca6524752187e4fdf7b520f4932c452f6d8b4256609",
+          "bytes": 2795,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/contract.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e2ad30b015458105259a08da0b72b24969dae749ff320504e5fc446acb27db0",
+          "bytes": 3699,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/main.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db5428717af8474b6eb05f08b4042b712a8d8c3ff5f11552abcffe8b1f359d89",
+          "bytes": 7540,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/mcp_server.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31006f56e609789ba197ee457fed3467d46de0d74416232d8517286d25c09a4f",
+          "bytes": 12298,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/runtime.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e28045a3669360c50f89710dc1203c1bf5b3b7978527e58c64feb0e4d01fe88c",
+          "bytes": 11232,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/tests/test_fixture.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:102b68c3a8eb73b5d83b302fc62713a7daee27903a1dde81546c618b4db07378",
+          "bytes": 5380,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/uv.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9610b6af70771230ef1ddb5aa5c7933481b344dfcd10ef9a87d71544231a9e31",
+          "bytes": 120570,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:63df01db9c11fcb5ca17535a1aff2c55ba6ea8ef384a8aa076fca75dee24ee3b",
+          "bytes": 2210,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ade54600fd2656fa6ba6e3694ad4ce3a3877ac005040b83e69accfdf97602ff7",
+          "bytes": 3302,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/cluster.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cc51b8344c8db1588165e47bb82add5636d4ed5494d1057db9801721a137931b",
+          "bytes": 946,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/deployment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f26ae820c230675b24ff6122ee3f362bf918fe45fe4e3f0f6c4c37be66d9de49",
+          "bytes": 4448,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-base.jq",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bca61178761ef8400cdf741125f104fcd2165466dd4565a6a7677704ef30c914",
+          "bytes": 1588,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-base.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:74dd9e6da6057646c3e78ee19703b318b340935717ac548db579b989f06e9e18",
+          "bytes": 4760,
+          "mode": 384
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-binding.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:86d395498d0f8007a445798f660321fea270b135ce42cdd1f326bd6c9bf404d0",
+          "bytes": 1379,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-provenance.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ba05325923b6f8b8f0993eb781b2c5cffb2d02bc0c6f90d09c8131555bb92681",
+          "bytes": 1243,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-requirements.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f24a87b4fe706bf2833d5ab8cdb8e17f7713ceeae44c0ce315165b8b030ea83",
+          "bytes": 60,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1607635e43c69cbae9e71da41b1c1e4529c7c0db684cb1db4e6466a33963208b",
+          "bytes": 7667,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/nvidia-runtime-class.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f9ecd6785107af5353d66f14d3381e9f210961d14774b13a6b08c5479de39f71",
+          "bytes": 87,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/platform-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:130607b49607b06666debc57e699d3ba8e7d65825a3c92a7ccdb15bcbf94235a",
+          "bytes": 47,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/gateway-request-context.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a73d90965133b5176c3e24cf17d3cf7aa5696f359e40009339ce6554697f9b8e",
+          "bytes": 6080,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9e3ab01000ef902c61798653bccde2bf34af193a44d2b76cfbb202d6dee76ea",
+          "bytes": 834,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/anonymous_simulation_overlay.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:559605f586e1276b3c0a46329ce1e5d7eb2483f5e51991f86dd1bb57919fa6bc",
+          "bytes": 473,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/identity.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e4f278c9fd7d7f400b6ff744f0e3481ff7e27ccd35382e96dfb70c958b1c52a",
+          "bytes": 286,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/store.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:666de324f8f7c8181f68a054e0d41456fee8d7dc80bac3e76f8591910a32a5c0",
+          "bytes": 4811,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/flight-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0084d0207c697bf7052b2ef093c83284b29a69bb8241625e2926da39efbdf416",
+          "bytes": 682,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3170fff6775e2419448bebbb7aa108e32b3a9b773557b0b4cdd2a9606ac5a866",
+          "bytes": 1935,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/image-build/control/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b24b144b645c16de06493ff7052484a9219799740fcbe34f8117895261f16aec",
+          "bytes": 256,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:971eacc7e03acfedc030789b9aed3d6425e3f6f79ba1e5a48475e8aa9c009451",
+          "bytes": 821,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a319ad475830890d4051b7c4e381db3019f7947339eecd216313582107a7b67d",
+          "bytes": 7344,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/cargo_inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6163dda0a9f4d7d6742b56cf021fb4fbcd952e1e95a3c979177d2af763d4dab5",
+          "bytes": 6256,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6bef04651f537dcf12437ec256f16063276e83af8a3b260235d945dfa01669c8",
+          "bytes": 4411,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/environment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b59fee92aa8edffce053ea169166b44fcd849e665f809f6b044217ffc30cfe10",
+          "bytes": 4441,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:559e901ed2cbc1ee0e548e15cdee5a60eae06aa73cac99b1f1d815abc65fe0ba",
+          "bytes": 6832,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0a24a7a35404a0a9fe08838d33140423b4358f467d0e392e8b53ead7b8212d76",
+          "bytes": 4984,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:389dcfe711e4f2130a8ac57515c0f449c1f155bbbe1494ad8fb24e841aec0b78",
+          "bytes": 5966,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/report.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:693d69a18ee619a762705f4235fb5272eb8c78175869f0bfbed3ac3083b70633",
+          "bytes": 8661,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/storage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:448e682992b6b8f6936fc4c4c3bcd2009a289d00cba47a6f3116d8c84404afc4",
+          "bytes": 11881,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f84027a38d4adb8b7ff4011949a405bdb2ecd1e79ea4cc7884bd1e41a9aada4c",
+          "bytes": 14734,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/main.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d63e4e0ceb3fdab89dec0e9ecd103fb896c9436399c00fa174b8e54bdf546335",
+          "bytes": 21985,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/process.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6dd0e084702d90f907fc5977573dc0e49aeb009ffa9a65ddacd73ffde89408e",
+          "bytes": 4957,
+          "mode": 436
+        }
+      }
+    ]
+  },
+  "environment": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "toolchains": [
+      {
+        "name": "cargo",
+        "version": "cargo 1.97.1 (c980f4866 2026-06-30)"
+      },
+      {
+        "name": "cargo-clippy",
+        "version": "clippy 0.1.97 (8bab26f4f6 2026-07-14)"
+      },
+      {
+        "name": "managed-protoc",
+        "version": "libprotoc 31.1"
+      },
+      {
+        "name": "rustc",
+        "version": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.97.1\nLLVM version: 22.1.6"
+      },
+      {
+        "name": "rustfmt",
+        "version": "rustfmt 1.9.0-stable (8bab26f4f6 2026-07-14)"
+      }
+    ],
+    "runtime": {
+      "class": "source",
+      "bindings": {},
+      "validForSeconds": null
+    },
+    "reusable": true
+  },
+  "startedAt": "2026-09-10T22:56:44.067171229Z",
+  "finishedAt": "2026-09-10T22:56:57.211308201Z",
+  "durationMillis": 13144,
+  "outcome": "passed",
+  "exitCode": 0,
+  "diagnostics": null
+}

@@ -1,0 +1,169 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-artifact-service",
+        "--lib",
+        "service::tests::write_capability::output_floor"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-artifact-service"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-contract",
+        "artifact_service::tests"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-contract"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-artifact-service",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-artifact-service"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "check",
+        "-p",
+        "veoveo-duckdb-mcp",
+        "-p",
+        "veoveo-frames-mcp",
+        "-p",
+        "veoveo-map-mcp",
+        "-p",
+        "veoveo-media-mcp",
+        "-p",
+        "veoveo-reason-mcp",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-timeseries-mcp",
+        "-p",
+        "veoveo-optimization-mcp",
+        "-p",
+        "veoveo-sumo-mcp",
+        "--bins"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-duckdb-mcp",
+          "veoveo-frames-mcp",
+          "veoveo-map-mcp",
+          "veoveo-media-mcp",
+          "veoveo-reason-mcp",
+          "veoveo-stream-mcp",
+          "veoveo-timeseries-mcp",
+          "veoveo-optimization-mcp",
+          "veoveo-sumo-mcp"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-artifact-service",
+        "-p",
+        "veoveo-mcp-contract",
+        "-p",
+        "veoveo-duckdb-mcp",
+        "-p",
+        "veoveo-frames-mcp",
+        "-p",
+        "veoveo-map-mcp",
+        "-p",
+        "veoveo-media-mcp",
+        "-p",
+        "veoveo-reason-mcp",
+        "-p",
+        "veoveo-stream-mcp",
+        "-p",
+        "veoveo-timeseries-mcp",
+        "-p",
+        "veoveo-optimization-mcp",
+        "-p",
+        "veoveo-sumo-mcp",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-artifact-service",
+          "veoveo-mcp-contract",
+          "veoveo-duckdb-mcp",
+          "veoveo-frames-mcp",
+          "veoveo-map-mcp",
+          "veoveo-media-mcp",
+          "veoveo-reason-mcp",
+          "veoveo-stream-mcp",
+          "veoveo-timeseries-mcp",
+          "veoveo-optimization-mcp",
+          "veoveo-sumo-mcp"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}

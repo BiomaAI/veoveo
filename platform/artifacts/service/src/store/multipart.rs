@@ -186,10 +186,10 @@ impl ArtifactObjectStore {
                     .collect(),
             )
             .await;
-        if let Err(error) = result {
-            if self.upload_object_len(object_key).await? != Some(expected_len) {
-                return Err(map_store_error(error));
-            }
+        if let Err(error) = result
+            && self.upload_object_len(object_key).await? != Some(expected_len)
+        {
+            return Err(map_store_error(error));
         }
         if self.upload_object_len(object_key).await? != Some(expected_len) {
             return Err(BlobStoreError::Backend(

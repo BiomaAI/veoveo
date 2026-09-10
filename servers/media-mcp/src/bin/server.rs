@@ -896,6 +896,7 @@ async fn start_media_task(
         .issue_write_capability(
             &caller,
             &IssueArtifactWriteCapabilityRequest {
+                required_data_labels: Default::default(),
                 task_id: task_id_text.clone(),
                 expires_at: Utc::now() + TimeDelta::hours(ARTIFACT_WRITE_CAPABILITY_TTL_HOURS),
                 max_artifact_count: NonZeroU32::new(ARTIFACT_WRITE_CAPABILITY_MAX_ARTIFACTS)

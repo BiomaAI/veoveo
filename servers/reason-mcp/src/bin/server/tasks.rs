@@ -110,6 +110,7 @@ pub(super) async fn start_reason_task(
         .issue_write_capability(
             &caller,
             &IssueArtifactWriteCapabilityRequest {
+                required_data_labels: Default::default(),
                 task_id: task_id.to_string(),
                 expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
                 max_artifact_count: input.artifact_count(),

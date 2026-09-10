@@ -218,11 +218,17 @@ impl<'de> Deserialize<'de> for ArtifactWriteCapabilitySecret {
 /// artifact service binds the caller principal, tenant, labels, profile, and
 /// server from that verified identity; clients cannot assert them here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct IssueArtifactWriteCapabilityRequest {
     pub task_id: String,
     pub expires_at: DateTime<Utc>,
     pub max_artifact_count: NonZeroU32,
     pub max_total_bytes: NonZeroU64,
+    /// Labels every output must retain, in addition to Work Context policy.
+    /// Issuance requires the caller's clearance to cover this narrowing scope.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    #[schemars(length(max = 256))]
+    pub required_data_labels: BTreeSet<DataLabelId>,
 }
 
 /// One-time issuance response. `secret` is returned only here and is redacted
@@ -649,6 +655,25 @@ mod tests {
 
     use super::*;
     use crate::gateway::DataLabelId;
+
+    #[test]
+    fn output_capability_has_one_closed_optional_label_floor() {
+        let base = json!({"task_id":uuid::Uuid::now_v7(),"expires_at":Utc::now()+TimeDelta::minutes(5),"max_artifact_count":2,"max_total_bytes":1024});
+        let request: IssueArtifactWriteCapabilityRequest =
+            serde_json::from_value(base.clone()).unwrap();
+        assert!(request.required_data_labels.is_empty());
+        let mut constrained = base.clone();
+        constrained["required_data_labels"] = json!(["retained-home"]);
+        let request: IssueArtifactWriteCapabilityRequest =
+            serde_json::from_value(constrained).unwrap();
+        assert_eq!(
+            request.required_data_labels,
+            BTreeSet::from([DataLabelId::new("retained-home").unwrap()])
+        );
+        let mut typo = base;
+        typo["required_labels"] = json!(["retained-home"]);
+        assert!(serde_json::from_value::<IssueArtifactWriteCapabilityRequest>(typo).is_err());
+    }
 
     #[test]
     fn occurrence_and_control_ids_are_uuid_v7() {
