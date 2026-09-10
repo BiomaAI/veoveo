@@ -26,7 +26,7 @@ use veoveo_mcp_contract::{
 use crate::{
     AppState, api,
     app_host::StandaloneAppRoute,
-    mcp_client::{AppResourceSubscriptionError, McpAppCatalog, SharedMcpClient},
+    mcp_client::{McpAppCatalog, ResourceSubscriptionError, SharedMcpClient},
 };
 
 const MAX_APP_HTML_BYTES: usize = 2 * 1024 * 1024;
@@ -910,7 +910,7 @@ pub(crate) async fn app_resource_events(
         );
     }
     let results = futures::future::join_all(request.subscriptions.iter().map(|subscription| {
-        client.subscribe_app_resource(subscription.subscription_id, subscription.uri.clone())
+        client.subscribe_resource(subscription.subscription_id, subscription.uri.clone())
     }))
     .await;
     let mut receiver = None;
@@ -925,8 +925,7 @@ pub(crate) async fn app_resource_events(
             }
             Err(error) => {
                 for subscription_id in newly_registered {
-                    if let Err(rollback_error) =
-                        client.unsubscribe_app_resource(subscription_id).await
+                    if let Err(rollback_error) = client.unsubscribe_resource(subscription_id).await
                     {
                         tracing::warn!(
                             %rollback_error,
@@ -936,7 +935,7 @@ pub(crate) async fn app_resource_events(
                     }
                 }
                 let error = match error {
-                    AppResourceSubscriptionError::Capacity { resource, limit } => {
+                    ResourceSubscriptionError::Capacity { resource, limit } => {
                         tracing::warn!(
                             resource,
                             limit,
@@ -975,8 +974,8 @@ pub(crate) async fn app_resource_events(
         remaining.unsigned_abs(),
     )));
     let stream = futures::stream::unfold(
-        (receiver, uris, deadline, true),
-        |(mut receiver, uris, mut deadline, initial)| async move {
+        (receiver, uris, deadline, true, client),
+        |(mut receiver, uris, mut deadline, initial, client)| async move {
             if initial {
                 let event = Event::default()
                     .event("subscribed")
@@ -984,11 +983,13 @@ pub(crate) async fn app_resource_events(
                     .expect("resource subscription URIs serialize");
                 return Some((
                     Ok::<Event, Infallible>(event),
-                    (receiver, uris, deadline, false),
+                    (receiver, uris, deadline, false, client),
                 ));
             }
             loop {
                 let updated = tokio::select! {
+                    biased;
+                    _ = client.resource_source_lost() => return None,
                     _ = &mut deadline => return None,
                     updated = receiver.recv() => updated,
                 };
@@ -1000,7 +1001,7 @@ pub(crate) async fn app_resource_events(
                             .expect("resource update URI serializes");
                         return Some((
                             Ok::<Event, Infallible>(event),
-                            (receiver, uris, deadline, false),
+                            (receiver, uris, deadline, false, client),
                         ));
                     }
                     Ok(_) => {}
@@ -1011,7 +1012,7 @@ pub(crate) async fn app_resource_events(
                             .expect("resource update URIs serialize");
                         return Some((
                             Ok::<Event, Infallible>(event),
-                            (receiver, uris, deadline, false),
+                            (receiver, uris, deadline, false, client),
                         ));
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
@@ -1058,10 +1059,7 @@ pub(crate) async fn unsubscribe_app_resource(
         tracing::error!(%error, "console App unsubscribe catalog failed");
         return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
     }
-    let response = match client
-        .unsubscribe_app_resource(request.subscription_id)
-        .await
-    {
+    let response = match client.unsubscribe_resource(request.subscription_id).await {
         Ok(()) => {
             capped_json_response(&serde_json::json!({}), "unsubscribe result exceeds the cap")
         }

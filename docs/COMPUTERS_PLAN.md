@@ -554,3 +554,10 @@ on subsequent upstream failure. Local coverage passes 190 gateway/BFF cases, inc
 real WebSocket byte transport and the pinned database regression. Native Console
 presentation, live invalidations and the complete installed authentication chain remain
 delivery work; this checkpoint makes no public deployment claim.
+
+The native Computer invalidation feed now shares the Console MCP resource pool with
+Apps. It establishes the exact collection subscription before its baseline, keeps one
+outgoing event queued, and releases its reference on disconnect, source loss or token
+expiry. Unexpected source termination is explicit and triggers fresh client admission;
+normal unsubscribe preserves other observers. The local gateway/BFF suite passes
+194 cases. Native page integration and installed end-to-end qualification remain open.

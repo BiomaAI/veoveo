@@ -1,5 +1,6 @@
 //! Native Computers use the Console session and the gateway's current domain policy.
 mod control;
+mod events;
 mod terminal;
 
 use crate::{AppState, outbound_http::OutboundTrust};
@@ -31,6 +32,10 @@ impl Transport {
 }
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
+        .route(
+            "/console/api/computers/events",
+            post(events::events).layer(axum::extract::DefaultBodyLimit::max(1024)),
+        )
         .route(
             "/console/api/computers",
             get(control::proxy).post(control::proxy),

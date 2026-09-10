@@ -1,45 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:30ffaf5f893c5abd1a523ac43a2c33b2f57f30e8c50ff4efbb959580b295fe95",
-  "updatedAt": "2026-09-10T11:23:15Z",
+  "buildDigest": "sha256:3f4b44d0885261064a9e894e33722379575c52e957e533acd3f763ec80424dab",
+  "updatedAt": "2026-09-10T11:39:40Z",
   "checks": [
     {
-      "name": "computers-edge-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T11:23:15Z",
-      "durationSeconds": 2.580905973,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-edge-lint",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-mcp-gateway",
-        "-p",
-        "veoveo-console-bff",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T11:22:22Z",
-      "durationSeconds": 5.155108015,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-edges",
+      "name": "computers-live-feed",
       "command": [
         "env",
         "VEOVEO_SURREAL_BINARY=/home/rozgo/BiomaAI/veoveo/output/tools/surreal/3.2.4/surreal",
@@ -57,8 +22,43 @@
         "--include-ignored"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T11:22:04Z",
-      "durationSeconds": 16.343623987,
+      "finishedAt": "2026-09-10T11:38:40Z",
+      "durationSeconds": 16.026715168,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-live-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T11:39:40Z",
+      "durationSeconds": 2.62596521,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-live-lint",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T11:38:55Z",
+      "durationSeconds": 4.353196496,
       "detail": "completed successfully"
     }
   ]
