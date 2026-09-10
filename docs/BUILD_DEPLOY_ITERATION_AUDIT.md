@@ -2519,3 +2519,44 @@ The next integration must use the allocator's dedicated worker trust root and na
 provider identity, close abandoned-admission recovery for a target that never mounted,
 and connect maintenance to the domain's durable authority. Native Docker plugin
 qualification is not a claim of complete worker maintenance or public availability.
+
+The worker now composes the production allocator, native provider and durable domain
+in one isolated fixture. Its first successful run took 46.04 s after a 7.07 s compile.
+Two replicas compete for Create. Stop works while the allocator is offline, and Start
+after helper replacement keeps the file. Lost dispatch and settlement still preserve
+the operation fence. Integration uncovered a real adapter omission: gateway object
+labels do not become Docker container labels. Create now binds the same identity in
+the sandbox template. The storage matcher remains unchanged. The container-name
+prefix contains the workspace; treating it as the namespace delayed diagnosis.
+
+An experimental host-network Docker fixture interrupted the local registry path.
+The second daemon removed the host's default bridge despite disabled bridge/firewall
+flags. The registry container remained running and responded on its installation
+network, but localhost:5001 timed out. The Kubernetes node remained Ready and the
+public Veoveo endpoint returned its redirect; those observations do not qualify the
+complete application during the incident. No installed Docker restart was performed.
+
+Recovery recreated docker0 with its original interface index and IPAM subnet, then
+reattached the registry's exact orphaned veth. Localhost registry access returned HTTP
+200 in 0.000766 s, and a fresh default-bridge container could join and reach it. The
+fixture now checks its network mode before starting dockerd, rejects a shared host
+namespace and verifies host bridge identity. Its provider profile uses private
+networking. A short-lived Unix-socket relay makes the already published local image
+available at the same exact manifest reference inside that namespace. It does not
+introduce an installed proxy or require another image build.
+
+Additional churn came from a combined feature-graph check that rechecked SurrealDB
+and took 68 s, versus 5.81 s for the focused Computers service check. A two-line
+Clippy borrow correction invalidated the current whole-tree v2 receipt even though
+the runtime unit inputs did not change. CE-06 remains the required repair for that
+evidence churn. The temporary responder for the host daemon's previously cached
+fixture-plugin clients remains necessary until its next natural replacement;
+restarting that daemon without live restore would interrupt installed workloads.
+
+Final recorded worker integration takes 49.03 s after a 4.39 s compile. The focused
+runtime suite reuses its binary (0.47 s Cargo overhead) and runs 73 tests in 20.52 s.
+The storage suite compiles in 1.70 s, runs its seven local cases in 0.05 s, the ext4
+fault case in 6.55 s and the service/handoff case in 11.13 s. Combined all-target
+Clippy passes in 4.57 s. Local registry health remains HTTP 200 after cleanup. The
+existing Computer image and provider binaries remain unchanged; public rollout is
+still pending.

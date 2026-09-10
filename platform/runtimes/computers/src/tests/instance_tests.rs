@@ -155,8 +155,26 @@ async fn replacement_create_and_retry_keep_exact_original_home_and_template() {
     let state = running.fake.0.lock().unwrap();
     assert_eq!(state.creates, 1);
     let spec = state.created_spec.as_ref().unwrap();
-    assert!(spec == &template(true).spec(binding().computer_id()).unwrap());
-    assert!(spec != &template(true).spec(Uuid::from_u128(10)).unwrap());
+    assert!(spec == &template(true).bound_spec(&replacement).unwrap());
+    let mount = &spec.template.as_ref().unwrap().driver_config;
+    assert!(
+        mount
+            == &template(true)
+                .spec(binding().computer_id())
+                .unwrap()
+                .template
+                .unwrap()
+                .driver_config
+    );
+    assert!(
+        mount
+            != &template(true)
+                .spec(Uuid::from_u128(10))
+                .unwrap()
+                .template
+                .unwrap()
+                .driver_config
+    );
     assert!(spec.environment.is_empty());
     assert_eq!(state.starts, 0);
     assert_eq!(state.stops, 0);
@@ -220,9 +238,7 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
         sandbox.metadata.as_ref().unwrap().labels,
         replacement.labels()
     );
-    assert!(
-        sandbox.spec.as_ref().unwrap() == &template(true).spec(binding().computer_id()).unwrap()
-    );
+    assert!(sandbox.spec.as_ref().unwrap() == &template(true).bound_spec(&replacement).unwrap());
 }
 
 #[tokio::test]

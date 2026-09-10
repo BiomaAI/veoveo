@@ -75,7 +75,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | NVIDIA cuOpt routing, route scenarios, convex and MILP models, independent verification, and GPU execution |
 | [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md) | admitted live and replay GStreamer graphs, typed pipeline profiles, live results, and the Stream MCP App |
 | [`servers/reason-mcp/DESIGN.md`](../servers/reason-mcp/DESIGN.md) | governed video reasoning, grounding, and audited world-model output |
-| [`servers/computers-mcp/DESIGN.md`](../servers/computers-mcp/DESIGN.md) | core Computers worker, shared Task projection and pending MCP/relay integration |
+| [`servers/computers-mcp/DESIGN.md`](../servers/computers-mcp/DESIGN.md) | core Computers worker, production retained preflight, shared Task projection and pending MCP/relay integration |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | governed static scene compositions, 3D Tiles residency, declarative overlays, and GPU frame capture |
@@ -160,7 +160,7 @@ Hub, administration, and GPU policy.
 | `platform/computers/images/` | candidate Computer user environment with pinned Ubuntu base/archive inputs and numeric process identity; separate from the privileged provider and retained allocator |
 | `platform/runtimes/computers/tests/native_volume_plugin.rs` and `tests/native_support/docker_daemon.rs` | native registered-writer probe with a disposable Docker daemon, pinned image import and daemon-scoped plugin cleanup |
 | `platform/runtimes/computers/src/retained_writer.rs` | exact Docker engine, provider namespace and Computer-instance matching for retained volume admission; persisted physical handoff remains allocator work |
-| `servers/computers-mcp/` | bounded lifecycle worker, retained-storage preparation, domain-enforced current policy, native dispatch and Task projection; public facade, production allocator and package remain active work |
+| `servers/computers-mcp/` | bounded lifecycle worker, production retained-storage preparation, domain-enforced current policy, native dispatch and Task projection; public facade and package remain active work |
 | `servers/` | independently deployed MCP servers and protocol projections |
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |

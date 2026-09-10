@@ -9,6 +9,13 @@ use std::{
 use uuid::Uuid;
 use veoveo_computers_runtime::{GatewayConfig, OpenShellRuntime};
 
+pub struct ComputeHost {
+    pub socket: PathBuf,
+    pub output: PathBuf,
+    pub namespace: String,
+    pub gateway_ip: std::net::Ipv4Addr,
+}
+
 /// This fixture owns every process, network and container it can remove.
 pub struct Provider {
     pub dir: PathBuf,
@@ -21,6 +28,16 @@ struct Cleanup {
     dir: PathBuf,
     namespace: String,
     network: String,
+    socket: PathBuf,
+}
+impl Cleanup {
+    fn docker(&self) -> Command {
+        let mut command = Command::new("docker");
+        command
+            .arg("--host")
+            .arg(format!("unix://{}", self.socket.display()));
+        command
+    }
 }
 impl Drop for Cleanup {
     fn drop(&mut self) {
@@ -29,17 +46,19 @@ impl Drop for Cleanup {
             let _ = child.wait();
         }
         let filter = format!("label=openshell.ai/sandbox-namespace={}", self.namespace);
-        if let Ok(output) = Command::new("docker")
+        if let Ok(output) = self
+            .docker()
             .args(["ps", "--all", "--quiet", "--filter", &filter])
             .output()
         {
             for id in String::from_utf8_lossy(&output.stdout).split_whitespace() {
                 if (12..=64).contains(&id.len()) && id.bytes().all(|c| c.is_ascii_hexdigit()) {
-                    let _ = Command::new("docker").args(["rm", "--force", id]).output();
+                    let _ = self.docker().args(["rm", "--force", id]).output();
                 }
             }
         }
-        let _ = Command::new("docker")
+        let _ = self
+            .docker()
             .args(["network", "rm", &self.network])
             .output();
         // Preserve non-secret diagnostics at the requested fixture output location.
@@ -72,9 +91,19 @@ impl Provider {
     }
 
     pub async fn start_with_session_ttl(ssh_session_ttl_secs: u64) -> (Self, String) {
+        Self::start_on(ssh_session_ttl_secs, None).await
+    }
+    #[allow(dead_code)] // Used by the shared storage/worker fixture.
+    pub async fn start_on_compute_host(host: ComputeHost) -> Self {
+        Self::start_on(3600, Some(host)).await.0
+    }
+    async fn start_on(ssh_session_ttl_secs: u64, host: Option<ComputeHost>) -> (Self, String) {
         let gateway = required_path("VEOVEO_COMPUTERS_NATIVE_GATEWAY");
         let supervisor = required_path("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR");
-        let output = required_path("VEOVEO_COMPUTERS_NATIVE_OUTPUT");
+        let output = host
+            .as_ref()
+            .map(|host| host.output.clone())
+            .unwrap_or_else(|| required_path("VEOVEO_COMPUTERS_NATIVE_OUTPUT"));
         let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE")
             .expect("digest-pinned native image is required");
         assert!(image.contains("@sha256:"));
@@ -82,13 +111,25 @@ impl Provider {
         let dir = output.join(&suffix);
         fs::create_dir_all(&dir).unwrap();
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
-        let namespace = format!("veoveo-native-{suffix}");
+        let namespace = host
+            .as_ref()
+            .map(|host| host.namespace.clone())
+            .unwrap_or_else(|| format!("veoveo-native-{suffix}"));
+        let socket = host
+            .as_ref()
+            .map(|host| host.socket.clone())
+            .unwrap_or_else(|| PathBuf::from("/var/run/docker.sock"));
+        let gateway_ip = host
+            .as_ref()
+            .map(|host| host.gateway_ip.to_string())
+            .unwrap_or_default();
         let network = namespace.clone();
         let mut cleanup = Cleanup {
             child: None,
             dir: dir.clone(),
             namespace: namespace.clone(),
             network: network.clone(),
+            socket: socket.clone(),
         };
         certificates(&dir);
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -108,6 +149,8 @@ kid_path = {jwt_kid}
 gateway_id = "{namespace}"
 ttl_secs = 3600
 [openshell.drivers.docker]
+socket_path = {socket}
+host_gateway_ip = "{gateway_ip}"
 default_image = {image}
 image_pull_policy = "Never"
 sandbox_namespace = "{namespace}"
@@ -121,6 +164,7 @@ sandbox_pids_limit = 256
 enable_bind_mounts = false
 "#,
             image = serde_json::to_string(&image).unwrap(),
+            socket = quoted(&socket),
             supervisor = quoted(&supervisor),
             ca = quoted(&dir.join("ca.pem")),
             cert = quoted(&dir.join("client.pem")),

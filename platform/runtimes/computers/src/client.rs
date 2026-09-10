@@ -224,7 +224,7 @@ impl OpenShellRuntime {
                     name: binding.name(),
                     workspace: self.workspace.clone(),
                     labels: binding.labels(),
-                    spec: Some(template.spec(binding.computer_id())?),
+                    spec: Some(template.bound_spec(binding)?),
                     ..Default::default()
                 },
                 30,

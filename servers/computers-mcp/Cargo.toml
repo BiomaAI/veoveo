@@ -18,6 +18,10 @@ veoveo-computers-runtime = { path = "../../platform/runtimes/computers" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
+nix = { workspace = true, features = ["fs", "user", "mount"] }
+rustls.workspace = true
+tokio = { workspace = true, features = ["process"] }
+tokio-rustls.workspace = true
 sha2.workspace = true
 hex.workspace = true
 chrono.workspace = true

@@ -2,6 +2,7 @@
 #[path = "../../../runtimes/computers/tests/native_support/docker_daemon.rs"]
 mod docker_daemon;
 #[path = "native_support/service.rs"]
+#[allow(dead_code)] // This shared fixture also serves the native worker scenario.
 mod native_service_support;
 
 use docker_daemon::checked;
@@ -11,6 +12,10 @@ use veoveo_computers_runtime::{AllocationConfig, Binding, HomeAllocator};
 #[tokio::test]
 #[ignore = "requires pinned local Computer/Docker images and an ext4 shared host subtree"]
 async fn native_service_shared_mount_and_restart() {
+    if std::env::var_os(docker_daemon::registry_relay::CHILD_ENV).is_some() {
+        docker_daemon::registry_relay::child().await.unwrap();
+        return;
+    }
     if std::env::var_os("VEOVEO_STORAGE_SERVICE_CLEANUP").is_some() {
         native_service_support::cleanup();
         return;
@@ -199,5 +204,5 @@ async fn native_service_shared_mount_and_restart() {
     fixture
         .assert_content("c", "held writer remains physical")
         .await;
-    fixture.finish("c").await;
+    fixture.finish(Some("c")).await;
 }

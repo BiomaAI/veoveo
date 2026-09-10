@@ -16,7 +16,7 @@ or installed provider is qualified by this source checkpoint. The owning domain 
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
 | Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
-| Docker volume-plugin API v1; Engine HTTP API `1.53` | Native storage probe uses selected volume methods and registered-container enumeration; production allocator integration remains pending |
+| Docker volume-plugin API v1; Engine HTTP API `1.53` | Selected volume methods and registered-container enumeration; the worker fixture composes the production allocator with the native provider |
 
 Upstream stable versions were checked through crates.io and the NVIDIA GitHub
 release API on 2026-09-09. Workspace `tokio-rustls` remains on its qualified
@@ -68,6 +68,12 @@ identities fail decoding. A reply for another valid provider or instance also fa
 The local TLS fixture exercises initial and replacement bindings; it establishes
 transport integrity, not physical handoff authority.
 
+Create sends the full binding in both gateway object metadata and sandbox-template
+labels. OpenShell forwards template labels to Docker separately from object metadata.
+The same Computer/template/instance identity therefore reaches the registered-writer
+check without depending on gateway-only labels. These per-instance labels do not
+change the installation template fingerprint or the stable retained-volume name.
+
 Restore is an idempotent reopen of the currently admitted allocation and instance.
 It cannot seed missing storage, change the admitted writer, resize a home or authorize
 template replacement. Handoff uses a separate generated request with a durable
@@ -87,6 +93,14 @@ registered-container response. It requires the recorded engine UUID, one full co
 ID, provider namespace, OpenShell management/name labels and complete Computer/template/
 instance labels. The provider UUID is bound to that engine and namespace by the host
 configuration. The matcher cannot change an admission or establish a physical handoff.
+
+The shared native daemon fixture owns its network namespace. It validates the created
+container's network mode before starting dockerd and checks namespace separation and
+host bridge identity. Host-network dockerd is prohibited even with bridge/firewall
+flags disabled: daemon initialization can still alter the host bridge. Provider
+fixtures temporarily relay the existing localhost registry through a private Unix
+socket into the isolated namespace. The exact manifest pull preserves image identity;
+the relay disappears before provider work starts and is not a product service.
 
 `tests/native_volume_plugin.rs` exercises that matcher using actual Docker containers
 and a disposable directory. A stopped container continues to reserve the volume until

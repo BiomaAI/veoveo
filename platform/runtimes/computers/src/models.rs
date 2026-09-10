@@ -226,6 +226,18 @@ impl DevelopmentTemplate {
         }
         Ok(spec)
     }
+    /// Gateway metadata and the driver's container labels are separate native
+    /// fields. Bind both to the same admitted instance; identity labels are not
+    /// installation template inputs and do not change its fingerprint.
+    pub(crate) fn bound_spec(&self, binding: &Binding) -> Result<api::SandboxSpec> {
+        if self.fingerprint() != binding.template_fingerprint() {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
+        let mut spec = self.spec(binding.computer_id())?;
+        spec.template.as_mut().expect("canonical template").labels = binding.labels();
+        Ok(spec)
+    }
+
     pub fn fingerprint(&self) -> String {
         let mut hash = Sha256::new();
         hash.update(canonical::encode(
