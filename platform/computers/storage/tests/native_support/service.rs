@@ -110,12 +110,11 @@ impl Fixture {
         let templates = selected.as_ref().map(|template| vec![serde_json::json!({"fingerprint": fingerprint, "capacityBytes": u64::from(template.persistent_home().unwrap().capacity_mib()) * 1024 * 1024})])
             .unwrap_or_else(|| vec![serde_json::json!({"fingerprint": "f".repeat(64), "capacityBytes": 536870912}), serde_json::json!({"fingerprint": "e".repeat(64), "capacityBytes": 536870912})]);
         let daemon = DockerDaemon::start(&dir, &socket_dir, &image, profile).await;
-        let engine = checked(daemon.command().args(["info", "--format", "{{.ID}}"])).await;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = listener.local_addr().unwrap().to_string();
         drop(listener);
         let config = serde_json::json!({
-            "identity": {"providerId": Uuid::from_u128(100), "engineId": engine, "namespace": "storage-fixture"},
+            "providerId": Uuid::from_u128(100), "namespace": "storage-fixture",
             "root": dir.join("retained"), "reserveBytes": 536870912,
             "templates": templates,
             "dockerSocket": daemon.socket, "pluginName": "veoveo-retained",

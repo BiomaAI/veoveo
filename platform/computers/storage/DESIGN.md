@@ -124,9 +124,17 @@ installation profile requirements before release acceptance.
 ## Private Service And Docker Plugin
 
 `veoveo-computer-storage --config <json-file>` runs both private endpoints.
-The closed configuration binds host identity, persistent root, free-space reserve,
+The closed configuration supplies `providerId`, `namespace`, persistent root, free-space reserve,
 admitted template fingerprints/capacities, exact Docker Unix socket, plugin name/socket,
 listen address and dedicated worker TLS files. It accepts no ambient Docker endpoint.
+Startup reads the engine UUID through that exact socket, verifies it again, and opens
+the journal with the resulting full host identity before binding either listener.
+Initial enrollment requires an empty private journal. An existing journal requires
+its original provider, engine and namespace; observing a new engine cannot adopt it.
+This removes an install-time dependency on manually copying the newly created daemon
+UUID into configuration while retaining the durable identity boundary. Operational
+calls still verify the bound engine. The former configuration `identity` object is
+removed; `engineId` remains durable journal state rather than operator-entered input.
 TLS permits version 1.3 with required worker certificates. Trust inputs cannot be group
 or world writable; the private key is restricted to its process owner. The plugin
 socket resides in a root-owned 0700 directory and has mode 0600. The journal lock must

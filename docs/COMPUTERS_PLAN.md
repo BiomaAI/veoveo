@@ -597,3 +597,10 @@ ListSandboxes as a user. The OCI-built provider binaries pass the retained two-w
 lifecycle and renewed terminal fixture with this separation. Provider and supervisor
 compilation now have separate source inputs. The installed compute-host topology and
 public browser/CLI/agent journeys remain delivery work.
+
+Storage startup now enrolls the engine reached through its explicit installation
+socket. Operators configure `providerId` and `namespace`; the complete engine binding
+is durable journal state. An empty journal accepts its first identity, while an
+existing journal rejects a replacement engine. This removes the manual engine-ID
+copy step. Eight storage tests and the native retained worker lifecycle pass with
+the new configuration. Whole-host cold restart remains an installed qualification gate.
