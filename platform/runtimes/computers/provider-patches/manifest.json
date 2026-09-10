@@ -4,7 +4,7 @@
   "upstreamRevision": "d1155aa70042d3e2ee49dbfa15346b108b7c1d92",
   "upstreamTag": "v0.0.116",
   "cliVersion": "0.0.116",
-  "gatewayVersion": "0.0.117-veoveo.1",
+  "gatewayVersion": "0.0.117-veoveo.2",
   "supervisorVersion": "0.0.117-dev.5+gea0c605",
   "driver": "docker",
   "platform": "linux/amd64",
@@ -85,6 +85,15 @@
       "expectedBaseTree": "ff0dadb259171f03e00c76937fef5ef4848d4df1",
       "expectedSourceTree": "9ccd1611356da3d29288cc49ad06db3d8e649405",
       "packagedPatchSha256": "a77b063bc4452324348a532d2b0f016e98517a8d08d65a4531b8ef0ad8b079f7"
+    },
+    {
+      "order": 8,
+      "file": "0.0.116-mtls-user-admission.patch",
+      "branch": "gateway",
+      "authoringOwner": "Veoveo",
+      "expectedBaseTree": "9ccd1611356da3d29288cc49ad06db3d8e649405",
+      "expectedSourceTree": "b9d0916b4a33f36df9590b4eae8184b7d632faec",
+      "packagedPatchSha256": "048b69df7d75ad30e83770ab40c3aa001d1c6ecf4e6197c3ffe2b4d43a366916"
     }
   ]
 }

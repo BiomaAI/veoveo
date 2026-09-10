@@ -152,6 +152,7 @@ Hub, administration, and GPU policy.
 | `platform/` | internal platform services, persistence, and reusable runtimes |
 | `platform/runtimes/computers/` | private native OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and bounded SSH-only CLI bridge; domain/service and installed qualification remain in the Computers plan |
 | `platform/runtimes/computers/provider-patches/Dockerfile` | independent OpenShell OCI build, verified upstream/patch trees and exact provider toolchain; compute-host topology remains separate |
+| `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
 | `platform/policy/` | shared policy evaluator, immutable catalog view and pure current session-family predicate; authentication, store reads and freshness remain caller-owned |
 | `platform/computers/src/authority.rs` | verified operation-admission identity and retained source context for explicit current execution policy |

@@ -10,7 +10,7 @@ public ingress and installed qualification remain in
 | Boundary | Selected profile |
 |---|---|
 | OpenShell `0.0.116` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
-| OpenShell retained Docker provider | Candidate gateway `0.0.117-veoveo.1` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
+| OpenShell retained Docker provider | Candidate gateway `0.0.117-veoveo.2` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
 | SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
 | `veoveo.io/computer-storage/v1` | Bounded mTLS prepare/restore/handoff adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
@@ -234,6 +234,12 @@ an isolated Docker namespace. It generates mTLS credentials and a separate Ed255
 provider JWT signer with a finite lifetime. The fixture uses a digest-pinned Computer
 image, disables host bind mounts, and removes its own containers, network, credentials
 and database on completion. Its private output directory retains diagnostics.
+
+Worker and guest transport certificates are distinct. The provider's mTLS user
+allowlist admits only the worker common name. A guest certificate alone must reach
+TLS and fail ListSandboxes with Unauthenticated; the real supervisor continues with
+its scoped sandbox JWT. This negative gate runs before every native provider fixture.
+The former fixture's shared certificate is retired from the selected profile.
 
 Run this ignored integration test explicitly with `VEOVEO_COMPUTERS_NATIVE_GATEWAY`,
 `VEOVEO_COMPUTERS_NATIVE_SUPERVISOR`, and `VEOVEO_COMPUTERS_NATIVE_OUTPUT` set to absolute

@@ -1,0 +1,119 @@
+diff --git a/crates/openshell-core/src/config.rs b/crates/openshell-core/src/config.rs
+index e04e056..9eb45f3 100644
+--- a/crates/openshell-core/src/config.rs
++++ b/crates/openshell-core/src/config.rs
+@@ -975,6 +975,27 @@ pub struct MtlsAuthConfig {
+     /// Kubernetes sandbox pods and external users must not share user auth.
+     #[serde(default)]
+     pub enabled: bool,
++    /// Only these exact certificate CNs may become user principals. Other
++    /// trusted clients (including supervisors) still require sandbox JWTs.
++    /// An empty or malformed list admits no mTLS user identities.
++    #[serde(default)]
++    pub user_common_names: Vec<String>,
++}
++
++impl MtlsAuthConfig {
++    #[must_use]
++    pub fn allows_user(&self, subject: &str) -> bool {
++        self.enabled
++            && !self.user_common_names.is_empty()
++            && self.user_common_names.len() <= 64
++            && self.user_common_names.iter().all(|name| {
++                !name.is_empty()
++                    && name.len() <= 128
++                    && name.trim() == name
++                    && !name.chars().any(char::is_control)
++            })
++            && self.user_common_names.iter().any(|name| name == subject)
++    }
+ }
+ 
+ /// Gateway user authentication settings.
+diff --git a/crates/openshell-core/tests/mtls_user_admission.rs b/crates/openshell-core/tests/mtls_user_admission.rs
+new file mode 100644
+index 0000000..251ec76
+--- /dev/null
++++ b/crates/openshell-core/tests/mtls_user_admission.rs
+@@ -0,0 +1,34 @@
++use openshell_core::config::MtlsAuthConfig;
++
++#[test]
++fn trusted_supervisor_certificate_does_not_become_a_user() {
++    let config = MtlsAuthConfig {
++        enabled: true,
++        user_common_names: vec!["veoveo-computers-worker".into()],
++    };
++    assert!(config.allows_user("veoveo-computers-worker"));
++    for subject in [
++        "veoveo-computer-supervisor",
++        "unknown",
++        "",
++        "VEOVEO-COMPUTERS-WORKER",
++    ] {
++        assert!(!config.allows_user(subject));
++    }
++}
++
++#[test]
++fn unconfigured_disabled_and_malformed_user_admission_fail_closed() {
++    let mut config = MtlsAuthConfig {
++        enabled: true,
++        ..Default::default()
++    };
++    assert!(!config.allows_user("worker"));
++    for names in [vec!["worker".into(), " ".into()], vec!["worker".into(); 65]] {
++        config.user_common_names = names;
++        assert!(!config.allows_user("worker"));
++    }
++    config.user_common_names = vec!["worker".into()];
++    config.enabled = false;
++    assert!(!config.allows_user("worker"));
++}
+diff --git a/crates/openshell-server/src/cli.rs b/crates/openshell-server/src/cli.rs
+index f22e135..520cc59 100644
+--- a/crates/openshell-server/src/cli.rs
++++ b/crates/openshell-server/src/cli.rs
+@@ -356,6 +356,9 @@ fn prepare_server_config(
+     if let Some(auth) = file.as_ref().and_then(|f| f.openshell.gateway.auth.clone()) {
+         config.auth = auth;
+     }
++    if let Some(mtls) = file.as_ref().and_then(|f| f.openshell.gateway.mtls_auth.clone()) {
++        config.mtls_auth = mtls;
++    }
+     config.mtls_auth.enabled = mtls_auth_enabled;
+ 
+     // Listener addresses for the health and metrics endpoints. The file may
+diff --git a/crates/openshell-server/src/multiplex.rs b/crates/openshell-server/src/multiplex.rs
+index 7a7125d..0337a36 100644
+--- a/crates/openshell-server/src/multiplex.rs
++++ b/crates/openshell-server/src/multiplex.rs
+@@ -285,7 +285,9 @@ impl MultiplexService {
+                 .config
+                 .mtls_auth
+                 .enabled
+-                .then_some(peer_identity)
++                .then(|| peer_identity.filter(|identity| {
++                    self.state.config.mtls_auth.allows_user(&identity.subject)
++                }))
+                 .flatten(),
+             self.state.config.mtls_auth.enabled,
+             self.state.config.auth.allow_unauthenticated_users,
+@@ -1266,12 +1268,11 @@ where
+     let (_, cert) = X509Certificate::from_der(first.as_ref()).ok()?;
+     let subject = cert.subject();
+ 
+-    let cn = subject
+-        .iter_common_name()
+-        .next()
+-        .and_then(|attr| attr.as_str().ok())
+-        .unwrap_or("unknown")
+-        .to_string();
++    let mut common_names = subject.iter_common_name();
++    let cn = common_names.next()?.as_str().ok()?.to_string();
++    if common_names.next().is_some() || cn.is_empty() || cn.trim() != cn {
++        return None;
++    }
+ 
+     let roles: Vec<String> = subject
+         .iter_organizational_unit()

@@ -2805,3 +2805,27 @@ for causal attribution rather than treating the aggregate window as export CPU t
 The registry returned HTTP 200 and the host had 284 GiB free. Installed GitOps smoke
 and public acceptance follow immutable publication and the installation's complete
 new image/configuration closure; this packaging checkpoint changes no live workload.
+
+Compute-host integration exposed an authentication gap in the native fixture: its
+guest supervisor received the worker certificate, while the provider's mTLS user mode
+admitted any trusted client certificate as a user. The selected gateway is now
+`0.0.117-veoveo.2`, with an exact positive user-CN allowlist and separate supervisor
+credentials. This is a selected-profile correctness repair, without an upstream
+dependency upgrade. The guest certificate completes TLS and receives Unauthenticated
+from ListSandboxes. The same native run completes the retained lifecycle, two-worker
+contention, interruption/fencing and renewed terminal journey in 81.86 seconds.
+
+The first repaired provider image took 182.40 seconds, including two source admission
+tests. Its sequential compiler stage needlessly rebuilt the unchanged supervisor.
+Gateway and supervisor now copy their own verified trees into separate compilation
+stages. The one-time three-image rebuild after that restructuring took 180.97 seconds;
+the provider executable hashes match those exercised by the native test. The
+supervisor hash also matches its previous image. The selected native proof runs those
+OCI-built executables on the host; it does not certify the complete container topology.
+
+Warm runtime coverage is 73 passing tests in 21.30 seconds through the recorder. The
+affected all-target lint takes 23.93 seconds and formatting 3.09 seconds. The new
+cross-crate fixture initially lacked a direct tonic development dependency; adding
+the already selected workspace dependency fixed compilation without new package
+versions. Private compute-host startup and installed acceptance continue after this
+security checkpoint.

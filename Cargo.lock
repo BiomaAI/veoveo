@@ -16701,6 +16701,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-tungstenite 0.30.0",
  "tokio-util",
+ "tonic",
  "tracing",
  "url",
  "uuid",
