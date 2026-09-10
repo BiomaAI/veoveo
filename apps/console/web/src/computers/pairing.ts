@@ -21,6 +21,17 @@ export class PairingFailure extends Error {}
 export async function pairCli(location: PairingLocation, name: string): Promise<void> {
   const input = parseComputer("cli_pairing_input", { name: name.trim(), code: location.code, callbackPort: location.callbackPort });
   if (new TextEncoder().encode(input.name).length > 64) throw new PairingFailure("Use a shorter name for this CLI.");
+  // Resolve browser loopback permission before issuing a credential. The stock
+  // callback's OPTIONS handler has no grant or pairing side effects.
+  try {
+    const local = await fetch(`http://127.0.0.1:${location.callbackPort}/callback`, {
+      method: "OPTIONS", mode: "cors", credentials: "omit", cache: "no-store", redirect: "error",
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (local.status !== 204) throw new Error("local CLI unavailable");
+  } catch {
+    throw new PairingFailure("The local CLI could not be reached. Allow apps on this device in your browser’s site permissions, then start CLI login again. No access was issued.");
+  }
   const base = `computers/${location.computerId}/cli-pairings`;
   let grant: CliPairingResult | undefined;
   let confirming = false;

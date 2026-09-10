@@ -3086,3 +3086,18 @@ Computers control workers before admitting new public CLI traffic. The compute h
 continues running the retained Computer. Encoding this migration/drain dependency in
 release coordination remains deployment debt; a new ledger must not depend on
 accidental Kubernetes startup order.
+
+Helm revision 146 became Ready at 18:40:06 UTC with both replicas of all three new
+services. The compute host retained its original pod and zero restarts. The bootstrap
+qualification ran from 18:37:55 to 18:38:03 UTC. The focused GitOps observer took about
+sixteen seconds after publication; this excludes earlier build time and does not
+measure the entire drain interval.
+
+The first public browser pairing returned two 201 responses in 143 and 147 ms, but
+the ten-second local callback deadline expired while Chrome's Apps on device
+permission was still Prompt. The failure path revoked the issued grant in 129 ms.
+The local stock callback independently answered an exact-Origin OPTIONS request
+with 204. The frontend now resolves that permission and reachability with a bounded
+credential-free OPTIONS request before creating any grant, and explains the browser
+prompt. Its negative test proves that rejected local consent issues no access.
+This is a real-browser gap that the mocked fetch test could not establish.
