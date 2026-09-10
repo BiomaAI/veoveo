@@ -7,7 +7,7 @@
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
-| Shared Tasks | Lifecycle integration is in progress; reservation does not dispatch a provider mutation |
+| Shared Tasks | Current observation leases guard domain journal transactions; provider dispatch worker and Task result projection remain integration work |
 
 The domain owns retained Computer identity. Provider transport belongs to
 `platform/runtimes/computers`. Native Console and MCP will project these commands
@@ -40,8 +40,9 @@ lifecycle checkpoint. The retained Computer UUID is also the home allocation ide
 ## Delivery Boundary
 
 The current checkpoint implements private collection admission, operation admission
-and shared Task linking. Shared
-Task dispatch/recovery, explicit delegation, renewable attachments, deletion with
+and shared Task linking, dispatch receipts, durable observation budgets and correlated
+domain settlement. The provider dispatch loop and Task result projection, explicit
+delegation, renewable grant persistence, deletion with
 storage acknowledgement, agent execution and Artifact movement remain active work in
 `docs/COMPUTERS_PLAN.md`. Reservation alone is not a usable or deployed Computer.
 
@@ -75,7 +76,42 @@ profile and a retention pin. Concurrent link attempts use the shared Task idempo
 boundary. Actor identity, Work Context and policy provenance remain in the journal;
 command text and provider credentials never enter its audit event.
 
-The dispatch worker must repair pending Task links on startup, persist dispatch stage
-before provider effects, and settle the domain before projecting a terminal Task.
-Those worker paths, recovery budgets and physical home fencing remain in progress.
-No journal method in this checkpoint dispatches a provider mutation or clears a fence.
+The dispatch worker must repair pending Task links on startup and project a terminal
+Task after domain settlement. That worker and physical home fencing remain in progress.
+Journal methods never call the provider.
+
+## Dispatch And Observation
+
+`begin_dispatch` commits a unique dispatch ID before returning a non-cloneable ticket.
+Only the queued stage can obtain it. The worker checks current action authority and
+home readiness first. It records the operation's original provider/resource/process
+identity and a 180-second observation deadline. Losing the ticket or its reply cannot
+authorize another dispatch. The active Computer fence remains held.
+
+`admit_observation` charges each reconciliation read before it can reach the provider.
+Eight reads share the original persisted deadline. Exponential delay with deterministic
+jitter uses the stored count, and replicas cannot reset that schedule. A ticket's local
+remaining time derives from database time, deducts read latency and expires monotonically.
+Each reconciliation call gets at most ten seconds. Exhausting either bound records
+Recovery Required once and retains the Computer fence. An unavailable observer cannot
+produce a terminal failure or silently reopen the operation.
+
+Settlement requires a matching dispatch or observation ticket under a current shared
+Task lease. The provider adapter checks full binding labels before producing its internal
+outcome. The domain rechecks provider, Computer, template and recorded source identity.
+Start requires a new process on the same resource; Stop requires the recorded process.
+Operation success, the resulting Computer phase, fence release and audit event commit
+together. Shared Task publication follows as a recoverable projection and never precedes
+that domain commit.
+
+Conditions that acquire a fence or capacity are predicates on the actual UPDATE/UPSERT.
+An earlier SELECT is insufficient: the real-store contention fixture exposed two
+different requests passing a preceding read before one overwrote the other's fence.
+Quota increments, policy changes, dispatch, read budgets and settlement follow the same
+conditional-update rule. Aborted transactions preserve their previous rows and counters.
+
+Migration 0054 adds the journal budget and outcome fields and backfills the read count.
+The isolated database tests cover dispatch contention, lost local dispatch receipts,
+cross-replica observation, cancellation before dispatch, exhausted time/count budgets,
+source epoch rejection and domain-before-Task settlement. These tests do not establish
+actual provider dispatch, production home fencing or installed recovery acceptance.

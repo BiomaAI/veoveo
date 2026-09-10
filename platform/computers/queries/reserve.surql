@@ -5,17 +5,18 @@ IF $prior != NONE {
 } ELSE {
   LET $policy = SELECT * FROM ONLY $capacity;
   IF $policy = NONE { THROW "computer_policy_conflict"; };
-  LET $owners = SELECT * FROM ONLY $owner_usage;
-  LET $tenants = SELECT * FROM ONLY $tenant_usage;
-  LET $providers = SELECT * FROM ONLY $provider_usage;
-  IF ($owners.retained ?? 0) >= $policy.per_owner
-    OR ($tenants.retained ?? 0) >= $policy.per_tenant
-    OR ($providers.retained ?? 0) >= $policy.provider { THROW "computer_capacity"; };
-  -- Writing the policy makes concurrent reductions conflict with old admission.
-  UPDATE $capacity SET admissions += 1;
-  UPSERT $owner_usage SET retained = ($owners.retained ?? 0) + 1;
-  UPSERT $tenant_usage SET retained = ($tenants.retained ?? 0) + 1;
-  UPSERT $provider_usage SET retained = ($providers.retained ?? 0) + 1;
+  LET $policy_guard = (UPDATE ONLY $capacity SET admissions += 1
+    WHERE fingerprint = $policy.fingerprint RETURN AFTER);
+  IF $policy_guard = NONE { THROW "computer_policy_conflict"; };
+  LET $owners = (UPSERT ONLY $owner_usage SET retained = (retained ?? 0) + 1
+    WHERE (retained ?? 0) < $policy.per_owner RETURN AFTER);
+  IF $owners = NONE { THROW "computer_capacity"; };
+  LET $tenants = (UPSERT ONLY $tenant_usage SET retained = (retained ?? 0) + 1
+    WHERE (retained ?? 0) < $policy.per_tenant RETURN AFTER);
+  IF $tenants = NONE { THROW "computer_capacity"; };
+  LET $providers = (UPSERT ONLY $provider_usage SET retained = (retained ?? 0) + 1
+    WHERE (retained ?? 0) < $policy.provider RETURN AFTER);
+  IF $providers = NONE { THROW "computer_capacity"; };
   CREATE $computer CONTENT $content;
   CREATE $request CONTENT {computer: $computer, fingerprint: $fingerprint};
   CREATE outbox_event CONTENT $event;
