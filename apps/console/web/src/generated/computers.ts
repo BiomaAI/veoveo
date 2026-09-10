@@ -161,6 +161,7 @@ export interface ComputersApi {
   create_input: CreateInput;
   error: ApiError;
   event: ComputerEvent;
+  execution_result: ExecutionResult;
   issue_automation_grant: IssueAutomationGrantInput;
   lifecycle_input: LifecycleInput;
   lifecycle_result: LifecycleResult;
@@ -349,6 +350,30 @@ export interface ApiError {
 export interface ComputerEvent {
   computerId?: string | null;
   kind: ComputerEventKind;
+}
+/**
+ * A known foreground result. Nonzero exit is a completed command with a tool
+ * error; it does not imply transport failure or termination of detached children.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ExecutionResult".
+ */
+export interface ExecutionResult {
+  computerId: string;
+  executionId: string;
+  exitCode: number;
+  stderr: ExecutionOutput;
+  stdout: ExecutionOutput;
+}
+/**
+ * Governed occurrence reference. Bytes remain behind Artifact read authority.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ExecutionOutput".
+ */
+export interface ExecutionOutput {
+  artifactId: string;
+  byteCount: number;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema

@@ -21,6 +21,7 @@ pub enum CommandInterruption {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CommandOutcome {
+    Completed(crate::api::ExecutionResult),
     Undispatched(CommandRefusal),
     Terminated(CommandInterruption),
 }

@@ -3,6 +3,8 @@ mod access;
 pub use access::*;
 mod automation;
 pub use automation::*;
+mod execution;
+pub use execution::*;
 mod pairing;
 use chrono::{DateTime, Utc};
 pub use pairing::*;
@@ -349,6 +351,7 @@ pub struct TerminalReady {
 #[allow(dead_code)]
 #[schemars(rename = "ComputersApi")]
 struct SchemaBundle {
+    execution_result: ExecutionResult,
     issue_automation_grant: IssueAutomationGrantInput,
     automation_grant: AutomationGrantView,
     automation_grants: AutomationGrantCollection,
@@ -449,6 +452,8 @@ mod tests {
         let defs = schema["$defs"].as_object().unwrap();
         for name in [
             "ComputerSnapshot",
+            "ExecutionResult",
+            "ExecutionOutput",
             "ComputerView",
             "TemplateView",
             "ComputerLimits",

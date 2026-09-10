@@ -7,6 +7,7 @@
 | JSON and JSON Schema | Serde DTOs and Schemars-generated schema bundle using the workspace's qualified pins; closed request objects and RFC 3339 timestamps |
 | Veoveo Computers projection | Collection snapshots, lifecycle receipts and public phases; this library does not serve an HTTP or MCP endpoint |
 | Veoveo terminal v2 | Bounded authenticated first frame, resize, ready, sequenced lease deadlines and explicit replay-complete controls; raw terminal bytes remain a separate frame type |
+| Veoveo execution result | Known foreground exit code and stdout/stderr Artifact occurrence references; byte counts are bounded metadata, without command text or capability secrets |
 | Veoveo automation grant v1 | Named principal and OAuth-client scope, explicit permissions and bounded execution limits; generated JSON projection, no bearer authority |
 | OpenShell CLI `0.0.116` pairing adapter | Custom confirmation-code and IPv4 loopback JSON callback; public requests select no host or authority |
 
@@ -66,3 +67,19 @@ and current installation ceilings in addition to schema validation. Public views
 show the original scope and expiry; current policy can narrow them. These types are
 available to projections, while public routes and command Tasks remain integration
 work in the domain plan.
+
+
+`execution.rs` defines a completed foreground result. Each stream has its own UUIDv7
+Artifact occurrence, including an empty stream, and an exact byte count. The command
+Task finishes with the standard tool result envelope. A nonzero exit sets `isError`
+while preserving the known exit code and output references. Read authority is checked
+by Artifacts; a result link does not confer it. The native profile reserves exit 124
+for unknown execution, which cannot produce this result.
+
+Foreground completion leaves the Computer running. Programs may leave detached
+children, and revoking a grant does not undo completed writes or terminate those
+children retroactively. The owner can Stop the Computer to end its run. Interruption
+of an active command uses the grant's explicit whole-run Stop consent. A cancellation
+received after a known foreground exit remains recorded in Task history; it cannot
+replace that known result with a claim that the command never ran. An independently
+admitted owner Stop keeps its own lifecycle fence through result settlement.

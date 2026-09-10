@@ -560,8 +560,10 @@ service instances. Computers now captures its mandatory home/output labels in th
 immutable encrypted-command binding and stores the Artifact receipt in a separate
 purpose-bound envelope. Migration 0064 and native-store tests make sufficient output
 authority a dispatch prerequisite and preserve one usable receipt across replicas.
-Real service issuance, worker publication and successful-result settlement remain
-required before public execution.
+Known exit receipts and exact output references now settle to Completed under the
+current Task lease in migration 0065. Nonzero exits retain their output as tool errors;
+late cancellation and independent owner Stop retain their own history and fences.
+Real service issuance, worker publication and public execution remain required.
 
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.

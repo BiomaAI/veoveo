@@ -579,6 +579,61 @@
       ],
       "type": "string"
     },
+    "ExecutionOutput": {
+      "additionalProperties": false,
+      "description": "Governed occurrence reference. Bytes remain behind Artifact read authority.",
+      "properties": {
+        "artifactId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "byteCount": {
+          "format": "uint32",
+          "maximum": 67108864,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "artifactId",
+        "byteCount"
+      ],
+      "type": "object"
+    },
+    "ExecutionResult": {
+      "additionalProperties": false,
+      "description": "A known foreground result. Nonzero exit is a completed command with a tool\nerror; it does not imply transport failure or termination of detached children.",
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "executionId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "exitCode": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stderr": {
+          "$ref": "#/$defs/ExecutionOutput"
+        },
+        "stdout": {
+          "$ref": "#/$defs/ExecutionOutput"
+        }
+      },
+      "required": [
+        "computerId",
+        "executionId",
+        "exitCode",
+        "stdout",
+        "stderr"
+      ],
+      "type": "object"
+    },
     "IssueAutomationGrantInput": {
       "additionalProperties": false,
       "properties": {
@@ -1134,6 +1189,9 @@
     "event": {
       "$ref": "#/$defs/ComputerEvent"
     },
+    "execution_result": {
+      "$ref": "#/$defs/ExecutionResult"
+    },
     "issue_automation_grant": {
       "$ref": "#/$defs/IssueAutomationGrantInput"
     },
@@ -1193,6 +1251,7 @@
     }
   },
   "required": [
+    "execution_result",
     "issue_automation_grant",
     "automation_grant",
     "automation_grants",

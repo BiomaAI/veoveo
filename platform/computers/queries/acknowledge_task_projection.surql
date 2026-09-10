@@ -1,3 +1,4 @@
+BEGIN TRANSACTION;
 LET $current = SELECT * FROM ONLY $operation;
 LET $task_state = SELECT * FROM ONLY $task;
 IF $current = NONE OR $current.provider_instance_id != $provider
@@ -6,3 +7,4 @@ IF $current = NONE OR $current.provider_instance_id != $provider
   THROW 'computer_state_conflict';
 };
 UPDATE ONLY $operation SET task_projected_at = task_projected_at ?? time::now() WHERE stage = $status AND provider_instance_id = $provider;
+COMMIT TRANSACTION;
