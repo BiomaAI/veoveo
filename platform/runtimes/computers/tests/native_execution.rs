@@ -24,20 +24,28 @@ struct Output {
 async fn execute(
     runtime: &OpenShellRuntime,
     binding: &Binding,
+    expected: &Observation,
     request: &ExecutionRequest,
     seconds: u32,
 ) -> (Result<ExecResult>, Output) {
     let output = Arc::new(Mutex::new(Output::default()));
     let sink = output.clone();
     let result = runtime
-        .execute_request(binding, request, seconds, 1024 * 1024, move |chunk| {
-            let mut output = sink.lock().unwrap();
-            match chunk.stream {
-                OutputStream::Stdout => output.stdout.extend(chunk.data),
-                OutputStream::Stderr => output.stderr.extend(chunk.data),
-            }
-            async { Ok(()) }
-        })
+        .execute_request(
+            binding,
+            expected,
+            request,
+            seconds,
+            1024 * 1024,
+            move |chunk| {
+                let mut output = sink.lock().unwrap();
+                match chunk.stream {
+                    OutputStream::Stdout => output.stdout.extend(chunk.data),
+                    OutputStream::Stderr => output.stderr.extend(chunk.data),
+                }
+                async { Ok(()) }
+            },
+        )
         .await;
     (
         result,
@@ -119,7 +127,7 @@ async fn structured_execution_preserves_values_and_stop_fences_uncertain_descend
     let setup = python(
         "import os; os.mkdir('private-directory-fixture'); os.symlink('private-directory-fixture', 'current'); os.symlink('/etc', 'escape')",
     );
-    let (result, output) = execute(runtime, &binding, &setup, 10).await;
+    let (result, output) = execute(runtime, &binding, &ready, &setup, 10).await;
     assert_eq!(
         result.unwrap().exit_code,
         0,
@@ -132,7 +140,7 @@ async fn structured_execution_preserves_values_and_stop_fences_uncertain_descend
         BTreeMap::from([("FIXTURE_VALUE".into(), "private-environment-fixture\nlast".into())]),
         (0..100_000).map(|index| (index % 256) as u8).collect(),
     ).unwrap();
-    let (result, output) = execute(runtime, &binding, &request, 10).await;
+    let (result, output) = execute(runtime, &binding, &ready, &request, 10).await;
     assert_eq!(
         result.unwrap().exit_code,
         23,
@@ -153,7 +161,7 @@ async fn structured_execution_preserves_values_and_stop_fences_uncertain_descend
         vec![],
     )
     .unwrap();
-    let (result, output) = execute(runtime, &binding, &escape, 10).await;
+    let (result, output) = execute(runtime, &binding, &ready, &escape, 10).await;
     assert_eq!(result.unwrap().exit_code, 125);
     assert!(output.stdout.is_empty());
     assert_eq!(
@@ -180,7 +188,7 @@ if os.fork()==0:
 while True: time.sleep(0.1)
 "#,
     );
-    let (result, _) = execute(runtime, &binding, &runaway, 1).await;
+    let (result, _) = execute(runtime, &binding, &ready, &runaway, 1).await;
     assert_eq!(result, Err(RuntimeFailure::ExecutionUnknown));
     let stop = LifecycleCheckpoint::stop(
         Uuid::from_u128(100),
@@ -210,7 +218,12 @@ while True: time.sleep(0.1)
         ready.main_process_instance_id,
         restarted.main_process_instance_id
     );
-    let (result, output) = execute(runtime, &binding, &python("import time; from pathlib import Path; p=Path('heartbeat'); value=p.read_text(); assert int(value)>0; time.sleep(0.3); assert p.read_text()==value; print('descendant-fenced')"), 10).await;
+    let marker = python(
+        "from pathlib import Path; Path('rejected-run-marker').write_text('should-not-run')",
+    );
+    let (result, _) = execute(runtime, &binding, &ready, &marker, 10).await;
+    assert_eq!(result, Err(RuntimeFailure::BindingMismatch));
+    let (result, output) = execute(runtime, &binding, &restarted, &python("import time; from pathlib import Path; assert not Path('rejected-run-marker').exists(); p=Path('heartbeat'); value=p.read_text(); assert int(value)>0; time.sleep(0.3); assert p.read_text()==value; print('descendant-fenced')"), 10).await;
     assert_eq!(
         result.unwrap().exit_code,
         0,

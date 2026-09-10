@@ -231,7 +231,14 @@ Only its fixed absolute command and fixed retained-home working directory reach 
 provider's command preview. Explicit argv, relative launch directory, environment
 overrides and finite binary stdin travel in a bounded length-prefixed stdin frame.
 No request values enter the provider Start message's environment or argv. The runtime
-retains its input stream until the native exit; transport EOF is not frame completion.
+retains its input stream until the native exit; transport EOF is not frame completion. The
+caller must supply the exact Ready resource/process observation recorded for its
+command. Before sending the native Start frame, the runtime compares the current
+resource and process to that observation. A changed run, stopped expectation or
+inconsistent exit state rejects execution without sending request bytes. The final
+observation still has to match the selected process. This check complements the
+domain's execution slot; it does not establish a provider-side compare-and-swap
+against privileged out-of-band lifecycle changes.
 
 The native fixture proves exact 100,000-byte input and output, empty/quoted arguments,
 multiline environment, confined directory selection and enabled command-log privacy.
