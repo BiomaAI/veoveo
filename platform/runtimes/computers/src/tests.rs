@@ -883,7 +883,7 @@ async fn generated_mtls_lifecycle_and_watch_never_poll_completion() {
     assert_eq!(running.fake.0.lock().unwrap().creates, 1);
     let stop =
         LifecycleCheckpoint::stop(Uuid::from_u128(100), Uuid::now_v7(), b.clone(), &ready).unwrap();
-    let stopping = runtime.stop(&b).await.unwrap();
+    let stopping = runtime.stop(&b, &ready).await.unwrap();
     let stopped = runtime
         .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(10))
         .await
@@ -892,7 +892,7 @@ async fn generated_mtls_lifecycle_and_watch_never_poll_completion() {
     let start =
         LifecycleCheckpoint::start(Uuid::from_u128(100), Uuid::now_v7(), b.clone(), &stopped)
             .unwrap();
-    let starting = runtime.start(&b).await.unwrap();
+    let starting = runtime.start(&b, &stopped).await.unwrap();
     runtime
         .wait_for_lifecycle(&start, &starting, Duration::from_secs(10))
         .await
@@ -976,7 +976,7 @@ async fn watch_warning_transport_end_and_identity_replacement_are_failures() {
     let checkpoint =
         LifecycleCheckpoint::start(Uuid::from_u128(100), Uuid::now_v7(), binding(), &before)
             .unwrap();
-    let current = running.runtime.start(&binding()).await.unwrap();
+    let current = running.runtime.start(&binding(), &before).await.unwrap();
     let calls = running.fake.0.lock().unwrap().gets;
     for mode in 1..=4 {
         running.fake.0.lock().unwrap().watch = mode;

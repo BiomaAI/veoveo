@@ -17,6 +17,29 @@ enum ClaimKind {
 }
 
 impl TaskRuntime {
+    /// Release only this exact observer receipt after its local provider future
+    /// has ended. Another replica can continue the persisted observation schedule.
+    pub async fn release_observation(&self, claimed: &ClaimedTask) -> Result<(), TaskError> {
+        if claimed.snapshot.server != self.server()
+            || claimed.snapshot.recovery_class != RecoveryClass::ProviderWait
+            || claimed.lease_owner != self.worker_id()
+        {
+            return Err(TaskError::InvalidRecord(
+                "invalid observation release".into(),
+            ));
+        }
+        let mut response = self.platform_store().client().query(
+            "UPDATE ONLY $task SET lease_owner = NONE, lease_expires_at = NONE WHERE server = $server AND recovery_class = 'provider_wait' AND lease_owner = $worker AND lease_expires_at = $expiry AND lease_expires_at > time::now() AND status IN ['queued', 'running', 'waiting', 'cancel_requested'] RETURN AFTER;"
+        ).bind(("task", claimed.snapshot.task_id.record_id()))
+            .bind(("server", surrealdb::types::RecordId::new("mcp_server", self.server().to_owned())))
+            .bind(("worker", self.worker_id().to_owned())).bind(("expiry", claimed.lease_expires_at))
+            .await?.check()?;
+        let row: Option<TaskRecord> = response.take(0)?;
+        if row.is_none() {
+            return Err(TaskError::LeaseHeld(claimed.snapshot.task_id.to_string()));
+        }
+        Ok(())
+    }
     pub async fn claim(
         &self,
         task_id: &str,

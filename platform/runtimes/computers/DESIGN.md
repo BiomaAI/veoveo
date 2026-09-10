@@ -183,3 +183,8 @@ The current host uses ext4 without project quotas, so an ordinary directory-back
 volume cannot establish the required capacity bound. The fixed-size block profile
 uses the maintained [Docker local volume](https://docs.docker.com/engine/storage/volumes/)
 and Linux ext4/loop facilities. Production allocation and fencing remain delivery work.
+
+Start and Stop accept the durably recorded source observation. Before sending a
+mutation, Start checks the stopped resource and process; Stop checks the running
+resource and process. A stale source cannot mutate a newer run. Domain fencing
+excludes competing lifecycle dispatches during this read/submission boundary.

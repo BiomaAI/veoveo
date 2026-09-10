@@ -135,7 +135,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         &ready,
     )
     .unwrap();
-    let stopping = runtime.stop(&binding).await.unwrap();
+    let stopping = runtime.stop(&binding, &ready).await.unwrap();
     let stopped = runtime
         .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(30))
         .await
@@ -154,7 +154,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         &stopped,
     )
     .unwrap();
-    let starting = runtime.start(&binding).await.unwrap();
+    let starting = runtime.start(&binding, &stopped).await.unwrap();
     let restarted = runtime
         .wait_for_lifecycle(&start, &starting, Duration::from_secs(30))
         .await

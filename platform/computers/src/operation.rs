@@ -44,10 +44,18 @@ pub struct Operation {
     pub settled_at: Option<DateTime<Utc>>,
     pub result_resource_id: Option<String>,
     pub result_process_id: Option<String>,
+    pub completion_code: Option<crate::UndispatchedOutcome>,
+    pub task_projected_at: Option<DateTime<Utc>>,
 }
 impl Operation {
     pub fn task_id(&self) -> TaskId {
         TaskId::from_uuid(self.operation_id)
+    }
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self.stage,
+            OperationStage::Succeeded | OperationStage::Failed | OperationStage::Cancelled
+        )
     }
 }
 #[derive(Deserialize, SurrealValue)]
@@ -74,6 +82,8 @@ pub(crate) struct OperationRecord {
     settled_at: Option<DateTime<Utc>>,
     result_resource_id: Option<String>,
     result_process_id: Option<String>,
+    completion_code: Option<String>,
+    task_projected_at: Option<DateTime<Utc>>,
 }
 impl TryFrom<OperationRecord> for Operation {
     type Error = ComputerError;
@@ -110,6 +120,11 @@ impl TryFrom<OperationRecord> for Operation {
                 settled_at: value.settled_at,
                 result_resource_id: value.result_resource_id,
                 result_process_id: value.result_process_id,
+                completion_code: value
+                    .completion_code
+                    .map(|code| serde_json::from_value(serde_json::Value::String(code)))
+                    .transpose()?,
+                task_projected_at: value.task_projected_at,
             })
         };
         decode().map_err(|_: serde_json::Error| ComputerError::Unavailable)

@@ -407,8 +407,8 @@ The domain now commits one dispatch receipt under the current shared Task lease,
 charges a persisted observation budget and settles a matching resource/process before
 Task publication. Deadline or read-budget exhaustion preserves the Computer fence in
 Recovery Required. Real-store contention tests also enforce capacity and operation
-admission on conditional writes. The provider worker, Task projection, production
-allocator and current grant/action authority remain integration work.
+admission on conditional writes. The worker now integrates native lifecycle dispatch and shared Task projection. The
+production allocator and current grant/action authority remain integration work.
 
 | Area | Required evidence |
 |---|---|
@@ -496,10 +496,21 @@ The shared Task runtime now has an additive `provider_wait` profile and a distin
 observation claim. Recovery preserves queued/running/waiting/cancel-requested Tasks
 without reset or ordinary terminal failure. Migration 0052 requires compatible readers
 before admitting this class; retained new-class records prevent an unqualified rollback
-to old readers. Computers dispatch/budget integration remains in progress.
+to old readers. Computers dispatch/budget integration now lives in its domain and worker.
 
 The domain operation journal now admits one fenced action transactionally, preserves
 the previous provider run and reconstructs its shared Task after interrupted linking.
 Current context membership and output clearance are checked before mutation admission.
-This checkpoint does not dispatch native effects; the lifecycle worker and recovery
-budget remain the next integration step.
+The Computers worker now connects this journal to native lifecycle dispatch and
+bounded reconciliation. It repairs Task links and domain-to-Task projection. Current
+production authority, retained allocation and public/installed surfaces remain delivery
+work. The local fixture gate is not evidence for those remaining boundaries.
+
+The native worker checkpoint passes against the pinned provider and isolated SurrealDB:
+two replicas contend for Create, files survive Stop/Start, a successor observes a Stop
+whose completion reply was lost to the domain, and cancellation remains in the Task
+history when that known effect succeeds. Pre-dispatch cancellation/denial sends no
+mutation. A lost Start ticket is never replayed; eight charged reads end in Recovery
+Required with the original fence. Task-link/projection/pin repair has real-store
+coverage. The fixture supplies its own prepared ext4 volume and explicit test gate;
+production allocation and current policy/grant authority are still required.

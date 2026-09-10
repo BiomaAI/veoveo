@@ -7,7 +7,7 @@
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
-| Shared Tasks | Current observation leases guard domain journal transactions; provider dispatch worker and Task result projection remain integration work |
+| Shared Tasks | Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 
 The domain owns retained Computer identity. Provider transport belongs to
 `platform/runtimes/computers`. Native Console and MCP will project these commands
@@ -41,7 +41,7 @@ lifecycle checkpoint. The retained Computer UUID is also the home allocation ide
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated
-domain settlement. The provider dispatch loop and Task result projection, explicit
+domain settlement. The native worker lives in `servers/computers-mcp`. Explicit
 delegation, renewable grant persistence, deletion with
 storage acknowledgement, agent execution and Artifact movement remain active work in
 `docs/COMPUTERS_PLAN.md`. Reservation alone is not a usable or deployed Computer.
@@ -76,8 +76,8 @@ profile and a retention pin. Concurrent link attempts use the shared Task idempo
 boundary. Actor identity, Work Context and policy provenance remain in the journal;
 command text and provider credentials never enter its audit event.
 
-The dispatch worker must repair pending Task links on startup and project a terminal
-Task after domain settlement. That worker and physical home fencing remain in progress.
+The dispatch worker repairs pending Task links and projects a terminal Task after
+domain settlement. Physical home fencing remains in progress.
 Journal methods never call the provider.
 
 ## Dispatch And Observation
@@ -115,3 +115,17 @@ The isolated database tests cover dispatch contention, lost local dispatch recei
 cross-replica observation, cancellation before dispatch, exhausted time/count budgets,
 source epoch rejection and domain-before-Task settlement. These tests do not establish
 actual provider dispatch, production home fencing or installed recovery acceptance.
+
+## Worker Delivery And Undispatched Outcomes
+
+Migration 0055 records a known undispatched refusal and a Task projection marker.
+Cancellation before dispatch or current action denial restores the previous Computer
+phase under the shared lease and queued journal predicate. Capacity stays retained.
+Any escaped dispatch ticket permanently excludes this path, including lost replies.
+
+Internal discovery pages operations by provider and UUID. It includes orphaned Task
+links and incomplete result delivery. Domain terminal state and the matching terminal
+Task permit a durable projection marker; the worker then releases its Task pin.
+Discovery repairs a crash between those writes. Once acknowledged, ordinary Task
+retention cleanup cannot recreate the old operation. These APIs are private worker
+boundaries; public facades use owner-scoped reads.
