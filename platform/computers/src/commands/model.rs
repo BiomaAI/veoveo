@@ -1,6 +1,6 @@
 use crate::{
     AcceptedAuthority, ComputerError, Result,
-    command_secrets::{CommandBinding, SealedCommand},
+    command_secrets::{CommandBinding, SealedCommand, SealedOutputAccess},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,7 @@ pub struct CommandOperation {
     pub(super) binding: CommandBinding,
     pub(super) authority: AcceptedAuthority,
     pub(super) sealed: SealedCommand,
+    pub(super) output_access: Option<SealedOutputAccess>,
     pub(super) created_at: DateTime<Utc>,
     pub(super) stage: CommandStage,
     pub(super) dispatch_id: Option<Uuid>,
@@ -113,6 +114,7 @@ pub(super) struct Record {
     binding: OpenObject,
     authority: OpenObject,
     sealed: OpenObject,
+    output_access: Option<OpenObject>,
     task: RecordId,
     stage: String,
     created_at: DateTime<Utc>,
@@ -143,6 +145,10 @@ impl TryFrom<Record> for CommandOperation {
                 binding: serde_json::from_value(serde_json::to_value(row.binding)?)?,
                 authority: serde_json::from_value(serde_json::to_value(row.authority)?)?,
                 sealed: serde_json::from_value(serde_json::to_value(row.sealed)?)?,
+                output_access: row
+                    .output_access
+                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
+                    .transpose()?,
                 created_at: row.created_at,
                 stage: serde_json::from_value(serde_json::Value::String(row.stage))?,
                 dispatch_id: row.dispatch_id,

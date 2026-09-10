@@ -18,6 +18,7 @@ fn binding() -> CommandBinding {
         template_fingerprint: "c".repeat(64),
         resource_id: "native-resource".into(),
         process_id: "native-process".into(),
+        required_output_labels: Default::default(),
     }
 }
 fn key(n: u128) -> CommandSealingKey {
@@ -96,6 +97,7 @@ fn every_identity_is_authenticated_and_cannot_be_rebound() {
         changed[name] = match name.as_str() {
             "owner_key" | "actor_key" | "template_fingerprint" => json!("d".repeat(64)),
             "resource_id" | "process_id" => json!("different-native-run"),
+            "required_output_labels" => json!(["inherited-home"]),
             _ => json!(Uuid::from_u128(99)),
         };
         let altered: CommandBinding = serde_json::from_value(changed).unwrap();
@@ -203,4 +205,64 @@ fn identical_raw_keys_under_different_ids_cannot_substitute_an_envelope() {
     value["key_id"] = json!(Uuid::from_u128(2));
     let altered: SealedCommand = serde_json::from_value(value).unwrap();
     assert!(keys.open(&binding, &altered).is_err());
+}
+
+#[test]
+fn output_access_is_rotatable_purpose_bound_and_cannot_drop_labels() {
+    use veoveo_mcp_contract::{
+        ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
+    };
+    let mut binding = binding();
+    binding.execution_id = Uuid::now_v7();
+    binding
+        .required_output_labels
+        .insert(veoveo_mcp_contract::DataLabelId::new("retained-home").unwrap());
+    let capability = IssuedArtifactWriteCapability {
+        capability_id: ArtifactWriteCapabilityId::new(),
+        secret: ArtifactWriteCapabilitySecret::new("private-output-capability-secret-fixture")
+            .unwrap(),
+        task_id: binding.execution_id.to_string(),
+        expires_at: chrono::Utc::now() + chrono::TimeDelta::minutes(10),
+    };
+    let access = CommandOutputAccess::new(capability.clone(), 1024).unwrap();
+    let keys = ring(1, &[1]);
+    let sealed = keys.seal_output_access(&binding, &access).unwrap();
+    let value = serde_json::to_value(&sealed).unwrap();
+    assert!(
+        !value
+            .to_string()
+            .contains("private-output-capability-secret-fixture")
+    );
+    let rotated = ring(2, &[1, 2]);
+    assert_eq!(
+        rotated
+            .open_output_access(&binding, &sealed)
+            .unwrap()
+            .capability(),
+        &capability
+    );
+    assert!(ring(2, &[2]).open_output_access(&binding, &sealed).is_err());
+    let command_shape: SealedCommand = serde_json::from_value(value.clone()).unwrap();
+    assert!(keys.open(&binding, &command_shape).is_err());
+    let command = keys.seal(&binding, &command("private", 30, 1024)).unwrap();
+    let output_shape: SealedOutputAccess =
+        serde_json::from_value(serde_json::to_value(command).unwrap()).unwrap();
+    assert!(keys.open_output_access(&binding, &output_shape).is_err());
+    let original_binding = serde_json::to_value(&binding).unwrap();
+    binding.required_output_labels.clear();
+    assert!(keys.open_output_access(&binding, &sealed).is_err());
+    binding.execution_id = Uuid::now_v7();
+    assert!(keys.seal_output_access(&binding, &access).is_err());
+    binding = serde_json::from_value(original_binding).unwrap();
+    for (field, replacement) in [
+        ("ciphertext", json!("a".repeat(12000))),
+        ("version", json!(2)),
+        ("nonce", json!("A".repeat(32))),
+    ] {
+        let mut bad = value.clone();
+        bad[field] = replacement;
+        let sealed: SealedOutputAccess = serde_json::from_value(bad).unwrap();
+        assert!(keys.open_output_access(&binding, &sealed).is_err());
+    }
+    assert!(CommandOutputAccess::new(capability, 0).is_err());
 }

@@ -2,7 +2,7 @@ use super::{CommandOperation, CommandStage};
 use crate::{
     ComputerError, ComputersStore, Result,
     api::{AutomationExecutionLimits, AutomationPermission},
-    command_secrets::{CommandBinding, CommandKeyRing, CommandPayload},
+    command_secrets::{CommandBinding, CommandKeyRing, CommandOutputAccess, CommandPayload},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -63,6 +63,7 @@ pub(crate) fn execute_target() -> PolicyTarget {
 pub struct CommandDispatchTicket {
     operation: CommandOperation,
     payload: CommandPayload,
+    output_access: CommandOutputAccess,
     authority_deadline: Instant,
     execution_deadline: Instant,
 }
@@ -75,6 +76,9 @@ impl CommandDispatchTicket {
     }
     pub fn payload(&self) -> &CommandPayload {
         &self.payload
+    }
+    pub fn output_access(&self) -> &CommandOutputAccess {
+        &self.output_access
     }
     pub fn limits(&self) -> AutomationExecutionLimits {
         self.operation
@@ -117,13 +121,19 @@ impl ComputersStore {
             )
             .await?;
         let payload = keys.open(&operation.binding, &operation.sealed)?;
+        let sealed_output = operation
+            .output_access
+            .as_ref()
+            .ok_or(ComputerError::InvalidState)?;
+        let output_access = keys.open_output_access(&operation.binding, sealed_output)?;
         let limits = permit.execution_limits()?.ok_or(ComputerError::Forbidden)?;
         let effective = AutomationExecutionLimits {
             maximum_seconds: payload.limits().maximum_seconds.min(limits.maximum_seconds),
             maximum_output_bytes: payload
                 .limits()
                 .maximum_output_bytes
-                .min(limits.maximum_output_bytes),
+                .min(limits.maximum_output_bytes)
+                .min(output_access.maximum_output_bytes()),
             on_interruption: limits.on_interruption,
         };
         let current = permit.computer()?;
@@ -148,6 +158,24 @@ impl ComputersStore {
         params.extend([
             ("policy", self.automation_policy_record().into_value()),
             ("dispatch_id", id.into_value()),
+            (
+                "expected_output",
+                as_object(
+                    serde_json::to_value(sealed_output).map_err(|_| ComputerError::Unavailable)?,
+                )?
+                .into_value(),
+            ),
+            (
+                "output_expires",
+                output_access.capability().expires_at.into_value(),
+            ),
+            (
+                "publication_budget",
+                surrealdb::types::Duration::from_secs(u64::from(
+                    super::output_access::OUTPUT_PUBLICATION_SECONDS,
+                ))
+                .into_value(),
+            ),
             (
                 "expected_binding",
                 as_object(
@@ -210,6 +238,7 @@ impl ComputersStore {
         Ok(CommandDispatchTicket {
             operation: selected.operation,
             payload,
+            output_access,
             authority_deadline: permit.valid_until().min(Instant::now() + lease_remaining),
             execution_deadline: Instant::now() + remaining,
         })

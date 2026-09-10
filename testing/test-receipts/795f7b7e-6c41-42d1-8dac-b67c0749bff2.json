@@ -1,0 +1,4581 @@
+{
+  "schemaVersion": "veoveo.io/test-receipt/v1",
+  "runId": "795f7b7e-6c41-42d1-8dac-b67c0749bff2",
+  "name": "computers-domain-format",
+  "checkId": "sha256:0769350694114793eccfa3be262cb0d75b8f9601b2daaaa0b7a33406bf480567",
+  "command": {
+    "kind": "admitted",
+    "arguments": [
+      "cargo",
+      "fmt",
+      "-p",
+      "veoveo-computers",
+      "-p",
+      "veoveo-computers-contract",
+      "-p",
+      "veoveo-platform-store",
+      "--",
+      "--check"
+    ]
+  },
+  "provenance": {
+    "revision": "d0a4f74706225c6159db77d02ca28dd40de02be4",
+    "dirty": true
+  },
+  "inputs": {
+    "plannerVersion": 2,
+    "scope": {
+      "kind": "cargo",
+      "packages": [
+        "veoveo-computers",
+        "veoveo-computers-contract",
+        "veoveo-platform-store"
+      ],
+      "roots": [
+        "testing/fixtures",
+        "testing/evidence-checks/computers-domain.json"
+      ]
+    },
+    "digest": "sha256:dd2f09b05e799607f4cb29dd974eacec6bc4f93711dfb4d7d0e99cf3c38483e8",
+    "files": [
+      {
+        "path": ".cargo/config.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9143bae8195b97148e52880a97fa655a00cbc38871016384ec259799ff2f7a25",
+          "bytes": 89,
+          "mode": 436
+        }
+      },
+      {
+        "path": "AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ea38129e90a3781b9a7cafa0b5f72620eddc53c628925d999d35f2b24b03724d",
+          "bytes": 16466,
+          "mode": 436
+        }
+      },
+      {
+        "path": "Cargo.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c6bd9de50cecb383ff6a4c538c5a3b4f1219d21fc10d050f8f23c9d4764c2eb",
+          "bytes": 431739,
+          "mode": 436
+        }
+      },
+      {
+        "path": "Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:625e679adff224cee5bcebb373aa895787a4e435900fd157de53ecbc5f8d32e4",
+          "bytes": 7425,
+          "mode": 436
+        }
+      },
+      {
+        "path": "agents/kernel/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1f94e32e7747564280cd78533bf057cd574f9eeff56d869161039d0118ddbb11",
+          "bytes": 1267,
+          "mode": 436
+        }
+      },
+      {
+        "path": "agents/runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2806596d740cae740c9a3e9c951f8e1bcfe35aec6b4ebc246f00ce1286d879b9",
+          "bytes": 718,
+          "mode": 436
+        }
+      },
+      {
+        "path": "apps/console/bff/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c3f8474eab58b54fa505ff0dd46e73de50c13ef1c333d025eebffa15c101f4df",
+          "bytes": 1303,
+          "mode": 436
+        }
+      },
+      {
+        "path": "deploy/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:105605bc7e4309293b9bcf929e8bc4a392a4bceedcc749ce7d237d3fdafc264e",
+          "bytes": 380,
+          "mode": 436
+        }
+      },
+      {
+        "path": "deploy/runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e0f58abae577eb5a8bc84bc601537c192ebcbf2863a3af8eb98c6c2a8eae766d",
+          "bytes": 535,
+          "mode": 436
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19db6b0da730cd9d819349c9020015dea4d76094f46b041a0cdf760e5738512d",
+          "bytes": 250,
+          "mode": 436
+        }
+      },
+      {
+        "path": "extensions/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6f0fe93c4ed4707f1d0837954e7ca481f699900f0bafc092b7030f4450647fd0",
+          "bytes": 386,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/apps-extension/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d50f3288aadd9fca9f0ad1374687c552591e7745f9fa181907649a0ab93eadf0",
+          "bytes": 184,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/bridges/legacy/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:39c13496f2298641f4ebe05857c734f7eb1d4b07c8b9fb6f7512ae829a2a049d",
+          "bytes": 600,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/bridges/stdio/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5df01f12b0b554024fb737677d60748bc5ff6e7182640f500fd307fee402dcc1",
+          "bytes": 518,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/composer/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d8a26fc8446bfdb6ff3252f06a2db51049b2a683bd974c374a976b231696baac",
+          "bytes": 398,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/conformance/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7ccc8d8bd5c6d71b8de32898b766e03862c7e6512470266e5aefe1ac545df69a",
+          "bytes": 1150,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e616444befb1b7e3fb9f3d6af3517d6b4c2579067fdd1980022138f202e1058",
+          "bytes": 1264,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06dfe452a4a33db478211446bff4f8a9fdfe532fe790349025465885af54236d",
+          "bytes": 28253,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b9d0ee136bd4b81542f465883fc8e940cd9aefc715760f156eed7fff5d17bf6e",
+          "bytes": 20603,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/agents.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:de6bb932828d6038c22cbcdda3e07060f3cdc041b64ce209a1b20efb9cbd6166",
+          "bytes": 4849,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/analytics.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:07d653f86dcdebb90a1455727a6b02321400caf50a6ad4690056948034a1dd39",
+          "bytes": 9525,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4133315a59efe6bab8453a71badbb720f56b0cdca5aa061545fb42a008bfbf3f",
+          "bytes": 29052,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/read_capability.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0bbd5b67545ab58da6ecf2ff4dc52146a26ab6b3bc742edffa19087d8a88f2ee",
+          "bytes": 2962,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:740964023f0b721eefc19e216b803850dc8bc0e82e3fb28e7cb0a07d6b069c0e",
+          "bytes": 7328,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/upload/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2713b715d058e045e895577619d4aa9f2f460cbcbf3292e41f1b22b97b82ab80",
+          "bytes": 6427,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/bootstrap.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1e094db44ad464bb89bd05ab261ff55a203cd17dcf7841021bce80397b1be4f5",
+          "bytes": 7042,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:83fe28383c98a3edf1c46b0817d51a778333fa0df5d15acca927b6771dba498c",
+          "bytes": 3322,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/coordinates.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2814135bff76c2a3fd203d81b5097bc13c60cecde3a2fb493f215b7f88097a88",
+          "bytes": 19627,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/deployment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7caeaf78f0103534bb14ace09176c2c4c14c2c5732de9bf5d856b42882a08e07",
+          "bytes": 23523,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/deployment/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2bd9d46e5656d35470bdfe002fe14d5c8a35353dbf2471fcf38e074e2209c945",
+          "bytes": 3920,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/digest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31b6914c76c1a017948ba2883c51574be3f49129f6e23568709ee31516b41149",
+          "bytes": 2765,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/docs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:51da998d790d9d1a52b1d6e0708e8ce787f2a22faeb9f1711d3d3a653c2c747e",
+          "bytes": 9574,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/duckdb.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b7301c5511a402007702ea95b36646536cd38cc3686351976ec94fc0981c21b3",
+          "bytes": 7049,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97c981147966f15b8983f4db46ef66d509115af170dbd12afdf54e8d679d2b8b",
+          "bytes": 31734,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/auth_config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a4ba4cedbc12a3f732c982c24a5a302b202be4aacb1941d1e4c6d378b1761992",
+          "bytes": 7349,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/branding.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:299f45fc799f359007b676635fa9ca2ad126ce07be325f10a887e4786c6819ef",
+          "bytes": 5549,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/composition.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a831a90c223a5f195024b2b413b350f4ede9dbc89fe14deebda80c1b31290678",
+          "bytes": 15760,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/console.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3963f45f05040c6ccff46a9fc6f778eb1900746ce5291893aa38dc768fdf959e",
+          "bytes": 1851,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/data_label.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:40f13bc722b399b2700c0193fb1f2b6bd65b4d1a40a4228676d659b67458eacd",
+          "bytes": 535,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/error.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:428c9650478997c360f7794614673ec4777c7a79db241e7bfe7d03475cb54a7c",
+          "bytes": 34021,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/ids.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9fb21becb6c59e9a7faa227524222f17fd0ad2fbf1ef3fccbea5395452604c6e",
+          "bytes": 11328,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e46176f0004fcd3b2f0d65636800589813ee36ce4d642f323b72913cc97a86f",
+          "bytes": 20165,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/recording_ingest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f50649a172e821388092ddbf3e03e2e071f13f4685d6b34a941c29487a7c373f",
+          "bytes": 2108,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/runtime_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95135b2aaa8cceb73dd0277ee8c9fba62f24edc9f26fd3a740208cd64ca754d9",
+          "bytes": 5107,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/server_config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ef4361775461ae75d0ae797c21380f553355bf3523cdc14a5ebb985ec7315e62",
+          "bytes": 21792,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/tenant.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:546cb4c5152724a2adf00ef51352f31d5ffd3a4995ec2a99c2d6b3540faf033b",
+          "bytes": 479,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cba7baa5d005c0c0a36e0adf397d67fc3166d3d85f7789410178db200919b11c",
+          "bytes": 80831,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/validation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0feebfa3bc825220d19111fed32613246dcade68cf569053ab40ec4c7e7a3c20",
+          "bytes": 47145,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/wire.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:28f0ba2fbc0c6cfbce8dc2d360c85dfbee18de17cf220cb71e7280cbe3db1751",
+          "bytes": 17013,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/generation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa69fec4382356f4ca328d78eca5c29f5c104ba97e3ab6d1c111ca5f476ce063",
+          "bytes": 1100,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e3d248db8b6f5706cbd05d8bc7aabd24e8d06861f9366c806c18277dcd0c9fc",
+          "bytes": 6640,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8f4584182cf71f693b42fdfc053f5ae4d2d781af5b0c26a2d8ce25839962d300",
+          "bytes": 33898,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/request.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f8e02d93edaf92b06dd4b8187951b163b945c586d30d21895dd14277a0f3b88b",
+          "bytes": 3215,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/request_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:de6b7da52f551b0fce4543a41b1e95ec930e2c838b98a18bba63db102f3b87ce",
+          "bytes": 5126,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9e8f99740c1032ac0470e9bd933e9d6e93cf70e0caf0a622885d582f048643d",
+          "bytes": 2360,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b50a36888cebfa0136f3796a8c5c545751b62a206b86398e3379b9bc9f21e49a",
+          "bytes": 12012,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/live_view.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85bcef90f1834aa703c63be281dea1c9a6205cfb18b0dbff90c29c1b1f6263b5",
+          "bytes": 31600,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/pagination.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a3d564a0d137db0d83af9c2020848a4f20d6d2d993451f3e65e8d588e46f735a",
+          "bytes": 2690,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/protocol.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85c3f581716bed023925b668e204bbfb10edd1a17ca7c778deeec67d33edc0be",
+          "bytes": 5587,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/provider.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:693d141de28a15a15cbf3ae3531235273f980c6ffa781843bbc0a7702e1f57ef",
+          "bytes": 2065,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/recording_catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:75142c71bc3875bcdc78cf2590f5c02559c29bf5c39a674bad298f69fdf16450",
+          "bytes": 3210,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/storage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:956555ed683f528aae1339c9c978e47436bba418a936f921eed538d7e54c933d",
+          "bytes": 5714,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/subscriptions.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3bce5077b8bf8d69605a0c3735cff2d832df2d7e130773454830ccef79de236b",
+          "bytes": 4971,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/tasks.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d0c01309c16724ede792e1e5b1cd23cb1f61dd070d4bc1c51b5c1eb24b38397a",
+          "bytes": 6795,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/telemetry.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f96142d7ef8660d7d2092b7eede1ccd2fffa6f652fd1cec32d908f5c3bc4e2b",
+          "bytes": 6159,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/transport.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:167c1c568073bcba66bd8b96456dd96dd12bab012708a52f9d4fa108ac87b2af",
+          "bytes": 7437,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/uri.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1763e9723053f083ad22d71ede25f0680b4cad4250a8451af9558583b02452e",
+          "bytes": 14954,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/usage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:39ad5769f53c44e2574c190b63fe4f59952a25b8e73a1facb9443b83fbde92f3",
+          "bytes": 5497,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/waiters.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:47f104c2f8ed7451fc31cdd6212ad16e4cb3d20908aaa4bcdc8db9fe291caab6",
+          "bytes": 959,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/src/work_context.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1d4c0b816e62fef7c2ba5e44334b6a30dd7b8dcf0b10588075db9ee35a825d21",
+          "bytes": 8820,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/tests/artifact_upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:533fb42d5a8d1d785b049f32305b765203a65f4b6f015cd09a318eeb5d40c534",
+          "bytes": 6525,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/tests/external_simulation_fixture.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:364c58861d541c97d4e3c3ae83df5964d0c41123f11135b02b0254e49cdfe59a",
+          "bytes": 2545,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/tests/sha256_digest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6697c59530fb249ee95ce12d68ebc47e0090ea3af8d46b8f7a9ab1866aecc24d",
+          "bytes": 826,
+          "mode": 436
+        }
+      },
+      {
+        "path": "mcp/contract/tests/streamable_notifications.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:290a59a5bc1b01383e8491939847c4ecc33ff3202dad403d1d8281eb615ec71c",
+          "bytes": 2665,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/artifacts/client/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b20f806859f510236deabdc19d79a934cfdaab1b4246b02f7d391dd767b97e68",
+          "bytes": 482,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/artifacts/service/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:25c2267bbf32fc4f6a275c8ae10f1bf02c9bfc1e6d4f6948a5a0458cb030fda1",
+          "bytes": 1250,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0864768c59a1836424e64d836894bd50d8aa4b5ec0a685715802ef9c8ae8186e",
+          "bytes": 657,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f1e01910b87096ce64551cb9874669d7d7845f6765283ebc80908bbfdece58c",
+          "bytes": 990,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7e5165dd81b630d24a582a3da10bf8a9b557945dcf7189fc73a01fe9fcdc0540",
+          "bytes": 38760,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:728b0ad2c9afb7ef2f253625eb2886423ea92257bbc0eb4f837551538b1ebb2c",
+          "bytes": 365,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97253215011f60be54669ff322605d24a1b0d0ca7f5f7709975cd0d33934aac7",
+          "bytes": 318,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:45b73328ddfaa0d2b69012011d7788c3d92343a02552a19f86540f9af70dfcaa",
+          "bytes": 5024,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:baee5db47a7259780cc209089edc7eb0af34d88eb31b260449a330f1103d1553",
+          "bytes": 1957,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/automation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e14a4738b50fea14d5d35741050fa43a66af6e5db84efe527736b6cfbee121d3",
+          "bytes": 5626,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/bin/computers-schema.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:568ca34cca80f3d02a9c5bf2753bf2530eca6d45b61e681fa09b62fb4ac2e83f",
+          "bytes": 214,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:20225d6f1eb14d2cc6d8de641d65d82e2daf62c783016650316cf90f1735bf6b",
+          "bytes": 15371,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/pairing.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1341f3910d6fd7657efd20edc1386550bded1d8dacc1a9e9364d27c2fd1977dd",
+          "bytes": 2433,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f5121723b51a96797ad5bd3b891568ed5de4d1786c3ad3c93a1aad270e8fcde5",
+          "bytes": 617,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94d4bf714b49bc8a13b831186b775e52d30dc44af0fc11b916f7597c82a39f2b",
+          "bytes": 391,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ff03dd9474767d9eed4c158725ffeb5362a1dcc67c5f5b68f67d5aec24a80011",
+          "bytes": 6609,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/src/launcher.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f2b8dc6743fd7d28421cae09ac1f1ee4e94d571f7c4b51a4dd34a89aef4adcc",
+          "bytes": 6077,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ec0ac36e1741d5d218f810778ff352232561a158640738af4d7e4e018d7cbdd",
+          "bytes": 466,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/src/main.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:16f103aab1b5521489b9f84d9153d2c2b757a84c10e620842cf0be4624dca76a",
+          "bytes": 1031,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/src/protocol.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:13c5dcbe2ccecc0824a431a4f3aa8375ec05f6fa4d05181efe2e50319ac9e7ac",
+          "bytes": 7969,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/src/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1b90b7246ff1926a3276f65b96a469417c98cdc01c49e110e0fb53ddf7270159",
+          "bytes": 5343,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/execution/tests/container.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bedcfcb0927ff3fc098e210d388a1d62a6f22d5315ff03ef4393a7223605a6e7",
+          "bytes": 5669,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:254acef50636464cbf898d74e4ecb3e4bfdd957e67a9fcd16ec88056495508b1",
+          "bytes": 588,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5310e1db048c0b5d1cf2d36e7321de530eb3566e5fd61cba2da59c737cf586bb",
+          "bytes": 713,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1f510cbba857f27053018bc80d4c27f6938725268cb31bfca737858389a81acc",
+          "bytes": 10142,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a788153aa33b7c596c48271596166077319bb1d8ef3bd9a6d8944711e1501817",
+          "bytes": 2381,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/src/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1c563b15e9a71fd89b33f83c8c99d7e6b45022111aedd4777208c630275eebed",
+          "bytes": 9144,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/src/files.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b8bae898bde1c18ff2087ea46485aff23f5ab31abd0ab67375f1677d386a12ba",
+          "bytes": 4768,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/src/main.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:468ca70ab94f27765a59c4252773a4776f0534e40780eb582578b58b2ff9ce15",
+          "bytes": 887,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/src/process.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e789279f1aecda51f982b5fecaefb5f70c79dd7e4337a4de219b944921fa299e",
+          "bytes": 2379,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/src/runtime.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:05271a40587276673948e330f57815cc44c8b3eccf1d379ccb7ae4e2d79b1340",
+          "bytes": 9475,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/tests/native_host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:00a551e733b8d4a44aa5c0abb97a91046ba11710d4e8fa97398e65ee65d83d76",
+          "bytes": 5015,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/tests/support/cleanup.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d8c85d15a6273c1227f09b00943c863797aaa05ab6c391cf67f62c99707eaba5",
+          "bytes": 2335,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/tests/support/faults.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ac3e377a2218dd52f56f1ddf57abfcf8392e39c10c60f4b89a1b0d38bf13f400",
+          "bytes": 4116,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/tests/support/fixture.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9021448a82f12e4076733431c17ba01794f938cd8bea72c0c92196743bb12672",
+          "bytes": 12767,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/host/tests/support/trust.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1042d0c79cbbe55c08f80ddd7afca4b07faf4a37de9a5480f21e2afaeeab3d07",
+          "bytes": 3021,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/images/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b01f74e58f6ac1f85a2c82683960c1a55682d0b02ece50373d471d1cc6f6f0a2",
+          "bytes": 2065,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/images/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:53701ad1e6dbf19233657c2eeb92a0678b341cdfd2ac2433b6f5af99125cad9a",
+          "bytes": 2240,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/images/retained-home.sh",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19c41ea47c803726c4f9f8e4888daf9080cdec5e0345790214a4bea770d26081",
+          "bytes": 199,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/abort_queued_command.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e85eb931f38a028f4038154bb6e8f2896749ae769a77f3bb5b29e75c9c4c11fa",
+          "bytes": 940,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/abort_undispatched.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2078f6fc470fd92d3fadd363dd846a1dd2ed4dbc69603e00bd3f6e316546180e",
+          "bytes": 1101,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/acknowledge_command_task.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4831a8b11fa341d4a109f3ccb8be698e74dc21b27aa0e294bfccf467cd7fcb86",
+          "bytes": 479,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/acknowledge_task_projection.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2843fda8f1b34f92f7456c7301de2bb170f425d7e066b3cc8bc170975474ca36",
+          "bytes": 449,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/attach_command_output.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e2cf4a7bcfaf4ea4e239ebae42f4607f0360d877e6ce7b6b14495a76ca503bab",
+          "bytes": 785,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/automation_grant_policy.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3f0d60b70602b4b2c58bbacff634dbbf4c14c5125110a64785c05875b2a8d348",
+          "bytes": 797,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/begin_cli_pairing.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a2fed10780b305e684b5e23e20b1b6c639e46d8a3d60cc97fba5cd648820a7bf",
+          "bytes": 1188,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/begin_command_containment.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:df4d50e9e676a97ef8482ff2e25a59dfc7beb45d3bae4307ba87f5f2ea60863a",
+          "bytes": 1112,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/capacity.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c56a0d6b5691eb8957dd6b220408dbe350c96953c6f5e785e35c9d1091ec7b3a",
+          "bytes": 553,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/complete.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:77b3445499513005e70ed5303a53f817dedd747d058a2b50b382a0c74234d509",
+          "bytes": 138,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/confirm_cli_pairing.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:187eb55f7466f022d54f9f53d728032bae48cb82e0bff3b8062d6a8442be092a",
+          "bytes": 3038,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/dispatch.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e4046dd6b3aac23abe7dbcfa7e4d2e12aeed2f942c00eecd1c6068de6de9758f",
+          "bytes": 2028,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/dispatch_command.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fca4ad53474fd78a9664f5033b9634fc7320048511c6a86f2861e940b00651d4",
+          "bytes": 3860,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/dispatch_command_stop.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3470dc9dada3337a40d8b528c48aecb2ca12424bda0741e447e2912c603c1e35",
+          "bytes": 1615,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/issue_automation_grant.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:031fafe1b31a5106ee83e98e833833b792e77a4d47bc8068f5058c123f33e976",
+          "bytes": 2807,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/issue_session_grant.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:82293a25026c13dc3f6ce109eec7dca4010a9aa3f84ac0b67016355c032d1b3a",
+          "bytes": 3036,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/list.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:38a3d839d834a7e10285aac21d63eb1f2cfb6514796c8a9fb3eee268cd55747b",
+          "bytes": 147,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/observe.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7c4daf78d5eaae8bc8379121ee42b712d37b9e3611958c40645b13c89e114bb8",
+          "bytes": 2021,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/observe_command_containment.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa08ec6f5025d422d77c9653ffa558194ac689c2b26dcf74c1b59730ef60cbab",
+          "bytes": 1854,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/open_cli_connection.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:960fdb75a92586baed6e1f3abbbee4e5b6f6f7e8f0bc38b939de177e50efb527",
+          "bytes": 1469,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/pending_operations.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1e1f6f38929a272088421deaa43adc24e2dcc9b77c2ce87c403efb182a73d241",
+          "bytes": 379,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/queue_command.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a0c245180c7621b4a6617e802c30362eb858a2677829bb6a5b94cd05e67d248b",
+          "bytes": 3058,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/queue_operation.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:57d9d40df98360829f6e7a00e30fd60d8e70e8afce31e5d54a1979eb0384a810",
+          "bytes": 1945,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/redeem_session_grant.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cf1c416640cabc60ac9e41e30dde54b2e52ed135e74fbd36bdefc65431c12d47",
+          "bytes": 1222,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/renew_cli_connection.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:65c4ae30282e64bf83e53826eeea1abc2b2b0106c95f388947cf638e8db19030",
+          "bytes": 1072,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/reserve.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:770aa7179a19d9e626b4741ae8dc168b74a8564d6593a230a8f7f81c1333f138",
+          "bytes": 1220,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/revoke_automation_grant.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ef957e4bcfdf3526b5e5df5a04b3c40f7c5bb6e0446cc5841aebd54fb5ac9327",
+          "bytes": 1507,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/revoke_cli_grant.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c2834cf2b4330fb9aaf0ecde092e89678c1a2cda15dfb900faced25b2f63ef6",
+          "bytes": 409,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/revoke_session_grant.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c0acc6b6c241f458b4b13a69b6f2e7051e348c54c048841df6ac46b4d766176c",
+          "bytes": 499,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/session_grant_policy.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c8a8dfdbdc05afb9e63f4c20eb12370d5a54933654dc197e3e8c87e6ae2865cb",
+          "bytes": 628,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/settle.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b2a88299522f6934a0d31276c9573fd2698281db9ece58f1f1b023e2bd7a7945",
+          "bytes": 1816,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/settle_command_containment.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e8bc95e1e0719055e6ac8a4781be2e4ff5e81b603384a9813bc13948bb9c9e6",
+          "bytes": 1977,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/queries/touch_session_grant.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dcfbd6de300eaa955dccc01229ffdc9d5c97072ec84c33a4efee6d8df3eed0d4",
+          "bytes": 817,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/admission.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a442917f0dc8054bffb30fd8ed935408a7e36f49fc6daecb4bae233a3a5545d8",
+          "bytes": 7111,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:516d58917f6211b9fc0862f6addc364c62dcc653eca9d5fd3f4249b02faa700e",
+          "bytes": 3583,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/authority_snapshot.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7f83ee10e278be3378fc2fc958ac5680b4f88b3b96baaeda21057f7e5873e503",
+          "bytes": 8113,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/automation_grants/admission.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c0ce39feed4b2d7528110120e7ddc829a1098f127c8a0375385003f402dc31e4",
+          "bytes": 12480,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/automation_grants/authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d6c7d7834cd1a79ea1f39fd209b45e6cbd4ce799bbac34be25c78d1aa2f94ac2",
+          "bytes": 16987,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/automation_grants/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:478614896f2d1b69f860ee6af004d8c709b36c6921e35f95148c41fed1d9324e",
+          "bytes": 1025,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/automation_grants/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:329eb4a22ab7cef1f70225cb9c4e3676a352d255e70c20b0cc6dc0f027fcc455",
+          "bytes": 6454,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/automation_grants/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5364a0981031541068e7e6e0cfdd43fab77612a8a205bc09b39b7f171466d580",
+          "bytes": 3918,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/capacity.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c5cb2e9c40c7844815ec62c5494a62552fd2d94aefd144640f61b0df2f91e2ba",
+          "bytes": 3708,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/cli_grants/access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:92839933d6215993053308456a5f5582ee6bf97693b899363203451fedfe8d90",
+          "bytes": 8481,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/cli_grants/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:44aa0377d75b2d392c890b6aba89aaddee337185756d705a88b34b8572c49744",
+          "bytes": 752,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/cli_grants/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6554256a273ebb629b8f96a9e1fc97842185de70b2dd560f3a9914efe050040",
+          "bytes": 4354,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/cli_grants/pairing.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3c6ccac2e59c69710ab7e56e5629d0785bc3e32847edecfa86a6176e46e37f7d",
+          "bytes": 8602,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/cli_grants/renewal.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f2fa70897fe03a911b3454b14cde5b4b16b9134cc2f06c82f83e6f11bb926bce",
+          "bytes": 5153,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/cli_grants/secret.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9a9e26748f1f18357137a0bdf490c5ef7398977197d7a543797f813934a3f64",
+          "bytes": 1352,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/command_secrets/cipher.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7f22cbd92243b6855798d9ef5f05ef83737c7540a90dba0c566431e09c29cdd2",
+          "bytes": 8750,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/command_secrets/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4e6fc199a78382c4c7dd7dfb44084ca1b62f37e9179b95d60ab560657387d33f",
+          "bytes": 416,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/command_secrets/output_access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5b398d583363291345d905f49a5dde210393dce3e498b8eaccbcfc86e61425e7",
+          "bytes": 2861,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/command_secrets/payload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8ffe7a7f789e5e854129099271de83245b49e1a5e74d4e6e894987327fd1c726",
+          "bytes": 4628,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/command_secrets/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:798e29fe8bdce56fe5a0f4a17137559ab84da9b0dfe045eb6029294968585d87",
+          "bytes": 10562,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/admission.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a4662da68e74caf67f58c3ce8bcdb2be52dd00f051ca11aeabcf594e8f2a9057",
+          "bytes": 8646,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/containment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:07d5fda6bd04d6b0c7a7be10151d13754a51ff8298e9392085d1aa59a1ff420b",
+          "bytes": 6317,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/dispatch.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:26fe734a51d2f255ee0aba2a9ec5ca0f03a14f262d1d05ae6621a8f42aea37ae",
+          "bytes": 9592,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/journal.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7e85c30e4df08d978cf6f63db10f75a0033c2ac514cc048ead43a20f90bb84b1",
+          "bytes": 5199,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94676ef6f66cc752f5d9f511dbf63eb45fc412248910e2c28b65ede8a7fec1a3",
+          "bytes": 1562,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0aa2b51923fa76669e2d7eb7b238577e9fa671c70e7b95567743d7972bf9d291",
+          "bytes": 13448,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/outcome.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a952882a8f129fd8ecca9ea5108dd6c58a016c6484746fe019bf5fc08c867532",
+          "bytes": 1111,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/output_access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cb5669518c66dcb73d1ca04c58bf5f5f2be406824bcb397469f4e274ed3951b0",
+          "bytes": 7504,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/settlement.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:67a4ed7da96aea1dca9d81f532d8f8915bcaf132587813131ad1c36bdcd2c854",
+          "bytes": 3826,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/commands/tasks.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:47988a61f7b6f2637e75eb9905ad21753cabf3f1b42739b77912a6a59b3a570d",
+          "bytes": 5075,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/control_authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3b43d167044cee2e918e8cf2aa8255c8039072ec83ec9558fe593c7aea1c5a92",
+          "bytes": 4049,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/control_session.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d1121e2575078182f7e5593ccfef059a50eb49329e933afa2c88efdaa2ab155e",
+          "bytes": 2000,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/current_authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8aa81cfd4311fb91b19e9f3a6d5f8a7b379c3f91b8316b0c983ccd3b9b2ea4b2",
+          "bytes": 4225,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/identity.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eb048f5c641404d940125d54e280fc6214fb6d606bb2c5c08bf543e0697dd7f4",
+          "bytes": 2165,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6bbf3a0bf9cd53fd7420393f070bab23e10df4b53c467322d539840065ea630",
+          "bytes": 1950,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/lifecycle.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eb4d83695dc3aaa7f3ae8a2e9ba9283959a97d81196186aaa267a6fc42096c22",
+          "bytes": 8881,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4510a7cdd631d3798c7db4ea01ebaa7d1fe9468cdabe6bc6511451610e35e926",
+          "bytes": 2399,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/operation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:79bfdaa66c465aea0238a4d83cbf673e9d97375e60b57c9907ccf11a6b219428",
+          "bytes": 6086,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/operation_admission.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ea6ff3f9d451cdb91a59e9cbc5fbed496b475b5a5c9d96362978beca2fd69d0b",
+          "bytes": 9653,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/session_grants/admission.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7b12db77fbfafe03a5019766e2356faf9e251d2b8a4feed39385172795b3bd25",
+          "bytes": 8851,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/session_grants/authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:101d28f22dec2968e6dbe3c3fca754793ad7291e8f56dc73eaeab803927a76ad",
+          "bytes": 3354,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/session_grants/inventory.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:71ddb54b10dbc308ad21632d6615847ba749d08a7a1c2f94cf52b3e64368e77f",
+          "bytes": 4782,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/session_grants/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7423de5cec86a44c15e09462a57c6788c695c3fc3d7cadf6e3b56caca09a19d8",
+          "bytes": 918,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/session_grants/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7148e0977dd25e33c7b507439e87925031aeabffee1eb98fba89610edbb03338",
+          "bytes": 2820,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/session_grants/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:18c72854807ffdd7f002e4598f1b0c2db1246b8ddf8328821127279e3f2d186a",
+          "bytes": 3185,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/session_grants/renewal.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9e9b9432737d659fee13aad842defa59e3b107c33a2285df9d5e24e032621517",
+          "bytes": 8666,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/session_grants/secret.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fd3d6a8d4ce2e6755b3c1bddc1502ffdf573a343996ec9f7805cf7088fdf5bc4",
+          "bytes": 1230,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/store.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:154f8630fe584eda26ac349ab30f74215ee63a6fe4a99ea9cbf2da6b6a4d553d",
+          "bytes": 6762,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/worker_journal.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f15b55a3e7e25643fbac39a3d6920cef45d46b3b131c42a76b1e8b3fbfa9f0b",
+          "bytes": 5011,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/src/worker_queue.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:768086cd423e5dc2937c0375dd9ed738e365a80d2822c9f38134caad2d817546",
+          "bytes": 3878,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:622b49a56cf4a63052675bf8f0f9791efeaa49b37cc1b3d8d78c4b4802db5cb6",
+          "bytes": 945,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa5333a81363ecc035d68ea89bd17291334d3262e014650e3425192ed752fd26",
+          "bytes": 716,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:684647c4d21c1da863c4045206fd57aedbb74b3cce80c477df2b0fed745e096a",
+          "bytes": 17768,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8318390010d241020e209d761c07334eeb3fad72a1e111b7dd0768d61a7f2354",
+          "bytes": 1222,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/command.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:15d451af205382a359d952ab4d3651a2389a5eaaec55d13f7c53d1aa396020a7",
+          "bytes": 2423,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8a5277bc5d9e2ae7cb595028bfb1f8d49a5bfe1e17cde8cd97c8a5a808b66ad5",
+          "bytes": 535,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/docker.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ef8e727c4c824664a4ed15981d664fe6118d9311891885dfef303077ba2930df",
+          "bytes": 7041,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/docker_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f17690434f3d1aa9a39220a9e57f3af675cfc76b5f9b0eb8e12d38d322b52779",
+          "bytes": 2477,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/filesystem.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e325ae4861dd9cf389ec3b1fc4615dd5032c5e7b4c6391d1dd03404643fb3da",
+          "bytes": 10696,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/filesystem/fence.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ffee2fdd7727659add4f6ff466079388029126ed6943190aca655d42e73b14a3",
+          "bytes": 3240,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/filesystem/loop_devices.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:54d6d3ccf4daadbf6335d9f3987dd4067573530c3a49109d1a39d990da4d23aa",
+          "bytes": 4061,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/filesystem/recovery.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:08212dc64c82abe08724366e2d8534b6d94d3e07fb5a61e54dcc9970e469a2a3",
+          "bytes": 4068,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/handoff.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:36bbf7f3627931e30e6fcbd3e796f4fa23fbc750a111d31dd7d33e82f4e9a050",
+          "bytes": 4917,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/identity.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:21f80050b73505e5dc99e646ba1024828dd6da277568b23dc3deb0e4725765e5",
+          "bytes": 2051,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/journal.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:27c8eeb04d9736e8315ab8376581f5e9c2f65c9b294bfeab1520832d976c80e5",
+          "bytes": 16751,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/journal/handoff.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5b0f38fda404985772da86a254f9a39665b3bcf45ffd388cb7b917a350421c8c",
+          "bytes": 3856,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/journal/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dbce757f75e97e6bb0227f2a1c41b3a31c91f0fa3d4fc2bb42a4ec09097a803d",
+          "bytes": 9434,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5233ddadcee766d3dcf16126598053a3b295c629270009bf21c594cc0b668b9d",
+          "bytes": 1416,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/main.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:93c7efa9950ee651480a9ce713d6aeadb6ade8b046cbce6c9f3564ede0a6f6be",
+          "bytes": 3820,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/plugin.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0d00f7fe9cc6809c995ae7a39c9c1dce8849a1d488b19989e4874789905cd460",
+          "bytes": 5434,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5be790dc2fb69d18718491fac79aebff60c68d13111da3973dc08785bea5e6e0",
+          "bytes": 7148,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/src/transport.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:298b6199ff2eefdfd2ee8562b3e6f24d57ae7f77ba850884ed2c437878982257",
+          "bytes": 13807,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/tests/native_filesystem.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:911f8043f7df08f06872c680714603d9aa66b013002efa6c93a0ceb1c64fbe24",
+          "bytes": 11968,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/tests/native_service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3c1721e30c398d2ed379683d97e4f13c3cdc92623679397ad2ae519a9f1dd20d",
+          "bytes": 6823,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/storage/tests/native_support/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8d58d69c31a49970688b1e72c17bcc6a34fe2cd300782abdc18291f32ed9f2c9",
+          "bytes": 25423,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/admission.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6f90865f5542269711af810f3f2cc183d6d97a27acfeaf1ba68d98822c83dc20",
+          "bytes": 7522,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:922e34653aba8cfdb5dbb9376ee271d9d26d08675f9e18f6a4c5ba835d4fd5e8",
+          "bytes": 2588,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/automation_grants.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1c7604ce3a32e0190667d5672104dd9716db95bc989f679bf7312a87fca3a9d3",
+          "bytes": 13464,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/cli_grants.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9156c9b252d865457f033cedb1d1dc528bb0bd482c786d171f47b55330be6450",
+          "bytes": 18406,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/command_containment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c81d9ffafbc99c8169577091647d89e73cff86c6842e3246383942b167cf0bf2",
+          "bytes": 15870,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/command_output_access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06ced723004ddc2205d25d25b6e66eab34170cdfcac0c3085cdb960899b6da05",
+          "bytes": 6878,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/commands.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a63f893ce45be45008460a7f91219d6f010678a5eb6936385e8c33e5882a4bce",
+          "bytes": 16272,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/current_authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3b0575de3110c354fd5f06052d694684388f03d711120ab509eebd7c64ad5ba8",
+          "bytes": 12941,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/lifecycle.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e34d568bf8a4f97b9e07534f1b1ff05968ff09f4b4f2e7d88f5865abe6ca5adb",
+          "bytes": 10853,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/operations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b52434c9d79663b10ae653a9b0feea4f1ff425f16ba09310e9853dab7248ca28",
+          "bytes": 10232,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/session_grants.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a9b0b71c38e352b920184b2dfa025156e432e1dfc3219d6cc07e2939d4d6e52a",
+          "bytes": 8901,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/support/automation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a1808d75b44cde677a6d0bcddf7253d2d68b0a9881736655c63dea3b6627cf93",
+          "bytes": 2431,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/support/browser.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3829be784c61ad84bb2cd1ae63798f0f3d5d9ace063d3c4f72402ea74facb9b7",
+          "bytes": 1891,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/support/commands.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6b95ebf10f0d29e5725791e397218f6788d2c3599cc039f60839b79b84e3d4e",
+          "bytes": 3216,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/support/gateway.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:249e9a6dcad7679da2ec5a5ec3bc54997470d7782116b557934e1c0be257169c",
+          "bytes": 8124,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/support/grant_limits.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:92bf5c4a45dd9a21cf39302794b03c84c7e78cc0adbc1aaceab4b016e3dc72ff",
+          "bytes": 6564,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/support/interactive.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0792f001223da8d62481dbcdb5ff143704e6555fd5421ca00a2b6b89c0eb4069",
+          "bytes": 2124,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/support/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b09d7ed0db8a01b00ccb43b76a9ff057178949a95946a7dfe206a22ffd3bcf50",
+          "bytes": 4292,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/support/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1548dcfe3c51b97a1dbb0d7437c38033389c748b9e761dcad50b7f33ec0b19c",
+          "bytes": 1612,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/tests/worker_queue.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2efb604fa2d77d7afa8924317fe961c0e05193c3c74d413e1615bfae5cf361a0",
+          "bytes": 6528,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9f9a9aa5b8846b5c2469c112ff7164cd8d9506c0d9b75efed41dbb1908c27446",
+          "bytes": 648,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6681124ea0c6c09c86f846ba83ed512837bffa1a674e592b126bf911310750e",
+          "bytes": 902,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8ccdeb04c0b5f4704b09fb90164c8064fced65e4c9a3c7ed77a78b49e2deab02",
+          "bytes": 6034,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/src/cli.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a5703a6881f7d4c5b2318a5e82bb96400f09236cdeb3d523d5d2cd72baf6f2f1",
+          "bytes": 5220,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/src/cli_headers.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:722ec1eaabd7a242002a1381624ba3a8b28bbe609c43c840c7b5b8f324f7f8e6",
+          "bytes": 4963,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/src/deadline.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bfcdabfd780414ae3197e0cc1e3c7b5cbd48662b8cf98308e722d0afc6e42bed",
+          "bytes": 4336,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0463d768ac3e638cb833c8e7c4b8ace8a9e098e723818dea6f6f21ce81d0585a",
+          "bytes": 811,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/src/relay.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fd10a498833ea4834e8829e77896401f2181331aa68786514d9940386ac06f4b",
+          "bytes": 6465,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/src/upstream.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:237a337514148ac96f2279ffb21b72e3ab41a0642535fdb383dc7fb22eb725cc",
+          "bytes": 3978,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/tests/cli.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d3cb7699dd2cecf5b43b0caa5709a280220fd993a477e1b18c02c58145584175",
+          "bytes": 13161,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/computers/transport/tests/relay.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:973a77862f14bd94f3c011a73ba253f88d4240325d9b6e4726cd24a10bc1217b",
+          "bytes": 11827,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/gateway/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cb47c98fea80c1a41a5a3567522bc911fc4c79536dfb945d94e187fc8421cdb0",
+          "bytes": 1895,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8a282421cc4eacd6e1fa3d4f89dfc11ee4e66893d35bef5dd628dc92fcff2a4f",
+          "bytes": 556,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e82d18fc53d606e8cbdb9ab66da2c6245df6d762817f2afee69c0746e52a2038",
+          "bytes": 251,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3698502688fb26cb8f267bcdfcd9a1e6c0cb4f356ebb84f716c32ea26a22d9e8",
+          "bytes": 3019,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/src/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99111a04d2950c46e41a3280a671a8d11e5e38394c87cd432457235ae11c952f",
+          "bytes": 3422,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/src/evaluation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c8f2ad276760b0e1c369db3321855440fc51b4468e067c18365710fcfcbd700",
+          "bytes": 32714,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6939e1cd0c31cb3af142947f77211bb0400325b3fe20b321aeeb7f6893659d4",
+          "bytes": 408,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/src/session.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0acbfa0fbfadb9c48cb3446fb0b29a53ca83722ab9d83bcd483a69eb9e95aa00",
+          "bytes": 3216,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/tests/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:151739ca1a19c84ed5a9aff04c84b5e6263bcffbcf9cb8e94c90ca9b3d4045f6",
+          "bytes": 903,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/policy/tests/session.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:de2ab39b42ca2b562d8e40fdace99bfa74d29260bb100f2c61265f4fc67923ec",
+          "bytes": 5296,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/forwarder/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1fd5782ef727d57295b4f29016bf86c6754a833fe3c890303bd5fe9531aa4d78",
+          "bytes": 1216,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/hub/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:359bbbd0684a5c65beb84e2d255b69091b1dbf68b5cd326c7badcafd0ba88f11",
+          "bytes": 1718,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/protocol/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:411dab3d469273d4663bf24daaf70a84bd89c09464ac98854aa272aa61aac454",
+          "bytes": 280,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/reader/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94a78aaf3fd108752729b428744114ca1489c77ae7908ec5ea7d7be61f1f790e",
+          "bytes": 588,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf489348bb63113fb7e713e49e02ff38ee009dc435c6096a57e9e3b23ad998eb",
+          "bytes": 673,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/recordings/video/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c4d78e5920f5d4c7c3a7cc6437daf56233cb0fdfddf0a1a48fe645b8a3319b0",
+          "bytes": 582,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/runtimes/computers/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dfb135c762adac3c37f796055595ca8f0250d99deb743d44940f65fc47012013",
+          "bytes": 1418,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/runtimes/duckdb/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d7a8b4c7b7068d05fed77933577baa7714c85cf1bc937792d291f0ea145484a",
+          "bytes": 368,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:596640dce9248c0ae2c5ba8e98cb1905f978e2ed5122d551196ec573d97b97e9",
+          "bytes": 677,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0000_schema_migrations.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:34abeedbc054293ba491c9f1fc62b539f71a41852893f5f8a461cda52f51d0de",
+          "bytes": 834,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0001_identity_control.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3143273473c04cc336aeab9cf7f0af83b419f225a05e4c233cee68f902a9b2ee",
+          "bytes": 8433,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0002_work_artifacts.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6b0b1c47d67572808f78b3a9d9564a66abef817267661d2cd0579eb49d3d19b5",
+          "bytes": 13190,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0003_recordings_agents.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:edc73603790c95e24a98eb29bebc2da5317de38437ab7296aa6183e428bdd57c",
+          "bytes": 6835,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0004_graph_edges.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:770139a4520326a253d3f990bece9baecaaa5ece6d97d0773ce0dec4d5bada90",
+          "bytes": 6241,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0005_search_and_counts.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06cf421f788558b1b0766bc836d0c7bda002ac56e6e70b6bee28f2f56285fccf",
+          "bytes": 1221,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0006_gateway_control_plane.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dd7b256906946ae5f285d7be5450a7a8beead1b6df9aecdf229ed9937854bf3d",
+          "bytes": 3154,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0007_artifact_plane.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:515e3e124b5a6b169b7445e30bfce8c8eab86096d6b92f6f66f91ad770430531",
+          "bytes": 3387,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0008_task_runtime.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:03840c761c2dd8f685c4ecec1b80c02a3fb56c05027c2c527edc3d60f51b59ff",
+          "bytes": 1233,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0009_task_inputs.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:784f1d1a8607e285b584149f4084c8d52f037fa1c96bf30b3758c1260130fc86",
+          "bytes": 996,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0010_agent_runtime.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99165577af8fbe14b4f279b273e18286412d6227d13723724a6fd5b64f6280e5",
+          "bytes": 7581,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0011_recording_plane.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95adc2d11a30c3eb486aeffb1d66caf5c53e85b1c1a554fd8053f6fa45488c53",
+          "bytes": 1705,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0012_task_retention_pins.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f8740fb85c25c9f7de3f1c240b07f015f7c6c77da6302e8d6f4a7ea499826803",
+          "bytes": 413,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0013_gateway_runtime.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a97bc9ec7be3e71b2b79dc48baa5a7cdb7f74c83f9052dffeea828bc94e84802",
+          "bytes": 6037,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0014_media_artifact_completion.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:76a37ca98ca9dfc17600f24097dd84514e154004e6ba37ea444f6810761f2c08",
+          "bytes": 4319,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0015_domain_usage.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f81ef8ea78a04dc223bb5b7dbe4df4df712d1d97f8994f9548fdf1cf4b0549c9",
+          "bytes": 1685,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0016_gateway_refresh_tokens.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:af2b550a5f6e4004c3abd254fa1b24b2f297026d68d1289336f9131a945ee0f1",
+          "bytes": 3317,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0017_coordinate_operations.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:32326c0ea103c468955b8c1627982dee7f5cbb0ef0d096bad54d85b623c4f4cf",
+          "bytes": 1505,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0018_map_domain.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:283ddda56e6c9e7acc7fa3aa2e058b92d965dab8b3a232289187e86f3598a1e7",
+          "bytes": 13062,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0019_time_domain.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ca4e0601e3a379843062257cb8f3bbcd2631cedf163fe05dbebbe7658e221d70",
+          "bytes": 10619,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0020_audit_write_path.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9fd45983c2570ba208fe64d1c3658d42a6a22f8bd4d918fa3b532eb32a6f80ba",
+          "bytes": 262,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0021_recording_ingest.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8ba3dc62277f216abe132cd349f01928bc9aaf163d65655ed049ade79ad10a85",
+          "bytes": 4324,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0022_recording_ingest_quotas.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ac5c64b1c7291d2941a00e972bfd6767805a6115d3bed0564db0d5b350195ef",
+          "bytes": 455,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0023_recording_lifecycle.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:20ef86ede4d1e850819b36cf7861f78960ade4941d5526f7718c5400df5c32f0",
+          "bytes": 867,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0024_work_context_governance.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:48c2ab9d29ba87970ba07d7e8d90482fabedd6271ad83ee6156b539490c0e5e2",
+          "bytes": 16818,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0025_map_authoring.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1c8d16f55818393ead9fbe221304307e2fbde6e35eed59f8c86a1a4ee17baa4a",
+          "bytes": 20820,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0026_map_authoring_products.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ae5bd6066ff89f0ef427027359b5381cc278d22457954d2ec6898b6668b11502",
+          "bytes": 7043,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0027_frame_world_graphs.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ca61a04cdc4e187b38d1e67e8939d4ecb88e1eb91f7c69f17d1962c42e185489",
+          "bytes": 2983,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0028_mcp_streamable_http.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d25f86611329bdf386be7b92a5ba81477bf5124c57d4180bea735c1c3064d0ea",
+          "bytes": 277,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0029_recording_blueprints.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6f0b74a41d09b34ead9aa519d3e198a3a45c05b7ff23585ac5792eefae886d97",
+          "bytes": 2209,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0030_simulation_view_reconciliation.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7a3eb9ee058a8e3911d4319bc20a16f464099fad4859ccbc315bfddbd09ba03f",
+          "bytes": 2163,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0031_simulation_view_desired_digest.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:16415e58588554880b6aa6ce19b305389ea1acd95c25181a7ce573f164c7f8dc",
+          "bytes": 766,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0032_simulation_view_ephemeral_viewer_leases.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b592dfede199bfc7e53e9a06bc5bc8a7db740cf19ee64a48135aece7f449f9de",
+          "bytes": 290,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0033_simulation_view_reject_durable_viewer_leases.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:436d8da11d09970a15cfef73f70e6994502d71cb4259d96ce2460f9f01a11f60",
+          "bytes": 138,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0034_simulation_view_reconciliation_deadlines.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c34822b2667c63d7df40479ad3af6d8e4d276da761b7fda03a405e6fcf84faa9",
+          "bytes": 3271,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0035_recording_ingest_quota_windows.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3a3683a6015842b252f2b8e56be78e0431ec2eb31ed259e2905cf4c8e7de42ec",
+          "bytes": 1582,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0036_remove_simulation_view_mirror_state.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:98de46bbcf85e01ee7814a701c68b60059c456cdd769ba1eeafda93ec2ab0901",
+          "bytes": 46,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0037_gateway_task_routes.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3d9bed4b79284a495c3b6aa905ac90ccdd132b0e9ca0d04ad8a5e4bfe089b8ad",
+          "bytes": 1511,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0038_mcp_interactions.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:409ab41ec4357104234e53b8b5c86768186c3c7976fad3e713a7bc0c938c2233",
+          "bytes": 4399,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0039_agent_opaque_task_ids.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:77f151cf803a3d638bf2f1704317eda2edae03cb1d20de8c6be0d8d72b783682",
+          "bytes": 675,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0040_uav_vehicle_authority.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c34c02e3852a45bf6be6af65b9dc1af93e9e06d66f07fa29c1af64bd550bf3d9",
+          "bytes": 6085,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0041_task_route_source_records.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d9d3a59d2ddd166a57c08660f8993c859b99bb70f46498c81409d90d1f20f55",
+          "bytes": 488,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0042_optimization_task_indexes.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e99b2787589a744b9a8008fa5e10e52d08e61bd57effa4e1d96e056b3337cc8b",
+          "bytes": 686,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0043_time_acquisition_release_index.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:541ecaa36a761a699e6d1fa286f76e5159070da9da87662ea3a6e26091daf00a",
+          "bytes": 250,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0044_audit_operation_outcomes.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:713986c3ce0838e3b34defbdd4a47217a11f46e48bbc2306c6f64c29313b2180",
+          "bytes": 186,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0045_map_geopackage_products.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f87f323683482e46bf1b53aeade78e4bc8543ef25c230152911f1d680b41fc9b",
+          "bytes": 276,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0046_recording_catalog_hard_cut.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85a653af4fa38f46ff54f6cc76650d0d4806deccdef2bb1b5b5b1959e6e18f3d",
+          "bytes": 9137,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0047_map_projection_sequence.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:70d32d879de3a0ab6ea7d44b6c3b22a9d0d5da7474bb33d55fdf174e811a7ef2",
+          "bytes": 1348,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0048_map_projection_head_backfill.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4db085b3ffd4ffec6311b9bddbad212821e57dbdf7a02a2fc6831f26acf44fc6",
+          "bytes": 422,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0049_artifact_read_delegation.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a332278d46dc4123fa193e40d7bb719e23f6f716deac9bb9c8831c54cb0e4a71",
+          "bytes": 4823,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0050_artifact_uploads.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e668df9c5bdf582f6137798859d78c7b1ebe54029e7c50dd6281fec983e0a0b7",
+          "bytes": 11807,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0051_computers.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7bd0571f23edd018434200f0d8d4f253a3990f9222a1ec3060c8c96ba96d4ac5",
+          "bytes": 2219,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0052_provider_wait.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cfdc9ca2452eb5c6d4b0b21b0c868f2a8eaf13e70b5f5388871d23132b202468",
+          "bytes": 276,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0053_computer_operations.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd9cd31b47cbd0db27d169c3e3e27e631bf0f6be0c469877e503358d6cdefaae",
+          "bytes": 1730,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0054_computer_observation_budget.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1622f8fa6f2d32fa88220f4624b257b54c15077f6cb87c19fa3ddf5b74a7701d",
+          "bytes": 849,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0055_computer_worker_projection.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e2bc8108ae165f705a46b9b4ca6f56c1f6f9122af4f1ae061fc0666a2b0d2cb5",
+          "bytes": 375,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0056_computer_execution_authority.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9ea5216414caae60a0872d64a1272c70e50e2d9a0c28b46546c5b00a53ed067",
+          "bytes": 238,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0057_computer_dispatch_authority.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:154f0182e3efbaf8a36d68fdb0baf4c5e4d98bbde4eeec2a7371b540e21d034a",
+          "bytes": 324,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0058_computer_session_grants.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5751d92b4b5d733f2ab45262b26bffa10f3c90f47e1879b4255c13635d8f0446",
+          "bytes": 2286,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0059_computer_cli_grants.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:07eb5985e07fc0471aaf20598eee95ce1753bffd90913fdc5b40b56b5965a701",
+          "bytes": 3439,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0060_computer_automation_grants.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:22e9427d9a98c7d7d00c5f7862765e0df9f3dd6a676976e3d1c1ca84d04ea082",
+          "bytes": 3203,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0061_computer_execution_admission.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2174f0cca52cb6822995e09d1b546eff3b50f04ea68f061afbdf12946136c603",
+          "bytes": 1502,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0062_computer_execution_dispatch.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:637ac069574e6aff1d3b3c93a3932b19caea8d2a63f75f9c0b50a284f7e988e7",
+          "bytes": 462,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0063_computer_execution_containment.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0caffbea7267520b924f54aa9864b4b1ad222cdc2b2352373b7278b144e1b9db",
+          "bytes": 1354,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/migrations/0064_computer_execution_output_access.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6c6121f9e081b610a7fcdd382e1361a6c837a9f379c87ff309380a755b80da9f",
+          "bytes": 79,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/administration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0769e28683dd2e996bbd1d3e70409e56a283ad61ce6e2bba28490896d081c1e5",
+          "bytes": 1695,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_access_requests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf4771dc33c1d2b15e5d99298692209cdd934d4728e1f0b472368c16755d2c13",
+          "bytes": 19287,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31004d7b0050b92fde96a0ef7dbf6fdb5bde91706c701cdc16e9a94568e74a64",
+          "bytes": 7465,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads/admit.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:041c9e81db48da9d573d9a6aa0f7441c2a0c07b9847d7549bd44f3350337d9b7",
+          "bytes": 670,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads/authorize.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d6ec19d27114cc44801502bcb51fe714b97b1d4792c562ed4985bbbd4e19920f",
+          "bytes": 374,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads/context.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd3f8f883b7d69bca138a6133ffa050b061de429d93a2fe433afe404e704b81a",
+          "bytes": 125,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_reads/create.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7a5b0ace1fa2b2fc9ffeb1c5b80fd8a79608f33e5b376b3491635127ba1d4b01",
+          "bytes": 452,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:43737bf8bd4012069c08f69735e19af269d899ad79cabda336c85283592cf45d",
+          "bytes": 6795,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/admit.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:361831a772b30d33848eb223c46ad8a2095a8933342ac5dc8736a5a7aa728eca",
+          "bytes": 1422,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/authority.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:856e1c90e58f0253f460f59781aaf1f47d2693f61a361c88fac850cd3bc41b75",
+          "bytes": 311,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/claim_part.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d975774d144aafa725a6f4deaac4d92aec391d6cddd96c114ef613f07d500891",
+          "bytes": 4183,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/cleanup.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:58f521edf6d0d302ef0c7a481db74833d7066d4f40d785368c711ca889ffcc78",
+          "bytes": 1042,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/finish_part.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95ac1b6fb7a9e10bdeb966d7693440ecedf6649d3856c945856407819091f64a",
+          "bytes": 1546,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/freeze.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aea0a349928049d89dd9c715a0fc45a2bb1ae165ad94b36d1527d6275a5e60aa",
+          "bytes": 2148,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/lease.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2133c952b79619b891055decc6ff1b70e6f4ded908ccb156b3a1a7e2346f5311",
+          "bytes": 1747,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/lifecycle.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7deac06ce50d08ed9b4870841049e2a619e9f4ec60e76b5db10c614689cf01f8",
+          "bytes": 9842,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6bc1428de286c4fcf83531adfcf985f08a4317e02fd8c3bf5384e27a730f808c",
+          "bytes": 5299,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/parts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a2611678b15f40417f8c145f49880106715a4e846736495caa4d3267dcfb8283",
+          "bytes": 7207,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/publication.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ed324670629a4cd69f55b44eb795ddce870f0f469ce280af78d5ba10bad08444",
+          "bytes": 7410,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/publish_begin.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c5f6006359da73a83e43b433c80511ee19057d151874e7192a375f9dbc3e13df",
+          "bytes": 1032,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/publish_finish.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e61af26ad4d0dd92a13a1e1d1a56354a07b016fa10ba0ed3a08cb7f0b14cd768",
+          "bytes": 688,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifact_uploads/terminate.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4c45dac25d0aa28b9ce497894c6556110fc179ce5c3b13e0240bda7120d97edd",
+          "bytes": 1005,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:55fe6393858a8085588ad9cdaec311a6dde3ac476a0fc1bca1fcb411703fce63",
+          "bytes": 36356,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifacts/publication.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:446448f9ed55c9dedee7c65c92afc88bf4bcdf9134a74351dcd30261480023a8",
+          "bytes": 3734,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/artifacts/register.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3dce127181e86daffe4666ce2b5b01cf9b68fa870ee80658ebd1aa510c206439",
+          "bytes": 903,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/changefeed.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95d68eff7eb648b635ab153f5f39afa2668571d86778f73a8a81ad9e547095b4",
+          "bytes": 7536,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1f8d4a2d18dc55e2c9c064eaa2dc076413dc491386ec4e8655d5f0d3d32d737c",
+          "bytes": 14927,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/coordinates.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:24de9dd8f6fcb0a05e0343aabab233d3d5f470ae956232a476351af3944e80f1",
+          "bytes": 8256,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/error.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aee1f5d6a7399ed368e7ba29704ea272819094722951747f3d53ce4d085aeef9",
+          "bytes": 9166,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/frame_worlds.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:82fb370292808629be1ab09b7c69ee9bdbefd9a7196a5b2bf6207b48baed3990",
+          "bytes": 14763,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/gateway_control.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9895894542e5e08df59fab9c3b30d3ab510169e36ccfb2ba894c32c298259265",
+          "bytes": 1534,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/gateway_control/active.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2a06c6d982762251567b326b2b06bb4cd31a7f6aa5d792028a5cc5709f6935bc",
+          "bytes": 193,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/gateway_runtime.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:873d15e5548576646cbf3e420adf2cfd64e8e0227f7ea3eab0a20f1f1cd0334e",
+          "bytes": 39965,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/governance.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e7c33f7b8649c30993597efd2b7c94c05595ba7bf20d2cbaff6d2e1ab8bc014",
+          "bytes": 3210,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/identity.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ef3ac3b657719c39912807daee19c3c96ff9cf0644a350da1ce5610fbf9b7ab1",
+          "bytes": 17373,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/identity/ensure.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3763e6758bb4aebeed25a5d5cc3bdbf7a5906a7c4cb0ff2893dc864634ff227b",
+          "bytes": 1481,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/ids.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b7c2bc86465c8cd852528658fbc8133ef772058cde71299e27c0a55be9c63f0c",
+          "bytes": 4385,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f6d18cccf179d6c068dc1096b65d15d554bbb19bcda51efbe08b30b83d05beb9",
+          "bytes": 4230,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/live_views.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3d2889686df6edf41a45028a19299c69ab37cb30af9fe9b1d0890cabc5ed024d",
+          "bytes": 1338,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/map.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:644253022d763e47df586d1260340b1e68546feea5d4455c430a0c3b6bf2a422",
+          "bytes": 47292,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/map_authoring.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:060ed4cdbfc0bf0e43525b63489acf1ef1834a044547be7823e38c101ac3a660",
+          "bytes": 51093,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/map_presentations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cb5a14b4b50803d6aef8300c1cfc08cf75e1d6d23eaaec558bf856a15cd562b4",
+          "bytes": 21620,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/map_projection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ee2eccf86ef8bf0b3915f0b4290bb50495f2406f5b51eb6e1c92dd2df26ad851",
+          "bytes": 2949,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/migrations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:164b52dbfe60a8d0b642d5cfd7067b8319a35b032107689b1db590216da240cd",
+          "bytes": 26234,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/models.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d823dcf80952c562d422bcfd4787958bf32d2ddfa4935d662298692ffc986e39",
+          "bytes": 54897,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/outbox.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2aeea27edf4b4c5df8d9db55ef0afdcc38528996655d085e7f128a483fa66b50",
+          "bytes": 5976,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/recording_blueprints.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:16f2474b1944d2413630d33840417b6533258155e41dc1f2cc0b017de43b1766",
+          "bytes": 11070,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/recording_catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5ab838b478513018c3c403435b1d16cce411b3e9b4876443e85218b649723f0b",
+          "bytes": 55973,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/recording_ingest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cbe4b05f77954d6a13c5d5622122b10aeb7ed16e758683020441b9371fead579",
+          "bytes": 42411,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/recordings.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6ceac39d6afbd65fd1fe6e0b5b4c91f3e9ec2e9c0bc3d0a80a03a638f8b2aa00",
+          "bytes": 28412,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/store.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:60759ffbdeaf886d804086a99d273685badc990a282626b2926ca458b39ebe4c",
+          "bytes": 4418,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/table.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:49071033555e401f5eb55f3865e34a6f63277157d068722f886c9d8da0ec3cc6",
+          "bytes": 8642,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/time.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06a021b6672e2f602ac2b5d1c221c2a031d5c9b0eb37f070231e6cef8201c6f5",
+          "bytes": 42732,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/src/usage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3135cfa523cb35111b919f5409de554af706ab8c3365a14cb9a000c025817624",
+          "bytes": 11358,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/current_authority.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b63787a5094c4b877cca9b676e47baf97574733c3ca5442f6dd5838ce61212e4",
+          "bytes": 3175,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/identity_sync.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c4442be429bdf4f3ef4add6b3d277f439d358d8d92372d28ec742fe2a3d79f77",
+          "bytes": 6292,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/surreal_integration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6126b025927132c383970add6ad93e7c789a0cabcdb7d16041e499936b76aad3",
+          "bytes": 66543,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/surreal_integration/map_projection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f6a7efa04b7fcfb8f8539a57b899a86588767287b63b1640f52b82d7a93c5c6",
+          "bytes": 1301,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/store/tests/surreal_integration/recording_ingest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f4bc9d0a693df46b7dcb53bfd02359948a6633c1bd4fcd09b379bf2882e87f0",
+          "bytes": 5102,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f4bd2027cf34d866c08003084086965f83247506c36ac4926088b9997a7abcc5",
+          "bytes": 606,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db75809a9778af87d2eacd9ac454828234bb9ac6707cd97f0a23304165917632",
+          "bytes": 751,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2a18a440614015508638b07750b09ea00b900603df7960de4a970f6a7b2fbf1f",
+          "bytes": 6215,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/leases.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d6587f04cb6e6c790ba4f8b23c5d3df3abd2daf2441853642a7594abf2764ab",
+          "bytes": 8425,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3bf1ccd9edcf01aa1e1979a043442358137111cb2d888fe4878c1fb6d3b840a8",
+          "bytes": 1373,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/mcp.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:caf2320581940b37238235504a7a600d0739083880073fe1d51ce5217a727b12",
+          "bytes": 4159,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/provider_transaction.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2c5e77bb78cb256e30529ea54f2f4ad9bbf61fe7166c80fc43efba6a34af3639",
+          "bytes": 3717,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/recovery.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9976666203700d7ef86370774294477c65271e7d15b5b2d8fe65f87cfcd38e6b",
+          "bytes": 6658,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/runtime.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cdbd4804873f37fb20180a8006c11589878b53f2b324268f94e459bc12bcd2bf",
+          "bytes": 54778,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9af33a1342655e01df1c2d8df870951c7b077a62e2292756e15d44e18b7e1d5",
+          "bytes": 15220,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/src/types.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:37fc90d568524cfe13e95277585ea71ec6a921b0d51545775cf5767b5ce78cb8",
+          "bytes": 19006,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/tests/provider_wait.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f0e2d6d68b13981b5d332768e81ac1ba34467ef688c9db64a0d1a2a9a58b7b2",
+          "bytes": 20993,
+          "mode": 436
+        }
+      },
+      {
+        "path": "platform/task-runtime/tests/surreal_integration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4fe2e85a80054c123cdfd3c6e48781949356ba365ccf62b43e464a3d9ddb0cbb",
+          "bytes": 22005,
+          "mode": 436
+        }
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e390d6a0838315f972690f46ef8bae8b7ecc9ee6c1ed70140ef852869c2482e",
+          "bytes": 86,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/artifact-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4b663ad1a3d084a897c48b58efcc1d9054d0bbdac9c951248713334565f745b6",
+          "bytes": 1087,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/computers-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:189e99c394d9c652bdc4beeaaf65f6e6639d082d8703bc8f05793fd7fa589bfd",
+          "bytes": 1714,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:211120cf85b8255ffb2cc8e705170463aea42bb547befd33b78904ae90b0b83b",
+          "bytes": 1365,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/frames-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:36c81ef72d1953256253dd9ae721796bcd84ceff3987ebf88d66950d128f4914",
+          "bytes": 1325,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/map-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1c766b15eefa2ade317eace4602843eb000bf2026e076884efaf613cb4dd8a4",
+          "bytes": 1889,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/media-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:761b8a381e2e9b17e566d737fee6e42b74d450115591dbe45ff1f3b407e38bbd",
+          "bytes": 1257,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:80f05fc71263a8ad08df258bc8ba896af143f6767749032ac4ad5db1ac057639",
+          "bytes": 1320,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/reason-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b412bfcc2425e9c8e28e04200f000b6268d5250d4205686cf8b637774af4434a",
+          "bytes": 1401,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/recording-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e58d8bb620973c4c5f5490eae14d4e3ddf8a85cb5df6a738f90b21775be04b55",
+          "bytes": 2418,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/stream-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c074adef23307177b449169ced81590420ac93352a1263cc683a57b3e004d3aa",
+          "bytes": 1411,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/time-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:153398c1837cb8845e5a3fc58e9934037d263152dc73fbd97f483ff95af030a4",
+          "bytes": 1328,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f5197823ffd3be2c7cb34ad634cdeb8c594fc924177e3413322568087dd24f1",
+          "bytes": 1464,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/uav-sim-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bdc8a0e036c856827b220d62f088a5aca2e5c1791305f4c51bfc948c476886bf",
+          "bytes": 1405,
+          "mode": 436
+        }
+      },
+      {
+        "path": "servers/view-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9bf0aa4859454db7b389563e76a27997d2336b1138e9185853ded6b15e94bc74",
+          "bytes": 1612,
+          "mode": 436
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6cd9e378c68ddd1ddf666bc59c24e16cde766dd87d1237b07122187c2cd674a",
+          "bytes": 1066,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/browser-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bcf75607a9cb8c9aad2333473280d164c88a4c3896aa44f2026b8cfa12d1fb91",
+          "bytes": 621,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/deployment-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d057912c0b89a19c2425880be7a530db98b523dd78fe9cb2a5afc728aa9f70be",
+          "bytes": 582,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/evidence-checks/computers-domain.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:51768a8e63cd89aab542ad68fa8241f1dca06b2a181bbb2e4653998829a9b5e0",
+          "bytes": 2265,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9d0fee127f34befb16ebd04141b3fb4a417fee16fe946bc94a1a1f774b6cb9e",
+          "bytes": 283,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bbd0f45206604bb6ec409fcc2e59db412c9f2a9c7495441e04fa538cea915fef",
+          "bytes": 1184,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/Chart.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9602e38ae8642deea3b9d85415a8c6e4a01cf83e3997bdbf54909fd254acea02",
+          "bytes": 244,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:133050f11b576ae56877827eba1699ab8a89e0c96d7c3a19a2ae8ba03192488b",
+          "bytes": 315,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/charts/veoveo-extension-0.1.0.tgz",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:17087c7d0662291504b400378fdc6335095ffc655c0cf49af9fc33d64e1b7d1e",
+          "bytes": 4109,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/templates/networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9cc201208716c75a6dbcb8dd7653459180027d97dd9c18704197f13b8fbf9868",
+          "bytes": 692,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/templates/workload.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2736bfab96f26101c0d56cf9053158af74c327c98405a2c95c7924416cb303eb",
+          "bytes": 2997,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d18fd4eb0891f476507eca438655987ac2765376460f8c930e989ffb61b548b4",
+          "bytes": 3566,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/extension-helm-consumer/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99b3fc6432f4d7f1a445e680bc7635750746c3e97d4228bc74b2f564362e62b1",
+          "bytes": 690,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-extension-installation/deployment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4740b00207fd9944effc3fc74a3b9f03d2701675b6cf396a6adee057ba9dd3d0",
+          "bytes": 2281,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-extension-installation/gateway-requirements.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2b5988076fa0c40043c3246efee4b63a8fc4405d949efd9599d89921dd325f65",
+          "bytes": 163,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-extension-installation/platform-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f2ec0cb8cbeca8210ab3453a5fa830b280785183da351886ccbf0ec25821bc3",
+          "bytes": 241,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/.dockerignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:abd97f4969cd78b5a50730dcca881e3955b1f7585a46f180868ed8ad44a5d65a",
+          "bytes": 59,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/.gitignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1786908e1e13cf3b8cab4f559c266300016ebffe18b90531575ad30ef3f41655",
+          "bytes": 53,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3d5a1aed4838a00f07966a93c72f4f4885de91a253de62d6bbb0e3e33b92b300",
+          "bytes": 1697,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b30c2377b3fcb12ce68487bc181ac253d436e2d6ebed851ede7efb2f443c69eb",
+          "bytes": 2695,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:93cfb278ad718d2d0830f3fdca2c687bb34d63e05811aa110c88f4165114d2a9",
+          "bytes": 1501,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:08f66399d68be86d5e400fe0fe0d5da42da58e76aface94504b620444c5919de",
+          "bytes": 1478,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/compatibility/manifest.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:81ff26ca806a10e9a093eff92f8cbae62e7c69ac83b6032305373e6e6d694320",
+          "bytes": 4666,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/conformance/hosted-server.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c554c11a1f46f596d1c7dc89d9080bd6b0c7e1ed75535c6b0ac23cbfe2fa5e0",
+          "bytes": 1386,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/Chart.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:176466cb1dfc4a20e07eaeb3e3aa5527bb649e45c92d39a1a4d177682999a848",
+          "bytes": 230,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa685dc6ca2378b92f5e5c417baa8c8209738293bcd1d9c0f61b9ea9e8ea7277",
+          "bytes": 310,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/charts/veoveo-extension-0.1.0.tgz",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:11bb0428eeb4a56c9378162c19b88012198480ce14510813ef87cd1130d4d7b5",
+          "bytes": 4104,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/templates/networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c86ec50b16bf2138eceba57903d8a7b9dc40e9f78b915ff0b9e8a338a5c97ed",
+          "bytes": 624,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/templates/workload.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5c8f3c5059428cfad4523b5cfab8bebb3f61b21cf49799b1508541b2296bcf00",
+          "bytes": 3222,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0a7af760b1051ca49848c33736ffc0acc5d922807a44f427eed84265ab7646c0",
+          "bytes": 3596,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/values.test.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:350e070a4b7daf2c03f0ca43ee3285a2e062ce695b38f1a6f8547a09f31a059d",
+          "bytes": 275,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/deploy/helm/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b6a035e985243c74a585c1003ca7e5786384ba7078767c0c8cdf8022094e86eb",
+          "bytes": 724,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/docker-bake.hcl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b443cc9a5e1f78508b4be1902cc6c3fac86d10dee5437a629a6c8ad8eb24030c",
+          "bytes": 853,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/gateway-fragment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0d8caebcf4be73ec23713d759ac5176d024b3f5b51795aca2ce50d8d83e14d83",
+          "bytes": 1428,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/pyproject.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:51f3a64323107fda4de70572ab6fe29da0146bd6cd21c61474a93a09b71ac9bc",
+          "bytes": 993,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/release/extension-release.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94a64ba5ef5a8a6953f720f5fee930c6a1afc2de6d392ecdea71818f33aa6d0c",
+          "bytes": 2698,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0852f7a9a5bc6c0784ea3e2355236f8dd7157158d590907e4a154d4724ccb2fa",
+          "bytes": 83,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/config.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0b457b73a74053235922eca6524752187e4fdf7b520f4932c452f6d8b4256609",
+          "bytes": 2795,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/contract.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e2ad30b015458105259a08da0b72b24969dae749ff320504e5fc446acb27db0",
+          "bytes": 3699,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/main.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db5428717af8474b6eb05f08b4042b712a8d8c3ff5f11552abcffe8b1f359d89",
+          "bytes": 7540,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/mcp_server.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31006f56e609789ba197ee457fed3467d46de0d74416232d8517286d25c09a4f",
+          "bytes": 12298,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/src/anonymous_simulation_mcp/runtime.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e28045a3669360c50f89710dc1203c1bf5b3b7978527e58c64feb0e4d01fe88c",
+          "bytes": 11232,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/tests/test_fixture.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:102b68c3a8eb73b5d83b302fc62713a7daee27903a1dde81546c618b4db07378",
+          "bytes": 5380,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-extension/uv.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9610b6af70771230ef1ddb5aa5c7933481b344dfcd10ef9a87d71544231a9e31",
+          "bytes": 120570,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:63df01db9c11fcb5ca17535a1aff2c55ba6ea8ef384a8aa076fca75dee24ee3b",
+          "bytes": 2210,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ade54600fd2656fa6ba6e3694ad4ce3a3877ac005040b83e69accfdf97602ff7",
+          "bytes": 3302,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/cluster.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cc51b8344c8db1588165e47bb82add5636d4ed5494d1057db9801721a137931b",
+          "bytes": 946,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/deployment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f26ae820c230675b24ff6122ee3f362bf918fe45fe4e3f0f6c4c37be66d9de49",
+          "bytes": 4448,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-base.jq",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bca61178761ef8400cdf741125f104fcd2165466dd4565a6a7677704ef30c914",
+          "bytes": 1588,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-base.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:74dd9e6da6057646c3e78ee19703b318b340935717ac548db579b989f06e9e18",
+          "bytes": 4760,
+          "mode": 384
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-binding.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:86d395498d0f8007a445798f660321fea270b135ce42cdd1f326bd6c9bf404d0",
+          "bytes": 1379,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-provenance.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ba05325923b6f8b8f0993eb781b2c5cffb2d02bc0c6f90d09c8131555bb92681",
+          "bytes": 1243,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway-requirements.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f24a87b4fe706bf2833d5ab8cdb8e17f7713ceeae44c0ce315165b8b030ea83",
+          "bytes": 60,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/gateway.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1607635e43c69cbae9e71da41b1c1e4529c7c0db684cb1db4e6466a33963208b",
+          "bytes": 7667,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/nvidia-runtime-class.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f9ecd6785107af5353d66f14d3381e9f210961d14774b13a6b08c5479de39f71",
+          "bytes": 87,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/external-simulation-installation/platform-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:130607b49607b06666debc57e699d3ba8e7d65825a3c92a7ccdb15bcbf94235a",
+          "bytes": 47,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/gateway-request-context.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a73d90965133b5176c3e24cf17d3cf7aa5696f359e40009339ce6554697f9b8e",
+          "bytes": 6080,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9e3ab01000ef902c61798653bccde2bf34af193a44d2b76cfbb202d6dee76ea",
+          "bytes": 834,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/anonymous_simulation_overlay.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:559605f586e1276b3c0a46329ce1e5d7eb2483f5e51991f86dd1bb57919fa6bc",
+          "bytes": 473,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/identity.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e4f278c9fd7d7f400b6ff744f0e3481ff7e27ccd35382e96dfb70c958b1c52a",
+          "bytes": 286,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/fixtures/store.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:666de324f8f7c8181f68a054e0d41456fee8d7dc80bac3e76f8591910a32a5c0",
+          "bytes": 4811,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/flight-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0084d0207c697bf7052b2ef093c83284b29a69bb8241625e2926da39efbdf416",
+          "bytes": 682,
+          "mode": 436
+        }
+      },
+      {
+        "path": "testing/smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3170fff6775e2419448bebbb7aa108e32b3a9b773557b0b4cdd2a9606ac5a866",
+          "bytes": 1935,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/image-build/control/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b24b144b645c16de06493ff7052484a9219799740fcbe34f8117895261f16aec",
+          "bytes": 256,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:971eacc7e03acfedc030789b9aed3d6425e3f6f79ba1e5a48475e8aa9c009451",
+          "bytes": 821,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a319ad475830890d4051b7c4e381db3019f7947339eecd216313582107a7b67d",
+          "bytes": 7344,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/cargo_inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6163dda0a9f4d7d6742b56cf021fb4fbcd952e1e95a3c979177d2af763d4dab5",
+          "bytes": 6256,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6bef04651f537dcf12437ec256f16063276e83af8a3b260235d945dfa01669c8",
+          "bytes": 4411,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/environment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b59fee92aa8edffce053ea169166b44fcd849e665f809f6b044217ffc30cfe10",
+          "bytes": 4441,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:559e901ed2cbc1ee0e548e15cdee5a60eae06aa73cac99b1f1d815abc65fe0ba",
+          "bytes": 6832,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0a24a7a35404a0a9fe08838d33140423b4358f467d0e392e8b53ead7b8212d76",
+          "bytes": 4984,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:389dcfe711e4f2130a8ac57515c0f449c1f155bbbe1494ad8fb24e841aec0b78",
+          "bytes": 5966,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/report.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:693d69a18ee619a762705f4235fb5272eb8c78175869f0bfbed3ac3083b70633",
+          "bytes": 8661,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/storage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:448e682992b6b8f6936fc4c4c3bcd2009a289d00cba47a6f3116d8c84404afc4",
+          "bytes": 11881,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f84027a38d4adb8b7ff4011949a405bdb2ecd1e79ea4cc7884bd1e41a9aada4c",
+          "bytes": 14734,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/main.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d63e4e0ceb3fdab89dec0e9ecd103fb896c9436399c00fa174b8e54bdf546335",
+          "bytes": 21985,
+          "mode": 436
+        }
+      },
+      {
+        "path": "tools/xtask/src/process.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6dd0e084702d90f907fc5977573dc0e49aeb009ffa9a65ddacd73ffde89408e",
+          "bytes": 4957,
+          "mode": 436
+        }
+      }
+    ]
+  },
+  "environment": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "toolchains": [
+      {
+        "name": "cargo",
+        "version": "cargo 1.97.1 (c980f4866 2026-06-30)"
+      },
+      {
+        "name": "cargo-clippy",
+        "version": "clippy 0.1.97 (8bab26f4f6 2026-07-14)"
+      },
+      {
+        "name": "managed-protoc",
+        "version": "libprotoc 31.1"
+      },
+      {
+        "name": "rustc",
+        "version": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.97.1\nLLVM version: 22.1.6"
+      },
+      {
+        "name": "rustfmt",
+        "version": "rustfmt 1.9.0-stable (8bab26f4f6 2026-07-14)"
+      }
+    ],
+    "runtime": {
+      "class": "source",
+      "bindings": {},
+      "validForSeconds": null
+    },
+    "reusable": true
+  },
+  "startedAt": "2026-09-10T23:19:02.466620832Z",
+  "finishedAt": "2026-09-10T23:19:02.825079377Z",
+  "durationMillis": 358,
+  "outcome": "passed",
+  "exitCode": 0,
+  "diagnostics": null
+}

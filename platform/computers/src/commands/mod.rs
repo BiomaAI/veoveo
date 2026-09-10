@@ -5,6 +5,7 @@ mod dispatch;
 mod journal;
 mod model;
 mod outcome;
+mod output_access;
 mod settlement;
 mod tasks;
 pub use containment::{CommandContainmentRead, CommandContainmentStop, ContainmentReadAdmission};
