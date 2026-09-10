@@ -2309,3 +2309,9 @@ handler. This policy extraction changes the gateway library. Its required lint r
 therefore uses `--lib`; the binary warnings remain visible work when those HTTP owners
 are touched. They are not a provider or runtime deployment failure. The v2 receipt
 format replaces a check's prior attempt; immutable attempt history remains CE-06 work.
+
+Current policy readers now select the active pointer and its retained revision in
+one database round trip. A missing or mismatched revision fails closed. The focused
+store/gateway qualification passes in 62.5 s, including compilation and an isolated
+3.2.4 test that switches the policy pointer concurrently across two clients. Library
+Clippy takes 16.8 s. No image publication or workload restart was needed.

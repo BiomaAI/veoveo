@@ -148,6 +148,7 @@ Hub, administration, and GPU policy.
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
 | `platform/` | internal platform services, persistence, and reusable runtimes |
 | `platform/runtimes/computers/` | private native OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and bounded SSH-only CLI bridge; domain/service and installed qualification remain in the Computers plan |
+| `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
 | `platform/policy/` | shared policy evaluator and validated immutable catalog view for gateway and background authority checks; authentication and freshness remain caller-owned |
 | `platform/computers/` | durable core Computer collections, private human/service ownership, conditional capacity/fence admission, shared Task linking, dispatch receipts, persisted observation budgets and correlated settlement; worker integration lives in `servers/computers-mcp`; grant persistence remains in progress |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
