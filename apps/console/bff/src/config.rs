@@ -268,6 +268,17 @@ impl Config {
         }
     }
 
+    pub(crate) fn public_origin(&self) -> String {
+        self.public_base_url.origin().ascii_serialization()
+    }
+
+    /// Only canonical routes assembled from checked Computer identifiers.
+    pub(crate) fn computers_url(&self, path: &str) -> Url {
+        self.gateway_url
+            .join(&format!("/computers/{}{path}", self.admin_profile))
+            .expect("validated profile and Computer path")
+    }
+
     pub(crate) fn secure_cookie(&self) -> bool {
         self.public_base_url.scheme() == "https"
     }

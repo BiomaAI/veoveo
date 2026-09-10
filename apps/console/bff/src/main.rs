@@ -3,6 +3,7 @@ mod app_host;
 mod apps;
 mod artifact_upload;
 mod cluster;
+mod computers;
 mod config;
 mod mcp_client;
 mod oauth;
@@ -40,6 +41,7 @@ struct AppState {
     sessions: SessionCipher,
     mcp: Arc<mcp_client::AuthScopedMcpClientPool>,
     app_tasks: apps::AppTaskRegistry,
+    computers: computers::Transport,
 }
 
 #[tokio::main]
@@ -88,7 +90,9 @@ async fn main() -> anyhow::Result<()> {
         sessions,
         mcp,
         app_tasks: apps::AppTaskRegistry::default(),
+        computers: computers::Transport::new(&outbound_trust)?,
     };
+    let computers_stop = state.computers.stop.clone();
     let csrf_state = state.clone();
 
     let router = Router::new()
@@ -200,7 +204,9 @@ async fn main() -> anyhow::Result<()> {
             recording_playback::PROJECTION_PATH,
             get(recording_playback::projection),
         );
-    let router = router.merge(artifact_upload::router());
+    let router = router
+        .merge(artifact_upload::router())
+        .merge(computers::router());
     let router = with_console_static_routes(router, config.asset_dir())?;
     let router = app_host::with_app_host_route(router, config.asset_dir())?
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))
@@ -237,7 +243,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .with_context(|| format!("binding console BFF to {}", config.bind()))?;
     tracing::info!(address = %config.bind(), "console BFF listening");
-    axum::serve(listener, router).await?;
+    axum::serve(listener, router)
+        .with_graceful_shutdown(async move {
+            computers::shutdown_signal().await;
+            computers_stop.cancel();
+        })
+        .await?;
     Ok(())
 }
 

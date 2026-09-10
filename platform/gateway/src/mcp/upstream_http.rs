@@ -23,6 +23,9 @@ struct UpstreamHttpClientKey {
 #[derive(Debug, Clone, Default)]
 pub struct GatewayUpstreamHttpClientPool {
     clients: Arc<RwLock<BTreeMap<UpstreamHttpClientKey, Arc<OnceCell<reqwest::Client>>>>>,
+    websockets: Arc<
+        RwLock<BTreeMap<UpstreamHttpClientKey, Arc<OnceCell<veoveo_computers_transport::Client>>>>,
+    >,
 }
 
 impl GatewayUpstreamHttpClientPool {
@@ -54,6 +57,31 @@ impl GatewayUpstreamHttpClientPool {
     async fn entry_count(&self) -> usize {
         self.clients.read().await.len()
     }
+
+    /// The same admitted trust and identity, with a separate HTTP/1.1 upgrade pool.
+    pub async fn websocket_client(
+        &self,
+        catalog: &GatewayCatalog,
+        server: &ServerManifest,
+    ) -> Result<veoveo_computers_transport::Client, McpError> {
+        let key = upstream_http_client_key(catalog, server)?;
+        let cell = {
+            let mut clients = self.websockets.write().await;
+            clients
+                .retain(|candidate, _| candidate.catalog_sha256 == catalog.configuration_sha256());
+            clients
+                .entry(key)
+                .or_insert_with(|| Arc::new(OnceCell::new()))
+                .clone()
+        };
+        cell.get_or_try_init(|| async {
+            let builder = upstream_http_client_builder(catalog, server).await?;
+            veoveo_computers_transport::Client::new(builder)
+                .map_err(|_| mcp_internal("failed to build upstream WebSocket client"))
+        })
+        .await
+        .cloned()
+    }
 }
 
 fn upstream_http_client_key(
@@ -81,6 +109,16 @@ async fn build_upstream_http_client(
     catalog: &GatewayCatalog,
     server: &ServerManifest,
 ) -> Result<reqwest::Client, McpError> {
+    upstream_http_client_builder(catalog, server)
+        .await?
+        .build()
+        .map_err(|err| mcp_internal(format!("failed to build upstream HTTP client: {err}")))
+}
+
+async fn upstream_http_client_builder(
+    catalog: &GatewayCatalog,
+    server: &ServerManifest,
+) -> Result<reqwest::ClientBuilder, McpError> {
     let mut builder = reqwest::Client::builder()
         // `subscriptions/listen` keeps an SSE response open for the request's
         // lifetime. A total request timeout would tear that stream down and
@@ -147,9 +185,7 @@ async fn build_upstream_http_client(
         builder = builder.identity(identity);
     }
 
-    builder
-        .build()
-        .map_err(|err| mcp_internal(format!("failed to build upstream HTTP client: {err}")))
+    Ok(builder)
 }
 
 #[cfg(test)]
@@ -183,6 +219,10 @@ mod tests {
         build_upstream_http_client(&catalog, server)
             .await
             .expect("mutual TLS upstream client");
+        GatewayUpstreamHttpClientPool::new()
+            .websocket_client(&catalog, server)
+            .await
+            .expect("WebSocket uses the same mutual TLS identity and roots");
 
         let _ = std::fs::remove_file(ca_path);
     }
@@ -212,6 +252,12 @@ mod tests {
             message.contains("failed to parse upstream TLS client identity"),
             "unexpected error: {message}"
         );
+        assert!(
+            GatewayUpstreamHttpClientPool::new()
+                .websocket_client(&catalog, server)
+                .await
+                .is_err()
+        );
 
         let _ = std::fs::remove_file(ca_path);
     }
@@ -236,6 +282,13 @@ mod tests {
         second_client.expect("second shared client");
 
         assert_eq!(pool.entry_count().await, 1);
+        let (first_ws, second_ws) = tokio::join!(
+            pool.websocket_client(&catalog, first),
+            pool.websocket_client(&catalog, &second)
+        );
+        first_ws.expect("first WebSocket pool");
+        second_ws.expect("second WebSocket pool");
+        assert_eq!(pool.websockets.read().await.len(), 1);
     }
 
     fn catalog_with_mutual_tls_upstream(

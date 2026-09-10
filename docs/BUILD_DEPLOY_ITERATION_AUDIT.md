@@ -2697,3 +2697,25 @@ policy removal and logout retain the five-second closure assertion. Final lint t
 1.84 seconds. The edge fixtures supply synthetic admission; actual gateway/BFF cookie
 and public-ingress qualification remain required. A metadata/test build is distinct
 from an OCI rebuild, and all provider binaries and Computer images were reused.
+
+Gateway/BFF integration reused that transport and its qualified dependency pins. The
+gateway-only metadata check took 87 seconds; adding the BFF to the selected package
+set changed the Cargo feature closure and cost another 72 seconds. The first test
+build took 125 seconds. Once the closure stabilized, the complete 190-case gateway/BFF
+run took 16.34 seconds, including 11.48 seconds of compilation. Lint took 5.16 seconds.
+Keep these related consumers in one affected-package invocation during this integration
+to avoid repeating feature-dependent dependency work. The provider and Computer images
+were unchanged.
+
+The first gateway admission test used a UUIDv4 for a typed UUIDv7 session-family ID;
+the fixture failed before admission and was corrected. Strict lint also exposed
+existing BFF nested branching and large response-error values, which were simplified
+without changing their HTTP behavior. The gateway's existing exact-blob query now uses
+a sorted, deduplicated Vec rather than a mutable-key set; its native SurrealDB 3.2.4
+regression passes. The globally installed SurrealDB binary is 3.2.1, so the check uses
+the already qualified 3.2.4 binary under `output/tools` explicitly.
+
+The last disk observation showed 151 GiB free, down from 164 GiB at the previous
+checkpoint. This growth was host Cargo compilation. No retained home, provider binary,
+or installed image was removed. Public deployment and end-to-end Console qualification
+remain separate from these local transport and admission results.

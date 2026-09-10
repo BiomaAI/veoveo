@@ -153,10 +153,10 @@ fn app_dependency_allows_resource(resource: &rmcp::model::Resource, uri: &str) -
 }
 
 fn app_dependency_allows_subscription(resource: &rmcp::model::Resource, uri: &str) -> bool {
-    if let Some(owner) = app_uri_server(&resource.uri) {
-        if uri.starts_with(&format!("{owner}://")) {
-            return app_resource_uri_allowed(owner, uri);
-        }
+    if let Some(owner) = app_uri_server(&resource.uri)
+        && uri.starts_with(&format!("{owner}://"))
+    {
+        return app_resource_uri_allowed(owner, uri);
     }
     app_resource_dependencies(resource)
         .iter()

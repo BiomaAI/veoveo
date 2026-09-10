@@ -14,7 +14,7 @@ path = "src/bin/gateway.rs"
 [dependencies]
 anyhow.workspace = true
 async-stream = "0.3.6"
-axum.workspace = true
+axum = { workspace = true, features = ["ws"] }
 base64.workspace = true
 chrono.workspace = true
 chacha20poly1305.workspace = true
@@ -46,6 +46,8 @@ uuid.workspace = true
 vaultrs.workspace = true
 veoveo-agent-runtime = { path = "../../agents/runtime" }
 veoveo-artifact-client = { path = "../artifacts/client" }
+veoveo-computers-contract = { path = "../computers/contract" }
+veoveo-computers-transport = { path = "../computers/transport" }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }

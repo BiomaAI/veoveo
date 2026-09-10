@@ -544,3 +544,13 @@ the platform processes to remain within one second of each other. Local native e
 now crosses two relay hops for more than the original thirty-second lease without
 reconnecting the shell. This qualifies the shared relay composition; actual gateway
 authorization, BFF cookies and the Console still need their installed journey.
+
+The gateway and BFF now expose the canonical Computer control and terminal routes.
+Gateway admission applies exact domain actions, preserves signed source authority and
+records durable policy decisions. The BFF uses its existing cookie, OAuth renewal and
+CSRF boundary. Both edges enforce exact Origin for terminal access and preserve the
+service-issued relay deadline. The BFF returns rotated cookies on HTTP upgrades and
+on subsequent upstream failure. Local coverage passes 190 gateway/BFF cases, including
+real WebSocket byte transport and the pinned database regression. Native Console
+presentation, live invalidations and the complete installed authentication chain remain
+delivery work; this checkpoint makes no public deployment claim.
