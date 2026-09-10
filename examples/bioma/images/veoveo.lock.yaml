@@ -4,17 +4,17 @@ global:
   imageDigests:
     veoveo/computer-host: sha256:6d5f789e7b3dfecf1cee9f699c77cd0049e1fc334fd572d7c9abec61809bc8da
     veoveo/computer-template: sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721
-    veoveo/computers-mcp: sha256:0bfeee0f5bb77554e20de100dee0c7fb8c679873c2caef96e11c32bb4e30682e
+    veoveo/computers-mcp: sha256:6e13fec93270210bf5877c90265e8ca17372ea0fcf2ab893c1e1045d0987f0eb
     veoveo/artifact-mcp: sha256:1eb76e5e819053702f6fd55c77fd7b759c904fa4d1168f78018833aa91c3eedf
     veoveo/artifact-service: sha256:43ae5908a72254267130aa546d8928c54914c94c38d9b583db47467766330b0f
     veoveo/chart-mcp: sha256:996b9ebe1b78acc789e0fc92025557fe5b3a598df1c68a79ee3e13f3c85c3fc4
-    veoveo/console-bff: sha256:fb0984cdb09255afe4014970848128125b8cd99234a52d2ea614cc8384f897e6
+    veoveo/console-bff: sha256:22e667a4d99a6154778705f422e4af6d7ecab3324708797e2a45151b946cbef7
     veoveo/cuopt-executor: sha256:14e54f2e0d4192ee1c7dec908b867f766c800e60c3673e76d686219f36065f45
     veoveo/datasheet-mcp: sha256:0bf53c2ba9a66d1ad7f5e9e0da2bc32e46afbfce5067429e41f909a9f3cf30d9
     veoveo/duckdb-mcp: sha256:1d01cc37d818857cb99b9ccf755f4c4a61185b1383d4efd0cef0baabd3e0bc4b
     veoveo/frames-mcp: sha256:dc318c9c69de95534bc64dc955b03e63a78e9655a5a6fe66114bd2bb4b43c73f
     veoveo/map-mcp: sha256:e87b697b112a88b775b103289cbfed019f7110309691eddf2a0a2b660954eb4f
-    veoveo/mcp-gateway: sha256:12e06b2a28bc6fc721b31f053a0b53c83da64f6fad1caf9f1a8fe2711a420ccc
+    veoveo/mcp-gateway: sha256:31abcb2df7c3bc2cc7652abe9ec436ed9db110278f8f184b99635b9eafc9d20e
     veoveo/mcp-legacy-bridge: sha256:84b99fd50c39c368854d4144b53f19d56bade3d5337a615a4f3a272913a23dfc
     veoveo/media-mcp: sha256:4098b643ed58fa0888edd6fe3c4ccc283b5fc829331a2ebd2efd8cf180c64cf5
     veoveo/optimization-mcp: sha256:eee4d18dc3bff20ab9bd9954cf6d199c0fff76ad1f2f0cd019a6f13d7e0dadb5
