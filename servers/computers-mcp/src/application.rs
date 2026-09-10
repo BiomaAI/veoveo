@@ -149,6 +149,27 @@ impl Application {
         authority.require_read(Some(computer_id))?;
         Ok(operation)
     }
+    pub async fn access_grants(
+        &self,
+        actor: &ComputerActor,
+        computer_id: Uuid,
+    ) -> Result<AccessGrantCollection> {
+        Ok(self.store.access_grants(actor, computer_id).await?)
+    }
+    pub async fn revoke_access(
+        &self,
+        actor: &ComputerActor,
+        input: RevokeAccessInput,
+    ) -> Result<AccessRevocation> {
+        self.store
+            .revoke_browser_grant(actor, input.computer_id, input.grant_id)
+            .await?;
+        Ok(AccessRevocation {
+            computer_id: input.computer_id,
+            grant_id: input.grant_id,
+            revoked: true,
+        })
+    }
     async fn browser_access(&self, authority: &ControlAuthority) -> Result<bool> {
         if !authority.has_browser_session() || self.runtime.current().is_err() {
             return Ok(false);

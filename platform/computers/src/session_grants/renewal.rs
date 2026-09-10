@@ -121,10 +121,18 @@ impl ComputersStore {
         })
     }
     /// An authenticated owner can revoke their grant from another browser family.
-    pub async fn revoke_browser_grant(&self, actor: &ComputerActor, grant_id: Uuid) -> Result<()> {
+    pub async fn revoke_browser_grant(
+        &self,
+        actor: &ComputerActor,
+        computer_id: Uuid,
+        grant_id: Uuid,
+    ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
+            if computer_id.is_nil() || grant_id.is_nil() {
+                return Err(ComputerError::InvalidInput);
+            }
             let row = self.session_grant(grant_id).await?;
-            if row.owner_key != owner_key(actor.owner())? {
+            if row.owner_key != owner_key(actor.owner())? || row.computer_id != computer_id {
                 return Err(ComputerError::NotFound);
             }
             let control = self.control_authority(actor).await?;

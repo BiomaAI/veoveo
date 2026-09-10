@@ -1,5 +1,97 @@
 {
   "$defs": {
+    "AccessGrantCollection": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/AccessGrantView"
+          },
+          "maxItems": 128,
+          "type": "array"
+        }
+      },
+      "required": [
+        "computerId",
+        "grants"
+      ],
+      "type": "object"
+    },
+    "AccessGrantKind": {
+      "enum": [
+        "browser"
+      ],
+      "type": "string"
+    },
+    "AccessGrantView": {
+      "additionalProperties": false,
+      "properties": {
+        "currentSession": {
+          "description": "Issued under this sign-in family; it may belong to another browser tab.",
+          "type": "boolean"
+        },
+        "expiresAt": {
+          "description": "An upper bound. Current policy, idle expiry or revocation can end access sooner.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "grantId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "issuedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AccessGrantKind"
+        },
+        "lastActivityAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "redeemed": {
+          "description": "Redemption is recorded history, not a claim that a transport is connected.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "grantId",
+        "kind",
+        "redeemed",
+        "currentSession",
+        "issuedAt",
+        "expiresAt",
+        "lastActivityAt"
+      ],
+      "type": "object"
+    },
+    "AccessRevocation": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "grantId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "computerId",
+        "grantId",
+        "revoked"
+      ],
+      "type": "object"
+    },
     "Action": {
       "enum": [
         "create",
@@ -402,6 +494,28 @@
       ],
       "type": "object"
     },
+    "RevokeAccessBody": {
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RevokeAccessInput": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "grantId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "grantId"
+      ],
+      "type": "object"
+    },
     "StartInput": {
       "additionalProperties": false,
       "properties": {
@@ -672,6 +786,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Schema root is a bundle of DTO definitions, not a route response.",
   "properties": {
+    "access_grants": {
+      "$ref": "#/$defs/AccessGrantCollection"
+    },
+    "access_revocation": {
+      "$ref": "#/$defs/AccessRevocation"
+    },
     "computer": {
       "$ref": "#/$defs/ComputerView"
     },
@@ -698,6 +818,12 @@
     },
     "receipt": {
       "$ref": "#/$defs/OperationReceipt"
+    },
+    "revoke_access_body": {
+      "$ref": "#/$defs/RevokeAccessBody"
+    },
+    "revoke_access_input": {
+      "$ref": "#/$defs/RevokeAccessInput"
     },
     "snapshot": {
       "$ref": "#/$defs/ComputerSnapshot"
@@ -731,6 +857,10 @@
     }
   },
   "required": [
+    "access_grants",
+    "revoke_access_input",
+    "revoke_access_body",
+    "access_revocation",
     "snapshot",
     "computer",
     "template",

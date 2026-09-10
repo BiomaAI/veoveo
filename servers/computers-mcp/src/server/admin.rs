@@ -89,6 +89,32 @@ async fn start(
         .await?,
     ))
 }
+async fn access_grants(
+    State(app): State<Arc<Application>>,
+    Extension(identity): Extension<GatewayInternalIdentity>,
+    Path(computer_id): Path<Uuid>,
+) -> Result<Json<AccessGrantCollection>, HttpError> {
+    Ok(Json(
+        app.access_grants(&actor(&identity)?, computer_id).await?,
+    ))
+}
+async fn revoke_access(
+    State(app): State<Arc<Application>>,
+    Extension(identity): Extension<GatewayInternalIdentity>,
+    Path((computer_id, grant_id)): Path<(Uuid, Uuid)>,
+    Json(_body): Json<RevokeAccessBody>,
+) -> Result<Json<AccessRevocation>, HttpError> {
+    Ok(Json(
+        app.revoke_access(
+            &actor(&identity)?,
+            RevokeAccessInput {
+                computer_id,
+                grant_id,
+            },
+        )
+        .await?,
+    ))
+}
 async fn stop(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
@@ -134,6 +160,11 @@ pub fn router(app: Arc<Application>) -> Router {
         .route("/computers", get(collection).post(create))
         .route("/computers/{id}", get(computer))
         .route("/computers/{id}/operations/{operation_id}", get(operation))
+        .route("/computers/{id}/access", get(access_grants))
+        .route(
+            "/computers/{id}/access/{grant_id}/revoke",
+            post(revoke_access),
+        )
         .route("/computers/{id}/start", post(start))
         .route("/computers/{id}/stop", post(stop))
         .with_state(app)

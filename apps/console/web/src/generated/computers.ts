@@ -2,6 +2,11 @@
 
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AccessGrantKind".
+ */
+export type AccessGrantKind = "browser";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "ComputerPhase".
  */
 export type ComputerPhase =
@@ -54,6 +59,11 @@ export type OperationStatus =
   | "failed"
   | "cancelled"
   | "recovery_required";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "RevokeAccessBody".
+ */
+export type RevokeAccessBody = Record<string, never>;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "CapacityAvailability".
@@ -112,6 +122,8 @@ export type TerminalTicketInput = Record<string, never>;
  * Schema root is a bundle of DTO definitions, not a route response.
  */
 export interface ComputersApi {
+  access_grants: AccessGrantCollection;
+  access_revocation: AccessRevocation;
   computer: ComputerView;
   create_input: CreateInput;
   error: ApiError;
@@ -121,6 +133,8 @@ export interface ComputersApi {
   limits: ComputerLimits;
   operation: OperationView;
   receipt: OperationReceipt;
+  revoke_access_body: RevokeAccessBody;
+  revoke_access_input: RevokeAccessInput;
   snapshot: ComputerSnapshot;
   start_input: StartInput;
   stop_input: StopInput;
@@ -131,6 +145,48 @@ export interface ComputersApi {
   terminal_server_control: TerminalServerControl;
   terminal_ticket: TerminalTicket;
   terminal_ticket_input: TerminalTicketInput;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AccessGrantCollection".
+ */
+export interface AccessGrantCollection {
+  computerId: string;
+  /**
+   * @maxItems 128
+   */
+  grants: AccessGrantView[];
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AccessGrantView".
+ */
+export interface AccessGrantView {
+  /**
+   * Issued under this sign-in family; it may belong to another browser tab.
+   */
+  currentSession: boolean;
+  /**
+   * An upper bound. Current policy, idle expiry or revocation can end access sooner.
+   */
+  expiresAt: string;
+  grantId: string;
+  issuedAt: string;
+  kind: AccessGrantKind;
+  lastActivityAt: string;
+  /**
+   * Redemption is recorded history, not a claim that a transport is connected.
+   */
+  redeemed: boolean;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AccessRevocation".
+ */
+export interface AccessRevocation {
+  computerId: string;
+  grantId: string;
+  revoked: boolean;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -239,6 +295,14 @@ export interface OperationReceipt {
   computerId: string;
   status: OperationStatus;
   taskId: string;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "RevokeAccessInput".
+ */
+export interface RevokeAccessInput {
+  computerId: string;
+  grantId: string;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema

@@ -1,4 +1,6 @@
 //! Canonical public JSON contract. Generate every client model from schema_bundle().
+mod access;
+pub use access::*;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -343,6 +345,10 @@ pub struct TerminalReady {
 #[allow(dead_code)]
 #[schemars(rename = "ComputersApi")]
 struct SchemaBundle {
+    access_grants: AccessGrantCollection,
+    revoke_access_input: RevokeAccessInput,
+    revoke_access_body: RevokeAccessBody,
+    access_revocation: AccessRevocation,
     snapshot: ComputerSnapshot,
     computer: ComputerView,
     template: TemplateView,

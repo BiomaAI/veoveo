@@ -86,6 +86,22 @@ async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_
             .is_err()
     );
     let ticket = a.issue_browser_grant(&actor, computer).await.unwrap();
+    let pending = b.access_grants(&actor, computer).await.unwrap();
+    assert_eq!(pending.grants.len(), 1);
+    assert!(!pending.grants[0].redeemed);
+    assert!(pending.grants[0].current_session);
+    assert!(b.access_grants(&other_user, computer).await.is_err());
+    let projected = serde_json::to_string(&pending).unwrap();
+    assert!(!projected.contains(ticket.token.expose_secret()));
+    for private in [
+        "provider",
+        "authority",
+        "ticket",
+        "connectionId",
+        "sessionFamily",
+    ] {
+        assert!(!projected.contains(private));
+    }
     assert!(
         b.redeem_browser_grant(&other_session, &ticket.token)
             .await
@@ -105,6 +121,10 @@ async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_
         _ => panic!("ticket must create exactly one attachment"),
     };
     assert!(b.renew_browser_grant(&handle, false).await.is_ok());
+    let inventory = b.access_grants(&other_session, computer).await.unwrap();
+    assert_eq!(inventory.grants[0].grant_id, handle.grant_id());
+    assert!(inventory.grants[0].redeemed);
+    assert!(!inventory.grants[0].current_session);
     let mut stored =
         db.b.client()
             .query("SELECT VALUE ticket_hash FROM ONLY $grant;")
@@ -118,13 +138,47 @@ async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_
     assert_eq!(hash.len(), 64);
     assert!(!ticket.token.expose_secret().contains(&hash));
     assert!(
-        a.revoke_browser_grant(&other_user, handle.grant_id())
+        a.revoke_browser_grant(&other_user, computer, handle.grant_id())
             .await
             .is_err()
     );
-    a.revoke_browser_grant(&other_session, handle.grant_id())
+    assert!(
+        a.revoke_browser_grant(&actor, Uuid::now_v7(), handle.grant_id())
+            .await
+            .is_err()
+    );
+    assert!(b.renew_browser_grant(&handle, false).await.is_ok());
+    // Reducing existing access remains possible after membership loses the right
+    // to issue new access. Revocation cannot widen that membership.
+    let mut read_only = control();
+    read_only.work_contexts[0].memberships[0].level = WorkContextMembershipLevel::Viewer;
+    support::policy::install(&db.b, read_only).await;
+    assert!(
+        a.issue_browser_grant(&other_session, computer)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        b.access_grants(&other_session, computer)
+            .await
+            .unwrap()
+            .grants
+            .len(),
+        1
+    );
+    a.revoke_browser_grant(&other_session, computer, handle.grant_id())
         .await
         .unwrap();
+    a.revoke_browser_grant(&other_session, computer, handle.grant_id())
+        .await
+        .unwrap();
+    assert!(
+        b.access_grants(&actor, computer)
+            .await
+            .unwrap()
+            .grants
+            .is_empty()
+    );
     assert!(b.renew_browser_grant(&handle, true).await.is_err());
     assert!(a.redeem_browser_grant(&actor, &ticket.token).await.is_err());
     assert_eq!(

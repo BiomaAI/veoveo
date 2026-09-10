@@ -31,7 +31,7 @@ impl ComputersMcp {
                 Some(ResourceId::Collection(_)) => {
                     control.require_read(None).map_err(|_| auth::forbidden())?
                 }
-                Some(ResourceId::Computer(id)) => {
+                Some(ResourceId::Computer(id) | ResourceId::Access(id)) => {
                     control
                         .require_read(Some(id))
                         .map_err(|_| auth::forbidden())?;
@@ -162,7 +162,9 @@ impl ComputersMcp {
                                 Err(_) => return Err(auth::unavailable()),
                             }
                             for uri in &uris {
-                                if matches!(resources::parse(uri), Some(ResourceId::Collection(_))) || resources::parse(uri) == Some(ResourceId::Computer(id)) {
+                                if matches!(resources::parse(uri), Some(ResourceId::Collection(_)))
+                                    || resources::parse(uri) == Some(ResourceId::Computer(id))
+                                    || resources::parse(uri) == Some(ResourceId::Access(id)) {
                                     context.sink().notify_resource_updated(uri.clone()).await.map_err(|_| auth::unavailable())?;
                                 }
                             }

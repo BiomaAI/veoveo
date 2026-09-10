@@ -1,5 +1,7 @@
 //! Authenticated wire and replica evidence with a real store and synthetic
 //! capacity health. Provider execution keeps its separate native fixture.
+#[path = "support/access_inventory.rs"]
+mod access_inventory;
 #[path = "support/application.rs"]
 mod app_support;
 #[path = "../../../platform/computers/tests/support/mod.rs"]

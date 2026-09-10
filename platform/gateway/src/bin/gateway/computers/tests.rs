@@ -64,6 +64,7 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             &Method::GET,
             Some(uuid::Uuid::new_v4()),
             None,
+            None,
         )
         .is_err()
     );
@@ -73,6 +74,7 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             &Method::GET,
             Some(uuid::Uuid::nil()),
             None,
+            None,
         )
         .is_err()
     );
@@ -81,6 +83,7 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             "/computers/{profile}/{id}/provider-admin",
             &Method::POST,
             Some(uuid::Uuid::new_v4()),
+            None,
             None,
         )
         .is_err()
@@ -99,7 +102,7 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
     let receipt = uuid::Uuid::new_v4();
     let path = "/computers/{profile}/{id}/operations/{operation_id}";
     let operation =
-        Operation::from_route(path, &Method::GET, Some(computer), Some(receipt)).unwrap();
+        Operation::from_route(path, &Method::GET, Some(computer), Some(receipt), None).unwrap();
     assert_eq!(
         operation.service_path(),
         format!("computers/{computer}/operations/{receipt}")
@@ -114,8 +117,62 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
         uri.as_str(),
         veoveo_computers_contract::computer_uri(computer)
     );
-    assert!(Operation::from_route(path, &Method::POST, Some(computer), Some(receipt)).is_err());
     assert!(
-        Operation::from_route(path, &Method::GET, Some(computer), Some(uuid::Uuid::nil())).is_err()
+        Operation::from_route(path, &Method::POST, Some(computer), Some(receipt), None).is_err()
+    );
+    assert!(
+        Operation::from_route(
+            path,
+            &Method::GET,
+            Some(computer),
+            Some(uuid::Uuid::nil()),
+            None
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn self_revocation_is_a_json_mutation_bound_to_the_parents_read_authority() {
+    let computer = uuid::Uuid::new_v4();
+    let grant = uuid::Uuid::new_v4();
+    let path = "/computers/{profile}/{id}/access/{grant_id}/revoke";
+    let operation =
+        Operation::from_route(path, &Method::POST, Some(computer), None, Some(grant)).unwrap();
+    assert!(operation.requires_json());
+    assert!(!operation.requires_contributor());
+    assert_eq!(
+        operation.service_path(),
+        format!("computers/{computer}/access/{grant}/revoke")
+    );
+    let (target, actions) = operation.authorization();
+    assert_eq!(actions, &[GatewayAction::ResourcesRead]);
+    let PolicyTarget::Resource { uri, .. } = target else {
+        panic!("parent read target required")
+    };
+    assert_eq!(
+        uri.as_str(),
+        veoveo_computers_contract::computer_uri(computer)
+    );
+    assert!(Operation::from_route(path, &Method::GET, Some(computer), None, Some(grant)).is_err());
+    assert!(
+        Operation::from_route(
+            path,
+            &Method::POST,
+            Some(computer),
+            Some(grant),
+            Some(grant)
+        )
+        .is_err()
+    );
+    assert!(
+        Operation::from_route(
+            path,
+            &Method::POST,
+            Some(computer),
+            None,
+            Some(uuid::Uuid::nil())
+        )
+        .is_err()
     );
 }

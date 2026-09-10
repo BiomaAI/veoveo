@@ -40,6 +40,7 @@ pub(super) async fn proxy(
         request.method(),
         route.id,
         route.operation_id,
+        route.grant_id,
     )?;
     if (operation != Operation::List && request.uri().query().is_some())
         || page.after.is_some_and(|id| id.is_nil())
@@ -67,7 +68,7 @@ async fn forward(
     } else {
         None
     };
-    if operation.requires_contributor() {
+    if operation.requires_json() {
         require_json(request.headers())?;
     }
     let method = request.method().clone();
@@ -79,7 +80,10 @@ async fn forward(
         Operation::Start(_) => normalize::<api::StartInput>(&bytes),
         Operation::Stop(_) => normalize::<api::StopInput>(&bytes),
         Operation::Ticket(_) => normalize::<api::TerminalTicketInput>(&bytes),
-        Operation::List | Operation::Read(_) | Operation::Receipt { .. } if bytes.is_empty() => {
+        Operation::RevokeAccess { .. } => normalize::<api::RevokeAccessBody>(&bytes),
+        Operation::List | Operation::Read(_) | Operation::Receipt { .. } | Operation::Access(_)
+            if bytes.is_empty() =>
+        {
             Ok(Vec::new())
         }
         _ => Err(()),
@@ -101,7 +105,7 @@ async fn forward(
         .request(method, admitted.url)
         .header(header::AUTHORIZATION, admitted.authorization)
         .body(body);
-    if operation.requires_contributor() {
+    if operation.requires_json() {
         upstream = upstream.header(header::CONTENT_TYPE, "application/json");
     }
     if let Some(origin) = origin {
@@ -122,6 +126,12 @@ async fn forward(
             }
             Operation::Read(_) if status == StatusCode::OK => {
                 normalize::<api::ComputerView>(&bytes)
+            }
+            Operation::Access(computer) if status == StatusCode::OK => {
+                access_grants(&bytes, computer)
+            }
+            Operation::RevokeAccess { computer, grant } if status == StatusCode::OK => {
+                access_revocation(&bytes, computer, grant)
             }
             Operation::Receipt {
                 computer,
@@ -155,6 +165,27 @@ async fn forward(
 fn read_receipt(bytes: &[u8], computer: Uuid, operation: Uuid) -> Result<Vec<u8>, ()> {
     let receipt: api::OperationReceipt = serde_json::from_slice(bytes).map_err(|_| ())?;
     if receipt.computer_id != computer || receipt.task_id != operation {
+        return Err(());
+    }
+    serde_json::to_vec(&receipt).map_err(|_| ())
+}
+fn access_grants(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
+    let grants: api::AccessGrantCollection = serde_json::from_slice(bytes).map_err(|_| ())?;
+    let mut ids = std::collections::BTreeSet::new();
+    if grants.computer_id != computer
+        || grants.grants.len() > 128
+        || grants
+            .grants
+            .iter()
+            .any(|grant| grant.grant_id.is_nil() || !ids.insert(grant.grant_id))
+    {
+        return Err(());
+    }
+    serde_json::to_vec(&grants).map_err(|_| ())
+}
+fn access_revocation(bytes: &[u8], computer: Uuid, grant: Uuid) -> Result<Vec<u8>, ()> {
+    let receipt: api::AccessRevocation = serde_json::from_slice(bytes).map_err(|_| ())?;
+    if receipt.computer_id != computer || receipt.grant_id != grant || !receipt.revoked {
         return Err(());
     }
     serde_json::to_vec(&receipt).map_err(|_| ())
