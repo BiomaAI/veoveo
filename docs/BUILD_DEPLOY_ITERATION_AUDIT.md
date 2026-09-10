@@ -2439,3 +2439,12 @@ the generator's initial 14.81 s rebuild. Runtime all-target Clippy takes 6.21 s.
 This client-only private wire change does not rebuild the OpenShell provider or
 Computer image. The production allocator must enforce the echoed identity; a
 successful transport fixture does not establish that enforcement.
+
+The retained-writer matcher now binds Docker's engine UUID, provider namespace and
+full Computer/template/instance labels. Its isolated native probe takes 8.97 s after
+a 1.53 s compile. It proves that source removal alone does not admit a replacement
+and that a late old instance cannot reclaim the home as its sole consumer. The first
+extended run failed on Docker CLI error wording; the fixture now checks the exact
+Engine HTTP 404 from the same isolated daemon. It does not turn arbitrary command
+failure into source-removal evidence. Durable handoff and filesystem preparation are
+still allocator work; the fixture's explicit admission change is held in memory.

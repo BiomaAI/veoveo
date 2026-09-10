@@ -27,8 +27,19 @@ async fn docker_volume_boundary_excludes_competing_registered_writers() {
     fixture.create("b", true).await;
     fixture.start_container("b", false).await;
     fixture.remove_container("a").await;
+    // Removal alone cannot admit a differently named instance.
+    fixture.start_container("b", false).await;
+    fixture.admit_replacement().await;
     fixture.start_container("b", true).await;
     fixture.assert_content("b", "still-first").await;
     fixture.write("b", "second").await;
+    fixture.remove_container("b").await;
+    // A delayed old Create cannot regain the home even as its sole consumer.
+    fixture.create("a", true).await;
+    fixture.start_container("a", false).await;
+    fixture.remove_container("a").await;
+    fixture.create("b", true).await;
+    fixture.start_container("b", true).await;
+    fixture.assert_content("b", "second").await;
     fixture.finish().await;
 }
