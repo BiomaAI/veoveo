@@ -2719,3 +2719,25 @@ The last disk observation showed 151 GiB free, down from 164 GiB at the previous
 checkpoint. This growth was host Cargo compilation. No retained home, provider binary,
 or installed image was removed. Public deployment and end-to-end Console qualification
 remain separate from these local transport and admission results.
+
+Scoped Cargo maintenance subsequently reviewed 931 candidates and applied a fresh
+locked plan containing 932 candidates: 171 old executable copies and 761 old
+incremental variants, totaling 128.72 GiB. It retained dependency libraries, current
+executable links and the newest incremental variant per crate. Disk availability
+increased to 278 GiB, and the Computer storage executable remains present. The exact
+review and applied receipts are under `output/development/computers-cargo-cache-*`.
+Provider artifacts and retained homes are outside this cleanup scope.
+
+The live-feed checkpoint reuses the Console's auth-scoped MCP pool. Unexpected resource
+source completion now retires the cached client instead of leaving observers silently
+stale until token rotation. Partial filter acknowledgment returns pending capacity.
+The fixture now keeps remote listeners alive until cancellation and independently waits
+for their cleanup; two old immediate-counter assertions were corrected to reflect that
+wire boundary. The final 194 gateway/BFF cases pass in 16.03 seconds with a 14.07-second
+compile, and strict lint takes 4.24 seconds.
+
+Selecting only `--bin console-bff` changed Cargo's feature closure despite retaining
+both `-p` arguments, causing a 34.03-second preliminary build. The final checks retain
+`--lib --bins` consistently. Package selection alone does not identify a reusable build
+closure; requested target kinds and dependency features also matter for scoped evidence
+and iteration tooling.

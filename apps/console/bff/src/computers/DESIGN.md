@@ -8,6 +8,7 @@
 | Existing Console session | Authenticated encrypted cookie, OAuth renewal and constant-time CSRF check for mutations |
 | WebSocket, RFC 6455 | HTTP/1.1 upgrade, exact public Origin and cookie authentication |
 | Veoveo terminal v2 | One-use first frame, binary terminal, bounded resize, replay fence and upstream authority deadline |
+| MCP `2026-07-28` and server-sent events | Auth-scoped collection subscription projected as typed invalidations over a CSRF-protected HTTP POST |
 
 `/console/api/computers` and its exact Computer children are the native Console edge.
 The configured Console profile and gateway URL select the upstream. Input cannot
@@ -44,3 +45,16 @@ Behavior tests cover cookie/CSRF admission, fixed profile and headers, origin/qu
 rejection, body limits, cookie rotation on failure, redirects, WebSocket first-frame
 delivery and cancellation. These local tests do not establish installed public
 authentication, current domain policy or headed terminal presentation.
+
+`POST /console/api/computers/events` accepts a closed empty body capped at 1 KiB.
+It uses the existing authenticated MCP pool and requires the exact collection filter
+to be acknowledged. Subscription admission precedes the initial baseline invalidation.
+The browser rereads canonical HTTP state after each invalidation. A lagged observer
+also invalidates the snapshot. This endpoint performs no provider status polling.
+
+The outgoing queue holds one event. A separate task enforces source loss, source-token
+expiry and shutdown even when the browser stops reading. Body drop cancels that task;
+all exits release the downstream subscription with a five-second cleanup bound.
+Heartbeat comments keep intermediaries active without granting authority or extending
+the deadline. Successful session renewal is returned in headers even when subsequent
+subscription admission fails.

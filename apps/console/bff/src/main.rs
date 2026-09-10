@@ -76,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
     let cluster = cluster::KubernetesClient::from_env(&outbound_trust)?.map(Arc::new);
     let mcp = Arc::new(mcp_client::AuthScopedMcpClientPool::new_with_capacity(
         &outbound_trust,
-        mcp_client::AppResourceCapacity {
+        mcp_client::ResourceCapacity {
             max_upstream_listeners: config.max_app_resource_listeners(),
             max_downstream_subscriptions: config.max_app_resource_subscriptions(),
         },
