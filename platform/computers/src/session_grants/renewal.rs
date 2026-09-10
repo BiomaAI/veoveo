@@ -106,6 +106,15 @@ impl ComputersStore {
             return Err(ComputerError::Forbidden);
         }
         Ok(SessionGrantLease {
+            session_family_id: accepted
+                .request_context
+                .access_token
+                .session_family
+                .as_ref()
+                .ok_or(ComputerError::Forbidden)?
+                .as_str()
+                .parse()
+                .map_err(|_| ComputerError::Forbidden)?,
             computer,
             checked_at: started,
             valid_until,

@@ -43,16 +43,31 @@ enum Command {
     Write(Vec<u8>, oneshot::Sender<Result<()>>),
     Resize(TerminalSize, oneshot::Sender<Result<()>>),
 }
+#[derive(Clone)]
+pub struct TerminalInput {
+    input: mpsc::Sender<Command>,
+    lease: AttachmentLease,
+}
 pub struct Terminal {
     input: mpsc::Sender<Command>,
     output: mpsc::Receiver<Result<TerminalOutput>>,
     cancel: Option<oneshot::Sender<()>>,
     worker: Option<JoinHandle<Result<()>>>,
     finished: Option<Result<()>>,
+    resource: String,
     instance: String,
     lease: AttachmentLease,
 }
 impl Terminal {
+    pub fn input(&self) -> TerminalInput {
+        TerminalInput {
+            input: self.input.clone(),
+            lease: self.lease.clone(),
+        }
+    }
+    pub fn sandbox_id(&self) -> &str {
+        &self.resource
+    }
     pub fn main_process_instance_id(&self) -> &str {
         &self.instance
     }
@@ -76,6 +91,23 @@ impl Terminal {
         }
     }
     pub async fn write(&self, bytes: &[u8]) -> Result<()> {
+        self.input().write(bytes).await
+    }
+    pub async fn resize(&self, size: TerminalSize) -> Result<()> {
+        self.input().resize(size).await
+    }
+    pub async fn detach(mut self) -> Result<()> {
+        if let Some(cancel) = self.cancel.take() {
+            let _ = cancel.send(());
+        }
+        if let Some(worker) = self.worker.take() {
+            worker.await.map_err(|_| RuntimeFailure::TerminalFailed)??;
+        }
+        self.finished.unwrap_or(Ok(()))
+    }
+}
+impl TerminalInput {
+    pub async fn write(&self, bytes: &[u8]) -> Result<()> {
         self.lease.check()?;
         if bytes.is_empty() || bytes.len() > MAX_CHUNK_BYTES {
             return Err(RuntimeFailure::TerminalBounds);
@@ -95,15 +127,6 @@ impl Terminal {
             .await
             .map_err(|_| RuntimeFailure::TerminalFailed)?;
         rx.await.map_err(|_| RuntimeFailure::TerminalFailed)?
-    }
-    pub async fn detach(mut self) -> Result<()> {
-        if let Some(cancel) = self.cancel.take() {
-            let _ = cancel.send(());
-        }
-        if let Some(worker) = self.worker.take() {
-            worker.await.map_err(|_| RuntimeFailure::TerminalFailed)??;
-        }
-        self.finished.unwrap_or(Ok(()))
     }
 }
 impl Drop for Terminal {
@@ -244,7 +267,7 @@ impl OpenShellRuntime {
             )
             .await
         });
-        let instance = ready_rx
+        let observed = ready_rx
             .await
             .map_err(|_| RuntimeFailure::TerminalFailed)??;
         Ok(Terminal {
@@ -253,7 +276,8 @@ impl OpenShellRuntime {
             cancel: cancel.0.take(),
             worker: Some(worker),
             finished: None,
-            instance,
+            resource: observed.sandbox_id,
+            instance: observed.main_process_instance_id,
             lease,
         })
     }
@@ -373,7 +397,7 @@ async fn terminal_worker(
     lease: AttachmentLease,
     mut commands: mpsc::Receiver<Command>,
     output: mpsc::Sender<Result<TerminalOutput>>,
-    ready: oneshot::Sender<Result<String>>,
+    ready: oneshot::Sender<Result<Observation>>,
     mut cancel: oneshot::Receiver<()>,
 ) -> Result<()> {
     let mut token = SessionToken {
@@ -394,10 +418,7 @@ async fn terminal_worker(
         }
         Ok(attached) => {
             let (reader, writer) = attached.channel.split();
-            if ready
-                .send(Ok(attached.current.main_process_instance_id))
-                .is_err()
-            {
+            if ready.send(Ok(attached.current)).is_err() {
                 Ok(())
             } else {
                 // Each direction owns its pending I/O. In particular, a full

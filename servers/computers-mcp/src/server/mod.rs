@@ -1,9 +1,14 @@
+mod access_events;
 mod admin;
 mod auth;
+mod http_error;
+mod origins;
 mod provider;
 mod run;
+mod terminal;
 use crate::{Application, ApplicationError, protocol::ComputersMcp};
 use axum::{Router, extract::DefaultBodyLimit, http::StatusCode, middleware, routing::get};
+pub use origins::BrowserOrigins;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
 pub use run::serve;
 use std::{sync::Arc, time::Duration};
@@ -17,6 +22,7 @@ pub fn router(
     app: Arc<Application>,
     verifier: GatewayInternalTokenVerifier,
     allowed_hosts: Vec<String>,
+    allowed_origins: BrowserOrigins,
     shutdown: CancellationToken,
 ) -> Result<Router, ApplicationError> {
     if allowed_hosts.is_empty()
@@ -35,7 +41,7 @@ pub fn router(
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_max_request_body_bytes(64 * 1024)
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(shutdown),
+            .with_cancellation_token(shutdown.clone()),
     );
     let mcp = Router::new()
         .route_service("/", service.clone())
@@ -45,7 +51,14 @@ pub fn router(
         ));
     let secured = Router::new()
         .nest("/mcp", mcp)
-        .nest("/admin", admin::router(app.clone()))
+        .nest(
+            "/admin",
+            admin::router(app.clone()).merge(terminal::router(
+                app.clone(),
+                allowed_origins,
+                shutdown,
+            )),
+        )
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(middleware::from_fn(auth::deadline))
         .layer(middleware::from_fn_with_state(verifier, auth::internal));

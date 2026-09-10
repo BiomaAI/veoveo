@@ -105,6 +105,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         terminal.main_process_instance_id(),
         ready.main_process_instance_id
     );
+    assert_eq!(terminal.sandbox_id(), ready.sandbox_id);
     replay(&mut terminal).await;
     terminal
         .write(b"printf '\\nretained=%s uid=%s\\n' \"$VEOVEO_NATIVE_RETAINED\" \"$(id -u)\"\r")

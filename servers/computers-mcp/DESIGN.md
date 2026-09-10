@@ -8,6 +8,7 @@
 | Veoveo Computers | Provider-independent operation, Computer, owner and Work Context records in `platform/computers` |
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
 | MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions; installed conformance remains pending |
+| WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize and replay fence; the gateway authenticates the upgrade |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
 | `veoveo.io/computers-service/v1` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
 
@@ -24,7 +25,12 @@ configuration reference is `VEOVEO_COMPUTERS_CONFIG`. It uses the installation's
 migrations through the installation owner before starting this process.
 
 The configuration schema is `veoveo.io/computers-service/v1`. Its closed root fields
-are `schema`, `listen`, `allowedHosts`, `providerInstanceId` and `capacity`.
+are `schema`, `listen`, `allowedHosts`, `allowedOrigins`, `access`, `providerInstanceId`
+and `capacity`. `allowedOrigins` contains distinct canonical HTTPS origins. Explicit
+HTTP loopback origins are admitted for local fixtures. Opaque origins, credentials,
+paths, fragments, queries and duplicate Origin headers are rejected. `access` contains
+`maxGrants`, `absoluteSeconds` and `idleSeconds`; the domain validates and installs
+these limits through an exact retry or explicit compare-and-set transition.
 The provider UUID identifies the installation's retained capacity boundary and survives
 ordinary service restarts. Explicit `capacity: {"kind":"unconfigured"}` keeps the
 core collection available with Setup Required. It creates no capacity policy.
@@ -78,8 +84,10 @@ reuse that snapshot. The worker independently obtains its dispatch permit later.
 The collection reports Setup Required without a fabricated template or quota. Quota
 exhaustion reflects the owner's usage across Work Contexts plus tenant/provider
 counts; reservation remains transactional. A provider availability observation expires
-after fifteen seconds. Storage unavailability does not prohibit Stop. Connect and
-Delete remain unavailable until their grant and purge implementations are connected.
+after fifteen seconds. Storage unavailability does not prohibit Stop or an attachment
+to an already Ready Computer. Connect requires a live qualified provider connection,
+current browser-family/action authority, enabled grant policy and an admitted unfenced
+Ready Computer. Grant exhaustion remains transactional. Delete awaits retained purge.
 
 The installation retains admitted templates by fingerprint and selects a default for
 new Create requests. A retry resolves its first reservation before consulting that
@@ -127,6 +135,57 @@ ID. The shared MCP middleware enforces the final serialized 8 MiB response cap.
 The `develop` prompt describes the retained-work journey. Catalogs are static and
 advertise no list-change support. Embedded docs and contract declarations are served
 under `computer://docs`, `computer://contract` and authenticated `/admin/docs`.
+
+## Browser Terminal Access
+
+POST `/admin/computers/{id}/terminal-ticket` accepts the closed empty ticket input,
+checks the exact Origin and current domain authority, and returns HTTP 201 with
+`Cache-Control: no-store`. The response carries a one-use opaque token and an
+uncredentialed terminal path. The BFF owns its public path and cookie/CSRF boundary.
+GET `/admin/computers/{id}/terminal` requires a current Computers-audience assertion
+and admitted Origin before upgrade. Each replica admits at most 128 terminal streams.
+
+The first WebSocket message must be a terminal-v2 attach control within five seconds.
+Its text is capped at 1 KiB and binds the route Computer, ticket and terminal size.
+The durable domain redeems it once across replicas. The service discards the token
+before provider setup. Every later setup failure or disconnect closes that exact
+redeemed grant; cleanup has the domain's five-second deadline. An interrupted process
+still leaves the retained grant's idle and absolute limits in force.
+
+A fresh grant baseline supplies the attachment lease before private provider I/O.
+The connected runtime, returned resource and main process must match the retained
+Computer before forwarding bytes. The runtime connection is published only after a
+qualified handshake and successful current readiness probe. A lost publisher, stale
+probe or changed provider prevents attachment and renewal.
+
+The service owns one set of outbox, browser-family and active-policy LIVE listeners
+per replica. Their bounded fanout contains invalidations, never permission. Computer
+and family wakes select the relevant attachments; policy changes invalidate all.
+An overrun requires a fresh authoritative baseline. Losing a listener ends its epoch,
+including when it reconnects before a consumer runs. The replacement epoch admits a
+new attachment. No old attachment silently adopts a recovered observer.
+
+Renewal rereads current domain grant, family, directory, policy and Computer state.
+A five-second baseline handles a missed wake. Input and wake bursts coalesce for
+500 milliseconds; only acknowledged terminal input can extend idle activity. Resize,
+output and keepalive frames do not extend it. Grant absolute expiry remains fixed.
+Both the runtime and outer service guard enforce the monotonic lease independently
+of authority reads, provider setup and blocked WebSocket directions. Lease failure,
+observer loss and shutdown close access while native execution remains governed by
+its separate lifecycle policy.
+
+Binary messages preserve terminal bytes and are capped at 64 KiB. The WebSocket write
+buffer is bounded at 128 KiB; provider queues retain their existing bounds. Independent
+input and output futures share the same lease. The server sends Ready followed by
+bounded history and ReplayComplete. Input is rejected until that fence has been sent.
+The Console must additionally drain historical rendering before enabling keyboard
+input or terminal responses. Ready's expiry is the initial short authority projection;
+the service continues enforcing subsequent renewals. The client must not treat that
+initial timestamp as the Computer's lifetime.
+
+The gateway relay, Console renderer and public ingress remain separate delivery work.
+Local native qualification exercises real shell bytes through this service; it is
+not headed-browser or installed-user evidence.
 
 ## Resource And Task Subscriptions
 
@@ -190,7 +249,7 @@ Audit events contain identities and provenance, without commands or credentials.
 
 ## Contract Compliance
 
-The router implements the protocol and HTTP projection described above. Registration, live grants, execution/file tools and production
+The router implements the protocol and HTTP projection described above. Registration, the public browser relay/Console, execution/file tools and production
 packaging remain delivery work. The runnable entrypoint and its startup/shutdown path
 are qualified with an isolated store and unavailable provider endpoints. That evidence
 proves truthful control availability and validated configuration, not native capacity. The checklist in AGENTS.md declares those gaps.

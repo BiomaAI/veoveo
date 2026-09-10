@@ -34,6 +34,8 @@ impl Server {
             Arc::new(app),
             signing.verifier.clone(),
             vec![address.to_string()],
+            veoveo_computers_mcp::server::BrowserOrigins::new(vec![format!("http://{address}")])
+                .unwrap(),
             stop.clone(),
         )
         .unwrap();

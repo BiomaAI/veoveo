@@ -85,6 +85,7 @@ pub async fn application_on(
             TaskRuntime::new(platform, "computers", "application"),
             templates(new_default),
             receiver,
+            veoveo_computers_mcp::RuntimeAccess::unavailable(),
         )
         .unwrap(),
         health,

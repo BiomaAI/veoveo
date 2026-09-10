@@ -166,6 +166,11 @@ and installation clock allowances. A missed update expires locally; loss of the
 authority task closes its leases immediately. Delayed checks cannot overwrite a newer
 check or revive revoked or expired access. Wall-clock time is a display projection.
 
+`Terminal` exposes its checked resource and process identities for the owning service
+to compare against the durable grant before forwarding bytes. Its narrow `TerminalInput`
+handle lets that service drive input separately from output; dropping the terminal
+still closes every input handle through the same worker and attachment lease.
+
 Terminal and CLI pumps select authority closure independently of both I/O directions.
 They drop provider transport before cleanup, reject buffered output after revocation,
 and retain the main process. CLI forwarding validates the exact sandbox, SSH service,
@@ -182,9 +187,10 @@ of that transport is rejected; a broken attachment requires fresh authorized adm
 The provider SSH credential admits a connection. Its expiry does not shorten an
 established connection that still holds renewed Veoveo authority. Provider RPC admission
 and SSH setup retain finite deadlines; the live stream has no fixed gRPC timeout.
-The lease mechanism does not authorize a principal itself. Durable grants, policy
-rechecks, session-family logout, replica-wide revocation events and public ingress
-integration remain the owning domain's implementation work.
+The lease mechanism does not authorize a principal itself. Durable browser grants and
+current policy/family renewal belong to `platform/computers`; `servers/computers-mcp`
+composes their authority with this runtime and shared revocation wakes. Public Console
+and CLI ingress qualification remain delivery work.
 
 The native renewal fixture exchanges terminal data after repeated two-second leases
 and the provider's three-second admission credential have expired. The same shell

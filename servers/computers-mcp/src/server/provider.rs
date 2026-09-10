@@ -1,6 +1,6 @@
 //! Readiness observation is separate from the worker's operation-correlated
 //! completion profile. Reconnecting never resubmits an uncertain mutation.
-use crate::{CapacityHealth, LifecycleWorker, config::PreparedProvider};
+use crate::{CapacityHealth, LifecycleWorker, RuntimePublisher, config::PreparedProvider};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -26,6 +26,7 @@ pub(super) async fn maintain(
     tasks: TaskRuntime,
     templates: Vec<DevelopmentTemplate>,
     health: watch::Sender<CapacityHealth>,
+    access: RuntimePublisher,
     shutdown: CancellationToken,
 ) {
     let mut reconnect = tokio::time::interval(Duration::from_secs(5));
@@ -83,6 +84,7 @@ pub(super) async fn maintain(
                         tokio::time::timeout(Duration::from_secs(5), provider.homes.ready()),
                     );
                     let compute = matches!(compute, Ok(Ok(()))) && !job.is_finished();
+                    if compute { access.available(runtime.clone()); } else { access.unavailable(); }
                     report(&health, if !compute {CapacityAvailability::ComputeUnavailable}
                         else if matches!(storage, Ok(Ok(()))) {CapacityAvailability::Available}
                         else {CapacityAvailability::StorageUnavailable});
@@ -93,6 +95,7 @@ pub(super) async fn maintain(
                 break;
             }
         }
+        access.unavailable();
         stop.cancel();
         // The worker only abandons its local observation/dispatch futures. Durable
         // leases, provider execution and retained homes survive this process.

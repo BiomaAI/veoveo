@@ -25,11 +25,15 @@ impl SessionGrantHandle {
 
 /// An observed access window, not permission to mutate lifecycle state.
 pub struct SessionGrantLease {
+    pub(super) session_family_id: Uuid,
     pub(super) computer: Computer,
     pub(super) checked_at: Instant,
     pub(super) valid_until: Instant,
 }
 impl SessionGrantLease {
+    pub fn session_family_id(&self) -> Uuid {
+        self.session_family_id
+    }
     pub fn computer(&self) -> &Computer {
         &self.computer
     }

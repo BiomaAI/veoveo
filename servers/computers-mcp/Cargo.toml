@@ -7,7 +7,7 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
-axum.workspace = true
+axum = { workspace = true, features = ["ws"] }
 chrono.workspace = true
 futures.workspace = true
 schemars.workspace = true
@@ -20,6 +20,7 @@ tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt-mu
 tokio-util.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+url.workspace = true
 veoveo-computers = { path = "../../platform/computers" }
 veoveo-computers-runtime = { path = "../../platform/runtimes/computers" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
@@ -27,6 +28,7 @@ veoveo-platform-store = { path = "../../platform/store" }
 veoveo-mcp-contract.workspace = true
 
 [dev-dependencies]
+tokio-tungstenite.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
 base64.workspace = true

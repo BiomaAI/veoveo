@@ -1,66 +1,21 @@
+use super::http_error::{HttpError, actor};
 use super::*;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     routing::{get, post},
 };
 use serde::Deserialize;
 use uuid::Uuid;
-use veoveo_computers::{ComputerActor, ComputerError, OperationStage, api::*};
+use veoveo_computers::{OperationStage, api::*};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Page {
     after: Option<Uuid>,
-}
-fn actor(identity: &GatewayInternalIdentity) -> Result<ComputerActor, HttpError> {
-    ComputerActor::from_verified(identity)
-        .map_err(|e| HttpError(crate::ApplicationError::Domain(e)))
-}
-struct HttpError(crate::ApplicationError);
-impl From<crate::ApplicationError> for HttpError {
-    fn from(e: crate::ApplicationError) -> Self {
-        Self(e)
-    }
-}
-impl IntoResponse for HttpError {
-    fn into_response(self) -> Response {
-        let (status, code) = match &self.0 {
-            crate::ApplicationError::Domain(ComputerError::NotFound) => {
-                (StatusCode::NOT_FOUND, ErrorCode::NotFound)
-            }
-            crate::ApplicationError::Domain(ComputerError::Forbidden) => {
-                (StatusCode::FORBIDDEN, ErrorCode::Forbidden)
-            }
-            crate::ApplicationError::Domain(
-                ComputerError::InvalidInput | ComputerError::RequestConflict,
-            ) => (StatusCode::BAD_REQUEST, ErrorCode::InvalidInput),
-            crate::ApplicationError::Domain(ComputerError::CapacityFull) => {
-                (StatusCode::CONFLICT, ErrorCode::CapacityFull)
-            }
-            crate::ApplicationError::Domain(ComputerError::AccessLimit) => {
-                (StatusCode::CONFLICT, ErrorCode::AccessLimit)
-            }
-            crate::ApplicationError::Domain(ComputerError::OperationBusy) => {
-                (StatusCode::CONFLICT, ErrorCode::Busy)
-            }
-            crate::ApplicationError::Domain(
-                ComputerError::InvalidState | ComputerError::StateConflict,
-            ) => (StatusCode::CONFLICT, ErrorCode::InvalidState),
-            _ => (StatusCode::SERVICE_UNAVAILABLE, ErrorCode::Unavailable),
-        };
-        (
-            status,
-            Json(ApiError {
-                code,
-                message: self.0.to_string(),
-            }),
-        )
-            .into_response()
-    }
 }
 fn receipt(operation: veoveo_computers::Operation) -> (StatusCode, Json<OperationReceipt>) {
     let status = match operation.stage {

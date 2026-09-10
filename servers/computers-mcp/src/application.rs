@@ -33,6 +33,8 @@ pub struct Application {
     pub(crate) store: ComputersStore,
     pub(crate) tasks: TaskRuntime,
     pub(crate) templates: Templates,
+    pub(crate) runtime: crate::RuntimeAccess,
+    pub(crate) terminal_slots: std::sync::Arc<tokio::sync::Semaphore>,
     health: watch::Receiver<CapacityHealth>,
 }
 impl Application {
@@ -44,6 +46,7 @@ impl Application {
         tasks: TaskRuntime,
         templates: Templates,
         health: watch::Receiver<CapacityHealth>,
+        runtime: crate::RuntimeAccess,
     ) -> Result<Self> {
         if tasks.server() != "computers" {
             return Err(ApplicationError::Configuration);
@@ -54,6 +57,8 @@ impl Application {
             tasks,
             templates,
             health,
+            runtime,
+            terminal_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(128)),
         })
     }
     pub fn availability(&self) -> CapacityAvailability {
@@ -95,10 +100,11 @@ impl Application {
             Err(_) if self.availability() == CapacityAvailability::SetupRequired => (None, false),
             Err(e) => return Err(e.into()),
         };
+        let access = self.browser_access(&authority).await?;
         let computers = page
             .computers
             .iter()
-            .map(|c| self.view(c, &authority))
+            .map(|c| self.view(c, &authority, access))
             .collect();
         authority.require_read(None)?;
         Ok(ComputerSnapshot {
@@ -121,10 +127,22 @@ impl Application {
         let authority = self.store.control_authority(actor).await?;
         authority.require_read(Some(id))?;
         let computer = self.store.get(actor.owner(), id).await?;
+        let access = self.browser_access(&authority).await?;
         authority.require_read(Some(id))?;
-        Ok(self.view(&computer, &authority))
+        Ok(self.view(&computer, &authority, access))
     }
-    fn view(&self, computer: &Computer, authority: &ControlAuthority) -> ComputerView {
+    async fn browser_access(&self, authority: &ControlAuthority) -> Result<bool> {
+        if !authority.has_browser_session() || self.runtime.current().is_err() {
+            return Ok(false);
+        }
+        Ok(self.store.session_grant_policy().await?.max_grants > 0)
+    }
+    fn view(
+        &self,
+        computer: &Computer,
+        authority: &ControlAuthority,
+        access: bool,
+    ) -> ComputerView {
         let unfenced = computer.active_operation.is_none();
         let template = computer.provider_instance_id == self.store.provider_instance_id()
             && self
@@ -139,9 +157,14 @@ impl Application {
             can_create: computer.phase == ComputerPhase::Reserved && admitted(Action::Create),
             can_start: computer.phase == ComputerPhase::Stopped && admitted(Action::Start),
             can_stop: computer.phase == ComputerPhase::Ready && admitted(Action::Stop),
-            // These routes become actionable only when their grant/purge implementations land.
+            // Deletion becomes actionable with retained purge.
             can_delete: false,
-            can_connect: false,
+            can_connect: access
+                && template
+                && unfenced
+                && computer.phase == ComputerPhase::Ready
+                && self.runtime.current().is_ok()
+                && authority.require_attach(computer.computer_id).is_ok(),
             active_task_id: computer.active_operation,
             created_at: computer.created_at,
             updated_at: computer.updated_at,

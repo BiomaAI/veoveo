@@ -2651,3 +2651,26 @@ should declare `--no-default-features` when that matches the affected consumers,
 analytics qualified separately. The full result here remains valid. Service/domain
 lint reuses its graph in 1.3 s; shared-library lint takes 18.1 s. No native provider or
 Computer image was rebuilt. Last disk observation showed 212 GiB free.
+
+The service now composes durable browser grants with native terminal transport. The
+first WebSocket feature build took 132 seconds, including SurrealDB recompilation.
+The subsequent native target compiled in 18.53 seconds and completed its retained
+lifecycle plus browser cases in 67.83 seconds. Final recorded coverage passes 114
+domain/service/runtime cases in 82.0 seconds, including a 31.93-second compile. The
+recorded native run reused that build in 0.61 seconds and passed in 56.99 seconds.
+The final lint reused its graph in 2.66 seconds. These native cases reuse the exact
+qualified provider binaries and Computer image; no OCI build was necessary.
+
+Terminal revocation uses three shared LIVE sources per service replica with bounded,
+filtered fanout. This avoids one database watcher set per attachment. Authoritative
+renewals still read current state; accepted input and event bursts coalesce for
+500 milliseconds. MCP resource listeners still create individual outbox LIVE sources
+and remain a separate consolidation opportunity. This checkpoint's native transport
+proof does not establish public relay, stock CLI ingress or headed Console behavior.
+
+The extra Cargo feature closure consumed roughly 43 GiB during this checkpoint. The
+last observation showed 169 GiB available, with 72 GiB of incremental data and 250 GiB
+of dependency artifacts. No retained home or provider image was pruned. The local
+registry remained HTTP 200 in 1.45 milliseconds after native fixture cleanup, and the
+retired volume responder remains required until the host daemon naturally replaces
+its cached plugin clients. Do not restart the installed Docker daemon to clear it.

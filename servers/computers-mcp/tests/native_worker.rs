@@ -1,10 +1,14 @@
 #![allow(dead_code)] // Shared native fixtures expose scenario-specific operations.
+#[path = "support/browser_terminal.rs"]
+mod browser_terminal;
 #[path = "../../../platform/runtimes/computers/tests/native_support/docker_daemon.rs"]
 mod docker_daemon;
 #[path = "../../../platform/computers/storage/tests/native_support/service.rs"]
 mod native_service_support;
 #[path = "../../../platform/runtimes/computers/tests/native_support/mod.rs"]
 mod provider;
+#[path = "support/signing.rs"]
+mod signing;
 #[path = "../../../platform/computers/tests/support/mod.rs"]
 mod support;
 #[path = "../../../platform/runtimes/computers/tests/native_support/template.rs"]
@@ -200,6 +204,13 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     assert_eq!(result.status, TaskStatus::Succeeded);
     assert!(result.retention_pins.is_empty());
     assert!(a.pending_operations(None, 100).await.unwrap().is_empty());
+    browser_terminal::qualify(
+        &db,
+        provider.runtime.clone(),
+        selected.clone(),
+        computer.computer_id,
+    )
+    .await;
     shell(
         &provider.runtime,
         &binding,

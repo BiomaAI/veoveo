@@ -28,7 +28,15 @@ async fn selected_configuration_validates_pins_and_trust_before_provider_connect
         valid.prepare().await.is_ok(),
         "offline provider must not invalidate complete configuration"
     );
-    for changed in ["fingerprint", "template", "tls", "root", "quota"] {
+    for changed in [
+        "fingerprint",
+        "template",
+        "tls",
+        "root",
+        "quota",
+        "origin",
+        "lifetime",
+    ] {
         let mut config = selected.clone();
         match changed {
             "fingerprint" => {
@@ -47,6 +55,8 @@ async fn selected_configuration_validates_pins_and_trust_before_provider_connect
                 config["capacity"]["templates"][0]["policy"]["process"]["runAsUser"] = "0".into()
             }
             "quota" => config["capacity"]["limits"]["owner"] = 500.into(),
+            "origin" => config["allowedOrigins"] = serde_json::json!(["https://veoveo.bioma.ai/"]),
+            "lifetime" => config["access"]["idleSeconds"] = 99999.into(),
             _ => unreachable!(),
         }
         match serde_json::from_value::<Configuration>(config) {

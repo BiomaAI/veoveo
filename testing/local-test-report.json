@@ -1,100 +1,91 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:be93f19a17c56b81d4d111c686551c80c32f4f081bc9d17c6623e9b95e12f667",
-  "updatedAt": "2026-09-10T09:50:33Z",
+  "buildDigest": "sha256:d48fd8adadd431ae9d532860fb65259e623964e09c5c297e4c96775e1ebd12ba",
+  "updatedAt": "2026-09-10T10:22:39Z",
   "checks": [
     {
-      "name": "computers-browser-grants",
+      "name": "computers-terminal",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers",
-        "-p",
         "veoveo-computers-mcp",
         "-p",
-        "veoveo-policy",
-        "--tests"
+        "veoveo-computers-runtime",
+        "-p",
+        "veoveo-computers"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T09:44:29Z",
-      "durationSeconds": 85.564983267,
+      "finishedAt": "2026-09-10T10:19:49Z",
+      "durationSeconds": 82.023856444,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-grant-contract",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-mcp-contract",
-        "-p",
-        "veoveo-platform-store",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T09:46:53Z",
-      "durationSeconds": 114.803077109,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-grant-contract-lint",
+      "name": "computers-terminal-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-mcp-contract",
+        "veoveo-computers-mcp",
         "-p",
-        "veoveo-platform-store",
-        "--lib",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T09:48:57Z",
-      "durationSeconds": 18.141411836,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-grant-lint",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
+        "veoveo-computers-runtime",
         "-p",
         "veoveo-computers",
-        "-p",
-        "veoveo-computers-mcp",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T09:48:03Z",
-      "durationSeconds": 1.3460895929999999,
+      "finishedAt": "2026-09-10T10:22:05Z",
+      "durationSeconds": 2.798304995,
       "detail": "completed successfully"
     },
     {
-      "name": "rust-format",
+      "name": "computers-terminal-native",
+      "command": [
+        "env",
+        "VEOVEO_COMPUTERS_NATIVE_ALLOCATOR=/home/rozgo/BiomaAI/veoveo/target/debug/veoveo-computer-storage",
+        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
+        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-sandbox",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-mcp",
+        "-p",
+        "veoveo-computers-runtime",
+        "-p",
+        "veoveo-computers",
+        "--test",
+        "native_worker",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T10:21:20Z",
+      "durationSeconds": 57.670416536,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "fmt",
       "command": [
         "cargo",
         "fmt",
         "--all",
-        "--",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T09:50:33Z",
-      "durationSeconds": 2.713149328,
+      "finishedAt": "2026-09-10T10:22:39Z",
+      "durationSeconds": 2.524426518,
       "detail": "completed successfully"
     }
   ]

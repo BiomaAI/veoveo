@@ -165,6 +165,7 @@ async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission(
         TaskRuntime::new(db.a.clone(), "computers", "unconfigured"),
         Templates::new(vec![], None).unwrap(),
         receiver,
+        veoveo_computers_mcp::RuntimeAccess::unavailable(),
     )
     .unwrap();
     let owner = support::owner("alice");
