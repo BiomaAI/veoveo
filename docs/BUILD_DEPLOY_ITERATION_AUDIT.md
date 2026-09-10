@@ -3272,3 +3272,17 @@ The first combined check of those producers took 84 seconds and composed additio
 Arrow, Rerun and SurrealDB feature graphs. This is a source compilation observation,
 not an image-build timing. The output-policy check catalog now separates pure policy
 tests, native persistence evidence and producer compilation.
+
+
+The protected command-output checkpoint compiled in 18.23 seconds. Its seven pure
+codec cases ran in 0.01 seconds; two real-store output cases took 1.84 seconds.
+The existing seven containment cases took 21.65 seconds and six command cases 8.84
+seconds in that run. Container startup and concurrent database migration remain
+variable; these are individual observations, not a throughput claim. No provider or
+image rebuild is needed to test capability preparation and journal races.
+
+Immutable evidence currently repeats complete input manifests inside receipts. The
+preceding Artifact-output commit added roughly 114,000 lines, mostly duplicated
+manifests. A versioned content-addressed manifest store would reduce repository churn
+without discarding receipt history. That evidence-format change remains tracked work;
+existing receipts are preserved while command delivery proceeds.

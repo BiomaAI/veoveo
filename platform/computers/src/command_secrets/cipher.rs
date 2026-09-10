@@ -15,7 +15,25 @@ use zeroize::Zeroizing;
 type Authentication = Hmac<Sha256>;
 const NONCE_BYTES: usize = 24;
 const TAG_BYTES: usize = 16;
-const MAX_ENCODED: usize = (MAX_PLAINTEXT + TAG_BYTES).div_ceil(3) * 4;
+#[derive(Clone, Copy)]
+pub(super) enum SecretKind {
+    Command,
+    OutputAccess,
+}
+impl SecretKind {
+    fn maximum_bytes(self) -> usize {
+        match self {
+            Self::Command => MAX_PLAINTEXT,
+            Self::OutputAccess => super::output_access::MAX_OUTPUT_ACCESS_BYTES,
+        }
+    }
+    fn domain(self) -> &'static [u8] {
+        match self {
+            Self::Command => b"command",
+            Self::OutputAccess => b"output-access",
+        }
+    }
+}
 
 /// Secret material comes from installation-owned storage, never the Computer.
 pub struct CommandSealingKey {
@@ -110,8 +128,19 @@ impl CommandKeyRing {
         binding: &CommandBinding,
         command: &CommandPayload,
     ) -> Result<SealedCommand> {
-        let aad = Self::aad(binding, self.active)?;
         let bytes = command.encode()?;
+        self.seal_bytes(binding, &bytes, SecretKind::Command)
+    }
+    pub(super) fn seal_bytes(
+        &self,
+        binding: &CommandBinding,
+        bytes: &[u8],
+        kind: SecretKind,
+    ) -> Result<SealedCommand> {
+        if bytes.len() < 12 || bytes.len() > kind.maximum_bytes() {
+            return Err(ComputerError::InvalidInput);
+        }
+        let aad = Self::aad(binding, self.active, kind)?;
         let key = self
             .keys
             .get(&self.active)
@@ -123,7 +152,7 @@ impl CommandKeyRing {
             .encrypt(
                 &XNonce::from(nonce),
                 Payload {
-                    msg: &bytes,
+                    msg: bytes,
                     aad: &aad,
                 },
             )
@@ -133,17 +162,18 @@ impl CommandKeyRing {
             key_id: self.active,
             nonce: STANDARD.encode(nonce),
             ciphertext: STANDARD.encode(ciphertext),
-            fingerprint: STANDARD.encode(key.fingerprint(&aad, &bytes)?.finalize().into_bytes()),
+            fingerprint: STANDARD.encode(key.fingerprint(&aad, bytes)?.finalize().into_bytes()),
         })
     }
-    fn aad(binding: &CommandBinding, key_id: Uuid) -> Result<Vec<u8>> {
+    fn aad(binding: &CommandBinding, key_id: Uuid, kind: SecretKind) -> Result<Vec<u8>> {
         let mut aad = key_id.as_bytes().to_vec();
+        aad.extend_from_slice(kind.domain());
         aad.extend_from_slice(&binding.aad()?);
         Ok(aad)
     }
-    fn key(&self, sealed: &SealedCommand) -> Result<&DerivedKey> {
+    fn key(&self, sealed: &SealedCommand, kind: SecretKind) -> Result<&DerivedKey> {
         if sealed.version != 1
-            || sealed.ciphertext.len() > MAX_ENCODED
+            || sealed.ciphertext.len() > (kind.maximum_bytes() + TAG_BYTES).div_ceil(3) * 4
             || sealed.ciphertext.len() < (12 + TAG_BYTES).div_ceil(3) * 4
             || sealed.nonce.len() != 32
             || sealed.fingerprint.len() != 44
@@ -155,8 +185,16 @@ impl CommandKeyRing {
             .ok_or(ComputerError::Unavailable)
     }
     pub fn open(&self, binding: &CommandBinding, sealed: &SealedCommand) -> Result<CommandPayload> {
-        let key = self.key(sealed)?;
-        let aad = Self::aad(binding, sealed.key_id)?;
+        CommandPayload::decode(&self.open_bytes(binding, sealed, SecretKind::Command)?)
+    }
+    pub(super) fn open_bytes(
+        &self,
+        binding: &CommandBinding,
+        sealed: &SealedCommand,
+        kind: SecretKind,
+    ) -> Result<Zeroizing<Vec<u8>>> {
+        let key = self.key(sealed, kind)?;
+        let aad = Self::aad(binding, sealed.key_id, kind)?;
         let nonce: [u8; NONCE_BYTES] = STANDARD
             .decode(&sealed.nonce)
             .ok()
@@ -182,7 +220,10 @@ impl CommandKeyRing {
         key.fingerprint(&aad, &plaintext)?
             .verify_slice(&fingerprint)
             .map_err(|_| ComputerError::Unavailable)?;
-        CommandPayload::decode(&plaintext)
+        if plaintext.len() > kind.maximum_bytes() {
+            return Err(ComputerError::Unavailable);
+        }
+        Ok(plaintext)
     }
     /// Uses the original envelope's key even after rotation. Callers must resolve
     /// the original request identity and authority before comparing private input.
@@ -195,8 +236,8 @@ impl CommandKeyRing {
         // A damaged ledger cannot resolve an exact retry as if its recoverable
         // request were intact. Authentication failure is not changed input.
         self.open(binding, sealed)?;
-        let key = self.key(sealed)?;
-        let aad = Self::aad(binding, sealed.key_id)?;
+        let key = self.key(sealed, SecretKind::Command)?;
+        let aad = Self::aad(binding, sealed.key_id, SecretKind::Command)?;
         let bytes = command.encode()?;
         let fingerprint = STANDARD
             .decode(&sealed.fingerprint)

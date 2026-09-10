@@ -90,6 +90,22 @@ impl ComputersStore {
         if computer.active_operation.is_some() {
             return Err(ComputerError::OperationBusy);
         }
+        let mut required_output_labels = computer
+            .owner
+            .data_labels
+            .iter()
+            .map(|label| {
+                veoveo_mcp_contract::DataLabelId::new(label.clone())
+                    .map_err(|_| ComputerError::Unavailable)
+            })
+            .collect::<Result<std::collections::BTreeSet<_>>>()?;
+        for output_policy in [
+            &computer.owner.authority.output_policy,
+            &actor.owner().authority.output_policy,
+        ] {
+            required_output_labels.extend(output_policy.data_labels.iter().cloned());
+            required_output_labels.extend(output_policy.classification.iter().cloned());
+        }
         let binding = CommandBinding {
             execution_id: Uuid::now_v7(),
             request_id,
@@ -107,6 +123,7 @@ impl ComputersStore {
                 .process_id
                 .clone()
                 .ok_or(ComputerError::InvalidState)?,
+            required_output_labels,
         };
         let sealed = keys.seal(&binding, payload)?;
         let content = Content {

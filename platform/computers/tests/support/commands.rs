@@ -68,6 +68,14 @@ pub async fn queue_claim(
         )
         .await
         .unwrap();
+    store
+        .attach_command_output(
+            &operation,
+            output_capability(operation.execution_id()),
+            &keys(),
+        )
+        .await
+        .unwrap();
     store.ensure_command_task(&operation).await.unwrap();
     TaskRuntime::new(db.a.clone(), "computers", "command-worker")
         .claim_observation(
@@ -76,4 +84,18 @@ pub async fn queue_claim(
         )
         .await
         .unwrap()
+}
+
+/// Synthetic issuance receipt for isolated domain tests. Native worker tests must
+/// obtain a real capability from the Artifact service before publication.
+pub fn output_capability(task: Uuid) -> veoveo_mcp_contract::IssuedArtifactWriteCapability {
+    veoveo_mcp_contract::IssuedArtifactWriteCapability {
+        capability_id: veoveo_mcp_contract::ArtifactWriteCapabilityId::new(),
+        secret: veoveo_mcp_contract::ArtifactWriteCapabilitySecret::new(
+            "private-computer-output-capability-fixture",
+        )
+        .unwrap(),
+        task_id: task.to_string(),
+        expires_at: chrono::Utc::now() + chrono::TimeDelta::minutes(10),
+    }
 }

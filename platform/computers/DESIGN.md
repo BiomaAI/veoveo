@@ -7,8 +7,8 @@
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
-| XChaCha20-Poly1305 and HMAC-SHA-256 | Private queued-command envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
-| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0063 add private command admission, one-shot dispatch and containment. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| XChaCha20-Poly1305 and HMAC-SHA-256 | Private command and output-capability envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
+| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0064 add private command admission, one-shot dispatch, containment and protected output access. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
@@ -299,17 +299,21 @@ protocol integration must retain that strict deserialization. These checks do no
 `command_secrets/` protects argv, environment and finite stdin before durable
 admission. The envelope authenticates the Computer, named grant, actual actor,
 owner, request and execution identities together with the selected provider run
-and template. Time and output limits are inside the encrypted payload. It reuses
+and template. The immutable binding also captures retained-home labels and both
+Computer-owner and actual-actor output-policy labels, including classification.
+Time and output limits are inside the encrypted payload. It reuses
 the qualified guest frame rather than defining another command serializer.
 
 Installation-owned 256-bit keys derive separate encryption and fingerprint keys
 through HMAC-SHA-256 with fixed domain labels. XChaCha20-Poly1305 uses a fresh random
-192-bit nonce for every seal. The private request fingerprint is keyed; a database
+192-bit nonce for every seal. Authenticated purpose labels separate command bytes
+from output-capability receipts even under the same key and execution identity. The private request fingerprint is keyed; a database
 copy does not expose an unkeyed digest for guessing command secrets. Opening checks
 both envelope authentication and the exact bounded guest frame, including refusal
 of trailing bytes. Errors contain no command or parser excerpts. Secret-bearing
 payloads and envelopes have no Debug or Display surface. Plaintext buffers and raw
-keys are zeroized on ordinary drop; this is not a claim against privileged memory
+keys are zeroized on ordinary drop. The shared Artifact receipt type still owns its
+secret as a String, so not every transient secret copy is zeroized; this is not a claim against privileged memory
 inspection or forensic recovery from an arbitrary host.
 
 A bounded key ring writes with one active key and retains up to four keys for reads.
@@ -523,3 +527,40 @@ Task permit a durable projection marker; the worker then releases its Task pin.
 Discovery repairs a crash between those writes. Once acknowledged, ordinary Task
 retention cleanup cannot recreate the old operation. These APIs are private worker
 boundaries; public facades use owner-scoped reads.
+
+
+## Protected Command Output Access
+
+Migration 0064 adds one optional encrypted output-capability envelope to the private
+command record. The trusted service obtains a real Artifact capability with the
+forwarded caller identity. Its request reserves two occurrences for stdout and stderr,
+uses the admitted total-byte limit and requires the immutable inherited-label floor.
+The Artifact service remains responsible for output ownership and clearance. A domain
+attachment receipt is not proof that the Artifact service issued an arbitrary supplied
+secret; only the trusted service path may call that interface.
+
+Capability expiry includes the requested runtime, a two-minute publication allowance
+and five minutes for preparation. A queued retry requests a new capability only when
+the retained receipt cannot cover execution and publication. A compare-and-set
+transaction preserves the first sufficient receipt across replicas. Refresh replaces
+only an insufficient queued receipt; dispatch never changes output authority. An
+unreadable envelope requires operator repair and cannot silently trigger replacement.
+
+The dispatch transaction compares the exact retained envelope and refuses any capability
+that expires before the execution deadline plus its publication allowance. The private
+ticket carries the decrypted receipt. Public Tasks and audit events contain neither
+the receipt nor its capability ID. These checks add no provider call. A failed
+preparation leaves queued work without dispatch authority; service retries and the
+worker's bounded preparation failure still need integration.
+
+This is a coordinated cut of the unreleased private command profile: its binding now
+requires output labels and its authenticated data includes the envelope purpose. No
+command records have been admitted on the installed service. Upgrade the migration
+runner and all command readers before admitting public commands. There is no decoder
+for the earlier unreleased envelope shape.
+
+Isolated-store tests cover missing preparation, replica races, delayed issuance replies,
+insufficient lifetime, queued renewal and corruption. Pure tests cover purpose
+substitution, inherited-label tampering and retained-key decryption. Native execution
+with real Artifact redemption, successful-result settlement and public agent admission
+remain required before this path is usable.

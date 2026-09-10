@@ -22,6 +22,7 @@ LET $slot_state = SELECT * FROM ONLY $slot;
 IF $current = NONE OR $computer_state = NONE OR $slot_state = NONE
   OR $current.stage != "queued" OR $current.dispatch_id != NONE
   OR $current.execution_id != $execution_id OR $current.binding != $expected_binding
+  OR $current.output_access = NONE OR $current.output_access != $expected_output
   OR $current.task != $_provider_task OR $slot_state.execution != $execution
   OR $slot_state.computer_id != $current.computer_id
   OR $current.computer_id != $computer_state.computer_id
@@ -44,6 +45,7 @@ IF $limits = NONE { THROW "computer_policy_conflict"; };
 IF $limits.max_grants = 0 { THROW "computer_authority_expired"; };
 LET $deadline = IF $now + $duration < $grant_expires_at { $now + $duration } ELSE { $grant_expires_at };
 IF $deadline <= $now { THROW "computer_authority_expired"; };
+IF $output_expires <= $deadline + $publication_budget { THROW "computer_state_conflict"; };
 -- This write conflicts with a concurrent lifecycle Stop admission.
 UPDATE $computer SET updated_at = updated_at;
 LET $dispatched = (UPDATE ONLY $execution SET stage = "dispatched", dispatch_id = $dispatch_id,

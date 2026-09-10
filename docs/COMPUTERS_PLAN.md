@@ -556,8 +556,12 @@ successful-command output and the public agent journey remain required.
 
 Task output capabilities now admit a mandatory inherited-label floor without a
 new persistence format. Native Artifact tests qualify retention of that scope across
-service instances. Computers still needs to bind its captured home labels and
-protected output capability into command admission before public execution.
+service instances. Computers now captures its mandatory home/output labels in the
+immutable encrypted-command binding and stores the Artifact receipt in a separate
+purpose-bound envelope. Migration 0064 and native-store tests make sufficient output
+authority a dispatch prerequisite and preserve one usable receipt across replicas.
+Real service issuance, worker publication and successful-result settlement remain
+required before public execution.
 
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.

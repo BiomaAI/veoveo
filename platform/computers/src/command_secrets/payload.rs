@@ -22,6 +22,7 @@ pub struct CommandBinding {
     pub template_fingerprint: String,
     pub resource_id: String,
     pub process_id: String,
+    pub required_output_labels: std::collections::BTreeSet<veoveo_mcp_contract::DataLabelId>,
 }
 impl CommandBinding {
     pub(super) fn aad(&self) -> Result<Vec<u8>> {
@@ -46,6 +47,7 @@ impl CommandBinding {
             || !hash(&self.template_fingerprint)
             || !native_id(&self.resource_id)
             || !native_id(&self.process_id)
+            || self.required_output_labels.len() > 256
         {
             return Err(ComputerError::InvalidInput);
         }
