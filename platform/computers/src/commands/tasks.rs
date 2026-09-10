@@ -97,9 +97,10 @@ impl ComputersStore {
     /// A terminal shared Task acknowledges delivery; its retention pin is released
     /// afterward. Discovery retains a lost pin acknowledgement without recreating work.
     pub async fn acknowledge_command_task(&self, command: &CommandOperation) -> Result<()> {
-        let status = match command.stage() {
-            super::CommandStage::Failed => "failed",
-            super::CommandStage::Cancelled => "cancelled",
+        let (stage, status) = match command.stage() {
+            super::CommandStage::Failed => ("failed", "failed"),
+            super::CommandStage::Cancelled => ("cancelled", "cancelled"),
+            super::CommandStage::Completed => ("completed", "succeeded"),
             _ => return Err(ComputerError::InvalidState),
         };
         self.query(
@@ -112,6 +113,7 @@ impl ComputersStore {
                 ("task", command.task_id().record_id().into_value()),
                 ("provider", self.provider_instance_id.into_value()),
                 ("status", status.into_value()),
+                ("stage", stage.into_value()),
             ],
         )
         .await?;

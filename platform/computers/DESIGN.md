@@ -8,7 +8,7 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command and output-capability envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
-| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0064 add private command admission, one-shot dispatch, containment and protected output access. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0065 add private command admission, one-shot dispatch, containment, protected output access and known-result settlement. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
@@ -564,3 +564,37 @@ insufficient lifetime, queued renewal and corruption. Pure tests cover purpose
 substitution, inherited-label tampering and retained-key decryption. Native execution
 with real Artifact redemption, successful-result settlement and public agent admission
 remain required before this path is usable.
+
+
+## Known Command Completion
+
+The original dispatch ticket may become an ephemeral exit receipt only before its
+execution deadline. The native worker supplies the qualified exit and exact stdout
+and stderr counts; invalid counts, unknown exit 124 and an out-of-range exit fail
+closed. The exit receipt grants a finite publication interval. It cannot be serialized
+or recreated from a current Computer observation, because that observation says
+nothing about the foreground command's past exit.
+
+The worker must publish both streams through the prepared Artifact capability before
+settlement. The domain checks distinct UUIDv7 occurrences and exact observed byte
+counts against the admitted output limit. Under the current Task lease, one transaction
+compares the dispatch, provider run and exclusive slot, then records Completed, the
+result and its audit event while releasing the command slot. The trusted worker owns
+verification of actual Artifact receipts; domain fixture IDs do not qualify publication.
+
+Migration 0065 adds this terminal state and its metadata result. The Computer's phase
+and any independent owner Stop remain unchanged. Nonzero exit is a known result and
+maps to a completed shared Task containing a tool error. A late cancellation remains
+in Task history. Once containment is admitted, a stale exit receipt cannot win result
+settlement. Lease loss, replacement run, invalid output or unknown native exit retains
+the command slot for containment or recovery.
+
+Domain completion precedes Task projection. Both command and lifecycle acknowledgement
+wrap their guard and delivery-marker update in one transaction. A thrown statement
+outside a transaction does not stop later statements in a SurrealDB batch. The command
+acknowledgement checks the Task's completed
+status, exact structured result and tool-error flag before marking delivery. A missing
+pin acknowledgement remains discoverable; a delivered command cannot recreate a Task.
+All command readers must understand Completed before public command admission. Native
+worker execution, real Artifact publication and the public end-to-end journey remain
+integration gates.

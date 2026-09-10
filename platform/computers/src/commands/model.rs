@@ -18,6 +18,7 @@ pub enum CommandStage {
     RecoveryRequired,
     Failed,
     Cancelled,
+    Completed,
 }
 
 /// Private durable command; public projections must select metadata explicitly.
@@ -46,17 +47,24 @@ pub struct CommandOperation {
     pub(super) terminated_at: Option<DateTime<Utc>>,
     pub(super) termination_evidence: Option<super::outcome::TerminationEvidence>,
     pub(super) task_projected_at: Option<DateTime<Utc>>,
+    pub(super) result: Option<crate::api::ExecutionResult>,
 }
 impl CommandOperation {
     pub fn binding(&self) -> &CommandBinding {
         &self.binding
     }
     pub fn is_terminal(&self) -> bool {
-        matches!(self.stage, CommandStage::Failed | CommandStage::Cancelled)
+        matches!(
+            self.stage,
+            CommandStage::Failed | CommandStage::Cancelled | CommandStage::Completed
+        )
     }
     pub fn outcome(&self) -> Option<super::CommandOutcome> {
         if !self.is_terminal() {
             return None;
+        }
+        if let Some(result) = self.result {
+            return Some(super::CommandOutcome::Completed(result));
         }
         self.refusal
             .map(super::CommandOutcome::Undispatched)
@@ -136,6 +144,7 @@ pub(super) struct Record {
     terminated_at: Option<DateTime<Utc>>,
     termination_evidence: Option<OpenObject>,
     task_projected_at: Option<DateTime<Utc>>,
+    result: Option<OpenObject>,
 }
 impl TryFrom<Record> for CommandOperation {
     type Error = ComputerError;
@@ -184,6 +193,10 @@ impl TryFrom<Record> for CommandOperation {
                     .map(|v| serde_json::from_value(serde_json::to_value(v)?))
                     .transpose()?,
                 task_projected_at: row.task_projected_at,
+                result: row
+                    .result
+                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
+                    .transpose()?,
             })
         };
         let command = decode().map_err(|_| ComputerError::Unavailable)?;
@@ -214,6 +227,9 @@ impl TryFrom<Record> for CommandOperation {
                 }
             }
             Some(_) => {
+                if command.output_access.is_none() {
+                    return Err(ComputerError::Unavailable);
+                }
                 let dispatched = command.dispatched_at.ok_or(ComputerError::Unavailable)?;
                 let deadline = command
                     .execution_deadline
@@ -246,6 +262,27 @@ impl TryFrom<Record> for CommandOperation {
 impl CommandOperation {
     fn validate_lifecycle(&self) -> Result<()> {
         let failed = || ComputerError::Unavailable;
+        if let Some(result) = self.result {
+            super::completion::validate_result(&result, self).map_err(|_| failed())?;
+            let settled = self.settled_at.ok_or_else(failed)?;
+            if self.stage != CommandStage::Completed
+                || self.dispatch_id.is_none()
+                || self.containment_id.is_some()
+                || self.refusal.is_some()
+                || self.terminated_at.is_some()
+                || self.termination_evidence.is_some()
+                || settled < self.dispatched_at.ok_or_else(failed)?
+                || settled
+                    > self.execution_deadline.ok_or_else(failed)?
+                        + chrono::TimeDelta::seconds(i64::from(
+                            super::output_access::OUTPUT_PUBLICATION_SECONDS,
+                        ))
+            {
+                return Err(failed());
+            }
+        } else if self.stage == CommandStage::Completed {
+            return Err(failed());
+        }
         if self.termination_evidence.is_some() != self.terminated_at.is_some() {
             return Err(failed());
         }
@@ -303,7 +340,7 @@ impl CommandOperation {
             }
             _ => {}
         }
-        if self.is_terminal() {
+        if self.is_terminal() && self.stage != CommandStage::Completed {
             if self.settled_at.is_none_or(|at| at < self.created_at)
                 || self.refusal.is_some() != self.dispatch_id.is_none()
                 || self.terminated_at.is_some() != self.containment_id.is_some()
@@ -317,10 +354,11 @@ impl CommandOperation {
             {
                 return Err(failed());
             }
-        } else if self.settled_at.is_some()
-            || self.refusal.is_some()
-            || self.terminated_at.is_some()
-            || self.task_projected_at.is_some()
+        } else if self.stage != CommandStage::Completed
+            && (self.settled_at.is_some()
+                || self.refusal.is_some()
+                || self.terminated_at.is_some()
+                || self.task_projected_at.is_some())
         {
             return Err(failed());
         }

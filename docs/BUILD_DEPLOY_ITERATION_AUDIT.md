@@ -3286,3 +3286,21 @@ preceding Artifact-output commit added roughly 114,000 lines, mostly duplicated
 manifests. A versioned content-addressed manifest store would reduce repository churn
 without discarding receipt history. That evidence-format change remains tracked work;
 existing receipts are preserved while command delivery proceeds.
+
+
+Known-result settlement reuses the same domain store fixture. Its first compile took
+17.07 seconds. A later run took 8.94 seconds to compile, 31.18 seconds for the three
+completion cases (including seven isolated refusal scenarios), 3.57 seconds for
+containment and 2.01 seconds for output access. An initial fixture assertion expected
+the wrong error from an unrelated lifecycle lookup and was removed; the intended
+result/cancellation behavior passed. Formal evidence follows the corrected fixture.
+These checks require neither a provider rebuild nor installed mutations. The Console
+result DTOs are generated from the canonical Rust schema rather than maintained twice.
+
+
+The added negative acknowledgement assertion exposed a real atomicity gap: SurrealDB
+continues later statements after an untransactional THROW. Both command and lifecycle
+acknowledgement now transact their check and delivery marker together. The fault test
+also checks the durable marker, rather than accepting an error return as sufficient
+evidence. Its focused corrected run passed in 9.41 seconds after 4.44 seconds of
+compilation. The failed formal receipt is retained with its original source manifest.

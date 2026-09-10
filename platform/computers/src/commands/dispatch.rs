@@ -68,6 +68,9 @@ pub struct CommandDispatchTicket {
     execution_deadline: Instant,
 }
 impl CommandDispatchTicket {
+    pub(super) fn into_operation(self) -> CommandOperation {
+        self.operation
+    }
     pub fn operation(&self) -> &CommandOperation {
         &self.operation
     }

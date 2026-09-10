@@ -87,6 +87,13 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
         assert!(computer.provider_resource_id.is_none());
         assert!(a.begin_dispatch(&claim).await.is_err());
         assert!(a.acknowledge_task_projection(&settled).await.is_err());
+        assert!(
+            b.operation_for_claim(&claim)
+                .await
+                .unwrap()
+                .task_projected_at
+                .is_none()
+        );
         tasks
             .transition(
                 &id,

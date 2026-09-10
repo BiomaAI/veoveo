@@ -75,6 +75,7 @@ impl ComputersStore {
             interruption: Option<super::CommandInterruption>,
             refusal: Option<super::CommandRefusal>,
             termination_evidence: Option<super::outcome::TerminationEvidence>,
+            result: Option<crate::api::ExecutionResult>,
         }
         let payload = serde_json::from_value(
             serde_json::to_value(Event {
@@ -86,6 +87,7 @@ impl ComputersStore {
                 interruption: operation.interruption,
                 refusal: operation.refusal,
                 termination_evidence: operation.termination_evidence,
+                result: operation.result,
             })
             .map_err(|_| ComputerError::Unavailable)?,
         )
