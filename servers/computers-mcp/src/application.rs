@@ -29,6 +29,7 @@ pub struct CapacityHealth {
     pub observed_at: Instant,
 }
 pub struct Application {
+    pub(crate) subscription_slots: std::sync::Arc<tokio::sync::Semaphore>,
     pub(crate) store: ComputersStore,
     pub(crate) tasks: TaskRuntime,
     pub(crate) templates: Templates,
@@ -48,6 +49,7 @@ impl Application {
             return Err(ApplicationError::Configuration);
         }
         Ok(Self {
+            subscription_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(64)),
             store,
             tasks,
             templates,
@@ -146,6 +148,18 @@ impl Application {
         }
     }
     pub async fn create(&self, actor: ComputerActor, request: CreateInput) -> Result<Operation> {
+        if let Some(computer_id) = request.computer_id {
+            return self
+                .lifecycle(
+                    actor,
+                    LifecycleInput {
+                        computer_id,
+                        request_id: request.request_id,
+                    },
+                    Action::Create,
+                )
+                .await;
+        }
         let authority = self.store.control_authority(&actor).await?;
         authority.require_action(Action::Create)?;
         let prior = self
@@ -189,6 +203,7 @@ impl Application {
             computer.computer_id,
             request.request_id,
             Action::Create,
+            &authority,
         )
         .await
     }
@@ -200,20 +215,14 @@ impl Application {
     ) -> Result<Operation> {
         let authority = self.store.control_authority(&actor).await?;
         authority.require_action(action)?;
-        if !self.admits(action) {
-            return Err(ApplicationError::Unavailable);
-        }
-        let computer = self.store.get(actor.owner(), request.computer_id).await?;
-        if computer.provider_instance_id != self.store.provider_instance_id()
-            || !self
-                .templates
-                .contains(&computer.template_id, &computer.template_fingerprint)
-        {
-            return Err(ApplicationError::Unavailable);
-        }
-        authority.require_action(action)?;
-        self.accept(actor, request.computer_id, request.request_id, action)
-            .await
+        self.accept(
+            actor,
+            request.computer_id,
+            request.request_id,
+            action,
+            &authority,
+        )
+        .await
     }
     async fn accept(
         &self,
@@ -221,8 +230,32 @@ impl Application {
         computer: Uuid,
         request: Uuid,
         action: Action,
+        authority: &ControlAuthority,
     ) -> Result<Operation> {
         let owner = actor.owner().clone();
+        if let Some(prior) = self
+            .store
+            .operation_for_request(&owner, computer, request, action)
+            .await?
+        {
+            authority.require_action(action)?;
+            return Ok(self
+                .store
+                .ensure_operation_task(&owner, prior.operation_id)
+                .await?);
+        }
+        if !self.admits(action) {
+            return Err(ApplicationError::Unavailable);
+        }
+        let selected = self.store.get(&owner, computer).await?;
+        if selected.provider_instance_id != self.store.provider_instance_id()
+            || !self
+                .templates
+                .contains(&selected.template_id, &selected.template_fingerprint)
+        {
+            return Err(ApplicationError::Unavailable);
+        }
+        authority.require_action(action)?;
         let operation = self
             .store
             .queue_operation(actor, computer, request, action)

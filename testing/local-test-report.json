@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b260d2826c725b723b19b99aae10de8cda699a8aabd2733db972e1ac04bb3984",
-  "updatedAt": "2026-09-10T07:53:52Z",
+  "buildDigest": "sha256:69416d2b3faeca9a66c78b143246f9844c2174084eb6299c49e1d8358793c40b",
+  "updatedAt": "2026-09-10T08:31:42Z",
   "checks": [
     {
-      "name": "computers-control",
+      "name": "computers-protocol",
       "command": [
         "cargo",
         "test",
@@ -19,31 +19,31 @@
         "--tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T07:53:17Z",
-      "durationSeconds": 29.817606986,
+      "finishedAt": "2026-09-10T08:31:22Z",
+      "durationSeconds": 27.250425427,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-control-lint",
+      "name": "computers-protocol-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-mcp",
+        "veoveo-computers-contract",
         "-p",
         "veoveo-computers",
         "-p",
-        "veoveo-computers-contract",
+        "veoveo-computers-mcp",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T07:52:31Z",
-      "durationSeconds": 1.583576109,
+      "finishedAt": "2026-09-10T08:31:31Z",
+      "durationSeconds": 1.5718320810000002,
       "detail": "completed successfully"
     },
     {
@@ -52,11 +52,12 @@
         "cargo",
         "fmt",
         "--all",
+        "--",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T07:53:52Z",
-      "durationSeconds": 2.522204075,
+      "finishedAt": "2026-09-10T08:31:42Z",
+      "durationSeconds": 2.5491019919999998,
       "detail": "completed successfully"
     }
   ]

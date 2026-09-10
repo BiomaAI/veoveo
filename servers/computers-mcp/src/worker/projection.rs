@@ -4,7 +4,7 @@ impl<G: Preflight> LifecycleWorker<G> {
     pub(super) async fn project(&self, operation: &Operation) -> Result<()> {
         let transition = match operation.stage {
             OperationStage::Succeeded => {
-                let uri = format!("computer://computers/{}", operation.computer_id);
+                let uri = veoveo_computers::api::computer_uri(operation.computer_id);
                 let payload = veoveo_computers::api::LifecycleResult {
                     result_uri: (operation.action == Action::Create).then(|| uri.clone()),
                     computer_id: operation.computer_id,

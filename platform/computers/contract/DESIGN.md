@@ -12,7 +12,10 @@ These types carry public state without provider resource identifiers or authorit
 envelopes. Computer limits describe installation policy; a default of one does not
 change the collection shape. Recovery Required describes an unresolved operation
 whose domain fence remains held. A new Create requires a stable request UUID.
-Start and Stop now require that UUID as well. Their unreleased optional-request-ID
+Start and Stop require that UUID as well. Create may supply an owned Reserved
+`computerId` to finish interrupted provisioning from the visible collection. Omitting
+it requests a new reservation. Reservation idempotency is owner-scoped; subsequent
+lifecycle idempotency is scoped to the Computer. Their unreleased optional-request-ID
 shape is removed before client generation. Lifecycle inputs never select an owner
 or provider. Collection availability distinguishes Setup Required, quota exhaustion
 and unavailable capacity. An unconfigured installation has no default template or

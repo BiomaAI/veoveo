@@ -11,6 +11,40 @@ pub struct ComputersStore {
 }
 
 impl ComputersStore {
+    /// Bounded completion over the same private owner and retained-label boundary.
+    pub async fn complete_ids(
+        &self,
+        caller: &TaskOwner,
+        prefix: &str,
+    ) -> Result<(Vec<String>, bool)> {
+        if prefix.len() > 36
+            || !prefix
+                .bytes()
+                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c) || c == b'-')
+        {
+            return Err(ComputerError::InvalidInput);
+        }
+        let mut response = self
+            .query(
+                include_str!("../queries/complete.surql"),
+                vec![
+                    ("owner", owner_key(caller)?.into_value()),
+                    ("prefix", prefix.to_string().into_value()),
+                ],
+            )
+            .await?;
+        let records: Vec<ComputerRecord> =
+            response.take(0).map_err(|_| ComputerError::Unavailable)?;
+        let mut values = Vec::new();
+        for record in records {
+            let computer = Computer::try_from(record)?;
+            permits(&computer.owner, caller)?;
+            values.push(computer.computer_id.to_string());
+        }
+        let more = values.len() > 100;
+        values.truncate(100);
+        Ok((values, more))
+    }
     pub fn provider_instance_id(&self) -> Uuid {
         self.provider_instance_id
     }

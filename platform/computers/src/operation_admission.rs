@@ -34,6 +34,37 @@ pub(crate) fn operation_record(id: Uuid) -> RecordId {
     RecordId::new("computer_operation", surrealdb::types::Uuid::from(id))
 }
 impl ComputersStore {
+    /// Resolve accepted work without requiring currently available compute. The
+    /// original input and private owner remain authoritative on every retry.
+    pub async fn operation_for_request(
+        &self,
+        caller: &TaskOwner,
+        computer: Uuid,
+        request_id: Uuid,
+        action: Action,
+    ) -> Result<Option<Operation>> {
+        if request_id.is_nil() || computer.is_nil() {
+            return Err(ComputerError::InvalidInput);
+        }
+        let mut response = self
+            .query(
+                "SELECT VALUE operation_id FROM ONLY $request;",
+                vec![(
+                    "request",
+                    request_record(caller, computer, request_id)?.into_value(),
+                )],
+            )
+            .await?;
+        let id: Option<Uuid> = response.take(0).map_err(|_| ComputerError::Unavailable)?;
+        let Some(id) = id else {
+            return Ok(None);
+        };
+        let operation = self.operation(caller, id).await?;
+        if operation.computer_id != computer || operation.action != action {
+            return Err(ComputerError::RequestConflict);
+        }
+        Ok(Some(operation))
+    }
     /// Commit the request, Computer fence and outbox before linking the shared Task.
     /// This method never dispatches a provider effect.
     pub async fn queue_operation(
@@ -51,15 +82,7 @@ impl ComputersStore {
         let computer = self.get(caller, computer_id).await?;
         can_mutate(caller)?;
         let key = owner_key(caller)?;
-        let request = RecordId::new(
-            "computer_operation_request",
-            digest(&(
-                "veoveo.computer.operation.request.v1",
-                &key,
-                computer_id,
-                request_id,
-            ))?,
-        );
+        let request = request_record(caller, computer_id, request_id)?;
         let fingerprint = digest(&("veoveo.computer.operation.input.v1", computer_id, action))?;
         let id = Uuid::now_v7();
         let (action, previous, next) = match action {
@@ -182,6 +205,17 @@ impl ComputersStore {
         }
         Ok(operation)
     }
+}
+fn request_record(caller: &TaskOwner, computer: Uuid, request: Uuid) -> Result<RecordId> {
+    Ok(RecordId::new(
+        "computer_operation_request",
+        digest(&(
+            "veoveo.computer.operation.request.v1",
+            owner_key(caller)?,
+            computer,
+            request,
+        ))?,
+    ))
 }
 fn phase(value: ComputerPhase) -> String {
     match value {

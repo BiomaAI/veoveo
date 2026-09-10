@@ -4,6 +4,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub const COMPUTERS_URI: &str = "computer://computers";
+pub fn computer_uri(id: Uuid) -> String {
+    format!("{COMPUTERS_URI}/{id}")
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ComputerPhase {
@@ -140,6 +145,9 @@ pub struct OperationView {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateInput {
     pub request_id: Uuid,
+    /// Continue provisioning an owned reservation, or omit for a new Computer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -198,6 +206,7 @@ pub struct TerminalTicket {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
+    Forbidden,
     NotFound,
     Busy,
     InvalidInput,
