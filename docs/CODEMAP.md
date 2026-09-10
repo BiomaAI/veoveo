@@ -63,6 +63,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
+| [`platform/policy/DESIGN.md`](../platform/policy/DESIGN.md) | shared gateway/worker policy decisions, indexed revision boundary and caller-owned current authority |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | canonical hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
@@ -147,6 +148,7 @@ Hub, administration, and GPU policy.
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
 | `platform/` | internal platform services, persistence, and reusable runtimes |
 | `platform/runtimes/computers/` | private native OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and bounded SSH-only CLI bridge; domain/service and installed qualification remain in the Computers plan |
+| `platform/policy/` | shared policy evaluator and validated immutable catalog view for gateway and background authority checks; authentication and freshness remain caller-owned |
 | `platform/computers/` | durable core Computer collections, private human/service ownership, conditional capacity/fence admission, shared Task linking, dispatch receipts, persisted observation budgets and correlated settlement; worker integration lives in `servers/computers-mcp`; grant persistence remains in progress |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
 | `platform/computers/images/` | candidate Computer user environment with pinned Ubuntu base/archive inputs and numeric process identity; separate from the privileged provider and retained allocator |
@@ -409,7 +411,7 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 | `catalog.rs` | validated active catalog and profile/server lookup |
 | `control_store.rs` | immutable SurrealDB control revisions and activation |
 | `auth/` | access tokens, OIDC, ID-JAG, client assertions, immutable principals, and independently typed OIDC display labels |
-| `policy.rs` | policy evaluation entrypoint |
+| `policy.rs` | gateway catalog adapter for the shared evaluator in `platform/policy` |
 | `mcp_support.rs` | MCP URI projection, including declared cross-server resource identities |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
 | `mcp/discovery.rs` | exact-authority catalog discovery cache, bounded concurrency, per-server failure isolation, and list-change invalidation |

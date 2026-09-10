@@ -2295,3 +2295,17 @@ and image also pass the three native lifecycle/terminal/stock-CLI checks in 11.8
 and physical ENOSPC/backup/restore in 29.65 s. The final incremental native compile
 is 4.47 s. These are isolated functional measurements; they are not public-ingress,
 production allocator or end-to-end authority performance claims.
+
+Extracting the shared policy evaluator avoids importing gateway-owned agent runtime
+and analytics into Computers authority checks. The standalone normal dependency tree
+contains the policy and contract crates, without Veoveo gateway/agent or DuckDB/Rig.
+Its incremental check took 0.59 s. The gateway consumer qualification rebuilt shared
+store/Task/agent dependencies and linked in 2 min 05 s; its 80 library tests then ran
+in 0.07 s. Policy equivalence, control-plane and exposure fixtures also passed.
+
+The additional all-target Clippy probe reported four existing gateway-binary warnings:
+three mutable-key cases in Console projection and an eight-extractor Artifact upload
+handler. This policy extraction changes the gateway library. Its required lint receipt
+therefore uses `--lib`; the binary warnings remain visible work when those HTTP owners
+are touched. They are not a provider or runtime deployment failure. The v2 receipt
+format replaces a check's prior attempt; immutable attempt history remains CE-06 work.
