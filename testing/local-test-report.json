@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:d71c338282cfcaeddbe524312365a364c4ac7c8cb77a85ea4510affae12c30f1",
-  "updatedAt": "2026-09-10T15:06:41Z",
+  "buildDigest": "sha256:5bc64d0fa1da7d97428f80f036ce80d0788901920931ece762ce615f75c0831f",
+  "updatedAt": "2026-09-10T15:17:09Z",
   "checks": [
     {
-      "name": "computers-workspace-helm",
+      "name": "computers-upgrade-helm",
       "command": [
         "cargo",
         "xtask",
@@ -12,23 +12,82 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:06:41Z",
-      "durationSeconds": 6.646472656,
+      "finishedAt": "2026-09-10T15:17:09Z",
+      "durationSeconds": 6.385638238,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-workspace-policy",
+      "name": "computers-upgrade-retry",
       "command": [
+        "kubectl",
+        "--context",
+        "k3d-veoveo-bioma",
+        "apply",
+        "--dry-run=server",
+        "-f",
+        "examples/bioma/gitops/releases/veoveo.yaml"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T15:17:02Z",
+      "durationSeconds": 0.167420729,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-workspace-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T15:17:01Z",
+      "durationSeconds": 2.782116169,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-workspace-lint",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "-p",
+        "veoveo-computer-host",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T15:16:58Z",
+      "durationSeconds": 8.045013285,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-workspace-native",
+      "command": [
+        "env",
+        "VEOVEO_COMPUTERS_HOST_IMAGE=localhost:5001/veoveo/computer-host@sha256:2e267c7dbd04dbd54a194994f992764be237fd94e6c0a86df158d12aff54e369",
+        "VEOVEO_COMPUTERS_HOST_TEST_IMAGE=172.17.0.2:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-bioma-acceptance"
+        "veoveo-computer-host",
+        "--test",
+        "native_host",
+        "--",
+        "--ignored",
+        "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:06:33Z",
-      "durationSeconds": 0.722127285,
+      "finishedAt": "2026-09-10T15:16:35Z",
+      "durationSeconds": 34.380558037,
       "detail": "completed successfully"
     }
   ]

@@ -224,11 +224,14 @@ impl Fixture {
         .await
     }
     pub async fn runtime(&self) -> Result<OpenShellRuntime> {
+        self.runtime_in("default").await
+    }
+    pub async fn runtime_in(&self, workspace: &str) -> Result<OpenShellRuntime> {
         let dir = self.dir.join("provider");
         let config = GatewayConfig::new(
             self.provider,
             self.endpoint.clone(),
-            "default".into(),
+            workspace.into(),
             dir.join("ca.pem"),
             dir.join("client.pem"),
             dir.join("client-key.pem"),
@@ -246,6 +249,27 @@ impl Fixture {
         Ok(HomeAllocator::new(config, self.provider, template.fingerprint(), 536870912).await?)
     }
     fn logs(&self) {
+        if let Ok(diagnostics) = SyncCommand::new("timeout")
+            .args([
+                "5",
+                "docker",
+                "--host",
+                HOST,
+                "exec",
+                &self.name,
+                "find",
+                "/var/lib/veoveo-computers/state/retained/homes",
+                "-maxdepth",
+                "3",
+                "-ls",
+            ])
+            .output()
+        {
+            let _ = fs::write(
+                self.dir.join(format!("storage-{}.log", self.generation)),
+                [diagnostics.stdout, diagnostics.stderr].concat(),
+            );
+        }
         if let Ok(logs) = SyncCommand::new("timeout")
             .args(["5", "docker", "--host", HOST, "logs", &self.name])
             .output()

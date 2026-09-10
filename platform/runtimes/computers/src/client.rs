@@ -177,6 +177,27 @@ impl OpenShellRuntime {
         {
             return Err(RuntimeFailure::VersionMismatch);
         }
+        let workspace = self
+            .client
+            .clone()
+            .get_workspace(request(
+                api::GetWorkspaceRequest {
+                    name: self.workspace.clone(),
+                },
+                5,
+            ))
+            .await
+            .map_err(|_| RuntimeFailure::InvalidConfiguration)?
+            .into_inner()
+            .workspace
+            .ok_or(RuntimeFailure::InvalidConfiguration)?;
+        if workspace.metadata.as_ref().map(|meta| meta.name.as_str())
+            != Some(self.workspace.as_str())
+            || workspace.status.as_ref().map(|status| status.phase)
+                != Some(crate::protocol::datamodel::v1::WorkspacePhase::Active as i32)
+        {
+            return Err(RuntimeFailure::InvalidConfiguration);
+        }
         Ok(())
     }
     fn observation(

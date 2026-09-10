@@ -63,6 +63,12 @@ same canonical encoder used by admission. Its arguments are the pinned image, CP
 count, memory/home/temporary sizes in MiB and provider-policy JSON path. It only
 prints the validated fingerprint; it does not create capacity or issue credentials.
 
+Readiness checks the configured provider workspace as well as the provider version
+and driver. The workspace must exist, echo its exact name and be active. A missing
+or terminating workspace cannot advertise available capacity. The packaged host
+currently enrolls the provider's `default` workspace; additional workspaces require
+explicit provider provisioning before workers select them.
+
 ## Retained Allocation Identity
 
 The allocation client pins a non-nil provider UUID alongside its template fingerprint
