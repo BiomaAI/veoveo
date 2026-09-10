@@ -1,4 +1,4 @@
-# Computers Worker And MCP Projection
+# Computers Service And MCP Projection
 
 ## Standards And Protocols
 
@@ -7,16 +7,15 @@
 | Shared Tasks | Qualified `provider_wait` observation leases, domain-first settlement, retained Task projection |
 | Veoveo Computers | Provider-independent operation, Computer, owner and Work Context records in `platform/computers` |
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
-| MCP 2026-07-28, repository contract revision 3 | Intended public facade; protocol implementation and installed conformance remain in progress |
+| MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions; installed conformance remains pending |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
 
-The worker and future MCP/relay run in one Computers deployment. The gateway owns
-ordinary catalog and action policy without importing the provider SDK. The worker
-library does not expose an HTTP endpoint at this checkpoint.
+The worker and MCP/relay compose in one Computers deployment. The gateway owns
+ordinary catalog and action policy without importing the provider SDK. The HTTP router is callable by fixtures; the runnable installation entrypoint remains pending.
 
 ## Public Application Projection
 
-`Application` owns the command/read projection shared by the forthcoming MCP and
+`Application` owns the command/read projection shared by the MCP and
 Console HTTP adapters. Each request obtains one current policy and directory snapshot
 from the domain. It serves all action flags for that response and expires within
 thirty seconds, capped by the request's admission lifetime. A new request does not
@@ -34,6 +33,65 @@ default. Concurrent replicas that select different defaults converge on the same
 first accepted Computer and Task. Caller input cannot choose arbitrary images.
 Closed public lifecycle inputs require stable request UUIDs. Native transport,
 provider work and terminal grants are separate from this projection's store tests.
+
+## Canonical Protocol Projection
+
+The authenticated mount is `/computers`. `/mcp` serves MCP and `/admin` serves the
+native Console projection over the same `Application`. Only `/healthz` is anonymous;
+it checks the platform store with a five-second deadline. Provider outages appear in
+the collection independently of control-plane liveness. Every secured request requires
+a gateway-signed Computers-audience assertion and an admitted Host authority.
+
+The collection is `computer://computers`. Exact resources use
+`computer://computers/{computer_id}` and subsequent pages use
+`computer://computers?after={after}`. UUIDs in these resource URIs must use the
+canonical lowercase hyphenated representation. Completion queries the current owner's
+indexed collection with a bounded prefix query. It returns at most one hundred IDs.
+Current resource policy and persisted ownership apply independently.
+
+Create, Start and Stop are durable tools. Each requires per-request Tasks extension
+support before reservation; rejection uses the final protocol capability error.
+An accepted call returns the shared Task seed. Tasks/get and update require current
+read authority over that Task's Computer. Cancellation additionally requires the
+current lifecycle action authority. Cancellation after dispatch remains a request
+whose effect is observed by the worker. Output schemas cover completed lifecycle
+results and typed domain rejections. Task results use the canonical Computer URI.
+
+The HTTP collection supports GET and POST. Exact reads use
+`/admin/computers/{id}`, with POST `/start` and `/stop` below that path. Queued or
+running operations return HTTP 202 with the same Task ID as MCP. Known completed
+outcomes return HTTP 200. Inputs cannot select an owner, provider or arbitrary image.
+Create may name an existing owned Reserved Computer through `computerId`; this lets
+reload recover an interrupted reservation without its original browser state.
+Omitting the ID requests a new reservation. Reservation request IDs are owner-scoped;
+lifecycle request IDs are scoped to the selected Computer. Exact retries retain the
+first accepted operation and template even if the installation default changes.
+
+Each request admits at most 64 KiB and has a thirty-second response deadline.
+A timeout does not certify whether admission committed; retry uses the same request
+ID. The shared MCP middleware enforces the final serialized 8 MiB response cap.
+The `develop` prompt describes the retained-work journey. Catalogs are static and
+advertise no list-change support. Embedded docs and contract declarations are served
+under `computer://docs`, `computer://contract` and authenticated `/admin/docs`.
+
+## Resource And Task Subscriptions
+
+Every listener has its own sink and authorization. The process admits at most sixty-four
+listeners, each with at most sixty-four resource/Task targets. It validates the entire
+accepted set before sending private updates. A new resource listener receives an
+invalidation baseline and reads current state; transport replay IDs are absent.
+
+The shared platform outbox is authoritative across replicas. LIVE notifications wake a
+bounded persisted-page drain. LIVE loss closes the listener and requires a new baseline.
+Task notifications use the shared durable Task subscription helper. All notifications
+remain filtered by current ownership and requested targets. Provider events and terminal
+contents never enter these streams.
+
+Current policy is checked every five seconds, with a five-second authority-read bound.
+The signed assertion expiry caps the entire listener, including initialization and a
+blocked sink. Cancellation and expiry run outside the data pump. Loss of current
+authority closes the stream; a client must present renewed authority on a new request.
+This is control-state subscription behavior, distinct from renewable terminal grants.
 
 ## Lifecycle Execution
 
@@ -76,9 +134,14 @@ Audit events contain identities and provenance, without commands or credentials.
 
 ## Contract Compliance
 
-The current library has no public protocol surface or runnable installation entrypoint.
-Discovery, tools, resources, subscriptions, completion/prompts, well-known resources,
-conformance, live grant authority and production packaging remain delivery work.
+The router implements the protocol and HTTP projection described above. A runnable
+installation entrypoint, registration, live grants, execution/file tools and production
+packaging remain delivery work. The checklist in AGENTS.md declares those gaps.
+Real-store HTTP fixtures use distinct database connections and service replicas. They
+exercise missing-capability admission, exact retry identity, private Task/resource
+access, schema bounds, current cancellation policy, reconnect baselines and subscription
+closure after revocation or assertion expiry. Capacity health is synthetic in these
+fixtures; they establish neither provider execution nor installed acceptance.
 Its native fixture uses the actual current-policy reader, isolated installation
 revision, production retained allocator and native OpenShell provider. Two worker
 replicas compete for Create, then Stop succeeds with the allocator offline. Start

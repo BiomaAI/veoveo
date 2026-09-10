@@ -8,91 +8,14 @@ mod template;
 use std::time::{Duration, Instant};
 use tokio::sync::watch;
 use uuid::Uuid;
-use veoveo_computers::{CapacityPolicy, ComputerError, ComputersStore, api::*};
-use veoveo_computers_mcp::{
-    Application, ApplicationError, CapacityHealth, NamedTemplate, Templates,
-};
-use veoveo_mcp_contract::{GatewayAction, PolicyEffect, PolicyRuleId, WorkContextMembershipLevel};
+use veoveo_computers::{ComputerError, ComputersStore, api::*};
+use veoveo_computers_mcp::{Application, ApplicationError, CapacityHealth, Templates};
+use veoveo_mcp_contract::{PolicyEffect, WorkContextMembershipLevel};
 use veoveo_task_runtime::TaskRuntime;
 
-fn control() -> veoveo_mcp_contract::GatewayControlPlane {
-    let mut control = support::policy::control();
-    let mut read = control.policies[0].rules[0].clone();
-    read.id = PolicyRuleId::new("computer-read").unwrap();
-    read.actions = [GatewayAction::ResourcesRead].into_iter().collect();
-    read.tools.clear();
-    control.policies[0].rules.push(read);
-    control
-}
-async fn identities(db: &support::TestDb) {
-    support::policy::install(&db.a, control()).await;
-    for name in ["alice", "bob"] {
-        let owner = support::owner(name);
-        db.a.ensure_identity(
-            owner.tenant_key(),
-            &owner.principal_key,
-            &owner.issuer,
-            &owner.subject,
-            owner.principal_kind,
-        )
-        .await
-        .unwrap();
-    }
-}
-fn templates(new_default: bool) -> Templates {
-    let old = template::retained_template(format!(
-        "fixture.invalid/computer@sha256:{}",
-        "f".repeat(64)
-    ));
-    let new = template::retained_template(format!(
-        "fixture.invalid/computer@sha256:{}",
-        "e".repeat(64)
-    ));
-    let default = if new_default {
-        new.fingerprint()
-    } else {
-        old.fingerprint()
-    };
-    Templates::new(
-        vec![
-            NamedTemplate::new("development".into(), old).unwrap(),
-            NamedTemplate::new("development".into(), new).unwrap(),
-        ],
-        Some(default),
-    )
-    .unwrap()
-}
-async fn application(
-    db: &support::TestDb,
-    new_default: bool,
-) -> (Application, watch::Sender<CapacityHealth>) {
-    let store = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
-    store
-        .install_capacity(
-            None,
-            CapacityPolicy {
-                per_owner: 2,
-                per_tenant: 4,
-                provider: 4,
-            },
-        )
-        .await
-        .unwrap();
-    let (health, receiver) = watch::channel(CapacityHealth {
-        availability: CapacityAvailability::Available,
-        observed_at: Instant::now(),
-    });
-    (
-        Application::new(
-            store,
-            TaskRuntime::new(db.a.clone(), "computers", "application"),
-            templates(new_default),
-            receiver,
-        )
-        .unwrap(),
-        health,
-    )
-}
+#[path = "support/application.rs"]
+mod app_support;
+use app_support::{application, control, identities};
 #[tokio::test]
 async fn concurrent_create_and_default_rotation_retain_one_original_operation_and_template() {
     let db = support::TestDb::new().await;
@@ -100,6 +23,7 @@ async fn concurrent_create_and_default_rotation_retain_one_original_operation_an
     let (app, _) = application(&db, false).await;
     let owner = support::owner("alice");
     let request = CreateInput {
+        computer_id: None,
         request_id: Uuid::now_v7(),
     };
     let (a, b) = tokio::join!(
@@ -127,6 +51,7 @@ async fn concurrent_create_and_default_rotation_retain_one_original_operation_an
         .create(
             support::authenticated(&owner),
             CreateInput {
+                computer_id: None,
                 request_id: Uuid::now_v7(),
             },
         )
@@ -144,6 +69,7 @@ async fn concurrent_create_and_default_rotation_retain_one_original_operation_an
             .create(
                 support::authenticated(&owner),
                 CreateInput {
+                    computer_id: None,
                     request_id: Uuid::now_v7()
                 }
             )
@@ -194,6 +120,7 @@ async fn current_policy_and_membership_control_flags_and_admission_without_reser
             app.create(
                 support::authenticated(&owner),
                 CreateInput {
+                    computer_id: None,
                     request_id: Uuid::now_v7()
                 }
             )
@@ -251,6 +178,7 @@ async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission(
         app.create(
             support::authenticated(&owner),
             CreateInput {
+                computer_id: None,
                 request_id: Uuid::now_v7()
             }
         )
@@ -278,10 +206,81 @@ async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission(
             .create(
                 support::authenticated(&owner),
                 CreateInput {
+                    computer_id: None,
                     request_id: Uuid::now_v7()
                 }
             )
             .await,
         Err(ApplicationError::Unavailable)
     ));
+}
+
+#[tokio::test]
+async fn an_interrupted_reservation_can_be_provisioned_from_the_visible_collection() {
+    let db = support::TestDb::new().await;
+    identities(&db).await;
+    let owner = support::owner("alice");
+    let store = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
+    let (_initial, _health) = application(&db, false).await;
+    let original = template::retained_template(format!(
+        "fixture.invalid/computer@sha256:{}",
+        "f".repeat(64)
+    ));
+    let reserved = store
+        .reserve(
+            &owner,
+            &veoveo_computers::Reservation {
+                request_id: Uuid::now_v7(),
+                template_id: "development".into(),
+                template_fingerprint: original.fingerprint(),
+            },
+        )
+        .await
+        .unwrap();
+    // A different replica and default observe the original admitted reservation.
+    let (resumed, health) = app_support::application_on(db.b.clone(), true).await;
+    let view = resumed
+        .computer(&support::authenticated(&owner), reserved.computer_id)
+        .await
+        .unwrap();
+    assert!(view.can_create);
+    let input = CreateInput {
+        computer_id: Some(view.computer_id),
+        request_id: Uuid::now_v7(),
+    };
+    assert!(matches!(
+        resumed
+            .create(
+                support::authenticated(&support::owner("bob")),
+                input.clone()
+            )
+            .await,
+        Err(ApplicationError::Domain(ComputerError::NotFound))
+    ));
+    let first = resumed
+        .create(support::authenticated(&owner), input.clone())
+        .await
+        .unwrap();
+    health
+        .send(CapacityHealth {
+            availability: CapacityAvailability::ComputeUnavailable,
+            observed_at: Instant::now(),
+        })
+        .unwrap();
+    let retry = resumed
+        .create(support::authenticated(&owner), input)
+        .await
+        .unwrap();
+    assert_eq!(first.operation_id, retry.operation_id);
+    assert_eq!(first.computer_id, reserved.computer_id);
+    assert_eq!(first.template_fingerprint, original.fingerprint());
+    assert_eq!(
+        resumed
+            .snapshot(&support::authenticated(&owner), None)
+            .await
+            .unwrap()
+            .computers
+            .len(),
+        1
+    );
 }

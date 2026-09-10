@@ -2576,3 +2576,26 @@ The MCP contract still described the removed per-tool task-support handshake whi
 the pinned runtime implements the final extension. Checking the actual SDK and
 upstream Tasks schema prevented introducing an unsupported compatibility field.
 The documentation now follows the negotiated extension and required-capability error.
+
+The authenticated Computers MCP/HTTP checkpoint passes 29 focused cases. Application
+fixtures now include resuming a visible reservation and recovering the original Task
+while compute is unavailable. Wire tests use distinct database connections and HTTP
+replicas, and the maintained MCP client exercises subscription baselines, foreign
+ownership, current policy revocation and assertion expiry. The final run compiles in
+4.71 s; its four application cases take 1.71 s and three HTTP cases take 6.55 s.
+Final all-target lint takes 1.44 s. Provider binaries and Computer images are reused.
+
+Adding the existing conformance library for schema validation expanded the Cargo
+feature graph: the first combined lint took 76 s and the first test compilation took
+136 s, including SurrealDB recompilation. The schema check itself needs a small subset
+of the conformance package. Narrow its library/CLI feature boundary during build-system
+work, and qualify feature closures before assuming that a new test helper is cheap.
+Raw wire-fixture assumptions about Task result flattening, standard routing headers
+and error HTTP statuses also caused avoidable retries. The SDK now owns subscription
+transport. Domain assertions remain in the existing isolated fixture.
+
+The v2 report still invalidates unrelated domain evidence after a wire-test-only edit.
+The failed attempt was a test HTTP-status expectation; all domain/application cases
+had passed. The corrected full run is green. CE-06 must preserve immutable attempt
+history and reuse the unaffected receipt closure. Runnable installation wiring and
+public rollout remain pending at this checkpoint.

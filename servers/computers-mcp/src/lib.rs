@@ -1,6 +1,8 @@
-//! Computers worker and eventual public projections share one domain journal.
+//! Computers worker and public projections share one domain journal.
 mod application;
 mod preflight;
+pub mod protocol;
+pub mod server;
 mod templates;
 mod worker;
 pub use application::{Application, ApplicationError, CapacityHealth};

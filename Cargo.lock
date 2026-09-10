@@ -16644,12 +16644,17 @@ dependencies = [
 name = "veoveo-computers-mcp"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "base64 0.23.1",
  "chrono",
+ "futures",
  "hex",
  "nix",
  "rcgen",
+ "reqwest 0.13.4",
  "rmcp",
  "rustls",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -16662,6 +16667,7 @@ dependencies = [
  "uuid",
  "veoveo-computers",
  "veoveo-computers-runtime",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",

@@ -5,7 +5,11 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-rmcp = { workspace = true, features = ["server"] }
+axum.workspace = true
+chrono.workspace = true
+futures.workspace = true
+schemars.workspace = true
+rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -16,16 +20,19 @@ uuid.workspace = true
 veoveo-computers = { path = "../../platform/computers" }
 veoveo-computers-runtime = { path = "../../platform/runtimes/computers" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
+veoveo-platform-store = { path = "../../platform/store" }
+veoveo-mcp-contract.workspace = true
 
 [dev-dependencies]
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
+base64.workspace = true
+reqwest = { workspace = true, features = ["json", "stream", "rustls-no-provider"] }
 nix = { workspace = true, features = ["fs", "user", "mount"] }
 rustls.workspace = true
 tokio = { workspace = true, features = ["process"] }
 tokio-rustls.workspace = true
 sha2.workspace = true
 hex.workspace = true
-chrono.workspace = true
 rcgen.workspace = true
 surrealdb = { version = "=3.2.4", default-features = false, features = ["protocol-ws", "rustls"] }
-veoveo-platform-store = { path = "../../platform/store" }
-veoveo-mcp-contract.workspace = true

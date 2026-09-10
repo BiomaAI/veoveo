@@ -70,8 +70,8 @@ impl ControlAuthority {
     pub fn require_read(&self, computer: Option<Uuid>) -> Result<()> {
         self.check_fresh()?;
         let uri = computer.map_or_else(
-            || "computer://computers".into(),
-            |id| format!("computer://computers/{id}"),
+            || crate::api::COMPUTERS_URI.into(),
+            crate::api::computer_uri,
         );
         let target = PolicyTarget::Resource {
             server: ServerSlug::new("computers").expect("static server"),

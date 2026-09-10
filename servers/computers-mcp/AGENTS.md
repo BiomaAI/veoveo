@@ -24,8 +24,38 @@ Record affected checks with `cargo xtask test-report` as required by root instru
 
 Contract revision: 3
 
-The crate currently delivers the worker and shared application libraries. MCP discovery, domain tools,
-resources, subscriptions, prompts/completion, well-known docs, service wiring and
-packaging are not yet implemented. It is not registered or deployed as a hosted
-server. Those explicit gaps must close before registration and release; worker
-fixtures cannot serve as MCP conformance or installation evidence.
+The library implements shared lifecycle admission, its worker, and authenticated MCP
+and HTTP projections. Installation wiring, grants, agent execution, file movement and
+packaging remain active work. Fixture evidence is not installed-user qualification.
+
+- C01: met
+- C02: met
+- C03: met
+- C04: met
+- C05: met
+- C06: met
+- C07: met
+- C08: met
+- C09: met
+- C10: met
+- C11: pending — governed Artifact execution/file tools remain delivery work
+- C12: met
+- C13: met
+- C14: met
+- C15: pending — runnable service and OCI/Helm packaging remain delivery work
+- C16: pending — installed typed control-plane registration remains delivery work
+- C17: pending — crate revision is declared; installation registration is pending
+- C18: met
+- C19: met
+- C20: met
+- C21: met
+- C22: met
+- C23: met
+- C24: met
+- C25: met
+- C26: met
+- C27: met
+- C28: met
+- C29: met
+- C30: met
+- C31: pending — installed readiness against the declared catalog is pending
