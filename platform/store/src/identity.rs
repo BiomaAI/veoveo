@@ -91,6 +91,8 @@ impl PlatformStore {
     ///
     /// `principal_key` remains the authorization and ownership key. `display_name` is
     /// presentation-only metadata and never participates in identity matching.
+    /// Existing security fields are never written by identity synchronization;
+    /// concurrent disablement remains authoritative even when metadata changes.
     pub async fn ensure_named_identity(
         &self,
         tenant_key: &str,
@@ -197,66 +199,65 @@ impl PlatformStore {
                 principal_key: principal_key.to_owned(),
             });
         }
-        let enterprise = existing_enterprise.map_or_else(
-            || EnterpriseRecord {
-                id: enterprise_id.record_id(),
-                slug: "installation".into(),
-                name: "Veoveo installation".into(),
-                enabled: true,
-                created_at: now,
-                updated_at: now,
-            },
-            |mut record| {
-                record.updated_at = now;
-                record
-            },
-        );
-        let tenant = existing_tenant.map_or_else(
-            || TenantRecord {
-                id: tenant_id.record_id(),
-                enterprise: enterprise_id.record_id(),
-                slug: tenant_key.to_owned(),
-                name: tenant_key.to_owned(),
-                classification_ceiling: "installation_policy".into(),
-                enabled: true,
-                created_at: now,
-                updated_at: now,
-            },
-            |mut record| {
-                record.updated_at = now;
-                record
-            },
-        );
-        let principal = existing_principal.map_or_else(
-            || PrincipalRecord {
-                id: principal_id.record_id(),
-                tenant: tenant_id.record_id(),
-                kind,
-                issuer: issuer.to_owned(),
-                subject: subject.to_owned(),
-                display_name: projected_display_name.clone(),
-                email: None,
-                claims_hash: String::new(),
-                enabled: true,
-                created_at: now,
-                updated_at: now,
-            },
-            |mut record| {
-                record.display_name.clone_from(&projected_display_name);
-                record.updated_at = now;
-                record
-            },
-        );
+        let enterprise = EnterpriseRecord {
+            id: enterprise_id.record_id(),
+            slug: "installation".into(),
+            name: "Veoveo installation".into(),
+            enabled: true,
+            created_at: now,
+            updated_at: now,
+        };
+        let tenant = TenantRecord {
+            id: tenant_id.record_id(),
+            enterprise: enterprise_id.record_id(),
+            slug: tenant_key.to_owned(),
+            name: tenant_key.to_owned(),
+            classification_ceiling: "installation_policy".into(),
+            enabled: true,
+            created_at: now,
+            updated_at: now,
+        };
+        let principal = PrincipalRecord {
+            id: principal_id.record_id(),
+            tenant: tenant_id.record_id(),
+            kind,
+            issuer: issuer.to_owned(),
+            subject: subject.to_owned(),
+            display_name: projected_display_name,
+            email: None,
+            claims_hash: String::new(),
+            enabled: true,
+            created_at: now,
+            updated_at: now,
+        };
         self.db
-            .query("BEGIN TRANSACTION; UPSERT ONLY $enterprise CONTENT $enterprise_content RETURN NONE; UPSERT ONLY $tenant CONTENT $tenant_content RETURN NONE; UPSERT ONLY $principal CONTENT $principal_content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("identity/ensure.surql"))
             .bind(("enterprise", enterprise_id.record_id()))
             .bind(("enterprise_content", enterprise))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("tenant_content", tenant))
             .bind(("principal", principal_id.record_id()))
             .bind(("principal_content", principal))
+            .bind(("principal_key", principal_key.to_owned()))
+            .bind(("display_name", display_name.map(str::to_owned)))
+            .bind(("fallback_display_name", compact_identity_label(subject)))
             .await?
-            .check()?;
+            .check()
+            .map_err(|error| {
+                if error.message().contains("identity_tenant_conflict") {
+                    StoreError::IdentityConflict {
+                        entity: "tenant",
+                        key: tenant_key.to_owned(),
+                    }
+                } else if error.message().contains("identity_principal_conflict") {
+                    StoreError::IdentityConflict {
+                        entity: "principal",
+                        key: principal_key.to_owned(),
+                    }
+                } else {
+                    StoreError::Database(error)
+                }
+            })?;
         Ok(PlatformIdentity {
             tenant_id,
             principal_id,
