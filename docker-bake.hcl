@@ -50,6 +50,7 @@ group "platform-core" {
   targets = [
     "computers-mcp",
     "computer-storage",
+    "computer-host",
     "computer-provider",
     "computer-template",
     "mcp-gateway",
@@ -65,6 +66,7 @@ group "platform-full" {
   targets = [
     "computers-mcp",
     "computer-storage",
+    "computer-host",
     "computer-provider",
     "computer-template",
     "mcp-gateway",
@@ -224,6 +226,23 @@ target "computer-template" {
   inherits   = ["base"]
   dockerfile = "platform/computers/images/Dockerfile"
   tags       = [image_ref("computer-template")]
+}
+
+target "computer-host" {
+  inherits   = ["_rust-trixie-runtime"]
+  dockerfile = "platform/computers/host/Dockerfile"
+  tags       = [image_ref("computer-host")]
+  contexts = {
+    veoveo-computer-storage  = "target:computer-storage"
+    veoveo-computer-provider = "target:computer-provider"
+  }
+  labels = {
+    "io.veoveo.build.mode"      = "rust-shared"
+    "io.veoveo.build.package"   = "veoveo-computer-host"
+    "io.veoveo.build.binaries"  = "veoveo-computer-host"
+    "io.veoveo.build.family"    = "rust-trixie-v1"
+    "io.veoveo.build.auxiliary" = ""
+  }
 }
 
 target "computers-mcp" {

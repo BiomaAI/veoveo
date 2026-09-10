@@ -1,5 +1,6 @@
 //! Private durable metadata for the privileged retained-storage host.
 mod command;
+mod config;
 mod docker;
 mod filesystem;
 mod handoff;
@@ -9,6 +10,7 @@ pub mod plugin;
 mod service;
 pub mod transport;
 
+pub use config::StorageConfig;
 pub use docker::Docker;
 pub use filesystem::Filesystem;
 pub use handoff::{Handoff, PhysicalWriter, WriterState};

@@ -1,33 +1,17 @@
 use clap::Parser;
-use serde::Deserialize;
 use std::{
-    net::SocketAddr,
     os::unix::fs::{MetadataExt, PermissionsExt},
     path::PathBuf,
 };
 use veoveo_computer_storage::{
-    Docker, Filesystem, HostIdentity, Journal, Service, StorageError, Template, plugin,
-    transport::{self, TlsConfig},
+    Docker, Filesystem, HostIdentity, Journal, Service, StorageConfig, StorageError, plugin,
+    transport,
 };
 
 #[derive(Parser)]
 struct Args {
     #[arg(long)]
     config: PathBuf,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct Config {
-    provider_id: uuid::Uuid,
-    namespace: String,
-    root: PathBuf,
-    reserve_bytes: u64,
-    templates: Vec<Template>,
-    docker_socket: PathBuf,
-    plugin_name: String,
-    plugin_socket: PathBuf,
-    listen: SocketAddr,
-    tls: TlsConfig,
 }
 #[tokio::main]
 async fn main() -> Result<(), StorageError> {
@@ -41,7 +25,7 @@ async fn main() -> Result<(), StorageError> {
     if bytes.len() > 65536 {
         return Err(StorageError::InvalidIdentity);
     }
-    let config: Config =
+    let config: StorageConfig =
         serde_json::from_slice(&bytes).map_err(|_| StorageError::InvalidIdentity)?;
     let tls = config.tls.load()?;
     if !config.plugin_socket.is_absolute() || config.plugin_socket.as_os_str().len() > 100 {

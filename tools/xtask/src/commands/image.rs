@@ -183,6 +183,7 @@ impl AuxiliaryArtifact {
 #[serde(rename_all = "camelCase")]
 struct FamilyPlan {
     family: BuilderFamily,
+    targets: Vec<String>,
     packages: Vec<String>,
     binaries: Vec<String>,
     auxiliary: Vec<AuxiliaryArtifact>,
@@ -366,13 +367,15 @@ pub(crate) fn prepare_with_builder(
     let direct_targets = selected_targets(&checked, &selection)?;
     let source_revision_targets = target_dependency_closure(&checked, &direct_targets)?;
     let parents = normalized::prepare(source_repository.root(), &checked, &direct_targets)?;
-    let needs_cargo_metadata = direct_targets.iter().try_fold(false, |needed, name| {
-        let target = checked
-            .target
-            .get(name)
-            .with_context(|| format!("Bake selection references missing target {name}"))?;
-        Ok::<_, anyhow::Error>(needed | rust_labels_present(name, target)?)
-    })?;
+    let needs_cargo_metadata = source_revision_targets
+        .iter()
+        .try_fold(false, |needed, name| {
+            let target = checked
+                .target
+                .get(name)
+                .with_context(|| format!("Bake selection references missing target {name}"))?;
+            Ok::<_, anyhow::Error>(needed | rust_labels_present(name, target)?)
+        })?;
     planning.validation_millis = elapsed_millis(validation_started);
     let metadata_started = Instant::now();
     let metadata = needs_cargo_metadata
@@ -418,6 +421,18 @@ pub(crate) fn prepare_with_builder(
 
     let mut targets = Vec::new();
     let mut family_units = BTreeMap::<BuilderFamily, Vec<(String, RustBuildUnit)>>::new();
+    for name in &source_revision_targets {
+        let target = &checked.target[name];
+        if let Some(unit) = parse_rust_unit(name, target, &package_index)? {
+            if unit.mode == BuildMode::RustStandalone {
+                validate_standalone_source_boundary(source_repository.root(), name, target)?;
+            }
+            family_units
+                .entry(unit.family)
+                .or_default()
+                .push((name.clone(), unit));
+        }
+    }
     for name in direct_targets {
         let target = checked
             .target
@@ -432,15 +447,6 @@ pub(crate) fn prepare_with_builder(
             "target {name} produces no image tag"
         );
         let rust = parse_rust_unit(&name, target, &package_index)?;
-        if let Some(unit) = &rust {
-            if unit.mode == BuildMode::RustStandalone {
-                validate_standalone_source_boundary(source_repository.root(), &name, target)?;
-            }
-            family_units
-                .entry(unit.family)
-                .or_default()
-                .push((name.clone(), unit.clone()));
-        }
         targets.push(ImageTarget {
             name,
             tags: target.tags.clone(),
@@ -484,6 +490,10 @@ pub(crate) fn prepare_with_builder(
         source_contexts.push(context);
         families.push(FamilyPlan {
             family: *family,
+            targets: selected_units
+                .iter()
+                .map(|(name, _)| name.clone())
+                .collect(),
             packages,
             binaries: binaries.into_iter().collect(),
             auxiliary: auxiliary.into_iter().collect(),
@@ -955,15 +965,10 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
         .collect::<BTreeMap<_, _>>();
     for family in &plan.families {
         if let Some(path) = &family.asset_context_path {
-            for image in plan.targets.iter().filter(|image| {
-                image
-                    .rust
-                    .as_ref()
-                    .is_some_and(|unit| unit.family == family.family)
-            }) {
+            for name in &family.targets {
                 target
-                    .get_mut(&image.name)
-                    .expect("direct image target was seeded")
+                    .get_mut(name)
+                    .expect("image dependency target was seeded")
                     .contexts
                     .insert(
                         "veoveo-image-assets".to_owned(),
@@ -1025,19 +1030,13 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
                 ),
             ])
         };
-        let image = plan
+        let image = family
             .targets
-            .iter()
-            .find(|target| {
-                target
-                    .rust
-                    .as_ref()
-                    .is_some_and(|unit| unit.family == family.family)
-            })
+            .first()
             .context("standalone family has no image target")?;
         let image = target
-            .get_mut(&image.name)
-            .expect("direct image target was seeded");
+            .get_mut(image)
+            .expect("image dependency target was seeded");
         image.context = Some(source_context_path(family)?);
         image.args.extend(args);
     }
@@ -1065,34 +1064,22 @@ fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()
     }
     for family in &plan.families {
         if let Some(path) = &family.asset_context_path {
-            for image in plan.targets.iter().filter(|image| {
-                image
-                    .rust
-                    .as_ref()
-                    .is_some_and(|unit| unit.family == family.family)
-            }) {
+            for name in &family.targets {
                 ensure!(
                     definition
                         .target
-                        .get(&image.name)
+                        .get(name)
                         .and_then(|image| image.contexts.get("veoveo-image-assets"))
                         .is_some_and(|context| Path::new(context) == path),
                     "resolved Bake graph changed image asset context for {}",
-                    image.name
+                    name
                 );
             }
         }
-        let target_name = family.family.shared_artifact_target().unwrap_or_else(|| {
-            plan.targets
-                .iter()
-                .find(|target| {
-                    target
-                        .rust
-                        .as_ref()
-                        .is_some_and(|unit| unit.family == family.family)
-                })
-                .map_or("", |target| target.name.as_str())
-        });
+        let target_name = family
+            .family
+            .shared_artifact_target()
+            .unwrap_or_else(|| family.targets.first().map_or("", String::as_str));
         let target = definition
             .target
             .get(target_name)
@@ -1338,6 +1325,41 @@ mod tests {
     #[test]
     fn image_build_epoch_is_stable_across_source_revisions() {
         assert_eq!(REPRODUCIBLE_BUILD_EPOCH, 1_786_076_699);
+    }
+
+    #[test]
+    fn composite_images_export_transitive_rust_binaries_without_publishing_dependencies() {
+        let repository = crate::context::RepositoryContext::discover(std::path::Path::new(env!(
+            "CARGO_MANIFEST_DIR"
+        )))
+        .unwrap();
+        let prepared = super::prepare(
+            &repository,
+            Selection::target("computer-host").unwrap(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        assert_eq!(
+            prepared
+                .plan
+                .targets
+                .iter()
+                .map(|target| target.name.as_str())
+                .collect::<Vec<_>>(),
+            ["computer-host"]
+        );
+        assert_eq!(prepared.plan.families.len(), 1);
+        let family = &prepared.plan.families[0];
+        assert_eq!(family.targets, ["computer-host", "computer-storage"]);
+        assert_eq!(
+            family.packages,
+            ["veoveo-computer-host", "veoveo-computer-storage"]
+        );
+        assert_eq!(
+            family.binaries,
+            ["veoveo-computer-host", "veoveo-computer-storage"]
+        );
+        assert!(family.auxiliary.is_empty());
     }
 
     #[test]

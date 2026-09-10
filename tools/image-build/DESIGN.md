@@ -63,6 +63,14 @@ terminated process can leave its uniquely named worker for explicit recovery.
 
 ## Context Construction
 
+Image selection expands every Bake `target:` context before collecting Rust build
+units. Each compiler family records the runtime targets that consume it, including
+transitive dependencies, and exports their complete binary set. Asset contexts and
+standalone compiler inputs follow that same dependency set. Only directly selected
+image targets enter publication; an internal runtime dependency does not become an
+extra published output. Selecting `computer-host`, for example, builds both the host
+launcher and storage executable while reusing the independent provider build.
+
 Cargo parses every workspace member before building a selected package. The context
 therefore preserves the root manifest and lockfile, toolchain selection, `.cargo`
 configuration, every local package manifest, and every real target entrypoint reported

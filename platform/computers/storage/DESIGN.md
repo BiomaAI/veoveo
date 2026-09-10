@@ -33,12 +33,13 @@ across provider updates. The public gateway, Console and Computer never receive 
 Docker socket, private trust material or backing-file paths.
 
 The selected host root is an operator-owned local filesystem directory with private
-permissions. Docker and the allocator must observe the same mounted paths. A container
-installation publishes the allocator's mounts through a dedicated `rshared` bind;
-the daemon receives them through its corresponding `rslave` bind. Qualification must
-prove that boundary before activation. The installation must not
-change mount propagation for unrelated host paths or restart the host Docker daemon to
-install the helper. Packaging and installed qualification remain delivery work.
+permissions. Docker and the allocator must observe the same mounted paths. The separate
+native service fixture publishes mounts through a dedicated `rshared` bind and gives
+the daemon the corresponding `rslave` bind. The [composite compute host](../host/DESIGN.md)
+instead runs both in one mount namespace and qualifies restoration after that container
+is replaced. The installation must not change propagation for unrelated host paths or
+restart the host Docker daemon to install the helper. Kubernetes installation and
+public acceptance remain delivery work.
 
 The storage client CA is distinct from the provider guest CA. Its certificates admit
 only the Computers worker. Docker's plugin socket is local to the compute host and
