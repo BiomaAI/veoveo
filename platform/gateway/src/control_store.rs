@@ -82,33 +82,10 @@ impl GatewayControlStore {
     }
 
     async fn load_active_revision_record(&self) -> Result<Option<GatewayControlRevisionRecord>> {
-        let mut response = self
-            .platform
-            .client()
-            .query(format!("SELECT * FROM ONLY {ACTIVE_CONTROL_PLANE_RECORD};"))
+        self.platform
+            .active_gateway_control_revision()
             .await
-            .context("failed to load the active gateway control-plane pointer")?
-            .check()
-            .context("active gateway control-plane pointer query failed")?;
-        let active: Option<GatewayControlActiveRecord> = response
-            .take(0)
-            .context("failed to decode the active gateway control-plane pointer")?;
-        let Some(active) = active else {
-            return Ok(None);
-        };
-
-        let mut response = self
-            .platform
-            .client()
-            .query("SELECT * FROM ONLY $revision;")
-            .bind(("revision", active.revision))
-            .await
-            .context("failed to load the active gateway control-plane revision")?
-            .check()
-            .context("active gateway control-plane revision query failed")?;
-        response
-            .take(0)
-            .context("failed to decode the active gateway control-plane revision")
+            .context("failed to read the active gateway control-plane revision")
     }
 
     pub async fn record_revision(&self, revision: &GatewayControlPlaneRevision) -> Result<()> {

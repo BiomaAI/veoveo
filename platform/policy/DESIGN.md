@@ -7,6 +7,7 @@
 | Veoveo gateway control plane | Existing typed profiles, policy sets, principal attributes, resource exposure and recording-ingest declarations |
 | MCP 2026-07-28 | Canonical method/action names and domain resource ownership; evaluation itself performs no protocol I/O |
 | JSON / JSON Schema 2020-12 | Models remain owned by `mcp/contract`; this extraction adds no wire fields or policy versions |
+| SurrealDB 3.2.4 | Caller-owned current revision read in `platform/store`; the evaluator has no database dependency |
 
 Gateway requests and Computers workers need the same policy decision. This library
 owns the pure evaluator previously embedded in the gateway. It depends on canonical
@@ -25,3 +26,9 @@ resolve current Work Context membership and select an authoritative control-plan
 revision. It must account for that read's latency before issuing a bounded lease.
 Caching immutable revisions is compatible with this boundary; renewing from a stale
 head or unreachable authority store is not.
+
+`PlatformStore::active_gateway_control_revision` reads the active pointer and that
+exact retained revision in one round trip. It distinguishes an absent installation
+pointer from a dangling or inconsistent revision. The gateway uses this same reader.
+Readers capture monotonic time before the request and charge all read and validation
+latency against any authority lease they issue afterwards.

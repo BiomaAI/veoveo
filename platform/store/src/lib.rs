@@ -14,6 +14,7 @@ mod config;
 mod coordinates;
 mod error;
 mod frame_worlds;
+mod gateway_control;
 mod gateway_runtime;
 mod governance;
 mod identity;
