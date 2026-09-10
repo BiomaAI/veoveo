@@ -35,6 +35,15 @@ pub struct Operation {
     pub previous_process_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub dispatch_id: Option<Uuid>,
+    pub dispatched_at: Option<DateTime<Utc>>,
+    pub observation_deadline: Option<DateTime<Utc>>,
+    pub observation_reads: u32,
+    pub next_observation_at: Option<DateTime<Utc>>,
+    pub last_observation_id: Option<Uuid>,
+    pub settled_at: Option<DateTime<Utc>>,
+    pub result_resource_id: Option<String>,
+    pub result_process_id: Option<String>,
 }
 impl Operation {
     pub fn task_id(&self) -> TaskId {
@@ -56,6 +65,15 @@ pub(crate) struct OperationRecord {
     previous_process_id: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
+    dispatch_id: Option<Uuid>,
+    dispatched_at: Option<DateTime<Utc>>,
+    observation_deadline: Option<DateTime<Utc>>,
+    observation_reads: u32,
+    next_observation_at: Option<DateTime<Utc>>,
+    last_observation_id: Option<Uuid>,
+    settled_at: Option<DateTime<Utc>>,
+    result_resource_id: Option<String>,
+    result_process_id: Option<String>,
 }
 impl TryFrom<OperationRecord> for Operation {
     type Error = ComputerError;
@@ -83,6 +101,15 @@ impl TryFrom<OperationRecord> for Operation {
                 previous_process_id: value.previous_process_id,
                 created_at: value.created_at,
                 updated_at: value.updated_at,
+                dispatch_id: value.dispatch_id,
+                dispatched_at: value.dispatched_at,
+                observation_deadline: value.observation_deadline,
+                observation_reads: value.observation_reads,
+                next_observation_at: value.next_observation_at,
+                last_observation_id: value.last_observation_id,
+                settled_at: value.settled_at,
+                result_resource_id: value.result_resource_id,
+                result_process_id: value.result_process_id,
             })
         };
         decode().map_err(|_: serde_json::Error| ComputerError::Unavailable)

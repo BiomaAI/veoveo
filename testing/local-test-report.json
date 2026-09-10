@@ -1,29 +1,33 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:4a95a7e91b253551da69541bd3d2cb058f8df85f761d1b470a5e3791e71f7326",
-  "updatedAt": "2026-09-10T01:30:23Z",
+  "buildDigest": "sha256:6f66523fe92a3fc82514281d95710bc774ded1f0f7fc5ae085c1bc2b7be85e87",
+  "updatedAt": "2026-09-10T01:49:07Z",
   "checks": [
     {
-      "name": "provider-journal-clippy",
+      "name": "computers-lifecycle-journal-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
+        "veoveo-computers",
+        "-p",
         "veoveo-task-runtime",
+        "-p",
+        "veoveo-platform-store",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T01:30:14Z",
-      "durationSeconds": 1.635689437,
+      "finishedAt": "2026-09-10T01:49:02Z",
+      "durationSeconds": 2.165083079,
       "detail": "completed successfully"
     },
     {
-      "name": "provider-journal-format",
+      "name": "computers-lifecycle-journal-format",
       "command": [
         "cargo",
         "fmt",
@@ -32,26 +36,36 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T01:30:17Z",
-      "durationSeconds": 2.566443099,
+      "finishedAt": "2026-09-10T01:49:02Z",
+      "durationSeconds": 2.6351701419999998,
       "detail": "completed successfully"
     },
     {
-      "name": "provider-journal-tests",
+      "name": "computers-lifecycle-journal-tests",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
+        "veoveo-computers",
+        "-p",
         "veoveo-task-runtime",
+        "-p",
+        "veoveo-platform-store",
         "--lib",
+        "--test",
+        "lifecycle",
+        "--test",
+        "operations",
+        "--test",
+        "admission",
         "--test",
         "provider_wait"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T01:30:23Z",
-      "durationSeconds": 8.579620166,
+      "finishedAt": "2026-09-10T01:49:07Z",
+      "durationSeconds": 11.586655123,
       "detail": "completed successfully"
     }
   ]

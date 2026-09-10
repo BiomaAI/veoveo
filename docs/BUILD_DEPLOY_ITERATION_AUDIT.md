@@ -2262,3 +2262,12 @@ open. Per-attachment socket shutdown fixes that failure without an extra byte-co
 relay. Hyper-Util and Tower were already in the lockfile; their direct use changes only
 the runtime package's dependency edges. The local replay-timeout scenario accounts for
 about 20 s of the focused suite's runtime and is recorded separately from compile time.
+
+The expanded journal suite exposed a real concurrency defect in preceding-read admission:
+two different requests could both create an operation before an unconditional update
+overwrote the Computer fence. Eligibility now lives on the conditional write itself.
+The same correction applies to quota increments and policy changes. A regression runs
+32 competing requests across two database clients for each of eight Computers; the
+operation suite executes in 1.57 s. Domain lifecycle scenarios execute in 1.60 s with
+no provider image build. Database syntax and typed-record mismatches were caught in
+these disposable fixtures before enabling provider dispatch.

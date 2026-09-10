@@ -32,6 +32,35 @@ fn request() -> Reservation {
 }
 
 #[tokio::test]
+async fn contended_operation_updates_never_overwrite_a_previously_acquired_fence() {
+    let db = TestDb::new().await;
+    let a = installed(db.a.clone()).await;
+    let b = installed(db.b.clone()).await;
+    for round in 0..8 {
+        let actor = owner(&format!("contended-{round}"));
+        let computer = a.reserve(&actor, &request()).await.unwrap();
+        let results = futures::future::join_all((0..32).map(|index| {
+            let store = if index % 2 == 0 { &a } else { &b };
+            store.queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Create)
+        }))
+        .await;
+        let winners: Vec<_> = results.into_iter().filter_map(Result::ok).collect();
+        assert_eq!(
+            winners.len(),
+            1,
+            "one operation per Computer under contention"
+        );
+        assert_eq!(
+            a.get(&actor, computer.computer_id)
+                .await
+                .unwrap()
+                .active_operation,
+            Some(winners[0].operation_id)
+        );
+    }
+}
+
+#[tokio::test]
 async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
     let db = TestDb::new().await;
     let a = installed(db.a.clone()).await;

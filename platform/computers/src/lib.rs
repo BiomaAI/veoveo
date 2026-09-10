@@ -2,12 +2,17 @@
 mod admission;
 mod capacity;
 mod identity;
+mod lifecycle;
 mod model;
 mod operation;
 mod operation_admission;
 mod store;
+mod worker_journal;
 
 pub use admission::{CapacityPolicy, Reservation};
+pub use lifecycle::{
+    DispatchTicket, ObservationAdmission, ObservationTicket, ReachedPhase, ReachedState,
+};
 pub use model::{Computer, ComputerPage};
 pub use operation::{Operation, OperationStage};
 pub use store::ComputersStore;

@@ -403,6 +403,13 @@ backpressure tests. Each attachment owns a physically closable provider connecti
 revocation closes blocked transport while the Computer process remains available for
 fresh authorized reattachment. This is a runtime checkpoint, not installed acceptance.
 
+The domain now commits one dispatch receipt under the current shared Task lease,
+charges a persisted observation budget and settles a matching resource/process before
+Task publication. Deadline or read-budget exhaustion preserves the Computer fence in
+Recovery Required. Real-store contention tests also enforce capacity and operation
+admission on conditional writes. The provider worker, Task projection, production
+allocator and current grant/action authority remain integration work.
+
 | Area | Required evidence |
 |---|---|
 | Core | Standard release surfaces, valid configured/unconfigured states, clean install and selected offline topology |
