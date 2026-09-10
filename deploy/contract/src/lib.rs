@@ -371,6 +371,7 @@ pub enum PlatformComponent {
 )]
 #[serde(rename_all = "kebab-case")]
 pub enum FirstPartyMcpServer {
+    Computers,
     Artifact,
     Media,
     Timeseries,
@@ -1232,6 +1233,7 @@ impl PlatformSelection {
                         PlatformComponent::RecordingDataPlane,
                     ]),
                     BTreeSet::from([
+                        FirstPartyMcpServer::Computers,
                         FirstPartyMcpServer::Artifact,
                         FirstPartyMcpServer::Frames,
                         FirstPartyMcpServer::Recording,
@@ -1278,6 +1280,7 @@ impl PlatformComponent {
 impl FirstPartyMcpServer {
     fn all_supported() -> BTreeSet<Self> {
         BTreeSet::from([
+            Self::Computers,
             Self::Artifact,
             Self::Media,
             Self::Timeseries,
@@ -1374,6 +1377,7 @@ impl ResolvedPlatformSelection {
             )?;
         }
         let platform_store_servers = [
+            FirstPartyMcpServer::Computers,
             FirstPartyMcpServer::Artifact,
             FirstPartyMcpServer::Media,
             FirstPartyMcpServer::Timeseries,
@@ -1736,6 +1740,7 @@ impl PlatformComponent {
 impl FirstPartyMcpServer {
     fn images(self) -> &'static [&'static str] {
         match self {
+            Self::Computers => &["computers-mcp"],
             Self::Artifact => &["artifact-mcp"],
             Self::Media => &["media-mcp"],
             Self::Timeseries => &["timeseries-mcp"],

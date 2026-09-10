@@ -576,3 +576,15 @@ add the reactive operation read projection and health invalidations, expose exac
 truncation, and finish the CLI, delegated execution, file and retention journeys. The
 provider/allocator/service image and installation closure remain delivery work. The
 Console checkpoint does not change the installed workloads or claim public availability.
+
+Core packaging now has independent `computers-mcp`, `computer-storage`,
+`computer-provider` and `computer-template` Bake targets. The provider image verifies
+and builds the exact public-base/patch trees; its recorded OCI runtime closure remains
+distinct from earlier host-native artifacts. Both standard Helm presets include
+two-replica Computers control with truthful unconfigured state and explicit configured
+trust/configuration references. The typed deployment selection includes that image.
+Real Helm checks, all deployment-contract tests, affected lint and image builds pass.
+An unchanged four-image build takes 5.134 seconds on this host. Private compute-host
+startup, full installed provider/storage qualification, gateway registration, immutable
+publication and Bioma activation remain the next delivery gates. These images and
+render checks do not establish a working public Computer.

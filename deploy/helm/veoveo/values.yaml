@@ -137,6 +137,31 @@ artifactService:
       cpu: "1"
       memory: 1Gi
 
+computers:
+  image:
+    repository: veoveo/computers-mcp
+    tag: 0.1.0
+    digest: ""
+  replicas: 2
+  # Core control remains available while capacity awaits operator configuration.
+  capacityMode: unconfigured
+  existingConfigMap: ""
+  configurationRevision: ""
+  existingTrustSecret: ""
+  # Used by the generated unconfigured configuration. Configured capacity reads
+  # its access policy from the installation-owned computers.json file.
+  access:
+    maxGrants: 8
+    absoluteSeconds: 28800
+    idleSeconds: 1800
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
 recording:
   tenantKey: enterprise
   workContext: operations
