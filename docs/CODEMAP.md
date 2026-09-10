@@ -359,7 +359,7 @@ The only durable platform persistence layer.
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
 | `recording_catalog.rs` | recording datasets and layers, durable read grants, projection receipts, expiry, and cleanup |
 | `administration.rs` | bootstrap, runtime user, migration administration |
-| `identity.rs` | tenant/principal/group resolution |
+| `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `artifacts/publication.rs` and `artifacts/register.surql` | shared typed publication content and transactional occurrence, grants, and outbox registration with immutable tenant/digest blob reuse |

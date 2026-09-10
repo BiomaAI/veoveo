@@ -1,10 +1,48 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:161dd1765d9c315e5086ca4988297a741864711ef8b8c5232184b3285bb2a019",
-  "updatedAt": "2026-09-10T03:44:42Z",
+  "buildDigest": "sha256:a74c2d652ded11d805d314ae3d43b64e856c2a0644bde5ef87123201581448d2",
+  "updatedAt": "2026-09-10T03:50:41Z",
   "checks": [
     {
-      "name": "accepted-authority-format",
+      "name": "identity-sync",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-platform-store",
+        "--lib",
+        "--test",
+        "identity_sync"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T03:47:33Z",
+      "durationSeconds": 11.538582225,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "identity-sync-consumers",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers",
+        "--tests",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--test",
+        "session_family"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T03:50:04Z",
+      "durationSeconds": 89.597758598,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "identity-sync-format",
       "command": [
         "cargo",
         "fmt",
@@ -13,74 +51,27 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T03:44:42Z",
-      "durationSeconds": 2.319820601,
+      "finishedAt": "2026-09-10T03:50:26Z",
+      "durationSeconds": 2.66055726,
       "detail": "completed successfully"
     },
     {
-      "name": "accepted-authority-lint",
+      "name": "identity-sync-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers",
-        "-p",
-        "veoveo-computers-mcp",
+        "veoveo-platform-store",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T03:44:40Z",
-      "durationSeconds": 15.596531297,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "accepted-authority-native",
-      "command": [
-        "env",
-        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
-        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-sandbox",
-        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
-        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
-        "VEOVEO_COMPUTERS_NATIVE_CLI=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/cli-0.0.116/openshell",
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers-mcp",
-        "--test",
-        "native_worker",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T03:44:15Z",
-      "durationSeconds": 24.845365976,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "accepted-computer-authority",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers",
-        "-p",
-        "veoveo-computers-mcp",
-        "--lib",
-        "--tests"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T03:38:12Z",
-      "durationSeconds": 43.637362919,
+      "finishedAt": "2026-09-10T03:50:41Z",
+      "durationSeconds": 17.512959628,
       "detail": "completed successfully"
     }
   ]

@@ -2350,3 +2350,13 @@ policy checks. Focused domain/worker qualification takes 43.6 s. The unchanged n
 provider and Computer image pass the worker lifecycle and recovery scenario in 24.21 s,
 with a 0.56 s incremental compile. All-target domain/worker Clippy takes 15.48 s.
 The provider binaries were reused; this authority change required no image rebuild.
+
+Identity synchronization now creates missing records inside the transaction and
+updates only principal presentation fields. A staged stale-write test preserves
+committed principal, tenant and installation disablement. The two real-store cases
+take 1.82 s after a 9.61 s compile; store Clippy takes 17.39 s. Consumer qualification
+passes, with a 1 min 09 s combined feature-graph compile. An initial consumer command
+used the wrong gateway package name and failed before compilation; the corrected
+receipt uses `veoveo-mcp-gateway`. Cargo's `--tests` applies to every selected package,
+so mixing it with a targeted `--test` also ran the gateway's other integration tests.
+Future focused consumers use separate commands to avoid that scope expansion.
