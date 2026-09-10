@@ -8,6 +8,7 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | Shared Tasks | Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 
 The domain owns retained Computer identity. Provider transport belongs to
 `platform/runtimes/computers`. Native Console and MCP will project these commands
@@ -75,6 +76,25 @@ all inputs needed to recreate the same Task. The Task carries the `provider_wait
 profile and a retention pin. Concurrent link attempts use the shared Task idempotency
 boundary. Actor identity, Work Context and policy provenance remain in the journal;
 command text and provider credentials never enter its audit event.
+
+Migration 0056 makes verified execution authority part of every new operation.
+`ComputerActor` can only be constructed from a verified Computers identity with
+request context. Admission checks the assertion and source-token expiration; the
+transaction rechecks its deadline before accepting intent. The journal retains
+the actor, profile, invocation and verified source context. Decoding checks that
+this evidence agrees with the Task owner. It never reconstructs missing client or
+session identity from a Task owner.
+
+The accepted record is evidence for one operation. Its source token may expire
+while the worker completes or reconciles accepted work. Production dispatch still
+requires a fresh action decision; renewal requires its own current grant and family
+checks. This storage checkpoint does not implement either decision. Existing native
+fixtures retain their explicit fixture gate.
+
+No supported installed Computers records precede this migration. Pre-profile
+candidate journals with missing context cannot admit new work or infer authority;
+they require explicit operator handling with their existing resource fence intact.
+The deployed profile must update all readers and writers before admitting Computers.
 
 The dispatch worker repairs pending Task links and projects a terminal Task after
 domain settlement. Physical home fencing remains in progress.

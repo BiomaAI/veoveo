@@ -1,5 +1,6 @@
 //! Durable core Computers domain. Public facades do not own provider mutations.
 mod admission;
+mod authority;
 mod capacity;
 mod identity;
 mod lifecycle;
@@ -11,6 +12,7 @@ mod worker_journal;
 mod worker_queue;
 
 pub use admission::{CapacityPolicy, Reservation};
+pub use authority::{AcceptedAuthority, ComputerActor};
 pub use lifecycle::{
     DispatchTicket, ObservationAdmission, ObservationTicket, ReachedPhase, ReachedState,
 };

@@ -1,4 +1,5 @@
 BEGIN TRANSACTION;
+IF time::now() >= $admission_expires_at { THROW "computer_authority_expired"; };
 LET $prior = SELECT * FROM ONLY $request;
 IF $prior != NONE {
   IF $prior.fingerprint != $fingerprint { THROW "computer_request_conflict"; };

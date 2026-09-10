@@ -1,5 +1,5 @@
 use crate::{
-    ComputerError, ComputersStore, Operation, Result,
+    ComputerActor, ComputerError, ComputersStore, Operation, Result,
     api::{Action, ComputerPhase},
     identity::{can_mutate, digest, owner_key, permits},
     model::computer_record,
@@ -18,6 +18,7 @@ struct Content {
     computer_id: Uuid,
     task: RecordId,
     actor_context: OpenObject,
+    execution_authority: OpenObject,
     provider_instance_id: Uuid,
     template_fingerprint: String,
     action: String,
@@ -37,11 +38,13 @@ impl ComputersStore {
     /// This method never dispatches a provider effect.
     pub async fn queue_operation(
         &self,
-        caller: &TaskOwner,
+        actor: ComputerActor,
         computer_id: Uuid,
         request_id: Uuid,
         action: Action,
     ) -> Result<Operation> {
+        actor.check_admission()?;
+        let caller = actor.owner();
         if request_id.is_nil() {
             return Err(ComputerError::InvalidInput);
         }
@@ -73,6 +76,7 @@ impl ComputersStore {
             computer_id,
             task: veoveo_task_runtime::TaskId::from_uuid(id).record_id(),
             actor_context: object(caller)?,
+            execution_authority: object(actor.accepted())?,
             provider_instance_id: computer.provider_instance_id,
             template_fingerprint: computer.template_fingerprint,
             action: action.into(),
@@ -99,6 +103,10 @@ impl ComputersStore {
             include_str!("../queries/queue_operation.surql"),
             vec![
                 ("request", request.clone().into_value()),
+                (
+                    "admission_expires_at",
+                    actor.admission_expires_at().into_value(),
+                ),
                 ("fingerprint", fingerprint.into_value()),
                 ("computer", computer_record(computer_id).into_value()),
                 ("owner_key", key.into_value()),

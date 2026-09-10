@@ -41,7 +41,12 @@ async fn contended_operation_updates_never_overwrite_a_previously_acquired_fence
         let computer = a.reserve(&actor, &request()).await.unwrap();
         let results = futures::future::join_all((0..32).map(|index| {
             let store = if index % 2 == 0 { &a } else { &b };
-            store.queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Create)
+            store.queue_operation(
+                support::authenticated(&actor),
+                computer.computer_id,
+                Uuid::now_v7(),
+                Action::Create,
+            )
         }))
         .await;
         let winners: Vec<_> = results.into_iter().filter_map(Result::ok).collect();
@@ -71,7 +76,12 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
     let request_id = Uuid::now_v7();
     let pending = futures::future::join_all((0..8).map(|i| {
         let store = if i % 2 == 0 { &a } else { &b };
-        store.queue_operation(&alice, id, request_id, Action::Create)
+        store.queue_operation(
+            support::authenticated(&alice),
+            id,
+            request_id,
+            Action::Create,
+        )
     }))
     .await;
     let op_id = pending[0].as_ref().unwrap().operation_id;
@@ -104,13 +114,18 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
     assert_eq!(repaired.provider_instance_id, Uuid::from_u128(1));
     assert_eq!(repaired.template_fingerprint, FINGERPRINT);
     assert!(matches!(
-        a.queue_operation(&alice, id, request_id, Action::Stop)
+        a.queue_operation(support::authenticated(&alice), id, request_id, Action::Stop)
             .await,
         Err(ComputerError::RequestConflict)
     ));
     assert!(matches!(
-        a.queue_operation(&alice, id, Uuid::now_v7(), Action::Create)
-            .await,
+        a.queue_operation(
+            support::authenticated(&alice),
+            id,
+            Uuid::now_v7(),
+            Action::Create
+        )
+        .await,
         Err(ComputerError::OperationBusy)
     ));
     let events = db.a.read_outbox(0, 100).await.unwrap().events;
@@ -149,18 +164,38 @@ async fn competing_requests_and_private_authority_cannot_replace_the_active_oper
     let computer = a.reserve(&alice, &request()).await.unwrap();
     let id = computer.computer_id;
     assert!(matches!(
-        a.queue_operation(&bob, id, Uuid::now_v7(), Action::Create)
-            .await,
+        a.queue_operation(
+            support::authenticated(&bob),
+            id,
+            Uuid::now_v7(),
+            Action::Create
+        )
+        .await,
         Err(ComputerError::NotFound)
     ));
     assert!(matches!(
-        a.queue_operation(&alice, id, Uuid::now_v7(), Action::Start)
-            .await,
+        a.queue_operation(
+            support::authenticated(&alice),
+            id,
+            Uuid::now_v7(),
+            Action::Start
+        )
+        .await,
         Err(ComputerError::InvalidState)
     ));
     let (left, right) = tokio::join!(
-        a.queue_operation(&alice, id, Uuid::now_v7(), Action::Create),
-        b.queue_operation(&alice, id, Uuid::now_v7(), Action::Create)
+        a.queue_operation(
+            support::authenticated(&alice),
+            id,
+            Uuid::now_v7(),
+            Action::Create
+        ),
+        b.queue_operation(
+            support::authenticated(&alice),
+            id,
+            Uuid::now_v7(),
+            Action::Create
+        )
     );
     let selected = match (left, right) {
         (Ok(op), Err(ComputerError::OperationBusy))
@@ -234,7 +269,12 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
     alice.authority.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Viewer;
     assert!(matches!(
         store
-            .queue_operation(&alice, computer.computer_id, Uuid::now_v7(), Action::Start)
+            .queue_operation(
+                support::authenticated(&alice),
+                computer.computer_id,
+                Uuid::now_v7(),
+                Action::Start
+            )
             .await,
         Err(ComputerError::Forbidden)
     ));
@@ -248,7 +288,12 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
     );
     alice.authority.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Contributor;
     let operation = store
-        .queue_operation(&alice, computer.computer_id, Uuid::now_v7(), Action::Start)
+        .queue_operation(
+            support::authenticated(&alice),
+            computer.computer_id,
+            Uuid::now_v7(),
+            Action::Start,
+        )
         .await
         .unwrap();
     assert_eq!(operation.previous_phase, ComputerPhase::Stopped);

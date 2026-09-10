@@ -149,7 +149,12 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
 
     // The worker repairs the missing Task link, then the two replicas compete.
     let create = a
-        .queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Create)
+        .queue_operation(
+            support::authenticated(&actor),
+            computer.computer_id,
+            Uuid::now_v7(),
+            Action::Create,
+        )
         .await
         .unwrap();
     let (left, right) = tokio::join!(worker_a.step(create.clone()), worker_b.step(create.clone()));
@@ -175,12 +180,22 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     )
     .await;
     let stop = a
-        .queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Stop)
+        .queue_operation(
+            support::authenticated(&actor),
+            computer.computer_id,
+            Uuid::now_v7(),
+            Action::Stop,
+        )
         .await
         .unwrap();
     assert_eq!(worker_b.step(stop).await.unwrap(), WorkerStep::Settled);
     let start = a
-        .queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Start)
+        .queue_operation(
+            support::authenticated(&actor),
+            computer.computer_id,
+            Uuid::now_v7(),
+            Action::Start,
+        )
         .await
         .unwrap();
     assert_eq!(worker_a.step(start).await.unwrap(), WorkerStep::Settled);
@@ -195,7 +210,12 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
 
     // Simulate worker death after native Stop completed but before domain settlement.
     let stop = a
-        .queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Stop)
+        .queue_operation(
+            support::authenticated(&actor),
+            computer.computer_id,
+            Uuid::now_v7(),
+            Action::Stop,
+        )
         .await
         .unwrap();
     a.ensure_operation_task(&actor, stop.operation_id)
@@ -250,7 +270,12 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     // Cancel before dispatch and deny current authority without touching the process.
     for cancelled in [true, false] {
         let start = a
-            .queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Start)
+            .queue_operation(
+                support::authenticated(&actor),
+                computer.computer_id,
+                Uuid::now_v7(),
+                Action::Start,
+            )
             .await
             .unwrap();
         a.ensure_operation_task(&actor, start.operation_id)
@@ -294,7 +319,12 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     // Lost dispatch ticket before an RPC: even a known stopped resource cannot
     // authorize Start replay. The persisted budget eventually requires recovery.
     let start = a
-        .queue_operation(&actor, computer.computer_id, Uuid::now_v7(), Action::Start)
+        .queue_operation(
+            support::authenticated(&actor),
+            computer.computer_id,
+            Uuid::now_v7(),
+            Action::Start,
+        )
         .await
         .unwrap();
     a.ensure_operation_task(&actor, start.operation_id)
