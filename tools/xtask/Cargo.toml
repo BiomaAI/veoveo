@@ -11,12 +11,14 @@ chrono.workspace = true
 clap.workspace = true
 hex.workspace = true
 protoc-bin-vendored = "=3.2.0"
+rcgen.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
 sha2.workspace = true
 tempfile = "=3.27.0"
 url.workspace = true
+uuid.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-computers-contract = { path = "../../platform/computers/contract" }
 veoveo-deploy-runtime.workspace = true

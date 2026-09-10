@@ -19,9 +19,10 @@ artifactService:
 
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
-  controlPlaneRevision: 3df69c4e3765c08836ad943e70c26d50e6744899503e773f73f55a18d8b27835
+  controlPlaneRevision: 634d67bcdf88bc10b20805eec3e22122717deb4865cad3fb4d5ccb5ba58c12a6
 
 consoleBff:
+  replicas: 2
   oauthResource: https://veoveo.bioma.ai/mcp/admin
   mcpTransportUrl: http://mcp-gateway:8788/mcp/admin
   oauthScopes:
@@ -51,3 +52,20 @@ ingress:
   host: veoveo.bioma.ai
   tls:
     enabled: false
+
+computerCapacity: openshell-docker
+computers:
+  replicas: 2
+  existingConfigMap: bioma-computers-configuration
+  configurationRevision: 4fc06e6d4388d4f209f2238e03c2090c999b8e14add563ac46ff9f4a00ea9b68
+  existingTrustSecret: bioma-computers-worker-trust
+  host:
+    existingConfigMap: bioma-computer-host-configuration
+    configurationRevision: 14e1412a4ebd3765f8fde0a2fd5f265d0d34dfc9ac439f1659095e4f62e78d29
+    existingTrustSecret: bioma-computer-host-trust
+    persistence:
+      size: 100Gi
+      storageClass: local-path
+    registryEgress:
+      - cidr: 172.18.0.3/32
+        port: 5000

@@ -29,8 +29,6 @@ reason:
     # cache while all seven required GPU workloads remain on the shared 24 GiB
     # development device.
     gpuMemoryUtilization: 0.42
-consoleBff:
-  replicas: 1
 telemetry:
   enabled: false
 networkPolicy:

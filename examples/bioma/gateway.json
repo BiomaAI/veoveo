@@ -749,6 +749,43 @@
         "upstream_kind": "stdio_bridge",
         "child": "rerun viewer-mcp"
       }
+    },
+    {
+      "slug": "computers",
+      "uri_scheme": "computer",
+      "mount_path": "/computers",
+      "mcp_path": "/computers/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://computers-mcp:8804/computers/mcp",
+        "health_url": "http://computers-mcp:8804/computers/healthz",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "resources_list_changed": true
+      },
+      "tools": [
+        "create",
+        "start",
+        "stop"
+      ],
+      "prompts": [
+        "develop"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "contract_revision": 3
+      },
+      "resource_projection": "server_owned"
     }
   ],
   "profiles": [
@@ -1235,6 +1272,34 @@
           },
           "completions": "disabled",
           "tasks": "disabled"
+        },
+        {
+          "server": "computers",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create",
+              "start",
+              "stop"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "computer"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "develop"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -1376,6 +1441,34 @@
           },
           "completions": "disabled",
           "tasks": "disabled"
+        },
+        {
+          "server": "computers",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create",
+              "start",
+              "stop"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "computer"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "develop"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -1821,6 +1914,34 @@
           },
           "completions": "disabled",
           "tasks": "disabled"
+        },
+        {
+          "server": "computers",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create",
+              "start",
+              "stop"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "computer"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "develop"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -4985,6 +5106,102 @@
           ],
           "metadata": {},
           "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ]
+        },
+        {
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "computer_attach"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "agent"
+          ],
+          "servers": [
+            "computers"
+          ],
+          "tools": [
+            "create",
+            "start",
+            "stop"
+          ],
+          "resource_schemes": [
+            "computer"
+          ],
+          "prompts": [
+            "develop"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "id": "allow_personal_computers",
+          "roles": [
+            "operator",
+            "administrator"
+          ]
+        },
+        {
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "computer_attach"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "agent"
+          ],
+          "servers": [
+            "computers"
+          ],
+          "tools": [
+            "create",
+            "start",
+            "stop"
+          ],
+          "resource_schemes": [
+            "computer"
+          ],
+          "prompts": [
+            "develop"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "id": "allow_service_computers",
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service",
             "https://veoveo.bioma.ai/oauth#admin-service"
           ]
         }

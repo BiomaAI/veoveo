@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "filesystem": {
+    "includeWorkdir": false,
+    "readOnly": [
+      "/usr",
+      "/lib",
+      "/lib64",
+      "/bin",
+      "/etc/passwd",
+      "/etc/group",
+      "/etc/profile",
+      "/etc/profile.d",
+      "/etc/bash.bashrc",
+      "/etc/nsswitch.conf",
+      "/etc/resolv.conf",
+      "/etc/ssl/certs",
+      "/proc",
+      "/sandbox"
+    ],
+    "readWrite": [
+      "/sandbox/persistent",
+      "/tmp",
+      "/dev/null",
+      "/dev/tty",
+      "/dev/pts"
+    ]
+  },
+  "landlock": {
+    "compatibility": "hard_requirement"
+  },
+  "process": {
+    "runAsUser": "10001",
+    "runAsGroup": "10001"
+  }
+}

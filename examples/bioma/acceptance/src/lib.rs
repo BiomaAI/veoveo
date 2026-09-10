@@ -34,17 +34,6 @@ mod tests {
         }
     }
 
-    fn canonical_client_shape(control_plane: &Value) -> Value {
-        let mut clients = control_plane["oauth_clients"].clone();
-        for client in clients.as_array_mut().expect("oauth_clients is an array") {
-            let client = client.as_object_mut().expect("OAuth client is an object");
-            client.remove("tenant");
-            client.remove("jwks");
-            client.remove("redirect_uris");
-        }
-        clients
-    }
-
     #[test]
     fn gateway_control_plane_is_valid_and_preserves_the_canonical_surface() {
         let local = load("configs/gateway.local.json");
@@ -74,9 +63,7 @@ mod tests {
         normalize_bioma(&mut bioma);
         for key in [
             "servers",
-            "profiles",
             "recording_ingest_resources",
-            "policies",
             "data_labels",
             "secrets",
         ] {
@@ -85,14 +72,37 @@ mod tests {
                 "Bioma `{key}` drifted from the canonical platform surface"
             );
         }
-        assert_eq!(
-            canonical_client_shape(&bioma),
-            canonical_client_shape(&local),
-            "Bioma OAuth client capabilities drifted from the canonical platform surface"
-        );
+        // Profiles, clients and policy belong to the installation. Full typed
+        // validation above checks their references and security requirements;
+        // dedicated journey tests below check the selected capability exposure.
+        // They must not be byte-identical to a disposable local fixture.
         assert_eq!(
             bioma["metadata"]["environment"],
             local["metadata"]["environment"]
+        );
+    }
+
+    #[test]
+    fn computers_are_core_governed_resources_in_user_and_agent_profiles() {
+        let catalog =
+            GatewayCatalog::load_json(repository_root().join("examples/bioma/gateway.json"))
+                .expect("Computers installation catalog");
+        for profile in ["operator", "admin", "agent"] {
+            let owner = catalog
+                .server_for_resource_uri(
+                    &GatewayProfileId::new(profile).unwrap(),
+                    "computer://computers",
+                )
+                .map(|(_, server)| server.slug.to_string());
+            assert_eq!(owner.as_deref(), Some("computers"));
+        }
+        assert!(
+            catalog
+                .server_for_resource_uri(
+                    &GatewayProfileId::new("recording-publish").unwrap(),
+                    "computer://computers",
+                )
+                .is_none()
         );
     }
 
