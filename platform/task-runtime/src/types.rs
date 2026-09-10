@@ -63,6 +63,8 @@ pub enum RecoveryClass {
     Resume,
     /// Completion is accepted only through a provider webhook.
     WebhookWait,
+    /// Recovery observes a persisted provider intent without replaying its mutation.
+    ProviderWait,
     /// A process crash during execution makes the result unknowable.
     InterruptedIndeterminate,
 }
@@ -110,6 +112,7 @@ impl From<RecoveryClass> for StoreRecoveryClass {
         match value {
             RecoveryClass::Resume => Self::Resume,
             RecoveryClass::WebhookWait => Self::WebhookWait,
+            RecoveryClass::ProviderWait => Self::ProviderWait,
             RecoveryClass::InterruptedIndeterminate => Self::InterruptedIndeterminate,
         }
     }
@@ -120,6 +123,7 @@ impl From<StoreRecoveryClass> for RecoveryClass {
         match value {
             StoreRecoveryClass::Resume => Self::Resume,
             StoreRecoveryClass::WebhookWait => Self::WebhookWait,
+            StoreRecoveryClass::ProviderWait => Self::ProviderWait,
             StoreRecoveryClass::InterruptedIndeterminate => Self::InterruptedIndeterminate,
         }
     }
@@ -363,6 +367,8 @@ pub struct ClaimedTask {
 pub struct RecoveryReport {
     pub resumable: Vec<TaskSnapshot>,
     pub webhook_waiting: Vec<TaskSnapshot>,
+    /// Original queued/running/waiting/cancel-requested state; observation only.
+    pub provider_waiting: Vec<TaskSnapshot>,
     pub failed_indeterminate: Vec<TaskSnapshot>,
     pub cancelled: Vec<TaskSnapshot>,
 }

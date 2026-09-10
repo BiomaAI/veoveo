@@ -24,10 +24,10 @@ use veoveo_platform_store::{
 };
 
 use crate::types::{
-    ClaimedTask, CreateTask, CreateTaskResult, RecoveryClass, RecoveryReport, RequestEnvelope,
-    TaskError, TaskFailure, TaskInputExchange, TaskInputRequest, TaskInputSubmission, TaskOwner,
-    TaskPayloadState, TaskRetentionPin, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
-    TaskUpdate, TaskUpdateCursor, failure_to_open_object, open_object_to_value, parse_task_id,
+    CreateTask, CreateTaskResult, RecoveryClass, RequestEnvelope, TaskError, TaskFailure,
+    TaskInputExchange, TaskInputRequest, TaskInputSubmission, TaskOwner, TaskPayloadState,
+    TaskRetentionPin, TaskRuntimeConfig, TaskSnapshot, TaskTransition, TaskUpdate,
+    TaskUpdateCursor, failure_to_open_object, open_object_to_value, parse_task_id,
     record_to_snapshot, value_to_open_object,
 };
 
@@ -742,120 +742,6 @@ impl TaskRuntime {
         Ok(updates)
     }
 
-    pub async fn claim(
-        &self,
-        task_id: &str,
-        lease_duration: Duration,
-    ) -> Result<ClaimedTask, TaskError> {
-        if lease_duration.is_zero() {
-            return Err(TaskError::InvalidRecord(
-                "task lease duration must be greater than zero".to_owned(),
-            ));
-        }
-        let snapshot = self
-            .get(task_id)
-            .await?
-            .ok_or_else(|| TaskError::NotFound(task_id.to_owned()))?;
-        if snapshot.server != self.server {
-            return Err(TaskError::WrongServer(task_id.to_owned()));
-        }
-        let now = Utc::now();
-        if snapshot.lease_expires_at.is_some_and(|expiry| {
-            expiry > now && snapshot.lease_owner.as_deref() != Some(&self.worker_id)
-        }) {
-            return Err(TaskError::LeaseHeld(task_id.to_owned()));
-        }
-        if snapshot.is_terminal() || snapshot.status == StoreTaskStatus::CancelRequested {
-            return Err(TaskError::InvalidTransition {
-                from: snapshot.status,
-                to: StoreTaskStatus::Running,
-            });
-        }
-        let lease_expires_at = now
-            + TimeDelta::from_std(lease_duration)
-                .map_err(|_| TaskError::InvalidRecord("lease duration is too large".to_owned()))?;
-        let task = snapshot.task_id.record_id();
-        let mut event_snapshot = snapshot.clone();
-        event_snapshot.status = StoreTaskStatus::Running;
-        event_snapshot.status_message = Some("claimed for execution".to_owned());
-        event_snapshot.lease_owner = Some(self.worker_id.clone());
-        event_snapshot.lease_expires_at = Some(lease_expires_at);
-        event_snapshot.started_at = snapshot.started_at.or(Some(now));
-        event_snapshot.updated_at = now;
-        let event = task_event(&event_snapshot, "task.claimed")?;
-        let request = RequestEnvelope {
-            input: snapshot.request.clone(),
-            owner: snapshot.owner.clone(),
-            status_message: event_snapshot.status_message.clone(),
-            ttl_ms: snapshot.ttl_ms,
-            poll_interval_ms: snapshot.poll_interval_ms,
-        };
-        let mut response = self
-            .store
-            .client()
-            .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = 'running', request = $request, lease_owner = $worker, lease_expires_at = $lease_expires, started_at = started_at ?? $now, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now OR lease_owner = $worker) RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
-            )
-            .bind(("task", task))
-            .bind(("worker", self.worker_id.clone()))
-            .bind(("request", request.into_open_object()?))
-            .bind(("lease_expires", lease_expires_at))
-            .bind(("now", now))
-            .bind(("expected", snapshot.status))
-            .bind(("expected_updated_at", snapshot.updated_at))
-            .bind(("event", event))
-            .await?
-            .check()?;
-        let updated: Option<TaskRecord> = response.take(3)?;
-        let snapshot = updated
-            .map(record_to_snapshot)
-            .transpose()?
-            .ok_or_else(|| TaskError::Conflict(task_id.to_owned()))?;
-        self.note_change();
-        Ok(ClaimedTask {
-            snapshot,
-            lease_owner: self.worker_id.clone(),
-            lease_expires_at,
-        })
-    }
-
-    pub async fn renew_lease(
-        &self,
-        task_id: &str,
-        lease_duration: Duration,
-    ) -> Result<TaskSnapshot, TaskError> {
-        if lease_duration.is_zero() {
-            return Err(TaskError::InvalidRecord(
-                "task lease duration must be greater than zero".to_owned(),
-            ));
-        }
-        let task_id = parse_task_id(task_id)?;
-        self.get(&task_id.to_string())
-            .await?
-            .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
-        let now = Utc::now();
-        let lease_expires = now
-            + TimeDelta::from_std(lease_duration)
-                .map_err(|_| TaskError::InvalidRecord("lease duration is too large".to_owned()))?;
-        let mut response = self
-            .store
-            .client()
-            .query(
-                "UPDATE ONLY $task SET lease_expires_at = $lease_expires WHERE lease_owner = $worker AND lease_expires_at > $now AND status IN ['running', 'waiting', 'cancel_requested'] RETURN AFTER;",
-            )
-            .bind(("task", task_id.record_id()))
-            .bind(("worker", self.worker_id.clone()))
-            .bind(("lease_expires", lease_expires))
-            .bind(("now", now))
-            .await?
-            .check()?;
-        let updated: Option<TaskRecord> = response.take(0)?;
-        updated
-            .map(record_to_snapshot)
-            .transpose()?
-            .ok_or_else(|| TaskError::LeaseHeld(task_id.to_string()))
-    }
-
     pub async fn transition(
         &self,
         task_id: &str,
@@ -900,7 +786,8 @@ impl TaskRuntime {
         }
         let now = Utc::now();
         let control_transition = next == StoreTaskStatus::CancelRequested;
-        let expired_cancellation = current.status == StoreTaskStatus::CancelRequested
+        let expired_cancellation = current.recovery_class != RecoveryClass::ProviderWait
+            && current.status == StoreTaskStatus::CancelRequested
             && next == StoreTaskStatus::Cancelled;
         if !control_transition
             && !expired_cancellation
@@ -991,7 +878,9 @@ impl TaskRuntime {
             if let Some(worker) = self.workers.lock().await.get(&requested.task_id) {
                 worker.cancellation.cancel();
             }
-            if requested.lease_owner.is_none() {
+            if requested.lease_owner.is_none()
+                && requested.recovery_class != RecoveryClass::ProviderWait
+            {
                 match self
                     .transition_if_current(&requested, TaskTransition::Cancelled)
                     .await
@@ -1072,68 +961,6 @@ impl TaskRuntime {
             .retain(|_, worker| !worker.join.is_finished());
     }
 
-    pub async fn recover(&self) -> Result<RecoveryReport, TaskError> {
-        let mut report = RecoveryReport::default();
-        let tasks = self.list().await?;
-        for task in tasks {
-            if task
-                .lease_expires_at
-                .is_some_and(|expiry| expiry > Utc::now())
-            {
-                continue;
-            }
-            match task.status {
-                StoreTaskStatus::Queued => {
-                    if task.recovery_class == RecoveryClass::WebhookWait {
-                        if let Some(waiting) = recovery_result(self.force_waiting(&task).await)? {
-                            report.webhook_waiting.push(waiting);
-                        }
-                    } else {
-                        report.resumable.push(task);
-                    }
-                }
-                StoreTaskStatus::CancelRequested => {
-                    if let Some(cancelled) = recovery_result(
-                        self.transition_if_current(&task, TaskTransition::Cancelled)
-                            .await,
-                    )? {
-                        report.cancelled.push(cancelled);
-                    }
-                }
-                StoreTaskStatus::Running | StoreTaskStatus::Waiting => match task.recovery_class {
-                    RecoveryClass::Resume => {
-                        if let Some(reset) = recovery_result(self.reset_for_recovery(&task).await)?
-                        {
-                            report.resumable.push(reset);
-                        }
-                    }
-                    RecoveryClass::WebhookWait => {
-                        let waiting = if task.status == StoreTaskStatus::Waiting {
-                            Some(task)
-                        } else {
-                            recovery_result(self.force_waiting(&task).await)?
-                        };
-                        if let Some(waiting) = waiting {
-                            report.webhook_waiting.push(waiting);
-                        }
-                    }
-                    RecoveryClass::InterruptedIndeterminate => {
-                        if let Some(failed) = recovery_result(
-                            self.force_failed(&task, TaskFailure::interrupted_indeterminate())
-                                .await,
-                        )? {
-                            report.failed_indeterminate.push(failed);
-                        }
-                    }
-                },
-                StoreTaskStatus::Succeeded
-                | StoreTaskStatus::Failed
-                | StoreTaskStatus::Cancelled => {}
-            }
-        }
-        Ok(report)
-    }
-
     pub async fn prune_expired(&self) -> Result<Vec<TaskId>, TaskError> {
         let now = Utc::now();
         let mut response = self
@@ -1190,88 +1017,7 @@ impl TaskRuntime {
             .transpose()
     }
 
-    async fn reset_for_recovery(&self, task: &TaskSnapshot) -> Result<TaskSnapshot, TaskError> {
-        self.force_status(
-            task,
-            StoreTaskStatus::Queued,
-            "reclaimed after process restart",
-            None,
-        )
-        .await
-    }
-
-    async fn force_waiting(&self, task: &TaskSnapshot) -> Result<TaskSnapshot, TaskError> {
-        self.force_status(
-            task,
-            StoreTaskStatus::Waiting,
-            "waiting for provider webhook",
-            None,
-        )
-        .await
-    }
-
-    async fn force_failed(
-        &self,
-        task: &TaskSnapshot,
-        failure: TaskFailure,
-    ) -> Result<TaskSnapshot, TaskError> {
-        let message = failure.message.clone();
-        self.force_status(task, StoreTaskStatus::Failed, &message, Some(failure))
-            .await
-    }
-
-    async fn force_status(
-        &self,
-        task: &TaskSnapshot,
-        status: StoreTaskStatus,
-        message: &str,
-        failure: Option<TaskFailure>,
-    ) -> Result<TaskSnapshot, TaskError> {
-        let now = Utc::now();
-        let envelope = RequestEnvelope {
-            input: task.request.clone(),
-            owner: task.owner.clone(),
-            status_message: Some(message.to_owned()),
-            ttl_ms: task.ttl_ms,
-            poll_interval_ms: task.poll_interval_ms,
-        };
-        let terminal = status == StoreTaskStatus::Failed;
-        let mut event_snapshot = task.clone();
-        event_snapshot.status = status;
-        event_snapshot.status_message = Some(message.to_owned());
-        event_snapshot.error = failure.clone();
-        event_snapshot.lease_owner = None;
-        event_snapshot.lease_expires_at = None;
-        event_snapshot.completed_at = terminal.then_some(now);
-        event_snapshot.updated_at = now;
-        let event = task_event(&event_snapshot, &format!("task.{}", status_name(status)))?;
-        let mut response = self
-            .store
-            .client()
-            .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, error = $error, lease_owner = NONE, lease_expires_at = NONE, completed_at = $completed_at, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
-            )
-            .bind(("task", task.task_id.record_id()))
-            .bind(("status", status))
-            .bind(("request", envelope.into_open_object()?))
-            .bind(("error", failure.as_ref().map(failure_to_open_object)))
-            .bind(("completed_at", terminal.then_some(now)))
-            .bind(("now", now))
-            .bind(("expected", task.status))
-            .bind(("expected_updated_at", task.updated_at))
-            .bind(("event", event))
-            .await?
-            .check()?;
-        let updated: Option<TaskRecord> = response.take(3)?;
-        let snapshot = updated
-            .map(record_to_snapshot)
-            .transpose()?
-            .ok_or_else(|| TaskError::Conflict(task.task_id.to_string()))?;
-        self.note_change();
-        Ok(snapshot)
-    }
-
-    fn note_change(&self) {
+    pub(super) fn note_change(&self) {
         self.changed.send_modify(|version| *version += 1);
     }
 }
@@ -1290,7 +1036,7 @@ async fn transaction_retry_backoff(attempt: u32) {
     tokio::time::sleep(Duration::from_millis(1_u64 << attempt)).await;
 }
 
-fn recovery_result<T>(result: Result<T, TaskError>) -> Result<Option<T>, TaskError> {
+pub(super) fn recovery_result<T>(result: Result<T, TaskError>) -> Result<Option<T>, TaskError> {
     match result {
         Ok(value) => Ok(Some(value)),
         Err(TaskError::Conflict(_)) => Ok(None),
@@ -1329,7 +1075,7 @@ fn allowed_transition(from: StoreTaskStatus, to: StoreTaskStatus) -> bool {
     }
 }
 
-fn status_name(status: StoreTaskStatus) -> &'static str {
+pub(super) fn status_name(status: StoreTaskStatus) -> &'static str {
     match status {
         StoreTaskStatus::Queued => "queued",
         StoreTaskStatus::Running => "running",
@@ -1485,7 +1231,10 @@ fn transitioned_snapshot(
     snapshot
 }
 
-fn task_event(snapshot: &TaskSnapshot, event_type: &str) -> Result<OutboxDraft, TaskError> {
+pub(super) fn task_event(
+    snapshot: &TaskSnapshot,
+    event_type: &str,
+) -> Result<OutboxDraft, TaskError> {
     let payload = BTreeMap::from([("snapshot".to_owned(), serde_json::to_value(snapshot)?)]);
     Ok(OutboxDraft::now(
         Some(tenant_record(&snapshot.owner)?),

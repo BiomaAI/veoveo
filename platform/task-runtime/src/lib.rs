@@ -5,7 +5,9 @@
 //! against durable state and every state transition emits an ordered outbox
 //! event in the same transaction.
 
+mod leases;
 mod mcp;
+mod recovery;
 mod runtime;
 mod service;
 mod types;

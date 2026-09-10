@@ -128,6 +128,7 @@ string_enum! {
     pub enum RecoveryClass {
         Resume => "resume",
         WebhookWait => "webhook_wait",
+        ProviderWait => "provider_wait",
         InterruptedIndeterminate => "interrupted_indeterminate",
     }
 }

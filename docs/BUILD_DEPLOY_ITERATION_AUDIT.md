@@ -2236,3 +2236,11 @@ block backup/restore and replacement process check. These are isolated physical 
 not production allocator acceptance. Plain Docker volumes lack the required exclusive
 writer policy, and naive plugin mount-ID deduplication is insufficient because the
 Docker engine can use the same ID for nested mounts. That integration is still required.
+
+Provider-wait recovery tests now reuse one shared Rust database fixture with Computers
+admission. The four Task scenarios execute in 3.47 s against isolated pinned stores;
+they do not silently skip behind an environment flag. Splitting lease/recovery code
+out of the existing Task file also keeps the cross-component change reviewable. The
+new stored enum means deployment must update all affected readers before Computers
+starts writing that class. That required release closure is distinct from unrelated
+image rebuilds and cannot be omitted from the deployment plan.

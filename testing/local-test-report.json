@@ -1,29 +1,50 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:5bd1f508f34ad1eccd5eb365a5cef6ec1486ebc2f46f3bfca3a74d4434e55cb5",
-  "updatedAt": "2026-09-10T00:36:48Z",
+  "buildDigest": "sha256:c31702cef3c21fcebfd2ba6491489888864a5f9f62ca08d579a3888367bd9b03",
+  "updatedAt": "2026-09-10T00:45:43Z",
   "checks": [
     {
-      "name": "computers-native-clippy",
+      "name": "computers-admission",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers",
+        "--test",
+        "admission"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:45:09Z",
+      "durationSeconds": 24.633864659,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "provider-wait-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-runtime",
-        "--tests",
+        "veoveo-task-runtime",
+        "-p",
+        "veoveo-computers",
+        "-p",
+        "veoveo-platform-store",
+        "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:35:34Z",
-      "durationSeconds": 0.856210954,
+      "finishedAt": "2026-09-10T00:44:44Z",
+      "durationSeconds": 5.395364085,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-native-format",
+      "name": "provider-wait-format",
       "command": [
         "cargo",
         "fmt",
@@ -32,35 +53,42 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:36:48Z",
-      "durationSeconds": 2.364700686,
+      "finishedAt": "2026-09-10T00:45:43Z",
+      "durationSeconds": 2.586746116,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-native-retention",
+      "name": "provider-wait-store",
       "command": [
-        "env",
-        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
-        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-sandbox",
-        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
-        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-runtime",
-        "--test",
-        "native_retention",
-        "--test",
-        "native_lifecycle",
-        "--",
-        "--ignored",
-        "--nocapture"
+        "veoveo-platform-store",
+        "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:36:08Z",
-      "durationSeconds": 34.256665768,
+      "finishedAt": "2026-09-10T00:44:49Z",
+      "durationSeconds": 6.889510531,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "provider-wait-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-task-runtime",
+        "--lib",
+        "--test",
+        "provider_wait"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T00:45:08Z",
+      "durationSeconds": 26.800475854,
       "detail": "completed successfully"
     }
   ]

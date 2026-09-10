@@ -474,3 +474,9 @@ settlement bug, static CLI relay lifetime, patch graph and omitted allocator are
 specific adoption risks. Phase 1 resolves them before broad integration. Upstream
 references are [OpenShell 0.0.116](https://github.com/NVIDIA/OpenShell/releases/tag/v0.0.116)
 and [OpenShell's supported isolation model](https://docs.nvidia.com/openshell/about/overview).
+
+The shared Task runtime now has an additive `provider_wait` profile and a distinct
+observation claim. Recovery preserves queued/running/waiting/cancel-requested Tasks
+without reset or ordinary terminal failure. Migration 0052 requires compatible readers
+before admitting this class; retained new-class records prevent an unqualified rollback
+to old readers. Computers dispatch/budget integration remains in progress.
