@@ -2194,3 +2194,16 @@ Provider qualification now has verified source exports for both patch branches a
 an independently downloaded, checksum-verified stock CLI. The provider build uses a
 separate target cache and eight compile jobs; it leaves the installed CLI and user
 Computers untouched. No native provider, storage or public acceptance is claimed yet.
+
+The v2 lost-update repair now merges each completed result under a short worktree
+file lock. Twelve concurrent publishers retain every result, including failure;
+a stale completed check also preserves newer results. Commands execute outside the
+lock. The recorder's nine focused tests pass, followed by concurrent format and
+Clippy checks whose receipts both survive. Scoped immutable receipts remain CE-06
+work; this repair removes the immediate need to serialize test execution.
+
+The patched OpenShell gateway and Docker driver completed their first optimized
+build in 3m 22s. Both binaries report the expected selected version. The gateway
+links the host's libz3; a deployable image must include that exact runtime dependency
+or a qualified static build. Upstream's example distroless Dockerfile does not by
+itself establish that runtime closure.

@@ -55,6 +55,12 @@ result. A build-input change makes the earlier report stale; the next recorded c
 starts a report for the new build. The report contains command names, completion times,
 durations, and concise results. Full terminal logs remain local.
 
+Checks may run concurrently. Publication briefly locks the worktree's report, reloads
+the latest aggregate and merges the completed check. The lock does not cover command
+execution. A check whose inputs changed during execution is recorded as failed; it
+does not erase unrelated results already recorded for the current build. This fixes
+lost updates in v2 and does not establish the scoped reuse planned below.
+
 The build identity excludes `docs/**`, root Markdown files, and
 `tools/screenshots/**`. Those paths describe the repository or produce documentation
 media; they do not change the Veoveo product build. Component-local contract documents

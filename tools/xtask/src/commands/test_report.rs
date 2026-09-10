@@ -63,30 +63,17 @@ pub(crate) fn run(
         .split_first()
         .context("a test-report command is required after --")?;
     let build_before = build_digest(repository.root())?;
-    let mut report = load_for_build(repository.root(), &build_before)?;
 
     let started = Instant::now();
     let outcome = execute(repository.root(), program, command_arguments);
     let duration_seconds = started.elapsed().as_secs_f64();
-    let build_after = build_digest(repository.root())?;
-
     let (status, detail) = match &outcome {
-        Ok(exit) if exit.success() && build_before == build_after => {
-            (CheckStatus::Passed, "completed successfully".to_owned())
-        }
-        Ok(exit) if build_before != build_after => (
-            CheckStatus::Failed,
-            "the command changed tracked or untracked build inputs; rerun checks for the new build"
-                .to_owned(),
-        ),
+        Ok(exit) if exit.success() => (CheckStatus::Passed, "completed successfully".to_owned()),
         Ok(exit) => (CheckStatus::Failed, format!("exited with {exit}")),
         Err(error) => (CheckStatus::Failed, format!("could not run: {error:#}")),
     };
 
-    if build_before != build_after {
-        report = LocalTestReport::empty(build_after);
-    }
-    report.upsert(LocalTestCheck {
+    let check = LocalTestCheck {
         name: name.to_owned(),
         command: arguments
             .iter()
@@ -96,14 +83,50 @@ pub(crate) fn run(
         finished_at: now(),
         duration_seconds,
         detail,
-    });
-    write_report(repository.root(), &report)?;
+    };
+    let status = record_completed(repository.root(), &build_before, check)?;
 
     println!("updated {REPORT_PATH}");
     if status == CheckStatus::Failed {
         bail!("local check {name:?} failed; the result was recorded")
     }
     Ok(())
+}
+
+/// Serialize publication only. Checks continue to execute independently; each
+/// publisher reloads the current aggregate rather than overwriting its siblings.
+fn record_completed(
+    root: &Path,
+    build_before: &str,
+    mut check: LocalTestCheck,
+) -> Result<CheckStatus> {
+    let lock_path = process::output(
+        "git",
+        ["rev-parse", "--git-path", "veoveo-test-report.lock"],
+        Some(root),
+    )?;
+    let lock_path = String::from_utf8(lock_path.stdout).context("report lock path is not UTF-8")?;
+    let lock = File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(root.join(lock_path.trim()))
+        .context("opening worktree test report lock")?;
+    lock.lock().context("locking test report publication")?;
+    // The Git directory scopes this lock to the worktree and excludes it from
+    // source hashing. Closing the file releases the OS lock, including on errors.
+    let build_after = build_digest(root)?;
+    if build_before != build_after {
+        check.status = CheckStatus::Failed;
+        check.detail =
+            "build inputs changed while the check ran; rerun it for the current build".to_owned();
+    }
+    let status = check.status;
+    let mut report = load_for_build(root, &build_after)?;
+    report.upsert(check);
+    write_report(root, &report)?;
+    Ok(status)
 }
 
 pub(crate) fn show(repository: &RepositoryContext, github_summary: bool) -> Result<()> {
@@ -488,6 +511,87 @@ mod tests {
         assert!(validate_name("uav-browser").is_ok());
         assert!(validate_name("UAV browser").is_err());
         assert!(validate_name("").is_err());
+    }
+
+    fn fixture() -> tempfile::TempDir {
+        let temporary = tempfile::tempdir().unwrap();
+        assert!(
+            Command::new("git")
+                .args(["init", "--quiet"])
+                .arg(temporary.path())
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::write(temporary.path().join("input.rs"), "before").unwrap();
+        temporary
+    }
+
+    #[test]
+    fn concurrent_publications_preserve_every_success_and_failure() {
+        let temporary = fixture();
+        let root = temporary.path();
+        let digest = build_digest(root).unwrap();
+        let barrier = std::sync::Barrier::new(12);
+        std::thread::scope(|scope| {
+            for i in 0..12 {
+                let barrier = &barrier;
+                let digest = &digest;
+                scope.spawn(move || {
+                    let mut check = report(if i == 7 {
+                        CheckStatus::Failed
+                    } else {
+                        CheckStatus::Passed
+                    })
+                    .checks
+                    .remove(0);
+                    check.name = format!("parallel-{i}");
+                    barrier.wait();
+                    super::record_completed(root, digest, check).unwrap();
+                });
+            }
+        });
+        let result = super::read_report(root).unwrap().unwrap();
+        assert_eq!(result.checks.len(), 12);
+        assert_eq!(
+            result
+                .checks
+                .iter()
+                .filter(|c| c.status == CheckStatus::Failed)
+                .count(),
+            1
+        );
+        assert_eq!(report_status(Some(&result), &digest), ReportStatus::Failed);
+        assert_eq!(build_digest(root).unwrap(), digest);
+    }
+
+    #[test]
+    fn old_check_failure_preserves_checks_completed_for_new_build() {
+        let temporary = fixture();
+        let root = temporary.path();
+        let before = build_digest(root).unwrap();
+        fs::write(root.join("input.rs"), "after").unwrap();
+        let after = build_digest(root).unwrap();
+        let mut current = report(CheckStatus::Passed).checks.remove(0);
+        current.name = "current".into();
+        super::record_completed(root, &after, current).unwrap();
+        let old = report(CheckStatus::Passed).checks.remove(0);
+        assert_eq!(
+            super::record_completed(root, &before, old).unwrap(),
+            CheckStatus::Failed
+        );
+        let result = super::read_report(root).unwrap().unwrap();
+        assert_eq!(result.build_digest, after);
+        assert_eq!(result.checks.len(), 2);
+        assert_eq!(
+            result
+                .checks
+                .iter()
+                .find(|c| c.name == "current")
+                .unwrap()
+                .status,
+            CheckStatus::Passed
+        );
     }
 
     #[test]
