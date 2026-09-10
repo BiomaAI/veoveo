@@ -210,6 +210,23 @@ remains attached. Explicit revocation denies further input/output, and fresh aut
 reattaches to the same native process. Local real-mTLS fixtures cover bidirectional
 backpressure, buffered output denial, late mint cleanup and non-revivable deadlines.
 
+## Execution Argument Boundary
+
+The private execution adapter preserves an explicit argument vector, including empty
+non-program arguments and embedded newlines. It admits up to 1,024 arguments, matching
+the selected provider's count bound, while retaining a 32 KiB aggregate UTF-8 byte
+limit. The first argument remains a canonical absolute executable path. NUL bytes,
+invalid working directories and unbounded timeout/output remain rejected.
+
+This replaces the unnecessarily restrictive 32-argument and nonempty-value limits.
+Local mTLS RPC fixtures prove exact argument delivery, including quoting, Unicode
+and empty values. They do not qualify process cancellation or public agent execution.
+The current gateway still logs command previews; callers of this private build-worker
+path must not place credentials in command arguments. Agent execution needs a profile
+that excludes command content from logs and admits explicit termination semantics.
+A working directory selects where a program starts; it does not confine arbitrary
+program access to that directory. Computer isolation remains the authority boundary.
+
 ## Verification And Delivery Gaps
 
 Before dispatch the owner persists a LifecycleCheckpoint with the operation UUID,
