@@ -4,8 +4,8 @@ use std::{collections::BTreeSet, time::Duration};
 use store::TestDb;
 use uuid::Uuid;
 use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskError, TaskId, TaskOwner, TaskRetentionPin, TaskRuntime,
-    TaskSnapshot, TaskStatus, TaskTransition,
+    CreateTask, ProviderCommit, RecoveryClass, TaskError, TaskId, TaskOwner, TaskRetentionPin,
+    TaskRuntime, TaskSnapshot, TaskStatus, TaskTransition,
 };
 
 fn draft(class: RecoveryClass) -> CreateTask {
@@ -46,6 +46,146 @@ async fn current(runtime: &TaskRuntime, task: &TaskSnapshot) -> TaskSnapshot {
         .await
         .unwrap()
         .unwrap()
+}
+
+#[tokio::test]
+async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellation() {
+    use surrealdb::types::{RecordId, SurrealValue};
+    let db = TestDb::new().await;
+    let a = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
+    let b = TaskRuntime::new(db.b.clone(), "computers-test", "worker-b");
+    db.a.client().query("DEFINE TABLE lease_journal_fixture SCHEMALESS; CREATE lease_journal_fixture:one SET dispatches = 0;").await.unwrap().check().unwrap();
+    let task = a
+        .create(draft(RecoveryClass::ProviderWait))
+        .await
+        .unwrap()
+        .snapshot;
+    let claimed = a
+        .claim_observation(&task.task_id.to_string(), Duration::from_secs(30))
+        .await
+        .unwrap();
+    let body = "UPDATE ONLY $journal SET dispatches += 1;";
+    let bindings = || {
+        vec![(
+            "journal",
+            RecordId::new("lease_journal_fixture", "one").into_value(),
+        )]
+    };
+    assert!(
+        b.commit_provider_journal(&claimed, ProviderCommit::Dispatch, body, bindings())
+            .await
+            .is_err()
+    );
+    a.commit_provider_journal(&claimed, ProviderCommit::Dispatch, body, bindings())
+        .await
+        .unwrap();
+    let unchanged = current(&a, &task).await;
+    assert_eq!(unchanged.status, TaskStatus::Queued);
+    assert_eq!(unchanged.updated_at, claimed.snapshot.updated_at);
+    // A rejected domain write rolls back the complete transaction.
+    assert!(
+        a.commit_provider_journal(
+            &claimed,
+            ProviderCommit::Dispatch,
+            "UPDATE ONLY $journal SET dispatches += 100; THROW 'fixture_domain_rejection';",
+            bindings()
+        )
+        .await
+        .is_err()
+    );
+    let count: Option<i64> =
+        db.a.client()
+            .query("SELECT VALUE dispatches FROM ONLY lease_journal_fixture:one;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap()
+            .take(0)
+            .unwrap();
+    assert_eq!(count, Some(1));
+    a.cancel(&task.task_id.to_string()).await.unwrap();
+    assert!(
+        a.commit_provider_journal(&claimed, ProviderCommit::Dispatch, body, bindings())
+            .await
+            .is_err()
+    );
+    a.commit_provider_journal(&claimed, ProviderCommit::Observe, body, bindings())
+        .await
+        .unwrap();
+    expire(&a, &task).await;
+    assert!(
+        a.commit_provider_journal(&claimed, ProviderCommit::Observe, body, bindings())
+            .await
+            .is_err()
+    );
+    let successor = b
+        .claim_observation(&task.task_id.to_string(), Duration::from_secs(30))
+        .await
+        .unwrap();
+    assert!(
+        a.commit_provider_journal(&claimed, ProviderCommit::Observe, body, bindings())
+            .await
+            .is_err()
+    );
+    b.commit_provider_journal(&successor, ProviderCommit::Observe, body, bindings())
+        .await
+        .unwrap();
+    let count: Option<i64> =
+        db.a.client()
+            .query("SELECT VALUE dispatches FROM ONLY lease_journal_fixture:one;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap()
+            .take(0)
+            .unwrap();
+    assert_eq!(count, Some(3));
+    assert_eq!(current(&b, &task).await.status, TaskStatus::CancelRequested);
+}
+
+#[tokio::test]
+async fn renewing_a_task_lease_invalidates_an_old_journal_receipt() {
+    let db = TestDb::new().await;
+    let runtime = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
+    let task = runtime
+        .create(draft(RecoveryClass::ProviderWait))
+        .await
+        .unwrap()
+        .snapshot;
+    let claimed = runtime
+        .claim_observation(&task.task_id.to_string(), Duration::from_secs(30))
+        .await
+        .unwrap();
+    let renewed = runtime
+        .renew_lease(&task.task_id.to_string(), Duration::from_secs(60))
+        .await
+        .unwrap();
+    assert!(
+        runtime
+            .commit_provider_journal(&claimed, ProviderCommit::Observe, "RETURN NONE;", vec![])
+            .await
+            .is_err()
+    );
+    let fresh = veoveo_task_runtime::ClaimedTask {
+        lease_owner: runtime.worker_id().into(),
+        lease_expires_at: renewed.lease_expires_at.unwrap(),
+        snapshot: renewed,
+    };
+    runtime
+        .commit_provider_journal(&fresh, ProviderCommit::Observe, "RETURN NONE;", vec![])
+        .await
+        .unwrap();
+    assert!(
+        runtime
+            .commit_provider_journal(
+                &fresh,
+                ProviderCommit::Observe,
+                "RETURN NONE;",
+                vec![("_provider_task", surrealdb::types::Value::None)]
+            )
+            .await
+            .is_err()
+    );
 }
 #[tokio::test]
 async fn provider_recovery_preserves_every_nonterminal_state_and_cancel_intent() {

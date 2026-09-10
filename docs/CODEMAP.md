@@ -390,6 +390,7 @@ Computers admission and Task recovery reuse its isolated pinned database lifecyc
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
 | `leases.rs` | distinct execution/observation claims and lease renewal |
+| `provider_transaction.rs` | atomically fences domain journal writes by the exact current Task observation lease; cancellation prevents new dispatch |
 | `recovery.rs` | qualified restart profiles; provider uncertainty and cancellation remain pending |
 | `mcp.rs` | projection from durable state into official RMCP Task and DetailedTask types |
 | `service.rs` | protocol-neutral durable service boundary delegated from RMCP handlers |
