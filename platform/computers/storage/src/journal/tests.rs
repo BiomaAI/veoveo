@@ -57,12 +57,21 @@ fn lock_and_host_identity_survive_reopening_without_adopting_another_engine() {
     let _case = isolated_case();
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("retained");
+    assert!(
+        Journal::reopen(root.clone(), host().provider_id, &host().namespace)
+            .unwrap()
+            .is_none()
+    );
     let journal = Journal::open(root.clone(), host()).unwrap();
     assert!(matches!(
         Journal::open(root.clone(), host()),
         Err(StorageError::Busy)
     ));
     assert_child_lock(&root, "locked");
+    assert!(matches!(
+        Journal::reopen(root.clone(), host().provider_id, &host().namespace),
+        Err(StorageError::Busy)
+    ));
     drop(journal);
     assert_child_lock(&root, "released");
     for field in 0..3 {
@@ -77,7 +86,18 @@ fn lock_and_host_identity_survive_reopening_without_adopting_another_engine() {
             Err(StorageError::IdentityMismatch)
         ));
     }
-    Journal::open(root, host()).unwrap();
+    assert!(matches!(
+        Journal::reopen(root.clone(), Uuid::now_v7(), &host().namespace),
+        Err(StorageError::IdentityMismatch)
+    ));
+    assert!(matches!(
+        Journal::reopen(root.clone(), host().provider_id, "foreign"),
+        Err(StorageError::IdentityMismatch)
+    ));
+    let reopened = Journal::reopen(root, host().provider_id, &host().namespace)
+        .unwrap()
+        .unwrap();
+    assert_eq!(reopened.identity(), &host());
 }
 
 fn assert_child_lock(root: &Path, state: &str) {

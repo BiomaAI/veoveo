@@ -1,24 +1,23 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:05322c87f4e713b8dc30d97c4f52e85c78c807cee6c984861db8bc30bae09c64",
-  "updatedAt": "2026-09-10T13:36:36Z",
+  "buildDigest": "sha256:432ad7aabac654d618c15fe43fe45c7117cdbac1c4bf73b7e633298900f365c8",
+  "updatedAt": "2026-09-10T13:51:11Z",
   "checks": [
     {
-      "name": "storage-enrollment-format",
+      "name": "storage-cold-restart-fmt",
       "command": [
         "cargo",
         "fmt",
         "--all",
-        "--",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:34:19Z",
-      "durationSeconds": 2.587505131,
+      "finishedAt": "2026-09-10T13:50:55Z",
+      "durationSeconds": 2.782483545,
       "detail": "completed successfully"
     },
     {
-      "name": "storage-enrollment-image",
+      "name": "storage-cold-restart-image",
       "command": [
         "cargo",
         "xtask",
@@ -28,12 +27,12 @@
         "computer-storage"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:36:36Z",
-      "durationSeconds": 36.462516272,
+      "finishedAt": "2026-09-10T13:50:56Z",
+      "durationSeconds": 11.610143684,
       "detail": "completed successfully"
     },
     {
-      "name": "storage-enrollment-lint",
+      "name": "storage-cold-restart-lint",
       "command": [
         "cargo",
         "clippy",
@@ -47,18 +46,14 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:34:15Z",
-      "durationSeconds": 9.083977141,
+      "finishedAt": "2026-09-10T13:50:51Z",
+      "durationSeconds": 1.692038417,
       "detail": "completed successfully"
     },
     {
-      "name": "storage-enrollment-native",
+      "name": "storage-cold-restart-native",
       "command": [
         "env",
-        "VEOVEO_SURREAL_BINARY=/home/rozgo/BiomaAI/veoveo/output/tools/surreal/3.2.4/surreal",
-        "VEOVEO_COMPUTERS_NATIVE_ALLOCATOR=/home/rozgo/BiomaAI/veoveo/target/debug/veoveo-computer-storage",
-        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/oci-mtls-2/openshell-gateway",
-        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/oci-mtls-2/openshell-sandbox",
         "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
         "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
         "cargo",
@@ -66,20 +61,20 @@
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-mcp",
+        "veoveo-computer-storage",
         "--test",
-        "native_worker",
+        "native_service",
         "--",
         "--ignored",
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:35:21Z",
-      "durationSeconds": 83.958499888,
+      "finishedAt": "2026-09-10T13:51:11Z",
+      "durationSeconds": 15.456615176,
       "detail": "completed successfully"
     },
     {
-      "name": "storage-enrollment-unit",
+      "name": "storage-cold-restart-unit",
       "command": [
         "cargo",
         "test",
@@ -90,8 +85,8 @@
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:34:06Z",
-      "durationSeconds": 4.400463455,
+      "finishedAt": "2026-09-10T13:50:49Z",
+      "durationSeconds": 2.770403673,
       "detail": "completed successfully"
     }
   ]

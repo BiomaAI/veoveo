@@ -306,6 +306,12 @@ impl Fixture {
         fs::write(self.dir.join("allocator.log"), logs.stderr).unwrap();
         checked(host().args(["rm", "--force", &self.service_name])).await;
     }
+    pub async fn cold_restart(&self) {
+        self.stop_service().await;
+        self.daemon.as_ref().unwrap().restart().await;
+        self.start_service().await;
+        self.daemon.as_ref().unwrap().restore_socket_access().await;
+    }
     pub async fn create(&self, suffix: &str, binding: &Binding) {
         let mount = format!(
             "type=volume,source={},target=/probe,volume-subpath=home,volume-nocopy",

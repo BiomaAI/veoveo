@@ -44,12 +44,6 @@ async fn main() -> Result<(), StorageError> {
     let config: Config =
         serde_json::from_slice(&bytes).map_err(|_| StorageError::InvalidIdentity)?;
     let tls = config.tls.load()?;
-    let docker = Docker::discover(&config.docker_socket, config.plugin_name).await?;
-    let identity = HostIdentity {
-        provider_id: config.provider_id,
-        engine_id: docker.verify_engine().await?,
-        namespace: config.namespace,
-    };
     if !config.plugin_socket.is_absolute() || config.plugin_socket.as_os_str().len() > 100 {
         return Err(StorageError::InvalidIdentity);
     }
@@ -61,13 +55,31 @@ async fn main() -> Result<(), StorageError> {
     if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o777 != 0o700 {
         return Err(StorageError::InvalidIdentity);
     }
-    let journal = Journal::open(config.root, identity)?;
+    let (journal, docker) =
+        match Journal::reopen(config.root.clone(), config.provider_id, &config.namespace)? {
+            Some(journal) => {
+                let docker = Docker::new(
+                    &config.docker_socket,
+                    journal.identity().engine_id,
+                    config.plugin_name,
+                )?;
+                (journal, docker)
+            }
+            None => {
+                let docker = Docker::discover(&config.docker_socket, config.plugin_name).await?;
+                let identity = HostIdentity {
+                    provider_id: config.provider_id,
+                    engine_id: docker.verify_engine().await?,
+                    namespace: config.namespace,
+                };
+                (Journal::open(config.root, identity)?, docker)
+            }
+        };
     let service = Service::new(
         Filesystem::new(journal, config.reserve_bytes)?,
         docker,
         config.templates,
-    )
-    .await?;
+    )?;
     // The journal lock is held before replacing a socket left by a stopped
     // helper. Never unlink a listener owned by a live process.
     if config

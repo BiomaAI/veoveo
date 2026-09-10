@@ -39,6 +39,20 @@ async fn enrollment_binds_the_first_engine_and_cannot_adopt_a_replacement() {
         docker.verify_engine().await,
         Err(StorageError::IdentityMismatch)
     ));
+    let reopened = Journal::reopen(root.clone(), identity.provider_id, &identity.namespace)
+        .unwrap()
+        .unwrap();
+    let rebound = Docker::new(
+        &socket,
+        reopened.identity().engine_id,
+        "veoveo-retained".into(),
+    )
+    .unwrap();
+    assert!(matches!(
+        rebound.verify_engine().await,
+        Err(StorageError::IdentityMismatch)
+    ));
+    drop(reopened);
     let replacement = Docker::discover(&socket, "veoveo-retained".into())
         .await
         .unwrap();

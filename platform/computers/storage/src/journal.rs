@@ -121,6 +121,33 @@ impl Reservation {
     }
 }
 impl Journal {
+    /// Reopen recorded host metadata without contacting Docker. Docker needs
+    /// plugin metadata while restoring its own API, so physical authorization
+    /// is checked separately by every operation that can expose a writer.
+    pub fn reopen(root: PathBuf, provider_id: Uuid, namespace: &str) -> Result<Option<Self>> {
+        if !root.is_absolute() {
+            return Err(StorageError::InvalidIdentity);
+        }
+        match fs::symlink_metadata(&root) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => return Err(StorageError::Unavailable),
+            Ok(_) => private_directory(&root)?,
+        }
+        if fs::canonicalize(&root).map_err(|_| StorageError::Unavailable)? != root {
+            return Err(StorageError::InvalidIdentity);
+        }
+        let Some(header) = read::<Header>(&root.join("host.json"))? else {
+            // Initial enrollment still uses open(), which rejects unknown
+            // files and partial publication before creating any host record.
+            return Ok(None);
+        };
+        if header.identity.provider_id != provider_id || header.identity.namespace != namespace {
+            return Err(StorageError::IdentityMismatch);
+        }
+        // Acquire the existing root lock and recheck the complete header.
+        // No listener is exposed based on the unlocked observation above.
+        Self::open(root, header.identity).map(Some)
+    }
     /// Bounded local metadata enumeration. Incomplete allocations are retained
     /// and validated; callers choose whether their surface can expose them.
     pub fn list(&self) -> Result<Vec<AllocationRecord>> {
