@@ -17068,6 +17068,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-policy",
  "veoveo-recording-protocol",
  "veoveo-task-runtime",
 ]
@@ -17187,6 +17188,16 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "veoveo-policy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "serde_json",
+ "veoveo-mcp-contract",
 ]
 
 [[package]]

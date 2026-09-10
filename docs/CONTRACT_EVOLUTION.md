@@ -302,3 +302,9 @@ domain settlement before shared Task projection. The worker integrates those bou
 with the native runtime. Current policy/grant authority, the production allocator and
 installed browser/CLI qualification remain active work. Store-backed fixtures exercise
 competing replicas and unchanged existing profiles.
+
+The shared evaluator now lives in `platform/policy`. Gateway policy calls delegate to
+that implementation, while background services can validate a revision without importing
+the gateway's agent runtime or analytics dependencies. This extraction preserves policy
+semantics. Authentication, current Work Context, grant/session revocation and authoritative
+revision freshness remain required inputs to a Computer access or dispatch lease.

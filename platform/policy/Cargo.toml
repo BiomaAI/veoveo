@@ -1,0 +1,13 @@
+[package]
+name = "veoveo-policy"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+veoveo-mcp-contract.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
