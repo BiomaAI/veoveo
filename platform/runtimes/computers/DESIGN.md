@@ -1,7 +1,7 @@
 # Computers Provider Runtime
 
-Status: native adapter port in progress. No Computer service or installed provider
-is qualified by this source checkpoint. The owning domain is planned in
+Status: the native lifecycle and retained-terminal fixture passes. No Computer service
+or installed provider is qualified by this source checkpoint. The owning domain is planned in
 [Computers](../../../docs/COMPUTERS_PLAN.md).
 
 ## Standards And Protocols
@@ -85,3 +85,23 @@ Source provenance is the reviewed September 9 handoff with SHA-256
 The imported selected source excludes the downstream domain/gateway integration.
 The runtime is adapted independently against Veoveo main; provider patches retain
 their original upstream base and declared branch/tree identities.
+
+## Native Fixture
+
+`tests/native_lifecycle.rs` starts the exact patched gateway and supervisor against
+an isolated Docker namespace. It generates mTLS credentials and a separate Ed25519
+provider JWT signer with a finite lifetime. The fixture uses a digest-pinned Computer
+image, disables host bind mounts, and removes its own containers, network, credentials
+and database on completion. Its private output directory retains diagnostics.
+
+Run this ignored integration test explicitly with `VEOVEO_COMPUTERS_NATIVE_GATEWAY`,
+`VEOVEO_COMPUTERS_NATIVE_SUPERVISOR`, and `VEOVEO_COMPUTERS_NATIVE_OUTPUT` set to absolute
+paths and `VEOVEO_COMPUTERS_NATIVE_IMAGE` set to an available image digest. The command
+is `cargo test --locked --offline -p veoveo-computers-runtime --test native_lifecycle
+-- --ignored --nocapture`. Record it through the repository evidence recorder.
+
+The test proves native creation, an explicit replay boundary, retained shell-local
+state on reattachment, numeric UID 10001, and a new process identity after Stop/Start.
+Reconciliation observes the expected stopped and restarted epochs without dispatch.
+This fixture uses the container writable layer. It does not qualify retained external
+volumes, host restart, storage quotas, renewable access, stock CLI or public ingress.
