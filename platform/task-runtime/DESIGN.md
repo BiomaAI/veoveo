@@ -37,6 +37,13 @@ intent determines whether a mutation was dispatched. Cancellation requests remai
 pending. Lease expiry cannot settle provider cancellation; a current observer must
 report its authoritative outcome through the normal transition transaction.
 
+A current `provider_wait` observer may publish a known successful domain outcome
+from Queued or Cancel Requested. Observation claims preserve Queued, and a cancellation
+request cannot undo an effect that already completed. The qualified domain commits its
+result first; this transition retains `cancel_requested_at` when cancellation raced it.
+Other recovery profiles retain their existing transition rules. An expired observer
+cannot use this path to settle the Task.
+
 The domain persists operation/source/run identity and dispatch stage before side
 effects. It accounts for recovery deadlines and request budgets durably. Lost
 observations and exhausted budgets retain the domain resource fence. The shared

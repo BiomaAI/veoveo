@@ -29,6 +29,70 @@ fn draft(class: RecoveryClass) -> CreateTask {
         retention_pins: BTreeSet::from([TaskRetentionPin::new("computer:unresolved").unwrap()]),
     }
 }
+
+#[tokio::test]
+async fn qualified_provider_completion_survives_queued_state_and_cancellation_races() {
+    let db = TestDb::new().await;
+    let runtime = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
+    for cancelled in [false, true] {
+        let task = runtime
+            .create(draft(RecoveryClass::ProviderWait))
+            .await
+            .unwrap()
+            .snapshot;
+        let id = task.task_id.to_string();
+        runtime
+            .claim_observation(&id, Duration::from_secs(30))
+            .await
+            .unwrap();
+        if cancelled {
+            runtime.cancel(&id).await.unwrap();
+        }
+        let result = || TaskTransition::Succeeded {
+            message: "provider outcome committed".into(),
+            result: serde_json::json!({"content": []}),
+        };
+        expire(&runtime, &task).await;
+        assert!(runtime.transition(&id, result()).await.is_err());
+        runtime
+            .claim_observation(&id, Duration::from_secs(30))
+            .await
+            .unwrap();
+        let completed = runtime.transition(&id, result()).await.unwrap();
+        assert_eq!(completed.status, TaskStatus::Succeeded);
+        assert_eq!(completed.cancel_requested_at.is_some(), cancelled);
+        assert!(completed.result.is_some());
+        assert_eq!(
+            veoveo_task_runtime::project_snapshot(&runtime, completed)
+                .await
+                .unwrap()
+                .status(),
+            rmcp::model::TaskStatus::Completed
+        );
+    }
+    for class in [
+        RecoveryClass::Resume,
+        RecoveryClass::WebhookWait,
+        RecoveryClass::InterruptedIndeterminate,
+    ] {
+        let task = runtime.create(draft(class)).await.unwrap().snapshot;
+        let id = task.task_id.to_string();
+        runtime.claim(&id, Duration::from_secs(30)).await.unwrap();
+        runtime.cancel(&id).await.unwrap();
+        assert!(
+            runtime
+                .transition(
+                    &id,
+                    TaskTransition::Succeeded {
+                        message: "rejected".into(),
+                        result: serde_json::json!({"content": []})
+                    }
+                )
+                .await
+                .is_err()
+        );
+    }
+}
 async fn expire(runtime: &TaskRuntime, task: &TaskSnapshot) {
     runtime
         .platform_store()
