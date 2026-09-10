@@ -466,6 +466,18 @@ The isolated real-store cases cover independent replicas, rate/connection limits
 revocation and expiry. Public SSO confirmation, stock-client tunnel transport and
 installed CLI acceptance remain required before this checkpoint becomes usable.
 
+The worker checkpoint now composes a five-method restricted stock CLI facade with
+the retained connection ledger and shared browser/CLI authority observer. A native
+fixture runs unmodified CLI `0.0.116` through two production relay hops and two
+service replicas. Both the Computer-prefixed and root tunnel paths carry real SSH.
+Shell state survives source-token and initial lease expiry. Owner revocation closes
+every relay within five seconds, prevents a subsequent command and leaves the
+Computer Ready. The idle stock ProxyCommand can await local stdin before exiting;
+wire closure and process shutdown are measured separately. Browser continuity and
+retained lifecycle fault cases pass in the same native fixture. This fixture installs
+a domain-issued credential in private stock configuration. Public SSO pairing and
+installed ingress are still required.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

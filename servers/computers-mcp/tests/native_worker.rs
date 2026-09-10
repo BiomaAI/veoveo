@@ -1,6 +1,10 @@
 #![allow(dead_code)] // Shared native fixtures expose scenario-specific operations.
 #[path = "support/browser_terminal.rs"]
 mod browser_terminal;
+#[path = "support/cli_access.rs"]
+mod cli_access;
+#[path = "support/cli_edges.rs"]
+mod cli_edges;
 #[path = "../../../platform/runtimes/computers/tests/native_support/docker_daemon.rs"]
 mod docker_daemon;
 #[path = "../../../platform/computers/storage/tests/native_support/service.rs"]
@@ -90,6 +94,7 @@ async fn shell(
 #[tokio::test]
 #[ignore = "requires pinned native provider/image; owns isolated database and privileged 512 MiB block-volume fixture"]
 async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_fenced() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     if std::env::var_os(docker_daemon::registry_relay::CHILD_ENV).is_some() {
         docker_daemon::registry_relay::child().await.unwrap();
         return;
@@ -206,6 +211,13 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     assert_eq!(result.status, TaskStatus::Succeeded);
     assert!(result.retention_pins.is_empty());
     assert!(a.pending_operations(None, 100).await.unwrap().is_empty());
+    cli_access::qualify(
+        &db,
+        provider.runtime.clone(),
+        selected.clone(),
+        computer.computer_id,
+    )
+    .await;
     browser_terminal::qualify(
         &db,
         provider.runtime.clone(),

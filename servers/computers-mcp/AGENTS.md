@@ -25,8 +25,11 @@ Record affected checks with `cargo xtask test-report` as required by root instru
 Contract revision: 3
 
 The library implements shared lifecycle admission, its worker, and authenticated MCP
-and HTTP projections. The executable uses validated installation configuration. Browser grant transport is composed with the native runtime. Public Console/CLI access, agent execution,
-file movement, catalog registration and packaging remain active work. Fixture evidence is not installed-user qualification.
+and HTTP projections. The executable uses validated installation configuration.
+Browser and restricted stock CLI transport compose with the native runtime and share
+current authority enforcement. The browser projection is installed. Public CLI pairing,
+agent execution, file movement and the complete installed acceptance matrix remain
+active work. Fixture evidence is not installed-user qualification.
 
 - C01: met
 - C02: met

@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;
 
 impl ComputersStore {
-    /// Only accepted client activity extends idle access. Output, keepalives and
+    /// Only accepted client activity extends idle access. Output, relay keepalives and
     /// renewal ticks do not. A failed or expired connection never revives.
     pub async fn renew_cli_grant(
         &self,

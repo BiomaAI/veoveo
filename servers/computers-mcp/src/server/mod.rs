@@ -1,6 +1,8 @@
 mod access_events;
 mod admin;
+mod attachment_authority;
 mod auth;
+mod cli;
 mod http_error;
 mod origins;
 mod provider;
@@ -49,6 +51,9 @@ pub fn router(
         .layer(middleware::from_fn(
             veoveo_mcp_contract::enforce_serialized_mcp_response,
         ));
+    let events =
+        access_events::AccessEvents::start(app.tasks.platform_store().clone(), shutdown.clone());
+    let cli = cli::router(app.clone(), events.clone(), shutdown.clone());
     let secured = Router::new()
         .nest("/mcp", mcp)
         .nest(
@@ -57,6 +62,7 @@ pub fn router(
                 app.clone(),
                 allowed_origins,
                 shutdown,
+                events,
             )),
         )
         .layer(DefaultBodyLimit::max(64 * 1024))
@@ -80,7 +86,10 @@ pub fn router(
         }
     });
     Ok(Router::new()
-        .nest("/computers", secured.route("/healthz", health))
+        .nest(
+            "/computers",
+            secured.route("/healthz", health).nest("/cli", cli),
+        )
         .layer(middleware::from_fn_with_state(
             Arc::new(allowed_hosts),
             auth::host,

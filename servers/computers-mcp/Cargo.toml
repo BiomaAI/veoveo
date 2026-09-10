@@ -18,6 +18,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util.workspace = true
+tonic.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 url.workspace = true
@@ -28,7 +29,6 @@ veoveo-platform-store = { path = "../../platform/store" }
 veoveo-mcp-contract.workspace = true
 
 [dev-dependencies]
-tonic.workspace = true
 veoveo-computers-transport = { path = "../../platform/computers/transport" }
 tokio-tungstenite.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
