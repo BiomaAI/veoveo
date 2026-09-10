@@ -205,8 +205,13 @@ readiness endpoint checks the spool free-space floor. Both containers have expli
 ephemeral-storage requests and limits, and their incidental `/tmp` mounts have bounded
 `emptyDir.sizeLimit` values.
 
-Startup reconciles authenticated mutable capture layers after replaying durable batch
-journals. A `writing` layer with no parts is an empty resumable reservation. A `writing`
+Startup replays accepted duplicate journals, including finished streams. An unaccepted
+journal at or beyond a terminal stream's recorded cutoff is preserved with a durable
+receipt in private quarantine, as specified in
+[`Recording Hub`](../platform/recordings/hub/DESIGN.md). Its bytes remain retained and
+count against available spool space; no stream is reopened or checkpoint advanced.
+Startup then reconciles authenticated mutable capture layers.
+A `writing` layer with no parts is an empty resumable reservation. A `writing`
 or `staged` layer with recovery parts is frozen and published idempotently before ingest
 opens. A staged layer without recovery parts, multiple mutable capture layers, a failed
 capture layer, or a mutable ordinal preceding a later layer stops startup or the next

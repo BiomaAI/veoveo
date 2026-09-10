@@ -1,39 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:5bc64d0fa1da7d97428f80f036ce80d0788901920931ece762ce615f75c0831f",
-  "updatedAt": "2026-09-10T15:17:09Z",
+  "buildDigest": "sha256:8e0ce21be56299ca2f7be2f5966a3b28af3e8e349929b09194dceafc0c988f45",
+  "updatedAt": "2026-09-10T15:24:00Z",
   "checks": [
     {
-      "name": "computers-upgrade-helm",
-      "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T15:17:09Z",
-      "durationSeconds": 6.385638238,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-upgrade-retry",
-      "command": [
-        "kubectl",
-        "--context",
-        "k3d-veoveo-bioma",
-        "apply",
-        "--dry-run=server",
-        "-f",
-        "examples/bioma/gitops/releases/veoveo.yaml"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T15:17:02Z",
-      "durationSeconds": 0.167420729,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-workspace-format",
+      "name": "terminal-journal-format",
       "command": [
         "cargo",
         "fmt",
@@ -41,53 +12,44 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:17:01Z",
-      "durationSeconds": 2.782116169,
+      "finishedAt": "2026-09-10T15:24:00Z",
+      "durationSeconds": 2.648608153,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-workspace-lint",
+      "name": "terminal-journal-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-runtime",
-        "-p",
-        "veoveo-computer-host",
-        "--all-targets",
+        "veoveo-recording-hub",
+        "--lib",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:16:58Z",
-      "durationSeconds": 8.045013285,
+      "finishedAt": "2026-09-10T15:23:57Z",
+      "durationSeconds": 2.7658176450000003,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-workspace-native",
+      "name": "terminal-journal-recovery",
       "command": [
-        "env",
-        "VEOVEO_COMPUTERS_HOST_IMAGE=localhost:5001/veoveo/computer-host@sha256:2e267c7dbd04dbd54a194994f992764be237fd94e6c0a86df158d12aff54e369",
-        "VEOVEO_COMPUTERS_HOST_TEST_IMAGE=172.17.0.2:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
-        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computer-host",
-        "--test",
-        "native_host",
-        "--",
-        "--ignored",
-        "--nocapture"
+        "veoveo-recording-hub",
+        "--lib",
+        "ingest::recovery::tests"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:16:35Z",
-      "durationSeconds": 34.380558037,
+      "finishedAt": "2026-09-10T15:23:53Z",
+      "durationSeconds": 4.635691504,
       "detail": "completed successfully"
     }
   ]
