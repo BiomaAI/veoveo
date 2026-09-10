@@ -121,6 +121,9 @@ pub struct OpenShellRuntime {
     pub(crate) address: String,
 }
 impl OpenShellRuntime {
+    pub fn provider_instance_id(&self) -> Uuid {
+        self.provider_instance_id
+    }
     /// Establish an installation-owned mTLS connection and admit the exact pin.
     pub async fn connect(config: GatewayConfig) -> Result<Self> {
         let (host, _) = endpoint_parts(&config.endpoint)?;
@@ -236,8 +239,12 @@ impl OpenShellRuntime {
             Err(_) => Err(RuntimeFailure::LifecycleUnknown),
         }
     }
-    pub async fn start(&self, binding: &Binding) -> Result<Observation> {
+    pub async fn start(&self, binding: &Binding, before: &Observation) -> Result<Observation> {
+        check_source(before, Phase::Stopped)?;
         let current = self.get(binding).await?.ok_or(RuntimeFailure::NotFound)?;
+        if current.sandbox_id != before.sandbox_id {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
         if matches!(
             current.phase,
             Phase::Ready | Phase::Starting | Phase::Provisioning
@@ -246,6 +253,9 @@ impl OpenShellRuntime {
         }
         if current.phase != Phase::Stopped {
             return Err(RuntimeFailure::InvalidState);
+        }
+        if current.main_process_instance_id != before.main_process_instance_id {
+            return Err(RuntimeFailure::BindingMismatch);
         }
         let response = self
             .client
@@ -265,8 +275,14 @@ impl OpenShellRuntime {
         }
         Ok(observed)
     }
-    pub async fn stop(&self, binding: &Binding) -> Result<Observation> {
+    pub async fn stop(&self, binding: &Binding, before: &Observation) -> Result<Observation> {
+        check_source(before, Phase::Ready)?;
         let current = self.get(binding).await?.ok_or(RuntimeFailure::NotFound)?;
+        if current.sandbox_id != before.sandbox_id
+            || current.main_process_instance_id != before.main_process_instance_id
+        {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
         if matches!(current.phase, Phase::Stopped | Phase::Stopping) {
             return Ok(current);
         }
@@ -291,4 +307,14 @@ impl OpenShellRuntime {
         }
         Ok(observed)
     }
+}
+
+fn check_source(before: &Observation, phase: Phase) -> Result<()> {
+    if before.phase != phase
+        || !crate::models::identifier(&before.sandbox_id)
+        || !crate::models::identifier(&before.main_process_instance_id)
+    {
+        return Err(RuntimeFailure::BindingMismatch);
+    }
+    Ok(())
 }

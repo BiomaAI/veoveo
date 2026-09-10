@@ -29,6 +29,7 @@ members = [
     "platform/store",
     "platform/task-runtime",
     "servers/artifact-mcp",
+    "servers/computers-mcp",
     "servers/frames-mcp",
     "servers/duckdb-mcp",
     "servers/media-mcp",

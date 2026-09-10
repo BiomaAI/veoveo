@@ -8,6 +8,7 @@ pub struct BlockHome {
     image: String,
     pub volume: String,
     device: Option<String>,
+    backup_created: bool,
 }
 fn checked(mut command: Command) -> String {
     let output = command.output().expect("start fixture command");
@@ -25,6 +26,7 @@ impl BlockHome {
             image,
             volume: PersistentHome::volume_name(computer).unwrap(),
             device: None,
+            backup_created: false,
         };
         fs::File::create_new(home.dir.join("home.ext4")).unwrap();
         checked(home.helper(&[
@@ -147,6 +149,7 @@ impl BlockHome {
         let source = self.dir.join("home.ext4");
         let backup = self.dir.join("backup.ext4");
         assert_eq!(fs::copy(&source, &backup).unwrap(), 536870912);
+        self.backup_created = true;
         fs::File::open(&backup).unwrap().sync_all().unwrap();
         fs::remove_file(&source).unwrap();
         assert_eq!(fs::copy(&backup, &source).unwrap(), 536870912);
@@ -156,7 +159,9 @@ impl BlockHome {
     pub fn finish(mut self) {
         self.detach();
         fs::remove_file(self.dir.join("home.ext4")).unwrap();
-        fs::remove_file(self.dir.join("backup.ext4")).unwrap();
+        if self.backup_created {
+            fs::remove_file(self.dir.join("backup.ext4")).unwrap();
+        }
     }
 }
 impl Drop for BlockHome {

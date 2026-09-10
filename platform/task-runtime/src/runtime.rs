@@ -783,7 +783,10 @@ impl TaskRuntime {
                 current.status,
                 StoreTaskStatus::Queued | StoreTaskStatus::CancelRequested
             );
-        if !provider_completion && !allowed_transition(current.status, next) {
+        let provider_progress = current.recovery_class == RecoveryClass::ProviderWait
+            && current.status == StoreTaskStatus::Waiting
+            && next == StoreTaskStatus::Waiting;
+        if !provider_completion && !provider_progress && !allowed_transition(current.status, next) {
             return Err(TaskError::InvalidTransition {
                 from: current.status,
                 to: next,

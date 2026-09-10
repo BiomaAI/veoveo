@@ -297,6 +297,8 @@ in the selected profile remain release blockers; unrelated experiments do not.
 Implementation checkpoint: shared Tasks now admit a separate `provider_wait` class.
 Recovery preserves nonterminal state and cancellation; observation claims use the
 shared lease transaction and cannot enter ordinary execution claims. The additive
-stored enum requires compatible readers before admission. Computers still needs its
-provider dispatch journal, budget accounting and settlement integration. The current
-store-backed fixtures exercise competing replicas and unchanged existing profiles.
+stored enum requires compatible readers before admission. Computers now journals dispatch, charges a persisted observation budget and commits
+domain settlement before shared Task projection. The worker integrates those boundaries
+with the native runtime. Current policy/grant authority, the production allocator and
+installed browser/CLI qualification remain active work. Store-backed fixtures exercise
+competing replicas and unchanged existing profiles.

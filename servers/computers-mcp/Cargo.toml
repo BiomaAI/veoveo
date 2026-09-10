@@ -1,0 +1,23 @@
+[package]
+name = "veoveo-computers-mcp"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+rmcp = { workspace = true, features = ["server"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio-util.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+veoveo-computers = { path = "../../platform/computers" }
+veoveo-computers-runtime = { path = "../../platform/runtimes/computers" }
+veoveo-task-runtime = { path = "../../platform/task-runtime" }
+
+[dev-dependencies]
+rcgen.workspace = true
+surrealdb = { version = "=3.2.4", default-features = false, features = ["protocol-ws", "rustls"] }
+veoveo-platform-store = { path = "../../platform/store" }

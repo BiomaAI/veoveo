@@ -16620,6 +16620,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-computers-mcp"
+version = "0.1.0"
+dependencies = [
+ "rcgen",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "surrealdb",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+ "veoveo-computers",
+ "veoveo-computers-runtime",
+ "veoveo-platform-store",
+ "veoveo-task-runtime",
+]
+
+[[package]]
 name = "veoveo-computers-runtime"
 version = "0.1.0"
 dependencies = [

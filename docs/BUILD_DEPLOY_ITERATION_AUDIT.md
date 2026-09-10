@@ -2271,3 +2271,27 @@ The same correction applies to quota increments and policy changes. A regression
 operation suite executes in 1.57 s. Domain lifecycle scenarios execute in 1.60 s with
 no provider image build. Database syntax and typed-record mismatches were caught in
 these disposable fixtures before enabling provider dispatch.
+
+The Computers worker combines the existing store and native-runtime dependency graphs.
+Its first build required additional Cargo feature combinations; the following focused
+compile took 6.51 s. The combined domain/runtime/Task checks took 50.6 s, including the
+existing 20.51 s retained-terminal timeout case. No provider or Computer image changed.
+The first native worker scenario completed its behavior checks in 26.57 s but failed
+cleanup because the reused volume fixture assumed every scenario had created a backup.
+The fixture now tracks that operation explicitly. The v2 report's whole-tree digest
+still requires unrelated unit checks after this test-only edit; CE-06 scoped immutable
+receipts remain the intended correction.
+
+Worker recovery now releases its exact observation lease when its bounded read ends,
+allowing another replica to continue without a sixty-second expiry wait. Stop bypasses
+home preparation. Existing Task links are read once rather than recreated on every
+worker pass, and exhausted recovery leaves the automatic queue. A native database
+failure in Task acknowledgement came from dereferencing a linked Task in a variable
+expression; an explicit typed Task read passed the qualified 3.2.4 fixture. That query
+is retained in its owning SQL file for review and regression coverage.
+
+The corrected native worker scenario passes in 25.56 s. The same candidate binaries
+and image also pass the three native lifecycle/terminal/stock-CLI checks in 11.85 s
+and physical ENOSPC/backup/restore in 29.65 s. The final incremental native compile
+is 4.47 s. These are isolated functional measurements; they are not public-ingress,
+production allocator or end-to-end authority performance claims.

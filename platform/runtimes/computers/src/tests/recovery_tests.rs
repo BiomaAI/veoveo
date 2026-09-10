@@ -21,6 +21,30 @@ fn start_checkpoint() -> LifecycleCheckpoint {
 }
 
 #[tokio::test]
+async fn a_stale_resource_or_process_cannot_receive_start_or_stop() {
+    let running = Running::start().await;
+    for phase in [Phase::Ready, Phase::Stopped] {
+        running.fake.0.lock().unwrap().sandbox = Some(sandbox(phase));
+        for resource_changed in [false, true] {
+            let mut stale = before(phase);
+            if resource_changed {
+                stale.sandbox_id = "old-resource".into();
+            } else {
+                stale.main_process_instance_id = "old-process".into();
+            }
+            let result = if phase == Phase::Ready {
+                running.runtime.stop(&binding(), &stale).await
+            } else {
+                running.runtime.start(&binding(), &stale).await
+            };
+            assert!(matches!(result, Err(RuntimeFailure::BindingMismatch)));
+        }
+    }
+    let state = running.fake.0.lock().unwrap();
+    assert_eq!((state.starts, state.stops), (0, 0));
+}
+
+#[tokio::test]
 async fn healthy_watch_rejects_previous_ready_epoch_then_accepts_a_new_run() {
     let running = Running::start().await;
     running.fake.0.lock().unwrap().sandbox = Some(sandbox(Phase::Ready));
@@ -206,7 +230,11 @@ fn persisted_recovery_revalidates_identity_and_preserves_operation() {
 async fn lost_watch_reconciles_one_new_run_without_any_mutation() {
     let running = Running::start().await;
     let checkpoint = start_checkpoint();
-    let current = running.runtime.start(&binding()).await.unwrap();
+    let current = running
+        .runtime
+        .start(&binding(), &before(Phase::Stopped))
+        .await
+        .unwrap();
     running.fake.0.lock().unwrap().watch = 1;
     assert!(matches!(
         running

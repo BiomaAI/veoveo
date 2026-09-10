@@ -11,6 +11,9 @@ pub struct ComputersStore {
 }
 
 impl ComputersStore {
+    pub fn provider_instance_id(&self) -> Uuid {
+        self.provider_instance_id
+    }
     pub fn new(platform: PlatformStore, provider_instance_id: Uuid) -> Result<Self> {
         if provider_instance_id.is_nil() {
             return Err(ComputerError::InvalidInput);

@@ -189,7 +189,7 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
         &ready,
     )
     .unwrap();
-    let stopping = runtime.stop(&replacement).await.unwrap();
+    let stopping = runtime.stop(&replacement, &ready).await.unwrap();
     let before = running.fake.0.lock().unwrap().gets;
     let stopped = runtime
         .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(10))
@@ -203,7 +203,7 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
         &stopped,
     )
     .unwrap();
-    let starting = runtime.start(&replacement).await.unwrap();
+    let starting = runtime.start(&replacement, &stopped).await.unwrap();
     let before = running.fake.0.lock().unwrap().gets;
     runtime
         .wait_for_lifecycle(&start, &starting, Duration::from_secs(10))

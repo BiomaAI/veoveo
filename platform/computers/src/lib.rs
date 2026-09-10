@@ -8,6 +8,7 @@ mod operation;
 mod operation_admission;
 mod store;
 mod worker_journal;
+mod worker_queue;
 
 pub use admission::{CapacityPolicy, Reservation};
 pub use lifecycle::{
@@ -17,6 +18,7 @@ pub use model::{Computer, ComputerPage};
 pub use operation::{Operation, OperationStage};
 pub use store::ComputersStore;
 pub use veoveo_computers_contract as api;
+pub use worker_queue::UndispatchedOutcome;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ComputerError {

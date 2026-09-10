@@ -90,3 +90,12 @@ owned by `testing/fixtures`; its root credentials remain in process/container
 configuration, and runtime clients use a scoped database editor. No environment flag
 silently skips these tests. The older `surreal_integration` suite retains its explicit
 environment gate and must be reported separately when it is not enabled.
+
+A current `provider_wait` observer may update a Waiting message without changing its
+status. This preserves visible recovery progress and its lease instead of inventing
+an execution restart. Other recovery profiles keep their existing transition rules.
+
+`release_observation` relinquishes an exact current receipt after its local provider
+future ends. It preserves Task progress, cancellation and retention. A stale receipt
+cannot release a renewed or successor lease. This avoids a full lease-expiry delay
+between bounded observations handled by different replicas.

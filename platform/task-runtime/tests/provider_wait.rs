@@ -93,6 +93,85 @@ async fn qualified_provider_completion_survives_queued_state_and_cancellation_ra
         );
     }
 }
+
+#[tokio::test]
+async fn provider_wait_progress_updates_preserve_status_and_require_current_lease() {
+    let db = TestDb::new().await;
+    let runtime = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
+    let task = runtime
+        .create(draft(RecoveryClass::ProviderWait))
+        .await
+        .unwrap()
+        .snapshot;
+    let id = task.task_id.to_string();
+    runtime
+        .claim_observation(&id, Duration::from_secs(30))
+        .await
+        .unwrap();
+    for (message, progress) in [("preparing", 0.0), ("observing", 0.5)] {
+        let updated = runtime
+            .transition(
+                &id,
+                TaskTransition::Waiting {
+                    message: message.into(),
+                    progress,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(updated.status, TaskStatus::Waiting);
+        assert_eq!(updated.status_message.as_deref(), Some(message));
+        assert_eq!(updated.progress, progress);
+    }
+    expire(&runtime, &task).await;
+    assert!(
+        runtime
+            .transition(
+                &id,
+                TaskTransition::Waiting {
+                    message: "stale observer".into(),
+                    progress: 0.9
+                }
+            )
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn observer_release_hands_off_without_waiting_for_expiry_and_rejects_old_receipts() {
+    let db = TestDb::new().await;
+    let a = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
+    let b = TaskRuntime::new(db.b.clone(), "computers-test", "worker-b");
+    let task = a
+        .create(draft(RecoveryClass::ProviderWait))
+        .await
+        .unwrap()
+        .snapshot;
+    let id = task.task_id.to_string();
+    let old = a
+        .claim_observation(&id, Duration::from_secs(30))
+        .await
+        .unwrap();
+    a.renew_lease(&id, Duration::from_secs(60)).await.unwrap();
+    assert!(a.release_observation(&old).await.is_err());
+    let current = a
+        .claim_observation(&id, Duration::from_secs(30))
+        .await
+        .unwrap();
+    a.release_observation(&current).await.unwrap();
+    let successor = b
+        .claim_observation(&id, Duration::from_secs(30))
+        .await
+        .unwrap();
+    assert_eq!(successor.snapshot.status, TaskStatus::Queued);
+    assert_eq!(successor.snapshot.request, task.request);
+    assert!(a.release_observation(&current).await.is_err());
+    assert_eq!(
+        a.get(&id).await.unwrap().unwrap().lease_owner.as_deref(),
+        Some("worker-b")
+    );
+}
 async fn expire(runtime: &TaskRuntime, task: &TaskSnapshot) {
     runtime
         .platform_store()

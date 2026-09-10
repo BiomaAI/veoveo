@@ -101,6 +101,16 @@ pub struct OperationReceipt {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LifecycleResult {
+    #[serde(rename = "result_uri", skip_serializing_if = "Option::is_none")]
+    pub result_uri: Option<String>,
+    pub computer_id: Uuid,
+    pub operation_id: Uuid,
+    pub action: Action,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationView {
     pub task_id: Uuid,
     pub computer_id: Uuid,
@@ -292,6 +302,7 @@ struct SchemaBundle {
     template: TemplateView,
     limits: ComputerLimits,
     receipt: OperationReceipt,
+    lifecycle_result: LifecycleResult,
     operation: OperationView,
     create_input: CreateInput,
     start_input: StartInput,
