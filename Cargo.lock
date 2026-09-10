@@ -16648,6 +16648,7 @@ dependencies = [
 name = "veoveo-computers-runtime"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "futures",
  "hex",
  "hyper-util",
@@ -16658,6 +16659,7 @@ dependencies = [
  "protoc-bin-vendored",
  "rcgen",
  "regress",
+ "reqwest 0.13.4",
  "russh",
  "rustls",
  "serde",

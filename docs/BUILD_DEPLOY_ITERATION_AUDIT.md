@@ -2372,3 +2372,33 @@ client. The policy matrix also attempted a forbidden immutable-revision update.
 Those setup errors were corrected against the existing schema; no production contract
 was weakened to make the fixtures pass. The store-backed policy fixture is shared by
 domain and native-worker cases to avoid repeating that setup across harnesses.
+
+An initial native Docker volume-plugin probe passes in 3.40 s. It rejects a second
+registered consumer, preserves ownership across nested `docker cp`, retains files
+across Stop/Start, and permits a replacement after removal of the first container.
+This probes a disposable directory; quota-backed allocation and provider integration
+remain unqualified. The candidate depends on `volume-nocopy`, because Docker can
+populate a volume before registering the new container. The selected provider does
+not yet supply that guarantee. Docker's nested mount IDs and retryable RPCs also
+make decrementing a simple mount counter unsafe for release decisions.
+
+The prototype exposed fixture cleanup debt: this Docker daemon retains external
+plugin clients after their specification files are removed. Volume listing took
+15.025 s after the two disposable plugin endpoints exited. An empty responder for
+those exact cached endpoints restores listing to 0.023 s, without restarting Docker
+or changing installed containers. Its ignored source/binary lives at
+`output/development/computers-provider/retired-volume-responder`; it watches Docker
+PID 3598's start identity and removes its two sockets when that daemon exits. It
+denies every request except empty volume discovery and local capability metadata.
+Do not terminate it while those cached clients remain. Move the maintained plugin
+fixture to an isolated daemon before running it again; removing containers and
+volumes alone does not isolate a plugin registration's lifetime.
+
+The maintained volume probe now owns an isolated Docker 29.8.0 daemon with no
+network, exact locally imported Computer image, and daemon-scoped plugin registration.
+Its recorded run takes 8.29 s after a 1.20 s incremental compile. Runtime all-target
+Clippy takes 15.78 s. Normal cleanup verifies removal of the owned daemon and its
+data; failure cleanup preserves diagnostic logs. The installation daemon is unchanged.
+This fixture avoids both cached-plugin churn and a host-wide Docker restart. The
+registered-consumer check still needs exact provider/instance admission and native
+allocator qualification before it can establish production writer exclusion.

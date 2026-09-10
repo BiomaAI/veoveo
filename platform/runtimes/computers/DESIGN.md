@@ -16,6 +16,7 @@ or installed provider is qualified by this source checkpoint. The owning domain 
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
 | Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
+| Docker volume-plugin API v1; Engine HTTP API `1.53` | Native storage probe uses selected volume methods and registered-container enumeration; production allocator integration remains pending |
 
 Upstream stable versions were checked through crates.io and the NVIDIA GitHub
 release API on 2026-09-09. Workspace `tokio-rustls` remains on its qualified
@@ -51,6 +52,39 @@ bounded SSH-only CLI bridge and its independent closure task.
 The gateway and BFF must not depend on this crate. The Computers worker applies
 canonical authorization and shared durable Task transactions before invoking it.
 The adapter returns typed outcomes without secrets or provider text in errors.
+
+## Native Storage Boundary Probe
+
+`tests/native_volume_plugin.rs` tests a candidate writer boundary using actual Docker
+containers and a disposable directory. A mount requires exactly one registered
+container with the expected Computer identity. A stopped container continues to reserve
+that identity until removal. Unmount notifications do not release access. The probe
+checks nested `docker cp`, competing writers, Stop/Start and replacement after source
+removal. It does not establish quota enforcement, backup safety or production allocation.
+
+The selected producer must use `volume-nocopy`. Docker otherwise populates a volume
+before the new container enters its registry, which prevents container enumeration
+from identifying that caller. The current provider requires an explicit adapter update
+before it can adopt this boundary. Production binding must also include the provider,
+template and admitted instance; a Computer label alone is insufficient for handoff.
+The [Docker volume protocol](https://docs.docker.com/engine/extend/plugins_volume/) and
+[Moby mount implementation](https://github.com/moby/moby/blob/6bc6209/daemon/volume/mounts/mounts.go)
+show why nested mount IDs are not unique operations. Plugin RPC retries make simple
+reference-count decrement unsafe after a lost Unmount reply.
+
+Plugin registration has daemon-wide lifetime. The maintained fixture owns a separate
+daemon with no network, bridge or published API port. It imports the existing Computer
+image archive and verifies its exact image ID. The exact fixture image is
+`docker.io/library/docker:29.8.0-dind@sha256:77759fdec1efef224ba7110ef7b5b3c6af6164ffaef5441d3beba059bde8b857`.
+[Moby 29.8.0](https://github.com/moby/moby/releases/tag/docker-v29.8.0) was the latest stable
+release on 2026-09-09; the manifest was resolved from the official Docker image registry.
+This fixture pin does not upgrade the installation's Docker engine. It uses the image's
+DinD wrapper for cgroup v2 nesting and confines its data root and plugin sockets to
+fixture-owned directories. Removing the daemon also discards its plugin client cache.
+
+Axum and Reqwest reuse the qualified workspace versions as development dependencies.
+The Docker plugin request decoder accepts bounded JSON bytes because the actual daemon
+does not supply the ordinary JSON Content-Type expected by Axum's JSON extractor.
 
 ## Completion And Recovery
 

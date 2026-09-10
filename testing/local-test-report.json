@@ -1,29 +1,52 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b3af7f6c510c1e15cada7d48032a07f5e5a291d43413dc22ee9dd3f1cd8afaa3",
-  "updatedAt": "2026-09-10T04:06:53Z",
+  "buildDigest": "sha256:eb5d2d436297bff7e93a4c03113d5e0c64d926d103fef9b2da2bb17491516483",
+  "updatedAt": "2026-09-10T04:39:28Z",
   "checks": [
     {
-      "name": "computer-current-authority",
+      "name": "computer-volume-boundary",
       "command": [
+        "env",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers",
-        "-p",
-        "veoveo-computers-mcp",
-        "--lib",
-        "--tests"
+        "veoveo-computers-runtime",
+        "--test",
+        "native_volume_plugin",
+        "--",
+        "--ignored",
+        "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T04:04:46Z",
-      "durationSeconds": 37.345165155,
+      "finishedAt": "2026-09-10T04:38:48Z",
+      "durationSeconds": 9.560155335,
       "detail": "completed successfully"
     },
     {
-      "name": "computer-current-authority-format",
+      "name": "computers-runtime-lint",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T04:39:16Z",
+      "durationSeconds": 15.884715161,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "rust-format",
       "command": [
         "cargo",
         "fmt",
@@ -32,55 +55,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T04:04:33Z",
-      "durationSeconds": 2.513755248,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computer-current-authority-lint",
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers",
-        "-p",
-        "veoveo-computers-mcp",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T04:06:13Z",
-      "durationSeconds": 11.053554589,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computer-current-authority-native",
-      "command": [
-        "env",
-        "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
-        "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-sandbox",
-        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
-        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
-        "VEOVEO_COMPUTERS_NATIVE_CLI=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/cli-0.0.116/openshell",
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers-mcp",
-        "--test",
-        "native_worker",
-        "--",
-        "--ignored",
-        "--nocapture"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T04:06:53Z",
-      "durationSeconds": 25.078522821,
+      "finishedAt": "2026-09-10T04:39:28Z",
+      "durationSeconds": 2.502135764,
       "detail": "completed successfully"
     }
   ]
