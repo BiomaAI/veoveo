@@ -3042,3 +3042,29 @@ a subsequent command cannot execute and the Computer stays Ready. The stock idle
 ProxyCommand may await local input before its process exits. Public SSO pairing and
 ingress remain unqualified at this checkpoint. No image publication was needed for
 these local checks.
+
+The public CLI application checkpoint passed 61 domain/service/transport cases in
+137.675 seconds, with 57.87 seconds of compilation. The first three database fixtures
+took 39.74 seconds; later groups took two to five seconds. The edge command passed
+23 BFF/gateway cases in 39.184 seconds, including a 23.40-second compile. The native
+retained fixture passed in 114.8 seconds. It now creates the grant through the real
+HTTP pairing handlers across replicas, rejects confirmation replay, and uses the
+public Computer UUID with the unchanged stock CLI. Its identity remains a test
+fixture; public browser sign-in and installation acceptance are separate checks.
+
+Those service checks recorded build identity
+`sha256:90aa114b21d83c294a174d8bbf37ef55a4375d047b0423174b90ed5aec1cf6a0`.
+A subsequent Helm test correction distinguishes the full preset's ingress from
+the extension foundation's intentionally absent ingress. No service, transport,
+domain or frontend input changed in that correction. The v2 aggregate discarded
+the earlier entries when the test file changed. The correction reruns the owning
+Helm check and lint; the preceding service results remain documented here instead
+of repeating unchanged native workloads merely to repopulate the aggregate.
+Both Helm cases pass. The five frontend contract/pairing cases pass, followed by
+TypeScript/Vite, ESLint, generated-type drift and formatting checks. Vite took 2.19
+seconds. Exact per-command times for the final inputs remain in the committed report.
+
+At 18:24 UTC, the browser still displayed an OAuth callback failure loaded at
+17:49:54 UTC. A fresh Console navigation succeeded; its session read returned 200
+in 115 ms. No service restart was needed. This distinguishes the stale error page
+from current availability without closing the earlier sign-in/rollout defect.

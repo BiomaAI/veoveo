@@ -23,7 +23,7 @@ type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 pub(crate) struct Server {
     pub(crate) base: String,
     terminal: String,
-    origin: String,
+    pub(crate) origin: String,
     stop: CancellationToken,
     jobs: Vec<tokio::task::JoinHandle<()>>,
 }
@@ -158,7 +158,7 @@ fn http() -> reqwest::Client {
         .build()
         .unwrap()
 }
-fn bearer(signing: &Signing, identity: &GatewayInternalIdentity) -> String {
+pub(crate) fn bearer(signing: &Signing, identity: &GatewayInternalIdentity) -> String {
     signing.identity(
         identity.clone(),
         "computers",

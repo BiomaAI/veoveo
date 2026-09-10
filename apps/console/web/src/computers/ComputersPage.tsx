@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Monitor, Play, Plus, RefreshCw, Square } from "lucide-react";
 import { ComputersController } from "./controller";
 import { AccessPanel } from "./AccessPanel";
+import { CliConnect } from "./CliConnect";
 import { lifecycle, readComputers, readOperation } from "./api";
 import { watchComputers } from "./events";
 import type { CapacityAvailability, ComputerPhase } from "../generated/computers";
@@ -225,6 +226,7 @@ export function ComputersPage({
             </Suspense>
             {snapshot && <AccessPanel key={`access:${selected.computerId}`}
               computerId={selected.computerId} snapshot={snapshot} stale={state.stale} />}
+            <CliConnect computerId={selected.computerId} canConnect={selected.canConnect} />
             <details>
               <summary>Computer details</summary>
               <dl>

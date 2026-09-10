@@ -7,7 +7,7 @@ mod renewal;
 mod secret;
 pub use model::{
     CliConnectionHandle, CliGrantCredential, CliGrantLease, CliGrantView, CliPairing,
-    CliPairingRequest, PairedCliGrant,
+    PairedCliGrant,
 };
 
 use surrealdb::types::RecordId;

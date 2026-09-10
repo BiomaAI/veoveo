@@ -4,7 +4,24 @@
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "AccessGrantKind".
  */
-export type AccessGrantKind = "browser";
+export type AccessGrantKind = "browser" | "cli";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "CliPairingConfirmBody".
+ */
+export type CliPairingConfirmBody = Record<string, never>;
+/**
+ * Only serialize into the one-use no-store response and local callback body.
+ *
+ * ```compile_fail
+ * use veoveo_computers_contract::CliPairingToken;
+ * fn cannot_log(token: CliPairingToken) { let _ = format!("{token:?}"); }
+ * ```
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "CliPairingToken".
+ */
+export type CliPairingToken = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "ComputerPhase".
@@ -124,6 +141,10 @@ export type TerminalTicketInput = Record<string, never>;
 export interface ComputersApi {
   access_grants: AccessGrantCollection;
   access_revocation: AccessRevocation;
+  cli_pairing_challenge: CliPairingChallenge;
+  cli_pairing_confirm_body: CliPairingConfirmBody;
+  cli_pairing_input: CliPairingInput;
+  cli_pairing_result: CliPairingResult;
   computer: ComputerView;
   create_input: CreateInput;
   error: ApiError;
@@ -174,6 +195,7 @@ export interface AccessGrantView {
   issuedAt: string;
   kind: AccessGrantKind;
   lastActivityAt: string;
+  name: string;
   /**
    * Redemption is recorded history, not a claim that a transport is connected.
    */
@@ -187,6 +209,36 @@ export interface AccessRevocation {
   computerId: string;
   grantId: string;
   revoked: boolean;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "CliPairingChallenge".
+ */
+export interface CliPairingChallenge {
+  computerId: string;
+  expiresAt: string;
+  pairingId: string;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "CliPairingInput".
+ */
+export interface CliPairingInput {
+  callbackPort: number;
+  code: string;
+  name: string;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "CliPairingResult".
+ */
+export interface CliPairingResult {
+  callbackPort: number;
+  computerId: string;
+  expiresAt: string;
+  grantId: string;
+  pairingId: string;
+  token: CliPairingToken;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema

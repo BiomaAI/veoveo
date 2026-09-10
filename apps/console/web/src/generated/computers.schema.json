@@ -23,7 +23,8 @@
     },
     "AccessGrantKind": {
       "enum": [
-        "browser"
+        "browser",
+        "cli"
       ],
       "type": "string"
     },
@@ -54,6 +55,11 @@
           "format": "date-time",
           "type": "string"
         },
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
         "redeemed": {
           "description": "Redemption is recorded history, not a claim that a transport is connected.",
           "type": "boolean"
@@ -62,6 +68,7 @@
       "required": [
         "grantId",
         "kind",
+        "name",
         "redeemed",
         "currentSession",
         "issuedAt",
@@ -125,6 +132,104 @@
         "storage_unavailable",
         "maintenance"
       ],
+      "type": "string"
+    },
+    "CliPairingChallenge": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "pairingId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "pairingId",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "CliPairingConfirmBody": {
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CliPairingInput": {
+      "additionalProperties": false,
+      "properties": {
+        "callbackPort": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 1024,
+          "type": "integer"
+        },
+        "code": {
+          "pattern": "^[A-HJ-NP-Z2-9]{3}-[A-HJ-NP-Z2-9]{4}$",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "code",
+        "callbackPort"
+      ],
+      "type": "object"
+    },
+    "CliPairingResult": {
+      "additionalProperties": false,
+      "properties": {
+        "callbackPort": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 1024,
+          "type": "integer"
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "grantId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "pairingId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "token": {
+          "$ref": "#/$defs/CliPairingToken"
+        }
+      },
+      "required": [
+        "computerId",
+        "pairingId",
+        "grantId",
+        "token",
+        "callbackPort",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "CliPairingToken": {
+      "description": "Only serialize into the one-use no-store response and local callback body.\n\n```compile_fail\nuse veoveo_computers_contract::CliPairingToken;\nfn cannot_log(token: CliPairingToken) { let _ = format!(\"{token:?}\"); }\n```",
+      "maxLength": 107,
+      "minLength": 107,
       "type": "string"
     },
     "ComputerEvent": {
@@ -792,6 +897,18 @@
     "access_revocation": {
       "$ref": "#/$defs/AccessRevocation"
     },
+    "cli_pairing_challenge": {
+      "$ref": "#/$defs/CliPairingChallenge"
+    },
+    "cli_pairing_confirm_body": {
+      "$ref": "#/$defs/CliPairingConfirmBody"
+    },
+    "cli_pairing_input": {
+      "$ref": "#/$defs/CliPairingInput"
+    },
+    "cli_pairing_result": {
+      "$ref": "#/$defs/CliPairingResult"
+    },
     "computer": {
       "$ref": "#/$defs/ComputerView"
     },
@@ -857,6 +974,10 @@
     }
   },
   "required": [
+    "cli_pairing_input",
+    "cli_pairing_challenge",
+    "cli_pairing_confirm_body",
+    "cli_pairing_result",
     "access_grants",
     "revoke_access_input",
     "revoke_access_body",

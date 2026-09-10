@@ -40,7 +40,7 @@ impl ComputersStore {
                 return Err(ComputerError::Unavailable);
             }
             let current_family = &actor.accepted().request_context.access_token.session_family;
-            let grants = rows
+            let mut grants = rows
                 .into_iter()
                 .map(|row| {
                     let accepted = row.accepted()?;
@@ -50,6 +50,7 @@ impl ComputersStore {
                     Ok(AccessGrantView {
                         grant_id: row.grant_id,
                         kind: AccessGrantKind::Browser,
+                        name: "Browser".into(),
                         redeemed: row.connection_id.is_some(),
                         current_session: current_family.is_some()
                             && current_family
@@ -60,11 +61,48 @@ impl ComputersStore {
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
+            grants.extend(
+                self.cli_access_grants(actor, computer_id)
+                    .await?
+                    .into_iter()
+                    .map(|row| AccessGrantView {
+                        grant_id: row.grant_id,
+                        kind: AccessGrantKind::Cli,
+                        name: row.name,
+                        redeemed: true,
+                        current_session: row.current_session,
+                        issued_at: row.issued_at,
+                        expires_at: row.expires_at,
+                        last_activity_at: row.last_activity_at,
+                    }),
+            );
+            if grants.len() > 128 {
+                return Err(ComputerError::Unavailable);
+            }
+            grants.sort_by_key(|grant| std::cmp::Reverse(grant.grant_id));
             control.require_read(Some(computer_id))?;
             Ok(AccessGrantCollection {
                 computer_id,
                 grants,
             })
+        })
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
+    }
+
+    /// Dispatch the canonical grant ID to its owning ledger. Both kinds retain
+    /// exact owner/parent checks and permit reducing access without attach rights.
+    pub async fn revoke_access(
+        &self,
+        actor: &ComputerActor,
+        computer: Uuid,
+        grant: Uuid,
+    ) -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            match self.revoke_browser_grant(actor, computer, grant).await {
+                Err(ComputerError::NotFound) => self.revoke_cli_grant(actor, computer, grant).await,
+                result => result,
+            }
         })
         .await
         .map_err(|_| ComputerError::Unavailable)?

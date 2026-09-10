@@ -478,6 +478,16 @@ retained lifecycle fault cases pass in the same native fixture. This fixture ins
 a domain-issued credential in private stock configuration. Public SSO pairing and
 installed ingress are still required.
 
+The next application checkpoint adds typed HTTP pairing, generated Console models,
+the explicit SSO code-confirmation page, shared browser/CLI access inventory and
+fixed-profile root/prefixed CLI edges. A native check now obtains the credential
+through actual HTTP pairing and confirmation on different service replicas, rejects
+replayed confirmation and connects using the public Computer UUID. The BFF's local
+wire tests qualify stock header adaptation, both route shapes and removal of private
+lease text. Frontend tests qualify closed loopback delivery and revocation after
+delivery failure. Public installation acceptance remains outstanding until these
+application images, ingress route and migration are deployed together.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

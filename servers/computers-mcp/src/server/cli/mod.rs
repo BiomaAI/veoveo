@@ -26,6 +26,7 @@ use veoveo_computers::{
     cli_grants::{CliConnectionHandle, CliGrantCredential},
 };
 use veoveo_computers_runtime::{Binding, LeaseAuthority};
+use veoveo_mcp_contract::GatewayProfileId;
 
 #[derive(Clone)]
 struct Transport {
@@ -39,53 +40,48 @@ pub(super) fn router(
     stop: CancellationToken,
 ) -> Router {
     Router::new()
-        .route("/_ws_tunnel", get(root))
-        .route("/{id}/_ws_tunnel", get(scoped))
+        .route("/{profile}/_ws_tunnel", get(root))
+        .route("/{profile}/{id}/_ws_tunnel", get(scoped))
         .with_state(Transport { app, events, stop })
 }
 fn denied() -> HttpError {
     HttpError(ApplicationError::Domain(ComputerError::Forbidden))
 }
 fn credential(headers: &HeaderMap, query: Option<&str>) -> Result<CliGrantCredential, HttpError> {
-    if query.is_some()
-        || headers.contains_key(header::ORIGIN)
-        || headers.contains_key(header::COOKIE)
-        || headers.contains_key(header::SEC_WEBSOCKET_PROTOCOL)
-        || headers.contains_key(header::SEC_WEBSOCKET_EXTENSIONS)
-    {
-        return Err(denied());
-    }
-    let mut values = headers.get_all(header::AUTHORIZATION).iter();
-    let (Some(value), None) = (values.next(), values.next()) else {
-        return Err(denied());
-    };
-    let token = value
+    let value = veoveo_computers_transport::cli_authorization(
+        headers,
+        veoveo_computers_transport::CliCredentialFraming::Internal,
+        query,
+    )
+    .map_err(|_| denied())?;
+    let value = value
         .to_str()
-        .ok()
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .filter(|v| v.len() == 107)
+        .map_err(|_| denied())?
+        .strip_prefix("Bearer ")
         .ok_or_else(denied)?;
-    Ok(CliGrantCredential::new(token.to_owned()))
+    Ok(CliGrantCredential::new(value.to_owned()))
 }
 async fn root(
     State(transport): State<Transport>,
+    Path(profile): Path<GatewayProfileId>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, HttpError> {
-    upgrade(transport, None, query, headers, ws).await
+    upgrade(transport, profile, None, query, headers, ws).await
 }
 async fn scoped(
     State(transport): State<Transport>,
-    Path(id): Path<Uuid>,
+    Path((profile, id)): Path<(GatewayProfileId, Uuid)>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, HttpError> {
-    upgrade(transport, Some(id), query, headers, ws).await
+    upgrade(transport, profile, Some(id), query, headers, ws).await
 }
 async fn upgrade(
     transport: Transport,
+    profile: GatewayProfileId,
     computer: Option<Uuid>,
     query: Option<String>,
     headers: HeaderMap,
@@ -103,7 +99,7 @@ async fn upgrade(
         transport
             .app
             .store
-            .open_cli_connection(computer, &credential)
+            .open_cli_connection(computer, profile, &credential)
             .await
             .map_err(ApplicationError::from)?,
     );
@@ -177,6 +173,7 @@ async fn attached(
             socket,
             facade::Restricted {
                 access,
+                computer: computer.computer_id,
                 activity: activity.clone(),
             },
             lease.clone(),
@@ -192,38 +189,4 @@ async fn attached(
     }
     authority.revoke();
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cli_admission_rejects_browser_authority_and_ambiguous_headers() {
-        let mut admitted = HeaderMap::new();
-        let value = format!("Bearer {}", "x".repeat(107));
-        admitted.insert(header::AUTHORIZATION, value.parse().unwrap());
-        // The domain validates the opaque credential; ingress validates framing.
-        assert!(credential(&admitted, None).is_ok());
-        assert!(credential(&HeaderMap::new(), None).is_err());
-        assert!(credential(&admitted, Some("")).is_err());
-        for name in [
-            header::ORIGIN,
-            header::COOKIE,
-            header::SEC_WEBSOCKET_PROTOCOL,
-            header::SEC_WEBSOCKET_EXTENSIONS,
-        ] {
-            let mut headers = admitted.clone();
-            headers.insert(name, "present".parse().unwrap());
-            assert!(credential(&headers, None).is_err());
-        }
-        let mut duplicate = admitted.clone();
-        duplicate.append(header::AUTHORIZATION, value.parse().unwrap());
-        assert!(credential(&duplicate, None).is_err());
-        for value in ["Bearer ordinary-identity-assertion", "Basic credential", ""] {
-            let mut headers = admitted.clone();
-            headers.insert(header::AUTHORIZATION, value.parse().unwrap());
-            assert!(credential(&headers, None).is_err());
-        }
-    }
 }

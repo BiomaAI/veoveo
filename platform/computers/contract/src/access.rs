@@ -8,6 +8,7 @@ use uuid::Uuid;
 #[serde(rename_all = "snake_case")]
 pub enum AccessGrantKind {
     Browser,
+    Cli,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -15,6 +16,8 @@ pub enum AccessGrantKind {
 pub struct AccessGrantView {
     pub grant_id: Uuid,
     pub kind: AccessGrantKind,
+    #[schemars(length(min = 1, max = 64))]
+    pub name: String,
     /// Redemption is recorded history, not a claim that a transport is connected.
     pub redeemed: bool,
     /// Issued under this sign-in family; it may belong to another browser tab.

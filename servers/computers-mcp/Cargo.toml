@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-computers-transport = { path = "../../platform/computers/transport" }
 anyhow.workspace = true
 clap.workspace = true
 axum = { workspace = true, features = ["ws"] }
@@ -29,7 +30,6 @@ veoveo-platform-store = { path = "../../platform/store" }
 veoveo-mcp-contract.workspace = true
 
 [dev-dependencies]
-veoveo-computers-transport = { path = "../../platform/computers/transport" }
 tokio-tungstenite.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }

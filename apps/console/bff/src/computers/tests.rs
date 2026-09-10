@@ -40,7 +40,7 @@ impl Fixture {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let observed = Arc::new(Mutex::new(Vec::new()));
         let capture = observed.clone();
-        let upstream = terminal::upstream(observed.clone()).fallback(any(move |request: Request| {
+        let upstream = terminal::upstream(observed.clone()).merge(cli_checks::upstream(observed.clone())).fallback(any(move |request: Request| {
             let capture = capture.clone();
             async move {
                 let path = request.uri().path().to_owned();
@@ -453,5 +453,7 @@ async fn completed_refresh_is_returned_on_upstream_failure_and_redirects_are_not
     );
 }
 
+#[path = "tests_cli.rs"]
+mod cli_checks;
 #[path = "tests_terminal.rs"]
 mod terminal;

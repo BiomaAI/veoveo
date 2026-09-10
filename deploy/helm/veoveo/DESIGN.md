@@ -101,3 +101,8 @@ presets twice, checks stable Pod/configuration identities and verifies the privi
 boundary. It also renders configured capacity and rejects missing trust/configuration
 and missing store dependencies. These are real Helm configuration checks. They do
 not establish provider execution or installed acceptance.
+The public ingress sends exact `/_ws_tunnel` to the Console BFF for the stock CLI
+adapter. The Computer-prefixed pairing and tunnel routes use the existing `/console`
+prefix. Both paths share the application's narrow grant enforcement; neither exposes
+the private provider listener. This change requires coordinated BFF, gateway and
+Computers application images and the additive CLI-ledger migration.

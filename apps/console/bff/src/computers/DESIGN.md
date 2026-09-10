@@ -8,6 +8,7 @@
 | Existing Console session | Authenticated encrypted cookie, OAuth renewal and constant-time CSRF check for mutations |
 | WebSocket, RFC 6455 | HTTP/1.1 upgrade, exact public Origin and cookie authentication |
 | Veoveo terminal v2 | One-use first frame, binary terminal, bounded resize, replay fence and upstream authority deadline |
+| OpenShell CLI `0.0.116` and gRPC over WebSocket | Custom SSO pairing and binary SSH adapter; private lease controls never reach the stock consumer |
 | MCP `2026-07-28` and server-sent events | Auth-scoped collection subscription projected as typed invalidations over a CSRF-protected HTTP POST |
 
 `/console/api/computers` and its exact Computer children are the native Console edge.
@@ -67,3 +68,29 @@ all exits release the downstream subscription with a five-second cleanup bound.
 Heartbeat comments keep intermediaries active without granting authority or extending
 the deadline. Successful session renewal is returned in headers even when subsequent
 subscription admission fails.
+
+## Stock CLI Pairing And Relay
+
+The stock CLI `0.0.116` adapter registers
+`/console/computers/{id}` as its gateway endpoint. GET
+`/console/computers/{id}/auth/connect?callback_port={port}&code={code}` serves the
+Console entry document for the dedicated pairing page. Closed query parsing and
+the shared code/port validator run before reading that document. This response
+alone adds the exact `http://127.0.0.1:{port}` connect source to its restrictive CSP.
+It sends no-referrer and no-store. Other Console pages gain no loopback destination.
+Existing Console SSO preserves this same-origin return path.
+
+POST `/console/api/computers/{id}/cli-pairings` and its
+`/{pairing_id}/confirm` child require CSRF and exact public Origin. They forward
+closed requests under the configured profile and current cookie session. A lost
+confirmation response cannot be retried to obtain its secret. The browser explicitly
+compares the terminal code and sends the one-use response directly to the local CLI.
+
+GET `/console/computers/{id}/_ws_tunnel` and exact GET `/_ws_tunnel` implement the
+stock client's two route shapes. They use no Console cookie session or OAuth refresh.
+The shared framing validator accepts the stock edge credential and consistent
+redundant headers, then forwards one sensitive Bearer header to the configured
+gateway profile. Browser Origin and unrelated cookies are rejected. The worker
+independently verifies the grant's retained profile, owner, family, Computer and run.
+The public relay consumes private Ready/Lease controls and delivers only binary
+gRPC bytes. Existing cancellation, buffer and independent deadline bounds apply.

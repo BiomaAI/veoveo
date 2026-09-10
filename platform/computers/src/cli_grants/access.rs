@@ -12,6 +12,7 @@ impl ComputersStore {
     pub async fn open_cli_connection(
         &self,
         expected_computer: Option<Uuid>,
+        expected_profile: veoveo_mcp_contract::GatewayProfileId,
         credential: &CliGrantCredential,
     ) -> Result<CliConnectionHandle> {
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -22,6 +23,9 @@ impl ComputersStore {
             }
             let computer_id = grant.computer_id;
             let accepted = grant.accepted()?;
+            if accepted.profile != expected_profile {
+                return Err(ComputerError::Forbidden);
+            }
             let snapshot = self.read_authority(&accepted).await?;
             let family_end = self
                 .check_control_session(&snapshot)

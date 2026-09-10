@@ -1,7 +1,9 @@
 //! Canonical public JSON contract. Generate every client model from schema_bundle().
 mod access;
 pub use access::*;
+mod pairing;
 use chrono::{DateTime, Utc};
+pub use pairing::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -345,6 +347,10 @@ pub struct TerminalReady {
 #[allow(dead_code)]
 #[schemars(rename = "ComputersApi")]
 struct SchemaBundle {
+    cli_pairing_input: CliPairingInput,
+    cli_pairing_challenge: CliPairingChallenge,
+    cli_pairing_confirm_body: CliPairingConfirmBody,
+    cli_pairing_result: CliPairingResult,
     access_grants: AccessGrantCollection,
     revoke_access_input: RevokeAccessInput,
     revoke_access_body: RevokeAccessBody,

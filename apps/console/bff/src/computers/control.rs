@@ -16,6 +16,7 @@ pub(super) struct Route {
     id: Option<Uuid>,
     operation_id: Option<Uuid>,
     grant_id: Option<Uuid>,
+    pairing_id: Option<Uuid>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -38,6 +39,7 @@ pub(super) async fn proxy(
         route.id,
         route.operation_id,
         route.grant_id,
+        route.pairing_id,
     ) else {
         return fault(StatusCode::BAD_REQUEST);
     };
@@ -47,7 +49,7 @@ pub(super) async fn proxy(
         return fault(StatusCode::BAD_REQUEST);
     }
     let ticket = matched.as_str().ends_with("/terminal-ticket");
-    let origin = if ticket {
+    let origin = if ticket || matched.as_str().contains("/cli-pairings") {
         match origin(&state, request.headers()) {
             Ok(value) => Some(value),
             Err(status) => return fault(status),
@@ -126,13 +128,24 @@ fn upstream_path(
     id: Option<Uuid>,
     operation_id: Option<Uuid>,
     grant_id: Option<Uuid>,
+    pairing_id: Option<Uuid>,
 ) -> Option<String> {
     if id.is_some_and(|id| id.is_nil())
         || operation_id.is_some_and(|id| id.is_nil())
         || grant_id.is_some_and(|id| id.is_nil())
-        || (grant_id.is_some() && operation_id.is_some())
+        || pairing_id.is_some_and(|id| id.is_nil())
+        || [grant_id, operation_id, pairing_id]
+            .iter()
+            .flatten()
+            .count()
+            > 1
     {
         return None;
+    }
+    if let Some(pairing) = pairing_id {
+        return (matched == "/console/api/computers/{id}/cli-pairings/{pairing_id}/confirm")
+            .then(|| id.map(|id| format!("/{id}/cli-pairings/{pairing}/confirm")))
+            .flatten();
     }
     if let Some(grant) = grant_id {
         return (matched == "/console/api/computers/{id}/access/{grant_id}/revoke")
@@ -148,6 +161,9 @@ fn upstream_path(
         ("/console/api/computers", None) => Some(String::new()),
         ("/console/api/computers/{id}", Some(id)) => Some(format!("/{id}")),
         ("/console/api/computers/{id}/access", Some(id)) => Some(format!("/{id}/access")),
+        ("/console/api/computers/{id}/cli-pairings", Some(id)) => {
+            Some(format!("/{id}/cli-pairings"))
+        }
         ("/console/api/computers/{id}/start", Some(id)) => Some(format!("/{id}/start")),
         ("/console/api/computers/{id}/stop", Some(id)) => Some(format!("/{id}/stop")),
         ("/console/api/computers/{id}/terminal-ticket", Some(id)) => {
