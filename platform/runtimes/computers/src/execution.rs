@@ -26,10 +26,8 @@ impl ExecIntent {
         stdin: Vec<u8>,
     ) -> Result<Self> {
         if command.is_empty()
-            || command.len() > 32
-            || command
-                .iter()
-                .any(|s| s.is_empty() || s.len() > 8192 || s.contains('\0'))
+            || command.len() > 1024
+            || command.iter().any(|s| s.len() > 32768 || s.contains('\0'))
             || command.iter().map(String::len).sum::<usize>() > 32768
             || !canonical_path(&command[0])
             || workdir.len() > 1024

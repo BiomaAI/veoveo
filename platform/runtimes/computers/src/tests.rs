@@ -12,6 +12,7 @@ use tonic::{
 };
 use uuid::Uuid;
 mod allocation_tests;
+mod execution_arguments;
 mod forward_tests;
 mod instance_tests;
 mod policy_tests;
@@ -303,6 +304,7 @@ struct FakeState {
     policy_fixture: Option<policy_tests::Fixture>,
     version: String,
     drivers: Vec<String>,
+    workspace: Option<crate::protocol::datamodel::v1::Workspace>,
     denied: bool,
     watch: u8,
     exec: u8,
@@ -314,6 +316,7 @@ struct FakeState {
     watches: usize,
     revokes: usize,
     input_bytes: Vec<u8>,
+    execution_arguments: Vec<String>,
     ssh: terminal_tests::SshState,
     session_mode: u8,
     session_reply_gate: Option<terminal_tests::Gate>,
@@ -330,6 +333,15 @@ impl Fake {
             policy_fixture: None,
             version: GATEWAY_VERSION.into(),
             drivers: vec!["docker".into()],
+            workspace: Some(crate::protocol::datamodel::v1::Workspace {
+                metadata: Some(ObjectMeta {
+                    name: "computers".into(),
+                    ..Default::default()
+                }),
+                status: Some(crate::protocol::datamodel::v1::WorkspaceStatus {
+                    phase: crate::protocol::datamodel::v1::WorkspacePhase::Active as i32,
+                }),
+            }),
             denied: false,
             watch: 0,
             exec: 0,
@@ -341,6 +353,7 @@ impl Fake {
             watches: 0,
             revokes: 0,
             input_bytes: vec![],
+            execution_arguments: vec![],
             ssh: Default::default(),
             session_mode: 0,
             session_reply_gate: None,
@@ -438,6 +451,16 @@ impl api::open_shell_server::OpenShell for Fake {
                 })
                 .collect(),
             ..Default::default()
+        }))
+    }
+    async fn get_workspace(
+        &self,
+        request: Request<api::GetWorkspaceRequest>,
+    ) -> std::result::Result<Response<api::GetWorkspaceResponse>, Status> {
+        self.authorize()?;
+        assert_eq!(request.into_inner().name, "computers");
+        Ok(Response::new(api::GetWorkspaceResponse {
+            workspace: self.0.lock().unwrap().workspace.clone(),
         }))
     }
     async fn get_sandbox(
@@ -685,6 +708,7 @@ impl api::open_shell_server::OpenShell for Fake {
         assert!(!r.tty);
         assert!(r.environment.is_empty());
         let mut state = self.0.lock().unwrap();
+        state.execution_arguments = r.command;
         let events = match state.exec {
             1 => vec![Ok(exit(124))],
             2 => vec![],

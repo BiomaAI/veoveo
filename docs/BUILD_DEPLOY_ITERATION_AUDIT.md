@@ -3185,3 +3185,13 @@ the broader `testing/` fixture directory. The seventeenth recorder case proves t
 another owner's registration preserves a result while editing its own declaration
 invalidates it. The real iteration-tools receipts also remained current while the
 independent Computers runtime source and design changed.
+
+The Computers runtime now has its own admitted 134-input source boundary. Its first
+library run exposed a stale fixture: GetWorkspace had not been implemented after
+production readiness began requiring an exact active workspace. Fifty tests failed
+before exercising their behavior. The fixture now returns typed workspace state;
+new cases reject absent, mismatched and terminating workspaces without mutation.
+The corrected 76-case suite passed in 20.51 seconds, plus 9.48 seconds of compilation.
+The initial failed attempt remains immutable history. Its successful replacement
+uses the same command identity. All four iteration-tools results stayed current
+while the runtime sources, fixture and owner catalog changed.
