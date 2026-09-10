@@ -142,6 +142,7 @@ impl ComputersStore {
                 return Err(ComputerError::RequestConflict);
             }
             for (message, error) in [
+                ("computer_access_limit", ComputerError::AccessLimit),
                 ("computer_authority_expired", ComputerError::Forbidden),
                 ("computer_not_found", ComputerError::NotFound),
                 ("computer_operation_busy", ComputerError::OperationBusy),

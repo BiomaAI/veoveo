@@ -774,6 +774,9 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         }
         GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
         GatewayAction::ArtifactUpload => true,
+        GatewayAction::ComputerAttach => {
+            server.slug.as_str() == "computers" && server.capabilities.resources
+        }
         GatewayAction::AgentsRead
         | GatewayAction::AgentsMessage
         | GatewayAction::AgentsInputRequestAnswer => false,

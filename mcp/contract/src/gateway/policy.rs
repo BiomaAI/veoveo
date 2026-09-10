@@ -78,6 +78,8 @@ pub enum GatewayAction {
     TasksCancel,
     ArtifactRead,
     ArtifactUpload,
+    /// Governed interactive access to an exact Computer resource. No MCP method.
+    ComputerAttach,
     UsageRead,
     AgentsRead,
     AgentsMessage,
@@ -109,6 +111,7 @@ impl GatewayAction {
             Self::TasksCancel => Some("tasks/cancel"),
             Self::ArtifactRead
             | Self::ArtifactUpload
+            | Self::ComputerAttach
             | Self::UsageRead
             | Self::AgentsRead
             | Self::AgentsMessage

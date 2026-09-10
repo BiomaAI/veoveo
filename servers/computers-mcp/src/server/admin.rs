@@ -41,6 +41,9 @@ impl IntoResponse for HttpError {
             crate::ApplicationError::Domain(ComputerError::CapacityFull) => {
                 (StatusCode::CONFLICT, ErrorCode::CapacityFull)
             }
+            crate::ApplicationError::Domain(ComputerError::AccessLimit) => {
+                (StatusCode::CONFLICT, ErrorCode::AccessLimit)
+            }
             crate::ApplicationError::Domain(ComputerError::OperationBusy) => {
                 (StatusCode::CONFLICT, ErrorCode::Busy)
             }
