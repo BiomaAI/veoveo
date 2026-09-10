@@ -21,5 +21,4 @@ veoveo-task-runtime = { path = "../task-runtime" }
 
 [dev-dependencies]
 futures.workspace = true
-getrandom.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

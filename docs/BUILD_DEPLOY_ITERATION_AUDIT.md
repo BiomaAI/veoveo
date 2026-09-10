@@ -2244,3 +2244,11 @@ out of the existing Task file also keeps the cross-component change reviewable. 
 new stored enum means deployment must update all affected readers before Computers
 starts writing that class. That required release closure is distinct from unrelated
 image rebuilds and cannot be omitted from the deployment plan.
+
+Real-store fixtures showed a 3–20 s execution range under concurrent checks. Their
+cleanup called graceful Docker stop while the fixture still held WebSocket clients.
+The shared in-memory fixture now force-removes only its own disposable container;
+there is no retained data to flush. The initial operation-journal scenarios execute in
+4.80 s. Native home fixtures keep their physical unmount/detach checks. Removing the
+duplicate fixture's unused random dependency changed only the local Computers package
+entry in Cargo.lock, with no registry dependency upgrades.

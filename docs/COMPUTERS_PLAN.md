@@ -480,3 +480,9 @@ observation claim. Recovery preserves queued/running/waiting/cancel-requested Ta
 without reset or ordinary terminal failure. Migration 0052 requires compatible readers
 before admitting this class; retained new-class records prevent an unqualified rollback
 to old readers. Computers dispatch/budget integration remains in progress.
+
+The domain operation journal now admits one fenced action transactionally, preserves
+the previous provider run and reconstructs its shared Task after interrupted linking.
+Current context membership and output clearance are checked before mutation admission.
+This checkpoint does not dispatch native effects; the lifecycle worker and recovery
+budget remain the next integration step.

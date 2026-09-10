@@ -1,36 +1,19 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:c31702cef3c21fcebfd2ba6491489888864a5f9f62ca08d579a3888367bd9b03",
-  "updatedAt": "2026-09-10T00:45:43Z",
+  "buildDigest": "sha256:367cdec258164829c98f6064b0b786641c992338fc70a97e84c8a50f1d03f095",
+  "updatedAt": "2026-09-10T00:58:10Z",
   "checks": [
     {
-      "name": "computers-admission",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computers",
-        "--test",
-        "admission"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:45:09Z",
-      "durationSeconds": 24.633864659,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "provider-wait-clippy",
+      "name": "computers-journal-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-task-runtime",
-        "-p",
         "veoveo-computers",
+        "-p",
+        "veoveo-task-runtime",
         "-p",
         "veoveo-platform-store",
         "--all-targets",
@@ -39,12 +22,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:44:44Z",
-      "durationSeconds": 5.395364085,
+      "finishedAt": "2026-09-10T00:57:22Z",
+      "durationSeconds": 1.385811417,
       "detail": "completed successfully"
     },
     {
-      "name": "provider-wait-format",
+      "name": "computers-journal-format",
       "command": [
         "cargo",
         "fmt",
@@ -53,42 +36,34 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:45:43Z",
-      "durationSeconds": 2.586746116,
+      "finishedAt": "2026-09-10T00:58:10Z",
+      "durationSeconds": 2.447653126,
       "detail": "completed successfully"
     },
     {
-      "name": "provider-wait-store",
+      "name": "computers-journal-tests",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-platform-store",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T00:44:49Z",
-      "durationSeconds": 6.889510531,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "provider-wait-tests",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
+        "veoveo-computers",
         "-p",
         "veoveo-task-runtime",
+        "-p",
+        "veoveo-platform-store",
         "--lib",
+        "--test",
+        "operations",
+        "--test",
+        "admission",
         "--test",
         "provider_wait"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T00:45:08Z",
-      "durationSeconds": 26.800475854,
+      "finishedAt": "2026-09-10T00:57:44Z",
+      "durationSeconds": 21.976906563,
       "detail": "completed successfully"
     }
   ]

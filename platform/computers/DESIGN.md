@@ -39,7 +39,8 @@ lifecycle checkpoint. The retained Computer UUID is also the home allocation ide
 
 ## Delivery Boundary
 
-The current checkpoint implements private collection admission and readback. Shared
+The current checkpoint implements private collection admission, operation admission
+and shared Task linking. Shared
 Task dispatch/recovery, explicit delegation, renewable attachments, deletion with
 storage acknowledgement, agent execution and Artifact movement remain active work in
 `docs/COMPUTERS_PLAN.md`. Reservation alone is not a usable or deployed Computer.
@@ -55,3 +56,26 @@ The skill's suggested SQL formatter, `@surrealdb/surql-fmt` 0.1.0-beta.2, has no
 stable release and corrupted a CREATE CONTENT expression during adoption. Its output
 was rejected by the qualified database validator. Query formatting is reviewed
 manually until a formatter passes syntax and semantic preservation checks.
+
+## Operation Journal
+
+`queue_operation` commits the request fingerprint, immutable operation identity, original
+provider/resource/run state, Computer fence and audit event in one transaction. An exact
+retry returns the original operation; a changed action rejects the reused request ID.
+A different accepted request cannot replace an active operation. Create, Start and Stop
+require their respective admitted source phases. Mutations require current contributor
+membership and clearance for the context output labels before consuming capacity or
+creating a fence. The final facades must also enforce their explicit action policy.
+
+`ensure_operation_task` links the accepted journal record to the shared Task whose UUID
+matches the operation UUID. This is a recoverable second step, not a cross-component
+atomic transaction. A crash between the steps leaves the Computer fenced and retains
+all inputs needed to recreate the same Task. The Task carries the `provider_wait`
+profile and a retention pin. Concurrent link attempts use the shared Task idempotency
+boundary. Actor identity, Work Context and policy provenance remain in the journal;
+command text and provider credentials never enter its audit event.
+
+The dispatch worker must repair pending Task links on startup, persist dispatch stage
+before provider effects, and settle the domain before projecting a terminal Task.
+Those worker paths, recovery budgets and physical home fencing remain in progress.
+No journal method in this checkpoint dispatches a provider mutation or clears a fence.

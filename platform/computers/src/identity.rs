@@ -49,6 +49,19 @@ pub(crate) fn permits(stored: &TaskOwner, caller: &TaskOwner) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn can_mutate(caller: &TaskOwner) -> Result<()> {
+    owner_key(caller)?;
+    permits(caller, caller).map_err(|_| ComputerError::Forbidden)?;
+    if !caller
+        .authority
+        .membership
+        .allows(veoveo_mcp_contract::WorkContextMembershipLevel::Contributor)
+    {
+        return Err(ComputerError::Forbidden);
+    }
+    Ok(())
+}
+
 pub(crate) fn quota_key(owner: &TaskOwner) -> Result<String> {
     // Profile and Work Context isolate access, but cannot multiply an owner's quota.
     owner_key(owner)?;
