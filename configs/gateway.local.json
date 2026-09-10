@@ -768,7 +768,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true
+        "resources_list_changed": false
       },
       "tools": [
         "create",
