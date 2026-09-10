@@ -163,8 +163,9 @@ source removal, proves the failed transfer leaves that writer physically active,
 releases it and completes the transfer with the original bytes. It drops the first
 handoff response, retries the exact operation, restarts the helper, rejects a late old
 instance as the sole consumer, and transfers to a new template without reusing an
-instance identity. Native provider integration and public installed acceptance retain
-their separate tests.
+instance identity. The worker's native fixture reuses this launcher with the admitted
+template, production allocation client and native provider on that isolated daemon.
+Public installed acceptance and worker maintenance retain their separate requirements.
 
 ## Filesystem Backend And Native Evidence
 

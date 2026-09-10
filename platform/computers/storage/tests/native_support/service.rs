@@ -1,4 +1,4 @@
-use crate::docker_daemon::{DockerDaemon, bounded, checked};
+use crate::docker_daemon::{DockerDaemon, Profile, bounded, checked};
 use rcgen::{
     BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
     KeyUsagePurpose,
@@ -11,7 +11,9 @@ use std::{
 };
 use tokio::process::Command;
 use uuid::Uuid;
-use veoveo_computers_runtime::{AllocationConfig, Binding, HomeAllocator, PersistentHome};
+use veoveo_computers_runtime::{
+    AllocationConfig, Binding, DevelopmentTemplate, HomeAllocator, PersistentHome,
+};
 
 const HOST: &str = "unix:///var/run/docker.sock";
 const TEST: &str = "native_service_shared_mount_and_restart";
@@ -26,6 +28,7 @@ pub struct Fixture {
     service_name: String,
     image: String,
     finished: bool,
+    cleanup_test: &'static str,
 }
 fn host() -> Command {
     let mut command = Command::new("docker");
@@ -73,6 +76,12 @@ fn certificates(dir: &Path) {
 }
 impl Fixture {
     pub async fn start() -> Self {
+        Self::start_with_template(None, TEST).await
+    }
+    pub async fn start_with_template(
+        selected: Option<DevelopmentTemplate>,
+        cleanup_test: &'static str,
+    ) -> Self {
         let id = Uuid::now_v7();
         let root = PathBuf::from(
             std::env::var_os("VEOVEO_COMPUTERS_NATIVE_OUTPUT").expect("owned diagnostics root"),
@@ -87,7 +96,20 @@ impl Fixture {
         assert!(image.contains("@sha256:"));
         certificates(&dir.join("tls"));
         certificates(&dir.join("guest"));
-        let daemon = DockerDaemon::start(&dir, &socket_dir, &image, true).await;
+        let profile = if selected.is_some() {
+            Profile::NativeProvider {
+                test_name: cleanup_test,
+            }
+        } else {
+            Profile::SharedStorage
+        };
+        let fingerprint = selected
+            .as_ref()
+            .map(DevelopmentTemplate::fingerprint)
+            .unwrap_or_else(|| "f".repeat(64));
+        let templates = selected.as_ref().map(|template| vec![serde_json::json!({"fingerprint": fingerprint, "capacityBytes": u64::from(template.persistent_home().unwrap().capacity_mib()) * 1024 * 1024})])
+            .unwrap_or_else(|| vec![serde_json::json!({"fingerprint": "f".repeat(64), "capacityBytes": 536870912}), serde_json::json!({"fingerprint": "e".repeat(64), "capacityBytes": 536870912})]);
+        let daemon = DockerDaemon::start(&dir, &socket_dir, &image, profile).await;
         let engine = checked(daemon.command().args(["info", "--format", "{{.ID}}"])).await;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = listener.local_addr().unwrap().to_string();
@@ -95,7 +117,7 @@ impl Fixture {
         let config = serde_json::json!({
             "identity": {"providerId": Uuid::from_u128(100), "engineId": engine, "namespace": "storage-fixture"},
             "root": dir.join("retained"), "reserveBytes": 536870912,
-            "templates": [{"fingerprint": "f".repeat(64), "capacityBytes": 536870912}, {"fingerprint": "e".repeat(64), "capacityBytes": 536870912}],
+            "templates": templates,
             "dockerSocket": daemon.socket, "pluginName": "veoveo-retained",
             "pluginSocket": socket_dir.join("volume.sock"), "listen": endpoint,
             "tls": {"workerCa": dir.join("tls/ca.pem"), "certificate": dir.join("tls/server.pem"), "privateKey": dir.join("tls/server-key.pem")},
@@ -109,13 +131,14 @@ impl Fixture {
             dir,
             provider: Uuid::from_u128(100),
             endpoint,
-            initial: Binding::new(id, "f".repeat(64)).unwrap(),
-            replacement: Binding::replacement(id, Uuid::now_v7(), "f".repeat(64)).unwrap(),
+            initial: Binding::new(id, fingerprint.clone()).unwrap(),
+            replacement: Binding::replacement(id, Uuid::now_v7(), fingerprint).unwrap(),
             daemon: Some(daemon),
             socket_dir,
             service_name: format!("veoveo-storage-service-{}", id.simple()),
             image,
             finished: false,
+            cleanup_test,
         };
         fixture.start_service().await;
         fixture
@@ -132,7 +155,8 @@ impl Fixture {
         fixture
     }
     pub async fn worker(&self, provider: Uuid) -> HomeAllocator {
-        self.worker_template(provider, &"f".repeat(64)).await
+        self.worker_template(provider, self.initial.template_fingerprint())
+            .await
     }
     pub async fn worker_template(&self, provider: Uuid, fingerprint: &str) -> HomeAllocator {
         HomeAllocator::new(
@@ -152,6 +176,18 @@ impl Fixture {
     }
     pub fn docker(&self) -> Command {
         self.daemon.as_ref().unwrap().command()
+    }
+    pub fn docker_socket(&self) -> PathBuf {
+        self.daemon.as_ref().unwrap().socket.clone()
+    }
+    pub fn allocation_config(&self) -> AllocationConfig {
+        AllocationConfig::new(
+            self.endpoint.clone(),
+            self.dir.join("tls/ca.pem"),
+            self.dir.join("tls/client.pem"),
+            self.dir.join("tls/client-key.pem"),
+        )
+        .unwrap()
     }
     pub fn container(&self, suffix: &str) -> String {
         format!("fixture-{suffix}")
@@ -204,7 +240,14 @@ impl Fixture {
                 "",
             ),
             (
-                PathBuf::from(env!("CARGO_BIN_EXE_veoveo-computer-storage")),
+                option_env!("CARGO_BIN_EXE_veoveo-computer-storage")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| {
+                        PathBuf::from(
+                            std::env::var_os("VEOVEO_COMPUTERS_NATIVE_ALLOCATOR")
+                                .expect("qualified allocator binary"),
+                        )
+                    }),
                 PathBuf::from("/storage"),
                 ",readonly",
             ),
@@ -535,17 +578,23 @@ impl Fixture {
                 "/storage-test",
                 &self.image,
                 "--exact",
-                TEST,
+                self.cleanup_test,
                 "--ignored",
                 "--nocapture",
             ]);
         command
     }
-    pub async fn finish(mut self, remaining: &str) {
-        self.remove(remaining).await;
+    pub async fn finish(mut self, remaining: Option<&str>) {
+        if let Some(remaining) = remaining {
+            self.remove(remaining).await;
+        }
         self.daemon.take().unwrap().finish().await;
         self.stop_service().await;
         checked(&mut self.cleanup_command()).await;
+        assert!(
+            !self.dir.join("retained").exists(),
+            "retained fixture cleanup did not run"
+        );
         fs::remove_dir(&self.socket_dir).unwrap();
         self.finished = true;
     }

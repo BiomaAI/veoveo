@@ -1,6 +1,8 @@
 #![allow(dead_code)] // Shared native fixtures expose scenario-specific operations.
-#[path = "../../../platform/runtimes/computers/tests/native_support/block_home.rs"]
-mod block_home;
+#[path = "../../../platform/runtimes/computers/tests/native_support/docker_daemon.rs"]
+mod docker_daemon;
+#[path = "../../../platform/computers/storage/tests/native_support/service.rs"]
+mod native_service_support;
 #[path = "../../../platform/runtimes/computers/tests/native_support/mod.rs"]
 mod provider;
 #[path = "../../../platform/computers/tests/support/mod.rs"]
@@ -19,17 +21,18 @@ use veoveo_computers::{
     CapacityPolicy, ComputersStore, Operation, OperationStage, Reservation,
     api::{Action, ComputerPhase},
 };
-use veoveo_computers_mcp::{LifecycleWorker, Preflight, PreflightError, WorkerStep};
+use veoveo_computers_mcp::{LifecycleWorker, Preflight, PreflightError, RetainedHomes, WorkerStep};
 use veoveo_computers_runtime::{Binding, DevelopmentTemplate, ExecIntent, PERSISTENT_HOME};
 use veoveo_task_runtime::{TaskRuntime, TaskStatus};
 
-/// Test-only gate over the explicitly prepared isolated block volume. This is not
-/// evidence for the production allocator. Dispatch uses real current policy.
+/// Counts entry to production preflight without replacing its allocation or the
+/// domain's independent current action-authority check.
 #[derive(Clone)]
 struct FixtureGate {
     computer: Uuid,
     fingerprint: String,
     preparations: Arc<AtomicU32>,
+    retained: RetainedHomes,
 }
 impl Preflight for FixtureGate {
     async fn prepare_home(
@@ -42,7 +45,9 @@ impl Preflight for FixtureGate {
         assert_eq!(binding.computer_id(), self.computer);
         assert_eq!(template.fingerprint(), self.fingerprint);
         self.preparations.fetch_add(1, Ordering::SeqCst);
-        Ok(())
+        self.retained
+            .prepare_home(operation, binding, template)
+            .await
     }
 }
 async fn expire(tasks: &TaskRuntime, operation: &Operation) {
@@ -79,10 +84,40 @@ async fn shell(
 #[tokio::test]
 #[ignore = "requires pinned native provider/image; owns isolated database and privileged 512 MiB block-volume fixture"]
 async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_fenced() {
+    if std::env::var_os(docker_daemon::registry_relay::CHILD_ENV).is_some() {
+        docker_daemon::registry_relay::child().await.unwrap();
+        return;
+    }
+    if std::env::var_os("VEOVEO_STORAGE_SERVICE_CLEANUP").is_some() {
+        native_service_support::cleanup();
+        return;
+    }
     let db = support::TestDb::new().await;
     support::policy::install_default(&db.a).await;
-    let mut provider = provider::Provider::start().await;
-    let selected = template::retained_template(provider.image.clone());
+    let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE").expect("pinned Computer image");
+    let selected = template::retained_template(image);
+    let home = native_service_support::Fixture::start_with_template(
+        Some(selected.clone()),
+        "worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_fenced",
+    )
+    .await;
+    let gateway_ip = docker_daemon::checked(docker_daemon::host().args([
+        "network",
+        "inspect",
+        "bridge",
+        "--format",
+        "{{(index .IPAM.Config 0).Gateway}}",
+    ]))
+    .await
+    .parse()
+    .unwrap();
+    let mut provider = provider::Provider::start_on_compute_host(provider::ComputeHost {
+        socket: home.docker_socket(),
+        output: home.dir.clone(),
+        namespace: "storage-fixture".into(),
+        gateway_ip,
+    })
+    .await;
     let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
     let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(100)).unwrap();
     a.install_capacity(
@@ -107,15 +142,17 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         )
         .await
         .unwrap();
-    let home = block_home::BlockHome::create(
-        provider.dir.clone(),
-        provider.image.clone(),
-        computer.computer_id,
-    );
     let gate = FixtureGate {
         computer: computer.computer_id,
         fingerprint: selected.fingerprint(),
         preparations: Arc::new(AtomicU32::new(0)),
+        retained: RetainedHomes::new(
+            Uuid::from_u128(100),
+            home.allocation_config(),
+            std::slice::from_ref(&selected),
+        )
+        .await
+        .unwrap(),
     };
     let tasks_a = TaskRuntime::new(db.a.clone(), "computers", "worker-a");
     let tasks_b = TaskRuntime::new(db.b.clone(), "computers", "worker-b");
@@ -150,7 +187,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     let (left, right) = tokio::join!(worker_a.step(create.clone()), worker_b.step(create.clone()));
     assert!(
         matches!(left, Ok(WorkerStep::Settled)) || matches!(right, Ok(WorkerStep::Settled)),
-        "a worker must settle the native Create"
+        "a worker must settle the native Create: left={left:?}, right={right:?}"
     );
     let ready = a.get(&actor, computer.computer_id).await.unwrap();
     assert_eq!(ready.phase, ComputerPhase::Ready);
@@ -178,7 +215,9 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         )
         .await
         .unwrap();
+    home.stop_service().await;
     assert_eq!(worker_b.step(stop).await.unwrap(), WorkerStep::Settled);
+    home.start_service().await;
     let start = a
         .queue_operation(
             support::authenticated(&actor),
@@ -377,5 +416,8 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             == veoveo_computers_runtime::Phase::Stopped
     );
     provider.assert_running();
-    home.finish();
+    drop(worker_a);
+    drop(worker_b);
+    drop(provider);
+    home.finish(None).await;
 }

@@ -29,6 +29,7 @@ fn storage_identity(id: Uuid) -> Result<wire::IdentityId> {
 pub mod wire {
     include!(concat!(env!("OUT_DIR"), "/allocation.rs"));
 }
+#[derive(Clone)]
 pub struct AllocationConfig {
     endpoint: String,
     ca_path: PathBuf,

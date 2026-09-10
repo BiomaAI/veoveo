@@ -27,8 +27,9 @@ automatic work queue after its waiting projection, avoiding repeated claims fore
 
 Create, Start and Stop resolve the recorded template fingerprint. A new default
 cannot replace it. Configured runtime and store provider identities must agree.
-Every worker template requires a retained home. Installation preflight verifies
-the exact allocation. The domain enforces current action authority during dispatch;
+Every worker template requires a retained home. `RetainedHomes` binds the provider,
+admitted template fingerprint and capacity to the private allocator client. Create
+prepares the allocation; Start restores that exact home and instance. The domain enforces current action authority during dispatch;
 the storage adapter cannot override it. Stop does not depend on allocator availability.
 Authority is checked after potentially slow storage preparation. The ticket includes
 read latency in its thirty-second maximum
@@ -56,6 +57,11 @@ Audit events contain identities and provenance, without commands or credentials.
 
 The current library has no public protocol surface or runnable installation entrypoint.
 Discovery, tools, resources, subscriptions, completion/prompts, well-known resources,
-conformance, live grant authority, retained allocator and production packaging remain
-delivery work. Its native fixture uses the actual current-policy reader and an isolated
-installation revision, while retained storage preparation still uses a fixture adapter.
+conformance, live grant authority and production packaging remain delivery work.
+Its native fixture uses the actual current-policy reader, isolated installation
+revision, production retained allocator and native OpenShell provider. Two worker
+replicas compete for Create, then Stop succeeds with the allocator offline. Start
+after allocator replacement preserves the file and changes the process identity.
+Lost dispatch/settlement and current-policy cases retain their domain fence assertions.
+The fixture establishes this composition; it does not establish public MCP or
+installation acceptance.

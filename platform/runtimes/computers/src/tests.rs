@@ -484,6 +484,17 @@ impl api::open_shell_server::OpenShell for Fake {
         let expected = state.expected_binding.clone().unwrap_or_else(binding);
         assert_eq!(request.name, expected.name());
         assert_eq!(request.labels, expected.labels());
+        assert_eq!(
+            request
+                .spec
+                .as_ref()
+                .unwrap()
+                .template
+                .as_ref()
+                .unwrap()
+                .labels,
+            expected.labels()
+        );
         state.creates += 1;
         if state.sandbox.is_some() {
             return Err(Status::already_exists("same"));
