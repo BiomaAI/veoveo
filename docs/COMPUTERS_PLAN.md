@@ -488,6 +488,29 @@ lease text. Frontend tests qualify closed loopback delivery and revocation after
 delivery failure. Public installation acceptance remains outstanding until these
 application images, ingress route and migration are deployed together.
 
+The public CLI checkpoint is installed at `veoveo.bioma.ai` in Helm revision 147.
+Computers MCP and gateway use source `ba2161c8`; Console uses `d3832c35`, and the
+coordinated installation selection is `c852b454`. The unmodified qualified CLI pairs
+through the signed-in browser, connects by the public Computer UUID, retains shell
+state across connection leases and reads the existing home as UID 10001. Named Revoke
+and Console Sign out each close access and reject a new connection with the old
+credential. A fresh browser connection confirms the denied commands did not run and
+the original retained file remains. The native fixture supplies the precise bounded
+closure and source-token-expiry evidence; the public journey does not measure those
+bounds independently.
+
+The installed consent-first page proves both allowed and denied local-device browser
+permission. Denial creates no pairing request or grant. With permission allowed, the
+credential-free local OPTIONS check completes before the two public issuance calls
+and the one credential delivery. Headed Chrome has NVIDIA RTX 4090 WebGL; its fallback
+WebGPU adapter does not establish hardware evidence. CLI auto-opening on the acceptance
+host selected a different desktop browser under the isolated client configuration;
+the final checks used the stock client's printed-URL path in the existing headed
+browser. Browser modal interaction itself is not automated acceptance evidence.
+
+Scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
+operator recovery and the remaining clean/offline installation gates stay active.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

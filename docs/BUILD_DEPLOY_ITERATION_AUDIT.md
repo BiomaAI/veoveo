@@ -3119,3 +3119,20 @@ family from three services to Console reported 491 changed paths and caused a
 31.81-second optimized compile. The operating-system and npm dependency layers were
 cached. Reusing the BFF binary across frontend-only changes is still concrete build
 work; calling this publication a cache hit would hide most of its cost.
+
+Helm revision 147 installs the consent-first Console digest. With Apps on device
+blocked, the actual page reports that no access was issued; it sends zero pairing
+requests. With that permission allowed, the stock local OPTIONS response took 4.8 ms,
+public begin/confirm took 113 and 117 ms, and final credential delivery took 5.5 ms.
+These are individual warm observations. The page and stock CLI both confirmed
+authentication. The inspected screenshot was returned inline by the headed-browser
+tool because its explicit local output path was rejected by that tool's workspace
+boundary. No local screenshot file was created for this observation.
+
+Console Sign out closed the stock shell and a fresh command with the old credential
+received HTTP 403 at 18:55:59 UTC. Existing identity-provider SSO then returned the
+Console to a fresh sign-in; the old access inventory was empty. A new browser
+attachment verified the post-logout marker was absent, read the original retained
+file, and returned UID 10001. The site's local-device permission was restored to its
+original default after qualification. The browser remains headed with hardware
+NVIDIA WebGL; its SwiftShader WebGPU adapter is not accepted as GPU evidence.
