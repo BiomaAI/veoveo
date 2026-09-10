@@ -434,7 +434,7 @@ retain their own acceptance and do not silently enter the supported matrix.
 Current delivery checkpoint: the phase 0/1 private runtime port passes 60 local
 transport/policy/stream/recovery tests and all-target Clippy. Persistable lifecycle
 checkpoints bind provider and operation identity; one deadline-bounded read can
-reconcile a lost observation without redispatch. Start requires a new process epoch.
+reconcile a lost observation without redispatch. Start requires a new process epoch on both the healthy watch and recovery paths.
 The durable domain budget and native provider qualification remain in progress. Upstream
 main is unchanged at `11f59d55`; the existing host has sufficient disk reserve and the
 Bioma cluster is Ready. The installed stock CLI is `0.0.14` and cannot establish the

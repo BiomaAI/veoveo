@@ -71,9 +71,11 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     let runtime = &provider.runtime;
     let template = template(provider.image.clone());
     let binding = Binding::new(Uuid::now_v7(), template.fingerprint()).unwrap();
+    let create =
+        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), binding.clone()).unwrap();
     let created = runtime.create(&binding, &template).await.unwrap();
     let ready = runtime
-        .wait_for(&binding, &created, Phase::Ready)
+        .wait_for_lifecycle(&create, &created, Duration::from_secs(30))
         .await
         .unwrap();
     assert!(!ready.main_process_instance_id.is_empty());
@@ -136,7 +138,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     .unwrap();
     let stopping = runtime.stop(&binding).await.unwrap();
     let stopped = runtime
-        .wait_for(&binding, &stopping, Phase::Stopped)
+        .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(30))
         .await
         .unwrap();
     assert!(matches!(
@@ -155,7 +157,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     .unwrap();
     let starting = runtime.start(&binding).await.unwrap();
     let restarted = runtime
-        .wait_for(&binding, &starting, Phase::Ready)
+        .wait_for_lifecycle(&start, &starting, Duration::from_secs(30))
         .await
         .unwrap();
     assert_ne!(

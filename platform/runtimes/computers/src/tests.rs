@@ -577,6 +577,7 @@ impl api::open_shell_server::OpenShell for Fake {
                 ))])));
             }
             3 => return Ok(Response::new(boxed(vec![]))),
+            9 => return Ok(Response::new(Box::pin(stream::pending()))),
             4 => {
                 let mut s = state.sandbox.clone().unwrap();
                 s.status.as_mut().unwrap().phase = Phase::Ready as i32;
@@ -609,7 +610,11 @@ impl api::open_shell_server::OpenShell for Fake {
                     Phase::Ready
                 };
                 let s = state.sandbox.as_mut().unwrap();
-                s.status.as_mut().unwrap().phase = target as i32;
+                let status = s.status.as_mut().unwrap();
+                if target == Phase::Ready && status.phase == Phase::Starting as i32 {
+                    status.main_process_instance_id = Uuid::now_v7().to_string();
+                }
+                status.phase = target as i32;
                 api::sandbox_stream_event::Payload::Sandbox(s.clone())
             }
         };
@@ -852,22 +857,35 @@ async fn generated_mtls_lifecycle_and_watch_never_poll_completion() {
     let runtime = &running.runtime;
     let b = binding();
     running.fake.0.lock().unwrap().sandbox = None;
+    let create =
+        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), b.clone()).unwrap();
     let created = runtime.create(&b, &template(false)).await.unwrap();
     assert!(created.phase == Phase::Provisioning);
     let calls = running.fake.0.lock().unwrap().gets;
-    let ready = runtime.wait_for(&b, &created, Phase::Ready).await.unwrap();
+    let ready = runtime
+        .wait_for_lifecycle(&create, &created, Duration::from_secs(10))
+        .await
+        .unwrap();
     assert!(ready.phase == Phase::Ready);
     assert_eq!(running.fake.0.lock().unwrap().gets, calls);
     runtime.create(&b, &template(false)).await.unwrap();
     assert_eq!(running.fake.0.lock().unwrap().creates, 1);
+    let stop =
+        LifecycleCheckpoint::stop(Uuid::from_u128(100), Uuid::now_v7(), b.clone(), &ready).unwrap();
     let stopping = runtime.stop(&b).await.unwrap();
     let stopped = runtime
-        .wait_for(&b, &stopping, Phase::Stopped)
+        .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(10))
         .await
         .unwrap();
     assert!(stopped.phase == Phase::Stopped);
+    let start =
+        LifecycleCheckpoint::start(Uuid::from_u128(100), Uuid::now_v7(), b.clone(), &stopped)
+            .unwrap();
     let starting = runtime.start(&b).await.unwrap();
-    runtime.wait_for(&b, &starting, Phase::Ready).await.unwrap();
+    runtime
+        .wait_for_lifecycle(&start, &starting, Duration::from_secs(10))
+        .await
+        .unwrap();
     assert_eq!(running.fake.0.lock().unwrap().starts, 1);
     assert_eq!(running.fake.0.lock().unwrap().stops, 1);
 }
@@ -943,6 +961,10 @@ async fn gateway_admission_auth_and_identity_fail_closed() {
 #[tokio::test]
 async fn watch_warning_transport_end_and_identity_replacement_are_failures() {
     let running = Running::start().await;
+    let before = running.runtime.get(&binding()).await.unwrap().unwrap();
+    let checkpoint =
+        LifecycleCheckpoint::start(Uuid::from_u128(100), Uuid::now_v7(), binding(), &before)
+            .unwrap();
     let current = running.runtime.start(&binding()).await.unwrap();
     let calls = running.fake.0.lock().unwrap().gets;
     for mode in 1..=4 {
@@ -950,7 +972,7 @@ async fn watch_warning_transport_end_and_identity_replacement_are_failures() {
         assert!(
             running
                 .runtime
-                .wait_for(&binding(), &current, Phase::Ready)
+                .wait_for_lifecycle(&checkpoint, &current, Duration::from_secs(10))
                 .await
                 .is_err()
         );
