@@ -1,43 +1,47 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:3476712685bcba2d6c2096c4aab413b4f7a4c4a594956ea673dc3c334dd81fd3",
-  "updatedAt": "2026-09-10T15:35:25Z",
+  "buildDigest": "sha256:7db493353113043f6293c964ab57662e6e965450b8a9ddac4abc263c7a537a96",
+  "updatedAt": "2026-09-10T15:41:33Z",
   "checks": [
     {
-      "name": "installed-allocation-helm",
+      "name": "terminal-browser-build",
       "command": [
-        "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:35:25Z",
-      "durationSeconds": 6.511787321,
+      "finishedAt": "2026-09-10T15:41:28Z",
+      "durationSeconds": 6.277423232,
       "detail": "completed successfully"
     },
     {
-      "name": "retained-allocation-published",
+      "name": "terminal-browser-clock",
       "command": [
-        "env",
-        "VEOVEO_COMPUTERS_HOST_IMAGE=localhost:5001/veoveo/computer-host@sha256:6d5f789e7b3dfecf1cee9f699c77cd0049e1fc334fd572d7c9abec61809bc8da",
-        "VEOVEO_COMPUTERS_HOST_TEST_IMAGE=172.17.0.2:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
-        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "veoveo-computer-host",
+        "node",
+        "--experimental-strip-types",
         "--test",
-        "native_host",
-        "--",
-        "--ignored",
-        "--nocapture"
+        "apps/console/web/src/computerTerminal.test.ts"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:35:17Z",
-      "durationSeconds": 32.144240397,
+      "finishedAt": "2026-09-10T15:41:21Z",
+      "durationSeconds": 0.170031062,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "terminal-browser-lint",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T15:41:33Z",
+      "durationSeconds": 4.194516611,
       "detail": "completed successfully"
     }
   ]
