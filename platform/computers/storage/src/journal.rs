@@ -38,7 +38,7 @@ pub struct BackingIdentity {
     length: u64,
 }
 impl BackingIdentity {
-    fn capture(file: &File) -> Result<Self> {
+    pub(crate) fn capture(file: &File) -> Result<Self> {
         let metadata = private_file(file)?;
         Ok(Self {
             device: metadata.dev(),
@@ -107,7 +107,8 @@ pub struct Journal {
 }
 
 /// Only a newly created reservation can begin one physical allocation attempt.
-/// An existing Allocating record requires recovery, even when its file is absent.
+/// An existing Allocating record can only recover verified complete filesystem
+/// bytes. Missing or incomplete bytes never authorize another format.
 #[derive(Debug)]
 pub enum Reservation {
     Created(AllocationRecord),

@@ -21,6 +21,8 @@ use uuid::Uuid;
 
 const HOME_UID: u32 = 10001;
 mod fence;
+mod loop_devices;
+mod recovery;
 pub(crate) use fence::FencedHome;
 pub struct Filesystem {
     journal: Journal,
@@ -73,7 +75,9 @@ impl Filesystem {
         }
         match self.journal.reserve(identity.clone(), capacity_bytes)? {
             Reservation::Existing(record) => match record.state() {
-                AllocationState::Allocating => Err(StorageError::RecoveryRequired),
+                AllocationState::Allocating => {
+                    self.recover_allocation(&identity, capacity_bytes).await
+                }
                 AllocationState::Ready { .. } => self.restore(&identity).await,
             },
             Reservation::Created(_) => {
@@ -178,59 +182,8 @@ fn verify_home(path: &Path) -> Result<()> {
 
 async fn attach(directory: &Path, computer_id: Uuid) -> Result<PathBuf> {
     let backing = directory.join("home.ext4");
-    let kind = command::checked(
-        "blkid",
-        &[
-            OsStr::new("-p"),
-            OsStr::new("-s"),
-            OsStr::new("TYPE"),
-            OsStr::new("-o"),
-            OsStr::new("value"),
-            backing.as_os_str(),
-        ],
-    )
-    .await?;
-    let uuid = command::checked(
-        "blkid",
-        &[
-            OsStr::new("-p"),
-            OsStr::new("-s"),
-            OsStr::new("UUID"),
-            OsStr::new("-o"),
-            OsStr::new("value"),
-            backing.as_os_str(),
-        ],
-    )
-    .await?;
-    if kind != "ext4" || uuid != computer_id.to_string() {
-        return Err(StorageError::RecoveryRequired);
-    }
-    let devices = command::checked(
-        "losetup",
-        &[
-            OsStr::new("--list"),
-            OsStr::new("--noheadings"),
-            OsStr::new("--output"),
-            OsStr::new("NAME"),
-            OsStr::new("--associated"),
-            backing.as_os_str(),
-        ],
-    )
-    .await?;
-    let device = if devices.is_empty() {
-        command::checked(
-            "losetup",
-            &[
-                OsStr::new("--find"),
-                OsStr::new("--show"),
-                OsStr::new("--nooverlap"),
-                backing.as_os_str(),
-            ],
-        )
-        .await?
-    } else {
-        devices
-    };
+    verify_filesystem(&backing, computer_id).await?;
+    let device = loop_devices::attach(&backing).await?;
     if !device.strip_prefix("/dev/loop").is_some_and(|number| {
         !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit())
     }) {
@@ -267,6 +220,37 @@ async fn attach(directory: &Path, computer_id: Uuid) -> Result<PathBuf> {
             .verify(&target, &device)?;
     }
     Ok(target)
+}
+
+async fn verify_filesystem(backing: &Path, computer_id: Uuid) -> Result<()> {
+    let kind = command::checked(
+        "blkid",
+        &[
+            OsStr::new("-p"),
+            OsStr::new("-s"),
+            OsStr::new("TYPE"),
+            OsStr::new("-o"),
+            OsStr::new("value"),
+            backing.as_os_str(),
+        ],
+    )
+    .await?;
+    let uuid = command::checked(
+        "blkid",
+        &[
+            OsStr::new("-p"),
+            OsStr::new("-s"),
+            OsStr::new("UUID"),
+            OsStr::new("-o"),
+            OsStr::new("value"),
+            backing.as_os_str(),
+        ],
+    )
+    .await?;
+    if kind != "ext4" || uuid != computer_id.to_string() {
+        return Err(StorageError::RecoveryRequired);
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]

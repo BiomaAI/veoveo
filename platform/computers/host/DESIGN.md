@@ -40,6 +40,11 @@ That volume must be backed by persistent ext4. Overlay, tmpfs and remote storage
 admission. Docker data, the storage journal and provider SQLite state survive container
 replacement. `/run/veoveo-computers` is disposable private runtime state.
 
+Storage discovers loop devices added after container creation and creates only their
+verified block nodes inside this private `/dev`. Native qualification removes those
+nodes before allocation, then simulates an interrupted Ready publication and verifies
+that recovery preserves the backing inode and bytes before the retained restart test.
+
 This is a trusted single-host container profile. Privileged host root and general
 Docker administration remain operator authority. This profile does not claim VM-grade
 hostile-tenant isolation. GPU-capable Computer templates require their separate
