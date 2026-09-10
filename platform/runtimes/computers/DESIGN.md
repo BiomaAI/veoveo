@@ -77,12 +77,19 @@ and native handoff qualification remain active work.
 
 ## Native Storage Boundary Probe
 
-`tests/native_volume_plugin.rs` tests a candidate writer boundary using actual Docker
-containers and a disposable directory. A mount requires exactly one registered
-container with the expected Computer identity. A stopped container continues to reserve
-that identity until removal. Unmount notifications do not release access. The probe
-checks nested `docker cp`, competing writers, Stop/Start and replacement after source
-removal. It does not establish quota enforcement, backup safety or production allocation.
+`retained_writer` matches the admitted binding against the selected subset of Docker's
+registered-container response. It requires the recorded engine UUID, one full container
+ID, provider namespace, OpenShell management/name labels and complete Computer/template/
+instance labels. The provider UUID is bound to that engine and namespace by the host
+configuration. The matcher cannot change an admission or establish a physical handoff.
+
+`tests/native_volume_plugin.rs` exercises that matcher using actual Docker containers
+and a disposable directory. A stopped container continues to reserve the volume until
+removal. Unmount notifications do not release access. The probe checks nested `docker
+cp`, competing writers, Stop/Start and explicit replacement after source removal.
+A late old instance remains denied even when it is the sole registered consumer.
+The fixture explicitly changes its in-memory admission after verifying removal; it
+does not establish a durable allocator, quota enforcement or backup safety.
 
 The selected producer must use `volume-nocopy`. Docker otherwise populates a volume
 before the new container enters its registry, which prevents container enumeration

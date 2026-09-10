@@ -1,10 +1,33 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:e475255bc61b994eebc602dd5634704a871be2647d2bc598f9932dd54ddb5ef8",
-  "updatedAt": "2026-09-10T04:54:39Z",
+  "buildDigest": "sha256:1511be9ab0993a2bea2c8d62d56aefac7ee42b93eb71e072a7cab7f404ba0145",
+  "updatedAt": "2026-09-10T05:05:13Z",
   "checks": [
     {
-      "name": "computer-allocation-identity",
+      "name": "computer-volume-boundary",
+      "command": [
+        "env",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--test",
+        "native_volume_plugin",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T05:02:09Z",
+      "durationSeconds": 10.580237585,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computer-writer-identity",
       "command": [
         "cargo",
         "test",
@@ -13,11 +36,11 @@
         "-p",
         "veoveo-computers-runtime",
         "--lib",
-        "allocation_tests"
+        "retained_writer"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T04:53:38Z",
-      "durationSeconds": 0.536995851,
+      "finishedAt": "2026-09-10T05:04:13Z",
+      "durationSeconds": 0.516496621,
       "detail": "completed successfully"
     },
     {
@@ -35,8 +58,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T04:54:30Z",
-      "durationSeconds": 6.302556638,
+      "finishedAt": "2026-09-10T05:04:37Z",
+      "durationSeconds": 5.064724238,
       "detail": "completed successfully"
     },
     {
@@ -49,8 +72,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T04:54:39Z",
-      "durationSeconds": 2.436613457,
+      "finishedAt": "2026-09-10T05:05:13Z",
+      "durationSeconds": 2.519045455,
       "detail": "completed successfully"
     }
   ]

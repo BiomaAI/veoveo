@@ -157,6 +157,7 @@ Hub, administration, and GPU policy.
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
 | `platform/computers/images/` | candidate Computer user environment with pinned Ubuntu base/archive inputs and numeric process identity; separate from the privileged provider and retained allocator |
 | `platform/runtimes/computers/tests/native_volume_plugin.rs` and `tests/native_support/docker_daemon.rs` | native registered-writer probe with a disposable Docker daemon, pinned image import and daemon-scoped plugin cleanup |
+| `platform/runtimes/computers/src/retained_writer.rs` | exact Docker engine, provider namespace and Computer-instance matching for retained volume admission; persisted physical handoff remains allocator work |
 | `servers/computers-mcp/` | bounded lifecycle worker, retained-storage preparation, domain-enforced current policy, native dispatch and Task projection; public facade, production allocator and package remain active work |
 | `servers/` | independently deployed MCP servers and protocol projections |
 | `testing/` | conformance tooling and multi-process smoke harnesses |
