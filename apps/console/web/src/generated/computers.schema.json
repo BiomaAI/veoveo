@@ -137,11 +137,16 @@
           "maximum": 7200,
           "minimum": 1,
           "type": "integer"
+        },
+        "onInterruption": {
+          "$ref": "#/$defs/AutomationInterruption",
+          "description": "Cancellation, expiry or uncertain execution can stop this Computer run.\nIts retained files remain. This grants no independent agent Stop action."
         }
       },
       "required": [
         "maximumSeconds",
-        "maximumOutputBytes"
+        "maximumOutputBytes",
+        "onInterruption"
       ],
       "type": "object"
     },
@@ -230,6 +235,12 @@
         "expiresAt"
       ],
       "type": "object"
+    },
+    "AutomationInterruption": {
+      "enum": [
+        "stop_computer"
+      ],
+      "type": "string"
     },
     "AutomationPermission": {
       "enum": [

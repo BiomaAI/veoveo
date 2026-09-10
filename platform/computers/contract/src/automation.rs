@@ -17,12 +17,21 @@ pub enum AutomationPermission {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationInterruption {
+    StopComputer,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AutomationExecutionLimits {
     #[schemars(range(min = 1, max = 7200))]
     pub maximum_seconds: u32,
     #[schemars(range(min = 1, max = 67108864))]
     pub maximum_output_bytes: u32,
+    /// Cancellation, expiry or uncertain execution can stop this Computer run.
+    /// Its retained files remain. This grants no independent agent Stop action.
+    pub on_interruption: AutomationInterruption,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -37,6 +46,7 @@ pub struct IssueAutomationGrantInput {
     #[schemars(length(min = 1, max = 64))]
     pub name: String,
     #[schemars(length(min = 1, max = 4))]
+    #[serde(deserialize_with = "unique_permissions")]
     pub permissions: BTreeSet<AutomationPermission>,
     pub execution_limits: Option<AutomationExecutionLimits>,
     pub expires_at: DateTime<Utc>,
@@ -50,6 +60,7 @@ pub struct AutomationGrantView {
     pub principal_id: String,
     pub oauth_client_id: String,
     pub name: String,
+    #[serde(deserialize_with = "unique_permissions")]
     pub permissions: BTreeSet<AutomationPermission>,
     pub execution_limits: Option<AutomationExecutionLimits>,
     pub issued_at: DateTime<Utc>,
@@ -70,4 +81,68 @@ pub struct AutomationGrantCollection {
 pub struct RevokeAutomationGrantInput {
     pub computer_id: Uuid,
     pub grant_id: Uuid,
+}
+
+fn unique_permissions<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<BTreeSet<AutomationPermission>, D::Error> {
+    struct Permissions;
+    impl<'de> serde::de::Visitor<'de> for Permissions {
+        type Value = BTreeSet<AutomationPermission>;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("one to four distinct automation permissions")
+        }
+        fn visit_seq<A: serde::de::SeqAccess<'de>>(
+            self,
+            mut sequence: A,
+        ) -> Result<Self::Value, A::Error> {
+            let mut values = BTreeSet::new();
+            while let Some(value) = sequence.next_element::<AutomationPermission>()? {
+                if !values.insert(value) {
+                    return Err(serde::de::Error::custom("duplicate automation permission"));
+                }
+            }
+            if values.is_empty() {
+                return Err(serde::de::Error::custom(
+                    "automation permissions must not be empty",
+                ));
+            }
+            Ok(values)
+        }
+    }
+    deserializer.deserialize_seq(Permissions)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn grant_wire_requires_distinct_permissions_and_explicit_interruption_scope() {
+        let grant = serde_json::json!({
+            "computerId":Uuid::nil(),"requestId":Uuid::nil(),"principalId":"agent","oauthClientId":"agent",
+            "name":"Builder","permissions":["read","execute"],"expiresAt":"2026-09-10T21:00:00Z",
+            "executionLimits":{"maximumSeconds":30,"maximumOutputBytes":1024,"onInterruption":"stop_computer"}
+        });
+        let decoded: IssueAutomationGrantInput = serde_json::from_value(grant.clone()).unwrap();
+        assert_eq!(decoded.permissions.len(), 2);
+        for permissions in [
+            serde_json::json!([]),
+            serde_json::json!(["read", "read"]),
+            serde_json::json!(["execute", "execute"]),
+            serde_json::json!(["admin"]),
+        ] {
+            let mut invalid = grant.clone();
+            invalid["permissions"] = permissions;
+            assert!(serde_json::from_value::<IssueAutomationGrantInput>(invalid).is_err());
+        }
+        for scope in [None, Some("continue")] {
+            let mut invalid = grant.clone();
+            let limits = invalid["executionLimits"].as_object_mut().unwrap();
+            limits.remove("onInterruption");
+            if let Some(scope) = scope {
+                limits.insert("onInterruption".into(), scope.into());
+            }
+            assert!(serde_json::from_value::<IssueAutomationGrantInput>(invalid).is_err());
+        }
+    }
 }

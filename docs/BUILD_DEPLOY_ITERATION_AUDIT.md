@@ -3249,3 +3249,9 @@ The three command-admission cases passed in 1.56 seconds after the five grant ca
 ran in 3.02 seconds; their combined incremental compile took 6.98 seconds. They use
 the same maintained isolated-store fixture and shared automation policy setup.
 No provider launch is needed to qualify admission races or Task reconstruction.
+
+The command-dispatch store suite passed six cases in 12.40 seconds after 13.63
+seconds of compilation. One refusal matrix uses six fresh isolated databases,
+which explains most of the runtime; it proves lease, revocation, cancellation,
+run and ciphertext failures without rebuilding or launching the provider. This
+separation keeps authority and journal iteration independent of image publication.

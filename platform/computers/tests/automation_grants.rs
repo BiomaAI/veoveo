@@ -364,7 +364,8 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
         authority.execution_limits().unwrap(),
         Some(AutomationExecutionLimits {
             maximum_seconds: 5,
-            maximum_output_bytes: 8
+            maximum_output_bytes: 8,
+            on_interruption: veoveo_computers_contract::AutomationInterruption::StopComputer,
         })
     );
     b.install_automation_grant_policy(

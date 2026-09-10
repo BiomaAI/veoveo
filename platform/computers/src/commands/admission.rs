@@ -1,4 +1,4 @@
-use super::{QueuedCommand, model};
+use super::{CommandOperation, model};
 use crate::{
     ComputerActor, ComputerError, ComputersStore, Result,
     api::{AutomationPermission, ComputerPhase},
@@ -38,7 +38,7 @@ impl ComputersStore {
         request_id: Uuid,
         payload: &CommandPayload,
         keys: &CommandKeyRing,
-    ) -> Result<QueuedCommand> {
+    ) -> Result<CommandOperation> {
         tokio::time::timeout(
             std::time::Duration::from_secs(5),
             self.queue(actor, authority, request_id, payload, keys),
@@ -53,7 +53,7 @@ impl ComputersStore {
         request_id: Uuid,
         payload: &CommandPayload,
         keys: &CommandKeyRing,
-    ) -> Result<QueuedCommand> {
+    ) -> Result<CommandOperation> {
         authority.require_actor(actor)?;
         if authority.permission() != AutomationPermission::Execute {
             return Err(ComputerError::Forbidden);
@@ -177,7 +177,7 @@ impl ComputersStore {
             keys,
         )
     }
-    async fn command_request(&self, request: &RecordId) -> Result<Option<QueuedCommand>> {
+    async fn command_request(&self, request: &RecordId) -> Result<Option<CommandOperation>> {
         let mut response = self
             .query(
                 "SELECT * FROM ONLY (SELECT VALUE execution FROM ONLY $request);",
@@ -186,19 +186,19 @@ impl ComputersStore {
             .await?;
         let row: Option<model::Record> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
-        row.map(QueuedCommand::try_from).transpose()
+        row.map(CommandOperation::try_from).transpose()
     }
     #[allow(clippy::too_many_arguments)]
     fn match_command(
         &self,
-        command: QueuedCommand,
+        command: CommandOperation,
         actor: &ComputerActor,
         computer: Uuid,
         grant: Uuid,
         request: Uuid,
         payload: &CommandPayload,
         keys: &CommandKeyRing,
-    ) -> Result<QueuedCommand> {
+    ) -> Result<CommandOperation> {
         actor.check_admission()?;
         if command.binding.actor_key != super::actor_key(actor.accepted())?
             || command.binding.computer_id != computer

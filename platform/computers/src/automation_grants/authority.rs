@@ -1,5 +1,5 @@
 use crate::{
-    Computer, ComputerActor, ComputerError, ComputersStore, Result,
+    AcceptedAuthority, Computer, ComputerActor, ComputerError, ComputersStore, Result,
     api::{AutomationExecutionLimits, AutomationPermission},
     authority_snapshot::AuthoritySnapshot,
     identity::owner_key,
@@ -7,13 +7,19 @@ use crate::{
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use std::time::{Duration, Instant};
-use surrealdb::types::{SurrealValue, Value};
+use surrealdb::types::{RecordId, SurrealValue, Value};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     GatewayAction, LocalToolName, PolicyEffect, PolicyTarget, ResourceUri, ServerSlug, TraceId,
     WorkContextMembershipLevel,
 };
 use veoveo_platform_store::{PrincipalKind, gateway_refresh_family_record_id};
+
+#[derive(Clone, Copy)]
+enum GrantUse {
+    Admission(DateTime<Utc>),
+    AcceptedWork,
+}
 
 /// A short current read of named authority. This is not a native dispatch ticket.
 /// Operation admission and dispatch must also compare its durable grant revision.
@@ -29,8 +35,43 @@ pub struct AutomationAuthority {
     owner_snapshot: AuthoritySnapshot,
     policy_fingerprint: String,
     admission_end: DateTime<Utc>,
+    family: Option<RecordId>,
 }
 impl AutomationAuthority {
+    pub(crate) fn command_decision(
+        &self,
+        execution: Uuid,
+    ) -> Result<crate::commands::CommandDispatchDecision> {
+        self.check_fresh()?;
+        if self.permission != AutomationPermission::Execute {
+            return Err(ComputerError::Forbidden);
+        }
+        let target = PolicyTarget::Tool {
+            server: ServerSlug::new("computers").expect("static server"),
+            tool: LocalToolName::new("execute").expect("static tool"),
+        };
+        let trace = TraceId::new(execution.to_string()).expect("UUID trace");
+        Ok(crate::commands::CommandDispatchDecision {
+            control_revision: self.source_snapshot.control_revision.clone(),
+            control_sha256: self.source_snapshot.control_sha256.clone(),
+            grant_id: self.grant_id,
+            grant_revision: self.grant_revision,
+            checked_at: self
+                .source_snapshot
+                .checked_at
+                .max(self.owner_snapshot.checked_at),
+            valid_until: self
+                .admission_end
+                .min(self.source_snapshot.checked_at + TimeDelta::seconds(30))
+                .min(self.owner_snapshot.checked_at + TimeDelta::seconds(30)),
+            source: self
+                .source_snapshot
+                .decision(GatewayAction::ToolsCall, &target, &trace),
+            owner: self
+                .owner_snapshot
+                .decision(GatewayAction::ToolsCall, &target, &trace),
+        })
+    }
     pub(crate) fn require_actor(&self, actor: &ComputerActor) -> Result<()> {
         self.check_fresh()?;
         actor.check_admission()?;
@@ -72,20 +113,6 @@ impl AutomationAuthority {
         self.source_snapshot.check_fresh()?;
         self.owner_snapshot.check_fresh()?;
         let mut bindings = crate::session_grants::authority::bindings(&self.source_snapshot);
-        let family = self
-            .source_snapshot
-            .accepted
-            .request_context
-            .access_token
-            .session_family
-            .as_ref()
-            .map(|id| {
-                id.as_str()
-                    .parse::<Uuid>()
-                    .map(gateway_refresh_family_record_id)
-            })
-            .transpose()
-            .map_err(|_| ComputerError::Forbidden)?;
         bindings.extend([
             (
                 "authority_owner_source",
@@ -102,7 +129,7 @@ impl AutomationAuthority {
                     .min(self.owner_snapshot.checked_at + TimeDelta::seconds(30))
                     .into_value(),
             ),
-            ("family", family.into_value()),
+            ("family", self.family.clone().into_value()),
             ("grant", super::record(self.grant_id).into_value()),
             ("grant_revision", self.grant_revision.into_value()),
             ("grant_expires_at", self.expires_at.into_value()),
@@ -246,23 +273,55 @@ impl ComputersStore {
         grant_id: Uuid,
         permission: AutomationPermission,
     ) -> Result<AutomationAuthority> {
+        actor.check_admission()?;
         tokio::time::timeout(
             Duration::from_secs(5),
-            self.read_automation_authority(actor, computer_id, grant_id, permission),
+            self.read_automation_authority(
+                actor.accepted(),
+                GrantUse::Admission(actor.admission_expires_at()),
+                computer_id,
+                grant_id,
+                permission,
+            ),
+        )
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
+    }
+    pub(crate) async fn authorize_accepted_automation(
+        &self,
+        accepted: &AcceptedAuthority,
+        computer: Uuid,
+        grant: Uuid,
+        permission: AutomationPermission,
+    ) -> Result<AutomationAuthority> {
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            self.read_automation_authority(
+                accepted,
+                GrantUse::AcceptedWork,
+                computer,
+                grant,
+                permission,
+            ),
         )
         .await
         .map_err(|_| ComputerError::Unavailable)?
     }
     async fn read_automation_authority(
         &self,
-        actor: &ComputerActor,
+        accepted: &AcceptedAuthority,
+        purpose: GrantUse,
         computer_id: Uuid,
         grant_id: Uuid,
         permission: AutomationPermission,
     ) -> Result<AutomationAuthority> {
-        actor.check_admission()?;
+        if let GrantUse::Admission(expires_at) = purpose
+            && expires_at <= Utc::now()
+        {
+            return Err(ComputerError::Forbidden);
+        }
         let grant = self.automation_grant(grant_id).await?;
-        let source = &actor.accepted().request_context.principal;
+        let source = &accepted.request_context.principal;
         let kind = match source.kind {
             veoveo_mcp_contract::PrincipalKind::User => PrincipalKind::User,
             veoveo_mcp_contract::PrincipalKind::Service => PrincipalKind::Service,
@@ -271,8 +330,7 @@ impl ComputersStore {
             || grant.provider != self.provider_instance_id
             || grant.view.principal_id != source.id.as_str()
             || grant.view.oauth_client_id
-                != actor
-                    .accepted()
+                != accepted
                     .request_context
                     .access_token
                     .oauth_client_id
@@ -280,9 +338,9 @@ impl ComputersStore {
             || grant.grantee_issuer != source.issuer.as_str()
             || grant.grantee_subject != source.subject.as_str()
             || grant.grantee_kind != kind
-            || grant.authority.invocation.tenant != actor.accepted().invocation.tenant
-            || grant.authority.invocation.work_context != actor.accepted().invocation.work_context
-            || grant.authority.profile != actor.accepted().profile
+            || grant.authority.invocation.tenant != accepted.invocation.tenant
+            || grant.authority.invocation.work_context != accepted.invocation.work_context
+            || grant.authority.profile != accepted.profile
         {
             return Err(ComputerError::NotFound);
         }
@@ -297,8 +355,26 @@ impl ComputersStore {
         if policy.max_grants == 0 {
             return Err(ComputerError::Forbidden);
         }
-        let source_snapshot = self.read_authority(actor.accepted()).await?;
-        let family_expiry = self.check_control_session(&source_snapshot).await?;
+        let source_snapshot = self.read_authority(accepted).await?;
+        let (family_expiry, family) = match purpose {
+            GrantUse::AcceptedWork => (None, None),
+            GrantUse::Admission(_) => {
+                let expiry = self.check_control_session(&source_snapshot).await?;
+                let family = accepted
+                    .request_context
+                    .access_token
+                    .session_family
+                    .as_ref()
+                    .map(|id| {
+                        id.as_str()
+                            .parse::<Uuid>()
+                            .map(gateway_refresh_family_record_id)
+                    })
+                    .transpose()
+                    .map_err(|_| ComputerError::Forbidden)?;
+                (expiry, family)
+            }
+        };
         let owner_snapshot = self.read_authority(&grant.authority).await?;
         if source_snapshot.source != grant.grantee
             || source_snapshot.control_sha256 != owner_snapshot.control_sha256
@@ -345,11 +421,15 @@ impl ComputersStore {
             .map(|limits| AutomationExecutionLimits {
                 maximum_seconds: limits.maximum_seconds.min(policy.maximum_execution_seconds),
                 maximum_output_bytes: limits.maximum_output_bytes.min(policy.maximum_output_bytes),
+                on_interruption: limits.on_interruption,
             });
         let expires_at = grant.view.expires_at.min(
             grant.view.issued_at + TimeDelta::seconds(i64::from(policy.maximum_lifetime_seconds)),
         );
-        let admission_end = expires_at.min(actor.admission_expires_at());
+        let admission_end = match purpose {
+            GrantUse::Admission(admission) => expires_at.min(admission),
+            GrantUse::AcceptedWork => expires_at,
+        };
         let admission_end = family_expiry.map_or(admission_end, |expiry| expiry.min(admission_end));
         let remaining = (admission_end - Utc::now())
             .to_std()
@@ -361,7 +441,11 @@ impl ComputersStore {
             .deadline
             .min(owner_snapshot.deadline)
             .min(Instant::now() + remaining);
-        actor.check_admission()?;
+        if let GrantUse::Admission(expires_at) = purpose
+            && expires_at <= Utc::now()
+        {
+            return Err(ComputerError::Forbidden);
+        }
         source_snapshot.check_fresh()?;
         owner_snapshot.check_fresh()?;
         Ok(AutomationAuthority {
@@ -376,6 +460,7 @@ impl ComputersStore {
             owner_snapshot,
             policy_fingerprint: stored_policy.fingerprint,
             admission_end,
+            family,
         })
     }
 }

@@ -11,7 +11,7 @@ test("named Computer grants require an application binding and bounded closed pe
     oauthClientId: "agent",
     name: "Build work",
     permissions: ["read", "execute"],
-    executionLimits: { maximumSeconds: 30, maximumOutputBytes: 1024 },
+    executionLimits: { maximumSeconds: 30, maximumOutputBytes: 1024, onInterruption: "stop_computer" },
     expiresAt: "2026-09-10T11:00:00Z",
   };
   assert.equal(parseComputer("issue_automation_grant", grant).oauthClientId, "agent");
@@ -20,6 +20,8 @@ test("named Computer grants require an application binding and bounded closed pe
     { ...grant, oauthClientId: undefined },
     { ...grant, oauthClientId: "" },
     { ...grant, permissions: [] },
+    { ...grant, executionLimits: { maximumSeconds: 30, maximumOutputBytes: 1024 } },
+    { ...grant, executionLimits: { ...grant.executionLimits, onInterruption: "continue" } },
     { ...grant, permissions: ["admin"] },
     { ...grant, executionLimits: { maximumSeconds: 0, maximumOutputBytes: 1024 } },
     { ...grant, expiresAt: "tomorrow" },

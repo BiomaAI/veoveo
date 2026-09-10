@@ -58,7 +58,10 @@ is invalid. This addition is coordinated within unreleased terminal v2.
 `principalId` identifies the grantee; it never selects the Computer owner.
 `oauthClientId` binds the application through which that principal may use the grant.
 Permissions are a nonempty unique set of Read, Execute, Start and Stop. Execute
-requires explicit time and output limits. The domain enforces that conditional rule
+requires explicit time and output limits plus `onInterruption: "stop_computer"`.
+Cancellation, expiry or uncertain execution can stop other processes on that Computer
+run while keeping retained files. This scope does not grant an independent Stop
+action. The wire deserializer rejects duplicate and empty permission arrays. The domain enforces that conditional rule
 and current installation ceilings in addition to schema validation. Public views
 show the original scope and expiry; current policy can narrow them. These types are
 available to projections, while public routes and command Tasks remain integration
