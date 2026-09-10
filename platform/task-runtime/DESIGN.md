@@ -20,6 +20,8 @@ owns execution and observation claims. `recovery` applies each declared restart
 profile. `types` validates durable envelopes; `mcp` and `service` project them into
 the hosted server contract. Provider SDKs and resource-specific fences belong to
 the owning domain.
+`provider_transaction` composes a domain journal write with the exact shared
+observation-lease receipt in the same database transaction.
 
 ## Provider Observation
 
@@ -41,6 +43,18 @@ observations and exhausted budgets retain the domain resource fence. The shared
 runtime does not issue provider queries, poll completion, clear a Computer fence,
 retry a mutation or infer that cancellation undid an effect. Computers integration
 and native fault acceptance remain separate from this shared-runtime checkpoint.
+
+`commit_provider_journal` takes trusted static domain SQL and bound values. It checks
+the current server, recovery class, lease owner and exact expiry at database time,
+and writes the lease row within the transaction to fence concurrent lease changes.
+The guard preserves Task status and timestamps. Dispatch commits reject committed
+cancellation; observation commits may settle an already dispatched effect while
+cancellation remains pending. Renewal invalidates the old lease receipt.
+
+The domain body must compare its own operation stage and resource fence atomically.
+This helper alone cannot establish single dispatch. It never retries a transaction:
+a lost database reply preserves uncertainty and cannot authorize a provider effect.
+Task model SQL stays in this runtime; the domain supplies only its own journal writes.
 
 Existing classes keep their behavior. Deterministic Resume work can be reclaimed,
 WebhookWait work stays on its qualified webhook path, and interrupted indeterminate

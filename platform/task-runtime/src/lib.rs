@@ -7,12 +7,14 @@
 
 mod leases;
 mod mcp;
+mod provider_transaction;
 mod recovery;
 mod runtime;
 mod service;
 mod types;
 
 pub use mcp::{project_snapshot, task_seed};
+pub use provider_transaction::ProviderCommit;
 pub use runtime::{TaskRuntime, TaskUpdateStream};
 pub use service::{
     DurableTaskService, DurableTaskSubscription, DurableTaskUpdateStream,
