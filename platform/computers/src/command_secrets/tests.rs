@@ -42,6 +42,7 @@ fn command(value: &str, seconds: u32, bytes: u32) -> CommandPayload {
         AutomationExecutionLimits {
             maximum_seconds: seconds,
             maximum_output_bytes: bytes,
+            on_interruption: veoveo_computers_contract::AutomationInterruption::StopComputer,
         },
     )
     .unwrap()

@@ -1,8 +1,11 @@
 //! Durable command admission. A queued command cannot itself dispatch an effect.
 mod admission;
+mod dispatch;
+mod journal;
 mod model;
 mod tasks;
-pub use model::QueuedCommand;
+pub use dispatch::{CommandDispatchDecision, CommandDispatchTicket};
+pub use model::{CommandOperation, CommandStage};
 
 use crate::{AcceptedAuthority, ComputerError, Result, identity::digest};
 use surrealdb::types::RecordId;

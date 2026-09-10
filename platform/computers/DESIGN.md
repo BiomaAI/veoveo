@@ -8,7 +8,7 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private queued-command envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
-| Shared Tasks | Queued command references carry only Computer/execution IDs; migration 0061 adds private command admission. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0062 add private command admission and one-shot dispatch. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
@@ -268,13 +268,15 @@ owner and action policy must still permit access. The source principal's actual
 labels must cover the retained data and output labels. A policy reduction clamps
 execution limits and the maximum lifetime; disabling issuance also denies new use.
 The original owner's browser logout does not revoke this separately issued agent
-authority. A caller using a browser-bound credential still needs its own live family.
+authority. New admission through a browser-bound credential requires its own live family.
+Accepted work continues under the independent named grant after that family closes;
+current source and owner accounts, action policy and grant expiry still govern it.
 
 `AutomationAuthority` is a permission-specific read valid for at most 30 seconds.
 It is not a native dispatch ticket. A Task admission or dispatch must compare the
 stored grant revision and current installation policy atomically with its operation
 fence. Only an Execute read exposes execution limits. Public grant routes, scoped
-lifecycle Tasks, execution dispatch and active-job cancellation remain integration
+lifecycle Tasks, the native command worker and active-job cancellation remain integration
 work. Revoking the ledger alone does not stop a running Computer.
 
 Migration 0060 adds private tables without rewriting Computers or transport grants.
@@ -288,9 +290,9 @@ Native tests use separate clients of an isolated pinned store. They cover compet
 issuance and revocation, request conflicts, quota and policy reductions, exact client
 binding, owner logout, disabled principals and retained-label enforcement. Generated
 Console validators enforce bounds and closed input objects. The selected Zod
-converter does not enforce JSON Schema `uniqueItems`; Rust represents permissions
-as a set. Public protocol integration must qualify its schema validation, including
-duplicate permissions. These checks do not establish public agent execution.
+converter does not enforce JSON Schema `uniqueItems`; the Rust wire deserializer
+rejects duplicate and empty permissions before constructing its bounded set. Public
+protocol integration must retain that strict deserialization. These checks do not establish public agent execution.
 
 ## Queued Command Confidentiality
 
@@ -314,7 +316,7 @@ A bounded key ring writes with one active key and retains up to four keys for re
 Exact request comparisons use the original envelope's key after rotation. A missing
 key or damaged envelope fails closed and cannot create a fresh dispatch. Key removal
 requires draining or re-encrypting all work and backups that need it. Automatic
-re-encryption, Secret mounting and Task-ledger admission remain integration work;
+re-encryption and Secret mounting remain integration work;
 the codec itself does not authorize a command or establish installed key rotation.
 
 The implementation uses the existing RustCrypto dependencies. The authoritative
@@ -353,9 +355,9 @@ only Computer/execution IDs and a retention pin. Neither its request nor the aud
 event contains command bodies, ciphertext or input fingerprints. The private ledger
 holds the authenticated envelope until its execution lifecycle permits disposal.
 
-Migration 0061 introduces queued admission only. Native dispatch, command settlement,
-output Artifacts and public projection remain delivery work. The current module
-cannot launch a command. Apply the migration before updating lifecycle admission,
+Migration 0061 introduces queued admission. Migration 0062 adds the guarded dispatch
+transition and evidence. Native worker integration, command settlement, output
+Artifacts and public projection remain delivery work. Apply the migration before updating lifecycle admission,
 and upgrade all workers that can Start before enabling command admission. Rollback
 must drain and settle execution slots before an older lifecycle worker returns;
 removing a slot without termination evidence is forbidden.
@@ -364,6 +366,34 @@ Native cases cover competing retries, changed input, distinct-request contention
 private Task reconstruction, stale authority, policy reductions, principal disablement,
 continued browser admission and blocked replacement Start. The fixture owns its
 isolated database and creates no provider processes.
+
+## Command Dispatch
+
+A queued-to-dispatched transaction holds the current shared Task lease and refuses
+cancellation. It compares the named grant revision, current policy and enabled
+source/owner accounts, then fences the exact retained owner, template, resource and
+process. A concurrent lifecycle Stop conflicts with its Computer write. Only the
+winning dispatch UUID can yield a ticket. An unknown database reply, expired lease
+or lost ticket never authorizes another command launch.
+
+The decision records current owner and source policy without command contents.
+Effective execution limits take the smaller admitted and current grant limits.
+The durable deadline also ends at the grant's effective expiry. The local dispatch
+authority is bounded by its policy snapshot and Task lease; worker renewal must
+continue checking the named grant independently of the original admission token.
+
+Execute grants require `onInterruption: "stop_computer"`. Qualified cancellation
+and containment stop the admitted Computer run, which can end other processes on
+that run. Retained files remain. This consent grants no independent agent Stop
+action and never permits stopping a replacement run. The private envelope's v1
+profile admits only this interruption scope; a future scope requires an explicit
+codec change. Active containment and terminal result publication remain worker work.
+
+Isolated-store tests qualify one dispatch under contention, a successor refusing
+redispatch after loss of the original ticket, cancellation, grant revocation,
+principal disablement, changed native run, lost lease, corrupt command ciphertext,
+current limit reduction and accepted-work continuity after caller-family revocation.
+They launch no provider process and are not installed execution evidence.
 
 ## Lifecycle Dispatch
 

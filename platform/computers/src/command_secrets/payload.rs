@@ -81,6 +81,11 @@ impl CommandPayload {
     }
 
     pub(super) fn encode(&self) -> Result<Zeroizing<Vec<u8>>> {
+        // Envelope v1 admits exactly this interruption scope. Adding another
+        // profile requires an explicit encoding decision, never silent omission.
+        match self.limits.on_interruption {
+            crate::api::AutomationInterruption::StopComputer => (),
+        }
         let frame = self
             .request
             .encode()
@@ -105,6 +110,7 @@ impl CommandPayload {
         let limits = AutomationExecutionLimits {
             maximum_seconds: word(0)?,
             maximum_output_bytes: word(4)?,
+            on_interruption: crate::api::AutomationInterruption::StopComputer,
         };
         let mut cursor = Cursor::new(&bytes[8..]);
         let request = read_frame(&mut cursor).map_err(|_| ComputerError::Unavailable)?;

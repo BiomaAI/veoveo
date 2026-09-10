@@ -1,4 +1,4 @@
-use super::QueuedCommand;
+use super::CommandOperation;
 use crate::{ComputerError, ComputersStore, Result};
 use std::collections::BTreeSet;
 use surrealdb::types::SurrealValue;
@@ -10,7 +10,7 @@ impl ComputersStore {
         &self,
         after: Option<uuid::Uuid>,
         limit: u32,
-    ) -> Result<Vec<QueuedCommand>> {
+    ) -> Result<Vec<CommandOperation>> {
         if !(1..=100).contains(&limit) {
             return Err(ComputerError::InvalidInput);
         }
@@ -28,11 +28,14 @@ impl ComputersStore {
             .await?;
         let records: Vec<super::model::Record> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
-        records.into_iter().map(QueuedCommand::try_from).collect()
+        records
+            .into_iter()
+            .map(CommandOperation::try_from)
+            .collect()
     }
 
     /// A lost Task-link reply reconstructs the same metadata-only shared Task.
-    pub async fn ensure_command_task(&self, command: &QueuedCommand) -> Result<()> {
+    pub async fn ensure_command_task(&self, command: &CommandOperation) -> Result<()> {
         if command.binding.provider_instance_id != self.provider_instance_id {
             return Err(ComputerError::NotFound);
         }
@@ -47,7 +50,7 @@ impl ComputersStore {
             .await?;
         let row: Option<super::model::Record> =
             read.take(0).map_err(|_| ComputerError::Unavailable)?;
-        let saved = QueuedCommand::try_from(row.ok_or(ComputerError::NotFound)?)?;
+        let saved = CommandOperation::try_from(row.ok_or(ComputerError::NotFound)?)?;
         if crate::identity::digest(&(&saved.binding, &saved.authority))?
             != crate::identity::digest(&(&command.binding, &command.authority))?
         {

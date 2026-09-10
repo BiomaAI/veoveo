@@ -139,6 +139,11 @@ export type TerminalLeaseKind = "lease";
  * via the `definition` "TerminalTicketInput".
  */
 export type TerminalTicketInput = Record<string, never>;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationInterruption".
+ */
+export type AutomationInterruption = "stop_computer";
 
 /**
  * Schema root is a bundle of DTO definitions, not a route response.
@@ -242,6 +247,11 @@ export interface AutomationGrantView {
 export interface AutomationExecutionLimits {
   maximumOutputBytes: number;
   maximumSeconds: number;
+  /**
+   * Cancellation, expiry or uncertain execution can stop this Computer run.
+   * Its retained files remain. This grants no independent agent Stop action.
+   */
+  onInterruption: "stop_computer";
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema

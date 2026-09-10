@@ -545,6 +545,12 @@ fixture retries an old run after Stop/Start and checks that its marker was never
 written. This qualifies run selection alongside the durable execution slot; command
 worker dispatch and public agent acceptance remain delivery work.
 
+The private command journal now returns one dispatch ticket under a current Task
+lease, exact native run and current named grant. Native-store cases reject replay
+after ticket loss and recheck cancellation, current limits and principal state.
+Execution grants explicitly consent to whole-run Stop for interruption containment.
+The command worker, containment results and public agent journey remain required.
+
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
 
