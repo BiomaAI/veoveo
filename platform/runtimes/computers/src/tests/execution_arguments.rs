@@ -45,6 +45,45 @@ async fn provider_rpc_preserves_empty_values_quotes_newlines_and_many_arguments(
 }
 
 #[tokio::test]
+async fn structured_request_values_travel_only_in_framed_stdin() {
+    use std::collections::BTreeMap;
+    use veoveo_computer_execution::{ExecutionRequest, LAUNCHER_PATH, RETAINED_HOME};
+
+    let running = Running::start().await;
+    let request = ExecutionRequest::new(
+        vec![
+            "python3".into(),
+            "private-argument-fixture".into(),
+            String::new(),
+        ],
+        "private-directory-fixture".into(),
+        BTreeMap::from([("FIXTURE_VALUE".into(), "private-value\nlast".into())]),
+        vec![255; MAX_CHUNK_BYTES + 1],
+    )
+    .unwrap();
+    let frame = request.encode().unwrap();
+    {
+        let mut state = running.fake.0.lock().unwrap();
+        state.sandbox = Some(sandbox(Phase::Ready));
+        state.expected_input_bytes = Some(frame.len());
+    }
+    let result = running
+        .runtime
+        .execute_request(&binding(), &request, 5, 1024, |_| async { Ok(()) })
+        .await
+        .unwrap();
+    assert_eq!(result.exit_code, 0);
+    let state = running.fake.0.lock().unwrap();
+    let start = state.execution_start.as_ref().unwrap();
+    assert_eq!(start.command, [LAUNCHER_PATH]);
+    assert_eq!(start.workdir, RETAINED_HOME);
+    assert!(start.environment.is_empty());
+    assert!(start.stdin.is_empty());
+    assert!(!start.tty);
+    assert_eq!(state.input_bytes, frame.as_slice());
+}
+
+#[tokio::test]
 async fn gateway_requires_its_exact_active_workspace_before_runtime_admission() {
     let running = Running::start().await;
     let original = running.fake.0.lock().unwrap().workspace.clone().unwrap();

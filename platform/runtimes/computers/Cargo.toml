@@ -26,6 +26,7 @@ tonic-prost = "=0.14.6"
 tower = { workspace = true, features = ["util"] }
 uuid.workspace = true
 zeroize.workspace = true
+veoveo-computer-execution = { path = "../../computers/execution" }
 
 [build-dependencies]
 prost-build = "=0.14.4"
