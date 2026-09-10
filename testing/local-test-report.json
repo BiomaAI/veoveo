@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:449c2b3bec14d06d8755fcfbc2de0656d953b79549cd2d02c095d24d3b20e0da",
-  "updatedAt": "2026-09-10T15:33:07Z",
+  "buildDigest": "sha256:3476712685bcba2d6c2096c4aab413b4f7a4c4a594956ea673dc3c334dd81fd3",
+  "updatedAt": "2026-09-10T15:35:25Z",
   "checks": [
     {
-      "name": "installed-journal-workspace-recovery",
+      "name": "installed-allocation-helm",
       "command": [
         "cargo",
         "xtask",
@@ -12,8 +12,32 @@
         "helm-config"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:33:07Z",
-      "durationSeconds": 6.389578893,
+      "finishedAt": "2026-09-10T15:35:25Z",
+      "durationSeconds": 6.511787321,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "retained-allocation-published",
+      "command": [
+        "env",
+        "VEOVEO_COMPUTERS_HOST_IMAGE=localhost:5001/veoveo/computer-host@sha256:6d5f789e7b3dfecf1cee9f699c77cd0049e1fc334fd572d7c9abec61809bc8da",
+        "VEOVEO_COMPUTERS_HOST_TEST_IMAGE=172.17.0.2:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computer-host",
+        "--test",
+        "native_host",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T15:35:17Z",
+      "durationSeconds": 32.144240397,
       "detail": "completed successfully"
     }
   ]

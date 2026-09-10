@@ -2,7 +2,7 @@ global:
   veoveoRegistry: k3d-veoveo-registry.localhost:5000
   veoveoTag: ""
   imageDigests:
-    veoveo/computer-host: sha256:2e267c7dbd04dbd54a194994f992764be237fd94e6c0a86df158d12aff54e369
+    veoveo/computer-host: sha256:6d5f789e7b3dfecf1cee9f699c77cd0049e1fc334fd572d7c9abec61809bc8da
     veoveo/computer-template: sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721
     veoveo/computers-mcp: sha256:0bfeee0f5bb77554e20de100dee0c7fb8c679873c2caef96e11c32bb4e30682e
     veoveo/artifact-mcp: sha256:1eb76e5e819053702f6fd55c77fd7b759c904fa4d1168f78018833aa91c3eedf
