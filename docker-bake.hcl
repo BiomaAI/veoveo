@@ -223,9 +223,16 @@ target "computer-provider" {
 }
 
 target "computer-template" {
-  inherits   = ["base"]
+  inherits   = ["_rust-trixie-runtime"]
   dockerfile = "platform/computers/images/Dockerfile"
   tags       = [image_ref("computer-template")]
+  labels = {
+    "io.veoveo.build.mode"      = "rust-shared"
+    "io.veoveo.build.package"   = "veoveo-computer-execution"
+    "io.veoveo.build.binaries"  = "veoveo-computer-exec"
+    "io.veoveo.build.family"    = "rust-trixie-v1"
+    "io.veoveo.build.auxiliary" = ""
+  }
 }
 
 target "computer-host" {

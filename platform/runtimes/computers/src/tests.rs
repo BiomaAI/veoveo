@@ -317,6 +317,8 @@ struct FakeState {
     revokes: usize,
     input_bytes: Vec<u8>,
     execution_arguments: Vec<String>,
+    execution_start: Option<api::ExecSandboxRequest>,
+    expected_input_bytes: Option<usize>,
     ssh: terminal_tests::SshState,
     session_mode: u8,
     session_reply_gate: Option<terminal_tests::Gate>,
@@ -354,6 +356,8 @@ impl Fake {
             revokes: 0,
             input_bytes: vec![],
             execution_arguments: vec![],
+            execution_start: None,
+            expected_input_bytes: None,
             ssh: Default::default(),
             session_mode: 0,
             session_reply_gate: None,
@@ -755,11 +759,14 @@ impl api::open_shell_server::OpenShell for Fake {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         tokio::spawn(async move {
             let start = input.message().await.unwrap().unwrap();
-            assert!(matches!(
-                start.payload,
-                Some(api::exec_sandbox_input::Payload::Start(_))
-            ));
-            let expected = fake.0.lock().unwrap().exec as usize;
+            let Some(api::exec_sandbox_input::Payload::Start(start)) = start.payload else {
+                panic!("first frame must be Start");
+            };
+            let expected = {
+                let mut state = fake.0.lock().unwrap();
+                state.execution_start = Some(start);
+                state.expected_input_bytes.unwrap_or(state.exec as usize)
+            };
             while fake.0.lock().unwrap().input_bytes.len() < expected {
                 let Some(event) = input.message().await.unwrap() else {
                     return;

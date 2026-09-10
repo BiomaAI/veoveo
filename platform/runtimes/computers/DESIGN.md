@@ -222,10 +222,23 @@ This replaces the unnecessarily restrictive 32-argument and nonempty-value limit
 Local mTLS RPC fixtures prove exact argument delivery, including quoting, Unicode
 and empty values. They do not qualify process cancellation or public agent execution.
 The current gateway still logs command previews; callers of this private build-worker
-path must not place credentials in command arguments. Agent execution needs a profile
-that excludes command content from logs and admits explicit termination semantics.
+path must not place credentials in command arguments.
 A working directory selects where a program starts; it does not confine arbitrary
 program access to that directory. Computer isolation remains the authority boundary.
+
+`execute_request` uses the private [guest launcher](../../computers/execution/DESIGN.md).
+Only its fixed absolute command and fixed retained-home working directory reach the
+provider's command preview. Explicit argv, relative launch directory, environment
+overrides and finite binary stdin travel in a bounded length-prefixed stdin frame.
+No request values enter the provider Start message's environment or argv. The runtime
+retains its input stream until the native exit; transport EOF is not frame completion.
+
+The native fixture proves exact 100,000-byte input and output, empty/quoted arguments,
+multiline environment, confined directory selection and enabled command-log privacy.
+After a timeout, it requires ExecutionUnknown, then Stop and a new process epoch. A
+detached descendant stops writing and its retained file survives restart. Public Task
+cancellation must compose this Computer-wide Stop boundary and explain its scope.
+This adapter never settles a Task or grants an actor execution authority.
 
 ## Verification And Delivery Gaps
 

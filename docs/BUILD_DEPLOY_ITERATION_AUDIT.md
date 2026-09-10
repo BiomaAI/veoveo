@@ -3195,3 +3195,26 @@ The corrected 76-case suite passed in 20.51 seconds, plus 9.48 seconds of compil
 The initial failed attempt remains immutable history. Its successful replacement
 uses the same command identity. All four iteration-tools results stayed current
 while the runtime sources, fixture and owner catalog changed.
+
+The execution launcher moved the Computer template into the existing shared Rust
+artifact family. Its first current-checkout build took 73.381 seconds, including a
+4.87-second optimized compile. APT fetched 52 MB of indexes in 13 seconds because
+the snapshot invocation loaded live indexes as well as snapshot indexes; package
+downloads themselves used the selected snapshot. Avoiding duplicate index acquisition
+remains a concrete cold-image optimization. No provider recompilation was required.
+
+Native qualification caught two integration errors before deployment. Setting OCI
+WORKDIR to the retained mount collided with the provider's reserved workspace. A
+root-owned login profile now selects the retained home while OCI WORKDIR stays
+`/sandbox`. The supervisor also deliberately denies memfd_create. Bounded stdin now
+uses an anonymous O_TMPFILE in private ephemeral storage, reopened read-only, with
+O_EXCL preventing a permanent link. The provider's seccomp restriction remains intact.
+
+The directory correction rebuilt in 4.578 seconds. The final launcher correction
+rebuilt in 5.290 seconds, including a 0.99-second optimized compile. These are individual
+warm local builds, not published release timings. The native execution fixture then
+passed in 13.92 seconds after 4.23 seconds of compilation. It verifies the actual
+packaged binary, 100,000-byte input, enabled command-log privacy, initial shell cwd,
+and Stop fencing of a detached descendant after an uncertain timeout. Failed fixture
+Computers and their isolated block homes were removed by their owners; installed
+user Computers and their retained storage were not used by these experiments.

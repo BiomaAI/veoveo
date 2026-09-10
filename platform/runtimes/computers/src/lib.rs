@@ -29,6 +29,7 @@ mod binding;
 mod canonical;
 mod client;
 mod execution;
+mod execution_request;
 mod forward_tunnel;
 mod lease;
 mod models;

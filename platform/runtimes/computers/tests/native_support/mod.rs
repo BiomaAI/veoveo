@@ -97,13 +97,21 @@ impl Provider {
     }
 
     pub async fn start_with_session_ttl(ssh_session_ttl_secs: u64) -> (Self, String) {
-        Self::start_on(ssh_session_ttl_secs, None).await
+        Self::start_on(ssh_session_ttl_secs, None, "warn").await
+    }
+    #[allow(dead_code)] // The execution scenario must observe command-preview logging.
+    pub async fn start_with_execution_logging() -> Self {
+        Self::start_on(3600, None, "info").await.0
     }
     #[allow(dead_code)] // Used by the shared storage/worker fixture.
     pub async fn start_on_compute_host(host: ComputeHost) -> Self {
-        Self::start_on(3600, Some(host)).await.0
+        Self::start_on(3600, Some(host), "warn").await.0
     }
-    async fn start_on(ssh_session_ttl_secs: u64, host: Option<ComputeHost>) -> (Self, String) {
+    async fn start_on(
+        ssh_session_ttl_secs: u64,
+        host: Option<ComputeHost>,
+        log_level: &str,
+    ) -> (Self, String) {
         let gateway = required_path("VEOVEO_COMPUTERS_NATIVE_GATEWAY");
         let supervisor = required_path("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR");
         let output = host
@@ -146,7 +154,7 @@ version = 1
 [openshell.gateway]
 bind_address = "127.0.0.1:{port}"
 compute_drivers = ["docker"]
-log_level = "warn"
+log_level = "{log_level}"
 ssh_session_ttl_secs = {ssh_session_ttl_secs}
 [openshell.gateway.mtls_auth]
 enabled = true

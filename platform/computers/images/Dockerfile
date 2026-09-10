@@ -22,6 +22,11 @@ RUN groupadd --gid 10001 computer \
     && chown 10001:10001 /sandbox/persistent
 
 ENV HOME=/sandbox/persistent
+COPY --from=veoveo-rust-artifacts /bin/veoveo-computer-exec /usr/local/bin/veoveo-computer-exec
+COPY platform/computers/images/retained-home.sh /etc/profile.d/20-veoveo-home.sh
+RUN /usr/local/bin/veoveo-computer-exec --version
+# OpenShell reserves the OCI workdir separately from retained mounts. The login
+# profile selects the user's retained home after the provider applies isolation.
 WORKDIR /sandbox
 # The provider starts its privileged supervisor, which applies confinement and
 # drops the user process to the policy's explicit uid/gid. This command has no

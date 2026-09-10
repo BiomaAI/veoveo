@@ -510,7 +510,15 @@ host selected a different desktop browser under the isolated client configuratio
 the final checks used the stock client's printed-URL path in the existing headed
 browser. Browser modal interaction itself is not automated acceptance evidence.
 
-Scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
+The private execution launcher now passes native provider qualification. Its bounded
+stdin frame keeps argv, environment and directory values out of command-preview logs.
+The packaged template starts a real terminal in its retained home. Exact binary input,
+internal symlinks and escape refusal pass. Timeout remains uncertain; the fixture then
+uses Stop to fence a detached descendant and verifies retained bytes after restart.
+That provider result does not establish public agent grants or Task cancellation.
+The template and runtime changes require deployment with the subsequent agent surface.
+
+Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
 
 ## Follow-On Profiles
