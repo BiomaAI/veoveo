@@ -1,69 +1,56 @@
 {
-  "schemaVersion": 2,
-  "buildDigest": "sha256:00fc725ad546da447cb80bb2e256947c717dede412bda5d9854e45c3fe7ffacc",
-  "updatedAt": "2026-09-10T19:10:43Z",
-  "checks": [
+  "schemaVersion": "veoveo.io/local-test-report/v3",
+  "updatedAt": "2026-09-10T19:49:12.912779773Z",
+  "receipts": [
     {
-      "name": "image-freshness",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-xtask",
-        "source_context::"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T19:09:36Z",
-      "durationSeconds": 2.171732584,
-      "detail": "completed successfully"
+      "runId": "07213674-cf04-4397-a893-998d6d3699ee",
+      "sha256": "sha256:62c2f171acf4b57237580d4c1e96f5982e0794fc6fde394e5d780376f6e6abe9"
     },
     {
-      "name": "image-freshness-format",
-      "command": [
-        "cargo",
-        "fmt",
-        "-p",
-        "veoveo-xtask",
-        "--",
-        "--check"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T19:10:43Z",
-      "durationSeconds": 0.198191361,
-      "detail": "completed successfully"
+      "runId": "192ffc0e-57d8-4943-8ed8-9c78d6d6baf3",
+      "sha256": "sha256:75f2c624386bc14affa34d223e7beddea7f020a70223bb1bee34a5e1d1be8f2b"
     },
     {
-      "name": "image-freshness-lint",
-      "command": [
-        "cargo",
-        "clippy",
-        "-p",
-        "veoveo-xtask",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T19:10:22Z",
-      "durationSeconds": 16.432808733999998,
-      "detail": "completed successfully"
+      "runId": "4d6e7a24-37e4-4861-a4e1-7e429ddacd9e",
+      "sha256": "sha256:d227568dc7298fce7839de4e190e7cdf755ffc6f8230df75a5e816ba429afa38"
     },
     {
-      "name": "image-freshness-standalone",
-      "command": [
-        "rustc",
-        "--edition=2024",
-        "-D",
-        "warnings",
-        "tools/image-build/source-freshness.rs",
-        "-o",
-        "output/development/image-source-freshness-qualified"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T19:10:42Z",
-      "durationSeconds": 0.184595668,
-      "detail": "completed successfully"
+      "runId": "5baa996b-526b-41ef-98d1-98e08ae070ca",
+      "sha256": "sha256:baa47ebdeb324fa3aecffd7daa30a249204e3c366c65c5d333d20c7eeaf8eed4"
+    },
+    {
+      "runId": "6ba1a3b1-c824-4e5c-a093-ff7e16b34867",
+      "sha256": "sha256:0549a3ac16cf1e3474353e7b1ddb6e93121b7022789d4792d229d27195b1fc91"
+    },
+    {
+      "runId": "70281bd5-0529-4395-a270-197e6d5d98b3",
+      "sha256": "sha256:1675681fb18ed8bbe83207581fea7e149ac8978ce1c0ad145278746abbd7adac"
+    },
+    {
+      "runId": "72f576f8-5b14-4a5a-b026-2bb78a11e955",
+      "sha256": "sha256:4dd44eec4344142eaa8e175d536e38566fde0520bf0b081694db6a2765a52929"
+    },
+    {
+      "runId": "96da0523-13bb-4344-983a-a1deb7ecf462",
+      "sha256": "sha256:073a1352fcba8de134973fd44c71f225c7c6ee94fb50407e84c7694741064c8a"
+    },
+    {
+      "runId": "cc5622b5-35c0-4411-8a4d-933087a953c6",
+      "sha256": "sha256:b816badc8422cb0ba29bf2d3e8f27e2f2158cf0eee8590a3a66c2bae910a49ab"
+    },
+    {
+      "runId": "e0107f58-fea7-4f3f-a3f3-281e807b7bb6",
+      "sha256": "sha256:09519654742f145ddafbcef2fb6b1ad6ece711f4a39e291bc149f4462b6ac489"
+    },
+    {
+      "runId": "e7e487ce-bfca-49a6-8fcd-46bba9eff177",
+      "sha256": "sha256:3f3419b7cc9121badea173b777b372c3c3a66ed633ca75791c30faef8601af70"
     }
-  ]
+  ],
+  "latest": {
+    "sha256:005346a6d4003ebe001e7e7be4a6a34b36a011c3e70dd458f5d30efcf5505ee4": "96da0523-13bb-4344-983a-a1deb7ecf462",
+    "sha256:9eac235f3a7dca7920c9ef48d030fb331d6ef94fa713a75bb6cd91162fbc2e14": "72f576f8-5b14-4a5a-b026-2bb78a11e955",
+    "sha256:cd0110811a555c32b4e5d92a38ac4bc8e6b252d3280961221882277aa248eb8e": "6ba1a3b1-c824-4e5c-a093-ff7e16b34867",
+    "sha256:d21c1efc9944cce71c30223547fd5a391c696b4c914e2e80afd7b5f13fd0fee7": "cc5622b5-35c0-4411-8a4d-933087a953c6"
+  }
 }

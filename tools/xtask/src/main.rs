@@ -51,8 +51,10 @@ enum Command {
 enum TestReportCommand {
     /// Run one existing command and record its result in the committed report.
     Run(TestReportRunArgs),
-    /// Display the committed report and fail when it is stale or reports a failure.
+    /// Display per-check source status and current failures.
     Show(TestReportShowArgs),
+    /// Verify required coverage, current inputs and execution environments.
+    Verify(TestReportVerifyArgs),
 }
 
 #[derive(Debug, Args)]
@@ -70,6 +72,13 @@ struct TestReportShowArgs {
     /// Also append the Markdown report to GITHUB_STEP_SUMMARY when available.
     #[arg(long)]
     github_summary: bool,
+}
+
+#[derive(Debug, Args)]
+struct TestReportVerifyArgs {
+    /// Repository-owned coverage profile, with explicit runtime freshness/bindings.
+    #[arg(long)]
+    profile: PathBuf,
 }
 
 #[derive(Debug, Subcommand)]
@@ -573,6 +582,7 @@ fn main() -> Result<()> {
                 test_report::run(&repository, &args.name, &args.command)
             }
             TestReportCommand::Show(args) => test_report::show(&repository, args.github_summary),
+            TestReportCommand::Verify(args) => test_report::verify(&repository, &args.profile),
         },
     }
 }

@@ -164,10 +164,11 @@ Use existing Rust fixture ownership through a narrow launcher when needed. Nativ
 framework commands may run through the current test-report wrapper before new xtask
 routing is implemented. Do not make rewriting existing smokes a prerequisite.
 
-Implement scoped evidence as a bounded tooling workstream under Continuous Integration.
-It is an ecosystem improvement with its own acceptance, and the existing v2 workflow
-remains usable during Computers delivery. Record build inputs and cache churn from the
-first port; do not wait for a full provider rebuild to discover the feedback cost.
+Scoped source evidence now uses immutable v3 receipts with owner-declared Cargo and
+Console closures. The recorder and coverage verifier qualify concurrent publication,
+retained failures and input/configuration invalidation. Installed adapters and complete
+release-lock coverage composition remain work under Continuous Integration. Record
+build inputs and cache churn throughout delivery.
 
 Exit: approved target contracts are recorded, the dependency/gap inventory has owners,
 and a focused check can run without building the full Veoveo smoke graph.
@@ -397,7 +398,8 @@ The native stock CLI probe now passes across provider SSH admission-token expiry
 The exact `0.0.116` client retains its shell and exchanges data after the configured
 three-second credential expires. This supports renewing Veoveo connection authority
 without reconnecting solely to replace the provider admission credential. Platform
-grant persistence, pairing and the public ingress journey remain implementation work.
+grant persistence, pairing and public ingress are now deployed and qualified through
+the stock CLI, as recorded in the public acceptance observations below.
 Runtime lease enforcement now passes native terminal renewal and local real-mTLS
 backpressure tests. Each attachment owns a physically closable provider connection;
 revocation closes blocked transport while the Computer process remains available for

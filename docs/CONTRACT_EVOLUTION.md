@@ -17,7 +17,7 @@ not advertise an unimplemented or unqualified capability.
 | gRPC and Protocol Buffers | Internal OpenShell adapter protocol pinned with the selected provider artifacts; a watch alone is not a durable delivery guarantee |
 | OpenShell `0.0.116` | Reviewed handoff baseline, including explicitly recorded provider patches; broader compatibility remains unqualified |
 | JSON Schema `2020-12` | Generated controlled-domain contracts and planned language-neutral test receipts |
-| `veoveo.io/local-test-report/v2` | Current repository-wide local evidence format; scoped receipts are future work and have no published schema yet |
+| `veoveo.io/test-receipt/v1` and `veoveo.io/local-test-report/v3` | Immutable local attempts and per-check source validity; installed adapters and full release closure composition remain work |
 | OCI, Helm, Git content identities | Existing exact artifact publication and installation-owned deployment boundaries |
 | NVIDIA GPU APIs, WebGPU, WebGL | Hardware workload and headed visual evidence remain required; headless behavior checks have a separate evidence class |
 | S3-compatible object APIs | Current private Artifact storage adapter; alternative transfer endpoints require a separately qualified profile |
@@ -205,9 +205,14 @@ current qualifying result explicitly. A release joins coverage for the complete
 selected artifact/configuration closure, including retained components and their
 compatibility. Reusing a receipt cannot hide a known failure or vulnerability.
 
-The v2 report remains the current local status mechanism until this work lands.
-It is not a security attestation. Do not change the report JSON by hand to imitate
-scoped validation or manufacture a green result. Implementation routing is in
+The v3 recorder now replaces the v2 aggregate for local source evidence. Exact
+owner-reviewed commands admit Cargo/Console input closures and observed toolchains.
+Unknown invocations run with a conservative source boundary and unqualified reuse.
+Immutable attempts preserve failures, and explicit profile verification rejects
+missing coverage, changed inputs, expired observations and mismatched bindings.
+Installed harness adapters and generation of complete coverage from the selected
+release lock remain work. Local evidence is not a security attestation; never edit
+receipt JSON to manufacture a result. Details and limits are in
 [Continuous Integration](CONTINUOUS_INTEGRATION.md).
 
 ## CE-07: Qualified Versions And Explicit Transitions
@@ -283,7 +288,7 @@ implementation and does not make a transfer experiment a Computers release gate.
 | Core authority and capacity | Computers domain, gateway policy, Console, installation package | Human and service-principal journeys, private defaults, quotas, truthful setup/readiness; required for the initial supported profile |
 | Renewable access | Gateway authority, BFF/Computers relay, native provider sessions | Real browser and stock CLI renew across replicas; revocation bound holds during blocked I/O; required for Computers release |
 | Appropriate test tooling | Console test ownership, SDK, existing Rust fixtures, xtask dispatch | One maintained framework and shared fixture lifecycle; migrate cases that remove measured churn, preserve visual gates |
-| Scoped evidence | `tools/xtask/src/commands/test_report.rs`, owning tests and CI presentation | Unrelated edits retain valid receipts; shared inputs invalidate dependents; parallel runs lose no results; full release composition rejects gaps |
+| Scoped evidence | `tools/xtask/src/commands/test_report/`, owning declarations/tests and CI presentation | Unrelated edits retain valid receipts; shared inputs invalidate dependents; parallel runs lose no results; full release composition rejects gaps |
 | Qualified upgrade cadence | Dependency/image owners and release compatibility inputs | Record review date and support state; independent targeted upgrade changes; no new package pin in this change |
 | Deployment and storage efficiency | Image planner, Computers/provider package, installation owner | Asset-only and no-op runs reuse unchanged artifacts; retained homes survive maintenance; required affected-path acceptance |
 | Artifact route experiment | Artifact service, upload client, installation ingress | Matched performance/security comparison first; a separate implementation decision follows measured evidence |

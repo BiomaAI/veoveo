@@ -1,0 +1,228 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "commands::test_report::",
+        "--",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "commands::image::source_context::",
+        "--",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-xtask",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-xtask",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "test"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust",
+        "node"
+      ]
+    },
+    {
+      "arguments": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust",
+        "node"
+      ]
+    },
+    {
+      "arguments": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust",
+        "node"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "xtask",
+        "release",
+        "client-types",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust",
+        "node"
+      ]
+    }
+  ]
+}
