@@ -46,6 +46,7 @@ fn core_presets_render_stable_unconfigured_control_without_privileged_capacity()
         let first = objects(render(&["--set", &option]))?;
         let second = objects(render(&["--set", &option]))?;
         let deployment = object(&first, "Deployment", "computers-mcp")?;
+        ensure!(object(&first, "Deployment", "computer-host").is_err());
         ensure!(
             deployment == object(&second, "Deployment", "computers-mcp")?,
             "no-op render changes pod template"
@@ -82,19 +83,30 @@ fn core_presets_render_stable_unconfigured_control_without_privileged_capacity()
 
 #[test]
 fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()> {
-    let missing = render(&["--set", "computers.capacityMode=openshell-docker"]);
+    let missing = render(&["--set", "computerCapacity=openshell-docker"]);
     ensure!(!missing.status.success());
     ensure!(String::from_utf8_lossy(&missing.stderr).contains("computers.existingConfigMap"));
     let revision = format!("computers.configurationRevision={}", "a".repeat(64));
+    let host_revision = format!("computers.host.configurationRevision={}", "b".repeat(64));
     let configured = objects(render(&[
         "--set",
-        "computers.capacityMode=openshell-docker",
+        "computerCapacity=openshell-docker",
         "--set",
         "computers.existingConfigMap=admitted-computers",
         "--set",
         "computers.existingTrustSecret=computers-worker-trust",
         "--set",
         &revision,
+        "--set",
+        "computers.host.existingConfigMap=admitted-host",
+        "--set",
+        "computers.host.existingTrustSecret=computers-host-trust",
+        "--set",
+        &host_revision,
+        "--set",
+        "computers.host.registryEgress[0].cidr=192.0.2.10/32",
+        "--set",
+        "computers.host.registryEgress[0].port=5000",
     ]))?;
     ensure!(object(&configured, "ConfigMap", "computers-configuration").is_err());
     let deployment = object(&configured, "Deployment", "computers-mcp")?;
@@ -110,6 +122,61 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
         volumes
             .iter()
             .any(|v| v["secret"]["secretName"] == "computers-worker-trust")
+    );
+    let host = object(&configured, "Deployment", "computer-host")?;
+    ensure!(host["spec"]["replicas"] == 1 && host["spec"]["strategy"]["type"] == "Recreate");
+    let pod = &host["spec"]["template"]["spec"];
+    ensure!(
+        pod["hostNetwork"] == false
+            && pod["hostPID"] == false
+            && pod["hostIPC"] == false
+            && pod["automountServiceAccountToken"] == false
+    );
+    ensure!(pod["terminationGracePeriodSeconds"] == 60);
+    ensure!(pod["containers"][0]["securityContext"]["privileged"] == true);
+    ensure!(
+        pod["volumes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|v| v.get("hostPath").is_none())
+    );
+    ensure!(
+        pod["containers"][0]["volumeMounts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|v| v.get("mountPropagation").is_none())
+    );
+    let claim = object(&configured, "PersistentVolumeClaim", "computer-host-data")?;
+    ensure!(claim["metadata"]["annotations"]["helm.sh/resource-policy"] == "keep");
+    let policy = configured
+        .iter()
+        .find(|o| {
+            o["kind"] == "NetworkPolicy"
+                && o["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]
+                    == "computer-host"
+        })
+        .context("private host network policy")?;
+    ensure!(
+        policy["spec"]["ingress"][0]["from"][0]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]
+            == "computers-mcp"
+    );
+    ensure!(policy["spec"]["egress"][0]["to"][0]["ipBlock"]["cidr"] == "192.0.2.10/32");
+    let internal = configured
+        .iter()
+        .find(|o| {
+            o["kind"] == "NetworkPolicy"
+                && o["metadata"]["name"]
+                    .as_str()
+                    .is_some_and(|name| name.ends_with("-internal"))
+        })
+        .context("internal network policy")?;
+    ensure!(
+        internal["spec"]["podSelector"]["matchExpressions"][0]["values"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("computer-host"))
     );
     let invalid = render(&["--set", "computers.existingConfigMap=ignored-configuration"]);
     ensure!(

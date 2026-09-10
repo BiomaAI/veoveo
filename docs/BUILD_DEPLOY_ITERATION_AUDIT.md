@@ -2881,3 +2881,17 @@ previous hashes. Eleven host/storage unit tests pass. Combined all-target lint t
 feature union and checks an additional TLS/crypto closure. The native runner briefly
 waits for the shared local build directory. Separate focused package invocations can
 retain a stable feature selection; parallel commands do not eliminate Cargo's lock.
+
+The five-target publication from `ff845bfb` took 318.790 seconds and produced immutable
+host, template, Computers MCP, gateway and Console BFF images. The first combined Rust
+compile took 4 minutes 33 seconds; its feature union rebuilt TLS/crypto and Surreal
+dependencies as well as changed application sources. Console assets took 3.21 seconds,
+and provider compilation reused its cache. Registry configuration recreated only the
+BuildKit container in 1.1 seconds while retaining its cache. Overlapping export/SBOM
+windows are not additive wall time. Evidence is in the ignored development receipt
+`computers-provider/release-ff845bfb.json`.
+
+The published host/template pair passes the native retained restart test in 39.4
+seconds. Configured-capacity contract, Helm and renderer checks take 1.4, 1.2 and
+25.3 seconds respectively. These chart changes reuse the published application images.
+No additional throughput experiment blocks their installation.

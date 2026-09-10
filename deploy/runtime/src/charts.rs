@@ -226,6 +226,8 @@ pub(crate) fn append_release_values(
                     format!("global.installationId={}", profile.definition.name),
                     "--set-string".to_owned(),
                     "installationPreset=custom".to_owned(),
+                    "--set-string".to_owned(),
+                    format!("computerCapacity={}", platform.computer_capacity.as_str()),
                     "--set-json".to_owned(),
                     format!("components={}", serde_json::to_string(components)?),
                     "--set-json".to_owned(),

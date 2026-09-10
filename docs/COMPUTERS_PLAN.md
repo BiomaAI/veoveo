@@ -619,3 +619,12 @@ is durable journal state. An empty journal accepts its first identity, while an
 existing journal rejects a replacement engine. This removes the manual engine-ID
 copy step. Eight storage tests and the native retained worker lifecycle pass with
 the new configuration. Whole-host cold restart remains an installed qualification gate.
+
+The configured `openshell-docker` capacity selection now includes the private host
+and template in the typed deployment image closure. Helm provisions a retained PVC,
+a single private host with explicit maintenance replacement, and separate two-replica
+Computers control. Restricted-network installations admit only worker ingress and
+declared registry egress. The exact published host and template pass whole-container
+replacement with retained bytes in 39.4 seconds. Contract, chart, renderer and lint
+checks pass. Installation-owned configuration, trust and public acceptance follow;
+this checkpoint does not claim that capacity is already installed on Bioma.

@@ -1,0 +1,156 @@
+{{- if eq .Values.computerCapacity "openshell-docker" -}}
+{{- $host := .Values.computers.host -}}
+{{- $_ := required "configured Computer host requires computers.host.existingConfigMap" $host.existingConfigMap -}}
+{{- $_ := required "configured Computer host requires computers.host.existingTrustSecret" $host.existingTrustSecret -}}
+{{- if not (regexMatch "^[a-f0-9]{64}$" $host.configurationRevision) -}}
+{{- fail "configured Computer host requires computers.host.configurationRevision (SHA-256 of host.json)" -}}
+{{- end -}}
+{{- $claim := default "computer-host-data" $host.persistence.existingClaim -}}
+{{- if not $host.persistence.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $claim }}
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: computer-host
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if $host.persistence.storageClass }}
+  storageClassName: {{ $host.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $host.persistence.size }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: computer-host
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: computer-host
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: computer-host
+  ports:
+    - name: provider
+      port: 8805
+      targetPort: provider
+    - name: storage
+      port: 8806
+      targetPort: storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: computer-host
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: computer-host
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  progressDeadlineSeconds: 900
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: computer-host
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: computer-host
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        checksum/computer-host-configuration: {{ $host.configurationRevision | quote }}
+    spec:
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      terminationGracePeriodSeconds: 60
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      {{- with $host.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $host.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: computer-host
+          image: {{ include "veoveo.ownedImage" (list . $host.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            privileged: true
+            seccompProfile:
+              type: Unconfined
+          ports:
+            - name: provider
+              containerPort: 8805
+            - name: storage
+              containerPort: 8806
+          startupProbe:
+            exec:
+              command: ["/usr/local/bin/veoveo-computer-host", "health"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/veoveo-computer-host", "health"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $host.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/veoveo-computers
+            - name: configuration
+              mountPath: /etc/veoveo/computers/host-config
+              readOnly: true
+            - name: trust
+              mountPath: /etc/veoveo/computers/host-trust
+              readOnly: true
+            - name: run
+              mountPath: /run
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ $claim }}
+        - name: configuration
+          configMap:
+            name: {{ $host.existingConfigMap }}
+            items:
+              - key: host.json
+                path: host.json
+        - name: trust
+          secret:
+            secretName: {{ $host.existingTrustSecret }}
+            defaultMode: 0400
+        - name: run
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+{{- else -}}
+{{- if or .Values.computers.host.existingConfigMap .Values.computers.host.configurationRevision .Values.computers.host.existingTrustSecret .Values.computers.host.persistence.existingClaim -}}
+{{- fail "Computer host configuration requires computerCapacity=openshell-docker" -}}
+{{- end -}}
+{{- end }}

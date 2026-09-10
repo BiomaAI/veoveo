@@ -1,5 +1,5 @@
 {{- if include "veoveo.mcpServerEnabled" (list . "computers") }}
-{{- $configured := eq .Values.computers.capacityMode "openshell-docker" -}}
+{{- $configured := eq .Values.computerCapacity "openshell-docker" -}}
 {{- $configName := "computers-configuration" -}}
 {{- $configuration := "" -}}
 {{- if $configured -}}
@@ -13,7 +13,7 @@
 {{- fail "Computers access.idleSeconds must not exceed access.absoluteSeconds" -}}
 {{- end -}}
 {{- if or .Values.computers.existingConfigMap .Values.computers.existingTrustSecret .Values.computers.configurationRevision -}}
-{{- fail "Computers external configuration and trust require capacityMode=openshell-docker" -}}
+{{- fail "Computers configuration and trust require computerCapacity=openshell-docker" -}}
 {{- end -}}
 {{- /* An RFC 9562 UUIDv8 identifies only this unconfigured control surface.
 Configured provider identities belong to the installation's explicit JSON file. */ -}}

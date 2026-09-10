@@ -94,7 +94,7 @@ material they operate:
 | [`testing/deployment-smoke/DESIGN.md`](../testing/deployment-smoke/DESIGN.md) | focused Helm checks, passive or requested GitOps observation, and convergence evidence limits |
 | `testing/deployment-smoke/src/flux_cancellation/` | isolated live OCI source and Helm health-check cancellation, typed observations, latency evidence, and namespace cleanup |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
-| [`deploy/helm/veoveo/DESIGN.md`](../deploy/helm/veoveo/DESIGN.md) | chart-owned Computers core/configured boundary, trust references and stable control deployment |
+| [`deploy/helm/veoveo/DESIGN.md`](../deploy/helm/veoveo/DESIGN.md) | chart-owned Computers core/capacity selection, independent control and private host deployments, retained PVC, trust references and host network policy |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
 | [`tools/image-build/DESIGN.md`](../tools/image-build/DESIGN.md) | Cargo-derived compilation inputs, artifact reuse, normalized dependency publication, and source identity |
 | [`apps/console/web/README.md`](../apps/console/web/README.md) | local Console refresh loop, proxy routes, and authentication origin |
