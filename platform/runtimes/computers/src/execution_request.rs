@@ -4,7 +4,8 @@ use std::{future::Future, io::Cursor};
 use veoveo_computer_execution::{ExecutionRequest, LAUNCHER_PATH, RETAINED_HOME};
 
 use crate::{
-    Binding, ExecChunk, ExecInput, ExecIntent, ExecResult, OpenShellRuntime, Result, RuntimeFailure,
+    Binding, ExecChunk, ExecInput, ExecIntent, ExecResult, Observation, OpenShellRuntime, Phase,
+    Result, RuntimeFailure,
 };
 
 impl OpenShellRuntime {
@@ -14,6 +15,7 @@ impl OpenShellRuntime {
     pub async fn execute_request<F, Fut>(
         &self,
         binding: &Binding,
+        expected: &Observation,
         request: &ExecutionRequest,
         timeout_seconds: u32,
         maximum_output_bytes: usize,
@@ -23,6 +25,13 @@ impl OpenShellRuntime {
         F: FnMut(ExecChunk) -> Fut + Send,
         Fut: Future<Output = Result<()>> + Send,
     {
+        if expected.phase != Phase::Ready
+            || expected.exit_code.is_some()
+            || !crate::models::identifier(&expected.sandbox_id)
+            || !crate::models::identifier(&expected.main_process_instance_id)
+        {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
         let frame = request
             .encode()
             .map_err(|_| RuntimeFailure::InvalidExecution)?;
@@ -35,11 +44,12 @@ impl OpenShellRuntime {
             maximum_output_bytes,
             vec![],
         )?;
-        self.execute_with_input(
+        self.execute_inner(
             binding,
             &intent,
-            ExecInput::new(&mut input, byte_count)?,
             on_output,
+            Some(ExecInput::new(&mut input, byte_count)?),
+            Some(expected),
         )
         .await
     }

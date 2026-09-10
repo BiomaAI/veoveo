@@ -67,9 +67,12 @@ async fn structured_request_values_travel_only_in_framed_stdin() {
         state.sandbox = Some(sandbox(Phase::Ready));
         state.expected_input_bytes = Some(frame.len());
     }
+    let expected = running.runtime.get(&binding()).await.unwrap().unwrap();
     let result = running
         .runtime
-        .execute_request(&binding(), &request, 5, 1024, |_| async { Ok(()) })
+        .execute_request(&binding(), &expected, &request, 5, 1024, |_| async {
+            Ok(())
+        })
         .await
         .unwrap();
     assert_eq!(result.exit_code, 0);
@@ -81,6 +84,60 @@ async fn structured_request_values_travel_only_in_framed_stdin() {
     assert!(start.stdin.is_empty());
     assert!(!start.tty);
     assert_eq!(state.input_bytes, frame.as_slice());
+}
+
+#[tokio::test]
+async fn structured_execution_refuses_another_resource_run_or_stopped_expectation_before_start() {
+    let running = Running::start().await;
+    running.fake.0.lock().unwrap().sandbox = Some(sandbox(Phase::Ready));
+    let expected = running.runtime.get(&binding()).await.unwrap().unwrap();
+    let request = veoveo_computer_execution::ExecutionRequest::new(
+        vec!["/bin/echo".into(), "must-not-start".into()],
+        ".".into(),
+        Default::default(),
+        vec![],
+    )
+    .unwrap();
+    let mut wrong_resource = expected.clone();
+    wrong_resource.sandbox_id = "different-resource".into();
+    let mut wrong_run = expected.clone();
+    wrong_run.main_process_instance_id = "different-process".into();
+    let mut stopped = expected.clone();
+    stopped.phase = Phase::Stopped;
+    let mut exited = expected.clone();
+    exited.exit_code = Some(0);
+    for before in [wrong_resource, wrong_run, stopped, exited] {
+        assert_eq!(
+            running
+                .runtime
+                .execute_request(&binding(), &before, &request, 5, 1024, |_| async { Ok(()) })
+                .await,
+            Err(RuntimeFailure::BindingMismatch)
+        );
+    }
+    {
+        let mut state = running.fake.0.lock().unwrap();
+        state
+            .sandbox
+            .as_mut()
+            .unwrap()
+            .status
+            .as_mut()
+            .unwrap()
+            .main_process_instance_id = "restarted-process".into();
+    }
+    assert_eq!(
+        running
+            .runtime
+            .execute_request(&binding(), &expected, &request, 5, 1024, |_| async {
+                Ok(())
+            })
+            .await,
+        Err(RuntimeFailure::BindingMismatch)
+    );
+    let state = running.fake.0.lock().unwrap();
+    assert!(state.execution_start.is_none());
+    assert!(state.input_bytes.is_empty());
 }
 
 #[tokio::test]

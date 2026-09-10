@@ -1,7 +1,7 @@
 //! One native exit event establishes completion; canceled observation is unknown.
 use crate::{
-    Binding, MAX_CHUNK_BYTES, OpenShellRuntime, Phase, Result, RuntimeFailure, client::request,
-    models::canonical_path, protocol::v1 as api,
+    Binding, MAX_CHUNK_BYTES, Observation, OpenShellRuntime, Phase, Result, RuntimeFailure,
+    client::request, models::canonical_path, protocol::v1 as api,
 };
 use futures::stream;
 use std::{future::Future, time::Duration};
@@ -135,7 +135,8 @@ impl OpenShellRuntime {
         F: FnMut(ExecChunk) -> Fut + Send,
         Fut: Future<Output = Result<()>> + Send,
     {
-        self.execute_inner(binding, intent, on_output, None).await
+        self.execute_inner(binding, intent, on_output, None, None)
+            .await
     }
     pub async fn execute_with_input<F, Fut>(
         &self,
@@ -151,23 +152,30 @@ impl OpenShellRuntime {
         if !intent.stdin.is_empty() {
             return Err(RuntimeFailure::InvalidExecution);
         }
-        self.execute_inner(binding, intent, on_output, Some(input))
+        self.execute_inner(binding, intent, on_output, Some(input), None)
             .await
     }
-    async fn execute_inner<F, Fut>(
+    pub(crate) async fn execute_inner<F, Fut>(
         &self,
         binding: &Binding,
         intent: &ExecIntent,
         mut on_output: F,
         input: Option<ExecInput<'_>>,
+        expected: Option<&Observation>,
     ) -> Result<ExecResult>
     where
         F: FnMut(ExecChunk) -> Fut + Send,
         Fut: Future<Output = Result<()>> + Send,
     {
         let current = self.get(binding).await?.ok_or(RuntimeFailure::NotFound)?;
-        if current.phase != Phase::Ready || current.main_process_instance_id.is_empty() {
+        if current.phase != Phase::Ready
+            || current.main_process_instance_id.is_empty()
+            || current.exit_code.is_some()
+        {
             return Err(RuntimeFailure::InvalidState);
+        }
+        if expected.is_some_and(|before| !before.same_process(&current)) {
+            return Err(RuntimeFailure::BindingMismatch);
         }
         tokio::time::timeout(
             Duration::from_secs(intent.timeout_seconds as u64 + 20),

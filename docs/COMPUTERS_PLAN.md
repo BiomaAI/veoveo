@@ -539,6 +539,12 @@ available, while an unresolved command blocks a replacement Start. Migration 006
 currently covers queued admission. Dispatch, termination settlement and public agent
 execution remain required; no command is launched by this checkpoint.
 
+Structured execution now requires the admitted native run at the runtime boundary.
+A changed resource or process rejects the request before its Start frame. The native
+fixture retries an old run after Stop/Start and checks that its marker was never
+written. This qualifies run selection alongside the durable execution slot; command
+worker dispatch and public agent acceptance remain delivery work.
+
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
 
