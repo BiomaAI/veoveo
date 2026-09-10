@@ -405,6 +405,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             .expect("valid token");
 
         assert_eq!(subject.access_token.subject.as_str(), "00u123");
+        assert_eq!(subject.principal.issuer, subject.access_token.issuer);
         assert_eq!(subject.access_token.audience.as_str(), AUDIENCE);
         assert_eq!(
             subject.access_token.oauth_client_id.as_str(),

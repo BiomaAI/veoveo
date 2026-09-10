@@ -22,6 +22,13 @@ denies access. Database failure returns unavailable, and the read has a five-sec
 deadline. Individual JWT revocation remains enforced. The request middleware does
 not extend a token's signed expiration.
 
+The refresh family retains the upstream IdP principal. JWT verification records the
+installation authorization-server issuer in `Principal.issuer` and preserves the
+original `principal_id`. Family matching therefore binds the canonical principal ID,
+subject, kind and tenant while checking the verified principal against the signed
+token issuer. Equating the IdP issuer with the gateway token issuer would reject a
+valid federated login.
+
 Logout already revokes the refresh family before the Console clears its session.
 The signed family claim extends that revocation to subsequent bound access-token
 requests on every replica. Refresh-token replay has the same effect. This follows

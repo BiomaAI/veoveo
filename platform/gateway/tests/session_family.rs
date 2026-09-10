@@ -66,13 +66,17 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
             not_before: None,
             expires_at: now + TimeDelta::minutes(15),
         };
+        // Match JwtVerifier: the signed gateway issuer becomes Principal.issuer,
+        // while the refresh family still holds the upstream OIDC issuer.
+        let mut authenticated = principal.clone();
+        authenticated.issuer = token.issuer.clone();
         assert!(
             second
-                .access_token_session_valid(&profile, &authorization_server, &token, &principal)
+                .access_token_session_valid(&profile, &authorization_server, &token, &authenticated)
                 .await
                 .unwrap()
         );
-        let mut foreign = principal.clone();
+        let mut foreign = authenticated.clone();
         foreign.subject = TokenSubject::new("two").unwrap();
         assert!(
             !second
@@ -80,7 +84,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
                 .await
                 .unwrap()
         );
-        foreign = principal.clone();
+        foreign = authenticated.clone();
         foreign.tenant = Some(TenantId::new("tenant-b").unwrap());
         assert!(
             !second
@@ -94,7 +98,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
                     &GatewayProfileId::new("other").unwrap(),
                     &authorization_server,
                     &token,
-                    &principal
+                    &authenticated
                 )
                 .await
                 .unwrap()
@@ -105,7 +109,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
                     &profile,
                     &AuthorizationServerId::new("other").unwrap(),
                     &token,
-                    &principal
+                    &authenticated
                 )
                 .await
                 .unwrap()
@@ -121,7 +125,12 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
             }
             assert!(
                 !second
-                    .access_token_session_valid(&profile, &authorization_server, &bad, &principal)
+                    .access_token_session_valid(
+                        &profile,
+                        &authorization_server,
+                        &bad,
+                        &authenticated
+                    )
                     .await
                     .unwrap()
             );
@@ -156,7 +165,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
         assert_eq!(rotated.grant.family_id, issued.grant.family_id);
         assert!(
             second
-                .access_token_session_valid(&profile, &authorization_server, &token, &principal)
+                .access_token_session_valid(&profile, &authorization_server, &token, &authenticated)
                 .await
                 .unwrap()
         );
@@ -202,7 +211,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
         // A still-unexpired signed access token cannot outlive committed family revocation.
         assert!(
             !second
-                .access_token_session_valid(&profile, &authorization_server, &token, &principal)
+                .access_token_session_valid(&profile, &authorization_server, &token, &authenticated)
                 .await
                 .unwrap()
         );
