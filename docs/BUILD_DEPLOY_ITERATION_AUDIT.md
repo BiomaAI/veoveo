@@ -2315,3 +2315,11 @@ one database round trip. A missing or mismatched revision fails closed. The focu
 store/gateway qualification passes in 62.5 s, including compilation and an isolated
 3.2.4 test that switches the policy pointer concurrently across two clients. Library
 Clippy takes 16.8 s. No image publication or workload restart was needed.
+
+Browser access tokens now retain their durable refresh-family identity, and gateway
+requests check that family's current state. Focused qualification compiled in 35.45 s;
+the real-store rotation/logout/replay cases took 8.48 s in the recorded run (1.97 s
+in the initial isolated run). Concurrent Cargo test and Clippy commands contended on
+the same build-directory lock. Run these dependent compiler phases sequentially on
+this target directory; parallel command launch does not produce parallel compilation.
+No provider artifact or database migration changed. Remaining disk reserve is 196 GiB.

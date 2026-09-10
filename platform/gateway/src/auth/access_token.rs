@@ -68,6 +68,7 @@ impl JwtVerifier {
             issuer: issuer.clone(),
             subject: subject.clone(),
             oauth_client_id,
+            session_family: claims.session_family,
             audience: self.config.audience.clone(),
             work_context: WorkContextId::new(claims.work_context.clone())
                 .map_err(AuthError::Claim)?,

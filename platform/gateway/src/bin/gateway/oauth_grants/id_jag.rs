@@ -476,6 +476,7 @@ pub(crate) async fn token_endpoint_id_jag(
         None,
         None,
         AccessTokenInvocation {
+            session_family: None,
             work_context,
             provenance: InvocationProvenance::Delegated {
                 initiator: verified_id_jag.principal.id.clone(),

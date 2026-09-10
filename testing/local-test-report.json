@@ -1,19 +1,17 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:7e945b628c767e24658f4ff3ec654253323e113a30de3157414296b507b19c3c",
-  "updatedAt": "2026-09-10T02:51:16Z",
+  "buildDigest": "sha256:b9c6e8519609b9d2fe71cb0cfaf7111afd506f6a0a29b9c02f267df7456dc2f8",
+  "updatedAt": "2026-09-10T03:05:48Z",
   "checks": [
     {
-      "name": "current-authority-clippy",
+      "name": "session-family-clippy",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-platform-store",
-        "-p",
-        "veoveo-policy",
+        "veoveo-mcp-contract",
         "-p",
         "veoveo-mcp-gateway",
         "--lib",
@@ -22,12 +20,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T02:50:30Z",
-      "durationSeconds": 16.750062381,
+      "finishedAt": "2026-09-10T03:05:22Z",
+      "durationSeconds": 17.809182601,
       "detail": "completed successfully"
     },
     {
-      "name": "current-authority-format",
+      "name": "session-family-format",
       "command": [
         "cargo",
         "fmt",
@@ -36,30 +34,28 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T02:50:16Z",
-      "durationSeconds": 2.510995384,
+      "finishedAt": "2026-09-10T03:05:07Z",
+      "durationSeconds": 2.59478778,
       "detail": "completed successfully"
     },
     {
-      "name": "current-authority-tests",
+      "name": "session-family-tests",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-platform-store",
-        "-p",
         "veoveo-mcp-gateway",
         "--lib",
+        "--bin",
+        "gateway",
         "--test",
-        "current_authority",
-        "--test",
-        "control_plane_fixtures"
+        "session_family"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T02:51:16Z",
-      "durationSeconds": 62.508431228,
+      "finishedAt": "2026-09-10T03:05:48Z",
+      "durationSeconds": 44.200427965,
       "detail": "completed successfully"
     }
   ]

@@ -13,6 +13,8 @@ pub(super) struct JwtClaims {
     #[serde(default)]
     pub(super) principal_display_name: Option<String>,
     pub(super) client_id: String,
+    #[serde(default)]
+    pub(super) session_family: Option<veoveo_mcp_contract::GatewayRefreshFamilyId>,
     pub(super) work_context: String,
     pub(super) invocation_mode: InvocationMode,
     #[serde(default)]

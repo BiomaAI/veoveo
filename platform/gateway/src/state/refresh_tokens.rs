@@ -414,7 +414,7 @@ impl GatewayState {
     }
 }
 
-fn grant_from_family(family: GatewayRefreshFamilyRecord) -> Result<GatewayRefreshGrant> {
+pub(super) fn grant_from_family(family: GatewayRefreshFamilyRecord) -> Result<GatewayRefreshGrant> {
     let family_id = family_id(&family)?;
     let stored_principal: StoredRefreshPrincipal =
         serde_json::from_value(serde_json::to_value(family.principal)?)?;

@@ -69,6 +69,8 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         principal_id: &'a str,
         principal_display_name: &'a str,
         client_id: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_family: Option<&'a str>,
         work_context: &'a str,
         invocation_mode: InvocationMode,
         initiator: &'a str,
@@ -174,6 +176,14 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     }
 
     fn token_with_assurances(scope: &str, principal_assurances: Vec<&str>) -> BearerToken {
+        token_with_session(scope, principal_assurances, None)
+    }
+
+    fn token_with_session(
+        scope: &str,
+        principal_assurances: Vec<&str>,
+        session_family: Option<&str>,
+    ) -> BearerToken {
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("test-key".to_string());
         let encoding_key = rsa_encoding_key();
@@ -185,6 +195,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 principal_id: "https://idp.example.com#00u123",
                 principal_display_name: "Mara Chen",
                 client_id: "operator-local-public",
+                session_family,
                 work_context: "mission",
                 invocation_mode: InvocationMode::Direct,
                 initiator: "https://idp.example.com#00u123",
@@ -425,6 +436,36 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 .principal
                 .assurances
                 .contains(&PrincipalAssurance::UsPerson)
+        );
+    }
+
+    #[test]
+    fn signed_session_binding_is_typed_and_cannot_be_inferred_when_absent() {
+        let family = uuid::Uuid::now_v7().to_string();
+        let verifier = verifier(&["operator:use"]);
+        let verified = verifier
+            .verify(&token_with_session("operator:use", vec![], Some(&family)))
+            .unwrap();
+        assert_eq!(
+            verified.access_token.session_family.unwrap().as_str(),
+            family
+        );
+        assert!(
+            verifier
+                .verify(&token_with_session(
+                    "operator:use",
+                    vec![],
+                    Some("not-a-family")
+                ))
+                .is_err()
+        );
+        assert!(
+            verifier
+                .verify(&token("operator:use"))
+                .unwrap()
+                .access_token
+                .session_family
+                .is_none()
         );
     }
 

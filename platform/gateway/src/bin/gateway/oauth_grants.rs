@@ -383,54 +383,6 @@ pub(super) async fn token_endpoint_authorization_code(
             "Work Context membership is required",
         );
     }
-    let token = match issue_access_token(
-        catalog,
-        authorization_server,
-        &profile.protected_resource,
-        &code_record.principal.subject,
-        &client_id,
-        PrincipalKind::User,
-        Some(&code_record.principal),
-        Some(&code_record.principal_display_name),
-        None,
-        AccessTokenInvocation {
-            work_context: code_record.work_context.clone(),
-            provenance: InvocationProvenance::Direct {
-                initiator: code_record.principal.id.clone(),
-            },
-        },
-        code_record.principal.id.clone(),
-        &code_record.scopes,
-    )
-    .await
-    {
-        Ok(token) => token,
-        Err(err) => {
-            tracing::error!("failed to issue browser authorization-code access token: {err}");
-            if let Err(err) = record_oidc_auth_audit(
-                &state.gateway_state,
-                profile,
-                AuthAuditRecord {
-                    authorization_server: Some(authorization_server),
-                    client_id: Some(&client_id),
-                    principal: Some(&code_record.principal),
-                    jwt_id: None,
-                    outcome: AuthOutcome::Deny,
-                    reason: AuthReasonCode::TokenSigningKeyUnavailable,
-                    started_at,
-                },
-            )
-            .await
-            {
-                return auth_audit_error_response(err);
-            }
-            return oauth_error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "server_error",
-                "token signing key is unavailable",
-            );
-        }
-    };
     let refresh = if client.grant_types.contains(&OAuthGrantType::RefreshToken) {
         match state
             .gateway_state
@@ -475,6 +427,57 @@ pub(super) async fn token_endpoint_authorization_code(
         }
     } else {
         None
+    };
+    let token = match issue_access_token(
+        catalog,
+        authorization_server,
+        &profile.protected_resource,
+        &code_record.principal.subject,
+        &client_id,
+        PrincipalKind::User,
+        Some(&code_record.principal),
+        Some(&code_record.principal_display_name),
+        None,
+        AccessTokenInvocation {
+            session_family: refresh
+                .as_ref()
+                .map(|issued| issued.grant.family_id.clone()),
+            work_context: code_record.work_context.clone(),
+            provenance: InvocationProvenance::Direct {
+                initiator: code_record.principal.id.clone(),
+            },
+        },
+        code_record.principal.id.clone(),
+        &code_record.scopes,
+    )
+    .await
+    {
+        Ok(token) => token,
+        Err(err) => {
+            tracing::error!("failed to issue browser authorization-code access token: {err}");
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: Some(&code_record.principal),
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::TokenSigningKeyUnavailable,
+                    started_at,
+                },
+            )
+            .await
+            {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "token signing key is unavailable",
+            );
+        }
     };
     if let Err(err) = record_oidc_auth_audit(
         &state.gateway_state,
