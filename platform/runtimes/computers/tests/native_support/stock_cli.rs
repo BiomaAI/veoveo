@@ -115,10 +115,12 @@ async fn established_stock_cli_crosses_provider_admission_token_expiry() {
         .wait_for_lifecycle(&checkpoint, &created, Duration::from_secs(30))
         .await
         .unwrap();
-    let access = runtime
-        .open_shell_access(&binding, SystemTime::now() + Duration::from_secs(60))
-        .await
-        .unwrap();
+    let (_authority, lease) = veoveo_computers_runtime::LeaseAuthority::issue(
+        tokio::time::Instant::now(),
+        Duration::from_secs(30),
+    )
+    .unwrap();
+    let access = runtime.open_shell_access(&binding, lease).await.unwrap();
     let admission = access.create_ssh_session(&ready.sandbox_id).await.unwrap();
     let expires = UNIX_EPOCH + Duration::from_millis(admission.expires_at_ms as u64);
     assert!(expires.duration_since(SystemTime::now()).unwrap() <= Duration::from_secs(3));

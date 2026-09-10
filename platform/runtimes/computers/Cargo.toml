@@ -8,6 +8,7 @@ build = "build.rs"
 [dependencies]
 futures.workspace = true
 hex.workspace = true
+hyper-util = { version = "=0.1.20", features = ["tokio"] }
 prost.workspace = true
 prost-reflect = { version = "=0.16.5", features = ["serde"] }
 prost-types = "=0.14.4"
@@ -22,6 +23,7 @@ tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt-mu
 tokio-rustls.workspace = true
 tonic = { workspace = true, features = ["tls-ring"] }
 tonic-prost = "=0.14.6"
+tower = { workspace = true, features = ["util"] }
 uuid.workspace = true
 zeroize.workspace = true
 

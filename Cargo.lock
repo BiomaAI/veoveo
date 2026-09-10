@@ -16625,6 +16625,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "hex",
+ "hyper-util",
  "prost",
  "prost-build",
  "prost-reflect",
@@ -16644,6 +16645,7 @@ dependencies = [
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
+ "tower",
  "typify",
  "uuid",
  "zeroize",

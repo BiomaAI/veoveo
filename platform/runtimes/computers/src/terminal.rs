@@ -1,6 +1,6 @@
 use crate::{
-    Binding, MAX_CHUNK_BYTES, Observation, OpenShellRuntime, Phase, Result, RuntimeFailure,
-    TerminalOutput, TerminalSize,
+    AttachmentLease, Binding, MAX_CHUNK_BYTES, Observation, OpenShellRuntime, Phase, Result,
+    RuntimeFailure, TerminalOutput, TerminalSize,
     client::{Client, request},
     protocol::v1 as api,
     terminal_output::pump_output,
@@ -50,17 +50,22 @@ pub struct Terminal {
     worker: Option<JoinHandle<Result<()>>>,
     finished: Option<Result<()>>,
     instance: String,
-    expires: SystemTime,
+    lease: AttachmentLease,
 }
 impl Terminal {
     pub fn main_process_instance_id(&self) -> &str {
         &self.instance
     }
-    pub fn expires_at(&self) -> SystemTime {
-        self.expires
+    pub fn expires_at(&self) -> Result<SystemTime> {
+        self.lease.expires_at()
     }
     pub async fn read(&mut self) -> Result<Option<TerminalOutput>> {
-        match self.output.recv().await {
+        let received = tokio::select! {
+            biased;
+            _ = self.lease.closed() => return Err(RuntimeFailure::LeaseExpired),
+            received = self.output.recv() => received,
+        };
+        match received {
             Some(result) => result.map(Some),
             None => {
                 if let Some(worker) = self.worker.take() {
@@ -71,6 +76,7 @@ impl Terminal {
         }
     }
     pub async fn write(&self, bytes: &[u8]) -> Result<()> {
+        self.lease.check()?;
         if bytes.is_empty() || bytes.len() > MAX_CHUNK_BYTES {
             return Err(RuntimeFailure::TerminalBounds);
         }
@@ -82,6 +88,7 @@ impl Terminal {
         rx.await.map_err(|_| RuntimeFailure::TerminalFailed)?
     }
     pub async fn resize(&self, size: TerminalSize) -> Result<()> {
+        self.lease.check()?;
         let (tx, rx) = oneshot::channel();
         self.input
             .send(Command::Resize(size, tx))
@@ -116,11 +123,14 @@ impl Drop for AttachCancel {
     }
 }
 
-struct SessionToken {
+pub(crate) struct SessionToken {
     token: Option<Zeroizing<String>>,
     client: Client,
 }
 impl SessionToken {
+    pub(crate) fn into_token(mut self) -> Zeroizing<String> {
+        self.token.take().expect("issued token is owned")
+    }
     async fn revoke(&mut self) -> Result<()> {
         let Some(token) = self.token.take() else {
             return Ok(());
@@ -158,7 +168,7 @@ async fn revoke(mut client: Client, token: Zeroizing<String>) -> Result<()> {
     Ok(())
 }
 
-async fn issue_session(
+pub(crate) async fn issue_session(
     client: Client,
     sandbox_id: String,
 ) -> Result<(api::CreateSshSessionResponse, SessionToken)> {
@@ -205,22 +215,14 @@ async fn issue_session(
     receive.await.map_err(|_| RuntimeFailure::TerminalFailed)?
 }
 
-fn remaining(expires: SystemTime) -> Result<Duration> {
-    expires
-        .duration_since(SystemTime::now())
-        .ok()
-        .filter(|d| !d.is_zero() && *d <= Duration::from_secs(900))
-        .ok_or(RuntimeFailure::LeaseExpired)
-}
-
 impl OpenShellRuntime {
     pub async fn attach(
         &self,
         binding: &Binding,
         size: TerminalSize,
-        expires: SystemTime,
+        lease: AttachmentLease,
     ) -> Result<Terminal> {
-        remaining(expires)?;
+        lease.check()?;
         let (input, commands) = mpsc::channel(1);
         let (output_tx, output) = mpsc::channel(2);
         let (ready_tx, ready_rx) = oneshot::channel();
@@ -228,13 +230,21 @@ impl OpenShellRuntime {
         let mut cancel = AttachCancel(Some(cancel_tx));
         let runtime = self.clone();
         let binding = binding.clone();
+        let worker_lease = lease.clone();
         let worker = tokio::spawn(async move {
             terminal_worker(
-                runtime, binding, size, expires, commands, output_tx, ready_tx, cancel_rx,
+                runtime,
+                binding,
+                size,
+                worker_lease,
+                commands,
+                output_tx,
+                ready_tx,
+                cancel_rx,
             )
             .await
         });
-        let (instance, expires) = ready_rx
+        let instance = ready_rx
             .await
             .map_err(|_| RuntimeFailure::TerminalFailed)??;
         Ok(Terminal {
@@ -244,7 +254,7 @@ impl OpenShellRuntime {
             worker: Some(worker),
             finished: None,
             instance,
-            expires,
+            lease,
         })
     }
 }
@@ -259,13 +269,11 @@ struct Attached {
     client: client::Handle<HostKey>,
     channel: SshChannel,
     current: Observation,
-    expires: SystemTime,
 }
 async fn setup(
     runtime: &OpenShellRuntime,
     binding: &Binding,
     size: TerminalSize,
-    expires: SystemTime,
     token: &mut SessionToken,
     bridges: &mut JoinSet<Result<()>>,
 ) -> Result<Attached> {
@@ -276,26 +284,24 @@ async fn setup(
     if current.phase != Phase::Ready || current.main_process_instance_id.is_empty() {
         return Err(RuntimeFailure::InvalidState);
     }
-    remaining(expires)?;
     let (session, issued_token) =
         issue_session(runtime.client.clone(), current.sandbox_id.clone()).await?;
     *token = issued_token;
     if session.sandbox_id != current.sandbox_id || session.expires_at_ms <= 0 {
         return Err(RuntimeFailure::TerminalFailed);
     }
-    let expires = expires.min(UNIX_EPOCH + Duration::from_millis(session.expires_at_ms as u64));
-    let duration = remaining(expires)?;
+    let admission_expires = UNIX_EPOCH + Duration::from_millis(session.expires_at_ms as u64);
+    let duration = admission_expires
+        .duration_since(SystemTime::now())
+        .ok()
+        .filter(|duration| !duration.is_zero())
+        .ok_or(RuntimeFailure::LeaseExpired)?
+        .min(Duration::from_secs(30));
     let (ssh, relay) = tokio::io::duplex(MAX_CHUNK_BYTES * 2);
     let forward_token = token.token.as_ref().unwrap().to_string();
-    let stub = runtime.client.clone();
+    let stub = runtime.clone();
     let id = current.sandbox_id.clone();
-    bridges.spawn(forward(
-        stub,
-        id,
-        Zeroizing::new(forward_token),
-        relay,
-        duration,
-    ));
+    bridges.spawn(forward(stub, id, Zeroizing::new(forward_token), relay));
     tokio::time::timeout(duration, async {
         let config = client::Config {
             window_size: (MAX_CHUNK_BYTES * 4) as u32,
@@ -354,7 +360,6 @@ async fn setup(
             client,
             channel,
             current,
-            expires,
         })
     })
     .await
@@ -365,10 +370,10 @@ async fn terminal_worker(
     runtime: OpenShellRuntime,
     binding: Binding,
     size: TerminalSize,
-    expires: SystemTime,
+    lease: AttachmentLease,
     mut commands: mpsc::Receiver<Command>,
     output: mpsc::Sender<Result<TerminalOutput>>,
-    ready: oneshot::Sender<Result<(String, SystemTime)>>,
+    ready: oneshot::Sender<Result<String>>,
     mut cancel: oneshot::Receiver<()>,
 ) -> Result<()> {
     let mut token = SessionToken {
@@ -379,7 +384,8 @@ async fn terminal_worker(
     let setup_result = tokio::select! {
         biased;
         _=&mut cancel => Err(RuntimeFailure::TerminalFailed),
-        result=tokio::time::timeout(remaining(expires)?.min(Duration::from_secs(45)),setup(&runtime,&binding,size,expires,&mut token,&mut bridges)) => result.map_err(|_|RuntimeFailure::TerminalFailed).and_then(|r|r),
+        _=lease.closed() => Err(RuntimeFailure::LeaseExpired),
+        result=tokio::time::timeout(Duration::from_secs(45),setup(&runtime,&binding,size,&mut token,&mut bridges)) => result.map_err(|_|RuntimeFailure::TerminalFailed).and_then(|r|r),
     };
     let result = match setup_result {
         Err(error) => {
@@ -387,10 +393,9 @@ async fn terminal_worker(
             Err(error)
         }
         Ok(attached) => {
-            let expires = attached.expires;
             let (reader, writer) = attached.channel.split();
             if ready
-                .send(Ok((attached.current.main_process_instance_id, expires)))
+                .send(Ok(attached.current.main_process_instance_id))
                 .is_err()
             {
                 Ok(())
@@ -406,21 +411,14 @@ async fn terminal_worker(
                         result=pump_output(reader, &output)=>result,
                     }
                 };
-                let result = match remaining(expires) {
-                    Err(error) => {
-                        drop(work);
-                        Err(error)
-                    }
-                    Ok(duration) => {
-                        let deadline = tokio::time::Instant::now() + duration;
-                        tokio::select! {
-                            biased;
-                            _=&mut cancel=>Ok(()),
-                            _=tokio::time::sleep_until(deadline)=>Err(RuntimeFailure::LeaseExpired),
-                            result=work=>result,
-                        }
-                    }
+                let result = tokio::select! {
+                    biased;
+                    _=&mut cancel=>Ok(()),
+                    _=lease.closed()=>Err(RuntimeFailure::LeaseExpired),
+                    result=work=>result,
                 };
+                // End the transport before potentially slow SSH/token cleanup.
+                bridges.abort_all();
                 // SSH disconnect releases the input lease. Do not send channel
                 // stdin EOF, a signal, kill, exec, or a fresh shell request.
                 let _ = tokio::time::timeout(
@@ -471,12 +469,13 @@ pub(crate) fn forward_data(frame: api::TcpForwardFrame) -> Result<Vec<u8>> {
     }
 }
 async fn forward(
-    mut client: Client,
+    runtime: OpenShellRuntime,
     id: String,
     token: Zeroizing<String>,
     relay: tokio::io::DuplexStream,
-    duration: Duration,
 ) -> Result<()> {
+    let (mut client, _transport) =
+        crate::attachment_transport::connect(&runtime.endpoint, &runtime.address).await?;
     let (reader, mut writer) = tokio::io::split(relay);
     let init = api::TcpForwardFrame {
         payload: Some(api::tcp_forward_frame::Payload::Init(api::TcpForwardInit {
@@ -501,11 +500,12 @@ async fn forward(
             _ => None,
         }
     });
-    let mut request = tonic::Request::new(stream::once(async move { init }).chain(data));
-    request.set_timeout(duration);
-    let mut response = client
-        .forward_tcp(request)
+    let request = tonic::Request::new(stream::once(async move { init }).chain(data));
+    // A credential admits this tunnel. The enclosing worker owns the renewable
+    // authority timer and aborts the bridge; no fixed gRPC deadline ends live work.
+    let mut response = tokio::time::timeout(Duration::from_secs(10), client.forward_tcp(request))
         .await
+        .map_err(|_| RuntimeFailure::TerminalFailed)?
         .map_err(|_| RuntimeFailure::TerminalFailed)?
         .into_inner();
     while let Some(frame) = response

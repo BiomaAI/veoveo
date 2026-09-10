@@ -2,7 +2,7 @@ mod native_support;
 #[path = "native_support/stock_cli.rs"]
 mod stock_cli;
 use native_support::Provider;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use uuid::Uuid;
 use veoveo_computers_runtime::{protocol::sandbox::v1 as policy, *};
 
@@ -84,12 +84,10 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         .await
         .unwrap();
     assert!(!ready.main_process_instance_id.is_empty());
+    let (_authority, lease) =
+        LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
     let mut terminal = runtime
-        .attach(
-            &binding,
-            TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_secs(120),
-        )
+        .attach(&binding, TerminalSize::new(100, 30).unwrap(), lease.clone())
         .await
         .unwrap();
     replay(&mut terminal).await;
@@ -100,11 +98,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         .unwrap();
     terminal.detach().await.unwrap();
     let mut terminal = runtime
-        .attach(
-            &binding,
-            TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_secs(120),
-        )
+        .attach(&binding, TerminalSize::new(100, 30).unwrap(), lease.clone())
         .await
         .unwrap();
     assert_eq!(
@@ -177,5 +171,93 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         LifecycleObservation::Reached(_)
     ));
     std::fs::write(provider.dir.join("result.txt"), "native create, terminal replay, retained shell, uid, stop/start and reconciled epoch passed\n").unwrap();
+    provider.assert_running();
+}
+
+#[tokio::test]
+#[ignore = "requires exact provider binaries and native Computer image; exercises renewable Veoveo terminal authority"]
+async fn native_terminal_renews_without_reconnecting_and_revokes_access() {
+    let (mut provider, _) = Provider::start_with_session_ttl(3).await;
+    let runtime = &provider.runtime;
+    let template = template(provider.image.clone());
+    let binding = Binding::new(Uuid::now_v7(), template.fingerprint()).unwrap();
+    let checkpoint =
+        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), binding.clone()).unwrap();
+    let created = runtime.create(&binding, &template).await.unwrap();
+    let ready = runtime
+        .wait_for_lifecycle(&checkpoint, &created, Duration::from_secs(30))
+        .await
+        .unwrap();
+    let (authority, lease) =
+        LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(2)).unwrap();
+    let mut terminal = runtime
+        .attach(&binding, TerminalSize::new(100, 30).unwrap(), lease)
+        .await
+        .unwrap();
+    replay(&mut terminal).await;
+    terminal
+        .write(b"export VEOVEO_RENEWED=kept\r")
+        .await
+        .unwrap();
+    for _ in 0..8 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        authority
+            .renew(tokio::time::Instant::now(), Duration::from_secs(2))
+            .unwrap();
+    }
+    terminal
+        .write(b"printf '\\nrenewed=%s\\n' \"$VEOVEO_RENEWED\"\r")
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(1), async {
+        let mut output = Vec::new();
+        loop {
+            if let Some(TerminalOutput::Data(bytes)) = terminal.read().await.unwrap() {
+                output.extend(bytes);
+                assert!(output.len() <= 65536);
+                if String::from_utf8_lossy(&output).contains("renewed=kept") {
+                    break;
+                }
+            } else {
+                panic!("renewed native terminal ended");
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        terminal.main_process_instance_id(),
+        ready.main_process_instance_id
+    );
+    authority.revoke();
+    assert!(matches!(
+        terminal.read().await,
+        Err(RuntimeFailure::LeaseExpired)
+    ));
+    assert!(matches!(
+        terminal.write(b"forbidden").await,
+        Err(RuntimeFailure::LeaseExpired)
+    ));
+    let detached = tokio::time::timeout(Duration::from_secs(5), terminal.detach())
+        .await
+        .unwrap();
+    assert!(matches!(
+        detached,
+        Ok(()) | Err(RuntimeFailure::LeaseExpired)
+    ));
+    // Access loss preserves the original process. Fresh authority reattaches to it.
+    let (_authority, lease) =
+        LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
+    let mut terminal = runtime
+        .attach(&binding, TerminalSize::new(100, 30).unwrap(), lease)
+        .await
+        .unwrap();
+    replay(&mut terminal).await;
+    assert_eq!(
+        terminal.main_process_instance_id(),
+        ready.main_process_instance_id
+    );
+    terminal.detach().await.unwrap();
+    std::fs::write(provider.dir.join("renewal-result.txt"), "native terminal exchanges data across lease renewal and provider admission credential expiry without reattach; revocation denies input/output, fresh authority retains the same process\n").unwrap();
     provider.assert_running();
 }

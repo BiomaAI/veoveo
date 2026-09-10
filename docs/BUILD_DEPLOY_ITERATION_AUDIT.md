@@ -2252,3 +2252,13 @@ there is no retained data to flush. The initial operation-journal scenarios exec
 4.80 s. Native home fixtures keep their physical unmount/detach checks. Removing the
 duplicate fixture's unused random dependency changed only the local Computers package
 entry in Cargo.lock, with no registry dependency upgrades.
+
+The stock CLI continuity prerequisite executes in 6.10 s using the existing candidate
+image and provider binaries. Adding Tokio process support for that owning Rust fixture
+caused a 19.63 s dependency-feature rebuild; no image rebuild was necessary. The native
+renewal test then exposed no need for a provider patch. A real HTTP/2 backpressure
+fixture did expose that dropping a gRPC stream could leave its provider connection
+open. Per-attachment socket shutdown fixes that failure without an extra byte-copy
+relay. Hyper-Util and Tower were already in the lockfile; their direct use changes only
+the runtime package's dependency edges. The local replay-timeout scenario accounts for
+about 20 s of the focused suite's runtime and is recorded separately from compile time.

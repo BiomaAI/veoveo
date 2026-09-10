@@ -24,10 +24,13 @@ pub mod protocol {
     }
 }
 mod allocation;
+mod attachment_transport;
 mod binding;
 mod canonical;
 mod client;
 mod execution;
+mod forward_tunnel;
+mod lease;
 mod models;
 mod policy_continuity;
 mod policy_json;
@@ -41,6 +44,8 @@ pub use allocation::{AllocationConfig, HomeAllocator};
 pub use binding::Binding;
 pub use client::{GATEWAY_VERSION, GatewayConfig, OpenShellRuntime};
 pub use execution::{ExecChunk, ExecInput, ExecIntent, ExecResult, OutputStream};
+pub use forward_tunnel::ForwardTunnel;
+pub use lease::{AttachmentLease, LeaseAuthority, MAX_AUTHORITY_STALENESS, MAX_RENEWAL_INTERVAL};
 pub use models::{
     DevelopmentTemplate, MAX_CHUNK_BYTES, Observation, Phase, Result, RuntimeFailure, TerminalSize,
 };

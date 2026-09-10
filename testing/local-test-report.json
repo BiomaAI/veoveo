@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:f0d37119932a233d8cc30a4cbf3152cba91c5ed54edba5974fabf2096e2dfd40",
-  "updatedAt": "2026-09-10T01:07:01Z",
+  "buildDigest": "sha256:3a8ba7d053a33e981aaaa38cf9617df73827ddf4cee2e8ceaf134605fda626d2",
+  "updatedAt": "2026-09-10T01:25:22Z",
   "checks": [
     {
-      "name": "computers-stock-cli-checks",
+      "name": "computers-renewal-clippy",
       "command": [
         "cargo",
         "clippy",
@@ -18,12 +18,12 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T01:06:43Z",
-      "durationSeconds": 15.780158156,
+      "finishedAt": "2026-09-10T01:25:06Z",
+      "durationSeconds": 8.114503914,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-stock-cli-format",
+      "name": "computers-renewal-format",
       "command": [
         "cargo",
         "fmt",
@@ -32,12 +32,28 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T01:06:30Z",
-      "durationSeconds": 2.828793531,
+      "finishedAt": "2026-09-10T01:25:00Z",
+      "durationSeconds": 2.520973334,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-stock-cli-native",
+      "name": "computers-renewal-local",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-runtime",
+        "--lib"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T01:25:18Z",
+      "durationSeconds": 25.652364569,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-renewal-native",
       "command": [
         "env",
         "VEOVEO_COMPUTERS_NATIVE_GATEWAY=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/target/release/openshell-gateway",
@@ -53,15 +69,13 @@
         "veoveo-computers-runtime",
         "--test",
         "native_lifecycle",
-        "--test",
-        "native_retention",
         "--",
         "--ignored",
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T01:07:01Z",
-      "durationSeconds": 37.315792603,
+      "finishedAt": "2026-09-10T01:25:22Z",
+      "durationSeconds": 24.127106368,
       "detail": "completed successfully"
     }
   ]

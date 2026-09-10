@@ -3,6 +3,8 @@ use crate::{TerminalOutput, protocol::terminal::v1 as terminal_api};
 use prost::Message;
 use russh::{Channel, ChannelId, Pty, server};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[path = "renewal_tests.rs"]
+mod renewal_tests;
 #[path = "replay_tests.rs"]
 mod replay_tests;
 #[derive(Clone, Default)]
@@ -35,6 +37,7 @@ pub(super) struct SshState {
     pub replay_metadata: Option<Vec<u8>>,
     pub duplicate_replay: bool,
     pub live_output: Vec<Vec<u8>>,
+    pub data_gate: Option<Gate>,
 }
 pub(super) fn key() -> russh::keys::PrivateKey {
     // Deterministic fixture-only key, never an installation credential.
@@ -165,6 +168,10 @@ impl server::Handler for Ssh {
         data: &[u8],
         session: &mut server::Session,
     ) -> std::result::Result<(), Self::Error> {
+        let gate = self.0.0.lock().unwrap().ssh.data_gate.clone();
+        if let Some(gate) = gate {
+            gate.pause().await;
+        }
         self.0.0.lock().unwrap().ssh.bytes.extend(data);
         session.data(channel, data.to_vec())?;
         Ok(())
@@ -196,6 +203,10 @@ pub(super) async fn forward(
         init.target,
         Some(api::tcp_forward_init::Target::Ssh(_))
     ));
+    let probe = fake.0.lock().unwrap().forward_probe.clone();
+    if let Some(probe) = probe {
+        return Ok(super::forward_tests::response(probe, input));
+    }
     let (remote, relay) = tokio::io::duplex(MAX_CHUNK_BYTES * 2);
     let (mut reader, mut writer) = tokio::io::split(relay);
     let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -253,7 +264,7 @@ async fn generated_grpc_tunnel_uses_retained_ssh_bytes_resize_and_revoke() {
         .attach(
             &binding(),
             TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_secs(30),
+            running.lease(Duration::from_secs(30)),
         )
         .await
         .unwrap();
@@ -286,7 +297,7 @@ async fn terminal_auth_mismatch_host_key_and_expiry_revoke() {
                 .attach(
                     &binding(),
                     TerminalSize::new(100, 30).unwrap(),
-                    SystemTime::now() + Duration::from_secs(30)
+                    running.lease(Duration::from_secs(30))
                 )
                 .await
                 .is_err()
@@ -314,7 +325,7 @@ async fn idle_terminal_expiry_and_handle_drop_revoke_without_process_stop() {
         .attach(
             &binding(),
             TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_millis(1200),
+            running.lease(Duration::from_millis(1200)),
         )
         .await
         .unwrap();
@@ -334,7 +345,7 @@ async fn idle_terminal_expiry_and_handle_drop_revoke_without_process_stop() {
         .attach(
             &binding(),
             TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_secs(30),
+            running.lease(Duration::from_secs(30)),
         )
         .await
         .unwrap();
@@ -360,7 +371,7 @@ async fn failed_revoke_is_reported_by_explicit_detach() {
         .attach(
             &binding(),
             TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_secs(30),
+            running.lease(Duration::from_secs(30)),
         )
         .await
         .unwrap();
@@ -400,13 +411,10 @@ async fn cancelled_attach_drains_and_revokes_late_mint_response() {
         state.session_reply_gate = Some(gate.clone());
     }
     let runtime = running.runtime.clone();
+    let lease = running.lease(Duration::from_secs(30));
     let task = tokio::spawn(async move {
         runtime
-            .attach(
-                &binding(),
-                TerminalSize::new(80, 24).unwrap(),
-                SystemTime::now() + Duration::from_secs(30),
-            )
+            .attach(&binding(), TerminalSize::new(80, 24).unwrap(), lease)
             .await
     });
     gate.wait().await;
@@ -428,13 +436,10 @@ async fn cancelled_attach_after_token_receipt_revokes_during_pty_setup() {
         state.ssh.pty_gate = Some(gate.clone());
     }
     let runtime = running.runtime.clone();
+    let lease = running.lease(Duration::from_secs(30));
     let task = tokio::spawn(async move {
         runtime
-            .attach(
-                &binding(),
-                TerminalSize::new(80, 24).unwrap(),
-                SystemTime::now() + Duration::from_secs(30),
-            )
+            .attach(&binding(), TerminalSize::new(80, 24).unwrap(), lease)
             .await
     });
     gate.wait().await;
@@ -450,14 +455,11 @@ async fn uncollected_terminal_handoff_revokes_without_process_stop() {
     let running = Running::start().await;
     running.fake.0.lock().unwrap().sandbox = Some(sandbox(Phase::Ready));
     let runtime = running.runtime.clone();
+    let lease = running.lease(Duration::from_secs(30));
     let (ready, received) = tokio::sync::oneshot::channel();
     let task = tokio::spawn(async move {
         let terminal = runtime
-            .attach(
-                &binding(),
-                TerminalSize::new(80, 24).unwrap(),
-                SystemTime::now() + Duration::from_secs(30),
-            )
+            .attach(&binding(), TerminalSize::new(80, 24).unwrap(), lease)
             .await
             .unwrap();
         ready.send(()).unwrap();
@@ -511,7 +513,7 @@ async fn retained_replay_batches_small_frames_without_changing_any_bytes() {
         .attach(
             &binding(),
             TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_secs(30),
+            running.lease(Duration::from_secs(30)),
         )
         .await
         .unwrap();
@@ -563,7 +565,7 @@ async fn final_partial_output_batch_precedes_eof_and_revocation() {
         .attach(
             &binding(),
             TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_secs(30),
+            running.lease(Duration::from_secs(30)),
         )
         .await
         .unwrap();
@@ -593,7 +595,7 @@ async fn queued_banner_does_not_block_write_or_resize_before_reads() {
         .attach(
             &binding(),
             TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_secs(30),
+            running.lease(Duration::from_secs(30)),
         )
         .await
         .unwrap();
@@ -663,7 +665,7 @@ async fn stalled_terminal_output_cancel_revokes_without_main_process_eof() {
             .attach(
                 &binding(),
                 TerminalSize::new(100, 30).unwrap(),
-                SystemTime::now() + Duration::from_secs(30),
+                running.lease(Duration::from_secs(30)),
             )
             .await
             .unwrap();
@@ -690,7 +692,7 @@ async fn stalled_terminal_output_expires_without_reads_or_process_stop() {
         .attach(
             &binding(),
             TerminalSize::new(100, 30).unwrap(),
-            SystemTime::now() + Duration::from_millis(1200),
+            running.lease(Duration::from_millis(1200)),
         )
         .await
         .unwrap();
@@ -698,7 +700,7 @@ async fn stalled_terminal_output_expires_without_reads_or_process_stop() {
     wait_for_revoke(&running.fake).await;
     assert!(matches!(
         terminal.write(&[1]).await,
-        Err(RuntimeFailure::TerminalFailed)
+        Err(RuntimeFailure::LeaseExpired)
     ));
     assert!(matches!(
         terminal.detach().await,

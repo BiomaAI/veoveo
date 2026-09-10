@@ -14,6 +14,7 @@ or installed provider is qualified by this source checkpoint. The owning domain 
 | `veoveo.io/computer-storage/v1` | Bounded mTLS allocation/restore adapter generated from `protocol/storage.json`; allocator implementation and physical volume qualification pending |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
+| Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
 | Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 
 Upstream stable versions were checked through crates.io and the NVIDIA GitHub
@@ -32,6 +33,11 @@ stable key crate. Typify's procedural macro is disabled because this crate uses 
 its build-time type generator. Generated schema regex validation requires Regress
 `0.12.0`, verified from crates.io at the same checkpoint.
 
+Attachment transport uses the existing qualified Tower `0.5.3` pin and exact
+Hyper-Util `0.1.20` Tokio I/O adapter. The latter matches the upstream
+[latest stable release](https://github.com/hyperium/hyper-util/releases/tag/v0.1.20),
+verified on 2026-09-09. No transitive package versions changed with this direct use.
+
 ## Ownership
 
 `client` handles provider transport and lifecycle observation. `models`, `binding`,
@@ -39,6 +45,8 @@ its build-time type generator. Generated schema regex validation requires Regres
 `terminal` and `terminal_output` own the byte stream and replay boundary. `execution`
 owns bounded command streams. `allocation` and `storage` bind retained volumes;
 `policy_continuity` checks retained-instance replacement authority.
+`lease` enforces local authority deadlines and revocation. `forward_tunnel` owns the
+bounded SSH-only CLI bridge and its independent closure task.
 
 The gateway and BFF must not depend on this crate. The Computers worker applies
 canonical authorization and shared durable Task transactions before invoking it.
@@ -61,6 +69,42 @@ provider instance and run epoch. A fresh snapshot proves only the state it conta
 it cannot certify an arbitrary past command. The owning durable operation remains
 fenced until its effect can be settled. Cancellation is distinct from stopping a
 provider process, and a terminal transport deadline is distinct from Computer lifetime.
+
+## Renewable Attachment Enforcement
+
+Every terminal and CLI adapter receives an `AttachmentLease`. The owning authority task
+retains `LeaseAuthority` and captures a monotonic timestamp before each authoritative
+grant/policy read. Its read latency consumes the maximum 30-second authority window.
+The owner renews at most every ten seconds and caps the window by remaining grant life
+and installation clock allowances. A missed update expires locally; loss of the
+authority task closes its leases immediately. Delayed checks cannot overwrite a newer
+check or revive revoked or expired access. Wall-clock time is a display projection.
+
+Terminal and CLI pumps select authority closure independently of both I/O directions.
+They drop provider transport before cleanup, reject buffered output after revocation,
+and retain the main process. CLI forwarding validates the exact sandbox, SSH service,
+SSH target and bounded data frames before sending them upstream. It admits no generic
+TCP target. Cancellation during provider credential issuance drains the bounded reply
+and revokes an orphaned credential.
+
+Each attachment owns a separate mTLS HTTP/2 connection and an OS socket shutdown guard.
+Dropping a gRPC response alone left an upstream connection open when a fixture provider
+stopped consuming input. The guard closes that connection independently of HTTP/2 flow
+control, without copying the byte stream or affecting shared lifecycle RPCs. Reconnection
+of that transport is rejected; a broken attachment requires fresh authorized admission.
+
+The provider SSH credential admits a connection. Its expiry does not shorten an
+established connection that still holds renewed Veoveo authority. Provider RPC admission
+and SSH setup retain finite deadlines; the live stream has no fixed gRPC timeout.
+The lease mechanism does not authorize a principal itself. Durable grants, policy
+rechecks, session-family logout, replica-wide revocation events and public ingress
+integration remain the owning domain's implementation work.
+
+The native renewal fixture exchanges terminal data after repeated two-second leases
+and the provider's three-second admission credential have expired. The same shell
+remains attached. Explicit revocation denies further input/output, and fresh authority
+reattaches to the same native process. Local real-mTLS fixtures cover bidirectional
+backpressure, buffered output denial, late mint cleanup and non-revivable deadlines.
 
 ## Verification And Delivery Gaps
 
