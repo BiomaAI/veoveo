@@ -29,6 +29,7 @@ complies with in its crate documents and in its contract resource.
 | Veoveo resumable artifact HTTP upload | repository-owned JSON admission/completion and raw part PUT contract, UUIDv7 idempotency, SHA-256 integrity, and bounded browser-safe 64-bit counters; independent of MCP methods |
 | Veoveo upload assertion | EdDSA JWT with `artifact-upload` audience and signed control-plane/context digests; restricted to the HTTP upload service |
 | Veoveo access-token `session_family` | Signed UUIDv7 refresh-family binding for browser tokens; current family revocation is enforced by the gateway, and absence supplies no renewable session authority |
+| Veoveo internal `request_context` | Signed source principal and verified access-token metadata, including OAuth client and optional session family; contains no bearer value and grants no independent renewal permission |
 | `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
 | `veoveo.io/live-view/v4` | provider-neutral authoritative camera descriptions, typed camera regions in shared encoded products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, and redacted connection tokens |
 | `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
@@ -182,6 +183,28 @@ lifetime from MCP transport locality.
 The gateway signs a fresh short-lived internal assertion for every upstream
 request. Connection reuse depends only on validated transport security and
 catalog generation; request authority stays in the assertion and request metadata.
+
+Authenticated MCP and HTTP proxy requests include typed `request_context` in the
+internal assertion. It preserves the JWT-verified principal before delegated actor
+derivation and its access-token metadata. Rust and Python verify the context against
+the actor, tenant, Work Context, scopes and invocation provenance. The assertion's
+expiration cannot exceed the source access token's expiration. Reusing a transport
+never supplies another browser family's request context.
+
+Bootstrap fixtures, reconstructed Task owners and upload-only assertions may omit
+this field. Omission grants no durable or renewable request authority. A consumer
+that admits renewable Computer access or stores current-policy execution authority
+must require this context and perform its own current policy/grant checks. It must
+not infer client identity or family membership from an old Task owner. Accepted
+background work can outlive admission tokens only under its explicit durable
+execution policy, with fresh dispatch authority and separately bounded access.
+
+This optional signed-claim extension keeps MCP revision 3 unchanged. Update gateway
+issuers and selected consumers before admitting the Computers profile. Existing
+short-lived assertions without the field remain usable only for consumers that do
+not require it. The gateway/auth owner must retire those deployment revisions before
+Computers acceptance; rollback cannot admit Computers through an issuer that omits
+the field. Shared direct/delegated/automated fixtures qualify both SDK readers.
 
 Gateway traffic with the same validated transport-security configuration and
 active catalog revision shares one process-wide HTTP connection pool and one

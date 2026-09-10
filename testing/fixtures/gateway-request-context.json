@@ -1,0 +1,230 @@
+[
+  {
+    "name": "direct",
+    "actor": {
+      "id": "https://identity.example#user-one",
+      "kind": "user",
+      "issuer": "https://veoveo.example",
+      "subject": "user-one",
+      "tenant": "tenant-a",
+      "groups": [
+        "engineering"
+      ],
+      "group_roles": [],
+      "roles": [],
+      "scopes": [
+        "operator:use"
+      ],
+      "data_labels": [],
+      "assurances": [],
+      "authenticated_at": null
+    },
+    "authority": {
+      "work_context": "development",
+      "tenant": "tenant-a",
+      "membership": "contributor",
+      "policy_revision": "r1",
+      "output_policy": {
+        "owner": {
+          "kind": "principal",
+          "id": "https://identity.example#user-one"
+        },
+        "initial_grants": [],
+        "classification": null,
+        "data_labels": []
+      },
+      "provenance": {
+        "mode": "direct",
+        "initiator": "https://identity.example#user-one"
+      }
+    },
+    "request_context": {
+      "access_token": {
+        "issuer": "https://veoveo.example",
+        "subject": "user-one",
+        "oauth_client_id": "console",
+        "session_family": "01a08928-856e-7492-9b19-18356fdbeef4",
+        "audience": "https://veoveo.example/mcp/operator",
+        "work_context": "development",
+        "invocation_mode": "direct",
+        "initiator": "https://identity.example#user-one",
+        "delegation_id": null,
+        "scopes": [
+          "operator:use"
+        ],
+        "jwt_id": "fixture-token",
+        "issued_at": "2026-09-01T00:00:00Z",
+        "not_before": null,
+        "expires_at": "2100-01-01T00:00:00Z"
+      },
+      "principal": {
+        "id": "https://identity.example#user-one",
+        "kind": "user",
+        "issuer": "https://veoveo.example",
+        "subject": "user-one",
+        "tenant": "tenant-a",
+        "groups": [
+          "engineering"
+        ],
+        "group_roles": [],
+        "roles": [],
+        "scopes": [
+          "operator:use"
+        ],
+        "data_labels": [],
+        "assurances": [],
+        "authenticated_at": null
+      }
+    }
+  },
+  {
+    "name": "delegated",
+    "actor": {
+      "id": "https://veoveo.example#agent-client",
+      "kind": "service",
+      "issuer": "https://veoveo.example",
+      "subject": "agent-client",
+      "tenant": "tenant-a",
+      "groups": [],
+      "group_roles": [],
+      "roles": [],
+      "scopes": [
+        "operator:use"
+      ],
+      "data_labels": [],
+      "assurances": [],
+      "authenticated_at": null
+    },
+    "authority": {
+      "work_context": "development",
+      "tenant": "tenant-a",
+      "membership": "contributor",
+      "policy_revision": "r1",
+      "output_policy": {
+        "owner": {
+          "kind": "principal",
+          "id": "https://identity.example#user-one"
+        },
+        "initial_grants": [],
+        "classification": null,
+        "data_labels": []
+      },
+      "provenance": {
+        "mode": "delegated",
+        "initiator": "https://identity.example#user-one",
+        "delegation_id": "delegation-fixture"
+      }
+    },
+    "request_context": {
+      "access_token": {
+        "issuer": "https://veoveo.example",
+        "subject": "user-one",
+        "oauth_client_id": "agent-client",
+        "session_family": null,
+        "audience": "https://veoveo.example/mcp/operator",
+        "work_context": "development",
+        "invocation_mode": "delegated",
+        "initiator": "https://identity.example#user-one",
+        "delegation_id": "delegation-fixture",
+        "scopes": [
+          "operator:use"
+        ],
+        "jwt_id": "fixture-token",
+        "issued_at": "2026-09-01T00:00:00Z",
+        "not_before": null,
+        "expires_at": "2100-01-01T00:00:00Z"
+      },
+      "principal": {
+        "id": "https://identity.example#user-one",
+        "kind": "user",
+        "issuer": "https://veoveo.example",
+        "subject": "user-one",
+        "tenant": "tenant-a",
+        "groups": [
+          "engineering"
+        ],
+        "group_roles": [],
+        "roles": [],
+        "scopes": [
+          "operator:use"
+        ],
+        "data_labels": [],
+        "assurances": [],
+        "authenticated_at": null
+      }
+    }
+  },
+  {
+    "name": "automated",
+    "actor": {
+      "id": "https://veoveo.example#worker",
+      "kind": "service",
+      "issuer": "https://veoveo.example",
+      "subject": "worker",
+      "tenant": "tenant-a",
+      "groups": [],
+      "group_roles": [],
+      "roles": [],
+      "scopes": [
+        "operator:use"
+      ],
+      "data_labels": [],
+      "assurances": [],
+      "authenticated_at": null
+    },
+    "authority": {
+      "work_context": "development",
+      "tenant": "tenant-a",
+      "membership": "contributor",
+      "policy_revision": "r1",
+      "output_policy": {
+        "owner": {
+          "kind": "principal",
+          "id": "https://veoveo.example#worker"
+        },
+        "initial_grants": [],
+        "classification": null,
+        "data_labels": []
+      },
+      "provenance": {
+        "mode": "automated"
+      }
+    },
+    "request_context": {
+      "access_token": {
+        "issuer": "https://veoveo.example",
+        "subject": "worker",
+        "oauth_client_id": "worker",
+        "session_family": null,
+        "audience": "https://veoveo.example/mcp/operator",
+        "work_context": "development",
+        "invocation_mode": "automated",
+        "initiator": null,
+        "delegation_id": null,
+        "scopes": [
+          "operator:use"
+        ],
+        "jwt_id": "fixture-token",
+        "issued_at": "2026-09-01T00:00:00Z",
+        "not_before": null,
+        "expires_at": "2100-01-01T00:00:00Z"
+      },
+      "principal": {
+        "id": "https://veoveo.example#worker",
+        "kind": "service",
+        "issuer": "https://veoveo.example",
+        "subject": "worker",
+        "tenant": "tenant-a",
+        "groups": [],
+        "group_roles": [],
+        "roles": [],
+        "scopes": [
+          "operator:use"
+        ],
+        "data_labels": [],
+        "assurances": [],
+        "authenticated_at": null
+      }
+    }
+  }
+]

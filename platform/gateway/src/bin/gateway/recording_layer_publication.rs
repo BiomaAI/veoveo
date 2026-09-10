@@ -92,8 +92,9 @@ pub(super) async fn publish_recording_layer(
     let token = match state.internal_token_issuer.issue(
         profile,
         state.artifact_server,
-        subject.actor,
-        subject.authority,
+        subject.actor.clone(),
+        subject.authority.clone(),
+        Some(subject.request_context()),
         expires_at,
     ) {
         Ok(value) => value,

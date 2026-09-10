@@ -219,6 +219,7 @@ pub(super) async fn catalog_grant(
         server,
         subject.actor.clone(),
         subject.authority.clone(),
+        Some(subject.request_context()),
         expires_at,
     ) {
         Ok(token) => token,
@@ -230,8 +231,9 @@ pub(super) async fn catalog_grant(
     let artifact_token = match state.internal_token_issuer.issue(
         profile,
         state.artifact_server,
-        subject.actor,
-        subject.authority,
+        subject.actor.clone(),
+        subject.authority.clone(),
+        Some(subject.request_context()),
         expires_at,
     ) {
         Ok(token) => token,
@@ -359,6 +361,7 @@ async fn proxy_playback(
         server,
         subject.actor.clone(),
         subject.authority.clone(),
+        Some(subject.request_context()),
         expires_at,
     ) {
         Ok(token) => token,
@@ -370,8 +373,9 @@ async fn proxy_playback(
     let artifact_token = match state.internal_token_issuer.issue(
         profile,
         state.artifact_server,
-        subject.actor,
-        subject.authority,
+        subject.actor.clone(),
+        subject.authority.clone(),
+        Some(subject.request_context()),
         expires_at,
     ) {
         Ok(token) => token,

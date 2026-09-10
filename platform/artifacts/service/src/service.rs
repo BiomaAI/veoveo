@@ -1521,6 +1521,7 @@ mod tests {
                         initiator: actor.id.clone(),
                     },
                 },
+                request_context: None,
                 jwt_id: JwtId::new(uuid::Uuid::new_v4().to_string()).unwrap(),
                 issued_at: now,
                 not_before: now,

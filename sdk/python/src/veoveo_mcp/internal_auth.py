@@ -15,7 +15,12 @@ from typing import Any, Awaitable, Callable
 import jwt as pyjwt
 from pydantic import ValidationError
 
-from .contract.identity import GatewayInternalIdentity, InvocationAuthority, Principal
+from .contract.identity import (
+    GatewayInternalIdentity,
+    GatewayRequestContext,
+    InvocationAuthority,
+    Principal,
+)
 
 Scope = dict[str, Any]
 Receive = Callable[[], Awaitable[dict[str, Any]]]
@@ -174,12 +179,22 @@ class GatewayInternalTokenVerifier:
             raise InternalTokenError(
                 "internal token subject does not match embedded actor"
             )
+        request_context = None
+        if claims.get("request_context") is not None:
+            try:
+                request_context = GatewayRequestContext.model_validate(claims["request_context"])
+                request_context.validate_for(actor, authority)
+                if _timestamp(claims["exp"], "exp") > request_context.access_token.expires_at:
+                    raise ValueError("assertion outlives its source access token")
+            except (KeyError, ValueError, TypeError) as error:
+                raise InternalTokenError("internal token request context is invalid") from error
         return GatewayInternalIdentity(
             issuer=claims["iss"],
             profile=claims["profile"],
             server=server,
             actor=actor,
             authority=authority,
+            request_context=request_context,
             jwt_id=claims["jti"],
             issued_at=_timestamp(claims["iat"], "iat"),
             not_before=_timestamp(claims["nbf"], "nbf"),

@@ -209,6 +209,7 @@ mod tests {
                     initiator: principal.id,
                 },
             },
+            request_context: None,
             jwt_id: JwtId::new("test-jwt").unwrap(),
             issued_at: now,
             not_before: now,

@@ -2323,3 +2323,17 @@ in the initial isolated run). Concurrent Cargo test and Clippy commands contende
 the same build-directory lock. Run these dependent compiler phases sequentially on
 this target directory; parallel command launch does not produce parallel compilation.
 No provider artifact or database migration changed. Remaining disk reserve is 196 GiB.
+
+Federated identity review caught a fixture mismatch: refresh state retains the IdP
+issuer, while a verified gateway token records the installation issuer and preserves
+the canonical principal ID. The corrected session suite passes in 13.0 s, including
+a 9.89 s compile and 2.83 s real-store scenario. This was fixed before deployment.
+
+The internal request-context change uses one direct/delegated/automated JSON fixture
+in both Rust and Python. Python's 43 focused cases take 0.13 s. Qualifying the changed
+Rust consumers requires their real dependency graph; that check takes 1 min 16 s.
+No provider or Computer image rebuild is involved. A combined contract/gateway test
+probe compiled in 1 min 46 s. Disabling top-level default features alone does not
+remove analytics: the gateway explicitly enables that contract feature. Its source
+has no remaining analytics consumer. Removing that edge is the next focused build
+improvement, with consumer compilation required before accepting it.

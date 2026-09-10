@@ -333,6 +333,7 @@ async fn authorize_artifact_operation(
         state.artifact_server.clone(),
         subject.actor.clone(),
         subject.authority.clone(),
+        Some(subject.request_context()),
         expires_at,
     ) {
         Ok(token) => token,

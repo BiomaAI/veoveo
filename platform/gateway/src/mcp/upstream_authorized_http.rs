@@ -13,8 +13,8 @@ use rmcp::{
 use sse_stream::Sse;
 use thiserror::Error;
 use veoveo_mcp_contract::{
-    GatewayInternalTokenIssuer, GatewayProfileId, InternalTokenError, InvocationAuthority,
-    Principal, ServerSlug,
+    GatewayInternalTokenIssuer, GatewayProfileId, GatewayRequestContext, InternalTokenError,
+    InvocationAuthority, Principal, ServerSlug,
 };
 
 const INTERNAL_REQUEST_TOKEN_TTL_SECONDS: i64 = 60;
@@ -33,6 +33,7 @@ pub(super) struct GatewayAuthorizedHttpClient {
     server: ServerSlug,
     actor: Principal,
     authority: InvocationAuthority,
+    request_context: GatewayRequestContext,
     artifact_server: Option<ServerSlug>,
 }
 
@@ -54,8 +55,7 @@ impl GatewayAuthorizedHttpClient {
         issuer: GatewayInternalTokenIssuer,
         profile: GatewayProfileId,
         server: ServerSlug,
-        actor: Principal,
-        authority: InvocationAuthority,
+        subject: &crate::AuthenticatedSubject,
         artifact_server: Option<ServerSlug>,
     ) -> Self {
         Self {
@@ -63,8 +63,9 @@ impl GatewayAuthorizedHttpClient {
             issuer,
             profile,
             server,
-            actor,
-            authority,
+            actor: subject.actor.clone(),
+            authority: subject.authority.clone(),
+            request_context: subject.request_context(),
             artifact_server,
         }
     }
@@ -84,6 +85,7 @@ impl GatewayAuthorizedHttpClient {
                 server,
                 self.actor.clone(),
                 self.authority.clone(),
+                Some(self.request_context.clone()),
                 expires_at,
             )
             .map(|issued| issued.bearer_token)
@@ -301,8 +303,33 @@ mod tests {
             issuer,
             GatewayProfileId::new("operator").unwrap(),
             ServerSlug::new("uav-sim").unwrap(),
-            actor,
-            authority,
+            &crate::AuthenticatedSubject {
+                access_token: veoveo_mcp_contract::AccessTokenSubject {
+                    issuer: actor.issuer.clone(),
+                    subject: actor.subject.clone(),
+                    oauth_client_id: veoveo_mcp_contract::OAuthClientId::new("console").unwrap(),
+                    session_family: Some(
+                        veoveo_mcp_contract::GatewayRefreshFamilyId::new(
+                            uuid::Uuid::now_v7().to_string(),
+                        )
+                        .unwrap(),
+                    ),
+                    audience: veoveo_mcp_contract::ProtectedResourceId::new("operator").unwrap(),
+                    work_context: authority.work_context.clone(),
+                    invocation_mode: veoveo_mcp_contract::InvocationMode::Direct,
+                    initiator: Some(actor.id.clone()),
+                    delegation_id: None,
+                    scopes: actor.scopes.clone(),
+                    jwt_id: None,
+                    issued_at: Utc::now(),
+                    not_before: None,
+                    expires_at: Utc::now() + TimeDelta::minutes(15),
+                },
+                principal: actor.clone(),
+                actor,
+                principal_display_name: None,
+                authority,
+            },
             None,
         );
 
@@ -320,6 +347,30 @@ mod tests {
             );
             assert_eq!(claims["server"], "uav-sim");
             assert_eq!(claims["profile"], "operator");
+            assert_eq!(
+                claims["request_context"],
+                serde_json::to_value(&client.request_context).unwrap()
+            );
         }
+        let mut other_session = client.clone();
+        other_session.request_context.access_token.session_family = Some(
+            veoveo_mcp_contract::GatewayRefreshFamilyId::new(uuid::Uuid::now_v7().to_string())
+                .unwrap(),
+        );
+        let token = other_session.issue_bearer_token().unwrap();
+        let claims: serde_json::Value = serde_json::from_slice(
+            &URL_SAFE_NO_PAD
+                .decode(token.split('.').nth(1).unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            claims["request_context"],
+            serde_json::to_value(&other_session.request_context).unwrap()
+        );
+        assert_ne!(
+            client.request_context.access_token.session_family,
+            other_session.request_context.access_token.session_family
+        );
     }
 }

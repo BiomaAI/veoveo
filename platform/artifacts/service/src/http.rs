@@ -799,6 +799,7 @@ pub(crate) mod tests {
                 ServerSlug::new("media").unwrap(),
                 principal,
                 authority,
+                None,
                 now + TimeDelta::minutes(5),
             )
             .unwrap();

@@ -22,6 +22,15 @@ pub struct AuthenticatedSubject {
     pub authority: InvocationAuthority,
 }
 
+impl AuthenticatedSubject {
+    pub fn request_context(&self) -> veoveo_mcp_contract::GatewayRequestContext {
+        veoveo_mcp_contract::GatewayRequestContext {
+            access_token: self.access_token.clone(),
+            principal: self.principal.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedClientAssertion {
     pub client_id: OAuthClientId,

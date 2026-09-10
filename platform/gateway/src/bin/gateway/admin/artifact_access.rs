@@ -164,8 +164,9 @@ async fn authorized_plane(
         .issue(
             profile_id,
             state.artifact_server.clone(),
-            subject.actor,
-            subject.authority,
+            subject.actor.clone(),
+            subject.authority.clone(),
+            Some(subject.request_context()),
             expires_at,
         )
         .map_err(|error| {

@@ -1,4 +1,9 @@
+mod request;
 mod upload;
+pub use request::GatewayRequestContext;
+#[cfg(test)]
+#[path = "internal_auth/request_tests.rs"]
+mod request_tests;
 pub use upload::*;
 
 use std::{collections::BTreeMap, fmt, sync::Arc};
@@ -161,6 +166,9 @@ pub struct GatewayInternalIdentity {
     pub server: ServerSlug,
     pub actor: Principal,
     pub authority: InvocationAuthority,
+    /// Required by consumers that admit renewable grants or recheck accepted work.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_context: Option<GatewayRequestContext>,
     pub jwt_id: JwtId,
     pub issued_at: DateTime<Utc>,
     pub not_before: DateTime<Utc>,
@@ -202,9 +210,17 @@ impl GatewayInternalTokenIssuer {
         server: ServerSlug,
         actor: Principal,
         authority: InvocationAuthority,
+        request_context: Option<GatewayRequestContext>,
         expires_at: DateTime<Utc>,
     ) -> Result<IssuedGatewayInternalToken, InternalTokenError> {
-        let identity = self.create_identity(profile, server, actor, authority, expires_at)?;
+        let identity = self.create_identity(
+            profile,
+            server,
+            actor,
+            authority,
+            request_context,
+            expires_at,
+        )?;
         let claims = GatewayInternalJwtClaims::from_identity(&identity);
         let mut header = Header::new(Algorithm::EdDSA);
         header.typ = Some("JWT".to_string());
@@ -227,10 +243,17 @@ impl GatewayInternalTokenIssuer {
         server: ServerSlug,
         actor: Principal,
         authority: InvocationAuthority,
+        request_context: Option<GatewayRequestContext>,
         expires_at: DateTime<Utc>,
     ) -> Result<GatewayInternalIdentity, InternalTokenError> {
         ensure_jwt_crypto_provider();
         let now = Utc::now();
+        let expires_at = if let Some(context) = &request_context {
+            context.validate_for(&actor, &authority)?;
+            expires_at.min(context.access_token.expires_at)
+        } else {
+            expires_at
+        };
         if expires_at <= now {
             return Err(InternalTokenError::ExpiredDelegation);
         }
@@ -242,6 +265,7 @@ impl GatewayInternalTokenIssuer {
             server,
             actor,
             authority,
+            request_context,
             jwt_id,
             issued_at: now,
             not_before: now,
@@ -522,12 +546,19 @@ impl GatewayInternalTokenVerifier {
         {
             return Err(InternalTokenError::SubjectPrincipalMismatch);
         }
+        if let Some(context) = &claims.request_context {
+            context.validate_for(&claims.actor, &claims.authority)?;
+            if claims.exp > context.access_token.expires_at.timestamp() {
+                return Err(InternalTokenError::InvalidRequestContext);
+            }
+        }
         Ok(GatewayInternalIdentity {
             issuer: claims.iss,
             profile: claims.profile,
             server: claims.server,
             actor: claims.actor,
             authority: claims.authority,
+            request_context: claims.request_context,
             jwt_id: claims.jti,
             issued_at: timestamp_to_datetime(claims.iat, "iat")?,
             not_before: timestamp_to_datetime(claims.nbf, "nbf")?,
@@ -553,6 +584,8 @@ struct GatewayInternalJwtClaims {
     server: ServerSlug,
     actor: Principal,
     authority: InvocationAuthority,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    request_context: Option<GatewayRequestContext>,
 }
 
 impl GatewayInternalJwtClaims {
@@ -569,6 +602,7 @@ impl GatewayInternalJwtClaims {
             server: identity.server.clone(),
             actor: identity.actor.clone(),
             authority: identity.authority.clone(),
+            request_context: identity.request_context.clone(),
         }
     }
 }
@@ -589,6 +623,7 @@ pub enum InternalTokenError {
         actual: ServerSlug,
     },
     SubjectPrincipalMismatch,
+    InvalidRequestContext,
     InvalidTimestamp {
         claim: &'static str,
         value: i64,
@@ -627,6 +662,9 @@ impl fmt::Display for InternalTokenError {
             Self::SubjectPrincipalMismatch => {
                 f.write_str("internal token subject does not match embedded principal")
             }
+            Self::InvalidRequestContext => {
+                f.write_str("internal token request context does not match its actor and authority")
+            }
             Self::InvalidTimestamp { claim, value } => {
                 write!(
                     f,
@@ -662,14 +700,14 @@ mod tests {
         "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
     const PUBLIC_KEY_X: &str = "OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg";
 
-    fn signing_key(key_id: &str) -> GatewayInternalSigningKey {
+    pub(super) fn signing_key(key_id: &str) -> GatewayInternalSigningKey {
         use base64::{Engine as _, engine::general_purpose::STANDARD};
 
         GatewayInternalSigningKey::new(key_id, STANDARD.decode(PRIVATE_KEY_DER_B64).unwrap())
             .unwrap()
     }
 
-    fn trust_bundle(key_id: &str) -> GatewayInternalTrustBundle {
+    pub(super) fn trust_bundle(key_id: &str) -> GatewayInternalTrustBundle {
         GatewayInternalTrustBundle::from_json(&format!(
             r#"{{"keys":[{{"kty":"OKP","crv":"Ed25519","x":"{PUBLIC_KEY_X}","alg":"EdDSA","use":"sig","kid":"{key_id}"}}]}}"#
         ))
@@ -749,6 +787,7 @@ mod tests {
                 ServerSlug::new(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
                 principal(),
                 authority(),
+                None,
                 Utc::now() + TimeDelta::minutes(1),
             )
             .unwrap();
@@ -798,6 +837,7 @@ mod tests {
                 ServerSlug::new("media").unwrap(),
                 principal(),
                 authority(),
+                None,
                 Utc::now() + TimeDelta::minutes(5),
             )
             .unwrap();
@@ -859,6 +899,7 @@ mod tests {
                 ServerSlug::new("media").unwrap(),
                 principal(),
                 authority(),
+                None,
                 Utc::now() + TimeDelta::minutes(5),
             )
             .unwrap();
@@ -886,6 +927,7 @@ mod tests {
                 ServerSlug::new("media").unwrap(),
                 principal(),
                 authority(),
+                None,
                 Utc::now() + TimeDelta::minutes(5),
             )
             .unwrap();
