@@ -22,6 +22,7 @@ use veoveo_task_runtime::TaskRuntime;
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 struct Server {
     base: String,
+    terminal: String,
     origin: String,
     stop: CancellationToken,
     jobs: Vec<tokio::task::JoinHandle<()>>,
@@ -101,11 +102,15 @@ impl Server {
                 }
             }
         });
+        let base = format!("http://{address}/computers/admin");
+        let (first, first_job) = crate::terminal_hops::start(base.clone(), stop.clone()).await;
+        let (terminal, second_job) = crate::terminal_hops::start(first, stop.clone()).await;
         Self {
-            base: format!("http://{address}/computers/admin"),
+            base,
+            terminal,
             origin,
             stop,
-            jobs: vec![serve, probe],
+            jobs: vec![serve, probe, first_job, second_job],
         }
     }
     async fn ticket(&self, id: Uuid, bearer: &str) -> TerminalTicket {
@@ -124,7 +129,7 @@ impl Server {
     async fn socket(&self, id: Uuid, bearer: &str) -> Socket {
         let mut request = format!(
             "{}/computers/{id}/terminal",
-            self.base.replace("http://", "ws://")
+            self.terminal.replace("http://", "ws://")
         )
         .into_client_request()
         .unwrap();
@@ -196,6 +201,9 @@ async fn replay(socket: &mut Socket) {
                             assert!(ready);
                             return;
                         }
+                        TerminalServerControl::Lease(value) => {
+                            assert!(ready && value.sequence > 0);
+                        }
                     }
                 }
                 Message::Binary(data) => {
@@ -263,6 +271,7 @@ pub async fn qualify(
     template: DevelopmentTemplate,
     computer: Uuid,
 ) {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let mut control = support::policy::control();
     let mut read = control.policies[0].rules[0].clone();
     read.id = PolicyRuleId::new("computer-browser").unwrap();
@@ -378,8 +387,9 @@ pub async fn qualify(
     let mut socket = a.socket(computer, &auth).await;
     socket.send(attach(&ticket)).await.unwrap();
     replay(&mut socket).await;
-    tokio::time::sleep((end - Utc::now()).to_std().unwrap_or_default() + Duration::from_secs(2))
-        .await;
+    // Cross source-token expiry and the original service lease through both
+    // relay hops without reconnecting the native shell.
+    tokio::time::sleep(Duration::from_secs(31)).await;
     command(&mut socket, "after-token-expiry").await;
     let family = veoveo_platform_store::gateway_refresh_family_record_id(
         Uuid::parse_str(

@@ -9,6 +9,7 @@ pub(super) async fn run(
     mut socket: WebSocket,
     mut terminal: Terminal,
     activity: &Activity,
+    mut updates: tokio::sync::watch::Receiver<Option<TerminalLease>>,
 ) -> Result<(), ()> {
     let ready = TerminalServerControl::Ready(TerminalReady {
         version: TERMINAL_VERSION,
@@ -25,7 +26,20 @@ pub(super) async fn run(
     let input = terminal.input();
     let replayed = AtomicBool::new(false);
     let output = async {
-        while let Some(output) = terminal.read().await.map_err(|_| ())? {
+        loop {
+            let output = tokio::select! {
+                biased;
+                changed = updates.changed() => {
+                    changed.map_err(|_| ())?;
+                    let update = updates.borrow_and_update().clone().ok_or(())?;
+                    sink.send(Message::Text(serde_json::to_string(&TerminalServerControl::Lease(update)).map_err(|_| ())?.into())).await.map_err(|_| ())?;
+                    continue;
+                }
+                output = terminal.read() => output.map_err(|_| ())?,
+            };
+            let Some(output) = output else {
+                return Ok::<_, ()>(());
+            };
             let fence = matches!(output, TerminalOutput::ReplayComplete);
             let message = match output {
                 TerminalOutput::Data(bytes) => Message::Binary(bytes.into()),
@@ -49,7 +63,6 @@ pub(super) async fn run(
                 replayed.store(true, Ordering::Release);
             }
         }
-        Ok::<_, ()>(())
     };
     let receive = async {
         while let Some(message) = source.next().await {

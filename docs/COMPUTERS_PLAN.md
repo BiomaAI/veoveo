@@ -536,3 +536,11 @@ Ready. Shared service watchers accelerate revocation and invalidate their former
 attachment epoch on observer loss. The recorded local suite passes 114 cases plus
 this native composition. Public gateway/BFF transport, Console rendering, stock CLI
 pairing, delegated execution, file movement and installed acceptance remain required.
+
+The relay checkpoint adds sequenced current lease controls to unreleased terminal v2.
+A shared gateway/BFF transport library preserves the service deadline and enforces it
+through blocked input, blocked output and queued delivery. Its clock allowance requires
+the platform processes to remain within one second of each other. Local native evidence
+now crosses two relay hops for more than the original thirty-second lease without
+reconnecting the shell. This qualifies the shared relay composition; actual gateway
+authorization, BFF cookies and the Console still need their installed journey.

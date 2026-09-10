@@ -2674,3 +2674,26 @@ of dependency artifacts. No retained home or provider image was pruned. The loca
 registry remained HTTP 200 in 1.45 milliseconds after native fixture cleanup, and the
 retired volume responder remains required until the host daemon naturally replaces
 its cached plugin clients. Do not restart the installed Docker daemon to clear it.
+
+The terminal relay is a small shared library for the gateway and Console BFF. Its
+standalone build took 8.34 seconds; five local deadline/WebSocket cases take about
+4.6 seconds. It carries no domain store or native provider dependency. The maintained
+reqwest-websocket adapter preserves the owner's TLS builder while the transport client
+selects HTTP/1.1 and disables redirects. Service-issued renewal deadlines cross every
+relay, and blocked directions cannot extend them.
+
+A test-only Tokio clock feature initially broadened the combined dependency graph and
+caused an 86-second metadata rebuild. The tests now use short bounded real timers and
+that feature has been removed. A native fixture also exposed a TLS initialization-order
+assumption: its first relay client was constructed before the helper that selected the
+crypto provider. Fixture entrypoints now select that provider explicitly. The first
+failed native attempt stopped after 9.18 seconds and cleaned its owned infrastructure.
+
+Final relay/contract/service coverage passes 25 cases in 64.7 seconds, including a
+45.16-second compile. The native command reuses that graph in 0.59 seconds and passes
+in 78.26 seconds. It includes a deliberate 31-second uninterrupted attachment through
+two relay hops, crossing the original service lease and source-token expiry. Current
+policy removal and logout retain the five-second closure assertion. Final lint takes
+1.84 seconds. The edge fixtures supply synthetic admission; actual gateway/BFF cookie
+and public-ingress qualification remain required. A metadata/test build is distinct
+from an OCI rebuild, and all provider binaries and Computer images were reused.
