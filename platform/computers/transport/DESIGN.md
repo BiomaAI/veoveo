@@ -1,4 +1,4 @@
-# Computer Terminal Relays
+# Computer Access Relays
 
 ## Standards And Protocols
 
@@ -6,6 +6,8 @@
 |---|---|
 | WebSocket RFC 6455 | HTTP/1.1 upgrade with the owning application's TLS trust; no generic tunnel or negotiated extensions |
 | Veoveo terminal v2 | Closed first-frame attach, resize, Ready, replay fence and sequenced lease controls; separate binary terminal bytes |
+| Veoveo private CLI relay v1 | The terminal-v2 Ready/Lease envelope only, plus binary stream bytes; trusted internal hops preserve controls and the public edge removes them |
+| OpenShell `0.0.116` edge tunnel | Stock client binary gRPC transport; no Veoveo controls reach that client, which also interprets received text frames as stream bytes |
 | RFC 3339 | Absolute service-issued authority deadlines, converted to local monotonic enforcement |
 | [reqwest-websocket 0.6.0](https://docs.rs/reqwest-websocket/0.6.0/reqwest_websocket/) | Current stable adapter verified through crates.io on 2026-09-10; uses its upstream-selected Tungstenite 0.28 configuration and wire engine |
 
@@ -40,3 +42,34 @@ or terminal responses. Output, pings, resizes and relay timers never authorize r
 
 Verification remains local until the gateway/BFF chain and installed headed journey
 are qualified. The native provider is outside this library's tests.
+
+## Stock CLI Relay Profile
+
+`connect_cli` uses the owning application's selected trust and authorization header.
+It sends no browser Origin and accepts no cookie input. Its URL restrictions, bounded
+upgrade and wire limits match the browser client. The owning edge must reject browser
+Origin, authorize the fixed route with the narrow CLI grant, and keep browser-cookie
+authority out of that admission. This library cannot grant access or choose a target.
+
+`relay_cli` carries a byte stream for the worker's restricted gRPC facade. It does not
+implement a public arbitrary TCP proxy. CLI input may arrive immediately after upgrade;
+the relay buffers it within its two-message queue until an upstream Ready establishes
+authority. Service output before Ready fails. The internal profile accepts only Ready
+and strictly sequenced Lease controls. Replay fences and client text frames are invalid.
+
+An internal hop forwards original control bytes without extending their deadlines.
+The public-client hop consumes those controls and delivers only binary stream bytes
+to the stock CLI. Both hops apply the existing one-second clock allowance and monotonic
+expiry guard independently of input/output backpressure. A blocked consumer cannot
+extend authority; delayed controls after expiry cannot revive the socket. These shared
+controls introduce no new browser-terminal version or client requirement.
+
+The owning worker must maintain grant/policy renewal and the matching provider lease.
+The gateway and BFF must select their respective relay mode explicitly. Roll out all
+three before exposing the CLI routes; an older endpoint cannot interpret this private
+profile. Existing browser relays retain their terminal-v2 replay and input rules.
+
+Local tests exercise two real WebSocket relay hops, early HTTP/2 input, byte preservation
+across renewal, control stripping, forged input, invalid service order and expiry with
+either direction blocked. They use synthetic authority and do not establish pairing,
+provider method restrictions, actual stock-client behavior or public ingress acceptance.

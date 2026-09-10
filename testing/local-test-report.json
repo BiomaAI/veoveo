@@ -1,99 +1,50 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:ab8b2ca411e6313024d7295ed94411a91e08e12779375c07915a72e8d34630f0",
-  "updatedAt": "2026-09-10T17:13:02Z",
+  "buildDigest": "sha256:2bc1e05b9fc644fa990350feebc50759d3b3c1abbde15b5a00b3d6f86d15bda0",
+  "updatedAt": "2026-09-10T17:20:15Z",
   "checks": [
     {
-      "name": "computers-cli-application",
+      "name": "computers-cli-relay",
       "command": [
         "cargo",
         "test",
         "-p",
-        "veoveo-computers-mcp",
-        "--test",
-        "application",
-        "--test",
-        "http"
+        "veoveo-computers-transport"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T17:11:57Z",
-      "durationSeconds": 43.690501814,
+      "finishedAt": "2026-09-10T17:19:22Z",
+      "durationSeconds": 7.766695571,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-cli-domain",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-computers"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T17:10:23Z",
-      "durationSeconds": 36.918868632,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-cli-format",
+      "name": "computers-cli-relay-format",
       "command": [
         "cargo",
         "fmt",
         "-p",
-        "veoveo-computers",
-        "-p",
-        "veoveo-platform-store",
+        "veoveo-computers-transport",
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T17:13:02Z",
-      "durationSeconds": 0.267238565,
+      "finishedAt": "2026-09-10T17:20:15Z",
+      "durationSeconds": 0.084433058,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-cli-lint",
+      "name": "computers-cli-relay-lint",
       "command": [
         "cargo",
         "clippy",
         "-p",
-        "veoveo-computers",
-        "-p",
-        "veoveo-platform-store",
+        "veoveo-computers-transport",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T17:12:16Z",
-      "durationSeconds": 3.063375595,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-cli-sql",
-      "command": [
-        "output/tools/surreal/3.2.4/surreal",
-        "validate",
-        "platform/store/migrations/0059_computer_cli_grants.surql",
-        "platform/computers/queries/*cli*.surql",
-        "platform/computers/queries/issue_session_grant.surql"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T17:12:33Z",
-      "durationSeconds": 0.221276451,
-      "detail": "completed successfully"
-    },
-    {
-      "name": "computers-cli-store",
-      "command": [
-        "cargo",
-        "test",
-        "-p",
-        "veoveo-platform-store",
-        "--lib"
-      ],
-      "status": "passed",
-      "finishedAt": "2026-09-10T17:10:48Z",
-      "durationSeconds": 13.626643129,
+      "finishedAt": "2026-09-10T17:19:58Z",
+      "durationSeconds": 0.471117177,
       "detail": "completed successfully"
     }
   ]

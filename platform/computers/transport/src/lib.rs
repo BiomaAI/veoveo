@@ -1,9 +1,11 @@
 //! Bounded Computer terminal transport shared by the gateway and Console BFF.
+mod cli;
 mod deadline;
 mod relay;
 mod upstream;
+pub use cli::{CliRelayMode, relay_cli};
 pub use relay::relay;
-pub use upstream::{Client, Upstream, UpstreamRequest};
+pub use upstream::{CliUpstreamRequest, Client, Upstream, UpstreamRequest};
 
 pub const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 pub const MAX_CONTROL_BYTES: usize = 1024;
