@@ -30,7 +30,7 @@ pub struct Docker {
     engine_id: Uuid,
     driver: String,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Engine {
     #[serde(rename = "ID")]
     id: Uuid,
@@ -49,6 +49,19 @@ struct Create<'a> {
     driver: &'a str,
 }
 impl Docker {
+    /// Enroll the engine reached through an explicit installation-owned socket.
+    /// Journal::open must bind this identity before the helper serves requests.
+    /// Reopening an existing journal rejects a different observed engine.
+    pub async fn discover(socket: &Path, driver: String) -> Result<Self> {
+        let client = engine_client(socket)?;
+        let reply = client
+            .get(format!("{API}/info"))
+            .send()
+            .await
+            .map_err(|_| StorageError::BackendUnavailable)?;
+        let engine: Engine = decode(reply).await?;
+        Self::new(socket, engine.id, driver)
+    }
     pub(crate) async fn prove_removed(
         &self,
         writer: &PhysicalWriter,
@@ -86,14 +99,7 @@ impl Docker {
         {
             return Err(StorageError::InvalidIdentity);
         }
-        let client = Client::builder()
-            .unix_socket(socket.to_owned())
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .retry(reqwest::retry::never())
-            .timeout(Duration::from_secs(5))
-            .build()
-            .map_err(|_| StorageError::BackendUnavailable)?;
+        let client = engine_client(socket)?;
         Ok(Self {
             client,
             engine_id,
@@ -163,6 +169,24 @@ impl Docker {
         Ok(())
     }
 }
+
+fn engine_client(socket: &Path) -> Result<Client> {
+    if !socket.is_absolute() {
+        return Err(StorageError::InvalidIdentity);
+    }
+    Client::builder()
+        .unix_socket(socket.to_owned())
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .retry(reqwest::retry::never())
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|_| StorageError::BackendUnavailable)
+}
+
+#[cfg(test)]
+#[path = "docker_tests.rs"]
+mod tests;
 
 async fn decode<T: DeserializeOwned>(response: Response) -> Result<T> {
     let mut response = response

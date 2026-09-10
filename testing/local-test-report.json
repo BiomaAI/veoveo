@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:f1fa5cd3bd89587d81de340a02ea28457b416284094c14b5ae3a2b46b0466d10",
-  "updatedAt": "2026-09-10T13:26:14Z",
+  "buildDigest": "sha256:05322c87f4e713b8dc30d97c4f52e85c78c807cee6c984861db8bc30bae09c64",
+  "updatedAt": "2026-09-10T13:36:36Z",
   "checks": [
     {
-      "name": "computers-mtls-format",
+      "name": "storage-enrollment-format",
       "command": [
         "cargo",
         "fmt",
@@ -13,52 +13,46 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:24:04Z",
-      "durationSeconds": 3.120570151,
+      "finishedAt": "2026-09-10T13:34:19Z",
+      "durationSeconds": 2.587505131,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-mtls-images",
+      "name": "storage-enrollment-image",
       "command": [
         "cargo",
         "xtask",
         "image",
         "build",
         "--target",
-        "computer-provider",
-        "--target",
-        "computers-mcp",
-        "--target",
         "computer-storage"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:26:14Z",
-      "durationSeconds": 181.437019675,
+      "finishedAt": "2026-09-10T13:36:36Z",
+      "durationSeconds": 36.462516272,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-mtls-lint",
+      "name": "storage-enrollment-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-runtime",
-        "-p",
-        "veoveo-computers-mcp",
+        "veoveo-computer-storage",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:24:00Z",
-      "durationSeconds": 23.892911924,
+      "finishedAt": "2026-09-10T13:34:15Z",
+      "durationSeconds": 9.083977141,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-mtls-native",
+      "name": "storage-enrollment-native",
       "command": [
         "env",
         "VEOVEO_SURREAL_BINARY=/home/rozgo/BiomaAI/veoveo/output/tools/surreal/3.2.4/surreal",
@@ -80,24 +74,24 @@
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:24:05Z",
-      "durationSeconds": 82.48792973,
+      "finishedAt": "2026-09-10T13:35:21Z",
+      "durationSeconds": 83.958499888,
       "detail": "completed successfully"
     },
     {
-      "name": "computers-mtls-runtime",
+      "name": "storage-enrollment-unit",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-computers-runtime",
+        "veoveo-computer-storage",
         "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T13:23:35Z",
-      "durationSeconds": 21.348482959,
+      "finishedAt": "2026-09-10T13:34:06Z",
+      "durationSeconds": 4.400463455,
       "detail": "completed successfully"
     }
   ]

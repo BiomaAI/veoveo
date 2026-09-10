@@ -2829,3 +2829,11 @@ cross-crate fixture initially lacked a direct tonic development dependency; addi
 the already selected workspace dependency fixed compilation without new package
 versions. Private compute-host startup and installed acceptance continue after this
 security checkpoint.
+
+Storage enrollment removes a provisioning round trip: configuration no longer needs
+the UUID assigned when its private Docker daemon first starts. The helper reads and
+rechecks the configured engine, then binds the exact identity in the private journal.
+The new test rejects replacement-engine adoption. Eight storage tests pass, and the
+native retained worker fixture passes in 79.56 seconds with the canonical configuration.
+Only the storage image is rebuilt: 35.97 seconds overall, with a 31.42-second observed
+compile window. The provider, Computer template and live installation are unchanged.
