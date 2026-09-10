@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b9c6e8519609b9d2fe71cb0cfaf7111afd506f6a0a29b9c02f267df7456dc2f8",
-  "updatedAt": "2026-09-10T03:05:48Z",
+  "buildDigest": "sha256:0841c6157d10737168e6e537448e19457485ebeefbe9a59a84e8220373411383",
+  "updatedAt": "2026-09-10T03:08:33Z",
   "checks": [
     {
       "name": "session-family-clippy",
@@ -20,8 +20,8 @@
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T03:05:22Z",
-      "durationSeconds": 17.809182601,
+      "finishedAt": "2026-09-10T03:08:30Z",
+      "durationSeconds": 2.071108227,
       "detail": "completed successfully"
     },
     {
@@ -34,8 +34,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T03:05:07Z",
-      "durationSeconds": 2.59478778,
+      "finishedAt": "2026-09-10T03:08:33Z",
+      "durationSeconds": 2.491496191,
       "detail": "completed successfully"
     },
     {
@@ -54,8 +54,8 @@
         "session_family"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T03:05:48Z",
-      "durationSeconds": 44.200427965,
+      "finishedAt": "2026-09-10T03:08:16Z",
+      "durationSeconds": 12.982382471,
       "detail": "completed successfully"
     }
   ]

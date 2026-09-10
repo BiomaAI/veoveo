@@ -48,7 +48,10 @@ impl GatewayState {
             && grant.work_context == token.work_context
             && grant.principal.id == principal.id
             && grant.principal.kind == principal.kind
-            && grant.principal.issuer == principal.issuer
+            // The family retains the original IdP principal. Access-token verification
+            // records the gateway token issuer; principal_id preserves original identity.
+            && token.issuer == principal.issuer
+            && token.subject == principal.subject
             && grant.principal.subject == principal.subject
             && grant.principal.tenant == principal.tenant
             && token.scopes.is_subset(&grant.scopes))
