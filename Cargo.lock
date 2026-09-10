@@ -16677,10 +16677,13 @@ dependencies = [
 name = "veoveo-computers"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
+ "chacha20poly1305",
  "chrono",
  "futures",
  "getrandom 0.4.3",
  "hex",
+ "hmac 0.13.0",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -16688,11 +16691,13 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "uuid",
+ "veoveo-computer-execution",
  "veoveo-computers-contract",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-policy",
  "veoveo-task-runtime",
+ "zeroize",
 ]
 
 [[package]]

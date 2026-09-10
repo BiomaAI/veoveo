@@ -5,9 +5,12 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+base64.workspace = true
+chacha20poly1305.workspace = true
 chrono.workspace = true
 hex.workspace = true
 getrandom.workspace = true
+hmac.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -15,6 +18,8 @@ surrealdb = { version = "=3.2.4", default-features = false, features = ["protoco
 thiserror.workspace = true
 tokio = { workspace = true, features = ["time"] }
 uuid = { workspace = true, features = ["serde", "v7"] }
+zeroize.workspace = true
+veoveo-computer-execution = { path = "execution" }
 veoveo-computers-contract = { path = "contract" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }
