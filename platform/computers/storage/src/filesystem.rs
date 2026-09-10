@@ -20,6 +20,8 @@ use std::{
 use uuid::Uuid;
 
 const HOME_UID: u32 = 10001;
+mod fence;
+pub(crate) use fence::FencedHome;
 pub struct Filesystem {
     journal: Journal,
     reserve_bytes: u64,

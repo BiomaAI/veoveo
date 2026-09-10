@@ -146,6 +146,7 @@ fn encode<T: Serialize>(reply: &T) -> Result<Vec<u8>> {
 enum Request {
     Ready(wire::ReadyRequest),
     Bound(wire::BoundRequest),
+    Handoff(wire::HandoffRequest),
 }
 fn parse(bytes: &[u8]) -> Result<Request> {
     if bytes.is_empty()
@@ -159,8 +160,11 @@ fn parse(bytes: &[u8]) -> Result<Request> {
     if let Ok(request) = serde_json::from_slice::<wire::ReadyRequest>(bytes) {
         return Ok(Request::Ready(request));
     }
-    serde_json::from_slice::<wire::BoundRequest>(bytes)
-        .map(Request::Bound)
+    if let Ok(request) = serde_json::from_slice::<wire::BoundRequest>(bytes) {
+        return Ok(Request::Bound(request));
+    }
+    serde_json::from_slice::<wire::HandoffRequest>(bytes)
+        .map(Request::Handoff)
         .map_err(|_| StorageError::InvalidIdentity)
 }
 fn uuid(id: &wire::IdentityId) -> Result<Uuid> {
@@ -168,6 +172,44 @@ fn uuid(id: &wire::IdentityId) -> Result<Uuid> {
 }
 async fn request(service: &Service, bytes: &[u8]) -> Result<Vec<u8>> {
     match parse(bytes)? {
+        Request::Handoff(request) => {
+            let provider_id = uuid(&request.provider_id)?;
+            let computer_id = uuid(&request.computer_id)?;
+            let capacity = service
+                .handoff(crate::Handoff {
+                    operation_id: uuid(&request.operation_id)?,
+                    source_resource_id: request.source_resource_id.to_string(),
+                    source: HomeIdentity {
+                        provider_id,
+                        computer_id,
+                        instance_id: uuid(&request.source_instance_id)?,
+                        template_fingerprint: request.source_template_fingerprint.to_string(),
+                    },
+                    target: HomeIdentity {
+                        provider_id,
+                        computer_id,
+                        instance_id: uuid(&request.target_instance_id)?,
+                        template_fingerprint: request.target_template_fingerprint.to_string(),
+                    },
+                })
+                .await?;
+            encode(&wire::HandoffReply {
+                schema: request.schema,
+                operation: "handoff"
+                    .parse()
+                    .map_err(|_| StorageError::InvalidIdentity)?,
+                provider_id: request.provider_id,
+                computer_id: request.computer_id,
+                operation_id: request.operation_id,
+                source_instance_id: request.source_instance_id,
+                source_template_fingerprint: request.source_template_fingerprint,
+                source_resource_id: request.source_resource_id,
+                target_instance_id: request.target_instance_id,
+                target_template_fingerprint: request.target_template_fingerprint,
+                status: "ready".parse().map_err(|_| StorageError::InvalidIdentity)?,
+                capacity_bytes: (capacity as i64).into(),
+            })
+        }
         Request::Ready(request) => {
             let capacity = service
                 .ready(uuid(&request.provider_id)?, &request.template_fingerprint)
@@ -210,6 +252,40 @@ async fn request(service: &Service, bytes: &[u8]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn handoff_identity_is_closed_and_fits_the_frame_at_the_resource_bound() {
+        let value = serde_json::json!({
+            "schema": SCHEMA, "operation": "handoff", "providerId": Uuid::from_u128(100),
+            "computerId": Uuid::from_u128(200), "operationId": Uuid::from_u128(300),
+            "sourceInstanceId": Uuid::from_u128(200), "sourceTemplateFingerprint": "a".repeat(64),
+            "sourceResourceId": "r".repeat(128), "targetInstanceId": Uuid::from_u128(400),
+            "targetTemplateFingerprint": "b".repeat(64),
+        });
+        let raw = serde_json::to_vec(&value).unwrap();
+        assert!(matches!(parse(&raw), Ok(Request::Handoff(_))));
+        for field in [
+            "sourceInstanceId",
+            "targetInstanceId",
+            "operationId",
+            "sourceResourceId",
+        ] {
+            let mut missing = value.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert!(parse(&serde_json::to_vec(&missing).unwrap()).is_err());
+            let mut duplicate = raw.clone();
+            duplicate.pop();
+            duplicate.extend(format!(",\"{field}\":{} }}", value[field]).bytes());
+            assert!(parse(&duplicate).is_err());
+        }
+        let mut oversized_resource = value.clone();
+        oversized_resource["sourceResourceId"] = "r".repeat(129).into();
+        assert!(parse(&serde_json::to_vec(&oversized_resource).unwrap()).is_err());
+        let mut reply = value;
+        reply["status"] = "ready".into();
+        reply["capacityBytes"] = 274877906944u64.into();
+        let reply: wire::HandoffReply = serde_json::from_value(reply).unwrap();
+        assert!(encode(&reply).unwrap().len() <= MAX_FRAME);
+    }
     #[test]
     fn requests_reject_duplicate_unknown_sequence_and_unbounded_frames() {
         let good = format!(

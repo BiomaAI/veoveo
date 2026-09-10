@@ -21,6 +21,16 @@ pub struct RegisteredConsumer {
     id: String,
     labels: BTreeMap<String, String>,
 }
+impl RegisteredConsumer {
+    pub fn container_id(&self) -> &str {
+        &self.id
+    }
+    pub fn resource_id(&self) -> Option<&str> {
+        self.labels
+            .get("openshell.ai/sandbox-id")
+            .map(String::as_str)
+    }
+}
 
 impl RetainedWriter {
     pub fn new(

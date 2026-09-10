@@ -2,6 +2,7 @@
 mod command;
 mod docker;
 mod filesystem;
+mod handoff;
 mod identity;
 mod journal;
 pub mod plugin;
@@ -10,6 +11,7 @@ pub mod transport;
 
 pub use docker::Docker;
 pub use filesystem::Filesystem;
+pub use handoff::{Handoff, PhysicalWriter, WriterState};
 pub use identity::{HomeIdentity, HostIdentity};
 pub use journal::{AllocationRecord, AllocationState, BackingIdentity, Journal, Reservation};
 pub use service::{Service, Template};

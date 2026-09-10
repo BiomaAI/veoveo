@@ -1,6 +1,6 @@
 //! One local writer owns a private, synchronized metadata root. This journal
 //! records filesystem outcomes; its lock is not a physical Computer fence.
-use crate::{HomeIdentity, HostIdentity, Result, StorageError};
+use crate::{HomeIdentity, HostIdentity, PhysicalWriter, Result, StorageError, WriterState};
 use nix::{fcntl::OFlag, unistd::geteuid};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
@@ -65,6 +65,7 @@ pub struct AllocationRecord {
     identity: HomeIdentity,
     capacity_bytes: u64,
     state: AllocationState,
+    writer: WriterState,
 }
 impl AllocationRecord {
     pub fn identity(&self) -> &HomeIdentity {
@@ -76,8 +77,17 @@ impl AllocationRecord {
     pub fn state(&self) -> &AllocationState {
         &self.state
     }
+    pub fn writer(&self) -> &WriterState {
+        &self.writer
+    }
     fn validate(&self, host: &HostIdentity, computer: Uuid) -> Result<()> {
         host.writer(&self.identity)?;
+        self.writer.validate()?;
+        if matches!(self.state, AllocationState::Allocating)
+            && !matches!(self.writer, WriterState::Unclaimed)
+        {
+            return Err(StorageError::RecoveryRequired);
+        }
         if computer != self.identity.computer_id || !valid_capacity(self.capacity_bytes) {
             return Err(StorageError::RecoveryRequired);
         }
@@ -244,6 +254,7 @@ impl Journal {
             identity,
             capacity_bytes,
             state: AllocationState::Allocating,
+            writer: WriterState::Unclaimed,
         };
         publish(&directory.join("record.json"), &record, false)?;
         Ok(Reservation::Created(record))
@@ -277,7 +288,33 @@ impl Journal {
         publish(&directory.join("record.json"), &record, true)?;
         Ok(record)
     }
+    pub(crate) fn claim_writer(
+        &mut self,
+        identity: &HomeIdentity,
+        writer: PhysicalWriter,
+    ) -> Result<()> {
+        writer.validate()?;
+        let mut record = self
+            .load(identity.computer_id)?
+            .ok_or(StorageError::RecoveryRequired)?;
+        if record.identity() != identity || !matches!(record.state, AllocationState::Ready { .. }) {
+            return Err(StorageError::IdentityMismatch);
+        }
+        match &record.writer {
+            WriterState::Claimed { writer: prior } if prior == &writer => return Ok(()),
+            WriterState::Claimed { .. } => return Err(StorageError::WriterDenied),
+            WriterState::Unclaimed => {}
+        }
+        record.writer = WriterState::Claimed { writer };
+        publish(
+            &self.directory(identity.computer_id)?.join("record.json"),
+            &record,
+            true,
+        )
+    }
 }
+
+mod handoff;
 
 fn valid_capacity(bytes: u64) -> bool {
     (512 * 1024 * 1024..=256 * 1024 * 1024 * 1024).contains(&bytes) && bytes.is_multiple_of(4096)

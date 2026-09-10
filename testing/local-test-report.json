@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:80771f8629347ada4a03209539e4c5ae7e47bcd67efd531ecc1cd9b2c6dfde84",
-  "updatedAt": "2026-09-10T06:33:24Z",
+  "buildDigest": "sha256:531e06c7f09bbc96b5215830cc5d6363633f95ec285993cef5f85e4839291a78",
+  "updatedAt": "2026-09-10T06:50:00Z",
   "checks": [
     {
       "name": "computer-storage",
@@ -20,8 +20,8 @@
         "--nocapture"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T06:31:29Z",
-      "durationSeconds": 20.812515135,
+      "finishedAt": "2026-09-10T06:47:31Z",
+      "durationSeconds": 22.813892279,
       "detail": "completed successfully"
     },
     {
@@ -33,37 +33,32 @@
         "--offline",
         "-p",
         "veoveo-computer-storage",
+        "-p",
+        "veoveo-computers-runtime",
         "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T06:32:36Z",
-      "durationSeconds": 7.072262689,
+      "finishedAt": "2026-09-10T06:48:15Z",
+      "durationSeconds": 7.23380374,
       "detail": "completed successfully"
     },
     {
-      "name": "computer-volume-boundary",
+      "name": "computers-runtime",
       "command": [
-        "env",
-        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
-        "VEOVEO_COMPUTERS_NATIVE_IMAGE=localhost:5001/veoveo-computer-candidate@sha256:7135af2af79213102f0abf0f052fa324ef77fde53441b9986f78587b6097d68c",
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
         "veoveo-computers-runtime",
-        "--test",
-        "native_volume_plugin",
-        "--",
-        "--ignored",
-        "--nocapture"
+        "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T06:33:20Z",
-      "durationSeconds": 12.868550614,
+      "finishedAt": "2026-09-10T06:48:48Z",
+      "durationSeconds": 31.791887548,
       "detail": "completed successfully"
     },
     {
@@ -75,8 +70,8 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T06:33:24Z",
-      "durationSeconds": 2.659747868,
+      "finishedAt": "2026-09-10T06:50:00Z",
+      "durationSeconds": 2.525148445,
       "detail": "completed successfully"
     }
   ]

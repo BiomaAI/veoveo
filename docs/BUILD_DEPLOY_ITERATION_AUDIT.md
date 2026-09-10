@@ -2497,3 +2497,25 @@ startup stderr before cleanup, detects early process exit, and restores ownershi
 of its empty socket directory. The failed fixtures' exact empty directories were
 removed. No user home or installed workload was involved. Physical handoff, provider
 integration with this allocator, packaging and public deployment remain next.
+
+The storage service now records the first physical container before acknowledging a
+mount and performs durable writer handoff. The native case deliberately retains a
+private mount after removing the provider container. Handoff refuses admission while
+that mount remains writable, then transfers the same bytes after verified loop
+detachment. This tests Linux's documented lazy-detach behavior in
+[`losetup`](https://man7.org/linux/man-pages/man8/losetup.8.html): an acknowledged detach
+can precede the last active reference. The production check reads the association
+again; it does not turn the mutation acknowledgement into a fencing guarantee.
+
+The recorded full storage run compiles in 3.36 s, runs seven local cases in 0.03 s,
+the ext4 fault case in 7.94 s and the expanded service/handoff case in 11.26 s.
+The latter covers a lost response, restart, late source admission, stale operations,
+template change and instance reuse. Combined storage/runtime Clippy takes 7.13 s.
+The runtime's 73 tests take 20.51 s after an 11.21 s compile following the private
+IDL change. A warm native-only edit compiled in 1.49 s. The existing provider binaries
+and both images remain reusable; no artifact publication or installed rollout ran.
+
+The next integration must use the allocator's dedicated worker trust root and native
+provider identity, close abandoned-admission recovery for a target that never mounted,
+and connect maintenance to the domain's durable authority. Native Docker plugin
+qualification is not a claim of complete worker maintenance or public availability.

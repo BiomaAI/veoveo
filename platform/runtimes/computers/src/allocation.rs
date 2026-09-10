@@ -143,6 +143,72 @@ impl HomeAllocator {
     pub async fn restore(&self, binding: &Binding) -> Result<()> {
         self.bound(wire::BoundOperation::Restore, binding).await
     }
+    pub async fn handoff(
+        &self,
+        operation_id: Uuid,
+        source: &Binding,
+        target: &Binding,
+        source_resource_id: &str,
+    ) -> Result<()> {
+        if source.computer_id() != target.computer_id()
+            || target.template_fingerprint() != self.fingerprint
+            || source.replacement_instance_id() == target.replacement_instance_id()
+            || target.replacement_instance_id().is_none()
+        {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
+        let request = wire::HandoffRequest {
+            schema: SCHEMA
+                .parse()
+                .map_err(|_| RuntimeFailure::AllocationFailed)?,
+            operation: "handoff"
+                .parse()
+                .map_err(|_| RuntimeFailure::AllocationFailed)?,
+            provider_id: storage_identity(self.provider_id)?,
+            computer_id: storage_identity(source.computer_id())?,
+            operation_id: storage_identity(operation_id)?,
+            source_instance_id: storage_identity(
+                source
+                    .replacement_instance_id()
+                    .unwrap_or(source.computer_id()),
+            )?,
+            source_template_fingerprint: source
+                .template_fingerprint()
+                .parse()
+                .map_err(|_| RuntimeFailure::BindingMismatch)?,
+            source_resource_id: source_resource_id
+                .parse()
+                .map_err(|_| RuntimeFailure::BindingMismatch)?,
+            target_instance_id: storage_identity(
+                target
+                    .replacement_instance_id()
+                    .ok_or(RuntimeFailure::BindingMismatch)?,
+            )?,
+            target_template_fingerprint: self
+                .fingerprint
+                .parse()
+                .map_err(|_| RuntimeFailure::BindingMismatch)?,
+        };
+        let expected = wire::HandoffReply {
+            schema: request.schema,
+            operation: "handoff"
+                .parse()
+                .map_err(|_| RuntimeFailure::AllocationFailed)?,
+            provider_id: request.provider_id.clone(),
+            computer_id: request.computer_id.clone(),
+            operation_id: request.operation_id.clone(),
+            source_instance_id: request.source_instance_id.clone(),
+            source_template_fingerprint: request.source_template_fingerprint.clone(),
+            source_resource_id: request.source_resource_id.clone(),
+            target_instance_id: request.target_instance_id.clone(),
+            target_template_fingerprint: request.target_template_fingerprint.clone(),
+            status: "ready"
+                .parse()
+                .map_err(|_| RuntimeFailure::AllocationFailed)?,
+            capacity_bytes: (self.capacity_bytes as i64).into(),
+        };
+        self.call(&request, &expected, 180).await
+    }
     async fn bound(&self, operation: wire::BoundOperation, binding: &Binding) -> Result<()> {
         if binding.template_fingerprint() != self.fingerprint {
             return Err(RuntimeFailure::BindingMismatch);
