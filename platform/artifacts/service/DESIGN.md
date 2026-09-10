@@ -142,6 +142,28 @@ Keep these statements in the established SurrealQL format and validate them with
 pinned native database executable. Rejected formatter output supplies no execution
 evidence.
 
+## Task Output Labels
+
+`service/write_capability.rs` issues and redeems the existing bounded Task-write
+capability. Issuance accepts `required_data_labels`, an optional set of at most 256
+labels that every output must retain. Unknown issuance fields are rejected. A domain
+can add the labels inherited from its inputs; it cannot change the output owner or
+initial grants through this field. The caller's clearance must cover the complete
+required set and the governing Work Context output labels.
+
+The service stores the required labels inside the capability's existing output-policy
+record. Its classification also becomes a mandatory label. Redemption unions that
+record into every artifact, including uploads with omitted labels or a different
+presentation classification. The original caller assertion remains unchanged. No new
+Store table or migration is needed. Task identity, bearer scope, byte/count ceilings
+and idempotent publication retain their existing enforcement.
+
+Rust and Python clients expose the same optional constraint. Existing producers
+request no additional labels; their Work Context policy still applies. Computers
+will supply its retained-data floor when its command output path is integrated.
+Native tests use the shared pinned disposable Store fixture and separate service
+instances to qualify persistence and replay without requiring an installed service.
+
 ## Task Read Delegation
 
 A durable task can retain a bounded read capability instead of retaining a submitted

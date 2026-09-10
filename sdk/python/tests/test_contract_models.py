@@ -6,6 +6,7 @@ import uuid_extensions
 
 from veoveo_mcp.contract import (
     ArtifactMetadata,
+    IssueArtifactWriteCapabilityRequest,
     IssuedArtifactWriteCapability,
     PutArtifactRequest,
     RedeemArtifactWriteCapabilityRequest,
@@ -13,6 +14,25 @@ from veoveo_mcp.contract import (
     UsageRecord,
     UsageReport,
 )
+
+
+def test_output_capability_carries_bounded_inherited_labels():
+    request = IssueArtifactWriteCapabilityRequest(
+        task_id=str(uuid_extensions.uuid7()),
+        expires_at=datetime.now(timezone.utc),
+        max_artifact_count=2,
+        max_total_bytes=1024,
+        required_data_labels={"retained-home"},
+    )
+    assert request.model_dump(mode="json")["required_data_labels"] == ["retained-home"]
+    with pytest.raises(ValueError):
+        IssueArtifactWriteCapabilityRequest.model_validate(
+            {**request.model_dump(), "required_labels": ["retained-home"]}
+        )
+    with pytest.raises(ValueError):
+        IssueArtifactWriteCapabilityRequest.model_validate(
+            {**request.model_dump(), "required_data_labels": {f"label-{i}" for i in range(257)}}
+        )
 
 
 def _record(kind: UsageKind, amount: float | None, currency: str | None) -> UsageRecord:

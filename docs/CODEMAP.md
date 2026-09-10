@@ -508,6 +508,7 @@ plane and its bounded durable task-read delegation.
 | `ledger.rs` | repository contract and in-memory test implementation |
 | `ledger/surreal.rs` | canonical SurrealDB repository adapter |
 | `service/read_capability.rs`, `ledger/read_capability.rs`, `ledger/surreal/read_capability.rs` | delegated read policy, focused repository contract, and durable adapter |
+| `service/write_capability.rs` | task-bound output capability issuance and redemption, inherited sensitivity floors and governed occurrence publication |
 | `http/read_capability.rs` | current task scope, Artifact read routes and gateway-authenticated issuance/revocation |
 | `store.rs` | memory/S3 blob storage and signed download behavior |
 | `store/multipart.rs` and `uploads/` | restartable multipart storage adapter, bounded transfer orchestration, safe session projections, and service-owned finalization/cleanup recovery |

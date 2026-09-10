@@ -3261,3 +3261,14 @@ admission/dispatch cases in 8.45 seconds after a 12.91-second incremental compil
 The deadline fixture backdates coherent private event times in its disposable store
 instead of waiting three minutes. Shared command setup avoids duplicating service
 identity, named-grant and encrypted-request fixtures. No provider image changed.
+
+The inherited-output policy tests took 25.26 seconds to compile the Artifact service
+and common contract on the first pass. The native floor/replay check reused the
+pinned disposable Store image; all three focused cases then passed in 1.66 seconds
+after a 6.07-second compile. No provider or storage image rebuild was needed. Adding
+one optional field to the common Rust request type still touches nine producer
+crates, illustrating how the shared contract crate broadens compilation work.
+The first combined check of those producers took 84 seconds and composed additional
+Arrow, Rerun and SurrealDB feature graphs. This is a source compilation observation,
+not an image-build timing. The output-policy check catalog now separates pure policy
+tests, native persistence evidence and producer compilation.

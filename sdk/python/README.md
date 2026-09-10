@@ -17,6 +17,11 @@ simulation-specific SDK integration. They conform to the provider-neutral live-v
 contract through their hosted MCP server rather than publishing a visualization-only
 scene or pose mirror through this package.
 
+Task output capabilities accept `required_data_labels` to preserve sensitivity
+inherited from domain inputs. The Artifact service adds these labels to every
+output and rejects a scope outside the caller's clearance. Work Context policy
+continues to select the owner and initial grants.
+
 ## Supported release
 
 The package is distributed as an immutable wheel and source distribution through a

@@ -813,6 +813,7 @@ async fn start_duckdb_task(
                 .issue_write_capability(
                     &caller,
                     &IssueArtifactWriteCapabilityRequest {
+                        required_data_labels: Default::default(),
                         task_id: task_id.to_string(),
                         expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
                         max_artifact_count: NonZeroU32::new(1).expect("one artifact is non-zero"),
