@@ -220,6 +220,42 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
         .unwrap();
     assert_eq!(repeated["taskId"], task_id);
     let computer_id = repeated["computerId"].as_str().unwrap();
+    let operation_url = format!(
+        "{}/admin/computers/{computer_id}/operations/{task_id}",
+        b.base
+    );
+    let current = client
+        .get(&operation_url)
+        .bearer_auth(&alice)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(current.status(), reqwest::StatusCode::OK);
+    assert_eq!(current.json::<Value>().await.unwrap(), repeated);
+    assert_eq!(
+        client
+            .get(&operation_url)
+            .bearer_auth(&bob)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        client
+            .get(format!(
+                "{}/admin/computers/{}/operations/{task_id}",
+                a.base,
+                Uuid::now_v7()
+            ))
+            .bearer_auth(&alice)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
     let task = rpc(
         &client,
         &b,
@@ -269,6 +305,16 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
     let mut read_only = app_support::control();
     read_only.policies[0].rules[0].effect = PolicyEffect::Deny;
     support::policy::install(&db.b, read_only).await;
+    assert_eq!(
+        client
+            .get(&operation_url)
+            .bearer_auth(&alice)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::OK
+    );
     let refused = rpc(
         &client,
         &a,
@@ -293,6 +339,43 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
     )
     .await;
     assert!(cancelled.get("error").is_none(), "{cancelled}");
+    let current: Value = client
+        .get(format!(
+            "{}/admin/computers/{computer_id}/operations/{task_id}",
+            a.base
+        ))
+        .bearer_auth(&alice)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    // Cancellation requests alone do not certify that a provider effect stopped.
+    assert_eq!(current["status"], "queued");
+    let tasks = veoveo_task_runtime::TaskRuntime::new(db.b.clone(), "computers", "receipt-test");
+    let claim = tasks
+        .claim_observation(task_id, Duration::from_secs(60))
+        .await
+        .unwrap();
+    veoveo_computers::ComputersStore::new(db.b.clone(), Uuid::from_u128(100))
+        .unwrap()
+        .abort_undispatched(
+            &claim,
+            veoveo_computers::UndispatchedOutcome::CancelledBeforeDispatch,
+        )
+        .await
+        .unwrap();
+    let settled: Value = client
+        .get(&operation_url)
+        .bearer_auth(&alice)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(settled["status"], "cancelled");
     let docs = rpc(
         &client,
         &a,
@@ -373,7 +456,8 @@ async fn subscription_baselines_cross_replicas_and_close_on_current_policy_revoc
     let db = support::TestDb::new().await;
     app_support::identities(&db).await;
     let signing = Signing::new();
-    let a = Server::new(app_support::application(&db, false).await.0, &signing).await;
+    let (app, capacity) = app_support::application(&db, false).await;
+    let a = Server::new(app, &signing).await;
     let b = Server::new(
         app_support::application_on(db.b.clone(), false).await.0,
         &signing,
@@ -396,6 +480,55 @@ async fn subscription_baselines_cross_replicas_and_close_on_current_policy_revoc
     assert!(
         matches!(first, ServerNotification::ResourceUpdatedNotification(ref n) if n.params.uri == "computer://computers")
     );
+    for availability in [
+        veoveo_computers::api::CapacityAvailability::ComputeUnavailable,
+        veoveo_computers::api::CapacityAvailability::Available,
+    ] {
+        capacity.send_replace(veoveo_computers_mcp::CapacityHealth {
+            availability,
+            observed_at: std::time::Instant::now(),
+        });
+        let update = tokio::time::timeout(Duration::from_secs(2), subscription.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert!(
+            matches!(update, ServerNotification::ResourceUpdatedNotification(ref n) if n.params.uri == "computer://computers")
+        );
+    }
+    // Expiring readiness invalidates even if the probe never publishes another result.
+    capacity.send_replace(veoveo_computers_mcp::CapacityHealth {
+        availability: veoveo_computers::api::CapacityAvailability::Available,
+        observed_at: std::time::Instant::now() - Duration::from_millis(14_950),
+    });
+    let update = tokio::time::timeout(Duration::from_secs(2), subscription.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(update, ServerNotification::ResourceUpdatedNotification(ref n) if n.params.uri == "computer://computers")
+    );
+    let unavailable: Value = client()
+        .get(format!("{}/admin/computers", a.base))
+        .bearer_auth(signing.bearer("alice", "computers"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(unavailable["availability"], "compute_unavailable");
+    capacity.send_replace(veoveo_computers_mcp::CapacityHealth {
+        availability: veoveo_computers::api::CapacityAvailability::Available,
+        observed_at: std::time::Instant::now(),
+    });
+    tokio::time::timeout(Duration::from_secs(2), subscription.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
     let response = client()
         .post(format!("{}/admin/computers", b.base))
         .bearer_auth(signing.bearer("alice", "computers"))

@@ -1,19 +1,154 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:b6a5623d2ecff9ee6727bfcca72d530c095ce65f7d46b417a7a74999c23fb048",
-  "updatedAt": "2026-09-10T15:44:15Z",
+  "buildDigest": "sha256:90bdae178b34c13a630981fa0128212950a0c55c1f3d383e20de51ae5ec812f3",
+  "updatedAt": "2026-09-10T16:11:28Z",
   "checks": [
     {
-      "name": "terminal-browser-installation",
+      "name": "computers-operation-application",
       "command": [
         "cargo",
-        "xtask",
-        "smoke",
-        "helm-config"
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-mcp",
+        "--test",
+        "application"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:44:15Z",
-      "durationSeconds": 6.331255556,
+      "finishedAt": "2026-09-10T16:10:52Z",
+      "durationSeconds": 2.083695487,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-operation-controller",
+      "command": [
+        "node",
+        "--experimental-strip-types",
+        "--test",
+        "apps/console/web/src/computerController.test.ts"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:11:13Z",
+      "durationSeconds": 0.171625327,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-operation-edges",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "--bins",
+        "computers::"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:11:12Z",
+      "durationSeconds": 2.223396664,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-operation-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:11:28Z",
+      "durationSeconds": 2.665337663,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-operation-http",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-mcp",
+        "--test",
+        "http"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:11:09Z",
+      "durationSeconds": 16.288743528,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-operation-lint",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers-mcp",
+        "-p",
+        "veoveo-console-bff",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:10:46Z",
+      "durationSeconds": 1.300120497,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-operation-store",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computers",
+        "--test",
+        "operations"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:10:49Z",
+      "durationSeconds": 2.24471973,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-operation-web-build",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:11:19Z",
+      "durationSeconds": 6.005036137,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "computers-operation-web-lint",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "lint"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T16:11:24Z",
+      "durationSeconds": 3.7932019869999998,
       "detail": "completed successfully"
     }
   ]

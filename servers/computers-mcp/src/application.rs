@@ -41,6 +41,9 @@ impl Application {
     pub fn task_runtime(&self) -> &TaskRuntime {
         &self.tasks
     }
+    pub(crate) fn capacity_health(&self) -> watch::Receiver<CapacityHealth> {
+        self.health.clone()
+    }
     pub fn new(
         store: ComputersStore,
         tasks: TaskRuntime,
@@ -130,6 +133,21 @@ impl Application {
         let access = self.browser_access(&authority).await?;
         authority.require_read(Some(id))?;
         Ok(self.view(&computer, &authority, access))
+    }
+    pub async fn operation(
+        &self,
+        actor: &ComputerActor,
+        computer_id: Uuid,
+        operation_id: Uuid,
+    ) -> Result<Operation> {
+        let authority = self.store.control_authority(actor).await?;
+        authority.require_read(Some(computer_id))?;
+        let operation = self.store.operation(actor.owner(), operation_id).await?;
+        if operation.computer_id != computer_id {
+            return Err(ComputerError::NotFound.into());
+        }
+        authority.require_read(Some(computer_id))?;
+        Ok(operation)
     }
     async fn browser_access(&self, authority: &ControlAuthority) -> Result<bool> {
         if !authority.has_browser_session() || self.runtime.current().is_err() {

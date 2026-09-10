@@ -136,6 +136,12 @@ Omitting the ID requests a new reservation. Reservation request IDs are owner-sc
 lifecycle request IDs are scoped to the selected Computer. Exact retries retain the
 first accepted operation and template even if the installation default changes.
 
+GET `/admin/computers/{id}/operations/{operation_id}` reads that same durable
+operation as a typed receipt. A successful read returns HTTP 200 regardless of
+operation status. Current Computer read authority and original operation ownership
+apply; a mismatched parent is not found. The read neither dispatches work nor queries
+the provider. MCP clients retain `tasks/get` as their canonical Task read path.
+
 Each request admits at most 64 KiB and has a thirty-second response deadline.
 A timeout does not certify whether admission committed; retry uses the same request
 ID. The shared MCP middleware enforces the final serialized 8 MiB response cap.
@@ -208,6 +214,11 @@ bounded persisted-page drain. LIVE loss closes the listener and requires a new b
 Task notifications use the shared durable Task subscription helper. All notifications
 remain filtered by current ownership and requested targets. Provider events and terminal
 contents never enter these streams.
+
+Capacity health transitions also invalidate requested resources. Expiration of the
+fifteen-second health observation invalidates availability even without another
+provider event. Repeated health observations with unchanged availability produce no
+extra notification. This signal prompts a canonical read and grants no authority.
 
 Current policy and the signed browser family are checked every five seconds, with a
 shared five-second authority-read bound. The earliest assertion, token, known family

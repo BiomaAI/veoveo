@@ -14,6 +14,10 @@ The gateway exposes `/computers/{profile}` for list and Create, with exact Compu
 children for read, Start, Stop, terminal ticket and terminal upgrade. The selected
 profile must admit the `computers` server. Its current manifest supplies the destination
 and TLS trust. Public callers cannot choose a host, provider or internal route.
+
+GET `/computers/{profile}/{id}/operations/{operation_id}` projects a stored operation
+receipt under its parent's current `resources/read` authority. It requires no mutation
+permission. Both returned IDs must match the route; inputs cannot add query authority.
 These are gateway-owned routes, independent of extension-owned route declarations.
 
 Read uses ResourcesRead on the canonical collection or exact Computer resource.

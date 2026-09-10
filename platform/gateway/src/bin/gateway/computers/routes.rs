@@ -10,12 +10,14 @@ use veoveo_mcp_contract::{
 pub(super) struct Route {
     pub profile: GatewayProfileId,
     pub id: Option<Uuid>,
+    pub operation_id: Option<Uuid>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Operation {
     List,
     Read(Uuid),
+    Receipt { computer: Uuid, operation: Uuid },
     Create,
     Start(Uuid),
     Stop(Uuid),
@@ -23,9 +25,27 @@ pub(super) enum Operation {
     Terminal(Uuid),
 }
 impl Operation {
-    pub fn from_route(matched: &str, method: &Method, id: Option<Uuid>) -> Result<Self, Fault> {
-        if id.is_some_and(|id| id.is_nil()) {
+    pub fn from_route(
+        matched: &str,
+        method: &Method,
+        id: Option<Uuid>,
+        operation_id: Option<Uuid>,
+    ) -> Result<Self, Fault> {
+        if id.is_some_and(|id| id.is_nil()) || operation_id.is_some_and(|id| id.is_nil()) {
             return Err(Fault::invalid());
+        }
+        if let Some(operation) = operation_id {
+            return match (matched, method, id) {
+                (
+                    "/computers/{profile}/{id}/operations/{operation_id}",
+                    &Method::GET,
+                    Some(computer),
+                ) => Ok(Self::Receipt {
+                    computer,
+                    operation,
+                }),
+                _ => Err(Fault::invalid()),
+            };
         }
         match (matched, method, id) {
             ("/computers/{profile}", &Method::GET, None) => Ok(Self::List),
@@ -46,6 +66,10 @@ impl Operation {
         match self {
             Self::List | Self::Create => "computers".into(),
             Self::Read(id) => format!("computers/{id}"),
+            Self::Receipt {
+                computer,
+                operation,
+            } => format!("computers/{computer}/operations/{operation}"),
             Self::Start(id) => format!("computers/{id}/start"),
             Self::Stop(id) => format!("computers/{id}/stop"),
             Self::Ticket(id) => format!("computers/{id}/terminal-ticket"),
@@ -70,9 +94,10 @@ impl Operation {
             );
         }
         let uri = match self {
-            Self::Read(id) | Self::Ticket(id) | Self::Terminal(id) => {
-                veoveo_computers_contract::computer_uri(id)
-            }
+            Self::Read(id)
+            | Self::Ticket(id)
+            | Self::Terminal(id)
+            | Self::Receipt { computer: id, .. } => veoveo_computers_contract::computer_uri(id),
             _ => veoveo_computers_contract::COMPUTERS_URI.into(),
         };
         let actions: &'static [_] = if self.is_attachment() {
@@ -92,6 +117,6 @@ impl Operation {
         matches!(self, Self::Ticket(_) | Self::Terminal(_))
     }
     pub fn requires_contributor(self) -> bool {
-        !matches!(self, Self::List | Self::Read(_))
+        !matches!(self, Self::List | Self::Read(_) | Self::Receipt { .. })
     }
 }

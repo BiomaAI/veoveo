@@ -32,12 +32,14 @@ denial requires explicit Refresh. Events fit 4 KiB and an inactive stream expire
 No provider query or browser status polling is introduced.
 
 Lifecycle request IDs are saved in sessionStorage before dispatch. A lost response
-retains the exact ID, action and selected Computer. Reload restores it, and Recover
-status retries the same idempotent lifecycle request. Concurrent retries share that
+retains the exact ID, action and selected Computer. Reload restores it. Recover status
+reads a known operation; an unconfirmed response retries the original idempotent request.
+Collection baselines and invalidations refresh nonterminal receipts through the same
+read projection, with at most four concurrent reads. Concurrent retries share their
 request. Saved data contains no ticket, cookie, token or shell text. Up to 32 receipts
 are retained. Storage failure prevents a fresh mutation; clearing ambiguous recovery
-state requires explicit review. A dedicated operation read projection and reactive
-Task completion remain required before full release acceptance.
+state requires explicit review. Late reads cannot restore dismissed receipts or cross
+controller scopes.
 
 The terminal module is a separate lazy production chunk. Explicit Connect requests a
 fresh one-use ticket and sends it in the first WebSocket frame. Navigation unmounts

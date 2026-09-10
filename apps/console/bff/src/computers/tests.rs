@@ -280,6 +280,43 @@ async fn ticket_uses_cookie_profile_and_rewrites_only_owned_endpoint() {
 }
 
 #[tokio::test]
+async fn operation_status_is_a_cookie_scoped_read_and_rejects_extra_query_authority() {
+    let fixture = Fixture::new().await;
+    let computer = Uuid::new_v4();
+    let operation = Uuid::new_v4();
+    let path = format!("/console/api/computers/{computer}/operations/{operation}");
+    let response = fixture
+        .call(
+            Request::builder()
+                .uri(&path)
+                .header(header::COOKIE, fixture.cookie(false))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    {
+        let observed = fixture.observed.lock().unwrap();
+        assert_eq!(observed.len(), 1);
+        assert_eq!(
+            observed[0].path,
+            format!("/computers/admin/{computer}/operations/{operation}")
+        );
+    }
+    let response = fixture
+        .call(
+            Request::builder()
+                .uri(format!("{path}?after={computer}"))
+                .header(header::COOKIE, fixture.cookie(false))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(fixture.observed.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn origin_queries_and_body_limits_fail_before_refresh() {
     let fixture = Fixture::new().await;
     let path = format!("/console/api/computers/{}/terminal-ticket", Uuid::new_v4());
