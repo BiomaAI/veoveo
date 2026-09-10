@@ -1,0 +1,89 @@
+diff --git a/crates/openshell-driver-docker/README.md b/crates/openshell-driver-docker/README.md
+index f08b36c..301d986 100644
+--- a/crates/openshell-driver-docker/README.md
++++ b/crates/openshell-driver-docker/README.md
+@@ -149,7 +149,11 @@ OpenShell-owned supervisor, token, and TLS material.
+ Docker `bind` mounts accept `source`, `target`, optional `read_only`, and an
+ optional `selinux_label` of `shared` (applies `:z`) or `private` (applies
+ `:Z`) for SELinux-enforcing hosts. Docker `volume` mounts may include
+-`subpath`. User-supplied bind and volume mounts are read-only by default; set
++`subpath` and `no_copy` (default `false`). Set `no_copy: true` for a retained
++volume whose allocator owns initialization. Docker then skips copying image
++contents into the volume before container registration. This is required when
++the volume driver authorizes mounts against registered container identity.
++User-supplied bind and volume mounts are read-only by default; set
+ `read_only: false` to make them writable. Mount `source`, `target`, and
+ `subpath` values must not contain surrounding whitespace. Mount targets must be
+ absolute container paths and must not replace or contain the resolved workspace
+diff --git a/crates/openshell-driver-docker/src/lib.rs b/crates/openshell-driver-docker/src/lib.rs
+index b252c8e..c6d0149 100644
+--- a/crates/openshell-driver-docker/src/lib.rs
++++ b/crates/openshell-driver-docker/src/lib.rs
+@@ -393,6 +393,8 @@ enum DockerDriverMountConfig {
+         read_only: bool,
+         #[serde(default)]
+         subpath: Option<String>,
++        #[serde(default)]
++        no_copy: bool,
+     },
+     Tmpfs {
+         target: String,
+@@ -2467,13 +2469,15 @@ fn docker_mount_from_config(config: &DockerDriverMountConfig) -> Result<Option<M
+             target,
+             read_only,
+             subpath,
++            no_copy,
+         } => Ok(Some(Mount {
+             typ: Some(MountTypeEnum::VOLUME),
+             source: Some(source.clone()),
+             target: Some(target.clone()),
+             read_only: Some(*read_only),
+-            volume_options: subpath.as_ref().map(|subpath| MountVolumeOptions {
+-                subpath: Some(subpath.clone()),
++            volume_options: (*no_copy || subpath.is_some()).then(|| MountVolumeOptions {
++                no_copy: Some(*no_copy),
++                subpath: subpath.clone(),
+                 ..Default::default()
+             }),
+             ..Default::default()
+diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
+index 93fd600..f8aa24b 100644
+--- a/crates/openshell-driver-docker/src/tests.rs
++++ b/crates/openshell-driver-docker/src/tests.rs
+@@ -1766,6 +1766,36 @@ fn build_container_create_body_includes_driver_config_mounts() {
+     );
+ }
+ 
++#[test]
++fn retained_volume_no_copy_reaches_engine_with_and_without_subpath() {
++    for subpath in [None, Some("home")] {
++        let mut mount = serde_json::json!({
++            "type": "volume", "source": "retained-home",
++            "target": "/sandbox/persistent", "read_only": false, "no_copy": true
++        });
++        if let Some(subpath) = subpath {
++            mount["subpath"] = serde_json::json!(subpath);
++        }
++        let mut sandbox = test_sandbox();
++        sandbox
++            .spec
++            .as_mut()
++            .unwrap()
++            .template
++            .as_mut()
++            .unwrap()
++            .driver_config = Some(json_struct(serde_json::json!({"mounts": [mount]})));
++        DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config()).unwrap();
++        let body = build_container_create_body(&sandbox, &runtime_config()).unwrap();
++        let mounts = body.host_config.unwrap().mounts.unwrap();
++        let options = mounts[0].volume_options.as_ref().unwrap();
++        assert_eq!(options.no_copy, Some(true));
++        assert_eq!(options.subpath.as_deref(), subpath);
++        let wire = serde_json::to_value(&mounts[0]).unwrap();
++        assert_eq!(wire["VolumeOptions"]["NoCopy"], true);
++    }
++}
++
+ #[test]
+ fn driver_config_defaults_volume_mounts_to_read_only() {
+     let mut sandbox = test_sandbox();

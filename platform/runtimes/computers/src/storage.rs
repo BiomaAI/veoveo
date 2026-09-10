@@ -111,6 +111,12 @@ impl PersistentHome {
                                 },
                             ),
                             ("subpath", string_value("home")),
+                            (
+                                "no_copy",
+                                Value {
+                                    kind: Some(Kind::BoolValue(true)),
+                                },
+                            ),
                         ])),
                         struct_value(object([
                             ("type", string_value("tmpfs")),

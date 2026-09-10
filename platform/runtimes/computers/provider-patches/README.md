@@ -7,7 +7,7 @@ The inspected profile uses stock CLI **0.0.116**, based on public OpenShell
 with separately qualified gateway and supervisor repairs. These are downstream
 patches, not an NVIDIA release or a claim that upstream has accepted them.
 
-The native client currently requires gateway `0.0.117-dev.6+g32efe0b` and the
+The native client currently requires gateway `0.0.117-veoveo.1` and the
 Docker driver. The retained terminal requires the matching metadata-capable
 supervisor `0.0.117-dev.5+gea0c605`. Stock CLI version and patched provider
 versions are deliberately different components of one recorded profile.
@@ -20,13 +20,16 @@ OpenShell v0.0.116 / d1155aa7
   2. numeric supervisor groups          -> 857b6639
   3. owned terminals / path policy      -> 92d36947
        |-- 4. stale exit-event recheck   -> f03c0f7d
-       |     5. bounded logs            -> 32efe0b3  [gateway]
+       |     5. bounded logs            -> 32efe0b3
+       |     7. retained volume NoCopy  -> 9ccd1611  [gateway tree]
        `-- 6. explicit replay boundary  -> ea0c605b  [supervisor]
 ```
 
 The replay patch branches from the common third patch. It is not applied after
-the two gateway patches to reproduce the recorded supervisor tree. No new
-combined tree or artifact is qualified by this package.
+the two gateway patches to reproduce the recorded supervisor tree. The seventh
+repair is Veoveo-authored and extends only the gateway branch. Its manifest entry
+binds the exact base and resulting trees without claiming an upstream commit.
+Source qualification and native artifact evidence remain separate.
 
 | Repair | Required behavior |
 |---|---|
@@ -36,6 +39,7 @@ combined tree or artifact is qualified by this package.
 | Exit-event recheck | An old queued exit must not make a newly started retained run terminal |
 | Log bounds | Bound Docker rotation and supervisor log tmpfs without consuming retained-home capacity indefinitely |
 | Replay boundary | Preserve raw bytes and deliver generated per-attachment ReplayComplete metadata before enabling terminal input |
+| Retained volume NoCopy | Pass typed `no_copy` to Docker's volume options with or without a subpath; retained Computer templates require it to prevent initialization before container registration |
 
 ## Provenance and review
 
@@ -44,6 +48,15 @@ source revision/tree, original patch hash and packaged patch hash. Five patches
 are unchanged raw diffs. The replay patch's mail envelope was removed to exclude
 author contact metadata; its diff payload is unchanged and separately hashed.
 This changes the patch-file identity, not its resulting source tree.
+
+The seventh patch's `expectedBaseTree` is the fifth patch's resulting tree. Its
+`expectedSourceTree` and packaged SHA-256 identify Veoveo's new source. The six
+imported patch bytes and their provenance remain unchanged. Export the new gateway
+tree without a parent Git checkout and materialize `gatewayVersion` in workspace
+Cargo.toml and local-package Cargo.lock versions; this prevents an enclosing Veoveo
+Git revision from becoming the provider version. Keep the supervisor export separate.
+The new retained-home fingerprint includes `no_copy: true`. This unreleased profile
+rejects the older gateway version; it does not silently run without the mount option.
 
 The package verifier applies each patch to a temporary Git index in the graph
 above and compares each resulting tree to its recorded expected tree. It does
