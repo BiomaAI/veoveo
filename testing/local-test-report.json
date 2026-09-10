@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "buildDigest": "sha256:8e0ce21be56299ca2f7be2f5966a3b28af3e8e349929b09194dceafc0c988f45",
-  "updatedAt": "2026-09-10T15:24:00Z",
+  "buildDigest": "sha256:d63764545c2b2ace8f9d7bd0a07c42b543487b7b5f0bf7ba12b5e341287ad66f",
+  "updatedAt": "2026-09-10T15:32:08Z",
   "checks": [
     {
-      "name": "terminal-journal-format",
+      "name": "retained-allocation-format",
       "command": [
         "cargo",
         "fmt",
@@ -12,44 +12,69 @@
         "--check"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:24:00Z",
-      "durationSeconds": 2.648608153,
+      "finishedAt": "2026-09-10T15:29:12Z",
+      "durationSeconds": 2.845775975,
       "detail": "completed successfully"
     },
     {
-      "name": "terminal-journal-lint",
+      "name": "retained-allocation-lint",
       "command": [
         "cargo",
         "clippy",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-recording-hub",
-        "--lib",
+        "veoveo-computer-storage",
+        "-p",
+        "veoveo-computer-host",
+        "--all-targets",
         "--",
         "-D",
         "warnings"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:23:57Z",
-      "durationSeconds": 2.7658176450000003,
+      "finishedAt": "2026-09-10T15:29:08Z",
+      "durationSeconds": 0.708489335,
       "detail": "completed successfully"
     },
     {
-      "name": "terminal-journal-recovery",
+      "name": "retained-allocation-native",
+      "command": [
+        "env",
+        "VEOVEO_COMPUTERS_HOST_IMAGE=veoveo/computer-host:0.1.0",
+        "VEOVEO_COMPUTERS_HOST_TEST_IMAGE=172.17.0.2:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
+        "VEOVEO_COMPUTERS_NATIVE_OUTPUT=/home/rozgo/BiomaAI/veoveo/output/development/computers-provider/native-tests",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "veoveo-computer-host",
+        "--test",
+        "native_host",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "status": "passed",
+      "finishedAt": "2026-09-10T15:32:08Z",
+      "durationSeconds": 40.678787595,
+      "detail": "completed successfully"
+    },
+    {
+      "name": "retained-allocation-unit",
       "command": [
         "cargo",
         "test",
         "--locked",
         "--offline",
         "-p",
-        "veoveo-recording-hub",
-        "--lib",
-        "ingest::recovery::tests"
+        "veoveo-computer-storage",
+        "--lib"
       ],
       "status": "passed",
-      "finishedAt": "2026-09-10T15:23:53Z",
-      "durationSeconds": 4.635691504,
+      "finishedAt": "2026-09-10T15:29:06Z",
+      "durationSeconds": 8.576290481000001,
       "detail": "completed successfully"
     }
   ]

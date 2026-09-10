@@ -175,6 +175,7 @@ Hub, administration, and GPU policy.
 | `apps/console/bff/src/mcp_client/resources.rs` | shared App/native resource subscriptions, exact acknowledgment, bounded capacity, cancellation cleanup and explicit source-loss retirement |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection schema and terminal controls shared by planned native Console and MCP projections |
 | `platform/computers/storage/` | privileged host journal/ext4 filesystem, exact Docker observation and recorded physical claims, durable handoff with loop detachment, bounded plugin/mTLS service; native filesystem/shared-mount faults; installed worker maintenance remains active implementation |
+| `platform/computers/storage/src/filesystem/loop_devices.rs` and `recovery.rs` | private loop-node discovery and verified completion of interrupted, unclaimed filesystem allocations; retained bytes are never reformatted |
 | `platform/computers/images/` | candidate Computer user environment with pinned Ubuntu base/archive inputs and numeric process identity; separate from the privileged provider and retained allocator |
 | `platform/computers/host/` | private compute-host launcher and composite OCI image; fixed configuration/trust projection, ordered process startup/shutdown and isolated topology qualification |
 | `platform/runtimes/computers/tests/native_volume_plugin.rs` and `tests/native_support/docker_daemon.rs` | native registered-writer probe with a disposable Docker daemon, pinned image import and daemon-scoped plugin cleanup |

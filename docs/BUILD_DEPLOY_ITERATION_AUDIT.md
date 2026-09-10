@@ -2923,3 +2923,30 @@ The fix and real-store regression were already committed in `2c5df379e`; its ima
 not reached this installation. Publishing current Recording Hub took 142.178 seconds,
 including a 45.604-second Rust compile and rebuilding its Python/Rerun runtime layer.
 The installation now selects that immutable image and allows eight database CPUs.
+
+That image exposed a second terminal-stream case: journal sequence 4356 had not been
+accepted when its stream finished with `next_sequence = 4356`. A read-only database
+query confirmed the exact terminal checkpoint. Hub now preserves such bytes with an
+immutable quarantine receipt instead of blocking all ingest startup. Accepted duplicate
+replay remains separate and unchanged.
+
+Flux upgrade remediation also caused avoidable workload churn. A corrected revision
+canceled the old health check and triggered rollback to a chart predating Computers,
+which removed the new services before recreating them. Bioma now selects Flux
+`RetryOnFailure` for upgrades, verified against the installed v2 HelmRelease CRD.
+Health checks stay enabled and failures remain visible. Explicit qualified rollback
+is still an installation operation.
+
+Publishing Recording Hub and Computers MCP from `82f41298` took 361.586 seconds.
+Changing the selected Cargo feature union triggered a 318-second optimized compile;
+BuildKit reported 240 changed input paths. The Python/Rerun runtime layer was cached.
+The export window was 27.122 seconds, including 25.054 seconds of timestamp
+normalization. Stable feature selections and narrower source invalidation remain
+measured improvement work; this was not a warm single-component iteration.
+
+The subsequent storage-host candidate compiled in 14.050 seconds with cached provider
+binaries. Its command took 91.003 seconds, including approximately 48 seconds waiting
+behind the other xtask operation. Do not launch dependent image work as concurrent
+xtask commands and then count queueing as compiler time. The fault fixture removes
+private loop-device nodes and interrupts allocation before Ready publication, because
+the installed container had missed a device created after its own startup.

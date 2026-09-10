@@ -74,18 +74,7 @@ impl Filesystem {
     }
 }
 async fn associated(backing: &Path) -> Result<String> {
-    command::checked(
-        "losetup",
-        &[
-            OsStr::new("--list"),
-            OsStr::new("--noheadings"),
-            OsStr::new("--output"),
-            OsStr::new("NAME"),
-            OsStr::new("--associated"),
-            backing.as_os_str(),
-        ],
-    )
-    .await
+    loop_devices::associated(backing).await
 }
 fn verify_device(device: &str) -> Result<()> {
     if !device

@@ -70,6 +70,10 @@ pub(crate) async fn run(program: &str, args: &[&OsStr]) -> Result<Output> {
 pub(crate) async fn checked(program: &str, args: &[&OsStr]) -> Result<String> {
     let output = run(program, args).await?;
     if !output.status.success() {
+        eprintln!(
+            "retained-storage: command {program} failed: {}",
+            output.status
+        );
         return Err(StorageError::BackendUnavailable);
     }
     Ok(output.stdout.trim().to_owned())

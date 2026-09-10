@@ -121,10 +121,13 @@ pub async fn serve(
                         }).await.map_err(|_| StorageError::Unavailable)??;
                         let reply = match request(&service, &bytes).await {
                             Ok(reply) => reply,
-                            Err(_) => encode(&wire::FailureReply {
+                            Err(error) => {
+                                eprintln!("retained-storage: authenticated request failed: {error}");
+                                encode(&wire::FailureReply {
                                 schema: SCHEMA.parse().map_err(|_| StorageError::InvalidIdentity)?,
                                 status: "error".parse().map_err(|_| StorageError::InvalidIdentity)?,
-                            })?,
+                                })?
+                            },
                         };
                         tls.write_u32(reply.len() as u32).await.map_err(|_| StorageError::Unavailable)?;
                         tls.write_all(&reply).await.map_err(|_| StorageError::Unavailable)?;

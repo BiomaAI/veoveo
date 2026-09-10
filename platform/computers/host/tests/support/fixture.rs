@@ -155,6 +155,10 @@ impl Fixture {
                 self.dir.join(name).display()
             ));
         }
+        command.arg("--mount").arg(format!(
+            "type=bind,source={},target=/probe,readonly",
+            std::env::current_exe()?.display()
+        ));
         command.arg(&self.image);
         checked(&mut command).await?;
         ensure!(
@@ -247,6 +251,23 @@ impl Fixture {
             dir.join("client-key.pem"),
         )?;
         Ok(HomeAllocator::new(config, self.provider, template.fingerprint(), 536870912).await?)
+    }
+    pub async fn fault(&self, mode: &str, computer: Uuid) -> Result<()> {
+        checked(host().args([
+            "exec",
+            "--env",
+            &format!("VEOVEO_HOST_PROBE_FAULT={mode}"),
+            "--env",
+            &format!("VEOVEO_HOST_PROBE_COMPUTER={computer}"),
+            &self.name,
+            "/probe",
+            "--exact",
+            TEST,
+            "--ignored",
+            "--nocapture",
+        ]))
+        .await?;
+        Ok(())
     }
     fn logs(&self) {
         if let Ok(diagnostics) = SyncCommand::new("timeout")

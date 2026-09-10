@@ -1,5 +1,7 @@
 #[path = "support/cleanup.rs"]
 mod cleanup;
+#[path = "support/faults.rs"]
+mod faults;
 #[path = "support/fixture.rs"]
 mod fixture;
 #[path = "../../../runtimes/computers/tests/native_support/guest_authority.rs"]
@@ -44,6 +46,9 @@ async fn stop(runtime: &OpenShellRuntime, provider: Uuid, binding: &Binding) -> 
 #[tokio::test]
 #[ignore = "requires local candidate host image, reachable digest-pinned Computer image, privileged Docker and ext4; owns all fixture state"]
 async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Result<()> {
+    if let Ok(mode) = std::env::var("VEOVEO_HOST_PROBE_FAULT") {
+        return faults::run(&mode);
+    }
     if std::env::var_os("VEOVEO_HOST_PROBE_CLEANUP").is_some() {
         cleanup::cleanup();
         return Ok(());
@@ -61,7 +66,17 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
     let allocator = fixture.allocator(&template).await?;
     allocator.ready().await?;
     let binding = Binding::new(Uuid::now_v7(), template.fingerprint())?;
+    fixture
+        .fault("hide-loop-nodes", binding.computer_id())
+        .await?;
     allocator.prepare(&binding).await?;
+    fixture
+        .fault("interrupt-allocation", binding.computer_id())
+        .await?;
+    allocator.prepare(&binding).await?;
+    fixture
+        .fault("assert-recovery", binding.computer_id())
+        .await?;
     let create = LifecycleCheckpoint::create(fixture.provider, Uuid::now_v7(), binding.clone())?;
     let initial = runtime.create(&binding, &template).await?;
     let original = runtime

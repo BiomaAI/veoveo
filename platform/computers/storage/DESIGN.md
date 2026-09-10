@@ -15,7 +15,7 @@ orchestration, release packaging and installed acceptance remain implementation 
 | Linux ext4 and loop devices | Fixed, preallocated backing files, `nodev,nosuid`, numeric UID/GID 10001 and a confined `home` subdirectory |
 | `veoveo.io/retained-storage-host/v1` and `veoveo.io/retained-home/v1` | Closed local JSON records, atomic publication, explicit incomplete-allocation state and host/engine binding |
 | Linux file locks and filesystem durability | One helper owns the metadata root; file and parent-directory synchronization precede success |
-| util-linux and e2fsprogs command profiles | Bounded `fallocate`, `mkfs.ext4`, `blkid`, `losetup` and `findmnt` calls from the pinned Computer-image environment; selected outputs are parsed explicitly |
+| util-linux and e2fsprogs command profiles | Bounded `fallocate`, `mkfs.ext4`, read-only `e2fsck`, `blkid`, `losetup` and `findmnt` calls from the pinned Computer-image environment; selected outputs are parsed explicitly |
 
 ## Ownership And Deployment
 
@@ -58,6 +58,27 @@ once, then preallocate and format it, mount the filesystem, establish the admitt
 permissions and persist Ready with the backing-file identity. A crash leaves explicit
 incomplete state. Repeating Prepare cannot reformat that state or silently seed a new
 home. Files from incomplete allocation continue to count against physical capacity.
+
+A repeated Prepare may recover a completed, unclaimed allocation. Recovery verifies
+the full allocation identity, private regular backing file, exact capacity and ext4
+UUID. An unmounted filesystem must pass a read-only full `e2fsck`; errors require
+operator recovery. The mounted root may contain only `lost+found` and `home`. An
+existing admitted home retains its bytes and permissions. An absent home, or an empty
+root-owned home left between mkdir and chown, completes the original initialization.
+Recovery synchronizes the filesystem before publishing Ready. It never formats,
+repairs, resizes or substitutes a backing file, and never admits a different writer.
+This qualifies recovery of v1 Allocating records under their original private host
+identity. Ready records continue to require their persisted inode/device identity.
+
+Linux loop devices are global while the composite container's `/dev` is private.
+The allocator recreates missing block nodes from `/sys/class/block` before observing
+existing associations. It validates block type and major/minor identity and rejects
+symlinks. `LOOP_CTL_GET_FREE` selects a candidate whose node is made available before
+`losetup --nooverlap` performs atomic configuration. Four bounded attempts allow a
+concurrent host to take a free index; each attempt first checks the exact backing
+association. Fence observation also discovers missing nodes before checking consumers.
+This uses the [Linux loop UAPI](https://github.com/torvalds/linux/blob/master/include/uapi/linux/loop.h),
+not an assumption that device nodes present at container creation remain complete.
 
 Restore requires the recorded provider, Computer, template and admitted instance. It
 verifies the backing file and filesystem identity before reopening the mount. It does
