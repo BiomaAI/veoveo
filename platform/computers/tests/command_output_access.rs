@@ -1,5 +1,7 @@
+#[path = "support/commands.rs"]
+mod command_support;
 mod support;
-use support::commands::*;
+use command_support::*;
 use uuid::Uuid;
 use veoveo_computers::{ComputerError, commands::CommandStage};
 use veoveo_task_runtime::TaskRuntime;
@@ -169,5 +171,78 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
     let events: Vec<surrealdb::types::Value> = result.take(0).unwrap();
     let slots: Vec<surrealdb::types::Value> = result.take(1).unwrap();
     assert!(events.is_empty());
+    assert_eq!(slots.len(), 1);
+}
+
+#[tokio::test]
+async fn preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_command() {
+    use veoveo_computers::commands::{CommandOutcome, CommandRefusal};
+    let db = support::TestDb::new().await;
+    let (a, _, owner, agent, computer) = support::automation::setup(&db).await;
+    let grant = a
+        .issue_automation_grant(&owner, &support::automation::input(computer))
+        .await
+        .unwrap();
+    let claim = queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
+    assert!(
+        a.abort_queued_command(&claim, CommandRefusal::PreparationExpired)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        a.command_for_claim(&claim).await.unwrap().stage(),
+        CommandStage::Queued
+    );
+    // Age only this isolated queued fixture. The database clock decides both the
+    // dispatch and refusal boundaries, independently of a worker's wall clock.
+    db.a.client()
+        .query("UPDATE computer_execution SET created_at=time::now()-301s;")
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert!(a.begin_command_dispatch(&claim, &keys()).await.is_err());
+    let expired = a
+        .abort_queued_command(&claim, CommandRefusal::PreparationExpired)
+        .await
+        .unwrap();
+    assert!(matches!(
+        expired.outcome(),
+        Some(CommandOutcome::Undispatched(
+            CommandRefusal::PreparationExpired
+        ))
+    ));
+    let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM outbox_event WHERE event_type='computer.execution_dispatched';")
+        .await.unwrap().check().unwrap();
+    let slots: Vec<surrealdb::types::Value> = response.take(0).unwrap();
+    let dispatches: Vec<surrealdb::types::Value> = response.take(1).unwrap();
+    assert!(slots.is_empty() && dispatches.is_empty());
+    let claim = queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
+    let _dispatch = a.begin_command_dispatch(&claim, &keys()).await.unwrap();
+    db.a.client()
+        .query(
+            "UPDATE computer_execution SET created_at=time::now()-301s WHERE stage='dispatched';",
+        )
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert!(
+        a.abort_queued_command(&claim, CommandRefusal::PreparationExpired)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        a.command_for_claim(&claim).await.unwrap().stage(),
+        CommandStage::Dispatched
+    );
+    let mut response =
+        db.a.client()
+            .query("SELECT * FROM computer_execution_slot;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+    let slots: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     assert_eq!(slots.len(), 1);
 }

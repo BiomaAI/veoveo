@@ -5,6 +5,8 @@ use veoveo_mcp_contract::*;
 pub struct Signing {
     issuer: GatewayInternalTokenIssuer,
     pub verifier: GatewayInternalTokenVerifier,
+    #[allow(dead_code)] // Only the Artifact integration needs a second verifier.
+    pub trust: GatewayInternalTrustBundle,
 }
 impl Signing {
     pub fn new() -> Self {
@@ -19,8 +21,9 @@ impl Signing {
             verifier: GatewayInternalTokenVerifier::new(
                 issuer,
                 ServerSlug::new("computers").unwrap(),
-                trust,
+                trust.clone(),
             ),
+            trust,
         }
     }
     pub fn bearer(&self, subject: &str, audience: &str) -> String {

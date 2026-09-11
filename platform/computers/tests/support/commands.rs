@@ -1,3 +1,4 @@
+#![allow(dead_code)] // Shared setup is selected by each command scenario.
 use crate::support;
 use std::collections::BTreeMap;
 use uuid::Uuid;

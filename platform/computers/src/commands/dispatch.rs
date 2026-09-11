@@ -140,6 +140,12 @@ impl ComputersStore {
             on_interruption: limits.on_interruption,
         };
         let current = permit.computer()?;
+        if current.phase != crate::api::ComputerPhase::Ready {
+            return Err(ComputerError::InvalidState);
+        }
+        if current.active_operation.is_some() {
+            return Err(ComputerError::OperationBusy);
+        }
         if current.provider_instance_id != operation.binding.provider_instance_id
             || crate::identity::owner_key(&current.owner)? != operation.binding.owner_key
             || current.template_fingerprint != operation.binding.template_fingerprint
@@ -161,6 +167,13 @@ impl ComputersStore {
         params.extend([
             ("policy", self.automation_policy_record().into_value()),
             ("dispatch_id", id.into_value()),
+            (
+                "preparation_budget",
+                surrealdb::types::Duration::from_secs(u64::from(
+                    super::output_access::PREPARATION_ALLOWANCE_SECONDS,
+                ))
+                .into_value(),
+            ),
             (
                 "expected_output",
                 as_object(
@@ -230,10 +243,16 @@ impl ComputersStore {
             .to_std()
             .unwrap_or_default()
             .saturating_sub(selected.read_started.elapsed());
+        // Start the short live-authority window at the actual dispatch commit,
+        // never at receipt delivery after a delayed database response.
+        let authority_remaining = selected.remaining(selected.operation.dispatched_at.map(|at| {
+            at + chrono::TimeDelta::seconds(super::continuation::AUTHORITY_WINDOW.as_secs() as i64)
+        }));
         if selected.operation.dispatch_id != Some(id)
             || selected.operation.stage != CommandStage::Dispatched
             || remaining.is_zero()
             || lease_remaining.is_zero()
+            || authority_remaining.is_zero()
             || permit.valid_until() <= Instant::now()
         {
             return Err(ComputerError::StateConflict);
@@ -242,7 +261,9 @@ impl ComputersStore {
             operation: selected.operation,
             payload,
             output_access,
-            authority_deadline: permit.valid_until().min(Instant::now() + lease_remaining),
+            authority_deadline: permit
+                .valid_until()
+                .min(Instant::now() + lease_remaining.min(authority_remaining)),
             execution_deadline: Instant::now() + remaining,
         })
     }

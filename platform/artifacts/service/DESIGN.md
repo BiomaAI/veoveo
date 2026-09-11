@@ -10,6 +10,7 @@
 | Veoveo Artifact read delegation | Repository-owned internal API, opaque UUIDv7 capability and task identities, bearer secret confined to task-read routes |
 | Persistence | Typed platform Store records and ordered SurrealQL migrations through `0050`; native durability acceptance uses SurrealDB 3.2.4 |
 | Content and credential identity | SHA-256 for immutable blobs and domain-separated secret hashes |
+| Local blob storage | `object_store` 0.14.1 filesystem profile; opaque files with HTTP delivery headers supplied by the Artifact service, without unsupported object attributes |
 | S3 multipart adapter | `object_store` 0.14.1 low-level `MultipartStore`, one-based public parts mapped to zero-based adapter indices; private provider handles and receipts |
 | S3 reconciliation | General-purpose S3 `ListMultipartUploads` and `ListParts`, SigV4 through the storage SDK; bounded XML decoding with `quick-xml` 0.42.0 |
 | Veoveo upload ledger functions | `fn::artifact_upload_profile_digest` and `fn::artifact_upload_authority_matches` bind transactions to current profile and Work Context policy |
@@ -17,6 +18,16 @@
 This service implements the internal Artifact plane. `servers/artifact-mcp` owns its
 public MCP projection. The shared request types live in `mcp/contract`; the HTTP
 client lives in `platform/artifacts/client`.
+
+## Blob Backend Profiles
+
+S3 and memory stores receive private object attributes for cache policy, content
+presentation and disposition. The explicitly selected filesystem profile omits those
+attributes because its upstream adapter rejects them. This selection happens before
+I/O; an unsupported write never triggers a backend fallback. Governed HTTP delivery
+supplies its response headers independently. Filesystem tests write complete and
+verified streamed objects, reopen the store and check bytes and range reads.
+Filesystem storage does not admit the resumable S3 upload profile.
 
 ## Resumable Upload Contract
 

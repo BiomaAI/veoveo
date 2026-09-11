@@ -2,6 +2,7 @@
 mod admission;
 mod completion;
 mod containment;
+mod continuation;
 mod dispatch;
 mod journal;
 mod model;
@@ -11,6 +12,7 @@ mod settlement;
 mod tasks;
 pub use completion::CommandExitTicket;
 pub use containment::{CommandContainmentRead, CommandContainmentStop, ContainmentReadAdmission};
+pub use continuation::{CommandContinuation, CommandRunAuthority};
 pub use dispatch::{CommandDispatchDecision, CommandDispatchTicket};
 pub use model::{CommandOperation, CommandStage};
 pub use outcome::{CommandInterruption, CommandOutcome, CommandRefusal};

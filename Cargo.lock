@@ -16741,6 +16741,9 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "veoveo-artifact-client",
+ "veoveo-artifact-service",
+ "veoveo-computer-execution",
  "veoveo-computers",
  "veoveo-computers-runtime",
  "veoveo-computers-transport",
@@ -16748,6 +16751,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "zeroize",
 ]
 
 [[package]]

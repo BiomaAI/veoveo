@@ -40,7 +40,7 @@ impl ObjectStoreConfig {
                     .with_context(|| format!("creating artifact store {}", root.display()))?;
                 let local = object_store::local::LocalFileSystem::new_with_prefix(root)
                     .context("building local artifact store")?;
-                Ok(ArtifactObjectStore::new(Arc::new(local)))
+                Ok(ArtifactObjectStore::filesystem(local))
             }
             Self::S3 {
                 endpoint,

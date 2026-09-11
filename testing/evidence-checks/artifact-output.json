@@ -164,6 +164,28 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-artifact-service",
+        "--lib",
+        "store::tests"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-artifact-service"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

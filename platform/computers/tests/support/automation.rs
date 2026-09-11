@@ -62,7 +62,7 @@ pub fn input(computer: Uuid) -> IssueAutomationGrantInput {
         execution_limits: Some(AutomationExecutionLimits {
             maximum_seconds: 30,
             maximum_output_bytes: 1024,
-            on_interruption: veoveo_computers_contract::AutomationInterruption::StopComputer,
+            on_interruption: AutomationInterruption::StopComputer,
         }),
         expires_at: Utc::now() + TimeDelta::minutes(30),
     }

@@ -18,15 +18,24 @@ impl ComputersStore {
             &operation,
             ProviderCommit::Observe,
             include_str!("../../queries/abort_queued_command.surql"),
-            vec![(
-                "refusal",
-                serde_json::to_value(reason)
-                    .map_err(|_| ComputerError::Unavailable)?
-                    .as_str()
-                    .ok_or(ComputerError::Unavailable)?
-                    .to_owned()
+            vec![
+                (
+                    "refusal",
+                    serde_json::to_value(reason)
+                        .map_err(|_| ComputerError::Unavailable)?
+                        .as_str()
+                        .ok_or(ComputerError::Unavailable)?
+                        .to_owned()
+                        .into_value(),
+                ),
+                (
+                    "preparation_budget",
+                    surrealdb::types::Duration::from_secs(u64::from(
+                        super::output_access::PREPARATION_ALLOWANCE_SECONDS,
+                    ))
                     .into_value(),
-            )],
+                ),
+            ],
             "computer.execution_undispatched",
         )
         .await?;

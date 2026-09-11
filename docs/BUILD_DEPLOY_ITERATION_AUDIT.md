@@ -3304,3 +3304,31 @@ acknowledgement now transact their check and delivery marker together. The fault
 also checks the durable marker, rather than accepting an error return as sufficient
 evidence. Its focused corrected run passed in 9.41 seconds after 4.44 seconds of
 compilation. The failed formal receipt is retained with its original source manifest.
+
+
+The command worker's first native integration repeatedly launched its isolated
+provider to diagnose output publication. Adding fixed phase/error-class diagnostics
+made the failure boundary explicit without command bytes. The filesystem blob adapter
+rejected S3 object attributes; its explicit local profile now omits unsupported
+attributes while Artifact HTTP keeps its governed response headers. A focused reopen,
+stream and range regression takes under a second after compilation. Missing native
+binary prerequisites now fail before allocating the fixture. These checks found a
+backend mismatch, not a provider execution defect.
+
+One corrected native run completed normal command output in 58 ms after dispatch.
+Grant revocation began I/O containment in 990 ms and reached positive Stop settlement
+in 11,186 ms. The selected upstream Docker driver has a ten-second Stop grace interval.
+The initial eight-second fixture wait incorrectly combined I/O closure and process
+termination; the corrected test measures them separately under their declared bounds.
+The full run took 41.51 seconds, including isolated provider/storage setup and cleanup.
+Cancellation and lost-ticket cases reuse this fixture rather than launching separate
+provider installations. These are individual local observations, not public latency
+or deployment acceptance. Provider binaries and the launcher image were reused.
+
+Expanding the native command journey exposed a test-thread stack overflow from its
+large inline worker futures. The fixture now boxes those futures and reuses the
+provider for the added scenarios. The aborted run bypassed Rust destructors; its
+exact isolated Docker daemon, allocator, block homes and disposable database were
+removed through the fixture's existing cleanup path. Installed resources were
+preserved. Compile and lint validation should precede formal native recording to
+avoid requalifying unchanged provider behavior after a fixture-only lint correction.

@@ -11,7 +11,7 @@ use veoveo_platform_store::OpenObject;
 /// Publication has a separate finite allowance after foreground execution. This
 /// is a capability lifetime bound, not permission to continue after revocation.
 pub(super) const OUTPUT_PUBLICATION_SECONDS: u32 = 120;
-const PREPARATION_ALLOWANCE_SECONDS: u32 = 300;
+pub(super) const PREPARATION_ALLOWANCE_SECONDS: u32 = 300;
 
 fn object(value: &impl serde::Serialize) -> Result<OpenObject> {
     serde_json::from_value(serde_json::to_value(value).map_err(|_| ComputerError::Unavailable)?)

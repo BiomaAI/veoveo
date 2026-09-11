@@ -6,6 +6,7 @@ IF $current = NONE OR $current.execution_id != $execution_id OR $current.provide
   OR ($refusal = "cancelled_before_dispatch" AND $_provider_guard.status != "cancel_requested")
   { THROW "computer_state_conflict"; };
 LET $now = time::now();
+IF $refusal = "preparation_expired" AND $current.created_at + $preparation_budget > $now { THROW "computer_state_conflict"; };
 LET $stage = IF $refusal = "cancelled_before_dispatch" { "cancelled" } ELSE { "failed" };
 LET $aborted = (UPDATE ONLY $execution SET stage = $stage, refusal = $refusal, settled_at = $now, updated_at = $now
   WHERE stage = "queued" AND dispatch_id = NONE AND updated_at = $current.updated_at RETURN AFTER);
