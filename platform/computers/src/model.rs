@@ -7,7 +7,7 @@ use veoveo_platform_store::OpenObject;
 use veoveo_task_runtime::TaskOwner;
 
 /// Internal state, not an HTTP response or an authority token.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Computer {
     pub computer_id: Uuid,
     pub owner: TaskOwner,

@@ -12,6 +12,8 @@ mod command_support;
 mod command_tasks;
 #[path = "support/file_projection.rs"]
 mod file_projection;
+#[path = "support/granted_lifecycle.rs"]
+mod granted_lifecycle;
 #[path = "support/maintenance.rs"]
 mod maintenance;
 #[path = "../../../platform/computers/tests/support/mod.rs"]

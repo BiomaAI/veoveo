@@ -27,6 +27,23 @@ and unavailable capacity. An unconfigured installation has no default template o
 capacity limits. Action flags combine current policy, admitted state and availability;
 the server still arbitrates concurrent admission.
 
+Lifecycle requests may include `grantId`. Start requires its Start permission; Stop
+requires Stop. The owner omits this field when using retained ownership. The request
+identity includes the selected grant and cannot become an ungranted retry. Neither
+form transfers ownership. Task reads and cancellation retain the actual accepted actor
+while the owner can recover the operation after agent revocation.
+
+Computer views declare `accessMode` as `owner` or `granted`. `grantedAccess` lists only
+the caller's currently usable named grants under the same OAuth client, tenant,
+profile and Work Context. Their permission sets and limits reflect current policy.
+A grantee needs an explicit Read permission to discover Computer metadata. Start or
+Execute alone supplies no read permission. Multiple named grants can provide separate
+actions. Every action still presents its selected grant and checks it independently.
+The canonical Computer URI is unchanged. A granted view supplies no owner management
+or terminal attachment authority. Deploy the generated Console client with this view
+shape after the drained lifecycle migration; older view decoders are unsupported in
+this coordinated candidate upgrade.
+
 `access.rs` defines the bounded inventory and idempotent revocation receipt. An access
 grant ID locates an owned record and grants no authority. The inventory includes at
 most 128 outstanding browser and CLI grants, with their kind and display name.

@@ -36,8 +36,22 @@ pub struct AutomationAuthority {
     policy_fingerprint: String,
     admission_end: DateTime<Utc>,
     family: Option<RecordId>,
+    view: crate::api::AutomationGrantView,
 }
 impl AutomationAuthority {
+    pub fn current_view(&self) -> Result<&crate::api::AutomationGrantView> {
+        self.check_fresh()?;
+        Ok(&self.view)
+    }
+    pub fn allows_file_transfer(&self) -> Result<bool> {
+        self.check_fresh()?;
+        Ok(self
+            .view
+            .permissions
+            .contains(&AutomationPermission::Execute)
+            && require_tool(&self.source_snapshot, "transfer_file").is_ok()
+            && require_tool(&self.owner_snapshot, "transfer_file").is_ok())
+    }
     pub(crate) fn lifecycle_permit(
         self,
         operation: &crate::Operation,
@@ -384,7 +398,7 @@ impl ComputersStore {
                 GrantUse::Admission(actor.admission_expires_at()),
                 computer_id,
                 grant_id,
-                permission,
+                Some(permission),
             ),
         )
         .await
@@ -404,7 +418,29 @@ impl ComputersStore {
                 GrantUse::AcceptedWork,
                 computer,
                 grant,
-                permission,
+                Some(permission),
+            ),
+        )
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
+    }
+    /// Read the current usable scope of one exact named grant. The caller must
+    /// separately establish Read before exposing Computer metadata.
+    pub(crate) async fn automation_access_scope(
+        &self,
+        actor: &ComputerActor,
+        computer: Uuid,
+        grant: Uuid,
+    ) -> Result<AutomationAuthority> {
+        actor.check_admission()?;
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            self.read_automation_authority(
+                actor.accepted(),
+                GrantUse::Admission(actor.admission_expires_at()),
+                computer,
+                grant,
+                None,
             ),
         )
         .await
@@ -416,7 +452,7 @@ impl ComputersStore {
         purpose: GrantUse,
         computer_id: Uuid,
         grant_id: Uuid,
-        permission: AutomationPermission,
+        requested_permission: Option<AutomationPermission>,
     ) -> Result<AutomationAuthority> {
         if let GrantUse::Admission(expires_at) = purpose
             && expires_at <= Utc::now()
@@ -449,7 +485,8 @@ impl ComputersStore {
         }
         if grant.view.revoked_at.is_some()
             || grant.view.expires_at <= Utc::now()
-            || !grant.view.permissions.contains(&permission)
+            || requested_permission
+                .is_some_and(|permission| !grant.view.permissions.contains(&permission))
         {
             return Err(ComputerError::Forbidden);
         }
@@ -484,8 +521,22 @@ impl ComputersStore {
         {
             return Err(ComputerError::Forbidden);
         }
-        require_permission(&source_snapshot, computer_id, permission)?;
-        require_permission(&owner_snapshot, computer_id, permission)?;
+        let permissions: std::collections::BTreeSet<_> = grant
+            .view
+            .permissions
+            .iter()
+            .copied()
+            .filter(|permission| {
+                require_permission(&source_snapshot, computer_id, *permission).is_ok()
+                    && require_permission(&owner_snapshot, computer_id, *permission).is_ok()
+            })
+            .collect();
+        let permission = requested_permission
+            .or_else(|| permissions.first().copied())
+            .ok_or(ComputerError::Forbidden)?;
+        if !permissions.contains(&permission) {
+            return Err(ComputerError::Forbidden);
+        }
         let mut read = self
             .query(
                 "SELECT * FROM ONLY $computer;",
@@ -551,6 +602,14 @@ impl ComputersStore {
         }
         source_snapshot.check_fresh()?;
         owner_snapshot.check_fresh()?;
+        let mut view = grant.view;
+        view.permissions = permissions;
+        view.expires_at = expires_at;
+        view.execution_limits = view
+            .permissions
+            .contains(&AutomationPermission::Execute)
+            .then_some(limits)
+            .flatten();
         Ok(AutomationAuthority {
             computer,
             grant_id,
@@ -564,6 +623,7 @@ impl ComputersStore {
             policy_fingerprint: stored_policy.fingerprint,
             admission_end,
             family,
+            view,
         })
     }
 }

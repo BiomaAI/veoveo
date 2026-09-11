@@ -10,7 +10,7 @@ pub use policy::AutomationGrantPolicy;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 
-fn record(id: Uuid) -> RecordId {
+pub(crate) fn record(id: Uuid) -> RecordId {
     RecordId::new(
         "computer_automation_grant",
         surrealdb::types::Uuid::from(id),

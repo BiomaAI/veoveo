@@ -17,12 +17,14 @@ export async function lifecycle(
   requestId: string,
   computerId?: string,
   signal?: AbortSignal,
+  grantId?: string,
 ): Promise<OperationReceipt> {
   if (action !== "create" && !computerId) throw new Error("Select a Computer first.");
+  if (action === "create" && grantId) throw new Error("A grant cannot create a Computer.");
   const path =
     action === "create" ? "computers" : `computers/${encodeURIComponent(computerId!)}/${action}`;
   const body =
-    action === "create" ? { requestId, ...(computerId ? { computerId } : {}) } : { requestId };
+    action === "create" ? { requestId, ...(computerId ? { computerId } : {}) } : { requestId, ...(grantId ? { grantId } : {}) };
   parseComputer(
     action === "create" ? "create_input" : action === "start" ? "start_input" : "stop_input",
     body,

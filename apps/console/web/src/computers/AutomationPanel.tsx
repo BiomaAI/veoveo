@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { uuidV7 } from "../agentControl";
 import { parseComputer } from "../generatedContracts";
-import type { ComputerSnapshot, IssueAutomationGrantInput } from "../generated/computers";
+import type { AutomationPermission, ComputerSnapshot, IssueAutomationGrantInput } from "../generated/computers";
 import { useSnapshot } from "../queries";
 import { identityLabel } from "../identity";
 import { useConsoleBootstrap } from "../bootstrap";
@@ -28,6 +28,8 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
   const [clientId, setClientId] = useState("");
   const [name, setName] = useState("");
   const [consent, setConsent] = useState(false);
+  const [permissions, setPermissions] = useState<AutomationPermission[]>(["read", "execute"]);
+  const executes = permissions.includes("execute");
   const [formError, setFormError] = useState<string>();
   const queryKey = ["computers", "automation", computerId];
   const inventory = useQuery({ queryKey, queryFn: ({ signal }) => readAutomation(computerId, signal),
@@ -48,15 +50,15 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
   const blocked = stale || issue.isPending || !!saved.input || !!saved.error || !inventory.data?.canGrant;
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (blocked || !limits || !consent) return;
+    if (blocked || !limits || permissions.length === 0 || (executes && !consent)) return;
     const fields = new FormData(event.currentTarget);
     const lifetime = Number(fields.get("lifetime"));
     try {
       if (!Number.isInteger(lifetime) || lifetime < 1 || lifetime > limits.maximumLifetimeSeconds) throw new Error("invalid duration");
       const input = parseComputer("issue_automation_grant", {
         computerId, requestId: uuidV7(), principalId: principal.trim(), oauthClientId: clientId.trim(), name: name.trim(),
-        permissions: ["execute"], expiresAt: new Date(Date.now() + lifetime * 1000).toISOString(),
-        executionLimits: { maximumSeconds: Number(fields.get("seconds")), maximumOutputBytes: Number(fields.get("bytes")), onInterruption: "stop_computer" },
+        permissions, expiresAt: new Date(Date.now() + lifetime * 1000).toISOString(),
+        executionLimits: executes ? { maximumSeconds: Number(fields.get("seconds")), maximumOutputBytes: Number(fields.get("bytes")), onInterruption: "stop_computer" } : null,
       });
       window.sessionStorage.setItem(key, JSON.stringify(input));
       setSaved({ input }); setFormError(undefined); issue.mutate(input);
@@ -67,7 +69,7 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
   return <section className="computer-automation" aria-label="Agent access">
     <div className="computers-toolbar"><h4>Agent access</h4>
       <button className="button button-secondary" disabled={inventory.isFetching || stale} onClick={() => void inventory.refetch()}>Refresh grants</button></div>
-    <p>Let a named agent run bounded commands in this Computer. Each command returns a Task and governed output Artifacts.</p>
+    <p>Choose what a named agent can do with this Computer. Access expires automatically and can be revoked here.</p>
     {(inventory.error || issue.error || revoke.error) && <p className="computers-error" role="alert">{computerError(issue.error ?? revoke.error ?? inventory.error)}</p>}
     {(formError || saved.error) && <p role="alert">{formError ?? saved.error}</p>}
     {issue.data && <p role="status">Grant confirmed for {issue.data.grant.name}. Grant ID: <code>{issue.data.grant.grantId}</code></p>}
@@ -92,7 +94,7 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
         if (window.confirm("Revoke this agent grant? Interrupting an active command can stop all processes on this Computer. Retained files stay.")) revoke.mutate(grant.grantId);
       }}>Revoke agent access</button>
     </div>)}
-    {limits && <details><summary>Grant command access</summary><form className="computer-automation-form" onSubmit={submit}>
+    {limits && <details><summary>Grant agent access</summary><form className="computer-automation-form" onSubmit={submit}>
       <fieldset disabled={blocked}><legend>Agent and scope</legend>
         <label>Grant name<input value={name} onChange={e => setName(e.target.value)} maxLength={64} required /></label>
         <label>Principal<input list="computer-agent-principals" value={principal} onChange={e => setPrincipal(e.target.value)} maxLength={2048} required /></label>
@@ -100,10 +102,23 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
         <label>Application client ID<input value={clientId} onChange={e => setClientId(e.target.value)} maxLength={256} required /></label>
         <p>Use the client ID that this principal signs in through. Its registration must allow the <code>{bootstrap.data?.profile ?? "current"}</code> profile used by this Console. The grant applies only to that principal and application.</p>
         <label>Access duration<select name="lifetime" defaultValue={Math.min(3600, limits.maximumLifetimeSeconds)}>{durations.map(seconds => <option key={seconds} value={seconds}>{seconds >= 3600 ? `${seconds / 3600} hours` : seconds >= 60 ? `${seconds / 60} minutes` : `${seconds} seconds`}</option>)}</select></label>
+        {([
+          ["read", "View this Computer and discover its current status"],
+          ["execute", "Run bounded commands and transfer files through Artifacts"],
+          ["start", "Start this Computer with its retained files"],
+          ["stop", "Stop this Computer and all its processes; retain its files"],
+        ] as const).map(([permission, label]) => <label className="computer-pairing-check" key={permission}>
+          <input type="checkbox" checked={permissions.includes(permission)} onChange={event => {
+            setPermissions(current => event.target.checked ? [...current, permission] : current.filter(item => item !== permission));
+            if (permission === "execute") setConsent(false);
+          }} />{label}</label>)}
+        <p>Viewing requires Read. Starting and stopping require their own permissions. Installation policy also applies to every action.</p>
+        {executes && <>
         <label>Maximum seconds per command<input name="seconds" type="number" min={1} max={limits.maximumExecutionSeconds} defaultValue={Math.min(60, limits.maximumExecutionSeconds)} required /></label>
         <label>Maximum output bytes per command<input name="bytes" type="number" min={1} max={limits.maximumOutputBytes} defaultValue={Math.min(1048576, limits.maximumOutputBytes)} required /></label>
         <label className="computer-pairing-check"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} required />I allow an interrupted command to stop all processes on this Computer. Retained files stay.</label>
-        <button className="button button-primary" disabled={!consent}>Grant command access</button>
+        </>}
+        <button className="button button-primary" disabled={permissions.length === 0 || (executes && !consent)}>Grant agent access</button>
       </fieldset>
       {!inventory.data?.canGrant && <p>Current permissions or the grant limit prevent issuing another grant.</p>}
     </form></details>}

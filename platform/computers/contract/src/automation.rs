@@ -79,6 +79,19 @@ pub struct AutomationGrantCollection {
     pub grants: Vec<AutomationGrantView>,
 }
 
+/// Current usable action scope on a Computer already authorized for Read.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ComputerGrantedAccess {
+    pub grant_id: Uuid,
+    pub name: String,
+    #[serde(deserialize_with = "unique_permissions")]
+    pub permissions: BTreeSet<AutomationPermission>,
+    pub execution_limits: Option<AutomationExecutionLimits>,
+    pub can_transfer_files: bool,
+    pub expires_at: DateTime<Utc>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AutomationGrantLimits {

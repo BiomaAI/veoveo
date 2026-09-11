@@ -5,6 +5,7 @@ use crate::{
     identity::permits,
 };
 use std::time::{Duration, Instant};
+use surrealdb::types::SurrealValue;
 use uuid::Uuid;
 
 /// Short metadata/cancellation authority. Task attribution remains the actual
@@ -34,6 +35,43 @@ pub(crate) fn permission(action: Action) -> Result<AutomationPermission> {
 }
 
 impl ComputersStore {
+    pub async fn automation_operation_for_request(
+        &self,
+        actor: &ComputerActor,
+        computer: Uuid,
+        request: Uuid,
+        grant: Uuid,
+        action: Action,
+    ) -> Result<Option<Operation>> {
+        actor.check_admission()?;
+        if computer.is_nil() || request.is_nil() || grant.is_nil() {
+            return Err(ComputerError::InvalidInput);
+        }
+        let mut read = self
+            .query(
+                "SELECT VALUE operation_id FROM ONLY $request;",
+                vec![(
+                    "request",
+                    crate::operation_admission::request_record(actor.owner(), computer, request)?
+                        .into_value(),
+                )],
+            )
+            .await?;
+        let Some(id) = read
+            .take::<Option<Uuid>>(0)
+            .map_err(|_| ComputerError::Unavailable)?
+        else {
+            return Ok(None);
+        };
+        let operation = self.automation_operation(actor, id).await?;
+        if operation.computer_id != computer
+            || operation.action != action
+            || operation.automation_grant_id != Some(grant)
+        {
+            return Err(ComputerError::RequestConflict);
+        }
+        Ok(Some(operation))
+    }
     pub async fn authorize_operation_task(
         &self,
         actor: &ComputerActor,

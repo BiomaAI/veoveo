@@ -104,6 +104,11 @@ pub enum CapacityAvailability {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ComputerView {
     pub computer_id: Uuid,
+    pub access_mode: ComputerAccessMode,
+    /// Current named grants available to this grantee; owners manage their grant
+    /// inventory through the separate owner-only resource.
+    #[schemars(length(max = 64))]
+    pub granted_access: Vec<ComputerGrantedAccess>,
     pub template_id: String,
     pub phase: ComputerPhase,
     pub busy: bool,
@@ -121,6 +126,13 @@ pub struct ComputerView {
     pub active_task_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ComputerAccessMode {
+    Owner,
+    Granted,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -191,12 +203,16 @@ pub struct CreateInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartInput {
     pub request_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grant_id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StopInput {
     pub request_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grant_id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -204,6 +220,8 @@ pub struct StopInput {
 pub struct LifecycleInput {
     pub computer_id: Uuid,
     pub request_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grant_id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]

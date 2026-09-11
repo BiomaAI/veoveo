@@ -20,6 +20,9 @@ export function FilesPanel({ computer, scope, snapshot, stale, artifacts, upload
 }) {
   const cache = useQueryClient();
   const id = computer.computerId;
+  const grant = computer.accessMode === "granted" ? computer.grantedAccess.find(g => g.canTransferFiles && g.executionLimits) : undefined;
+  const maximumBytes = grant?.executionLimits ? Math.min(MAX_FILE_BYTES, grant.executionLimits.maximumOutputBytes) : MAX_FILE_BYTES;
+  const maximumSeconds = grant?.executionLimits ? Math.min(300, grant.executionLimits.maximumSeconds) : 300;
   const key = `veoveo.computers.file:${scope}:${id}`;
   const [saved, setSaved] = useState<{ value?: SavedFileTransfer; error?: string }>(() => {
     try { return { value: readSavedFile(window.sessionStorage, key, id) }; }
@@ -34,15 +37,15 @@ export function FilesPanel({ computer, scope, snapshot, stale, artifacts, upload
   const candidates = useMemo(() => {
     const values = new Map<string, { id: string; filename: string; bytes: number | null }>();
     for (const artifact of artifacts) {
-      if (artifact.effectiveAccess.read && (artifact.byteLength === null || artifact.byteLength <= MAX_FILE_BYTES))
+      if (artifact.effectiveAccess.read && (artifact.byteLength === null || artifact.byteLength <= maximumBytes))
         values.set(artifact.id, { id: artifact.id, filename: artifact.filename, bytes: artifact.byteLength });
     }
     for (const entry of uploads.entries) {
-      if (entry.phase === "Ready" && entry.receipt && entry.receipt.byte_len <= MAX_FILE_BYTES)
+      if (entry.phase === "Ready" && entry.receipt && entry.receipt.byte_len <= maximumBytes)
         values.set(entry.receipt.artifact_id, { id: entry.receipt.artifact_id, filename: entry.receipt.filename, bytes: entry.receipt.byte_len });
     }
     return [...values.values()];
-  }, [artifacts, uploads.entries]);
+  }, [artifacts, uploads.entries, maximumBytes]);
   const sourceArtifact = candidates.find(value => value.id === source);
   const activeId = computer.activeExecution?.kind === "file" ? computer.activeExecution.taskId : undefined;
   const taskId = saved.value?.receipt?.taskId ?? activeId;
@@ -72,14 +75,15 @@ export function FilesPanel({ computer, scope, snapshot, stale, artifacts, upload
     event.preventDefault();
     if (blocked) return;
     try {
+      if (computer.accessMode === "granted" && !grant) throw new Error("Refresh your granted file access before transferring a file.");
       const location = retainedPath(path);
       const name = filename || location.split("/").at(-1)!;
       if (direction === "export" && (!name || name === "." || name === ".." || /[\\/\p{Cc}]/u.test(name)
         || new TextEncoder().encode(name).length > 255)) throw new Error("Use a filename without folders or control characters, up to 255 bytes.");
-      const input: TransferFileInput = { computerId: id, requestId: uuidV7(), grantId: null,
+      const input: TransferFileInput = { computerId: id, requestId: uuidV7(), grantId: grant?.grantId ?? null,
         transfer: direction === "import" ? { kind: "import", artifactId: artifactId(source || reference), path: location }
           : { kind: "export", path: location, filename: name, mediaType: "application/octet-stream" },
-        limits: { maximumBytes: MAX_FILE_BYTES, maximumSeconds: 300, onInterruption: "stop_computer" },
+        limits: { maximumBytes, maximumSeconds, onInterruption: "stop_computer" },
       };
       rememberFile(window.sessionStorage, key, input);
       setSaved({ value: { input } }); setError(undefined); submit.mutate(input);
@@ -93,7 +97,7 @@ export function FilesPanel({ computer, scope, snapshot, stale, artifacts, upload
   return <section className="computer-files" aria-label="Files">
     <div className="computers-toolbar"><h4>Files</h4>
       <button className="button button-secondary" onClick={onUpload}>Upload files</button></div>
-    <p>Import an Artifact into your retained home, or export a file for download. Up to 64 MiB per transfer.</p>
+    <p>Import an Artifact into the retained home, or export a file for download. Up to {formatBytes(maximumBytes)} per transfer.</p>
     {(error || saved.error || submit.error || receipt.error || cancel.error) && <p role="alert" className="computers-error">
       {error ?? saved.error ?? computerError(submit.error ?? receipt.error ?? cancel.error)}</p>}
     {current && <div className="computer-operation"><div>

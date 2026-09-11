@@ -81,8 +81,11 @@ Task starts or stops the Computer. Its 34 focused store tests cover both policy
 decisions, grant revocation, actor-scoped retries, lost-dispatch observation and
 migration of owner-only history. Source-token expiry leaves accepted work under
 current grant authority. Owner recovery remains possible after revocation. This is
-a local implementation checkpoint; public lifecycle grant inputs, permitted-read
-discovery and the grant-selection UI still require integration and deployment.
+a local implementation checkpoint. Public MCP and HTTP now accept named lifecycle
+grants, and current Read grants participate in discovery, completion and live updates.
+The Console separates Read, Execute, Start and Stop, preserving the original grant
+across uncertain retries. The affected domain, HTTP/application and Console behavior
+checks pass. Deployment and installed lifecycle acceptance remain required.
 Migration 0076 requires draining old Computers readers and lifecycle workers before
 applying the new schema and admitting named lifecycle operations.
 

@@ -25,6 +25,22 @@ through a single Computers worker service. No provider dependency enters the gat
 
 ## Admission And Ownership
 
+`computer_access.rs` reads owned and explicitly granted Computers through one bounded
+collection. It merges indexed owner and grantee candidates, deduplicates Computer
+IDs and reads owned rows in a batch. Grant candidates match the current OAuth client,
+profile and Work Context before policy evaluation. Each returned granted Computer
+requires a currently usable Read grant. Its other named scopes remain separate action
+choices; a Start-only grant cannot discover private state. Collection pages may be
+empty when current authority removes every candidate in that page. The continuation
+cursor advances the scanned position and conveys no resource authority.
+
+All reads share the request's current source control decision. Named scopes also
+check the grant owner and retained clearance. The complete page has a five-second
+budget, and stale scope results are rejected before projection. Explicitly selected
+mutation grants retain their independent admission and dispatch checks. Current grant
+views contain metadata only. Terminal and owner management remain outside named
+automation permissions.
+
 Private ownership binds tenant, principal identity, profile and Work Context.
 Changing a display name does not change identity. User and service principals use
 the same admission rules. A gateway-verified TaskOwner is an internal trust boundary;

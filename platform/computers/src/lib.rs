@@ -7,6 +7,7 @@ pub mod automation_grants;
 mod capacity;
 pub mod cli_grants;
 pub mod commands;
+mod computer_access;
 mod control_authority;
 mod control_session;
 mod current_authority;
@@ -26,6 +27,7 @@ mod worker_queue;
 
 pub use admission::{CapacityPolicy, Reservation};
 pub use authority::{AcceptedAuthority, ComputerActor};
+pub use computer_access::{ComputerReadAccess, ComputerReadPage};
 pub use control_authority::ControlAuthority;
 pub use current_authority::{AutomationLifecycleDecision, ExecutionDecision};
 pub use lifecycle::{

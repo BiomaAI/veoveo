@@ -187,6 +187,7 @@ export function ComputersPage({
                 <h3>Computer {selected.computerId.slice(-8)}</h3>
                 <p>
                   {phases[selected.phase]} · {selected.templateId}
+                  {selected.accessMode === "granted" && " · Granted access"}
                 </p>
               </div>
               <div className="computers-actions">
@@ -226,22 +227,26 @@ export function ComputersPage({
                 )}
               </div>
             </div>
-            <Suspense fallback={<p>Loading terminal…</p>}>
+            {selected.accessMode === "owner" && <Suspense fallback={<p>Loading terminal…</p>}>
               <TerminalPanel
                 key={selected.computerId}
                 computerId={selected.computerId}
                 canConnect={selected.canConnect}
               />
-            </Suspense>
+            </Suspense>}
             {snapshot && <FilesPanel key={`files:${selected.computerId}`} computer={selected}
               scope={scope} snapshot={snapshot} stale={state.stale} artifacts={artifacts} uploads={uploads} onUpload={onUpload} />}
-            {snapshot && <AccessPanel key={`access:${selected.computerId}`}
+            {snapshot && selected.accessMode === "owner" && <AccessPanel key={`access:${selected.computerId}`}
               computerId={selected.computerId} snapshot={snapshot} stale={state.stale} />}
-            <CliConnect computerId={selected.computerId} canConnect={selected.canConnect} />
-            {snapshot && <MaintenancePanel key={`maintenance:${selected.computerId}`}
+            {selected.accessMode === "owner" && <CliConnect computerId={selected.computerId} canConnect={selected.canConnect} />}
+            {snapshot && selected.accessMode === "owner" && <MaintenancePanel key={`maintenance:${selected.computerId}`}
               computerId={selected.computerId} scope={scope} snapshot={snapshot} stale={state.stale} />}
-            {snapshot && snapshot.availability !== "setup_required" && <AutomationPanel key={`automation:${selected.computerId}`}
+            {snapshot && selected.accessMode === "owner" && snapshot.availability !== "setup_required" && <AutomationPanel key={`automation:${selected.computerId}`}
               computerId={selected.computerId} scope={scope} snapshot={snapshot} stale={state.stale} />}
+            {selected.accessMode === "granted" && <section aria-label="Your granted access">
+              <h4>Your access</h4>
+              {selected.grantedAccess.map(grant => <p key={grant.grantId}>{grant.name}: {grant.permissions.join(", ")}. Expires {new Date(grant.expiresAt).toLocaleString()}.</p>)}
+            </section>}
             <details>
               <summary>Computer details</summary>
               <dl>

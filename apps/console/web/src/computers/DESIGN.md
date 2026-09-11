@@ -34,7 +34,7 @@ denial requires explicit Refresh. Events fit 4 KiB and an inactive stream expire
 No provider query or browser status polling is introduced.
 
 Lifecycle request IDs are saved in sessionStorage before dispatch. A lost response
-retains the exact ID, action and selected Computer. Reload restores it. Recover status
+retains the exact ID, action, selected Computer and optional named grant. Reload restores it. Recover status
 reads a known operation; an unconfirmed response retries the original idempotent request.
 Collection baselines and invalidations refresh nonterminal receipts through the same
 read projection, with at most four concurrent reads. Concurrent retries share their
@@ -102,10 +102,17 @@ remain acceptance gates in `docs/COMPUTERS_PLAN.md`.
 
 `AutomationPanel.tsx` shows named grants, application scope, original bounds and expiry.
 Issuance uses current server limits and explicit consent for whole-run Stop on command
-interruption. Management hints disable unavailable actions. The form requests only
-Execute; broader lifecycle permissions require their separate agent integration.
+interruption. Management hints disable unavailable actions. Read, Execute, Start and
+Stop are independent selections. Execute requires bounded command limits and
+interruption consent; a lifecycle-only grant carries no execution limits.
 Existing cached principal names improve selection without requiring administrator
 inventory for core Computers. The application client ID remains an explicit scope.
+
+Granted Computers identify their current named scopes and omit owner management,
+interactive pairing and environment updates. A fresh Start or Stop selects a current
+matching grant. Its saved retry keeps that original grant even if the inventory
+changes. File transfers use a current file-authorized Execute grant and clamp their
+bounds to its execution ceilings. Read alone permits discovery without mutation.
 
 Before sending, the form saves the generated UUIDv7 request and exact grant body in
 scope-and-Computer-specific session storage. Retry and reload preserve absolute expiry

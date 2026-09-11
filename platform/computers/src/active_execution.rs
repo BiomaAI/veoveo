@@ -28,6 +28,29 @@ impl ComputersStore {
         for computer in computers {
             permits(&computer.owner, owner)?;
         }
+        self.read_active_executions(computers).await
+    }
+    pub async fn active_executions_for_access(
+        &self,
+        access: &[crate::ComputerReadAccess],
+    ) -> Result<BTreeMap<Uuid, ComputerExecution>> {
+        if access.len() > 100 {
+            return Err(ComputerError::InvalidInput);
+        }
+        let computers: Vec<_> = access
+            .iter()
+            .map(|access| access.computer().cloned())
+            .collect::<Result<_>>()?;
+        let active = self.read_active_executions(&computers).await?;
+        for access in access {
+            access.computer()?;
+        }
+        Ok(active)
+    }
+    async fn read_active_executions(
+        &self,
+        computers: &[Computer],
+    ) -> Result<BTreeMap<Uuid, ComputerExecution>> {
         if computers.is_empty() {
             return Ok(BTreeMap::new());
         }

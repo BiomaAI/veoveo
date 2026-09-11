@@ -10,6 +10,7 @@ const savedIntent = z
     requestId: z.uuid(),
     action: z.enum(["create", "start", "stop"]),
     computerId: z.uuid().optional(),
+    grantId: z.uuid().optional(),
     receipt: z.unknown().optional(),
   })
   .strict();
@@ -17,6 +18,7 @@ export interface Intent {
   requestId: string;
   action: Action;
   computerId?: string;
+  grantId?: string;
   receipt?: OperationReceipt;
   sending?: boolean;
   error?: string;
@@ -71,6 +73,7 @@ export class ComputersController {
       for (const intent of intents) {
         if (
           (intent.action !== "create" && !intent.computerId) ||
+          (intent.action === "create" && !!intent.grantId) ||
           (intent.receipt &&
             (intent.receipt.action !== intent.action ||
               (intent.computerId && intent.receipt.computerId !== intent.computerId)))
@@ -185,10 +188,11 @@ export class ComputersController {
     this.ports.storage.setItem(
       this.key,
       JSON.stringify(
-        intents.map(({ requestId, action, computerId, receipt }) => ({
+        intents.map(({ requestId, action, computerId, grantId, receipt }) => ({
           requestId,
           action,
           computerId,
+          grantId,
           receipt,
         })),
       ),
@@ -241,7 +245,15 @@ export class ComputersController {
       (intent) => intent.action === action && intent.computerId === computerId && !intent.receipt,
     );
     if (uncertain) return this.retry(uncertain.requestId);
-    const intent: Intent = { action, computerId, requestId: uuidV7() };
+    const computer = this.state.snapshot?.computers.find(c => c.computerId === computerId);
+    const granted = action !== "create" && computer?.accessMode === "granted";
+    const grantId = granted ? computer.grantedAccess.find(g => g.permissions.includes(action as "start" | "stop")
+      && Date.parse(g.expiresAt) > Date.now())?.grantId : undefined;
+    if (granted && !grantId) {
+      this.update({ error: "Refresh this Computer's granted access before starting another operation." });
+      return;
+    }
+    const intent: Intent = { action, computerId, grantId, requestId: uuidV7() };
     const intents = [...this.state.intents, intent];
     if (intents.length > 32) {
       this.update({ error: "Dismiss saved operation receipts before starting another operation." });
@@ -274,6 +286,7 @@ export class ComputersController {
         intent.requestId,
         intent.computerId,
         epoch.signal,
+        intent.grantId,
       );
       if (epoch.signal.aborted || epoch !== this.stop) return;
       const intents = this.state.intents.map((candidate) =>
