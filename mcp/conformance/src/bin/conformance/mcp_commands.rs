@@ -434,7 +434,10 @@ async fn start_task(
         .await?
     {
         CallToolResponse::Task(created) => Ok(created),
-        CallToolResponse::Complete(_) => Err(anyhow!("tool completed without creating a task")),
+        CallToolResponse::Complete(result) => {
+            ensure_call_tool_succeeded(&result)?;
+            Err(anyhow!("tool completed without creating a task"))
+        }
         CallToolResponse::InputRequired(_) => Err(anyhow!(
             "tool requires direct multi-round input before task creation"
         )),
