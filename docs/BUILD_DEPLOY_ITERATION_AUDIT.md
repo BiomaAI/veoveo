@@ -3711,3 +3711,11 @@ window was 92.827 seconds; export took 13.124 seconds. The helper, host, templat
 Artifact Service retained their installed digests. Chart publication again waited
 on the image publication's shared source lock. This is packaging serialization,
 independent of the necessary drained schema transition at activation.
+
+Public lifecycle acceptance found a gateway-wide idempotency defect after deployment:
+an upstream retry returned its original Task, but projection always attempted a new
+route and violated the unique source index. The correction reads the original route,
+validates retained authority and preserves expiry. Twelve concurrent projections now
+converge on one route in the real-store check. Its first compile took 25.92 seconds,
+with 6.03 seconds of test runtime. This warrants a gateway-only follow-up image;
+Computers, Console and all provider artifacts keep their release-156 identities.

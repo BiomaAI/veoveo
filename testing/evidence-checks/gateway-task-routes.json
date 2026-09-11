@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": ["cargo", "test", "-p", "veoveo-mcp-gateway", "--lib", "state::task_routes::tests::"],
+      "inputs": {"kind": "cargo", "packages": ["veoveo-mcp-gateway"], "roots": ["testing/fixtures"]},
+      "toolchains": ["rust"]
+    },
+    {
+      "arguments": ["cargo", "clippy", "-p", "veoveo-mcp-gateway", "--all-targets", "--", "-D", "warnings"],
+      "inputs": {"kind": "cargo", "packages": ["veoveo-mcp-gateway"], "roots": ["testing/fixtures"]},
+      "toolchains": ["rust"]
+    },
+    {
+      "arguments": ["cargo", "fmt", "-p", "veoveo-mcp-gateway", "--", "--check"],
+      "inputs": {"kind": "cargo", "packages": ["veoveo-mcp-gateway"], "roots": ["testing/fixtures"]},
+      "toolchains": ["rust"]
+    }
+  ]
+}
