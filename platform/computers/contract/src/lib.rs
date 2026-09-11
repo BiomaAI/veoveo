@@ -5,6 +5,8 @@ mod automation;
 pub use automation::*;
 mod execution;
 pub use execution::*;
+mod files;
+pub use files::*;
 mod maintenance;
 pub use maintenance::*;
 mod pairing;
@@ -367,6 +369,9 @@ struct SchemaBundle {
     automation_grant_result: AutomationGrantResult,
     execute_input: ExecuteInput,
     execution_result: ExecutionResult,
+    transfer_file_input: TransferFileInput,
+    file_transfer_result: FileTransferResult,
+    file_transfer_stage: FileTransferStage,
     issue_automation_grant: IssueAutomationGrantInput,
     automation_grant: AutomationGrantView,
     automation_grants: AutomationGrantCollection,
@@ -473,6 +478,9 @@ mod tests {
         for name in [
             "ComputerSnapshot",
             "ExecutionResult",
+            "TransferFileInput",
+            "FileTransferResult",
+            "FileTransferStage",
             "MaintenanceResult",
             "MaintenanceState",
             "MaintenanceView",

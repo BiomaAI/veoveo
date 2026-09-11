@@ -756,6 +756,153 @@
       ],
       "type": "object"
     },
+    "FileTransfer": {
+      "description": "Archives remain opaque regular files. Imports always create a new destination.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "artifactId": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "kind": {
+              "const": "import",
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/RetainedFilePath"
+            }
+          },
+          "required": [
+            "kind",
+            "artifactId",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "filename": {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "const": "export",
+              "type": "string"
+            },
+            "mediaType": {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/RetainedFilePath"
+            }
+          },
+          "required": [
+            "kind",
+            "path",
+            "filename",
+            "mediaType"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "FileTransferDirection": {
+      "enum": [
+        "import",
+        "export"
+      ],
+      "type": "string"
+    },
+    "FileTransferLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "maximumBytes": {
+          "format": "uint64",
+          "maximum": 67108864,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumSeconds": {
+          "format": "uint32",
+          "maximum": 300,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "onInterruption": {
+          "$ref": "#/$defs/AutomationInterruption",
+          "description": "Interrupting an active transfer may stop all processes on the Computer."
+        }
+      },
+      "required": [
+        "maximumSeconds",
+        "maximumBytes",
+        "onInterruption"
+      ],
+      "type": "object"
+    },
+    "FileTransferResult": {
+      "additionalProperties": false,
+      "description": "Metadata only. Artifact reads remain governed by the Artifact service.",
+      "properties": {
+        "artifactId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "bytes": {
+          "format": "uint64",
+          "maximum": 67108864,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "direction": {
+          "$ref": "#/$defs/FileTransferDirection"
+        },
+        "result_uri": {
+          "pattern": "^computer://transfers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "transferId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result_uri",
+        "computerId",
+        "transferId",
+        "direction",
+        "artifactId",
+        "bytes",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "FileTransferStage": {
+      "enum": [
+        "queued",
+        "dispatched",
+        "containing",
+        "recovery_required",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "type": "string"
+    },
     "IssueAutomationGrantInput": {
       "additionalProperties": false,
       "properties": {
@@ -1146,6 +1293,12 @@
       ],
       "type": "object"
     },
+    "RetainedFilePath": {
+      "description": "Canonical relative path inside the retained home; at most 1024 UTF-8 bytes, without traversal or control characters.",
+      "maxLength": 1024,
+      "minLength": 1,
+      "type": "string"
+    },
     "RevokeAccessBody": {
       "additionalProperties": false,
       "type": "object"
@@ -1456,6 +1609,40 @@
       "description": "Explicit serialization is the only public exposure path. No Debug or Display.",
       "type": "string"
     },
+    "TransferFileInput": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "grantId": {
+          "description": "A direct owner omits this field. Delegation requires a current named grant.",
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limits": {
+          "$ref": "#/$defs/FileTransferLimits"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "transfer": {
+          "$ref": "#/$defs/FileTransfer"
+        }
+      },
+      "required": [
+        "computerId",
+        "requestId",
+        "transfer",
+        "limits"
+      ],
+      "type": "object"
+    },
     "UpdateTemplateInput": {
       "additionalProperties": false,
       "description": "Select an installation-admitted template, or omit it to choose the current\ndefault on the first request. An exact retry retains the original selection.",
@@ -1530,6 +1717,12 @@
     "execution_result": {
       "$ref": "#/$defs/ExecutionResult"
     },
+    "file_transfer_result": {
+      "$ref": "#/$defs/FileTransferResult"
+    },
+    "file_transfer_stage": {
+      "$ref": "#/$defs/FileTransferStage"
+    },
     "issue_automation_grant": {
       "$ref": "#/$defs/IssueAutomationGrantInput"
     },
@@ -1602,6 +1795,9 @@
     "terminal_ticket_input": {
       "$ref": "#/$defs/TerminalTicketInput"
     },
+    "transfer_file_input": {
+      "$ref": "#/$defs/TransferFileInput"
+    },
     "update_template_input": {
       "$ref": "#/$defs/UpdateTemplateInput"
     }
@@ -1611,6 +1807,9 @@
     "automation_grant_result",
     "execute_input",
     "execution_result",
+    "transfer_file_input",
+    "file_transfer_result",
+    "file_transfer_stage",
     "issue_automation_grant",
     "automation_grant",
     "automation_grants",
