@@ -211,6 +211,36 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computers",
+        "--test",
+        "automation_lifecycle",
+        "--test",
+        "operations",
+        "--test",
+        "lifecycle",
+        "--test",
+        "current_authority",
+        "--test",
+        "maintenance"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

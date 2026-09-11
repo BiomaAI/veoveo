@@ -3672,3 +3672,20 @@ compiled a different dependency-feature closure, including SurrealDB core, altho
 only Artifact delivery and one Console message changed. Stable feature closures or
 independent cached compilation units should be evaluated before adding more shared
 Bake targets; a shared solve alone does not guarantee warm Rust dependencies.
+
+### Named Lifecycle Authority Iteration, 2026-09-11
+
+The domain test selection records 590 source inputs. Its first compile took 33.64
+seconds. One negative identity fixture incorrectly expected an invalid service/client
+binding to reach the domain; the verified identity boundary already rejected it.
+The corrected assertion preserves that earlier rejection. A later review added the
+owner/self-grant retry case, with a 9.90-second incremental compile and 34 passing
+store tests. That change invalidated the affected projection and Clippy receipts,
+which were rerun after the code stopped changing.
+
+The initial HTTP/application build took 49.80 seconds; the final incremental build
+took 16.84 seconds. Cargo checks ran sequentially, and no image or private host was
+rebuilt during the authority implementation. Public release 155 remained available.
+Its uninterrupted stock CLI check and logout acceptance ran alongside local work.
+The original fifteen-minute access-token interval was crossed on one connection.
+Immutable source manifests remain the dominant evidence-file churn at this boundary.

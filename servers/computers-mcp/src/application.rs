@@ -159,14 +159,15 @@ impl Application {
         computer_id: Uuid,
         operation_id: Uuid,
     ) -> Result<Operation> {
-        let authority = self.store.control_authority(actor).await?;
-        authority.require_read(Some(computer_id))?;
-        let operation = self.store.operation(actor.owner(), operation_id).await?;
+        let access = self
+            .store
+            .authorize_operation_task(actor, operation_id, false)
+            .await?;
+        let operation = access.operation()?;
         if operation.computer_id != computer_id {
             return Err(ComputerError::NotFound.into());
         }
-        authority.require_read(Some(computer_id))?;
-        Ok(operation)
+        Ok(operation.clone())
     }
     pub async fn access_grants(
         &self,

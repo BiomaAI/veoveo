@@ -51,25 +51,16 @@ impl ComputersMcp {
     ) -> Result<TaskAccess, ErrorData> {
         let id = resources::canonical_uuid(id)
             .ok_or_else(|| ErrorData::invalid_params("unknown task", None))?;
-        match self.app.store.operation(actor.owner(), id).await {
-            Ok(operation) => {
-                let control = self
-                    .app
-                    .store
-                    .control_authority(actor)
-                    .await
-                    .map_err(error)?;
-                control
-                    .require_read(Some(operation.computer_id))
-                    .map_err(error)?;
-                if cancel {
-                    control.require_action(operation.action).map_err(error)?;
-                }
-                Ok(TaskAccess {
-                    owner: actor.owner().clone(),
-                    deadline: control.valid_until(),
-                })
-            }
+        match self
+            .app
+            .store
+            .authorize_operation_task(actor, id, cancel)
+            .await
+        {
+            Ok(access) => Ok(TaskAccess {
+                owner: access.operation().map_err(error)?.actor.clone(),
+                deadline: access.valid_until(),
+            }),
             Err(ComputerError::NotFound) => {
                 let started = Instant::now();
                 match self.app.store.maintenance(actor.owner(), id).await {

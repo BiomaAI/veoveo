@@ -186,6 +186,7 @@ impl ComputersStore {
                     checked_at: authority.checked_at,
                     valid_until: authority.checked_at + TimeDelta::seconds(5),
                     decision,
+                    automation: None,
                 })?,
                 previous_progress: object(&before.progress)?,
             };

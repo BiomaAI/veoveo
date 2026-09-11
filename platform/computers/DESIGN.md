@@ -16,6 +16,7 @@
 | Veoveo private retained maintenance | Migrations 0069–0071; immutable source/target, shared `provider_wait` Task, exclusive Computer fence, bounded step journal, explicit resumption receipts and protected checkpoint; private provider worker and public service projection share this journal |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
+| Veoveo named lifecycle authority | Migration 0076 separates the accepted actor from retained ownership and records the selected grant; coordinated Computers reader/worker drain required |
 | Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
 
 The domain owns retained Computer identity. Provider transport belongs to
@@ -653,6 +654,30 @@ Task delivery. These fixtures supply internal observations and do not establish
 provider termination or installed cancellation latency.
 
 ## Lifecycle Dispatch
+
+Lifecycle records retain the actual actor and Computer owner independently.
+`queue_automation_operation` accepts only Start or Stop under the corresponding
+named permission. The caller cannot select an owner. Both source and grant-owner
+policies must permit the action in the same tenant, Work Context and profile.
+Admission compares grant revision, current policy and retained owner inside the
+fence transaction. Its request identity belongs to the actual actor; an exact
+retry keeps the original grant, action and operation.
+
+Each named dispatch repeats current grant and owner authority checks. The durable
+decision records both policy decisions and the grant revision. Revoking a queued
+grant prevents dispatch. Revoking a dispatched grant does not authorize repetition
+or discard evidence: bounded observation can still settle the original effect.
+The retained owner can inspect and repair the Task link after agent access ends.
+The shared Task remains attributed to the agent. Public lifecycle inputs and grant
+discovery remain inactive until the service projection is qualified.
+
+Migration 0076 backfills retained ownership from existing owner-only operation rows.
+Drain Computers readers and lifecycle workers before applying it, then start the
+new fleet before admitting named lifecycle work. Older writers cannot create the
+required ownership field. Rollback requires disabling new lifecycle admission and
+settling every named operation under the new worker; an old worker must never
+observe a queued agent operation. Retain the migration and historical rows during
+application rollback. This private transition has no old-writer support window.
 
 The public Create request resolves its first reservation before selecting a new
 installation default. The original template and provider remain attached to that
