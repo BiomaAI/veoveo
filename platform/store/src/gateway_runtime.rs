@@ -726,24 +726,6 @@ impl PlatformStore {
             }
         })
     }
-
-    pub async fn delete_gateway_audit_events_before(
-        &self,
-        kind: GatewayAuditKind,
-        cutoff: DateTime<Utc>,
-    ) -> Result<u64, StoreError> {
-        let mut response = self
-            .db
-            .query("DELETE audit_event WHERE resource_type = $resource_type AND occurred_at < $cutoff RETURN BEFORE;")
-            .bind(("resource_type", kind.resource_type()))
-            .bind(("cutoff", cutoff))
-            .await?
-            .check()?;
-        let deleted: Vec<AuditEventRecord> = response.take(0)?;
-        u64::try_from(deleted.len()).map_err(|_| StoreError::MissingRecord {
-            operation: "gateway audit retention count conversion",
-        })
-    }
 }
 
 impl PlatformStore {

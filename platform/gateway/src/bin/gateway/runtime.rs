@@ -171,11 +171,11 @@ pub(super) fn gateway_retention_cutoff(
 pub(super) async fn run_gateway_retention_gc(
     gateway_state: &GatewayState,
     retention: GatewayRetentionPolicy,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     let now = Utc::now();
     let audit_cutoff = gateway_retention_cutoff(now, retention.audit_event_days)?;
     let audit_summary = gateway_state
-        .delete_audit_events_before(audit_cutoff)
+        .delete_audit_batch_before(audit_cutoff)
         .await?;
     let authorization_records_deleted = gateway_state
         .prune_expired_authorization_records(now)
@@ -194,9 +194,10 @@ pub(super) async fn run_gateway_retention_gc(
         deleted_refresh_tokens = refresh_summary.tokens_deleted,
         deleted_refresh_families = refresh_summary.families_deleted,
         deleted_refresh_delivery_envelopes = refresh_summary.delivery_envelopes_deleted,
+        audit_batch_full = audit_summary.batch_was_full(),
         "gateway retention gc completed"
     );
-    Ok(())
+    Ok(audit_summary.batch_was_full())
 }
 
 pub(super) fn spawn_gateway_retention_gc_loop(
@@ -205,10 +206,15 @@ pub(super) fn spawn_gateway_retention_gc_loop(
 ) {
     tokio::spawn(async move {
         loop {
-            if let Err(err) = run_gateway_retention_gc(&gateway_state, retention).await {
-                tracing::error!("gateway retention gc failed: {err}");
-            }
-            tokio::time::sleep(Duration::from_secs(60 * 60)).await;
+            let pause = match run_gateway_retention_gc(&gateway_state, retention).await {
+                Ok(true) => Duration::from_secs(1),
+                Ok(false) => Duration::from_secs(60 * 60),
+                Err(err) => {
+                    tracing::error!("gateway retention gc failed: {err}");
+                    Duration::from_secs(60)
+                }
+            };
+            tokio::time::sleep(pause).await;
         }
     });
 }

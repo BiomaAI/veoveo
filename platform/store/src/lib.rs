@@ -15,6 +15,7 @@ mod coordinates;
 mod error;
 mod frame_worlds;
 mod gateway_control;
+mod gateway_retention;
 mod gateway_runtime;
 mod governance;
 mod identity;
@@ -56,6 +57,7 @@ pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentia
 pub use coordinates::CoordinateOperationDraft;
 pub use error::{MigrationError, RecordingIngestQuota, StoreConfigError, StoreError};
 pub use frame_worlds::{FrameWorldDraft, FrameWorldPublication, FrameWorldRevisionDraft};
+pub use gateway_retention::GATEWAY_AUDIT_BATCH_LIMIT;
 pub use gateway_runtime::{
     GatewayAuditKind, GatewayRefreshRedelivery, GatewayRefreshRetentionSummary,
     GatewayRefreshRotation, GatewayRefreshRotationOutcome, gateway_authorization_code_record_id,

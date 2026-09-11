@@ -427,6 +427,15 @@ policy targets fail closed. Audit records carry explicit principal attributes an
 context but exclude prompts, artifact bytes, provider payloads, tokens, link bearers,
 webhook bodies, and signed URLs.
 
+Gateway audit retention selects at most 1,024 record IDs per audit kind through the
+`resource_type, occurred_at` index before deletion. Each deletion statement has a
+two-second database deadline and returns only IDs. A full batch schedules another
+pass after one second; an empty or partial pass returns to the hourly schedule.
+Failures retry after one minute. Migration 0072 adds the index without rewriting
+audit records. Apply it before admitting the new cleanup worker. Existing workers
+remain schema-compatible during a rolling upgrade, and rollback leaves the index
+in place. Retention preserves the configured age cutoff and other domains' records.
+
 Server-owned resource projection namespaces a server's Apps and opaque upstream resource
 schemes. A manifest declares `referenced_resource_schemes` when its typed outputs carry
 canonical resources owned by another registered server. Those identities pass through

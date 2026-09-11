@@ -104,6 +104,18 @@ pub struct GatewayAuditRetentionSummary {
     pub tool_call_events_deleted: u64,
 }
 
+impl GatewayAuditRetentionSummary {
+    pub fn batch_was_full(&self) -> bool {
+        [
+            self.auth_events_deleted,
+            self.policy_events_deleted,
+            self.tool_call_events_deleted,
+        ]
+        .iter()
+        .any(|count| *count >= u64::from(veoveo_platform_store::GATEWAY_AUDIT_BATCH_LIMIT))
+    }
+}
+
 impl GatewayState {
     pub async fn audit_counts(&self) -> Result<GatewayAuditCounts> {
         let (auth_events, policy_events, tool_call_events) = tokio::try_join!(
@@ -237,18 +249,18 @@ impl GatewayState {
             .collect())
     }
 
-    pub async fn delete_audit_events_before(
+    pub async fn delete_audit_batch_before(
         &self,
         cutoff: DateTime<Utc>,
     ) -> Result<GatewayAuditRetentionSummary> {
         let (auth_events_deleted, policy_events_deleted, tool_call_events_deleted) =
             tokio::try_join!(
                 self.platform
-                    .delete_gateway_audit_events_before(GatewayAuditKind::Auth, cutoff),
+                    .delete_gateway_audit_batch_before(GatewayAuditKind::Auth, cutoff),
                 self.platform
-                    .delete_gateway_audit_events_before(GatewayAuditKind::Policy, cutoff),
+                    .delete_gateway_audit_batch_before(GatewayAuditKind::Policy, cutoff),
                 self.platform
-                    .delete_gateway_audit_events_before(GatewayAuditKind::ToolCall, cutoff),
+                    .delete_gateway_audit_batch_before(GatewayAuditKind::ToolCall, cutoff),
             )
             .context("failed to apply gateway audit retention")?;
         Ok(GatewayAuditRetentionSummary {
