@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "bioma-admin-service-20260911",
+      "n": "rT2Rsj5asS6fZxdnvU4OMZXgASPfMRLLkG4kwr41BMgFK956RnfOSEDQ4sPSzp_mcjimBT5J7V3Ba_UI0ts1FuJCVqTO1QnJkAbVPsNe-3Kml8oocUaoW1o4VZ07wRAIKH2mNlXanp_uVLOF1-jNNVbdUWb_rMD1lhGvkniptXUALVPib_uDEMl5hh3OrQOKL1qQuljifxn38ttNru0LfUks6ypHjgG1aqrqK8cLpWJ_UlpJGqw0gRK_9rxStPdOmuU71yjMud7cD6xLIop9P58a15-0SpwRNVsa1GErZ4UV4pUVA0LGdo80eIbvFid-sIJz197yRS-NAEMKRLULGYbJTkfjgzXfwK61nMNbY6Kqxs8PSBbRh0x9Eu-F87UAkKUre3nXCfknBxahsZuMvZuAwBeOm1SAVq1aCB8tfsEJYqGijzdQWPhJYzGwABS0BOuv5OYiKKlS0GsNIZEiTO__KM67_g0f3-t0TItWEhFJHfB4pW5UIMASJPISDSuX",
+      "e": "AQAB"
+    }
+  ]
+}

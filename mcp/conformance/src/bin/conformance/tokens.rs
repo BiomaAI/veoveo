@@ -74,6 +74,7 @@ pub(super) struct ClientAssertionInput {
 }
 
 pub(super) struct TokenExchangeInput {
+    pub(super) signing: super::client_signing::ClientSigningKey,
     pub(super) token_url: String,
     pub(super) client_assertion: ClientAssertionInput,
     pub(super) resource: Option<String>,
@@ -103,7 +104,11 @@ pub(super) struct IdJagTokenExchangeInput {
     pub(super) requested_scopes: Vec<String>,
 }
 
-fn build_client_assertion(input: &ClientAssertionInput) -> Result<String> {
+fn build_client_assertion(
+    input: &ClientAssertionInput,
+    key: &EncodingKey,
+    key_id: &str,
+) -> Result<String> {
     if input.ttl_minutes <= 0 {
         return Err(anyhow!("ttl_minutes must be greater than zero"));
     }
@@ -125,8 +130,8 @@ fn build_client_assertion(input: &ClientAssertionInput) -> Result<String> {
         jti: jwt_id,
     };
     let mut header = Header::new(Algorithm::RS256);
-    header.kid = Some(CONFORMANCE_KEY_ID.to_string());
-    Ok(encode(&header, &claims, &conformance_encoding_key()?)?)
+    header.kid = Some(key_id.to_string());
+    Ok(encode(&header, &claims, key)?)
 }
 
 pub(super) fn cmd_gateway_jwks() -> Result<()> {
@@ -144,7 +149,10 @@ pub(super) fn cmd_gateway_private_key_der_b64() {
 }
 
 pub(super) fn cmd_gateway_client_assertion(input: ClientAssertionInput) -> Result<()> {
-    println!("{}", build_client_assertion(&input)?);
+    println!(
+        "{}",
+        build_client_assertion(&input, &conformance_encoding_key()?, CONFORMANCE_KEY_ID)?
+    );
     Ok(())
 }
 
@@ -152,7 +160,11 @@ pub(super) async fn cmd_gateway_token_exchange(input: TokenExchangeInput) -> Res
     if input.scopes.is_empty() {
         return Err(anyhow!("at least one --scope is required"));
     }
-    let assertion = build_client_assertion(&input.client_assertion)?;
+    let assertion = build_client_assertion(
+        &input.client_assertion,
+        &input.signing.key,
+        &input.signing.id,
+    )?;
     let scope = input.scopes.join(" ");
     let client_id = input.client_assertion.client_id.clone();
     let mut serializer = url::form_urlencoded::Serializer::new(String::new());
@@ -169,7 +181,10 @@ pub(super) async fn cmd_gateway_token_exchange(input: TokenExchangeInput) -> Res
         serializer.append_pair("work_context", work_context);
     }
     let form_body = serializer.finish();
-    let response = reqwest::Client::new()
+    let response = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?
         .post(&input.token_url)
         .header(
             reqwest::header::CONTENT_TYPE,
@@ -179,10 +194,10 @@ pub(super) async fn cmd_gateway_token_exchange(input: TokenExchangeInput) -> Res
         .send()
         .await?;
     let status = response.status();
-    let body = response.text().await?;
     if !status.is_success() {
-        return Err(anyhow!("token endpoint returned {status}: {body}"));
+        return Err(anyhow!("token endpoint returned {status}"));
     }
+    let body = response.text().await?;
     let token_response: TokenEndpointResponse = serde_json::from_str(&body)?;
     if token_response.token_type != "Bearer" {
         return Err(anyhow!(
@@ -304,6 +319,14 @@ pub(super) fn conformance_encoding_key() -> Result<EncodingKey> {
         .collect::<String>();
     let der = BASE64_STANDARD.decode(der_text)?;
     Ok(EncodingKey::from_rsa_der(&der))
+}
+
+#[cfg(test)]
+pub(super) fn conformance_private_key_pem() -> String {
+    format!(
+        "-----BEGIN RSA PRIVATE KEY-----\n{}\n-----END RSA PRIVATE KEY-----\n",
+        CONFORMANCE_RSA_PRIVATE_KEY_DER_B64.trim()
+    )
 }
 
 pub(super) fn unix_seconds(value: i64) -> Result<u64> {

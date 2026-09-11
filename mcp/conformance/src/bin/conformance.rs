@@ -80,6 +80,8 @@ mod auth_discovery;
 mod cli;
 #[path = "conformance/client.rs"]
 mod client;
+#[path = "conformance/client_signing.rs"]
+mod client_signing;
 #[path = "conformance/control_plane.rs"]
 mod control_plane;
 #[path = "conformance/fake_services.rs"]
@@ -326,6 +328,8 @@ async fn main() -> Result<()> {
             work_context,
             jwt_id,
             ttl_minutes,
+            client_key_file,
+            client_key_id,
         } => {
             return cmd_gateway_token_exchange(TokenExchangeInput {
                 token_url: token_url.clone(),
@@ -338,6 +342,11 @@ async fn main() -> Result<()> {
                 resource: resource.clone(),
                 scopes: scopes.clone(),
                 work_context: work_context.clone(),
+                signing: client_signing::resolve(
+                    token_url,
+                    client_key_file.as_deref(),
+                    client_key_id.as_deref(),
+                )?,
             })
             .await;
         }

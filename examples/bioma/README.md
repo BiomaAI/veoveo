@@ -50,7 +50,8 @@ examples/bioma/
   computers/                    private host, control and retained-template policy
   acceptance/                   owner-local compiled composition checks
   recording-producer-jwks.json  public producer key
-  service-client-jwks.json      public machine-client key
+  operator-client-jwks.json     public operator client key
+  admin-client-jwks.json        public administrator client key
 ~~~
 
 The local platform fixture installs Flux and the registry address because this
@@ -72,6 +73,28 @@ label. A values update therefore wakes the owning Helm controller immediately af
 Flux applies it. Chart publication alone does not replace unchanged Pod templates.
 
 ## Release publication
+
+Service clients authenticate with separate installation-owned RSA keys. Only their
+public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
+credential store with owner-only permissions and encrypted backup. The repository's
+public conformance key is a disposable loopback fixture and cannot authenticate these
+clients. Key rotation replaces the selected public key and the caller's private key as
+one coordinated installation change; an operator key never authorizes the admin client.
+
+For local operator acceptance, provide the private key by file path and its registered
+public key ID. The command emits an access token on stdout; capture it directly in the
+consumer's environment without displaying or writing it into an evidence file:
+
+```sh
+export VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE=/private/bioma/operator-service.pem
+export VEOVEO_SERVICE_CLIENT_KEY_ID=bioma-operator-service-20260911
+```
+
+Use `conformance gateway-token-exchange` with the installation HTTPS token endpoint,
+the `operator-service` client and its admitted resource/scopes. Administrator acceptance
+uses its distinct private file and `bioma-admin-service-20260911` key ID. Existing caller
+credentials must be provisioned by the installation owner; copying this public example
+does not grant service access.
 
 Computers capacity is selected by `computerCapacity: openshell-docker`. Its public
 JSON files pin one provider identity and retain the previous template beside the
