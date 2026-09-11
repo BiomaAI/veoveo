@@ -25,6 +25,7 @@ mod map;
 mod map_authoring;
 mod map_presentations;
 mod map_projection;
+mod migration_preparation;
 mod migrations;
 mod models;
 mod outbox;

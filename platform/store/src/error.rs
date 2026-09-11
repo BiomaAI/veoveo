@@ -69,6 +69,8 @@ pub enum MigrationError {
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("migration {version:04} preparation failed: {reason}")]
+    MigrationPreparation { version: u32, reason: &'static str },
     #[error("the active gateway control-plane pointer and revision do not agree")]
     InvalidGatewayControlRevision,
     #[error("migration {version:04}_{name} statement {statement} failed: {source}")]
