@@ -78,6 +78,12 @@ configuration prevent reuse. Version observations identify the selected Rustup
 toolchain without persisting arbitrary environment values. This is local source
 evidence, not a hermetic build attestation.
 
+Cargo graph discovery uses locked metadata resolution and may fetch missing locked
+dependencies. A fresh GitHub runner does not have the development host's complete
+workspace cache. The report reader must not force offline resolution or silently
+omit uncached dependencies from the input closure. This discovery step does not
+compile or execute the packages whose evidence it displays.
+
 Displaying an observed pass does not renew it. Release verification rejects expired
 runtime evidence, changed installation artifacts, missing required checks and current
 known failures. Local command evidence remains distinct from a release attestation.

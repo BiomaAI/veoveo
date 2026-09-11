@@ -62,7 +62,6 @@ impl Graph {
                 "--format-version",
                 "1",
                 "--locked",
-                "--offline",
                 "--all-features",
                 "--filter-platform",
                 target,
