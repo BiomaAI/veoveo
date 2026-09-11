@@ -35,6 +35,7 @@ pub struct DockerDaemon {
     finished: bool,
     profile: Profile,
     host_bridge: Option<(String, String)>,
+    registries: std::collections::BTreeSet<registry_relay::Registry>,
 }
 fn host_bridge() -> Option<(String, String)> {
     Some((
@@ -48,6 +49,7 @@ impl DockerDaemon {
         plugin_socket: &Path,
         computer_image: &str,
         profile: Profile,
+        admitted_images: &[String],
     ) -> Self {
         let name = format!("veoveo-docker-probe-{}", Uuid::now_v7().simple());
         let root = std::env::temp_dir().join(&name);
@@ -58,6 +60,14 @@ impl DockerDaemon {
         let image_id =
             checked(host().args(["image", "inspect", computer_image, "--format", "{{.Id}}"])).await;
         assert!(image_id.starts_with("sha256:") && image_id.len() == 71);
+        let registries = if matches!(profile, Profile::NativeProvider { .. }) {
+            std::iter::once(computer_image)
+                .chain(admitted_images.iter().map(String::as_str))
+                .map(registry_relay::Registry::for_image)
+                .collect()
+        } else {
+            std::collections::BTreeSet::new()
+        };
         let archive = diagnostics
             .parent()
             .unwrap()
@@ -82,6 +92,7 @@ impl DockerDaemon {
             finished: false,
             profile,
             host_bridge: host_bridge(),
+            registries,
         };
         let mut command = host();
         command.args([
@@ -106,6 +117,11 @@ impl DockerDaemon {
             "--tmpfs",
             "/tmp:rw,exec,mode=1777",
         ]);
+        for registry in &daemon.registries {
+            command
+                .arg("--add-host")
+                .arg(format!("{}:127.0.0.1", registry.host));
+        }
         for (source, target) in [
             (daemon.root.join("data"), PathBuf::from("/var/lib/docker")),
             (daemon.root.join("run"), daemon.root.join("run")),
@@ -154,6 +170,9 @@ impl DockerDaemon {
                 "--storage-driver=overlay2",
             ]);
         if matches!(profile, Profile::NativeProvider { .. }) {
+            for registry in &daemon.registries {
+                command.arg(format!("--insecure-registry={}", registry.authority));
+            }
             command.args([
                 "--iptables=true",
                 "--ip6tables=false",
@@ -168,7 +187,24 @@ impl DockerDaemon {
                 "--ip-masq=false",
             ]);
         }
-        checked(&mut command).await;
+        // Cold host image/container preparation can outlast the ordinary command
+        // budget. Keep that setup allowance explicit and never resend Create on
+        // a lost response. A timeout names the owned intent for later cleanup.
+        command.kill_on_drop(true);
+        let started = std::time::Instant::now();
+        let output = tokio::time::timeout(Duration::from_secs(60), command.output())
+            .await
+            .unwrap_or_else(|_| panic!("fixture Docker create deadline for {}", daemon.name))
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        eprintln!(
+            "Native private Docker create: {} ms",
+            started.elapsed().as_millis()
+        );
         // Validate the daemon's namespace choice before its entrypoint runs.
         // Even --bridge=none/--iptables=false cannot make host-network DinD
         // safe: its initialization can delete the host's default bridge.
@@ -236,11 +272,12 @@ impl DockerDaemon {
         if let Profile::NativeProvider { test_name } = profile {
             // Pull only the already-published local candidate. A registry pull
             // preserves the manifest identity that a Docker save/load loses.
-            assert!(
-                computer_image.starts_with("localhost:5001/")
-                    && computer_image.contains("@sha256:")
-            );
             registry_relay::pull(&daemon, computer_image, test_name).await;
+            for image in admitted_images {
+                if image != computer_image {
+                    registry_relay::pull(&daemon, image, test_name).await;
+                }
+            }
             assert_eq!(
                 checked(daemon.command().args([
                     "image",

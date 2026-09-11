@@ -77,6 +77,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md) | admitted live and replay GStreamer graphs, typed pipeline profiles, live results, and the Stream MCP App |
 | [`servers/reason-mcp/DESIGN.md`](../servers/reason-mcp/DESIGN.md) | governed video reasoning, grounding, and audited world-model output |
 | [`servers/computers-mcp/DESIGN.md`](../servers/computers-mcp/DESIGN.md) | core Computers worker, retained preflight, shared Task projection, authenticated MCP/HTTP and subscription authority |
+| `servers/computers-mcp/tests/native_maintenance.rs` | exact installation-template image upgrade, explicit recovery and reverse replacement using isolated retained storage and continuous product workers |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | governed static scene compositions, 3D Tiles residency, declarative overlays, and GPU frame capture |

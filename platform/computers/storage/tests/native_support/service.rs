@@ -29,6 +29,7 @@ pub struct Fixture {
     image: String,
     finished: bool,
     cleanup_test: &'static str,
+    template_capacities: std::collections::BTreeMap<String, u64>,
 }
 fn host() -> Command {
     let mut command = Command::new("docker");
@@ -76,10 +77,10 @@ fn certificates(dir: &Path) {
 }
 impl Fixture {
     pub async fn start() -> Self {
-        Self::start_with_template(None, TEST).await
+        Self::start_with_templates(vec![], TEST).await
     }
-    pub async fn start_with_template(
-        selected: Option<DevelopmentTemplate>,
+    pub async fn start_with_templates(
+        selected: Vec<DevelopmentTemplate>,
         cleanup_test: &'static str,
     ) -> Self {
         let id = Uuid::now_v7();
@@ -96,7 +97,7 @@ impl Fixture {
         assert!(image.contains("@sha256:"));
         certificates(&dir.join("tls"));
         certificates(&dir.join("guest"));
-        let profile = if selected.is_some() {
+        let profile = if !selected.is_empty() {
             Profile::NativeProvider {
                 test_name: cleanup_test,
             }
@@ -104,12 +105,31 @@ impl Fixture {
             Profile::SharedStorage
         };
         let fingerprint = selected
-            .as_ref()
+            .first()
             .map(DevelopmentTemplate::fingerprint)
             .unwrap_or_else(|| "f".repeat(64));
-        let templates = selected.as_ref().map(|template| vec![serde_json::json!({"fingerprint": fingerprint, "capacityBytes": u64::from(template.persistent_home().unwrap().capacity_mib()) * 1024 * 1024})])
-            .unwrap_or_else(|| vec![serde_json::json!({"fingerprint": "f".repeat(64), "capacityBytes": 536870912}), serde_json::json!({"fingerprint": "e".repeat(64), "capacityBytes": 536870912})]);
-        let daemon = DockerDaemon::start(&dir, &socket_dir, &image, profile).await;
+        let template_capacities: std::collections::BTreeMap<String, u64> = if selected.is_empty() {
+            std::collections::BTreeMap::from([
+                ("f".repeat(64), 536870912),
+                ("e".repeat(64), 536870912),
+            ])
+        } else {
+            selected
+                .iter()
+                .map(|t| {
+                    (
+                        t.fingerprint(),
+                        u64::from(t.persistent_home().unwrap().capacity_mib()) * 1024 * 1024,
+                    )
+                })
+                .collect()
+        };
+        let templates: Vec<_> = template_capacities.iter().map(|(fingerprint, capacity)| serde_json::json!({"fingerprint":fingerprint,"capacityBytes":capacity})).collect();
+        let images = selected
+            .iter()
+            .map(|t| t.image().to_owned())
+            .collect::<Vec<_>>();
+        let daemon = DockerDaemon::start(&dir, &socket_dir, &image, profile, &images).await;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = listener.local_addr().unwrap().to_string();
         drop(listener);
@@ -138,6 +158,7 @@ impl Fixture {
             image,
             finished: false,
             cleanup_test,
+            template_capacities,
         };
         fixture.start_service().await;
         fixture
@@ -168,7 +189,10 @@ impl Fixture {
             .unwrap(),
             provider,
             fingerprint.into(),
-            536870912,
+            *self
+                .template_capacities
+                .get(fingerprint)
+                .expect("admitted fixture template"),
         )
         .await
         .unwrap()

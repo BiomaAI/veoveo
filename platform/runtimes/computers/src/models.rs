@@ -77,6 +77,9 @@ pub struct DevelopmentTemplate {
     persistent_home: Option<PersistentHome>,
 }
 impl DevelopmentTemplate {
+    pub fn image(&self) -> &str {
+        &self.image
+    }
     pub fn cpus(&self) -> u32 {
         self.cpus
     }
