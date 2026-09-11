@@ -12,7 +12,7 @@ composition remain CE-06 work.
 | `veoveo.io/local-test-report/v3` | Repository-owned index of receipt references; source validity is evaluated independently for each check |
 | `veoveo.io/test-check-catalog/v1` and `veoveo.io/test-coverage-profile/v1` | Owner-reviewed exact command/input declarations and required check identities with explicit freshness/bindings |
 | Cargo metadata v1 | Local package graph and declared extra test inputs; conservative dependency traversal includes development and build dependencies |
-| SHA-256 | Actual input bytes, modes, canonical command identity and receipt integrity; source provenance is a separate Git revision |
+| SHA-256 | Actual input bytes, normalized source modes, canonical command identity and receipt integrity; source provenance is a separate Git revision |
 | Git | Tracked and non-ignored local source discovery, exact revision and dirty provenance; content identity does not depend on worktree location |
 | JSON and RFC 3339 | Closed typed records and UTC observation timestamps |
 | Native process execution | Commands run without an intervening shell; the recorder owns evidence publication, while the command owns its assertions |
@@ -34,7 +34,12 @@ coverage, environment bindings and explicit freshness limits.
 
 Every receipt includes its planner version, command, source manifest and toolchain
 identity. Each check includes its owning catalog file; a declaration for an unrelated owner
-does not enter that boundary. The manifest records actual bytes and file modes. A Git clean filter cannot
+does not enter that boundary. The manifest records actual bytes and normalized source
+modes. Planner version 3 uses `0644` plus the materialized Unix execute bits; hosts
+without Unix mode support use `0644`. Checkout read/write permissions do not change
+source identity. Permission-sensitive runtime checks must bind and assert their
+required filesystem configuration separately. Earlier receipts remain immutable
+history and require new evidence under this planner. A Git clean filter cannot
 hide different materialized bytes from a check. Source additions, removals and changed
 symlink targets participate in invalidation. A source link cannot admit bytes outside
 its declared repository boundary.
@@ -122,7 +127,8 @@ would be needed to claim that stronger property.
 ## Qualification
 
 Owning Rust tests exercise unrelated Console edits, shared schema/toolchain changes,
-new and deleted inputs, symlink confinement, cross-worktree identity, concurrent
+new and deleted inputs, symlink confinement, cross-worktree identity, checkout
+permission differences and execute-bit invalidation, concurrent
 publication, mid-run changes and failed-attempt history. Composition checks reject
 missing coverage, stale runtime observations and changed installed configuration.
 The repository's ordinary recorder commands then qualify the implementation itself.
