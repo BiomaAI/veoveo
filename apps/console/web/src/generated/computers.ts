@@ -378,12 +378,41 @@ export interface AutomationGrantResult {
 export interface AutomationGrantCollection {
   canGrant: boolean;
   canRevoke: boolean;
+  /**
+   * @maxItems 128
+   */
+  clientChoices: AutomationClientChoice[];
+  clientChoicesTruncated: boolean;
   computerId: string;
+  /**
+   * @maxItems 4
+   */
+  grantablePermissions:
+    | []
+    | [AutomationPermission]
+    | [AutomationPermission, AutomationPermission]
+    | [AutomationPermission, AutomationPermission, AutomationPermission]
+    | [AutomationPermission, AutomationPermission, AutomationPermission, AutomationPermission];
   /**
    * @maxItems 64
    */
   grants: AutomationGrantView[];
   limits: AutomationGrantLimits;
+}
+/**
+ * Registration metadata available to a Computer owner who may issue a grant.
+ * A choice is a profile hint, never proof of the grantee's current authority.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationClientChoice".
+ */
+export interface AutomationClientChoice {
+  displayName: string;
+  oauthClientId: string;
+  /**
+   * Automated clients authenticate as this canonical service principal.
+   */
+  servicePrincipalId?: string | null;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema

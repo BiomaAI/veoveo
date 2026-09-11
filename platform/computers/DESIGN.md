@@ -345,6 +345,17 @@ current owner authority for every granted action and denies transitive grant iss
 The principal must already exist and be enabled in the same tenant. The admitted
 OAuth client must serve the same profile and authorization server.
 
+`automation_grants/management.rs` supplies current owner permission hints and at most
+128 matching OAuth registrations, sorted by client ID. It shares issuance's profile,
+authorization-server and tenant filter. The projection contains display names and
+the canonical service principal for automated clients; it excludes credentials and
+key references. A truncated list still permits an exact registered client ID.
+Automated grants must name that client's canonical service principal. Direct clients
+keep an explicit user principal. Registration hints do not establish enrollment or
+the grantee's current Work Context authority. Every issuance and use rechecks those
+boundaries. Owners without grant permission receive no registration hints and may
+retain independent revoke permission.
+
 Issuance commits the request fingerprint, grant, quota guard and audit event together.
 Competing exact retries return one grant; changed input under the same request UUID
 fails. An exact retry after revocation or a policy reduction returns the original

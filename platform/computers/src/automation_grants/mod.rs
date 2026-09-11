@@ -1,6 +1,7 @@
 //! Durable named-principal permissions; no bearer secret and no dispatch authority.
 mod admission;
 mod authority;
+mod management;
 mod model;
 mod policy;
 

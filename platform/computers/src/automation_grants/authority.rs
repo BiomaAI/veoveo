@@ -299,7 +299,7 @@ pub(super) fn owned(
     Ok(())
 }
 
-fn require_tool(snapshot: &AuthoritySnapshot, tool: &str) -> Result<()> {
+pub(super) fn require_tool(snapshot: &AuthoritySnapshot, tool: &str) -> Result<()> {
     snapshot.check_fresh()?;
     let target = PolicyTarget::Tool {
         server: ServerSlug::new("computers").expect("static server"),
@@ -343,23 +343,6 @@ pub(super) fn require_permission(
 }
 
 impl ComputersStore {
-    /// Current UI hints. Every mutation independently rechecks its authority.
-    pub(super) async fn automation_management(
-        &self,
-        actor: &ComputerActor,
-    ) -> Result<(bool, bool)> {
-        actor.check_admission()?;
-        if actor.accepted().actor.id != actor.accepted().request_context.principal.id {
-            return Ok((false, false));
-        }
-        let snapshot = self.read_authority(actor.accepted()).await?;
-        self.check_control_session(&snapshot).await?;
-        let grant = require_tool(&snapshot, "grant_automation").is_ok();
-        let revoke = require_tool(&snapshot, "revoke_automation").is_ok();
-        snapshot.check_fresh()?;
-        actor.check_admission()?;
-        Ok((grant, revoke))
-    }
     pub(super) async fn automation_owner(
         &self,
         actor: &ComputerActor,

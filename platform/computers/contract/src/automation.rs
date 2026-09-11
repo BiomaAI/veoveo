@@ -74,9 +74,25 @@ pub struct AutomationGrantCollection {
     pub computer_id: Uuid,
     pub can_grant: bool,
     pub can_revoke: bool,
+    #[schemars(length(max = 4))]
+    pub grantable_permissions: BTreeSet<AutomationPermission>,
+    #[schemars(length(max = 128))]
+    pub client_choices: Vec<AutomationClientChoice>,
+    pub client_choices_truncated: bool,
     pub limits: AutomationGrantLimits,
     #[schemars(length(max = 64))]
     pub grants: Vec<AutomationGrantView>,
+}
+
+/// Registration metadata available to a Computer owner who may issue a grant.
+/// A choice is a profile hint, never proof of the grantee's current authority.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationClientChoice {
+    pub oauth_client_id: String,
+    pub display_name: String,
+    /// Automated clients authenticate as this canonical service principal.
+    pub service_principal_id: Option<String>,
 }
 
 /// Current usable action scope on a Computer already authorized for Read.

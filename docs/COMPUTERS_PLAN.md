@@ -74,8 +74,10 @@ at 12:33:27 UTC; connection closure was observed by 12:33:57.790. This sampled
 The remaining initial-release work includes selected-profile backup/key ownership and restore
 acceptance, and clean/offline installation with complete release evidence. The
 current grant form requires the grantee's OAuth registration to admit the Console
-profile. Its new guidance identifies that profile; discovery of eligible clients
-and any explicit cross-profile authority transition remain UX/contract work.
+profile. The application-choice implementation exposes matching registrations and
+fills automated service principals, with current permission hints. Public acceptance
+of this form is pending deployment. An explicit cross-profile authority transition
+is outside this initial same-profile contract.
 
 The named lifecycle domain now separates the retained owner from the actor whose
 Task starts or stops the Computer. Its 34 focused store tests cover both policy
