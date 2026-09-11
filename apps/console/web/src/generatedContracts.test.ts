@@ -41,6 +41,8 @@ test("canonical Computer schemas reject unknown properties, invalid UUIDs, enums
     canDelete: false,
     canConnect: true,
     activeTaskId: null,
+    activeExecution: null,
+    canTransferFiles: false,
     createdAt: "2026-09-10T11:00:00Z",
     updatedAt: "2026-09-10T11:00:00Z",
   };

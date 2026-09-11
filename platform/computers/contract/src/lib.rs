@@ -115,9 +115,24 @@ pub struct ComputerView {
     pub can_stop: bool,
     pub can_delete: bool,
     pub can_connect: bool,
+    pub can_transfer_files: bool,
+    /// The shared command/file slot can remain held while an owner Stop completes.
+    pub active_execution: Option<ComputerExecution>,
     pub active_task_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum ComputerExecution {
+    Command { task_id: Uuid },
+    File { task_id: Uuid },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]

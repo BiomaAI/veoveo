@@ -923,3 +923,17 @@ export capability repair across replicas, current grant revocation and owner con
 Native byte movement remains qualified separately. Production file-worker startup,
 installation-qualified template selection, Console controls and the deployed public
 journey are still required before this gate is complete.
+
+### File Startup And Console Checkpoint
+
+Configured service v3 now supervises regular-file work and requires an explicitly
+file-qualified default. The Bioma configuration admits `development-20260911` at image
+`sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5` with the
+canonical fingerprint `e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f`.
+Directed environment updates preserve the two earlier admitted retained profiles.
+
+The Console file panel selects an existing Artifact or completed upload, retains exact
+retry intent and follows the shared Task to a verified result. Ordinary Work Context
+upload authority now suffices to open the upload queue. Public action flags include the
+shared execution slot while preserving owner Stop. These source changes still require
+recorded final checks, image publication and the installed import/export journey.

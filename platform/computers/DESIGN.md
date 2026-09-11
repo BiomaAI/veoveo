@@ -831,3 +831,8 @@ The current direct owner can observe with Read and cancel with Stop policy. The 
 agent principal and OAuth client require the current named Execute grant and file tool
 policy. Result labels must still fit the caller. These short permits bind the Computer,
 transfer and stored Task owner; the service enforces their deadline during projection.
+
+`active_execution.rs` reads the exact visible collection's execution slots in one batch.
+The metadata projection checks each slot's Computer and target record identity. It
+loads neither sealed intent nor capability secrets. Public action flags use this view;
+transactional admission still arbitrates concurrent commands and file transfers.

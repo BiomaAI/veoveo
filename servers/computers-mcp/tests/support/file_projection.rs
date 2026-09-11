@@ -133,7 +133,7 @@ async fn exercise(import: bool) {
         axum::serve(listener, router).await.unwrap();
     }));
     let (_health, health) = tokio::sync::watch::channel(CapacityHealth {
-        availability: CapacityAvailability::ComputeUnavailable,
+        availability: CapacityAvailability::Available,
         observed_at: Instant::now(),
     });
     let app = |store, platform| {
@@ -176,6 +176,16 @@ async fn exercise(import: bool) {
     let input = json!({"computerId":computer,"grantId":grant.grant_id,"requestId":Uuid::now_v7(),
         "transfer":transfer,
         "limits":{"maximumSeconds":30,"maximumBytes":1024,"onInterruption":"stop_computer"}});
+    let initial: ComputerView = client
+        .get(format!("{}/admin/computers/{computer}", left.base))
+        .bearer_auth(&owner_token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(initial.can_transfer_files && !initial.busy && initial.can_stop);
     let missing = rpc(
         &client,
         &left,
@@ -224,6 +234,47 @@ async fn exercise(import: bool) {
     let receipt: FileTransferView = retry.json().await.unwrap();
     assert_eq!(receipt.task_id.to_string(), id);
     assert!(receipt.can_cancel);
+    let active: ComputerView = client
+        .get(format!("{}/admin/computers/{computer}", left.base))
+        .bearer_auth(&owner_token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        active.active_execution,
+        Some(ComputerExecution::File {
+            task_id: receipt.task_id
+        })
+    );
+    assert!(active.busy && active.can_stop && !active.can_transfer_files);
+    db.a.client()
+        .query("UPDATE ONLY $computer SET phase='stopped';")
+        .bind(("computer", command_support::computer_record(computer)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let stopped: ComputerView = client
+        .get(format!("{}/admin/computers/{computer}", right.base))
+        .bearer_auth(&owner_token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(stopped.busy && !stopped.can_start && !stopped.can_transfer_files);
+    db.a.client()
+        .query("UPDATE ONLY $computer SET phase='ready';")
+        .bind(("computer", command_support::computer_record(computer)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+
     assert!(
         a.pending_file_transfers(None, 100).await.unwrap()[0]
             .file_capability_request(&command_support::keys())

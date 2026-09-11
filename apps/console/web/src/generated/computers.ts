@@ -34,6 +34,19 @@ export type CliPairingConfirmBody = Record<string, never>;
 export type CliPairingToken = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ComputerExecution".
+ */
+export type ComputerExecution =
+  | {
+      kind: "command";
+      taskId: string;
+    }
+  | {
+      kind: "file";
+      taskId: string;
+    };
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "ComputerPhase".
  */
 export type ComputerPhase =
@@ -412,6 +425,10 @@ export interface CliPairingResult {
  * via the `definition` "ComputerView".
  */
 export interface ComputerView {
+  /**
+   * The shared command/file slot can remain held while an owner Stop completes.
+   */
+  activeExecution?: ComputerExecution | null;
   activeTaskId?: string | null;
   busy: boolean;
   canConnect: boolean;
@@ -428,6 +445,7 @@ export interface ComputerView {
    * A ready Computer can be stopped once unfenced.
    */
   canStop: boolean;
+  canTransferFiles: boolean;
   computerId: string;
   createdAt: string;
   phase: ComputerPhase;

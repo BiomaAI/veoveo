@@ -62,3 +62,10 @@ The Node queue tests use controlled HTTP and worker doubles to exercise missing-
 resume, wrong-file rejection, cancellation races, and identity isolation. They are
 state-machine evidence. Deployed acceptance additionally requires real multi-GB
 transfers and a headed browser with hardware-backed WebGPU or WebGL.
+
+The shell creates the queue for an authenticated actor, tenant and Work Context even
+when installation inventory is unavailable. The upload policy endpoint owns admission;
+its gateway action is `ArtifactUpload` and it requires Contributor membership. Artifact
+metadata drawers remain gated by inventory permission, while completed upload rows
+provide the ordinary governed download route. Core Computers can select these verified
+receipts for a separate retained-home import.

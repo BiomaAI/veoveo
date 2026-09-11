@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload, X } from "lucide-react";
 import { formatBytes } from "../format";
+import { artifactDownloadUrl } from "../api";
 import { redirectToLogin } from "../auth";
 import type { Entry, Receipt } from "./model";
 import type { QueueState, UploadQueue } from "./queue";
 import "./uploads.css";
 
 export function UploadPanel({ queue, state, onClose, onView }: {
-  queue: UploadQueue; state: QueueState; onClose: () => void; onView: (receipt: Receipt) => Promise<void>;
+  queue: UploadQueue; state: QueueState; onClose: () => void; onView?: (receipt: Receipt) => Promise<void>;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -75,7 +76,7 @@ export function UploadPanel({ queue, state, onClose, onView }: {
   </div>;
 }
 
-function UploadRow({ entry, queue, onView }: { entry: Entry; queue: UploadQueue; onView: (receipt: Receipt) => Promise<void> }) {
+function UploadRow({ entry, queue, onView }: { entry: Entry; queue: UploadQueue; onView?: (receipt: Receipt) => Promise<void> }) {
   const [actionMessage, setActionMessage] = useState<string>();
   const [viewing, setViewing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -84,7 +85,7 @@ function UploadRow({ entry, queue, onView }: { entry: Entry; queue: UploadQueue;
   const terminal = ["Ready", "Cancelled"].includes(entry.phase);
   const selectAgain = !entry.restartRequired && !entry.file && !terminal && entry.phase !== "Finishing upload" && entry.phase !== "Cancelling";
   const view = async () => {
-    if (!entry.receipt) return;
+    if (!entry.receipt || !onView) return;
     setViewing(true); setActionMessage(undefined);
     try { await onView(entry.receipt); } catch (error) { setActionMessage(error instanceof Error ? error.message : "Artifact details are not available yet. Try again."); }
     finally { setViewing(false); }
@@ -112,7 +113,8 @@ function UploadRow({ entry, queue, onView }: { entry: Entry; queue: UploadQueue;
       {!terminal && entry.phase !== "Selected" && <button className="button button-secondary" aria-label={`Cancel ${entry.descriptor.filename}`} onClick={() => void queue.cancel(entry.key)}>{entry.phase === "Cancelling" ? "Retry cancellation" : "Cancel"}</button>}
       {entry.file && !entry.cancelRequested && <button className="button button-secondary" aria-label={`Upload another copy of ${entry.descriptor.filename}`} onClick={() => queue.select([entry.file!], true)}>Upload another copy</button>}
       {entry.receipt && <>
-        <button className="button button-primary" aria-label={`View artifact ${entry.descriptor.filename}`} onClick={() => void view()} disabled={viewing}>{viewing ? "Opening…" : "View artifact"}</button>
+        {onView && <button className="button button-primary" aria-label={`View artifact ${entry.descriptor.filename}`} onClick={() => void view()} disabled={viewing}>{viewing ? "Opening…" : "View artifact"}</button>}
+        <a className="button button-secondary" href={artifactDownloadUrl(entry.receipt.artifact_id)} download>Download</a>
         <button className="button button-secondary" aria-label={`Copy artifact URI for ${entry.descriptor.filename}`} onClick={() => { void navigator.clipboard.writeText(entry.receipt!.artifact_uri).then(() => setActionMessage("Artifact URI copied."), () => setActionMessage("Copy failed. Open the artifact to copy its URI.")); }}>Copy URI</button>
       </>}
     </div>

@@ -7,7 +7,7 @@
 | Helm v2 chart format and JSON Schema draft-07 | Closed installation values, rendered Kubernetes resources and immutable image references |
 | Kubernetes apps/v1 and core/v1 | Deployments, Services, ConfigMaps and references to installation-owned Secrets |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
-| `veoveo.io/computers-service/v2` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
+| `veoveo.io/computers-service/v3` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
 | `veoveo.io/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
 
@@ -115,3 +115,8 @@ Configured Computers also requires the `computers` Artifact audience. Helm valid
 that the caller's internally signed service assertion can reach capability issuance;
 the Artifact service continues to evaluate caller and Work Context authority. Both
 the chart defaults and Bioma values declare this audience.
+
+Configured service v3 capacity includes an explicit file-qualified default template.
+The Computers worker and its JSON ConfigMap must be upgraded together. Existing retained
+Computer IDs and homes are preserved; their template transitions are installation-owned
+and require the ordinary explicit environment-update operation.

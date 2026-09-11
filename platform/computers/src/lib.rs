@@ -1,4 +1,5 @@
 //! Durable core Computers domain. Public facades do not own provider mutations.
+mod active_execution;
 mod admission;
 mod authority;
 mod authority_snapshot;

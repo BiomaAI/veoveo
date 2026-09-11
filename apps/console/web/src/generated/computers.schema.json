@@ -451,6 +451,46 @@
       ],
       "type": "string"
     },
+    "ComputerExecution": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "command",
+              "type": "string"
+            },
+            "taskId": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "taskId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "file",
+              "type": "string"
+            },
+            "taskId": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "taskId"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "ComputerLimits": {
       "additionalProperties": false,
       "properties": {
@@ -543,6 +583,17 @@
     "ComputerView": {
       "additionalProperties": false,
       "properties": {
+        "activeExecution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerExecution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The shared command/file slot can remain held while an owner Stop completes."
+        },
         "activeTaskId": {
           "format": "uuid",
           "type": [
@@ -569,6 +620,9 @@
         },
         "canStop": {
           "description": "A ready Computer can be stopped once unfenced.",
+          "type": "boolean"
+        },
+        "canTransferFiles": {
           "type": "boolean"
         },
         "computerId": {
@@ -600,6 +654,7 @@
         "canStop",
         "canDelete",
         "canConnect",
+        "canTransferFiles",
         "createdAt",
         "updatedAt"
       ],

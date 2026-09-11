@@ -332,6 +332,9 @@ async fn execution_configuration_requires_private_keys_and_a_qualified_default()
     let selected = files.configured("127.0.0.1:8787".parse().unwrap());
     for changed in [
         "profile",
+        "file_profile",
+        "file_duplicate",
+        "file_foreign",
         "duplicate",
         "active",
         "keys",
@@ -343,6 +346,14 @@ async fn execution_configuration_requires_private_keys_and_a_qualified_default()
         let execution = &mut value["capacity"]["execution"];
         match changed {
             "profile" => execution["templateFingerprints"] = serde_json::json!([]),
+            "file_profile" => execution["fileTemplateFingerprints"] = serde_json::json!([]),
+            "file_duplicate" => execution["fileTemplateFingerprints"]
+                .as_array_mut()
+                .unwrap()
+                .push(selected["capacity"]["defaultTemplate"].clone()),
+            "file_foreign" => {
+                execution["fileTemplateFingerprints"] = serde_json::json!(["f".repeat(64)])
+            }
             "duplicate" => execution["templateFingerprints"]
                 .as_array_mut()
                 .unwrap()
@@ -367,9 +378,17 @@ async fn execution_configuration_requires_private_keys_and_a_qualified_default()
             "{changed}"
         );
     }
-    let mut old = selected.clone();
-    old["schema"] = "veoveo.io/computers-service/v1".into();
-    assert!(serde_json::from_value::<Configuration>(old).is_err());
+    for version in ["v1", "v2"] {
+        let mut old = selected.clone();
+        old["schema"] = format!("veoveo.io/computers-service/{version}").into();
+        assert!(serde_json::from_value::<Configuration>(old).is_err());
+    }
+    let mut missing = selected.clone();
+    missing["capacity"]["execution"]
+        .as_object_mut()
+        .unwrap()
+        .remove("fileTemplateFingerprints");
+    assert!(serde_json::from_value::<Configuration>(missing).is_err());
     for size in [0, 31, 33, 1024] {
         std::fs::write(files.0.join("command.key"), vec![23; size]).unwrap();
         assert!(

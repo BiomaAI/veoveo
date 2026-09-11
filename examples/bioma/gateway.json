@@ -780,7 +780,8 @@
         "grant_automation",
         "revoke_automation",
         "resume_update",
-        "update_template"
+        "update_template",
+        "transfer_file"
       ],
       "prompts": [
         "develop"
@@ -1292,7 +1293,8 @@
               "grant_automation",
               "revoke_automation",
               "resume_update",
-              "update_template"
+              "update_template",
+              "transfer_file"
             ]
           },
           "resources": {
@@ -1467,7 +1469,8 @@
               "grant_automation",
               "revoke_automation",
               "resume_update",
-              "update_template"
+              "update_template",
+              "transfer_file"
             ]
           },
           "resources": {
@@ -1946,7 +1949,8 @@
               "grant_automation",
               "revoke_automation",
               "resume_update",
-              "update_template"
+              "update_template",
+              "transfer_file"
             ]
           },
           "resources": {
@@ -5167,7 +5171,8 @@
             "grant_automation",
             "revoke_automation",
             "resume_update",
-            "update_template"
+            "update_template",
+            "transfer_file"
           ],
           "resource_schemes": [
             "computer"
@@ -5221,7 +5226,8 @@
             "grant_automation",
             "revoke_automation",
             "resume_update",
-            "update_template"
+            "update_template",
+            "transfer_file"
           ],
           "resource_schemes": [
             "computer"

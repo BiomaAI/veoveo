@@ -19,7 +19,7 @@
 Configured provider identities belong to the installation's explicit JSON file. */ -}}
 {{- $hash := printf "veoveo.io/computers-unconfigured/v1/%s/%s/%s" .Values.global.installationId .Release.Namespace .Release.Name | sha256sum -}}
 {{- $identity := printf "%s-%s-8%s-a%s-%s" (substr 0 8 $hash) (substr 8 12 $hash) (substr 13 16 $hash) (substr 17 20 $hash) (substr 20 32 $hash) -}}
-{{- $configuration = dict "schema" "veoveo.io/computers-service/v2" "listen" "0.0.0.0:8804" "allowedHosts" (list "computers-mcp:8804") "allowedOrigins" (list .Values.global.publicBaseUrl) "access" .Values.computers.access "providerInstanceId" $identity "capacity" (dict "kind" "unconfigured") | toJson -}}
+{{- $configuration = dict "schema" "veoveo.io/computers-service/v3" "listen" "0.0.0.0:8804" "allowedHosts" (list "computers-mcp:8804") "allowedOrigins" (list .Values.global.publicBaseUrl) "access" .Values.computers.access "providerInstanceId" $identity "capacity" (dict "kind" "unconfigured") | toJson -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
