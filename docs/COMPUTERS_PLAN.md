@@ -89,6 +89,15 @@ checks pass. Deployment and installed lifecycle acceptance remain required.
 Migration 0076 requires draining old Computers readers and lifecycle workers before
 applying the new schema and admitting named lifecycle operations.
 
+Release 156 applied that migration with both old Computers workers stopped, then
+started two new workers. The compute-host Pod retained its original identity. The
+headed Console issued an installed `admin-service` grant with Read, Start and Stop
+and no Execute scope. Public MCP discovered the granted Computer, completed Stop
+and Start, and rejected both a different Computer and command execution. An exact
+Stop retry exposed an unconditional gateway route CREATE against an existing source
+Task mapping. The gateway correction preserves the original route and expiry; its
+concurrent real-store tests pass, while installed retry verification remains active.
+
 The installed file handoff uses source `0b127b5f98fad6376c9ee1d44de57fcb3718d438`
 with the coordinated host catalog at `dc8e6dd165785daffed8c3d8eeb033e508efc2c1`.
 Import Task `01a09054-b385-7763-b3e1-3c7feb64c87e` settled in about 251 ms;
