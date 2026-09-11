@@ -1350,6 +1350,10 @@ impl ResolvedPlatformSelection {
                 FirstPartyMcpServer::Computers,
                 "configured Computer capacity requires core Computers control",
             )?;
+            self.require_component(
+                PlatformComponent::ArtifactService,
+                "configured Computer capacity requires Artifact service for command outputs",
+            )?;
         }
         for audience in &self.artifact_audiences {
             validate_name("artifact audience", audience)?;
@@ -2942,6 +2946,17 @@ mod tests {
             "components": ["gateway", "platform-store"], "mcpServers": ["computers"]
         }))
         .unwrap();
+        assert!(
+            selection
+                .resolve()
+                .unwrap_err()
+                .to_string()
+                .contains("command outputs")
+        );
+        selection.components.extend([
+            PlatformComponent::ArtifactService,
+            PlatformComponent::ObjectStore,
+        ]);
         let configured = selection.resolve().unwrap();
         assert_eq!(
             configured.required_images(),
@@ -2950,12 +2965,19 @@ mod tests {
                     "computer-host",
                     "computer-template",
                     "computers-mcp",
+                    "artifact-service",
                     "mcp-gateway"
                 ]
                 .map(str::to_owned)
             )
         );
         selection.computer_capacity = super::ComputerCapacity::Unconfigured;
+        selection.components.retain(|component| {
+            !matches!(
+                component,
+                PlatformComponent::ArtifactService | PlatformComponent::ObjectStore
+            )
+        });
         assert_eq!(
             selection.resolve().unwrap().required_images(),
             BTreeSet::from(["computers-mcp", "mcp-gateway"].map(str::to_owned))

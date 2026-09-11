@@ -110,9 +110,56 @@ fn changed_pods(before: &[Value], after: &[Value]) -> Vec<String> {
 }
 
 #[test]
+fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
+    let chart = repository().join("deploy/helm/veoveo");
+    let rendered = render(
+        &chart,
+        false,
+        &[
+            "computerCapacity=unconfigured",
+            "computers.existingConfigMap=",
+            "computers.existingTrustSecret=",
+            "computers.configurationRevision=",
+            "computers.host.existingConfigMap=",
+            "computers.host.existingTrustSecret=",
+            "computers.host.configurationRevision=",
+        ],
+    );
+    let document = rendered
+        .iter()
+        .find(|object| {
+            object["kind"] == "ConfigMap" && object["metadata"]["name"] == "computers-configuration"
+        })
+        .unwrap();
+    let configuration: Value =
+        serde_json::from_str(document["data"]["computers.json"].as_str().unwrap()).unwrap();
+    assert_eq!(configuration["schema"], "veoveo.io/computers-service/v2");
+    assert_eq!(configuration["capacity"]["kind"], "unconfigured");
+    let denied = Command::new("helm")
+        .args(["template", "computers"])
+        .arg(chart)
+        .args([
+            "--set",
+            "installationPreset=custom",
+            "--set",
+            "computerCapacity=openshell-docker",
+            "--set-json",
+            r#"components=["gateway","platform-store"]"#,
+            "--set-json",
+            r#"mcpServers=["computers"]"#,
+        ])
+        .output()
+        .unwrap();
+    assert!(!denied.status.success());
+    assert!(
+        String::from_utf8_lossy(&denied.stderr).contains("artifact-service for command outputs")
+    );
+}
+
+#[test]
 fn chart_publication_metadata_preserves_every_bioma_pod_template() {
     for (chart, name, extension, expected_pods) in [
-        ("deploy/helm/veoveo", "veoveo", false, 18),
+        ("deploy/helm/veoveo", "veoveo", false, 20),
         ("showcase/uav-sim/deploy/helm", "uav-sim", true, 6),
     ] {
         let directory = tempfile::tempdir().unwrap();
@@ -277,6 +324,34 @@ fn each_release_receives_exactly_its_consumed_image_digests() {
         let mut consumed = std::collections::BTreeSet::new();
         for object in render(&repository().join(chart), extension, &[]) {
             images(&object, &mut consumed);
+            // The private host pulls its default guest image from installation
+            // configuration. It is a runnable dependency outside Pod image fields.
+            if object["kind"] == "Deployment" && object["metadata"]["name"] == "computer-host" {
+                let config_name = object["spec"]["template"]["spec"]["volumes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|volume| volume["name"] == "configuration")
+                    .unwrap()["configMap"]["name"]
+                    .as_str()
+                    .unwrap();
+                let config = rendered
+                    .iter()
+                    .find(|object| {
+                        object["kind"] == "ConfigMap" && object["metadata"]["name"] == config_name
+                    })
+                    .unwrap();
+                let host: Value =
+                    serde_json::from_str(config["data"]["host.json"].as_str().unwrap()).unwrap();
+                let image = host["defaultImage"].as_str().unwrap();
+                assert!(
+                    host["images"]
+                        .as_array()
+                        .unwrap()
+                        .contains(&Value::String(image.into()))
+                );
+                consumed.insert(image.to_owned());
+            }
         }
         assert_eq!(
             declared, consumed,

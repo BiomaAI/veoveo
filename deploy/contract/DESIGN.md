@@ -28,8 +28,9 @@
 
 This crate owns the typed multi-source deployment profile, immutable deployment lock,
 local registry declaration, controlled path resolution, platform component graph, and
-pure validation used by operational tooling. It does not execute Git, Docker, Buildx,
-k3d, Kubernetes, or Helm commands.
+pure validation used by operational tooling. Configured Computer capacity requires core Computers control and the Artifact service
+for governed command outputs. Unconfigured core control has no output-storage dependency.
+This crate does not execute Git, Docker, Buildx, k3d, Kubernetes, or Helm commands.
 
 The sibling `../runtime` crate owns shared execution for the release publisher and the
 disposable profile installer. It consumes this crate's contracts and digest encodings.

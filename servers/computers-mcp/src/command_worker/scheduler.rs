@@ -24,7 +24,7 @@ impl CommandWorker {
                     }
                 }
                 _ = scan.tick(), if jobs.len() < 4 => {
-                    let operations = match tokio::time::timeout(Duration::from_secs(5), self.store.pending_commands(cursor, 100)).await {
+                    let operations = match tokio::time::timeout(Duration::from_secs(5), self.store.pending_commands(cursor, (4 - jobs.len()) as u32)).await {
                         Ok(Ok(operations)) => operations,
                         _ => { tracing::warn!("Computer command queue is unavailable"); continue; },
                     };

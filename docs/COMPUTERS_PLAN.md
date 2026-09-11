@@ -569,8 +569,11 @@ polled during slow reads; policy reductions cannot extend the admitted command.
 Migration 0066 bounds queued preparation and cannot expire dispatched work. Native
 revocation begins containment within the five-second I/O bound, while confirmed
 Stop includes the provider grace interval. Cancellation and lost-ticket containment
-use the same journal and preserve retained files. Production key/configuration wiring
-and the public execution journey remain required.
+use the same journal and preserve retained files. Configured startup now supervises
+command and lifecycle workers together. Its v2 configuration validates shared command
+keys and execution-qualified defaults before store access. The Bioma reference retains
+the old template alongside the staged command-capable default. Public admission,
+qualified template maintenance and the installed execution journey remain required.
 
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.

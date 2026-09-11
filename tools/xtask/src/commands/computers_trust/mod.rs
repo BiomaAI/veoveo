@@ -6,8 +6,8 @@ use rcgen::{
     KeyUsagePurpose,
 };
 use std::{
-    fs::{self, OpenOptions},
-    io::Write,
+    fs::{self, File, OpenOptions},
+    io::{Read, Write},
     os::unix::fs::{DirBuilderExt, OpenOptionsExt},
     path::Path,
 };
@@ -128,6 +128,13 @@ pub(crate) fn create(output: &Path, host: &str) -> Result<()> {
     }
     authority(output, "provider", host, true)?;
     authority(output, "storage", host, false)?;
+    let mut command_key = [0; 32];
+    File::open("/dev/urandom")?.read_exact(&mut command_key)?;
+    put(&output.join("worker/command-key.bin"), command_key)?;
+    put(
+        &output.join("worker/command-key-id"),
+        uuid::Uuid::now_v7().to_string(),
+    )?;
     let jwt = KeyPair::generate_for(&rcgen::PKCS_ED25519)?;
     put(&output.join("host/jwt-key.pem"), jwt.serialize_pem())?;
     put(&output.join("host/jwt-public.pem"), jwt.public_key_pem())?;
@@ -137,7 +144,7 @@ pub(crate) fn create(output: &Path, host: &str) -> Result<()> {
     )?;
     put(
         &output.join("README.txt"),
-        "Veoveo Computers fresh enrollment. Leaf certificates expire in 90 days.\nInstall host/ and worker/ as separate Secrets. Keep operator/ offline; it contains CA keys.\nKeep the complete bundle in installation-owned encrypted backup. Never rerun enrollment over an installed provider.\n",
+        "Veoveo Computers fresh enrollment. Leaf certificates expire in 90 days.\nInstall host/ and worker/ as separate Secrets. Keep operator/ offline; it contains CA keys.\nSet execution.activeKeyId and execution.keys[0].id to worker/command-key-id; reference /etc/veoveo/computers/trust/command-key.bin.\nKeep the complete bundle in installation-owned encrypted backup. Never rerun enrollment over an installed provider.\n",
     )?;
     println!(
         "Created private Computers trust bundle; certificates expire in 90 days. Keep operator CA keys outside Kubernetes."
@@ -158,6 +165,19 @@ mod tests {
         assert!(!output.join("host/provider-worker-key.pem").exists());
         assert!(!output.join("worker/guest-key.pem").exists());
         assert!(!output.join("host/provider-ca-key.pem").exists());
+        assert!(!output.join("host/command-key.bin").exists());
+        assert_eq!(
+            fs::read(output.join("worker/command-key.bin"))
+                .unwrap()
+                .len(),
+            32
+        );
+        assert!(
+            uuid::Uuid::parse_str(
+                &fs::read_to_string(output.join("worker/command-key-id")).unwrap()
+            )
+            .is_ok()
+        );
         assert_ne!(
             fs::read(output.join("host/provider-ca.pem")).unwrap(),
             fs::read(output.join("host/storage-ca.pem")).unwrap()

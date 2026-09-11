@@ -3332,3 +3332,21 @@ exact isolated Docker daemon, allocator, block homes and disposable database wer
 removed through the fixture's existing cleanup path. Installed resources were
 preserved. Compile and lint validation should precede formal native recording to
 avoid requalifying unchanged provider behavior after a fixture-only lint correction.
+
+
+The command template's warm local build took 14.1 seconds; immutable development
+publication from commit 5483acff took 13.1 seconds. Cargo compilation used 0.83 seconds
+in publication and all final template layers reused cache. The stage command reused
+its isolated committed source while service configuration edits remained in the main
+checkout. No provider rebuild was required. The local build matched the native fixture's
+image identity; the newly staged digest still requires candidate qualification before
+installed acceptance. The builder's 22% free-space GC target exceeds currently free
+space and may contribute to future eviction churn; no cache or retained data was pruned.
+
+The configured-worker checkpoint also exposed stale Helm regression assumptions:
+the expected deployment count predated Computers, and the image-consumption check
+ignored the guest image loaded through the host ConfigMap. The check now follows
+that configuration reference, includes its exact default image, and checks the current
+core pod count. It caught the reference lock retaining the old default digest. Historical
+retained templates remain in the host allowlist; they are not removed to satisfy a lock
+comparison. The first formal attempt is preserved as failed evidence history.

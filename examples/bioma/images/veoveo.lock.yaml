@@ -3,7 +3,7 @@ global:
   veoveoTag: ""
   imageDigests:
     veoveo/computer-host: sha256:6d5f789e7b3dfecf1cee9f699c77cd0049e1fc334fd572d7c9abec61809bc8da
-    veoveo/computer-template: sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721
+    veoveo/computer-template: sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99
     veoveo/computers-mcp: sha256:cf71beae592a973dc3e98c5d2748cbc096a3eb0ee4a1c128bdf504eadcfe5fd8
     veoveo/artifact-mcp: sha256:1eb76e5e819053702f6fd55c77fd7b759c904fa4d1168f78018833aa91c3eedf
     veoveo/artifact-service: sha256:43ae5908a72254267130aa546d8928c54914c94c38d9b583db47467766330b0f
