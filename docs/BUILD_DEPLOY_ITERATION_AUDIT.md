@@ -3732,3 +3732,25 @@ reconciliation and started after publication; it is not passive webhook latency.
 The public exact retries then returned the original completed Task IDs. The gateway
 rollout interrupted an existing browser attachment, which reported its interruption
 without claiming the Computer had stopped. Both retained Computers remained Ready.
+
+### Grant Application Choices, 2026-09-11
+
+Source `adb1f756f09d5d39cdd543fd769a101e0d9d3d25` published Computers, gateway
+and Console images together in 118.528 seconds. Compilation occupied 85.004 seconds;
+export occupied 20.616 seconds. These phase windows overlap and must not be added.
+The existing chart, host and templates remain reusable for this DTO and form change.
+
+Nineteen domain cases and seventeen service cases passed. The service command took
+87.3 seconds, including 43.00 seconds of compilation and 33.89 seconds for its four
+application fixtures. Node behavior covered 93 cases in 0.5 seconds. Type checking
+and the production asset build took 8.7 seconds. Concurrent recorder commands caused
+short Cargo package-cache waits even around native Node commands; source graph
+inspection should avoid competing with the active Cargo build where possible.
+
+The change added about 100,000 lines, dominated by fifteen immutable test receipts
+that repeat their source manifests. Failed attempts remain useful history, but their
+manifests should share content-addressed storage. Preserve input verification and
+immutable attempt identity when implementing that optimization. A generated bounded
+array needed an explicit TypeScript array view. React's purity analysis also rejected
+the submission callback's direct clock read; a submission-only expiry helper now
+keeps that clock outside render analysis and preserves saved retry expiry.
