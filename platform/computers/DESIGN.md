@@ -9,7 +9,7 @@
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
 | Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels |
-| Veoveo file-transfer admission | Migration 0073; one private request journal and shared execution slot, with an idempotently linked `computer.file_transfer` Task; provider dispatch and public activation remain pending |
+| Veoveo file-transfer journal | Migrations 0073–0074; private request, one-shot dispatch, bounded original-run containment and exact result settlement under a shared `computer.file_transfer` Task lease; native worker and public activation remain pending |
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
@@ -88,8 +88,33 @@ the file worker may release only after definitive completion or confirmed contai
 Migration 0073 widens the slot's record target to the two explicit work tables. Existing
 command workers continue to select only their table; lifecycle readers see the same
 slot. Public file admission remains disabled until the updated worker and facades are
-deployed together. This checkpoint has no provider file dispatcher or terminal Task
-settlement and does not make file transfer usable through the public endpoint.
+deployed together. Migration 0074 adds private dispatch, continuation and settlement.
+Only the original dispatch receipt can accept a verified native file result. A worker
+that loses that receipt may contain the saved run, but cannot repeat the transfer.
+Current action policy and named-grant limits remain mandatory after admission;
+accepted work does not retain the original browser sign-in as its authority.
+
+The active transfer permit expires within five seconds. Continuation compares exact
+journal metadata and the current Task lease without downloading its ciphertext.
+Grant or policy reductions can shorten the transfer duration and byte ceiling.
+Preparation expires after five minutes if no dispatch escaped. A native rejection
+can finish as Failed without stopping the Computer when the verified helper result
+proves the attempt ended. `CommitUnknown` cannot use that path.
+
+Containment follows the same original-run rules as command execution: one Stop
+receipt, up to eight authoritative reads within 180 seconds, and a retained execution
+slot when the outcome requires recovery. An independent owner Stop keeps its own
+lifecycle fence. Successful import settlement references the exact source Artifact;
+export settlement requires a verified output occurrence. Known completion preserves
+a later cancellation request in Task history rather than erasing the observed effect.
+Task delivery checks the exact result before acknowledging its retention pin.
+
+Isolated SurrealDB cases qualify both owner and delegated authority, contested
+one-shot dispatch, sign-in-family independence, current policy reductions, known
+import/export results, helper rejection, cancellation, original-run containment,
+replacement refusal and bounded recovery. The fixture supplies private native
+receipts and Artifact issuance records. Service-owned byte transport, actual Artifact
+redemption and public file controls remain delivery work.
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated
