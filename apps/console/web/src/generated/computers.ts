@@ -34,6 +34,11 @@ export type CliPairingConfirmBody = Record<string, never>;
 export type CliPairingToken = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ComputerAccessMode".
+ */
+export type ComputerAccessMode = "owner" | "granted";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "ComputerExecution".
  */
 export type ComputerExecution =
@@ -425,6 +430,7 @@ export interface CliPairingResult {
  * via the `definition` "ComputerView".
  */
 export interface ComputerView {
+  accessMode: ComputerAccessMode;
   /**
    * The shared command/file slot can remain held while an owner Stop completes.
    */
@@ -448,9 +454,30 @@ export interface ComputerView {
   canTransferFiles: boolean;
   computerId: string;
   createdAt: string;
+  /**
+   * Current named grants available to this grantee; owners manage their grant
+   * inventory through the separate owner-only resource.
+   *
+   * @maxItems 64
+   */
+  grantedAccess: ComputerGrantedAccess[];
   phase: ComputerPhase;
   templateId: string;
   updatedAt: string;
+}
+/**
+ * Current usable action scope on a Computer already authorized for Read.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ComputerGrantedAccess".
+ */
+export interface ComputerGrantedAccess {
+  canTransferFiles: boolean;
+  executionLimits?: AutomationExecutionLimits | null;
+  expiresAt: string;
+  grantId: string;
+  name: string;
+  permissions: AutomationPermission[];
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -594,6 +621,7 @@ export interface IssueAutomationGrantInput {
  */
 export interface LifecycleInput {
   computerId: string;
+  grantId?: string | null;
   requestId: string;
 }
 /**
@@ -732,6 +760,7 @@ export interface ComputerSnapshot {
  * via the `definition` "StartInput".
  */
 export interface StartInput {
+  grantId?: string | null;
   requestId: string;
 }
 /**
@@ -739,6 +768,7 @@ export interface StartInput {
  * via the `definition` "StopInput".
  */
 export interface StopInput {
+  grantId?: string | null;
   requestId: string;
 }
 /**

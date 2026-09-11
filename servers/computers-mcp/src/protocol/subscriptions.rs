@@ -35,14 +35,23 @@ impl ComputersMcp {
             .control_authority(&actor)
             .await
             .map_err(|_| auth::forbidden())?;
+        let mut deadline = control.valid_until();
         for uri in uris {
             match resources::parse(uri) {
                 Some(ResourceId::Collection(_)) => {
                     control.require_read(None).map_err(|_| auth::forbidden())?
                 }
+                Some(ResourceId::Computer(id)) => {
+                    let access = self
+                        .app
+                        .store
+                        .read_computer_access(&actor, &control, id)
+                        .await
+                        .map_err(|_| auth::forbidden())?;
+                    deadline = deadline.min(access.valid_until());
+                }
                 Some(
-                    ResourceId::Computer(id)
-                    | ResourceId::Access(id)
+                    ResourceId::Access(id)
                     | ResourceId::Automation(id)
                     | ResourceId::Maintenance(id),
                 ) => {
@@ -69,7 +78,6 @@ impl ComputersMcp {
                 }
             }
         }
-        let mut deadline = control.valid_until();
         let mut owners = BTreeMap::new();
         for id in tasks {
             let access = self.task_access_for_actor(&actor, id, false).await?;
@@ -220,9 +228,30 @@ impl ComputersMcp {
                                     Err(_) => return Err(auth::unavailable()),
                                 }
                             } else { continue; };
-                            match self.app.store.get(actor.owner(), id).await {
+                            let control = self.app.store.control_authority(actor).await
+                                .map_err(|_| auth::forbidden())?;
+                            match self.app.store.read_computer_access(actor, &control, id).await {
                                 Ok(_) => {},
-                                Err(veoveo_computers::ComputerError::NotFound) => continue,
+                                Err(veoveo_computers::ComputerError::NotFound) => {
+                                    // A revoked Read grant must remove the row from its
+                                    // recipient's view. Send only a collection hint,
+                                    // never the revoked Computer or grant contents.
+                                    if event.event_type == "automation_revoked" {
+                                        let grant = event.payload.as_map().get("grant_id")
+                                            .and_then(serde_json::Value::as_str)
+                                            .and_then(resources::canonical_uuid);
+                                        if let Some(grant) = grant
+                                            && self.app.store.automation_change_recipient(actor, &control, id, grant)
+                                                .await.map_err(|_| auth::unavailable())? {
+                                            for uri in &uris {
+                                                if matches!(resources::parse(uri), Some(ResourceId::Collection(_))) {
+                                                    context.sink().notify_resource_updated(uri.clone()).await.map_err(|_| auth::unavailable())?;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    continue;
+                                },
                                 Err(_) => return Err(auth::unavailable()),
                             }
                             for uri in &uris {
@@ -254,7 +283,7 @@ impl ComputersMcp {
         };
         super::guard::run(
             authority.deadline,
-            Duration::from_secs(5),
+            Duration::from_secs(2),
             context.cancelled(),
             pump,
             || async {

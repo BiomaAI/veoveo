@@ -83,6 +83,7 @@ async fn start(
             LifecycleInput {
                 computer_id: id,
                 request_id: request.request_id,
+                grant_id: request.grant_id,
             },
             Action::Start,
         )
@@ -127,6 +128,7 @@ async fn stop(
             LifecycleInput {
                 computer_id: id,
                 request_id: request.request_id,
+                grant_id: request.grant_id,
             },
             Action::Stop,
         )

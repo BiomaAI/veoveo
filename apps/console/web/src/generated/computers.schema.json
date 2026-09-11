@@ -425,6 +425,13 @@
       "minLength": 107,
       "type": "string"
     },
+    "ComputerAccessMode": {
+      "enum": [
+        "owner",
+        "granted"
+      ],
+      "type": "string"
+    },
     "ComputerEvent": {
       "additionalProperties": false,
       "description": "An authorized invalidation; clients reread current state after each event.",
@@ -490,6 +497,51 @@
           "type": "object"
         }
       ]
+    },
+    "ComputerGrantedAccess": {
+      "additionalProperties": false,
+      "description": "Current usable action scope on a Computer already authorized for Read.",
+      "properties": {
+        "canTransferFiles": {
+          "type": "boolean"
+        },
+        "executionLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationExecutionLimits"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "grantId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "permissions": {
+          "items": {
+            "$ref": "#/$defs/AutomationPermission"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "grantId",
+        "name",
+        "permissions",
+        "canTransferFiles",
+        "expiresAt"
+      ],
+      "type": "object"
     },
     "ComputerLimits": {
       "additionalProperties": false,
@@ -583,6 +635,9 @@
     "ComputerView": {
       "additionalProperties": false,
       "properties": {
+        "accessMode": {
+          "$ref": "#/$defs/ComputerAccessMode"
+        },
         "activeExecution": {
           "anyOf": [
             {
@@ -633,6 +688,14 @@
           "format": "date-time",
           "type": "string"
         },
+        "grantedAccess": {
+          "description": "Current named grants available to this grantee; owners manage their grant\ninventory through the separate owner-only resource.",
+          "items": {
+            "$ref": "#/$defs/ComputerGrantedAccess"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
         "phase": {
           "$ref": "#/$defs/ComputerPhase"
         },
@@ -646,6 +709,8 @@
       },
       "required": [
         "computerId",
+        "accessMode",
+        "grantedAccess",
         "templateId",
         "phase",
         "busy",
@@ -1102,6 +1167,13 @@
           "format": "uuid",
           "type": "string"
         },
+        "grantId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "requestId": {
           "format": "uuid",
           "type": "string"
@@ -1477,6 +1549,13 @@
     "StartInput": {
       "additionalProperties": false,
       "properties": {
+        "grantId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "requestId": {
           "format": "uuid",
           "type": "string"
@@ -1490,6 +1569,13 @@
     "StopInput": {
       "additionalProperties": false,
       "properties": {
+        "grantId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "requestId": {
           "format": "uuid",
           "type": "string"

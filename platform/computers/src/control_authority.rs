@@ -40,6 +40,16 @@ impl ComputersStore {
     }
 }
 impl ControlAuthority {
+    pub(crate) fn require_actor(&self, actor: &ComputerActor) -> Result<()> {
+        self.check_fresh()?;
+        actor.check_admission()?;
+        if crate::identity::digest(&self.snapshot.accepted)?
+            != crate::identity::digest(actor.accepted())?
+        {
+            return Err(ComputerError::Forbidden);
+        }
+        Ok(())
+    }
     pub fn has_browser_session(&self) -> bool {
         self.snapshot
             .accepted

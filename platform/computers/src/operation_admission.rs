@@ -291,7 +291,11 @@ impl ComputersStore {
         Ok(operation)
     }
 }
-fn request_record(caller: &TaskOwner, computer: Uuid, request: Uuid) -> Result<RecordId> {
+pub(crate) fn request_record(
+    caller: &TaskOwner,
+    computer: Uuid,
+    request: Uuid,
+) -> Result<RecordId> {
     Ok(RecordId::new(
         "computer_operation_request",
         digest(&(

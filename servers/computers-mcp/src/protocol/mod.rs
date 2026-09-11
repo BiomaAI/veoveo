@@ -233,12 +233,18 @@ impl ServerHandler for ComputersMcp {
             authority
                 .require_read(None)
                 .map_err(|_| auth::forbidden())?;
-            let (ids, more) = self
-                .app
-                .store
-                .complete_ids(actor.owner(), &request.argument.value)
-                .await
-                .map_err(|e| read_error(e.into()))?;
+            let (ids, more) = if reference.uri == resources::COMPUTER_TEMPLATE {
+                self.app
+                    .store
+                    .complete_accessible_ids(&actor, &authority, &request.argument.value)
+                    .await
+            } else {
+                self.app
+                    .store
+                    .complete_ids(actor.owner(), &request.argument.value)
+                    .await
+            }
+            .map_err(|e| read_error(e.into()))?;
             authority
                 .require_read(None)
                 .map_err(|_| auth::forbidden())?;

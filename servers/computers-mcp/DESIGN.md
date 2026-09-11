@@ -140,7 +140,8 @@ one canonical `computer://computers/{computer_id}/automation/{grant_id}` link;
 exact owner reads preserve revoked and expired state. The collection and exact
 grant resources support current-authority invalidations. The gateway projects
 management as the named tool policy, and the Console BFF retains session/CSRF
-ownership. Agent lifecycle and governed file movement remain separate delivery work.
+ownership. Named Start and Stop use the lifecycle projection below; governed file
+movement uses the File Tasks boundary.
 
 Migration 0067 backfills canonical result URIs in completed command journals and
 successful shared Tasks in one migration transaction. It rejects mismatched Task
@@ -406,6 +407,20 @@ first accepted Computer and Task. Caller input cannot choose arbitrary images.
 Closed public lifecycle inputs require stable request UUIDs. Native transport,
 provider work and terminal grants are separate from this projection's store tests.
 
+Start and Stop accept an optional named `grantId`. An agent supplies the corresponding
+current permission on the selected Computer. Exact retry resolves the original Task
+before new capacity admission and retains its original grant. Task ownership records
+the actual agent, while the retained Computer owner can read and cancel that Task
+after revocation. Create continues to require direct ownership. Deployments drain old
+Computers workers before applying migration 0076 and admitting named lifecycle work.
+
+Collection and exact reads merge retained ownership with current named Read grants.
+The domain bounds candidate pages and checks each grantee's current client, profile,
+Work Context and both principals' policies. `accessMode` identifies granted rows;
+`grantedAccess` exposes only that caller's usable scope. Owner management, interactive
+access and environment updates remain independent. Public action flags intersect
+the current grants with installation availability and durable operation fences.
+
 ## Canonical Protocol Projection
 
 The authenticated mount is `/computers`. `/mcp` serves MCP and `/admin` serves the
@@ -417,9 +432,9 @@ a gateway-signed Computers-audience assertion and an admitted Host authority.
 The collection is `computer://computers`. Exact resources use
 `computer://computers/{computer_id}` and subsequent pages use
 `computer://computers?after={after}`. UUIDs in these resource URIs must use the
-canonical lowercase hyphenated representation. Completion queries the current owner's
-indexed collection with a bounded prefix query. It returns at most one hundred IDs.
-Current resource policy and persisted ownership apply independently.
+canonical lowercase hyphenated representation. Computer completion uses the same
+current owned-or-granted Read boundary with a bounded prefix query. Management
+resource completion remains owner-scoped. Each result returns at most one hundred IDs.
 
 Create, Start and Stop are durable tools. Each requires per-request Tasks extension
 support before reservation; rejection uses the final protocol capability error.
@@ -594,13 +609,18 @@ fifteen-second health observation invalidates availability even without another
 provider event. Repeated health observations with unchanged availability produce no
 extra notification. This signal prompts a canonical read and grants no authority.
 
-Current policy and the signed browser family are checked every five seconds, with a
+Current policy and the signed browser family are checked every two seconds, with a
 shared five-second authority-read bound. The earliest assertion, token, known family
 expiry or current-policy deadline caps the entire listener, including initialization
 and a blocked sink. The guard polls cancellation and expiry while the data pump or
 an authority read is blocked. Loss of current
 authority closes the stream; a client must present renewed authority on a new request.
 This is control-state subscription behavior, distinct from renewable terminal grants.
+
+Exact Computer subscriptions use current named Read authority. Collection events
+include currently readable granted Computers. Revoking a recipient's Read grant
+sends a collection invalidation without disclosing the revoked Computer's state.
+Exact reads and new Task operations independently revalidate authority.
 
 ## Lifecycle Execution
 

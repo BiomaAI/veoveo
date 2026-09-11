@@ -3689,3 +3689,18 @@ rebuilt during the authority implementation. Public release 155 remained availab
 Its uninterrupted stock CLI check and logout acceptance ran alongside local work.
 The original fifteen-minute access-token interval was crossed on one connection.
 Immutable source manifests remain the dominant evidence-file churn at this boundary.
+
+The public lifecycle integration records 594 domain inputs and 867 service inputs.
+Its final domain compile took 5.64 seconds; the HTTP/application compile took 24.21
+seconds. Seventeen domain cases and seventeen service cases passed. All 93 Console
+behavior cases passed, and the production asset build took 2.05 seconds after type
+checking. Generated client types exposed one stale schema fixture, which was updated.
+The new protocol fixture initially expected a tool result for grant revocation, but
+the established authorization boundary correctly returned a JSON-RPC denial.
+
+Review caught ownership-only live filtering before deployment. Granted resource
+listeners now renew before their five-second authority window ends, and revocation
+invalidates the recipient's collection without sending revoked state. That integration
+required another service compile. Completing discovery, completion and subscriptions
+together avoids a subsequent deployment for stale agent views. File and provider
+images remain reusable. Host disk headroom was 225 GiB during these checks.

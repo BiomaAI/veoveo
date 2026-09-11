@@ -12,6 +12,7 @@ mod automation;
 mod execution;
 mod file_state;
 mod files;
+mod lifecycle;
 pub(crate) mod maintenance;
 
 #[derive(Debug, thiserror::Error)]
@@ -101,7 +102,10 @@ impl Application {
     ) -> Result<ComputerSnapshot> {
         let authority = self.store.control_authority(actor).await?;
         authority.require_read(None)?;
-        let page = self.store.list(actor.owner(), after, 100).await?;
+        let page = self
+            .store
+            .read_accessible_computers(actor, &authority, after, 100)
+            .await?;
         let (capacity, room) = match self.store.capacity_for(actor.owner()).await {
             Ok((c, room)) => (
                 Some(ComputerLimits {
@@ -117,13 +121,20 @@ impl Application {
         let access = self.browser_access(&authority).await?;
         let active = self
             .store
-            .active_executions(actor.owner(), &page.computers)
+            .active_executions_for_access(&page.computers)
             .await?;
         let computers = page
             .computers
             .iter()
-            .map(|c| self.view(c, &authority, access, active.get(&c.computer_id).copied()))
-            .collect();
+            .map(|c| {
+                self.access_view(
+                    c,
+                    &authority,
+                    access,
+                    active.get(&c.computer()?.computer_id).copied(),
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
         authority.require_read(None)?;
         Ok(ComputerSnapshot {
             availability: if self.availability() == CapacityAvailability::Available && !room {
@@ -144,14 +155,17 @@ impl Application {
     pub async fn computer(&self, actor: &ComputerActor, id: Uuid) -> Result<ComputerView> {
         let authority = self.store.control_authority(actor).await?;
         authority.require_read(Some(id))?;
-        let computer = self.store.get(actor.owner(), id).await?;
+        let computer = self
+            .store
+            .read_computer_access(actor, &authority, id)
+            .await?;
         let access = self.browser_access(&authority).await?;
         let active = self
             .store
-            .active_executions(actor.owner(), std::slice::from_ref(&computer))
+            .active_executions_for_access(std::slice::from_ref(&computer))
             .await?;
         authority.require_read(Some(id))?;
-        Ok(self.view(&computer, &authority, access, active.get(&id).copied()))
+        self.access_view(&computer, &authority, access, active.get(&id).copied())
     }
     pub async fn operation(
         &self,
@@ -211,6 +225,8 @@ impl Application {
         let admitted = |a| template && unfenced && self.admits(a) && authority.allows_action(a);
         ComputerView {
             computer_id: computer.computer_id,
+            access_mode: ComputerAccessMode::Owner,
+            granted_access: Vec::new(),
             template_id: computer.template_id.clone(),
             phase: computer.phase,
             busy: !unfenced || execution.is_some(),
@@ -243,6 +259,32 @@ impl Application {
             updated_at: computer.updated_at,
         }
     }
+    fn access_view(
+        &self,
+        access: &veoveo_computers::ComputerReadAccess,
+        authority: &ControlAuthority,
+        browser: bool,
+        execution: Option<ComputerExecution>,
+    ) -> Result<ComputerView> {
+        let computer = access.computer()?;
+        let mut view = self.view(computer, authority, browser, execution);
+        view.access_mode = access.mode();
+        if access.mode() == ComputerAccessMode::Granted {
+            view.granted_access = access.grants()?.to_vec();
+            let permits = |permission| {
+                view.granted_access
+                    .iter()
+                    .any(|grant| grant.permissions.contains(&permission))
+            };
+            view.can_start &= permits(AutomationPermission::Start);
+            view.can_stop &= permits(AutomationPermission::Stop);
+            view.can_transfer_files &= access.allows_file_transfer()?;
+            view.can_create = false;
+            view.can_delete = false;
+            view.can_connect = false;
+        }
+        Ok(view)
+    }
     pub async fn create(&self, actor: ComputerActor, request: CreateInput) -> Result<Operation> {
         if let Some(computer_id) = request.computer_id {
             return self
@@ -251,6 +293,7 @@ impl Application {
                     LifecycleInput {
                         computer_id,
                         request_id: request.request_id,
+                        grant_id: None,
                     },
                     Action::Create,
                 )
@@ -309,6 +352,17 @@ impl Application {
         request: LifecycleInput,
         action: Action,
     ) -> Result<Operation> {
+        if let Some(grant) = request.grant_id {
+            return self
+                .granted_lifecycle(
+                    &actor,
+                    request.computer_id,
+                    request.request_id,
+                    grant,
+                    action,
+                )
+                .await;
+        }
         let authority = self.store.control_authority(&actor).await?;
         authority.require_action(action)?;
         self.accept(

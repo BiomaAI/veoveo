@@ -32,6 +32,8 @@ test("named Computer grants require an application binding and bounded closed pe
 test("canonical Computer schemas reject unknown properties, invalid UUIDs, enums and missing flags", () => {
   const computer = {
     computerId: id,
+    accessMode: "owner",
+    grantedAccess: [],
     templateId: "default",
     phase: "ready",
     busy: false,

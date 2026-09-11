@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ComputersController, type ComputerPorts } from "./computers/controller.ts";
-import type { ComputerSnapshot, OperationReceipt } from "./generated/computers.ts";
+import type { ComputerSnapshot, ComputerView, OperationReceipt } from "./generated/computers.ts";
 import type { LiveState } from "./computers/events.ts";
 
 const computerId = "01994bed-e0d0-7000-8000-000000000001";
@@ -16,6 +16,16 @@ const snapshot = (canCreate = true): ComputerSnapshot => ({
 const settled = async () => {
   await new Promise((resolve) => setImmediate(resolve));
 };
+function grantedComputer(grantId: string): ComputerView {
+  return {
+    computerId, accessMode: "granted", templateId: "development", phase: "ready", busy: false,
+    canCreate: false, canStart: false, canStop: true, canDelete: false, canConnect: false,
+    canTransferFiles: false, activeExecution: null, activeTaskId: null,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    grantedAccess: [{ grantId, name: "Lifecycle", permissions: ["read", "stop"], executionLimits: null,
+      canTransferFiles: false, expiresAt: new Date(Date.now() + 3600000).toISOString() }],
+  };
+}
 function fixture() {
   const saved = new Map<string, string>();
   const calls: string[] = [];
@@ -202,5 +212,53 @@ test("Computer replaced subscriptions cannot deliver stale status or trigger rea
   await settled();
   assert.equal(controller.snapshot().live, "live");
   assert.equal(reads, before);
+  controller.dispose();
+});
+
+test("granted lifecycle keeps its original grant across a lost reply, reload and changed access", async () => {
+  const f = fixture();
+  const originalGrant = "01994bed-e0d0-7000-8000-000000000002";
+  const replacementGrant = "01994bed-e0d0-7000-8000-000000000003";
+  let computer = grantedComputer(originalGrant);
+  f.ports.read = async () => ({ ...snapshot(), computers: [computer] });
+  const grants: Array<string | undefined> = [];
+  f.ports.command = async (action, requestId, selected, _signal, grant) => {
+    assert.equal(selected, computerId);
+    grants.push(grant);
+    f.calls.push(requestId);
+    if (grants.length === 1) throw new Error("reply lost");
+    return { action, computerId, taskId: requestId, status: "queued" };
+  };
+  const first = new ComputersController("agent", f.ports);
+  first.start();
+  await settled();
+  await first.command("stop", computerId);
+  const intent = first.snapshot().intents[0];
+  assert.equal(intent.grantId, originalGrant);
+  first.dispose();
+  computer = grantedComputer(replacementGrant);
+  const restored = new ComputersController("agent", f.ports);
+  restored.start();
+  await settled();
+  await restored.command("stop", computerId);
+  assert.deepEqual(grants, [originalGrant, originalGrant]);
+  assert.deepEqual(f.calls, [intent.requestId, intent.requestId]);
+  await restored.command("stop", computerId);
+  assert.equal(grants.at(-1), replacementGrant);
+  restored.dispose();
+});
+
+test("a granted view without a current matching permission never sends an owner lifecycle request", async () => {
+  const f = fixture();
+  const computer = grantedComputer("01994bed-e0d0-7000-8000-000000000002");
+  computer.grantedAccess[0].permissions = ["read"];
+  f.ports.read = async () => ({ ...snapshot(), computers: [computer] });
+  const controller = new ComputersController("agent", f.ports);
+  controller.start();
+  await settled();
+  await controller.command("stop", computerId);
+  assert.equal(f.calls.length, 0);
+  assert.equal(controller.snapshot().intents.length, 0);
+  assert.ok(controller.snapshot().error);
   controller.dispose();
 });

@@ -79,11 +79,11 @@ pub fn tools() -> Vec<Tool> {
             .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
         lifecycle(
             "start",
-            "Start a stopped Computer with its retained home. Reuse requestId when retrying. Requires the Tasks extension.",
+            "Start a stopped Computer with its retained home. Named agents supply a grantId with Start permission. Reuse requestId and grantId when retrying. Requires the Tasks extension.",
         ),
         lifecycle(
             "stop",
-            "Stop the Computer's processes while keeping its retained home. Reuse requestId when retrying. Requires the Tasks extension.",
+            "Stop the Computer's processes while keeping its retained home. Named agents supply a grantId with Stop permission. Reuse requestId and grantId when retrying. Requires the Tasks extension.",
         ),
     ]
 }
