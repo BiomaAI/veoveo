@@ -5,6 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | Internal HTTP | JSON metadata and capability control; streamed GET/HEAD downloads with the existing single-range profile |
+| HTTP Content-Disposition, [RFC 6266](https://www.rfc-editor.org/rfc/rfc6266.html), and [RFC 8187](https://www.rfc-editor.org/rfc/rfc8187.html) | Attachment delivery with the authorized occurrence's UTF-8 `filename*`; full, single-range and HEAD responses share the same presentation |
 | Gateway identity | Forwarded, verified short-lived internal assertion for ordinary operations and capability issuance/revocation |
 | Upload identity | Dedicated `artifact-upload` EdDSA assertion includes the checked control-plane SHA-256 and Work Context digest; ordinary forwarded server tokens do not authorize uploads |
 | Veoveo Artifact read delegation | Repository-owned internal API, opaque UUIDv7 capability and task identities, bearer secret confined to task-read routes |
@@ -28,6 +29,18 @@ I/O; an unsupported write never triggers a backend fallback. Governed HTTP deliv
 supplies its response headers independently. Filesystem tests write complete and
 verified streamed objects, reopen the store and check bytes and range reads.
 Filesystem storage does not admit the resumable S3 upload profile.
+
+`http/disposition.rs` encodes the authorized occurrence's filename for HTTP download.
+The name belongs to the occurrence because identical blob bytes may have different
+names. UTF-8 extended parameters preserve spaces and non-ASCII names; percent encoding
+keeps quotes, delimiters and control bytes out of the header structure. Existing write
+admission requires a bounded basename. An unnamed occurrence carries attachment
+disposition without a filename. Gateway and Console transport preserve this header;
+the download path never needs a second metadata request.
+The internal `x-artifact-put` descriptor is decoded as UTF-8 JSON bytes. HTTP's ASCII
+header accessor cannot decode non-ASCII names; JSON decoding also rejects malformed
+UTF-8 before write admission. The transport test publishes a Unicode filename through
+the ordinary client and verifies it on full, range and HEAD download responses.
 
 ## Resumable Upload Contract
 

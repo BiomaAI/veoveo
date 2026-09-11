@@ -1,5 +1,6 @@
 //! HTTP transport for the artifact plane.
 
+mod disposition;
 mod read_capability;
 pub mod uploads;
 
@@ -184,16 +185,11 @@ fn parse_access_request_id(value: &str) -> Result<ArtifactAccessRequestId, ApiEr
 
 fn put_request(headers: &HeaderMap) -> Result<PutArtifactRequest, ApiError> {
     match headers.get("x-artifact-put") {
-        Some(value) => {
-            let value = value.to_str().map_err(|_| {
-                ArtifactPlaneError::InvalidRequest("x-artifact-put must be UTF-8".into())
-            })?;
-            serde_json::from_str(value).map_err(|error| {
-                ApiError(ArtifactPlaneError::InvalidRequest(format!(
-                    "invalid x-artifact-put: {error}"
-                )))
-            })
-        }
+        Some(value) => serde_json::from_slice(value.as_bytes()).map_err(|error| {
+            ApiError(ArtifactPlaneError::InvalidRequest(format!(
+                "invalid x-artifact-put: {error}"
+            )))
+        }),
         None => Ok(PutArtifactRequest::default()),
     }
 }
@@ -247,7 +243,7 @@ fn metadata_headers(metadata: &ArtifactMetadata) -> Result<HeaderMap, ApiError> 
     );
     headers.insert(
         header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment"),
+        disposition::attachment(metadata.filename.as_deref()),
     );
     headers.insert(
         header::X_CONTENT_TYPE_OPTIONS,
@@ -901,7 +897,14 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
         let expected_digest = Sha256::digest(&payload);
         let metadata = plane
-            .put(&caller, PutArtifactRequest::default(), payload.clone())
+            .put(
+                &caller,
+                PutArtifactRequest {
+                    filename: Some("café export.bin".into()),
+                    ..Default::default()
+                },
+                payload.clone(),
+            )
             .await
             .unwrap();
         let url = format!("{base}/artifacts/{}/download", metadata.artifact_id);
@@ -918,6 +921,8 @@ pub(crate) mod tests {
             payload.len().to_string()
         );
         assert_eq!(full.headers()[header::ACCEPT_RANGES], "bytes");
+        let disposition = "attachment; filename*=UTF-8''caf%C3%A9%20export.bin";
+        assert_eq!(full.headers()[header::CONTENT_DISPOSITION], disposition);
         assert!(!full.headers().contains_key(header::LOCATION));
         let full_bytes = full.bytes().await.unwrap();
         assert_eq!(Sha256::digest(&full_bytes), expected_digest);
@@ -932,6 +937,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
         assert_eq!(partial.status(), reqwest::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(partial.headers()[header::CONTENT_DISPOSITION], disposition);
         assert_eq!(
             partial.headers()[header::CONTENT_RANGE],
             format!("bytes {range_start}-{range_end}/{}", payload.len())
@@ -953,6 +959,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
         assert_eq!(head.status(), reqwest::StatusCode::OK);
+        assert_eq!(head.headers()[header::CONTENT_DISPOSITION], disposition);
         assert_eq!(
             head.headers()[header::CONTENT_LENGTH],
             payload.len().to_string()

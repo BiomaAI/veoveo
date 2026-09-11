@@ -98,7 +98,7 @@ export function FilesPanel({ computer, scope, snapshot, stale, artifacts, upload
       {error ?? saved.error ?? computerError(submit.error ?? receipt.error ?? cancel.error)}</p>}
     {current && <div className="computer-operation"><div>
       <p role="status">{stages[current.stage]}{current.stage === "completed" && !current.result ? "; confirming the receipt…" : ""}</p>
-      {current.message && <p>{current.message}</p>}
+      {current.message && current.message !== stages[current.stage] && <p>{current.message}</p>}
       {current.cancellationRequestedAt && !fileFinished(current) && <p>Cancellation requested. Waiting for the confirmed outcome.</p>}
       {current.stage === "recovery_required" && <p>The original run is not confirmed stopped. This transfer keeps its execution slot; use Stop to end the Computer run and contact the installation operator for recovery.</p>}
       {!fresh && <p>Last confirmed transfer state. Refreshing requires current access.</p>}
