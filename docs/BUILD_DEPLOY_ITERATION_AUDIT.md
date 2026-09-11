@@ -3530,3 +3530,38 @@ build. These are local behavior checks; no provider or image rebuild was necessa
 The exact domain catalog command includes `-- --nocapture`; omitting those arguments
 unnecessarily classified an otherwise scoped invocation against all repository files.
 Use the declared invocation until the catalog gains the equivalent command.
+
+The September 11 Computers acceptance exposed an installed credential defect:
+Bioma's operator/admin service clients trusted the repository's public conformance
+fixture key. Distinct installation-owned private keys now replace that trust;
+remote token exchange requires an explicit owner-only signing-key file and key ID.
+Public verification rejects the fixture and cross-client signing while accepting
+each intended client. Human automation grants were withheld until the old access
+window expired. This was required security work, not a build benchmark.
+
+The evidence recorder now validates immutable receipt history once per observation
+and loads one Cargo graph for all requested source scopes. A warm `test-report show`
+comparison fell from 32.863 to 6.583 seconds with about 75 MiB of receipts. Historical
+corruption and unindexed-attempt tests still fail closed. Per-attempt source-manifest
+duplication remains debt: the online-index correction added approximately 144,000
+manifest lines across seven attempts, including preserved failed attempts.
+
+Gateway audit cleanup previously selected unbounded old rows. The new worker selects
+at most 1,024 IDs per kind through its kind/time index, returns only deleted IDs,
+and enforces a two-second query deadline. Its first installed migration revealed a
+separate scale defect: building the index inside the migration transaction exceeded
+the database's 8 GiB limit. Restarts occurred at 08:32:25 and 08:45:17 UTC. Suspending
+the bootstrap client did not establish cancellation of its server-side query. The
+repair prepares the same index with `CONCURRENTLY`, validates its physical definition,
+and waits for durable readiness before recording the unchanged migration checksum.
+The online builder retained progress through the second restart. Final installed
+readiness and cleanup timing must be recorded after it completes.
+
+Two subsequent stages used the canonical image command. Console staging at
+`922b5f3e` took 60.288 seconds, including a 36.219-second compiler window and
+3.940-second export. Shared source changes since the prior BFF image were included,
+so this is not a frontend-only cache benchmark. Gateway staging at `23e4dbaf` took
+71.866 seconds, with a 63.031-second compiler window and 4.127-second export.
+The preceding gateway stage at `43960d1e` took 225.627 seconds; switching from a
+multi-target compiler closure to the gateway-only closure rebuilt shared dependency
+features. Preserve exact target/feature attribution when comparing these runs.

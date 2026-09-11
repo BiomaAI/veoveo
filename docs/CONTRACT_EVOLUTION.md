@@ -306,8 +306,13 @@ stored enum requires compatible readers before admission. Computers now journals
 domain settlement before shared Task projection. The worker integrates those boundaries
 with the native runtime and production retained allocator. Current dispatch authority
 and public action/read projection use the same fresh policy and directory snapshot.
-Durable grants and installed browser/CLI qualification remain active work. Store-backed fixtures exercise
-competing replicas and unchanged existing profiles.
+Durable browser, CLI and named automation grants now have installed public
+observations. Agent execution publishes governed output Artifacts and rejects a
+revoked grant or a different Computer. The current checkpoint in
+[COMPUTERS_PLAN.md](COMPUTERS_PLAN.md) records those observations and their limits.
+General Artifact handoff, agent lifecycle permissions and complete release
+qualification remain work. Store-backed fixtures exercise competing replicas and
+unchanged existing profiles.
 
 The shared evaluator now lives in `platform/policy`. Gateway policy calls delegate to
 that implementation, while background services can validate a revision without importing

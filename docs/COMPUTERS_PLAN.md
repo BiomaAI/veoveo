@@ -6,7 +6,9 @@ contracts for Veoveo and Computers. Core product status and the policy decisions
 implementation sequence and release gates; it does not claim runtime delivery or
 production deployment. Implementation was authorized and set as the active goal on
 2026-09-09. Computers is a Veoveo capability. Bioma supplies one
-installation configuration and the public acceptance destination.
+installation configuration and the public acceptance destination. The current
+checkpoint below supersedes historical statements of unfinished integration in the
+dated delivery observations; the release gates themselves remain in force.
 
 ## Standards And Protocols
 
@@ -29,6 +31,36 @@ The handoff contains additional OpenShell gateway and supervisor fixes. Check cu
 upstream support when selecting the initial profile, prefer qualified upstream fixes,
 and record exact patched artifacts when needed. An unrelated consumer edit retains
 its qualified pins. No dependency or image pin is introduced by this planning change.
+
+## Current Implementation Checkpoint
+
+On September 11, 2026, Veoveo with the Bioma configuration supports the following
+public journeys. These observations do not establish the remaining clean/offline
+installation or full release-closure gates.
+
+| Journey | Observed result |
+|---|---|
+| Retained environment update | Computer `01a08be2-ff09-7ce2-9e4f-21889942151c` changed from `development` to `development-20260910` through its durable maintenance Task; its existing file remained readable |
+| Initial allocation recovery | Computer `01a08bd6-c6b0-7f91-8ffe-ecec949fb25b` reached Ready through explicit maintenance recovery; the original uncertain Create receipt remains historical evidence |
+| Agent execution | A named, fifteen-minute `admin-service` grant admitted a bounded MCP command Task on the recovered Computer; the command wrote a file and ran as UID 10001 |
+| Governed output | The stdout Artifact download returned exactly `PUBLIC_AGENT_EXECUTION_OK\n10001\n`; its immutable occurrence is `01a08f8e-0b95-7092-b698-035799876c4e` |
+| Agent boundaries | Using the grant on the other Computer was denied. The owner revoked the grant, and further execution was denied before a new Task was admitted |
+| Stock CLI continuity | Unmodified OpenShell 0.0.116 paired through public ingress, read the agent-created file, and later reconnected without pairing after a database interruption. Revocation closed the connection and a fresh connection returned HTTP 403 |
+| Browser recovery | The headed RTX 4090 WebGL browser obtained fresh access after the database interruption and read the same retained file |
+| Service authentication | Bioma now trusts distinct installation-owned operator/admin service keys. The repository's public conformance fixture cannot obtain tokens for either installed client; cross-client signing is also denied |
+
+The public long-session check was interrupted by database memory exhaustion during
+an audit-index migration. Its observed CLI lease activity exceeded ten minutes, but
+the interrupted run does not establish an uninterrupted end-to-end renewal bound.
+The focused native expiry and blocked-I/O tests remain the precise bound evidence.
+Migration recovery and a subsequent stable public continuity check are separate work.
+
+The remaining initial-release work includes general Artifact file import/export,
+agent lifecycle permissions, selected-profile backup/key ownership and restore
+acceptance, and clean/offline installation with complete release evidence. The
+current grant form requires the grantee's OAuth registration to admit the Console
+profile. Its new guidance identifies that profile; discovery of eligible clients
+and any explicit cross-profile authority transition remain UX/contract work.
 
 ## Product Decisions
 

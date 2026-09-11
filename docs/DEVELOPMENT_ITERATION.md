@@ -33,9 +33,10 @@ changed. Qualification adds supply-chain attestations after behavior is accepted
 The accepted [contract evolution](CONTRACT_EVOLUTION.md) permits maintained browser
 and SDK harnesses and headless checks for nonvisual behavior. Required visual and GPU
 acceptance retain hardware proof. Dependency upgrades are separately qualified work;
-an ordinary consumer edit may retain its supported pins. Per-check evidence reuse is
-planned in [Continuous Integration](CONTINUOUS_INTEGRATION.md); the current v2 report
-still invalidates at repository scope.
+an ordinary consumer edit may retain its supported pins. The v3 report now supports
+per-check source reuse through owner-reviewed input declarations, as described in
+[Continuous Integration](CONTINUOUS_INTEGRATION.md). Unclassified commands retain a
+conservative repository boundary and cannot claim reusable environment coverage.
 
 Select checks from the changed input closure. Run focused feedback while editing,
 qualify the changed component before deployment, and compose the complete supported
