@@ -8,6 +8,7 @@
 | JSON-RPC 2.0 | MCP request and response envelopes |
 | JSON Schema 2020-12 | bounded tool input schemas with same-document references and composition, plus generated profile/report schemas |
 | OAuth 2.0 protected-resource metadata | unauthenticated Bearer rejection checks selected by the profile |
+| OAuth 2.0 client credentials / RFC 7523 | RS256 private-key client assertions with explicit installation key identity; redirects are rejected |
 | `veoveo.io/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.io/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
 | `veoveo.io/hosted-mcp/v3` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
@@ -77,6 +78,14 @@ contract. The client follows the relative document links published in `llms.txt`
 it does not synthesize document URLs from parsed identifiers.
 
 ## CLI Output
+
+`gateway-token-exchange` accepts `--client-key-file` and `--client-key-id`, also
+read from `VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and `VEOVEO_SERVICE_CLIENT_KEY_ID`.
+The RSA PEM file remains outside repository artifacts and must have owner-only
+permissions on Unix. Remote endpoints require HTTPS and an explicit key. The public
+conformance key is confined to loopback token endpoints. Installations use distinct
+client keys and register their public JWKS through their own configuration.
+Token exchanges have a thirty-second deadline and never follow redirects.
 
 Each CLI command reserves standard output for its requested result. Structured resources
 therefore remain parseable even when the server emits notifications while the command is

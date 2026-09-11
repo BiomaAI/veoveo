@@ -5655,7 +5655,7 @@
       },
       "jwks": {
         "source": "file",
-        "path": "/etc/veoveo/gateway/service-client-jwks.json"
+        "path": "/etc/veoveo/gateway/operator-client-jwks.json"
       },
       "tenant": "bioma"
     },
@@ -5709,7 +5709,7 @@
       },
       "jwks": {
         "source": "file",
-        "path": "/etc/veoveo/gateway/service-client-jwks.json"
+        "path": "/etc/veoveo/gateway/admin-client-jwks.json"
       },
       "tenant": "bioma"
     },

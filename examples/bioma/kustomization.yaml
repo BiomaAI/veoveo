@@ -29,7 +29,8 @@ configMapGenerator:
       - recording-producer-jwks.json
       - recording-hub-jwks.json
       - recording-mcp-publisher-jwks.json
-      - service-client-jwks.json
+      - operator-client-jwks.json
+      - admin-client-jwks.json
       - uav-pilot-jwks.json
   - name: uav-sim-world-binding
     namespace: veoveo

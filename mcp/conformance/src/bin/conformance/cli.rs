@@ -266,6 +266,20 @@ pub(super) enum Cmd {
     },
     /// Exchange a private-key JWT client assertion for a gateway access token.
     GatewayTokenExchange {
+        /// Installation-owned RSA PEM signing key. Public fixture signing is loopback-only.
+        #[arg(
+            long,
+            env = "VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE",
+            requires = "client_key_id"
+        )]
+        client_key_file: Option<PathBuf>,
+        /// Public identifier of the installation-owned client signing key.
+        #[arg(
+            long,
+            env = "VEOVEO_SERVICE_CLIENT_KEY_ID",
+            requires = "client_key_file"
+        )]
+        client_key_id: Option<String>,
         /// Gateway token endpoint URL.
         #[arg(long)]
         token_url: String,

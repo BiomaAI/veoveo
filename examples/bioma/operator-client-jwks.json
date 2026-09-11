@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "bioma-operator-service-20260911",
+      "n": "7JpbJiKXy2Ht6dxaheh-bz6Bu5CYSjqbwt2_pwUPlxp9ToCVPaMX5VzGwxjDRvGD9E4LQiFIeJormA7fZjy2w6-ZBAk3zd6MSOPstBd-HngMTCATlZY522lw_Bn2E36N-Zq2bn0fbMwxC5YOygN5ImQdrkWTzp47L2-tr2OzOr5Rk2dxYj4sefddb9sr49wJ_yJAO9EcZuU6pdPC5vN7lSDoPqrP1z1gv7j0QYo0nc-UJ719yJrxTSdxixHTjhfwqHaeprDYMQ0uJp8DaqEXdH696A9iR6g4c2cK7jei0knX2E8aiym7hR8SSb4k7yJNobKulFo1e-WteQb9t3BrBVIDKxMe6-tXFSRL8QsM37EISzOlS6R3IWerNaS0t6Ngv4ApvYxtsJoamD29FiVReDqpBu9VtJHk2PDqt5cekbyV41ehsS6oqAkCdF_vmPHJasLIT-0SwLkN7TsRdKcpWuWyaIkFJjKgHoDn0mqv7LSY4PBlyOln46t4Bpmp6jA7",
+      "e": "AQAB"
+    }
+  ]
+}
