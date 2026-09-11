@@ -58,6 +58,10 @@ source. Restoration accepts only the allocator's exact source/target receipt and
 does not depend on the deleted provider object. Template preflight allows an image
 change with identical command, static policy, resources and storage sizes. The caller
 must separately qualify image data compatibility before admitting that transition.
+After a lost update ticket or reply, `reconcile_replacement_policy` performs bounded
+authoritative reads only. An unchanged baseline preserves the unknown update outcome.
+Matching additional grants require the original maintenance provenance and Loaded
+revision; coincidentally matching grants from another operation cannot settle it.
 Its `checkpoint` module encodes sensitive policy for immediate journal encryption and
 recovers it without rereading a retired source. It rejects cross-provider, source,
 process, workspace and template identity; unknown or noncanonical encoding also fails.

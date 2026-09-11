@@ -89,6 +89,7 @@ fn config_for(sandbox: &api::Sandbox) -> policy::GetSandboxConfigResponse {
 enum Fault {
     None,
     LostReply,
+    UncertainPending,
     Warning,
     ChangedProcess,
     ChangedSettings,
@@ -245,6 +246,9 @@ impl Fixture {
         assert!(request.setting_value.is_none());
         assert!(request.policy.is_none());
         assert_eq!(request.merge_operations.len(), 1);
+        if self.fault == Fault::UncertainPending {
+            return Err(Status::unavailable(SECRET));
+        }
         for operation in request.merge_operations {
             let api::policy_merge_operation::Operation::AddRule(rule) =
                 operation.operation.unwrap()
@@ -344,6 +348,20 @@ async fn restore(running: &Running, snapshot: &ReplacementPolicy) -> Result<Poli
     running
         .runtime
         .restore_replacement_policy(snapshot, &handoff, &profile(), &profile())
+        .await
+}
+
+async fn reconcile(running: &Running, snapshot: &ReplacementPolicy) -> Result<PolicyRestoration> {
+    edit(running, |f| f.retired = true);
+    running
+        .runtime
+        .reconcile_replacement_policy(
+            snapshot,
+            &fixture_handoff(running, bindings().1, Uuid::from_u128(100)),
+            &profile(),
+            &profile(),
+            Duration::from_secs(10),
+        )
         .await
 }
 
@@ -493,7 +511,7 @@ async fn additive_policy_restores_once_without_spec_settings_home_or_lifecycle_c
     assert_eq!(snapshot.fingerprint(), again.fingerprint());
     let result = restore(&running, &snapshot).await.unwrap();
     assert_eq!(result.policy_version, 2);
-    assert_eq!(result, restore(&running, &snapshot).await.unwrap());
+    assert_eq!(result, reconcile(&running, &snapshot).await.unwrap());
     edit(&running, |f| {
         assert_eq!((f.updates, f.watches), (1, 1));
         assert!(f.old_config.policy == f.new_config.policy);
@@ -630,10 +648,64 @@ async fn lost_mutation_reply_reconciles_the_same_loaded_policy_without_resubmiss
         f.fault = Fault::None;
     });
     assert_eq!(
-        restore(&running, &snapshot).await.unwrap().policy_version,
+        reconcile(&running, &snapshot).await.unwrap().policy_version,
         2
     );
     edit(&running, |f| assert_eq!((f.updates, f.watches), (1, 1)));
+}
+
+#[tokio::test]
+async fn uncertain_pending_update_never_resubmits_from_an_unchanged_baseline() {
+    let running = fixture().await;
+    let snapshot = captured(&running).await;
+    edit(&running, |f| f.fault = Fault::UncertainPending);
+    assert!(restore(&running, &snapshot).await.is_err());
+    for _ in 0..3 {
+        assert!(reconcile(&running, &snapshot).await.is_err());
+    }
+    edit(&running, |f| {
+        assert_eq!((f.updates, f.watches), (1, 1));
+        assert_eq!(f.new_config.version, 1);
+    });
+}
+
+#[tokio::test]
+async fn matching_grants_require_the_original_maintenance_provenance() {
+    let running = fixture().await;
+    let snapshot = captured(&running).await;
+    restore(&running, &snapshot).await.unwrap();
+    for wrong in [None, Some(Uuid::now_v7().to_string())] {
+        edit(&running, |f| {
+            f.annotations.clear();
+            if let Some(wrong) = wrong {
+                f.annotations.insert(PROVENANCE.into(), wrong);
+            }
+        });
+        assert!(reconcile(&running, &snapshot).await.is_err());
+        assert!(restore(&running, &snapshot).await.is_err());
+    }
+    edit(&running, |f| assert_eq!((f.updates, f.watches), (1, 1)));
+}
+
+#[tokio::test]
+async fn reconciliation_with_no_budget_makes_no_provider_call() {
+    let running = fixture().await;
+    let snapshot = captured(&running).await;
+    edit(&running, |f| f.calls.clear());
+    assert!(
+        running
+            .runtime
+            .reconcile_replacement_policy(
+                &snapshot,
+                &fixture_handoff(&running, bindings().1, Uuid::from_u128(100)),
+                &profile(),
+                &profile(),
+                Duration::ZERO,
+            )
+            .await
+            .is_err()
+    );
+    edit(&running, |f| assert!(f.calls.is_empty()));
 }
 
 #[tokio::test]

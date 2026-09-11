@@ -646,6 +646,10 @@ admission. It accepts a known retained run or an exhausted initial Create while
 preserving that Create's unknown outcome and quota. Concurrent replicas, changed-input
 rejection, interrupted Task linking and corrupt metadata are covered by isolated store
 tests. Provider step journals and public update projection remain the next integration.
+Policy-update recovery now has a separate read-only entrypoint. A lost reply with an
+unchanged baseline cannot resubmit the mutation, and matching additional grants must
+carry the original maintenance provenance. The focused transport faults qualify these
+recovery semantics before the worker starts using them.
 
 ## Follow-On Profiles
 
