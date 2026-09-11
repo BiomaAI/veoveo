@@ -93,7 +93,6 @@ enum Fault {
     ChangedProcess,
     ChangedSettings,
     Unloaded,
-    OldRestarted,
     ChangedRules,
 }
 
@@ -108,11 +107,13 @@ pub(super) struct Fixture {
     updates: usize,
     watches: usize,
     calls: Vec<&'static str>,
+    retired: bool,
 }
 impl Fixture {
     fn new() -> Self {
         let (old, new) = bindings();
-        let source = sandbox_for(&old, "sandbox-old", 3);
+        let mut source = sandbox_for(&old, "sandbox-old", 3);
+        source.status.as_mut().unwrap().phase = Phase::Stopped as i32;
         let target = sandbox_for(&new, "sandbox-new", 1);
         let mut old_config = config_for(&source);
         old_config
@@ -133,6 +134,7 @@ impl Fixture {
             updates: 0,
             watches: 0,
             calls: Vec::new(),
+            retired: false,
         }
     }
     fn by_name(&self, name: &str) -> &api::Sandbox {
@@ -146,6 +148,9 @@ impl Fixture {
     pub(super) fn get(&mut self, request: api::GetSandboxRequest) -> Reply<api::SandboxResponse> {
         self.calls.push("get");
         assert_eq!(request.workspace, "computers");
+        if request.name == self.source.metadata.as_ref().unwrap().name && self.retired {
+            panic!("restoration must not read the retired source");
+        }
         Ok(Response::new(api::SandboxResponse {
             sandbox: Some(self.by_name(&request.name).clone()),
         }))
@@ -156,6 +161,7 @@ impl Fixture {
     ) -> Reply<policy::GetSandboxConfigResponse> {
         self.calls.push("config");
         let config = if request.sandbox_id == "sandbox-old" {
+            assert!(!self.retired, "restoration must not read retired settings");
             &self.old_config
         } else {
             assert_eq!(request.sandbox_id, "sandbox-new");
@@ -171,6 +177,10 @@ impl Fixture {
         assert_eq!(request.workspace, "computers");
         assert!(!request.global);
         let old = self.by_name(&request.name).metadata.as_ref().unwrap().id == "sandbox-old";
+        assert!(
+            !old || !self.retired,
+            "restoration must not query retired policy status"
+        );
         let config = if old {
             &self.old_config
         } else {
@@ -261,9 +271,6 @@ impl Fixture {
             Fault::ChangedSettings => {
                 self.new_config.settings.clear();
             }
-            Fault::OldRestarted => {
-                self.source.status.as_mut().unwrap().phase = Phase::Ready as i32;
-            }
             Fault::ChangedRules => {
                 self.new_config
                     .policy
@@ -332,10 +339,140 @@ async fn captured(running: &Running) -> ReplacementPolicy {
     snapshot
 }
 async fn restore(running: &Running, snapshot: &ReplacementPolicy) -> Result<PolicyRestoration> {
+    edit(running, |f| f.retired = true);
+    let handoff = fixture_handoff(running, bindings().1, Uuid::from_u128(100));
     running
         .runtime
-        .restore_replacement_policy(snapshot, &bindings().1, &profile(), Uuid::from_u128(100))
+        .restore_replacement_policy(snapshot, &handoff, &profile(), &profile())
         .await
+}
+
+fn fixture_handoff(running: &Running, target: Binding, operation: Uuid) -> RetainedHandoff {
+    RetainedHandoff::fixture(
+        running.runtime.provider_instance_id(),
+        operation,
+        bindings().0,
+        target,
+        "sandbox-old".into(),
+    )
+}
+
+fn replacement_profile(change: u8) -> DevelopmentTemplate {
+    let spec = profile().spec(bindings().0.computer_id()).unwrap();
+    let mut policy = spec.policy.unwrap();
+    if change == 4 {
+        policy
+            .filesystem
+            .as_mut()
+            .unwrap()
+            .read_only
+            .push("/opt/another".into());
+    }
+    DevelopmentTemplate::new(
+        format!("registry.example/next@sha256:{}", "b".repeat(64)),
+        if change == 1 { 8 } else { 16 },
+        if change == 2 { 32768 } else { 65536 },
+        policy,
+        if change == 5 {
+            PERSISTENT_BUILD_COMMAND
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            spec.command
+        },
+        Some(
+            PersistentHome::new(
+                if change == 3 { 16384 } else { 32768 },
+                if change == 6 { 512 } else { 1024 },
+            )
+            .unwrap(),
+        ),
+    )
+    .unwrap()
+}
+
+#[test]
+fn retained_image_transition_preflight_rejects_resource_policy_command_or_storage_changes() {
+    let source = profile();
+    let target = replacement_profile(0);
+    assert_ne!(source.fingerprint(), target.fingerprint());
+    source.check_replacement_profile(&target).unwrap();
+    target.check_replacement_profile(&source).unwrap();
+    for change in 1..=6 {
+        assert!(
+            source
+                .check_replacement_profile(&replacement_profile(change))
+                .is_err()
+        );
+    }
+    assert!(
+        template(false)
+            .check_replacement_profile(&template(false))
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn retired_source_policy_restores_onto_an_image_change_only_with_exact_handoff() {
+    let running = fixture().await;
+    let snapshot = captured(&running).await;
+    let target_profile = replacement_profile(0);
+    let target = Binding::replacement(
+        bindings().0.computer_id(),
+        Uuid::from_u128(10),
+        target_profile.fingerprint(),
+    )
+    .unwrap();
+    edit(&running, |f| {
+        f.retired = true;
+        f.target.metadata.as_mut().unwrap().labels = target.labels();
+        f.target.spec = Some(target_profile.bound_spec(&target).unwrap());
+        f.calls.clear();
+    });
+    for fault in 0..3 {
+        let receipt = RetainedHandoff::fixture(
+            if fault == 0 {
+                Uuid::now_v7()
+            } else {
+                running.runtime.provider_instance_id()
+            },
+            Uuid::now_v7(),
+            if fault == 1 {
+                target.clone()
+            } else {
+                bindings().0
+            },
+            target.clone(),
+            if fault == 2 {
+                "different-source".into()
+            } else {
+                "sandbox-old".into()
+            },
+        );
+        assert!(
+            running
+                .runtime
+                .restore_replacement_policy(&snapshot, &receipt, &profile(), &target_profile)
+                .await
+                .is_err()
+        );
+    }
+    edit(&running, |f| assert!(f.calls.is_empty()));
+    let receipt = fixture_handoff(&running, target, Uuid::now_v7());
+    assert_eq!(
+        running
+            .runtime
+            .restore_replacement_policy(&snapshot, &receipt, &profile(), &target_profile)
+            .await
+            .unwrap()
+            .policy_version,
+        2
+    );
+    edit(&running, |f| {
+        assert!(f.new_config.policy == f.old_config.policy);
+        assert!(f.new_config.settings == f.old_config.settings);
+    });
 }
 
 #[tokio::test]
@@ -467,14 +604,15 @@ async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_proces
     );
     assert!(
         different_provider
-            .restore_replacement_policy(&snapshot, &bindings().1, &profile(), Uuid::now_v7())
+            .restore_replacement_policy(
+                &snapshot,
+                &fixture_handoff(&running, bindings().1, Uuid::now_v7()),
+                &profile(),
+                &profile()
+            )
             .await
             .is_err()
     );
-    edit(&running, |f| {
-        f.source.status.as_mut().unwrap().main_process_instance_id = "later-source-run".into();
-    });
-    assert!(restore(&running, &snapshot).await.is_err());
     edit(&running, |f| assert_eq!(f.updates, 0));
 }
 
@@ -499,13 +637,12 @@ async fn lost_mutation_reply_reconciles_the_same_loaded_policy_without_resubmiss
 }
 
 #[tokio::test]
-async fn unconfirmed_watch_load_process_configuration_or_old_stop_fails_closed() {
+async fn unconfirmed_target_watch_load_process_or_configuration_fails_closed() {
     for fault in [
         Fault::Warning,
         Fault::ChangedProcess,
         Fault::ChangedSettings,
         Fault::Unloaded,
-        Fault::OldRestarted,
         Fault::ChangedRules,
     ] {
         let running = fixture().await;
@@ -524,18 +661,37 @@ async fn unconfirmed_watch_load_process_configuration_or_old_stop_fails_closed()
 }
 
 #[tokio::test]
-async fn running_original_or_changed_source_never_mutates_the_candidate() {
-    for change in 0..3 {
+async fn capture_requires_a_stopped_source_with_an_exact_run() {
+    for phase in [Phase::Ready, Phase::Starting, Phase::Stopping] {
         let running = fixture().await;
-        let snapshot = captured(&running).await;
-        edit(&running, |f| match change {
-            0 => f.source.status.as_mut().unwrap().phase = Phase::Ready as i32,
-            1 => f.old_config.config_revision += 1,
-            _ => f.source.metadata.as_mut().unwrap().id = "changed-source".into(),
+        edit(&running, |f| {
+            f.source.status.as_mut().unwrap().phase = phase as i32
         });
-        assert!(restore(&running, &snapshot).await.is_err());
+        assert!(
+            running
+                .runtime
+                .capture_replacement_policy(&bindings().0, &profile())
+                .await
+                .is_err()
+        );
         edit(&running, |f| assert_eq!((f.updates, f.watches), (0, 0)));
     }
+    let running = fixture().await;
+    edit(&running, |f| {
+        f.source
+            .status
+            .as_mut()
+            .unwrap()
+            .main_process_instance_id
+            .clear()
+    });
+    assert!(
+        running
+            .runtime
+            .capture_replacement_policy(&bindings().0, &profile())
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -564,7 +720,12 @@ async fn wrong_instance_owner_template_or_operation_never_dispatches_a_write() {
         assert!(
             running
                 .runtime
-                .restore_replacement_policy(&snapshot, &binding, &profile(), operation)
+                .restore_replacement_policy(
+                    &snapshot,
+                    &fixture_handoff(&running, binding, operation),
+                    &profile(),
+                    &profile()
+                )
                 .await
                 .is_err()
         );

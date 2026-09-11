@@ -86,7 +86,7 @@ impl OpenShellRuntime {
             || message.process_id != expected.main_process_instance_id
             || !identifier(&message.resource_id)
             || !identifier(&message.process_id)
-            || !matches!(expected.phase, Phase::Ready | Phase::Stopped)
+            || expected.phase != Phase::Stopped
         {
             return Err(FAILURE);
         }

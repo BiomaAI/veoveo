@@ -202,6 +202,21 @@ impl DevelopmentTemplate {
         )
         .is_ok()
     }
+    /// Preflight for the selected retained replacement profile. Only the image
+    /// may change; commands, policy, resources and storage sizes remain exact.
+    /// This validates declared inputs, not the image's on-disk compatibility.
+    pub fn check_replacement_profile(&self, target: &Self) -> Result<()> {
+        if self.persistent_home.is_none() || self.persistent_home != target.persistent_home {
+            return Err(RuntimeFailure::PolicyContinuity);
+        }
+        let mut source = self.base_spec();
+        let destination = target.base_spec();
+        source.template.as_mut().expect("canonical template").image = target.image.clone();
+        if source != destination {
+            return Err(RuntimeFailure::PolicyContinuity);
+        }
+        Ok(())
+    }
     fn base_spec(&self) -> api::SandboxSpec {
         api::SandboxSpec {
             log_level: "warn".into(),

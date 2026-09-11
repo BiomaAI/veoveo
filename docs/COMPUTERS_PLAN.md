@@ -631,6 +631,15 @@ opaque provider encoding remains outside the domain model. Rotation preserves pe
 work when its key is retained; neither the plaintext nor the envelope implements
 Debug. Durable maintenance journal integration remains the next delivery step.
 
+Post-retirement restoration now consumes the allocator's authenticated handoff receipt.
+Capture requires a stopped source; restoration needs no surviving source object.
+Declared template preflight admits an image change only when resources, home sizes,
+command and static policy match. The native command fixture passed encrypted checkpoint
+recovery, actual source deletion, physical handoff, loaded HTTP-grant restoration,
+an exact restoration retry and retained file checks in 84.89 seconds. The fixture's
+encrypted file is not a product maintenance journal. Durable admission, transitions,
+template-image qualification and installed adoption remain required.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |
