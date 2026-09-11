@@ -3453,3 +3453,11 @@ worker observes native watch notifications and does not add status polling. That
 cadence contributes to live policy-update and replacement qualification time. A future
 provider experiment can measure a notification-driven refresh or shorter admitted
 interval; it does not justify another provider rebuild during this delivery step.
+
+Maintenance admission reused the isolated store fixture: three real-store cases passed
+in 2.14 seconds with a warm 0.44-second compile. A concurrent exact request exposed
+a lookup race and now resolves the committed target before interpreting its fence.
+The Task-repair fault must remove both parts of the fixture's atomic Task/idempotency
+transaction; deleting only the Task incorrectly modeled a corrupt database. The scoped
+check hashes 524 files and needs no provider or image rebuild. Migration catalog and
+affected domain lint/format checks passed. Installed maintenance remains pending.
