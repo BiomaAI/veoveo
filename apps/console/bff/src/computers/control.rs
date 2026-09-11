@@ -159,6 +159,12 @@ fn upstream_path(
             .flatten();
     }
     if let Some(operation) = operation_id {
+        if matched == "/console/api/computers/{id}/files/{operation_id}" {
+            return id.map(|id| format!("/{id}/files/{operation}"));
+        }
+        if matched == "/console/api/computers/{id}/files/{operation_id}/cancel" {
+            return id.map(|id| format!("/{id}/files/{operation}/cancel"));
+        }
         if matched == "/console/api/computers/{id}/maintenance/{operation_id}/resume" {
             return id.map(|id| format!("/{id}/maintenance/{operation}/resume"));
         }
@@ -172,6 +178,7 @@ fn upstream_path(
     match (matched, id) {
         ("/console/api/computers", None) => Some(String::new()),
         ("/console/api/computers/{id}", Some(id)) => Some(format!("/{id}")),
+        ("/console/api/computers/{id}/files", Some(id)) => Some(format!("/{id}/files")),
         ("/console/api/computers/{id}/maintenance", Some(id)) => Some(format!("/{id}/maintenance")),
         ("/console/api/computers/{id}/update-template", Some(id)) => {
             Some(format!("/{id}/update-template"))
@@ -187,5 +194,60 @@ fn upstream_path(
             Some(format!("/{id}/terminal-ticket"))
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_paths_use_only_fixed_parent_and_task_routes() {
+        let computer = Uuid::now_v7();
+        let task = Uuid::now_v7();
+        for (route, expected, operation) in [
+            (
+                "/console/api/computers/{id}/files",
+                format!("/{computer}/files"),
+                None,
+            ),
+            (
+                "/console/api/computers/{id}/files/{operation_id}",
+                format!("/{computer}/files/{task}"),
+                Some(task),
+            ),
+            (
+                "/console/api/computers/{id}/files/{operation_id}/cancel",
+                format!("/{computer}/files/{task}/cancel"),
+                Some(task),
+            ),
+        ] {
+            assert_eq!(
+                upstream_path(route, Some(computer), operation, None, None),
+                Some(expected)
+            );
+            assert!(upstream_path(route, None, operation, None, None).is_none());
+            assert!(upstream_path(route, Some(Uuid::nil()), operation, None, None).is_none());
+        }
+        assert!(
+            upstream_path(
+                "/console/api/computers/{id}/files/{operation_id}/bytes",
+                Some(computer),
+                Some(task),
+                None,
+                None
+            )
+            .is_none()
+        );
+        assert!(
+            upstream_path(
+                "/console/api/computers/{id}/files/{operation_id}",
+                Some(computer),
+                Some(task),
+                Some(task),
+                None
+            )
+            .is_none()
+        );
     }
 }

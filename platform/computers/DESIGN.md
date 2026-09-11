@@ -823,3 +823,11 @@ execution slot. A retained maintenance fence is busy even when its initial Creat
 an unresolved outcome. Eligibility grants no ticket; admission still atomically checks
 the source, slot, current policy and replacement identity. `ControlAuthority` projects
 update permission with the same named tool policy and a five-second freshness bound.
+
+### Public File Authority
+
+`files/access.rs` selects only journal metadata before authorizing a public Task.
+The current direct owner can observe with Read and cancel with Stop policy. The original
+agent principal and OAuth client require the current named Execute grant and file tool
+policy. Result labels must still fit the caller. These short permits bind the Computer,
+transfer and stored Task owner; the service enforces their deadline during projection.

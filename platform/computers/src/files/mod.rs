@@ -1,4 +1,5 @@
 //! Governed file work shares Computer identity and the exclusive execution slot.
+mod access;
 mod admission;
 mod artifact_access;
 mod authority;
@@ -13,6 +14,7 @@ mod preparation;
 mod settlement;
 mod tasks;
 use crate::api::FileTransferStage;
+pub use access::{FileTaskAccess, FileTaskAction};
 pub use artifact_access::{
     FILE_PREPARATION_SECONDS, FILE_PUBLICATION_SECONDS, FileCapabilityRequest,
 };

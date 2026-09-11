@@ -10,6 +10,7 @@ pub const COMPUTER_TEMPLATE: &str = "computer://computers/{computer_id}";
 pub const ACCESS_TEMPLATE: &str = "computer://computers/{computer_id}/access";
 pub const MAINTENANCE_TEMPLATE: &str = "computer://computers/{computer_id}/maintenance";
 pub const EXECUTION_TEMPLATE: &str = "computer://executions/{execution_id}";
+pub const TRANSFER_TEMPLATE: &str = "computer://transfers/{transfer_id}";
 pub const AUTOMATION_TEMPLATE: &str = "computer://computers/{computer_id}/automation";
 pub const GRANT_TEMPLATE: &str = "computer://computers/{computer_id}/automation/{grant_id}";
 pub const PAGE_TEMPLATE: &str = "computer://computers?after={after}";
@@ -24,6 +25,7 @@ pub enum ResourceId<'a> {
     Access(Uuid),
     Maintenance(Uuid),
     Execution(Uuid),
+    Transfer(Uuid),
     Automation(Uuid),
     Grant(Uuid, Uuid),
     Docs,
@@ -36,6 +38,11 @@ pub fn parse(uri: &str) -> Option<ResourceId<'_>> {
         "computer://docs" => Some(ResourceId::Docs),
         "computer://contract" => Some(ResourceId::Contract),
         _ => {
+            if uri.starts_with("computer://transfers/") {
+                return veoveo_computers::api::FileTransferResultUri::try_from(uri.to_owned())
+                    .ok()
+                    .map(|uri| ResourceId::Transfer(uri.transfer_id()));
+            }
             if uri.starts_with("computer://executions/") {
                 return veoveo_computers::api::ExecutionResultUri::try_from(uri.to_owned())
                     .ok()
@@ -101,6 +108,11 @@ pub fn roots() -> Vec<Resource> {
 pub fn templates() -> Vec<ResourceTemplate> {
     [
         (COMPUTER_TEMPLATE, "computer", "One private Computer"),
+        (
+            TRANSFER_TEMPLATE,
+            "file-transfer-result",
+            "Verified file transfer and governed Artifact reference",
+        ),
         (
             MAINTENANCE_TEMPLATE,
             "computer-maintenance",
@@ -241,6 +253,14 @@ impl ComputersMcp {
                     .await
                     .map_err(|_| auth::forbidden())??
             }
+            ResourceId::Transfer(id) => json(
+                uri,
+                &self
+                    .app
+                    .file_result(&actor, id)
+                    .await
+                    .map_err(super::read_error)?,
+            )?,
             ResourceId::Automation(id) => json(
                 uri,
                 &self

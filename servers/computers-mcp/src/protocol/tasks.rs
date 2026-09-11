@@ -26,6 +26,12 @@ enum ExecutionOutputSchema {
 }
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
+enum FileOutputSchema {
+    Completed(FileTransferResult),
+    Rejected(ApiError),
+}
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
 enum MaintenanceOutputSchema {
     Completed(MaintenanceResult),
     Rejected(ApiError),
@@ -51,6 +57,10 @@ pub fn tools() -> Vec<Tool> {
     };
     vec![
         create,
+        Tool::new("transfer_file", "Import one governed Artifact into a new retained-home file, or export one regular file to an Artifact. Paths are relative to the retained home. Imports never overwrite or extract archives. Reuse requestId with identical input after a lost reply. The owner omits grantId; an agent requires its Execute grant. Cancellation of active work may stop the Computer. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<TransferFileInput>())
+            .with_title("Transfer Computer file")
+            .with_output_schema::<FileOutputSchema>()
+            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
         Tool::new("resume_update", "Resume the existing paused environment update under current recovery policy. Use its exact updatedAt and explicitly acknowledge any pendingCancellationAt. Keep requestId and all inputs on retries. This retains the home and original dispatch identities; it does not replay an uncertain mutation. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<ResumeUpdateInput>())
             .with_title("Resume environment update")
             .with_output_schema::<MaintenanceOutputSchema>()
@@ -139,7 +149,7 @@ impl ComputersMcp {
             "create" => Some(Action::Create),
             "start" => Some(Action::Start),
             "stop" => Some(Action::Stop),
-            "execute" | "update_template" | "resume_update" => None,
+            "execute" | "transfer_file" | "update_template" | "resume_update" => None,
             _ => return Err(ErrorData::invalid_params("unknown Computer tool", None)),
         };
         // Capability admission precedes domain reservation and Task creation.
@@ -183,6 +193,15 @@ impl ComputersMcp {
                     .await
             };
             match result {
+                Ok(operation) => operation.task_id().to_string(),
+                Err(error) => return rejection(error),
+            }
+        } else if request.name == "transfer_file" {
+            match self
+                .app
+                .transfer_file(&auth::caller(&context)?, input(request.arguments)?)
+                .await
+            {
                 Ok(operation) => operation.task_id().to_string(),
                 Err(error) => return rejection(error),
             }

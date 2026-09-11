@@ -117,15 +117,52 @@ pub enum FileTransferStage {
     Cancelled,
 }
 
+/// Canonical address for one completed file transfer; it is not an access credential.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct FileTransferResultUri(Uuid);
+impl FileTransferResultUri {
+    pub fn new(transfer_id: Uuid) -> Result<Self, &'static str> {
+        if transfer_id.get_version_num() != 7 {
+            return Err("invalid Computer file transfer result URI");
+        }
+        Ok(Self(transfer_id))
+    }
+    pub fn transfer_id(self) -> Uuid {
+        self.0
+    }
+}
+impl From<FileTransferResultUri> for String {
+    fn from(uri: FileTransferResultUri) -> Self {
+        format!("computer://transfers/{}", uri.0)
+    }
+}
+impl TryFrom<String> for FileTransferResultUri {
+    type Error = &'static str;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let invalid = "invalid Computer file transfer result URI";
+        let id = value.strip_prefix("computer://transfers/").ok_or(invalid)?;
+        let id = Uuid::parse_str(id).map_err(|_| invalid)?;
+        let uri = Self::new(id)?;
+        if String::from(uri) != value {
+            return Err(invalid);
+        }
+        Ok(uri)
+    }
+}
+
 /// Metadata only. Artifact reads remain governed by the Artifact service.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FileTransferResult {
     #[serde(rename = "result_uri")]
-    #[schemars(regex(
-        pattern = "^computer://transfers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    ))]
-    pub result_uri: String,
+    #[schemars(
+        with = "String",
+        regex(
+            pattern = "^computer://transfers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        )
+    )]
+    pub result_uri: FileTransferResultUri,
     pub computer_id: Uuid,
     pub transfer_id: Uuid,
     pub direction: FileTransferDirection,
@@ -136,13 +173,57 @@ pub struct FileTransferResult {
     pub sha256: String,
 }
 
-pub fn file_transfer_uri(id: Uuid) -> String {
-    format!("computer://transfers/{id}")
+/// Native Console projection of the same durable Task used by MCP callers.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FileTransferView {
+    pub task_id: Uuid,
+    pub computer_id: Uuid,
+    pub direction: FileTransferDirection,
+    pub stage: FileTransferStage,
+    #[schemars(length(max = 4096))]
+    pub message: Option<String>,
+    pub cancellation_requested_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub can_cancel: bool,
+    pub result: Option<FileTransferResult>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
 }
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CancelFileTransferBody {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn result_uri_accepts_only_the_exact_uuidv7_address() {
+        let id = Uuid::now_v7();
+        let uri = format!("computer://transfers/{id}");
+        assert_eq!(
+            FileTransferResultUri::try_from(uri.clone())
+                .unwrap()
+                .transfer_id(),
+            id
+        );
+        for invalid in [
+            uri.to_uppercase(),
+            format!("{uri}/"),
+            format!("{uri}?token=secret"),
+            format!("computer://transfers/{}", id.simple()),
+            format!("computer://transfers/{}", Uuid::nil()),
+            "computer://transfers/00000000-0000-4000-8000-000000000001".into(),
+        ] {
+            assert!(FileTransferResultUri::try_from(invalid).is_err());
+        }
+        assert_eq!(
+            serde_json::to_value(FileTransferResultUri::new(id).unwrap()).unwrap(),
+            uri
+        );
+    }
 
     #[test]
     fn paths_reject_traversal_and_preserve_unicode_without_normalization() {

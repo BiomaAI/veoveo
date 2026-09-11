@@ -12,6 +12,11 @@ export type AccessGrantKind = "browser" | "cli";
 export type AutomationPermission = "read" | "execute" | "start" | "stop";
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "CancelFileTransferBody".
+ */
+export type CancelFileTransferBody = Record<string, never>;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "CliPairingConfirmBody".
  */
 export type CliPairingConfirmBody = Record<string, never>;
@@ -225,6 +230,7 @@ export interface ComputersApi {
   automation_grant: AutomationGrantView;
   automation_grant_result: AutomationGrantResult;
   automation_grants: AutomationGrantCollection;
+  cancel_file_transfer_body: CancelFileTransferBody;
   cli_pairing_challenge: CliPairingChallenge;
   cli_pairing_confirm_body: CliPairingConfirmBody;
   cli_pairing_input: CliPairingInput;
@@ -237,6 +243,7 @@ export interface ComputersApi {
   execution_result: ExecutionResult;
   file_transfer_result: FileTransferResult;
   file_transfer_stage: FileTransferStage;
+  file_transfer_view: FileTransferView;
   issue_automation_grant: IssueAutomationGrantInput;
   lifecycle_input: LifecycleInput;
   lifecycle_result: LifecycleResult;
@@ -521,6 +528,25 @@ export interface FileTransferResult {
   result_uri: string;
   sha256: string;
   transferId: string;
+}
+/**
+ * Native Console projection of the same durable Task used by MCP callers.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "FileTransferView".
+ */
+export interface FileTransferView {
+  canCancel: boolean;
+  cancellationRequestedAt?: string | null;
+  completedAt?: string | null;
+  computerId: string;
+  createdAt: string;
+  direction: FileTransferDirection;
+  message?: string | null;
+  result?: FileTransferResult | null;
+  stage: FileTransferStage;
+  taskId: string;
+  updatedAt: string;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema

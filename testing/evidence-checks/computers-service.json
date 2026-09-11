@@ -244,6 +244,82 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computers-mcp",
+        "--test",
+        "http",
+        "--test",
+        "application"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers-mcp"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "platform/computers/storage/tests",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway",
+        "computers::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-gateway"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "platform/computers/storage/tests",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-console-bff",
+        "--bin",
+        "console-bff",
+        "computers::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-console-bff"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "platform/computers/storage/tests",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

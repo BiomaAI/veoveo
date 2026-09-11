@@ -372,6 +372,8 @@ struct SchemaBundle {
     transfer_file_input: TransferFileInput,
     file_transfer_result: FileTransferResult,
     file_transfer_stage: FileTransferStage,
+    file_transfer_view: FileTransferView,
+    cancel_file_transfer_body: CancelFileTransferBody,
     issue_automation_grant: IssueAutomationGrantInput,
     automation_grant: AutomationGrantView,
     automation_grants: AutomationGrantCollection,

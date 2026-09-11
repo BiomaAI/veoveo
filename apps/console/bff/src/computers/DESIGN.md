@@ -104,3 +104,8 @@ request ID; the BFF never automatically repeats a mutation.
 POST `/maintenance/{operation_id}/resume` uses the same cookie/CSRF boundary and fixed
 Computer/Task route. The BFF forwards the saved recovery request without interpreting
 its cancellation consent or creating a new request identity.
+
+The fixed `/files` child admits metadata-only transfers. Its Task child supports status
+reads and an empty-body `/cancel` POST. Both mutations retain the existing cookie and
+CSRF boundary. The proxy accepts no file bytes, arbitrary task paths or destination
+URLs. Public Artifact uploads and downloads continue through their existing transport.

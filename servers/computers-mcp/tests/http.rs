@@ -10,6 +10,8 @@ mod command_admission;
 mod command_support;
 #[path = "support/command_tasks.rs"]
 mod command_tasks;
+#[path = "support/file_projection.rs"]
+mod file_projection;
 #[path = "support/maintenance.rs"]
 mod maintenance;
 #[path = "../../../platform/computers/tests/support/mod.rs"]

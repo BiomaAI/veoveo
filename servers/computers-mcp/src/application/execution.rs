@@ -13,9 +13,9 @@ use veoveo_mcp_contract::PlaneCaller;
 use zeroize::Zeroizing;
 
 pub(super) struct ExecutionSupport {
-    keys: Arc<ComputerKeyRing>,
-    artifacts: HttpArtifactPlane,
-    templates: BTreeSet<String>,
+    pub(super) keys: Arc<ComputerKeyRing>,
+    pub(super) artifacts: HttpArtifactPlane,
+    pub(super) templates: BTreeSet<String>,
 }
 
 impl Application {
