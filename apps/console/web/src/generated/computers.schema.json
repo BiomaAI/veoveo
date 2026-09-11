@@ -1099,6 +1099,42 @@
       ],
       "type": "object"
     },
+    "ResumeUpdateInput": {
+      "additionalProperties": false,
+      "description": "A new, explicit recovery intent for the exact paused operation epoch.",
+      "properties": {
+        "acknowledgedCancellationAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "expectedUpdatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "taskId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "taskId",
+        "requestId",
+        "expectedUpdatedAt"
+      ],
+      "type": "object"
+    },
     "RevokeAccessBody": {
       "additionalProperties": false,
       "type": "object"
@@ -1510,6 +1546,9 @@
     "receipt": {
       "$ref": "#/$defs/OperationReceipt"
     },
+    "resume_update_input": {
+      "$ref": "#/$defs/ResumeUpdateInput"
+    },
     "revoke_access_body": {
       "$ref": "#/$defs/RevokeAccessBody"
     },
@@ -1583,6 +1622,7 @@
     "maintenance_state",
     "maintenance_view",
     "update_template_input",
+    "resume_update_input",
     "operation",
     "create_input",
     "start_input",

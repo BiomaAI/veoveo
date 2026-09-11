@@ -11,7 +11,7 @@
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
-| Veoveo private retained maintenance | Migrations 0069–0070; immutable source/target, shared `provider_wait` Task, exclusive Computer fence, bounded step journal and protected checkpoint; private provider worker and public service projection share this journal |
+| Veoveo private retained maintenance | Migrations 0069–0071; immutable source/target, shared `provider_wait` Task, exclusive Computer fence, bounded step journal, explicit resumption receipts and protected checkpoint; private provider worker and public service projection share this journal |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
 | Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
@@ -350,8 +350,33 @@ idempotent allocator operation with the same complete identity. Exhaustion prese
 the Computer fence and marks recovery required. Policy loss and cancellation after a
 dispatch also preserve the journal. Cancellation before the first dispatch releases
 the new fence; an unresolved initial Create regains its original fence and unknown
-outcome. Operator resumption remains a separate integration requirement and cannot
-reset an uncertain dispatch through ordinary request retry.
+outcome. Ordinary request retries never reset an uncertain dispatch or its budget.
+
+`resume_maintenance` requires private Computer ownership and current `resume_update`
+policy. The original `update_template` authority continues to govern every subsequent
+dispatch. A recovery request names the existing Task and exact paused update timestamp.
+Its immutable receipt archives the previous progress and current actor/decision. One
+transaction reopens a finite observation window on the last step, retains its dispatch
+identity and evidence, and resumes the shared Task. A pending cancellation requires
+its exact timestamp as explicit acknowledgement. Concurrent cancellation rejects the
+commit; a later cancellation again prevents dispatch. A request retry returns current
+progress without reopening a window or withdrawing a newer cancellation.
+
+Resumption preserves the Computer fence, original source and replacement, quota and
+encrypted checkpoint. An unfinished step admits observation only. A completed final
+step resumes target verification without repeating Restore. Missing checkpoint keys
+still require repair before the worker can proceed. No operator permission authorizes
+discarding an unresolved effect. The domain permits only the owning principal under
+installation-selected recovery policy; installation administration does not create
+cross-owner read or recovery access.
+
+Migration 0071 adds each step's observation-window start and private resumption receipts.
+Drain older Computers readers and workers before applying it: their closed step decoder
+cannot read the new field. The backfill copies original dispatch time and preserves
+deadlines, charged reads and dispatch evidence. Keep this schema and compatible workers
+during template rollback. The isolated migration test reconstructs a pre-0071 step and
+proves exact preservation after the migration. Public recovery actions and native
+resumption qualification remain separate delivery work.
 
 Capture settlement creates its encrypted checkpoint in the same transaction as the
 step receipt. The worker must reopen and validate that checkpoint before retirement.

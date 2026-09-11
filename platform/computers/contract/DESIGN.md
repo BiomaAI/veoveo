@@ -103,3 +103,10 @@ retains its Task identity and explicit progress/recovery phase. A saved target n
 changes because a default changes. These types accept no image, fingerprint, owner or
 provider selector. Cancellation and exhausted recovery do not imply source retirement
 or release of retained capacity.
+
+`ResumeUpdateInput` names the existing Computer/Task, a fresh request ID and the exact
+paused `updatedAt`. A pending cancellation requires its timestamp in
+`acknowledgedCancellationAt`. This input selects no new target or provider identity.
+The same request cannot renew a recovery budget twice. Defining the generated input
+does not advertise an endpoint; service and Console recovery projection follows the
+qualified domain journal.

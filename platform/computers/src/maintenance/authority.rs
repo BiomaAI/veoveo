@@ -14,6 +14,12 @@ pub(crate) fn target() -> PolicyTarget {
         tool: LocalToolName::new("update_template").expect("static tool"),
     }
 }
+pub(crate) fn resume_target() -> PolicyTarget {
+    PolicyTarget::Tool {
+        server: ServerSlug::new("computers").expect("static server"),
+        tool: LocalToolName::new("resume_update").expect("static tool"),
+    }
+}
 impl ComputersStore {
     /// Accepted maintenance outlives its admission token. Each new step still
     /// requires current directory, Work Context and named action policy.
@@ -62,6 +68,14 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
     ) -> Result<AuthoritySnapshot> {
+        self.maintenance_request_authority(actor, &target()).await
+    }
+
+    pub(super) async fn maintenance_request_authority(
+        &self,
+        actor: &ComputerActor,
+        target: &PolicyTarget,
+    ) -> Result<AuthoritySnapshot> {
         actor.check_admission()?;
         let snapshot = tokio::time::timeout(Duration::from_secs(5), async {
             let snapshot = self.read_authority(actor.accepted()).await?;
@@ -73,7 +87,7 @@ impl ComputersStore {
                 || snapshot
                     .decision(
                         GatewayAction::ToolsCall,
-                        &target(),
+                        target,
                         &TraceId::new(Uuid::now_v7().to_string()).expect("UUID trace"),
                     )
                     .effect

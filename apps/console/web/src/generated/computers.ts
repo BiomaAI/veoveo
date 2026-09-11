@@ -202,6 +202,7 @@ export interface ComputersApi {
   maintenance_view: MaintenanceView;
   operation: OperationView;
   receipt: OperationReceipt;
+  resume_update_input: ResumeUpdateInput;
   revoke_access_body: RevokeAccessBody;
   revoke_access_input: RevokeAccessInput;
   revoke_automation_grant: RevokeAutomationGrantInput;
@@ -577,6 +578,19 @@ export interface OperationReceipt {
   action: Action;
   computerId: string;
   status: OperationStatus;
+  taskId: string;
+}
+/**
+ * A new, explicit recovery intent for the exact paused operation epoch.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ResumeUpdateInput".
+ */
+export interface ResumeUpdateInput {
+  acknowledgedCancellationAt?: string | null;
+  computerId: string;
+  expectedUpdatedAt: string;
+  requestId: string;
   taskId: string;
 }
 /**

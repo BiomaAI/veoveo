@@ -26,7 +26,9 @@ async fn adoption_ticket(
     };
     ticket
 }
-async fn queued(db: &TestDb) -> (ComputersStore, ComputersStore, TaskRuntime, ClaimedTask) {
+pub(super) async fn queued(
+    db: &TestDb,
+) -> (ComputersStore, ComputersStore, TaskRuntime, ClaimedTask) {
     let (a, b, actor, id) = ready(db).await;
     let operation = a
         .queue_maintenance(&actor, id, Uuid::now_v7(), &target())
@@ -56,7 +58,7 @@ fn stopped(operation: &veoveo_computers::maintenance::MaintenanceOperation) -> E
 #[tokio::test]
 async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance() {
     let db = TestDb::new().await;
-    let (a, b, tasks, claim) = queued(&db).await;
+    let (a, b, tasks, mut claim) = queued(&db).await;
     let operation = a.maintenance_for_claim(&claim).await.unwrap();
     let before = a
         .get(&operation.actor, operation.computer_id)
@@ -146,6 +148,25 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
         a.maintenance_for_claim(&claim).await.unwrap().stage,
         MaintenanceStage::Adopting
     );
+    let previous = a.maintenance_for_claim(&claim).await.unwrap();
+    let paused = a
+        .pause_maintenance(&claim, MaintenanceRecovery::BudgetExhausted)
+        .await
+        .unwrap();
+    tasks.release_observation(&claim).await.unwrap();
+    let actor = support::authenticated(&paused.actor);
+    let input = super::resume::input(&paused);
+    let resumed = b.resume_maintenance(&actor, &input).await.unwrap();
+    assert_eq!(resumed.stage, MaintenanceStage::Adopting);
+    for (before, after) in previous.steps().iter().zip(resumed.steps()) {
+        assert_eq!(before.dispatch_id, after.dispatch_id);
+        assert_eq!(before.evidence, after.evidence);
+        assert_eq!(before.settled_at, after.settled_at);
+    }
+    claim = tasks
+        .claim_observation(&resumed.task_id().to_string(), Duration::from_secs(60))
+        .await
+        .unwrap();
     let complete = b
         .adopt_maintenance(&claim, adoption_ticket(&a, &claim).await)
         .await
@@ -384,7 +405,7 @@ async fn exhausted_step_budget_retains_the_fence_and_cannot_cancel_or_redispatch
     let operation = ticket.operation().clone();
     drop(ticket);
     // Isolated journal clock fault: preserve a valid 180-second historical window.
-    db.a.client().query("LET $now = time::now(); UPDATE ONLY $operation SET progress.steps[0].dispatched_at = <string>($now - 181s), progress.steps[0].observation_deadline = <string>($now - 1s);")
+    db.a.client().query("LET $now = time::now(); UPDATE ONLY $operation SET progress.steps[0].dispatched_at = <string>($now - 181s), progress.steps[0].observation_started_at = <string>($now - 181s), progress.steps[0].observation_deadline = <string>($now - 1s);")
         .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(operation.operation_id))))
         .await.unwrap().check().unwrap();
     assert!(matches!(

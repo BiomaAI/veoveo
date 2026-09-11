@@ -860,3 +860,11 @@ routes. Saved scope-specific requests retain their selected template across relo
 lost replies. Current collection invalidations refresh progress, and recovery has an
 explicit explanation. This code path still needs headed public acceptance together with
 the qualified image transition and operator resumption before deployment is complete.
+
+Explicit recovery now has a shared Task transaction and a private maintenance command.
+The authorized owner acknowledges the exact paused epoch and any pending cancellation.
+The journal archives each prior finite window and preserves dispatch/replacement identity;
+same-request retries cannot reset a budget or withdraw a newer cancellation. Migration
+0071 requires drained older Computers readers. Isolated tests cover migration, current
+policy, request races, cancellation and final verification resumption. Public recovery
+projection, native provider resumption and deployed acceptance remain required.

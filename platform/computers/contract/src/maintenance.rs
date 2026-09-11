@@ -15,6 +15,17 @@ pub struct UpdateTemplateInput {
     pub template_id: Option<String>,
 }
 
+/// A new, explicit recovery intent for the exact paused operation epoch.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResumeUpdateInput {
+    pub computer_id: Uuid,
+    pub task_id: Uuid,
+    pub request_id: Uuid,
+    pub expected_updated_at: DateTime<Utc>,
+    pub acknowledged_cancellation_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MaintenancePhase {
