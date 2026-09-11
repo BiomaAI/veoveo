@@ -1,0 +1,7 @@
+Types: deb
+URIs: https://snapshot.ubuntu.com/ubuntu/20260909T000000Z/
+Suites: resolute resolute-updates resolute-backports resolute-security
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Snapshot: no
+Check-Valid-Until: no
