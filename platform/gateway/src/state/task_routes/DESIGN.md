@@ -28,5 +28,7 @@ the owning server. That server enforces current domain and named-grant authority
 The isolated store tests cover twelve competing projections, retained expiry,
 changed Work Context and authority, source-link substitution, expired mappings,
 independent servers and overflow-safe retention input. Public Computers lifecycle
-acceptance found the original unconditional CREATE defect; a source receipt alone
-does not establish its deployed correction.
+acceptance found the original unconditional CREATE defect. Release 157 repeated the
+original Stop and Start requests with fresh authentication and returned both original
+canonical IDs. Neither effect repeated. Subsequent grant revocation denied the retry
+at the owning Computers service.

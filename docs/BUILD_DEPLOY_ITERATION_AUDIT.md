@@ -3725,3 +3725,10 @@ compilation and 3.643 seconds of export. The source-pruning helper reported 436
 changed paths, although only three retained files were refreshed and 403 unrelated
 paths were removed for the narrower target. The installed chart can be reused for
 this digest-only update. No Computers worker or provider restart is required.
+
+Release 157 converged with 7.888 seconds in source fetch, 23.889 seconds in desired-state
+apply, and about two seconds in rollout/readiness observation. This observer requested
+reconciliation and started after publication; it is not passive webhook latency.
+The public exact retries then returned the original completed Task IDs. The gateway
+rollout interrupted an existing browser attachment, which reported its interruption
+without claiming the Computer had stopped. Both retained Computers remained Ready.
