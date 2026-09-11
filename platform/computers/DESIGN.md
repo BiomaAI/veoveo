@@ -8,6 +8,7 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
+| Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels; journal activation remains pending |
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
@@ -53,6 +54,16 @@ An old operation cannot settle a different instance even when its template is un
 The identity field does not authorize maintenance or adopt storage by itself.
 
 ## Delivery Boundary
+
+The private file-transfer envelope protects a metadata-only import/export request.
+It stores no file body or gateway bearer. File intent and Artifact access use distinct
+authenticated purposes under the existing installation key ring; neither envelope
+can substitute for the other. Rotated keys can read pending work and compare an exact
+retry through its original keyed fingerprint. The payload validates the initial
+64 MiB/300-second limits and export filename/media type before sealing. Artifact
+read or write receipts must match the exact transfer Task and direction. Their
+expiry and current authority remain admission/worker checks. This checkpoint adds
+types and protection, without enabling file Tasks or public transfers.
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated

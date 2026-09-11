@@ -8,6 +8,7 @@
 | Veoveo Computers projection | Collection snapshots, lifecycle receipts and public phases; this library does not serve an HTTP or MCP endpoint |
 | Veoveo terminal v2 | Bounded authenticated first frame, resize, ready, sequenced lease deadlines and explicit replay-complete controls; raw terminal bytes remain a separate frame type |
 | Veoveo execution result | Known foreground exit code and stdout/stderr Artifact occurrence references; byte counts are bounded metadata, without command text or capability secrets |
+| Veoveo regular-file handoff | Closed import/export request, canonical retained-relative path, explicit whole-run interruption scope and bounded Artifact result; types precede public endpoint activation |
 | Veoveo maintenance projection | Closed update input, admitted target inventory, progress/recovery phases and completed Task identity with the existing Computer resource URI; provider instances and protected policy remain private |
 | Veoveo automation grant v1 | Named principal and OAuth-client scope, explicit permissions and bounded execution limits; generated JSON projection, no bearer authority |
 | OpenShell CLI `0.0.116` pairing adapter | Custom confirmation-code and IPv4 loopback JSON callback; public requests select no host or authority |
@@ -49,6 +50,21 @@ OpenShell `0.0.116` adapter, without a claim of standardized device authorizatio
 The native Console and MCP projections share this schema. Implemented endpoint
 coverage belongs in their own designs. Terminal tokens deliberately cannot be
 formatted through Debug or Display; serialization is an explicit secret boundary.
+
+`files.rs` defines regular-file import and export metadata for the pending handoff
+integration. The first profile caps each file at 64 MiB and each provider transfer at
+300 seconds. A canonical path is relative to the retained home; the wire decoder
+rejects traversal, empty components and controls while preserving Unicode and spaces.
+The guest helper independently enforces kernel confinement. Import creates a new
+file without overwriting. Archives remain opaque files. Neither extraction options
+nor provider/owner selectors exist in this request.
+
+The owner may omit `grantId`; delegated work must present current named authority.
+Both paths require the existing Artifact read or write capability and current
+Computer policy. `onInterruption: "stop_computer"` declares the active transfer's
+whole-run containment scope. Task results contain a governed Artifact occurrence,
+exact bytes and SHA-256. They expose no path, body or capability secret. These types
+and generated clients do not activate the public tool or qualify its domain worker.
 
 Terminal Ready establishes the connection and its initial short authority deadline.
 A Lease control carries a strictly increasing connection-local sequence and a current

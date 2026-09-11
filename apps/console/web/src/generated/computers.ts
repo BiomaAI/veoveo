@@ -65,6 +65,23 @@ export type ErrorCode =
 export type ComputerEventKind = "snapshot_changed";
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "FileTransferDirection".
+ */
+export type FileTransferDirection = "import" | "export";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "FileTransferStage".
+ */
+export type FileTransferStage =
+  | "queued"
+  | "dispatched"
+  | "containing"
+  | "recovery_required"
+  | "completed"
+  | "failed"
+  | "cancelled";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "Action".
  */
 export type Action = "create" | "start" | "stop";
@@ -169,6 +186,31 @@ export type TerminalLeaseKind = "lease";
  */
 export type TerminalTicketInput = Record<string, never>;
 /**
+ * Archives remain opaque regular files. Imports always create a new destination.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "FileTransfer".
+ */
+export type FileTransfer =
+  | {
+      artifactId: string;
+      kind: "import";
+      path: RetainedFilePath;
+    }
+  | {
+      filename: string;
+      kind: "export";
+      mediaType: string;
+      path: RetainedFilePath;
+    };
+/**
+ * Canonical relative path inside the retained home; at most 1024 UTF-8 bytes, without traversal or control characters.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "RetainedFilePath".
+ */
+export type RetainedFilePath = string;
+/**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "AutomationInterruption".
  */
@@ -193,6 +235,8 @@ export interface ComputersApi {
   event: ComputerEvent;
   execute_input: ExecuteInput;
   execution_result: ExecutionResult;
+  file_transfer_result: FileTransferResult;
+  file_transfer_stage: FileTransferStage;
   issue_automation_grant: IssueAutomationGrantInput;
   lifecycle_input: LifecycleInput;
   lifecycle_result: LifecycleResult;
@@ -217,6 +261,7 @@ export interface ComputersApi {
   terminal_server_control: TerminalServerControl;
   terminal_ticket: TerminalTicket;
   terminal_ticket_input: TerminalTicketInput;
+  transfer_file_input: TransferFileInput;
   update_template_input: UpdateTemplateInput;
 }
 /**
@@ -463,6 +508,21 @@ export interface ExecutionOutput {
   byteCount: number;
 }
 /**
+ * Metadata only. Artifact reads remain governed by the Artifact service.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "FileTransferResult".
+ */
+export interface FileTransferResult {
+  artifactId: string;
+  bytes: number;
+  computerId: string;
+  direction: FileTransferDirection;
+  result_uri: string;
+  sha256: string;
+  transferId: string;
+}
+/**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "IssueAutomationGrantInput".
  */
@@ -701,6 +761,32 @@ export interface TerminalTicket {
   endpoint: string;
   expiresAt: string;
   token: TerminalToken;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "TransferFileInput".
+ */
+export interface TransferFileInput {
+  computerId: string;
+  /**
+   * A direct owner omits this field. Delegation requires a current named grant.
+   */
+  grantId?: string | null;
+  limits: FileTransferLimits;
+  requestId: string;
+  transfer: FileTransfer;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "FileTransferLimits".
+ */
+export interface FileTransferLimits {
+  maximumBytes: number;
+  maximumSeconds: number;
+  /**
+   * Interrupting an active transfer may stop all processes on the Computer.
+   */
+  onInterruption: "stop_computer";
 }
 /**
  * Select an installation-admitted template, or omit it to choose the current

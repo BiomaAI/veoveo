@@ -20,6 +20,8 @@ pub(super) enum SecretKind {
     Command,
     OutputAccess,
     Maintenance,
+    FileTransfer,
+    FileAccess,
 }
 impl SecretKind {
     fn maximum_bytes(self) -> usize {
@@ -27,6 +29,8 @@ impl SecretKind {
             Self::Command => MAX_PLAINTEXT,
             Self::OutputAccess => super::output_access::MAX_OUTPUT_ACCESS_BYTES,
             Self::Maintenance => super::maintenance::MAX_CHECKPOINT_BYTES,
+            Self::FileTransfer => super::files::MAX_FILE_PAYLOAD_BYTES,
+            Self::FileAccess => super::file_access::MAX_FILE_ACCESS_BYTES,
         }
     }
     fn domain(self) -> &'static [u8] {
@@ -34,6 +38,8 @@ impl SecretKind {
             Self::Command => b"command",
             Self::OutputAccess => b"output-access",
             Self::Maintenance => b"maintenance-policy",
+            Self::FileTransfer => b"file-transfer",
+            Self::FileAccess => b"file-artifact-access",
         }
     }
 }
@@ -255,14 +261,31 @@ impl ComputerKeyRing {
         // A damaged ledger cannot resolve an exact retry as if its recoverable
         // request were intact. Authentication failure is not changed input.
         self.open(binding, sealed)?;
-        let key = self.key(sealed, SecretKind::Command)?;
-        let aad = Self::aad(&binding.aad()?, sealed.key_id, SecretKind::Command);
-        let bytes = command.encode()?;
+        self.matches_payload_fingerprint(
+            &binding.aad()?,
+            sealed,
+            &command.encode()?,
+            SecretKind::Command,
+        )
+    }
+    // Callers open and validate the protected payload before comparing a retry.
+    pub(super) fn matches_payload_fingerprint(
+        &self,
+        binding: &[u8],
+        sealed: &SealedCommand,
+        bytes: &[u8],
+        kind: SecretKind,
+    ) -> Result<bool> {
+        if bytes.len() > kind.maximum_bytes() {
+            return Err(ComputerError::InvalidInput);
+        }
+        let key = self.key(sealed, kind)?;
+        let aad = Self::aad(binding, sealed.key_id, kind);
         let fingerprint = STANDARD
             .decode(&sealed.fingerprint)
             .map_err(|_| ComputerError::Unavailable)?;
         Ok(key
-            .fingerprint(&aad, &bytes)?
+            .fingerprint(&aad, bytes)?
             .verify_slice(&fingerprint)
             .is_ok())
     }
