@@ -1,8 +1,8 @@
 # Private Computer Execution
 
-Status: the codec, packaged launcher and private runtime adapter pass local and
-native-provider fixtures. Public agent grants, durable execution Tasks and their
-cancellation integration remain delivery work.
+Status: command execution is packaged and qualified through native-provider and
+public Task/grant journeys. The regular-file helper is implemented locally; its
+provider adapter, Artifact/domain integration and public UI remain delivery work.
 
 ## Standards And Protocols
 
@@ -15,6 +15,51 @@ cancellation integration remain delivery work.
 | Linux `O_TMPFILE` and procfs descriptor reopen | Finite program stdin uses an anonymous file under the Computer's private `/tmp`, reopened read-only; no named-file fallback or detached producer |
 | nix `0.31.3` | Exact syscall-wrapper pin, confirmed against the upstream changelog on September 10, 2026; selected filesystem and user APIs |
 | OpenShell `0.0.116` private execution adapter | Existing authenticated stream transports a fixed launcher command and framed stdin; provider completion and interruption guarantees remain those of the qualified runtime |
+| `veoveo.io/computer-files/v1` | Private length-prefixed JSON header, exact binary import body, raw export stdout and bounded structured result on stderr; maximum file size 64 MiB |
+| Linux Landlock ABI 3 filesystem subset | The single-threaded file helper requires ABI 3 or newer and installs an additional retained-home-only filesystem layer; unavailable confinement rejects the request |
+| SHA-256, FIPS 180-4; sha2 `0.11.0` | Existing workspace implementation validates import bytes before publication and identifies exported bytes |
+
+## Regular-File Transfer
+
+The fixed `--files` launcher mode accepts a header of at most 4 KiB. It carries a
+relative file path and a typed import/export operation. Binary file data never
+enters JSON or provider command arguments. The helper streams through one 64 KiB
+buffer. Archives are opaque regular files; this profile performs no extraction.
+The eventual public projection must show this size limit and destination behavior.
+
+Import creates an anonymous file in the destination directory, charges its actual
+bytes to the retained filesystem, verifies its expected SHA-256, and fsyncs it.
+An atomic hard-link publication refuses any existing destination, including a
+symlink. Before publication the helper resolves the parent again and compares its
+device/inode with the selected directory. The atomic link resolves its destination
+from the fixed retained-home descriptor, rather than the older parent handle;
+Landlock independently confines that final path resolution. It then fsyncs the
+parent directory. A short stream or digest mismatch
+leaves no destination file. Loss of the process before publication releases the
+anonymous allocation. A directory-sync failure after publication reports
+`commit_unknown`; the domain must retain its uncertainty fence.
+
+Export accepts only a single-link regular file within the requested byte bound.
+It rejects directories, special files and hard links. `O_NONBLOCK` prevents an
+attempt to export a FIFO from waiting for a writer. The helper compares file size
+and modification/change timestamps before and after streaming; detected mutation
+invalidates the output. A future worker must publish an Artifact only after the
+native exit and structured byte-count/digest receipt agree with its received bytes.
+This is a selected-file read, not a snapshot of a running Computer.
+
+Both directions use `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS` and
+`RESOLVE_NO_XDEV` beneath the fixed retained home. A Landlock layer independently
+restricts path operations to that home; export grants no filesystem write rights.
+Import permits regular-file creation, write and link publication there. The helper
+cannot execute another program. Already-open transport descriptors remain usable.
+These restrictions narrow the helper and do not change the user's shell policy.
+The [Linux Landlock documentation](https://docs.kernel.org/userspace-api/landlock.html)
+defines the underlying filesystem access model.
+
+File receipts contain only byte counts, digests or fixed failure codes. File paths
+have no diagnostic formatting implementation. The domain must supply current
+Computer/Artifact authority, durable operation identity, quotas, interruption and
+publication policy before this helper can be exposed through a public file tool.
 
 ## Ownership And Authority
 

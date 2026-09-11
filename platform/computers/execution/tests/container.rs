@@ -43,48 +43,17 @@ struct State {
 }
 
 fn execute(image: &str, home: &std::path::Path, user: &str, input: &[u8]) -> (State, Output) {
-    let binary = fs::canonicalize(env!("CARGO_BIN_EXE_veoveo-computer-exec")).unwrap();
-    let binary = format!(
-        "type=bind,src={},dst={LAUNCHER_PATH},readonly",
-        binary.display()
-    );
-    let home = format!("type=bind,src={},dst={RETAINED_HOME}", home.display());
-    let created = docker(
-        &[
-            "create",
-            "--pull=never",
-            "--interactive",
-            "--read-only",
-            "--tmpfs",
-            "/tmp:rw,nosuid,nodev,noexec,size=4m",
-            "--network=none",
-            "--cap-drop=ALL",
-            "--security-opt=no-new-privileges",
-            "--memory=128m",
-            "--pids-limit=32",
-            "--user",
-            user,
-            "--workdir",
-            RETAINED_HOME,
-            "--mount",
-            &binary,
-            "--mount",
-            &home,
-            "--entrypoint",
-            "/usr/bin/env",
-            image,
-            LAUNCHER_PATH,
-        ],
-        None,
-    );
-    assert!(
-        created.status.success(),
-        "creating owned fixture: {}",
-        String::from_utf8_lossy(&created.stderr)
-    );
-    let id = String::from_utf8(created.stdout).unwrap().trim().to_owned();
-    assert!(id.len() == 64 && id.bytes().all(|byte| byte.is_ascii_hexdigit()));
-    let container = Container(id);
+    execute_mode(image, home, user, input, false)
+}
+
+fn execute_mode(
+    image: &str,
+    home: &std::path::Path,
+    user: &str,
+    input: &[u8],
+    files: bool,
+) -> (State, Output) {
+    let container = create_fixture(image, home, user, files);
     let output = docker(
         &["start", "--attach", "--interactive", &container.0],
         Some(input),
@@ -98,6 +67,52 @@ fn execute(image: &str, home: &std::path::Path, user: &str, input: &[u8]) -> (St
     assert_eq!(state.status, "exited");
     assert!(!state.running);
     (state, output)
+}
+
+fn create_fixture(image: &str, home: &std::path::Path, user: &str, files: bool) -> Container {
+    let binary = fs::canonicalize(env!("CARGO_BIN_EXE_veoveo-computer-exec")).unwrap();
+    let binary = format!(
+        "type=bind,src={},dst={LAUNCHER_PATH},readonly",
+        binary.display()
+    );
+    let home = format!("type=bind,src={},dst={RETAINED_HOME}", home.display());
+    let mut arguments = vec![
+        "create",
+        "--pull=never",
+        "--interactive",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,noexec,size=4m",
+        "--network=none",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--memory=128m",
+        "--pids-limit=32",
+        "--user",
+        user,
+        "--workdir",
+        RETAINED_HOME,
+        "--mount",
+        &binary,
+        "--mount",
+        &home,
+        "--entrypoint",
+        "/usr/bin/env",
+        image,
+        LAUNCHER_PATH,
+    ];
+    if files {
+        arguments.push("--files");
+    }
+    let created = docker(&arguments, None);
+    assert!(
+        created.status.success(),
+        "creating owned fixture: {}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let id = String::from_utf8(created.stdout).unwrap().trim().to_owned();
+    assert!(id.len() == 64 && id.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    Container(id)
 }
 
 #[test]
@@ -168,3 +183,6 @@ fn actual_guest_preserves_argv_environment_stdin_and_exit_while_rejecting_escape
         );
     }
 }
+
+#[path = "support/files.rs"]
+mod files;
