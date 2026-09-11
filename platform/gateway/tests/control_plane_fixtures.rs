@@ -1,13 +1,46 @@
 use std::{fs, path::Path};
 
 use serde_json::Value;
-use veoveo_mcp_contract::GatewayControlPlane;
+use veoveo_mcp_contract::{GatewayControlPlane, LocalToolName};
 
 const CORE_CONTROL_PLANES: [&str; 3] = [
     "../../configs/gateway.local.json",
     "../../configs/gateway.smoke.json",
     "../../examples/bioma/gateway.json",
 ];
+
+#[test]
+fn bioma_profiles_expose_computer_execution_and_retained_maintenance() {
+    let control: GatewayControlPlane = serde_json::from_slice(
+        &fs::read("../../examples/bioma/gateway.json").expect("read Bioma control plane"),
+    )
+    .expect("decode Bioma control plane");
+    for id in ["operator", "agent", "admin"] {
+        let profile = control
+            .profiles
+            .iter()
+            .find(|p| p.id.as_str() == id)
+            .unwrap();
+        let computers = profile
+            .servers
+            .iter()
+            .find(|s| s.server.as_str() == "computers")
+            .unwrap();
+        for name in [
+            "execute",
+            "grant_automation",
+            "revoke_automation",
+            "update_template",
+            "resume_update",
+        ] {
+            let tool = LocalToolName::new(name).unwrap();
+            assert!(
+                veoveo_policy::exposure_contains(&computers.tools, &tool),
+                "Bioma {id} hides delivered Computer workflow {name}"
+            );
+        }
+    }
+}
 
 #[test]
 fn core_control_planes_satisfy_the_gateway_contract() {
