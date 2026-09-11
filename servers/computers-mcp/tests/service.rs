@@ -26,6 +26,19 @@ async fn bioma_reference_configuration_admits_retained_and_execution_templates()
         "../../../examples/bioma/computers/computers.json"
     ))
     .unwrap();
+    let retained = input["capacity"]["templates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|template| {
+            template["fingerprint"]
+                == "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+        })
+        .expect("installed retained template must remain admitted");
+    assert_eq!(
+        retained["id"], "development",
+        "retained Computers resolve the original catalog ID"
+    );
     input["capacity"]["gateway"]["transport"] = files.tls();
     input["capacity"]["allocator"] = files.tls();
     input["capacity"]["execution"]["keys"][0]["file"] = files

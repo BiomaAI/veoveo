@@ -114,3 +114,23 @@ review and does not revoke an accepted grant. The BFF keeps credentials in its s
 and applies the existing CSRF boundary. Resource invalidations refresh the grant list
 without replacing the focused terminal. This implementation still requires installed
 headed hardware browser acceptance.
+
+## Environment Updates
+
+`MaintenancePanel.tsx` reads installation-admitted target environments and current
+maintenance progress. Update requires explicit confirmation that processes stop while
+the home stays. The selection is an admitted template ID, never an image or provider.
+Current server eligibility and the collection's live-state status gate the action.
+
+`maintenanceRequest.ts` saves the exact request and target in scope/Computer-specific
+sessionStorage before dispatch. Storage failure prevents sending. Reload and an uncertain
+reply preserve that original input; a different request cannot overwrite it. A returned
+receipt adds its Task identity. A late reply cannot recreate a dismissed storage entry.
+There are no credentials or command bytes in this state.
+
+Collection invalidations trigger inventory and known-receipt reads, with no periodic
+status query. A paused update shows its recovery reason and retained-home consequence.
+It cannot appear as a spinner or a completed update. Clearing a local request requires
+review unless completion is known and does not cancel the server operation. Operator
+budget resumption remains a separate delivery requirement. Node behavior checks and the
+web build do not establish headed hardware rendering or installed public acceptance.

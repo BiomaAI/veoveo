@@ -80,6 +80,7 @@ async fn forward(
         Operation::Create => normalize::<api::CreateInput>(&bytes),
         Operation::Start(_) => normalize::<api::StartInput>(&bytes),
         Operation::Stop(_) => normalize::<api::StopInput>(&bytes),
+        Operation::UpdateTemplate(computer) => super::maintenance::input(&bytes, computer),
         Operation::Ticket(_) => normalize::<api::TerminalTicketInput>(&bytes),
         Operation::RevokeAccess { .. } => normalize::<api::RevokeAccessBody>(&bytes),
         Operation::RevokeAutomation { .. } => normalize::<api::RevokeAutomationGrantBody>(&bytes),
@@ -103,6 +104,8 @@ async fn forward(
         Operation::List
         | Operation::Read(_)
         | Operation::Receipt { .. }
+        | Operation::Maintenance(_)
+        | Operation::MaintenanceReceipt { .. }
         | Operation::Access(_)
         | Operation::Automation(_)
         | Operation::AutomationGrant { .. }
@@ -150,6 +153,20 @@ async fn forward(
             }
             Operation::Read(_) if status == StatusCode::OK => {
                 normalize::<api::ComputerView>(&bytes)
+            }
+            Operation::Maintenance(computer) if status == StatusCode::OK => {
+                super::maintenance::state(&bytes, computer)
+            }
+            Operation::MaintenanceReceipt {
+                computer,
+                operation,
+            } if status == StatusCode::OK => {
+                super::maintenance::receipt(&bytes, computer, Some(operation))
+            }
+            Operation::UpdateTemplate(computer)
+                if matches!(status, StatusCode::OK | StatusCode::ACCEPTED) =>
+            {
+                super::maintenance::receipt(&bytes, computer, None)
             }
             Operation::Access(computer) if status == StatusCode::OK => {
                 access_grants(&bytes, computer)

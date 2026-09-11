@@ -3503,3 +3503,12 @@ added roughly twenty thousand manifest lines to the configuration commit. Receip
 manifest deduplication and per-invocation metadata/hash caching remain concrete iteration
 work; repeating native execution solely because documentation changed adds no useful
 runtime evidence. Preserve the original attempt and its exact source when recording timing.
+
+Public update integration exposed a catalog-identity mismatch before rollout. The live
+Bioma v1 ConfigMap still names its retained fingerprint `development`; the unpublished
+v2 candidate had renamed that entry. Keeping the installed ID and naming the new image
+`development-20260910` preserves exact retained lookups without a database rename or
+compatibility alias. The runtime fingerprints and template image bytes did not change.
+The evidence-report presentation for the preceding public-service commit took 30.23
+seconds; its checks were already complete. Repeated Cargo closure and input discovery
+remain a measured opportunity to reduce commit overhead.

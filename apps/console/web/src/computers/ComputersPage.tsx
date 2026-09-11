@@ -4,6 +4,7 @@ import { Monitor, Play, Plus, RefreshCw, Square } from "lucide-react";
 import { ComputersController } from "./controller";
 import { AccessPanel } from "./AccessPanel";
 import { AutomationPanel } from "./AutomationPanel";
+import { MaintenancePanel } from "./MaintenancePanel";
 import { CliConnect } from "./CliConnect";
 import { lifecycle, readComputers, readOperation } from "./api";
 import { watchComputers } from "./events";
@@ -228,6 +229,8 @@ export function ComputersPage({
             {snapshot && <AccessPanel key={`access:${selected.computerId}`}
               computerId={selected.computerId} snapshot={snapshot} stale={state.stale} />}
             <CliConnect computerId={selected.computerId} canConnect={selected.canConnect} />
+            {snapshot && <MaintenancePanel key={`maintenance:${selected.computerId}`}
+              computerId={selected.computerId} scope={scope} snapshot={snapshot} stale={state.stale} />}
             {snapshot && snapshot.availability !== "setup_required" && <AutomationPanel key={`automation:${selected.computerId}`}
               computerId={selected.computerId} scope={scope} snapshot={snapshot} stale={state.stale} />}
             <details>

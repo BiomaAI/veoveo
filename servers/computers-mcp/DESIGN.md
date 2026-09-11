@@ -79,7 +79,7 @@ cancellation additionally requires current update authority. Maintenance Task au
 has a five-second observation window and subscriptions revalidate every five seconds.
 The existing Computer resource remains the canonical completed result.
 
-Console and gateway route integration remain work. The service wire fixture establishes
+The Console and gateway consume these fixed routes. The service wire fixture establishes
 cross-replica admission, default rotation, Task access and revocation using a synthetic
 capacity profile. It makes no installed or image-compatibility claim.
 

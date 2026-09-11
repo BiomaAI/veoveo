@@ -20,6 +20,9 @@ pub(super) enum Operation {
     List,
     Read(Uuid),
     Receipt { computer: Uuid, operation: Uuid },
+    Maintenance(Uuid),
+    MaintenanceReceipt { computer: Uuid, operation: Uuid },
+    UpdateTemplate(Uuid),
     Access(Uuid),
     Automation(Uuid),
     AutomationGrant { computer: Uuid, grant: Uuid },
@@ -88,6 +91,14 @@ impl Operation {
         if let Some(operation) = operation_id {
             return match (matched, method, id) {
                 (
+                    "/computers/{profile}/{id}/maintenance/{operation_id}",
+                    &Method::GET,
+                    Some(computer),
+                ) => Ok(Self::MaintenanceReceipt {
+                    computer,
+                    operation,
+                }),
+                (
                     "/computers/{profile}/{id}/operations/{operation_id}",
                     &Method::GET,
                     Some(computer),
@@ -102,6 +113,12 @@ impl Operation {
             ("/computers/{profile}", &Method::GET, None) => Ok(Self::List),
             ("/computers/{profile}", &Method::POST, None) => Ok(Self::Create),
             ("/computers/{profile}/{id}", &Method::GET, Some(id)) => Ok(Self::Read(id)),
+            ("/computers/{profile}/{id}/maintenance", &Method::GET, Some(id)) => {
+                Ok(Self::Maintenance(id))
+            }
+            ("/computers/{profile}/{id}/update-template", &Method::POST, Some(id)) => {
+                Ok(Self::UpdateTemplate(id))
+            }
             ("/computers/{profile}/{id}/access", &Method::GET, Some(id)) => Ok(Self::Access(id)),
             ("/computers/{profile}/{id}/automation", &Method::GET, Some(id)) => {
                 Ok(Self::Automation(id))
@@ -127,6 +144,12 @@ impl Operation {
         match self {
             Self::List | Self::Create => "computers".into(),
             Self::Read(id) => format!("computers/{id}"),
+            Self::Maintenance(id) => format!("computers/{id}/maintenance"),
+            Self::MaintenanceReceipt {
+                computer,
+                operation,
+            } => format!("computers/{computer}/maintenance/{operation}"),
+            Self::UpdateTemplate(id) => format!("computers/{id}/update-template"),
             Self::Access(id) => format!("computers/{id}/access"),
             Self::Automation(id) | Self::GrantAutomation(id) => {
                 format!("computers/{id}/automation")
@@ -160,6 +183,7 @@ impl Operation {
             Self::Create => Some("create"),
             Self::Start(_) => Some("start"),
             Self::Stop(_) => Some("stop"),
+            Self::UpdateTemplate(_) => Some("update_template"),
             Self::GrantAutomation(_) => Some("grant_automation"),
             Self::RevokeAutomation { .. } => Some("revoke_automation"),
             _ => None,
@@ -179,6 +203,8 @@ impl Operation {
                 veoveo_computers_contract::automation_grant_uri(computer, grant)
             }
             Self::Read(id)
+            | Self::Maintenance(id)
+            | Self::MaintenanceReceipt { computer: id, .. }
             | Self::Access(id)
             | Self::RevokeAccess { computer: id, .. }
             | Self::Pairing(id)
@@ -213,6 +239,7 @@ impl Operation {
             Self::Create
                 | Self::Start(_)
                 | Self::Stop(_)
+                | Self::UpdateTemplate(_)
                 | Self::GrantAutomation(_)
                 | Self::RevokeAutomation { .. }
                 | Self::Ticket(_)
@@ -227,6 +254,8 @@ impl Operation {
             Self::List
                 | Self::Read(_)
                 | Self::Receipt { .. }
+                | Self::Maintenance(_)
+                | Self::MaintenanceReceipt { .. }
                 | Self::Access(_)
                 | Self::Automation(_)
                 | Self::AutomationGrant { .. }

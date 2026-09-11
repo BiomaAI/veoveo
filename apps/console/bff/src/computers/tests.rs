@@ -317,13 +317,53 @@ async fn operation_status_is_a_cookie_scoped_read_and_rejects_extra_query_author
 }
 
 #[tokio::test]
-async fn automation_routes_keep_csrf_and_exact_destination_without_forwarding_cookies() {
+async fn maintenance_reads_use_fixed_paths_and_reject_query_authority() {
+    let fixture = Fixture::new().await;
+    let computer = Uuid::now_v7();
+    let task = Uuid::now_v7();
+    for suffix in [
+        format!("/{computer}/maintenance"),
+        format!("/{computer}/maintenance/{task}"),
+    ] {
+        let path = format!("/console/api/computers{suffix}");
+        let response = fixture
+            .call(
+                Request::builder()
+                    .uri(&path)
+                    .header(header::COOKIE, fixture.cookie(false))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            fixture.observed.lock().unwrap().last().unwrap().path,
+            format!("/computers/admin{suffix}")
+        );
+        let count = fixture.observed.lock().unwrap().len();
+        let denied = fixture
+            .call(
+                Request::builder()
+                    .uri(format!("{path}?provider=foreign"))
+                    .header(header::COOKIE, fixture.cookie(false))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(denied.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(fixture.observed.lock().unwrap().len(), count);
+    }
+}
+
+#[tokio::test]
+async fn automation_and_update_routes_keep_csrf_and_exact_destination_without_forwarding_cookies() {
     let fixture = Fixture::new().await;
     let computer = Uuid::now_v7();
     let grant = Uuid::now_v7();
     for suffix in [
         format!("/{computer}/automation"),
         format!("/{computer}/automation/{grant}/revoke"),
+        format!("/{computer}/update-template"),
     ] {
         let path = format!("/console/api/computers{suffix}");
         let before = fixture.observed.lock().unwrap().len();

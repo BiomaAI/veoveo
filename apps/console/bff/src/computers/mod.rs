@@ -76,6 +76,18 @@ pub(crate) fn router() -> Router<AppState> {
             get(control::proxy),
         )
         .route("/console/api/computers/{id}/start", post(control::proxy))
+        .route(
+            "/console/api/computers/{id}/maintenance",
+            get(control::proxy),
+        )
+        .route(
+            "/console/api/computers/{id}/maintenance/{operation_id}",
+            get(control::proxy),
+        )
+        .route(
+            "/console/api/computers/{id}/update-template",
+            post(control::proxy),
+        )
         .route("/console/api/computers/{id}/stop", post(control::proxy))
         .route(
             "/console/api/computers/{id}/terminal-ticket",

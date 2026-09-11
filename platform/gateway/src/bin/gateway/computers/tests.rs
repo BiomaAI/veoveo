@@ -4,6 +4,36 @@ use routes::Operation;
 use veoveo_mcp_contract::{GatewayAction, PolicyTarget};
 
 #[test]
+fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
+    let computer = uuid::Uuid::now_v7();
+    let task = uuid::Uuid::now_v7();
+    for (path, id, suffix) in [
+        (
+            "/computers/{profile}/{id}/maintenance",
+            None,
+            "maintenance".to_owned(),
+        ),
+        (
+            "/computers/{profile}/{id}/maintenance/{operation_id}",
+            Some(task),
+            format!("maintenance/{task}"),
+        ),
+    ] {
+        let op = Operation::from_route(path, &Method::GET, Some(computer), id, None, None).unwrap();
+        assert_eq!(
+            op.authorization(),
+            Operation::Read(computer).authorization()
+        );
+        assert!(!op.requires_contributor());
+        assert!(!op.requires_json());
+        assert_eq!(op.service_path(), format!("computers/{computer}/{suffix}"));
+        assert!(
+            Operation::from_route(path, &Method::POST, Some(computer), id, None, None).is_err()
+        );
+    }
+}
+
+#[test]
 fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identity() {
     let computer = uuid::Uuid::now_v7();
     let grant = uuid::Uuid::now_v7();
@@ -156,6 +186,7 @@ fn native_routes_use_domain_actions_and_exact_resources() {
         (Operation::Create, "create"),
         (Operation::Start(id), "start"),
         (Operation::Stop(id), "stop"),
+        (Operation::UpdateTemplate(id), "update_template"),
     ] {
         let (target, actions) = operation.authorization();
         assert_eq!(actions, &[GatewayAction::ToolsCall]);

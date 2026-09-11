@@ -3,9 +3,10 @@ use std::{fs, path::Path};
 use serde_json::Value;
 use veoveo_mcp_contract::GatewayControlPlane;
 
-const CORE_CONTROL_PLANES: [&str; 2] = [
+const CORE_CONTROL_PLANES: [&str; 3] = [
     "../../configs/gateway.local.json",
     "../../configs/gateway.smoke.json",
+    "../../examples/bioma/gateway.json",
 ];
 
 #[test]

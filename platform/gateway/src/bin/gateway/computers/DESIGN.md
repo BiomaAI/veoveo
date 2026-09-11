@@ -74,3 +74,11 @@ The worker compares that route profile with the grant's persisted profile and ow
 current authorization. No assertion is synthesized from an expired browser token.
 This internal relay preserves service-issued Ready/Lease controls for the BFF, which
 removes them before the stock CLI sees bytes. The private provider SDK remains absent.
+
+Environment update routes use the same fixed authenticated boundary. GET `/maintenance`
+and `/maintenance/{operation_id}` beneath a Computer require its parent resource-read
+policy. POST `/update-template` requires contributor membership and the `update_template`
+tool policy. Its closed input must name the route's Computer and a non-nil request ID;
+the optional template is an admitted catalog ID. The gateway validates receipt Computer
+and Task identities, bounded distinct target IDs, and consistent recovery phases before
+forwarding. No provider client or maintenance state machine belongs in this adapter.

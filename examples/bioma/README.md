@@ -579,3 +579,9 @@ chart tests require each lock to match the images actually consumed by that rele
 Publish a changed chart with `cargo xtask release helm-charts --chart veoveo` or
 `--chart uav-sim`, together with its required revision and version arguments. An
 image-only digest update needs no chart publication.
+
+Template IDs remain attached to retained Computers. The installed `development`
+template keeps its original ID and fingerprint. The execution-capable image has the
+new ID `development-20260910`; changing the default selects it only for new requests.
+An explicit qualified maintenance operation changes an existing Computer's template.
+Never rename the retained catalog entry merely to make the new default use its name.
