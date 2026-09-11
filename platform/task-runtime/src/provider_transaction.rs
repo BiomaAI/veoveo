@@ -26,6 +26,17 @@ impl TaskRuntime {
         body: &'static str,
         bindings: Vec<(&'static str, Value)>,
     ) -> Result<(), TaskError> {
+        self.commit_provider_body(claimed, kind, body, bindings)
+            .await
+    }
+
+    pub(crate) async fn commit_provider_body(
+        &self,
+        claimed: &ClaimedTask,
+        kind: ProviderCommit,
+        body: &str,
+        bindings: Vec<(&'static str, Value)>,
+    ) -> Result<(), TaskError> {
         let snapshot = &claimed.snapshot;
         if snapshot.server != self.server() {
             return Err(TaskError::WrongServer(snapshot.task_id.to_string()));
