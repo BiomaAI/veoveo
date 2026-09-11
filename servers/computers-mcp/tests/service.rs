@@ -261,6 +261,49 @@ async fn configuration_file_bounds_and_shape_errors_keep_input_bytes_private() {
 }
 
 #[tokio::test]
+async fn maintenance_configuration_requires_explicit_compatible_directed_pairs() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let files = configuration::Files::new();
+    let mut selected = files.configured("127.0.0.1:8787".parse().unwrap());
+    let fingerprint = selected["capacity"]["defaultTemplate"].clone();
+    let transition = serde_json::json!({
+        "sourceFingerprint": fingerprint, "targetFingerprint": fingerprint
+    });
+    selected["capacity"]["maintenanceTransitions"] = serde_json::json!([transition]);
+    serde_json::from_value::<Configuration>(selected.clone())
+        .unwrap()
+        .prepare()
+        .await
+        .unwrap();
+    for changed in ["missing", "unknown", "duplicate", "extra"] {
+        let mut input = selected.clone();
+        match changed {
+            "missing" => {
+                input["capacity"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("maintenanceTransitions");
+            }
+            "unknown" => {
+                input["capacity"]["maintenanceTransitions"][0]["targetFingerprint"] =
+                    "f".repeat(64).into()
+            }
+            "duplicate" => input["capacity"]["maintenanceTransitions"]
+                .as_array_mut()
+                .unwrap()
+                .push(transition.clone()),
+            "extra" => {
+                input["capacity"]["maintenanceTransitions"][0]["allowDataLoss"] = true.into()
+            }
+            _ => unreachable!(),
+        }
+        if let Ok(config) = serde_json::from_value::<Configuration>(input) {
+            assert!(config.prepare().await.is_err(), "{changed}");
+        }
+    }
+}
+
+#[tokio::test]
 async fn execution_configuration_requires_private_keys_and_a_qualified_default() {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let files = configuration::Files::new();
