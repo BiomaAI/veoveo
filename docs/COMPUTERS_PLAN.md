@@ -854,3 +854,9 @@ selects an installation template, preserves its original target on retries, and 
 Task progress and recovery without provider details. Template IDs are unique. Current
 read/update policy governs Task observation and cancellation. Gateway/Console integration,
 operator resumption, real image upgrade/rollback and installed acceptance remain required.
+
+The native Console now exposes admitted environment updates through fixed gateway/BFF
+routes. Saved scope-specific requests retain their selected template across reloads and
+lost replies. Current collection invalidations refresh progress, and recovery has an
+explicit explanation. This code path still needs headed public acceptance together with
+the qualified image transition and operator resumption before deployment is complete.

@@ -1,6 +1,6 @@
 import { consoleJson, ConsoleHttpError } from "../consoleHttp.ts";
 import { parseComputer } from "../generatedContracts.ts";
-import type { Action, ApiError, IssueAutomationGrantInput, OperationReceipt } from "../generated/computers.ts";
+import type { Action, ApiError, IssueAutomationGrantInput, OperationReceipt, UpdateTemplateInput } from "../generated/computers.ts";
 
 export async function readComputers(after?: string, signal?: AbortSignal) {
   return parseComputer(
@@ -55,6 +55,31 @@ export async function terminalTicket(id: string, signal?: AbortSignal) {
     throw new Error("The terminal attachment could not be verified.");
   }
   return ticket;
+}
+export async function readMaintenance(computerId: string, signal?: AbortSignal) {
+  const state = parseComputer("maintenance_state", await consoleJson(
+    `computers/${encodeURIComponent(computerId)}/maintenance`, undefined, signal,
+  ));
+  if (state.computerId !== computerId || (state.active && state.active.computerId !== computerId))
+    throw new Error("The environment update state could not be verified.");
+  return state;
+}
+export async function readMaintenanceOperation(computerId: string, taskId: string, signal?: AbortSignal) {
+  const value = parseComputer("maintenance_view", await consoleJson(
+    `computers/${encodeURIComponent(computerId)}/maintenance/${encodeURIComponent(taskId)}`, undefined, signal,
+  ));
+  if (value.computerId !== computerId || value.taskId !== taskId)
+    throw new Error("The environment update receipt could not be verified.");
+  return value;
+}
+export async function updateTemplate(input: UpdateTemplateInput) {
+  parseComputer("update_template_input", input);
+  const value = parseComputer("maintenance_view", await consoleJson(
+    `computers/${encodeURIComponent(input.computerId)}/update-template`, input,
+  ));
+  if (value.computerId !== input.computerId || (input.templateId && input.templateId !== value.targetTemplateId))
+    throw new Error("The environment update receipt could not be verified.");
+  return value;
 }
 export async function readAccessGrants(computerId: string, signal?: AbortSignal) {
   const grants = parseComputer("access_grants", await consoleJson(

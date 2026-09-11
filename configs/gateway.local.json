@@ -774,7 +774,11 @@
         "create",
         "start",
         "stop",
-        "revoke_access"
+        "revoke_access",
+        "execute",
+        "grant_automation",
+        "revoke_automation",
+        "update_template"
       ],
       "prompts": [
         "develop"
@@ -4928,7 +4932,11 @@
             "create",
             "start",
             "stop",
-            "revoke_access"
+            "revoke_access",
+            "execute",
+            "grant_automation",
+            "revoke_automation",
+            "update_template"
           ],
           "resource_schemes": [
             "computer"
@@ -4977,7 +4985,11 @@
             "create",
             "start",
             "stop",
-            "revoke_access"
+            "revoke_access",
+            "execute",
+            "grant_automation",
+            "revoke_automation",
+            "update_template"
           ],
           "resource_schemes": [
             "computer"

@@ -37,7 +37,7 @@
     },
     "templates": [
       {
-        "id": "development-retained",
+        "id": "development",
         "fingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
         "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
         "cpus": 2,
@@ -82,7 +82,7 @@
         }
       },
       {
-        "id": "development",
+        "id": "development-20260910",
         "fingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
         "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99",
         "cpus": 2,

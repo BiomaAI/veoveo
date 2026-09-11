@@ -778,7 +778,8 @@
         "revoke_access",
         "execute",
         "grant_automation",
-        "revoke_automation"
+        "revoke_automation",
+        "update_template"
       ],
       "prompts": [
         "develop"
@@ -5157,7 +5158,8 @@
             "revoke_access",
             "execute",
             "grant_automation",
-            "revoke_automation"
+            "revoke_automation",
+            "update_template"
           ],
           "resource_schemes": [
             "computer"
@@ -5209,7 +5211,8 @@
             "revoke_access",
             "execute",
             "grant_automation",
-            "revoke_automation"
+            "revoke_automation",
+            "update_template"
           ],
           "resource_schemes": [
             "computer"

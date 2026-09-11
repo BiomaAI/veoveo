@@ -159,6 +159,9 @@ fn upstream_path(
             .flatten();
     }
     if let Some(operation) = operation_id {
+        if matched == "/console/api/computers/{id}/maintenance/{operation_id}" {
+            return id.map(|id| format!("/{id}/maintenance/{operation}"));
+        }
         return (matched == "/console/api/computers/{id}/operations/{operation_id}")
             .then(|| id.map(|id| format!("/{id}/operations/{operation}")))
             .flatten();
@@ -166,6 +169,10 @@ fn upstream_path(
     match (matched, id) {
         ("/console/api/computers", None) => Some(String::new()),
         ("/console/api/computers/{id}", Some(id)) => Some(format!("/{id}")),
+        ("/console/api/computers/{id}/maintenance", Some(id)) => Some(format!("/{id}/maintenance")),
+        ("/console/api/computers/{id}/update-template", Some(id)) => {
+            Some(format!("/{id}/update-template"))
+        }
         ("/console/api/computers/{id}/access", Some(id)) => Some(format!("/{id}/access")),
         ("/console/api/computers/{id}/automation", Some(id)) => Some(format!("/{id}/automation")),
         ("/console/api/computers/{id}/cli-pairings", Some(id)) => {

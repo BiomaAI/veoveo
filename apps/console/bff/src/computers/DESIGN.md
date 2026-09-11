@@ -94,3 +94,9 @@ gateway profile. Browser Origin and unrelated cookies are rejected. The worker
 independently verifies the grant's retained profile, owner, family, Computer and run.
 The public relay consumes private Ready/Lease controls and delivers only binary
 gRPC bytes. Existing cancellation, buffer and independent deadline bounds apply.
+
+GET `/maintenance` and `/maintenance/{operation_id}` and POST `/update-template` beneath
+an exact Computer forward to the corresponding fixed gateway routes. Updates retain
+cookie authentication, CSRF and bounded body admission. They cannot select a profile or
+destination. A transport retry belongs to the saved browser request and preserves its
+request ID; the BFF never automatically repeats a mutation.

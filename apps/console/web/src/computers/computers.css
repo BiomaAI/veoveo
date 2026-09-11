@@ -39,3 +39,8 @@
 .computer-automation-form input:not([type="checkbox"]), .computer-automation-form select { width: 100%; padding: .6rem; }
 .computer-automation-form .computer-pairing-check { display: flex; }
 .computer-automation code { overflow-wrap: anywhere; }
+.computer-maintenance { margin-top: 1.5rem; }
+.computer-maintenance fieldset { display: flex; align-items: end; flex-wrap: wrap; gap: .8rem; padding: 1rem; border: 1px solid var(--border); }
+.computer-maintenance label { display: grid; gap: .4rem; }
+.computer-maintenance select { padding: .6rem; }
+.computer-maintenance code { overflow-wrap: anywhere; }
