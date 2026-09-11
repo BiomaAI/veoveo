@@ -611,6 +611,13 @@ canonical encoding. Lifecycle, terminal, CLI, execution and containment now sele
 persisted instance; current journal checks reject an instance change. This is the
 identity prerequisite for durable maintenance, not an adoption API or installed upgrade.
 
+The runtime now separates provider retirement acknowledgement from physical exclusion.
+Its request checks the exact Stopped resource/run and never retries a lost reply.
+Policy capture compares complete instance-bound guest labels. The native command
+fixture composes retirement, bounded absence observation, physical handoff and retained
+file checks on a fresh instance. Product maintenance still needs its durable admission,
+protected policy checkpoint and post-retirement restoration before installed adoption.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

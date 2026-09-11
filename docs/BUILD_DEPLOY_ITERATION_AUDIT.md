@@ -3414,3 +3414,16 @@ command and lifecycle cases took 7.82 and 1.35 seconds after a 5.36-second compi
 The real-provider command fixture now uses a replacement home within its existing
 installation, avoiding another daemon just to test replacement routing. No provider
 version, image dependency or installed resource changed for this identity work.
+
+The retirement adapter's focused transport cases passed in 0.72 seconds after an
+11.08-second compile. The native command fixture then qualified policy capture,
+retirement, physical handoff and retained marker reads on a fresh instance in 68.05
+seconds after a 17.99-second compile. It reused the staged image, provider binaries,
+allocator and daemon. The policy fixture had compared an unbound template instead of
+the actual guest labels; both the adapter and its fixture now use complete bindings.
+No provider rebuild or installed maintenance was needed to expose and repair that gap.
+The first formal runtime suite retained an obsolete assertion that the two instances'
+specifications were identical. Each now carries its own required labels. The corrected
+case snapshots both specifications before restoration and proves neither changes.
+That fixture-only edit invalidates the conservative native receipt; a scoped native
+adapter remains necessary to avoid rerunning provider work for unit-fixture changes.

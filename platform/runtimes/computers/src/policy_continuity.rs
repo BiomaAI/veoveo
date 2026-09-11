@@ -57,8 +57,7 @@ fn checked(
         Observation::checked(sandbox.clone(), binding, workspace).map_err(|_| FAILURE)?;
     if template.fingerprint() != binding.template_fingerprint()
         || template.persistent_home().is_none()
-        || sandbox.spec.as_ref()
-            != Some(&template.spec(binding.computer_id()).map_err(|_| FAILURE)?)
+        || sandbox.spec.as_ref() != Some(&template.bound_spec(binding).map_err(|_| FAILURE)?)
         || !matches!(observed.phase, Phase::Ready | Phase::Stopped)
         || (observed.phase == Phase::Ready && observed.main_process_instance_id.is_empty())
     {

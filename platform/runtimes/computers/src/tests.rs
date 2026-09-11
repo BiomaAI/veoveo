@@ -17,6 +17,7 @@ mod forward_tests;
 mod instance_tests;
 mod policy_tests;
 mod recovery_tests;
+mod retirement_tests;
 mod terminal_tests;
 type BoxStream<T> =
     std::pin::Pin<Box<dyn Stream<Item = std::result::Result<T, Status>> + Send + 'static>>;
@@ -313,6 +314,8 @@ struct FakeState {
     creates: usize,
     starts: usize,
     stops: usize,
+    deletes: usize,
+    deletion_reply: u8,
     watches: usize,
     revokes: usize,
     input_bytes: Vec<u8>,
@@ -352,6 +355,8 @@ impl Fake {
             creates: 0,
             starts: 0,
             stops: 0,
+            deletes: 0,
+            deletion_reply: 0,
             watches: 0,
             revokes: 0,
             input_bytes: vec![],
@@ -592,6 +597,31 @@ impl api::open_shell_server::OpenShell for Fake {
             .phase = Phase::Stopping as i32;
         Ok(Response::new(api::SandboxResponse {
             sandbox: state.sandbox.clone(),
+        }))
+    }
+    async fn delete_sandbox(
+        &self,
+        request: Request<api::DeleteSandboxRequest>,
+    ) -> std::result::Result<Response<api::DeleteSandboxResponse>, Status> {
+        self.authorize()?;
+        let request = request.into_inner();
+        let mut state = self.0.lock().unwrap();
+        assert_eq!(request.workspace, "computers");
+        assert_eq!(
+            request.name,
+            state
+                .expected_binding
+                .clone()
+                .unwrap_or_else(binding)
+                .name()
+        );
+        state.deletes += 1;
+        state.sandbox = None;
+        if state.deletion_reply == 1 {
+            return Err(Status::unavailable("SECRET-LOST-DELETE-REPLY"));
+        }
+        Ok(Response::new(api::DeleteSandboxResponse {
+            deleted: state.deletion_reply != 2,
         }))
     }
     async fn watch_sandbox(
