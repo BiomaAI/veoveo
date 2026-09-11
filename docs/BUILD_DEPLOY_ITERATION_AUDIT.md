@@ -3754,3 +3754,10 @@ immutable attempt identity when implementing that optimization. A generated boun
 array needed an explicit TypeScript array view. React's purity analysis also rejected
 the submission callback's direct clock read; a submission-only expiry helper now
 keeps that clock outside render analysis and preserves saved retry expiry.
+
+Release 158 reused the chart and converged at `801cbc7f` with 8.058 seconds in source
+fetch and 22.924 seconds in desired-state apply. Rollout observation took 1.533 seconds
+and readiness took 0.829 seconds. This run requested reconciliation. The headed
+RTX 4090 WebGL browser loaded `console-hxaM1AOX.js`, issued a Read-only grant through
+the application selector, and revoked it after public MCP discovered the Computer.
+The post-revocation collection was empty. The private host did not restart.
