@@ -77,6 +77,7 @@ are additional. Each Computer also retains its durable exclusive execution slot.
 Configured startup runs the command scheduler beside lifecycle observation. It reads
 only enough pending command envelopes to fill its open slots. Public execution admission uses the same domain journal. Installed command
 qualification remains required.
+Each scheduler task boxes its command-step future to bound the task's stack footprint.
 
 Only the original dispatch receipt can launch the command. A successor that finds
 Dispatched contains the saved run without replaying command bytes. Current authority
@@ -103,7 +104,12 @@ Stop evidence or explicit Recovery Required. Successful foreground completion le
 the Computer running under its independent lifecycle policy.
 
 The native fixture owns its real provider, retained allocator, database and HTTP
-Artifact service with filesystem bytes. It checks competing workers, binary stdin,
+Artifact service with filesystem bytes. Its foreground journey grants and executes
+through the production HTTP router with the workspace SDK, follows Task subscriptions,
+and reads the canonical result resource. Two continuous command schedulers compete for
+the same journal; an exact retry after completion returns the original Task. The fixture
+requires the selected image digest in the host cache before creating resources.
+It checks binary stdin,
 private environment, nonzero exit output, current Work Context ownership, grant
 revocation, Task cancellation, retained restart and lost-ticket refusal without
 command replay. Fixed phase/error-class diagnostics exclude command and credential

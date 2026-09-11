@@ -589,8 +589,11 @@ input cannot reuse that request identity. Grant MCP tools and generated HTTP/Con
 management share domain policy, exact result URIs and revocation. The Console saves
 issuance intents before sending and shows current limits plus interruption consent.
 Migration 0067 qualifies atomic completed-result backfill and rejects inconsistent
-Task outcomes. These are local implementation and fixture results. Native scheduler,
-installed agent commands, template maintenance and browser grant acceptance remain.
+Task outcomes. The staged template now passes the native foreground journey through
+the production HTTP router, workspace SDK, Task subscriptions and two continuous
+command schedulers. An exact completed retry returns the original Task and its result
+resource resolves under current authority. These are local fixture results; installed
+agent commands, template maintenance and browser grant acceptance remain.
 
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
