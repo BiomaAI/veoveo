@@ -3637,3 +3637,18 @@ selected a mismatched serde_json artifact, and the third dependency variant matc
 A supported template inspection command would remove that avoidable manual step. Native
 byte tests had already qualified the image before catalog admission. Host storage had
 189 GiB free during these checks, so disk pressure was not blocking this delivery.
+
+The public file rollout staged Computers, gateway and Console in one shared Bake solve
+at source `0b127b5f98fad6376c9ee1d44de57fcb3718d438`. Publication took 109.976 seconds;
+the observed compilation window was 90.638 seconds and image export was 13.986 seconds.
+The affected-image planner selected all Rust images because Cargo.lock added an existing
+SHA-256 dependency to the file helper. No upstream package version changed. Reviewing
+that dependency edge kept this deployment to three service images and the already
+qualified template. Narrowing lockfile effects to each package closure remains useful
+planner work. Concurrent Helm publication waited for the shared source lock until image
+staging finished; this serialized packaging without cancelling the shared build.
+
+The release-config check caught stale gateway and Computers configuration revisions
+before publication. Their content identities were updated with the image and chart
+pins, then the same check was rerun. Deriving these installation-owned hashes during
+release assembly would remove a manual step while retaining the exact rollout inputs.
