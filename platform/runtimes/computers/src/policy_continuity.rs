@@ -16,6 +16,12 @@ const FAILURE: RuntimeFailure = RuntimeFailure::PolicyContinuity;
 const PROVENANCE: &str = "veoveo.io/replacement-policy";
 const DEADLINE: Duration = Duration::from_secs(75);
 
+#[derive(Clone, Copy, PartialEq)]
+enum RestoreMode {
+    Dispatch,
+    Observe,
+}
+
 /// Private provider snapshot. Effective settings may be sensitive. Persist only
 /// an authenticated encrypted checkpoint, bound to its durable maintenance job.
 /// This type deliberately has no Debug or Serialize implementation.
@@ -294,8 +300,50 @@ impl OpenShellRuntime {
         source_template: &DevelopmentTemplate,
         target_template: &DevelopmentTemplate,
     ) -> Result<PolicyRestoration> {
+        self.replacement_policy(
+            snapshot,
+            handoff,
+            source_template,
+            target_template,
+            RestoreMode::Dispatch,
+            DEADLINE,
+        )
+        .await
+    }
+
+    /// Recover a lost dispatch or reply using authoritative reads only. An
+    /// unchanged baseline preserves uncertainty; it never authorizes resubmission.
+    pub async fn reconcile_replacement_policy(
+        &self,
+        snapshot: &ReplacementPolicy,
+        handoff: &RetainedHandoff,
+        source_template: &DevelopmentTemplate,
+        target_template: &DevelopmentTemplate,
+        budget: Duration,
+    ) -> Result<PolicyRestoration> {
+        self.replacement_policy(
+            snapshot,
+            handoff,
+            source_template,
+            target_template,
+            RestoreMode::Observe,
+            budget.min(DEADLINE),
+        )
+        .await
+    }
+
+    async fn replacement_policy(
+        &self,
+        snapshot: &ReplacementPolicy,
+        handoff: &RetainedHandoff,
+        source_template: &DevelopmentTemplate,
+        target_template: &DevelopmentTemplate,
+        mode: RestoreMode,
+        budget: Duration,
+    ) -> Result<PolicyRestoration> {
         let target = handoff.target();
-        if self.provider_instance_id != snapshot.installation_provider_id
+        if budget.is_zero()
+            || self.provider_instance_id != snapshot.installation_provider_id
             || !handoff.matches(
                 self.provider_instance_id,
                 &snapshot.source,
@@ -313,8 +361,14 @@ impl OpenShellRuntime {
         }
         source_template.check_replacement_profile(target_template)?;
         tokio::time::timeout(
-            DEADLINE,
-            self.restore_policy(snapshot, target, target_template, handoff.operation_id()),
+            budget,
+            self.restore_policy(
+                snapshot,
+                target,
+                target_template,
+                handoff.operation_id(),
+                mode,
+            ),
         )
         .await
         .map_err(|_| FAILURE)?
@@ -326,6 +380,7 @@ impl OpenShellRuntime {
         target: &Binding,
         template: &DevelopmentTemplate,
         operation: Uuid,
+        mode: RestoreMode,
     ) -> Result<PolicyRestoration> {
         let bound = self.policy_bound(target, template).await?;
         if bound.phase != Phase::Ready || bound.provider_id == snapshot.provider_id {
@@ -349,7 +404,9 @@ impl OpenShellRuntime {
         let original = snapshot.config.policy.as_ref().ok_or(FAILURE)?;
         let mut expected = before.policy.as_ref().ok_or(FAILURE)?.clone();
         let changed = expected.network_policies != original.network_policies;
-        if changed && expected.network_policies != base.network_policies {
+        if changed
+            && (mode == RestoreMode::Observe || expected.network_policies != base.network_policies)
+        {
             return Err(FAILURE);
         }
         expected
@@ -446,7 +503,9 @@ impl OpenShellRuntime {
             (before.version, before.policy_hash.clone())
         };
         let revision = self.policy_loaded(target, version, &hash).await?;
-        if changed && revision.provenance.get(PROVENANCE) != Some(&operation.to_string()) {
+        if original.network_policies != base.network_policies
+            && revision.provenance.get(PROVENANCE) != Some(&operation.to_string())
+        {
             return Err(FAILURE);
         }
         let after = self.policy_config(&bound.provider_id).await?;
