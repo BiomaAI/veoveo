@@ -3719,3 +3719,9 @@ validates retained authority and preserves expiry. Twelve concurrent projections
 converge on one route in the real-store check. Its first compile took 25.92 seconds,
 with 6.03 seconds of test runtime. This warrants a gateway-only follow-up image;
 Computers, Console and all provider artifacts keep their release-156 identities.
+
+The gateway-only correction published in 70.577 seconds, with 60.270 seconds of
+compilation and 3.643 seconds of export. The source-pruning helper reported 436
+changed paths, although only three retained files were refreshed and 403 unrelated
+paths were removed for the narrower target. The installed chart can be reused for
+this digest-only update. No Computers worker or provider restart is required.
