@@ -317,6 +317,47 @@ async fn operation_status_is_a_cookie_scoped_read_and_rejects_extra_query_author
 }
 
 #[tokio::test]
+async fn automation_routes_keep_csrf_and_exact_destination_without_forwarding_cookies() {
+    let fixture = Fixture::new().await;
+    let computer = Uuid::now_v7();
+    let grant = Uuid::now_v7();
+    for suffix in [
+        format!("/{computer}/automation"),
+        format!("/{computer}/automation/{grant}/revoke"),
+    ] {
+        let path = format!("/console/api/computers{suffix}");
+        let before = fixture.observed.lock().unwrap().len();
+        let denied = fixture
+            .call(
+                Request::builder()
+                    .method("POST")
+                    .uri(&path)
+                    .header(header::COOKIE, fixture.cookie(false))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        assert_eq!(fixture.observed.lock().unwrap().len(), before);
+        let accepted = fixture
+            .call(
+                fixture
+                    .mutation(&path, false)
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(accepted.status(), StatusCode::OK);
+        let observed = fixture.observed.lock().unwrap();
+        let last = observed.last().unwrap();
+        assert_eq!(last.path, format!("/computers/admin{suffix}"));
+        assert!(!last.headers.contains_key(header::COOKIE));
+        assert!(last.headers.contains_key(header::AUTHORIZATION));
+    }
+}
+
+#[tokio::test]
 async fn access_revocation_keeps_csrf_even_when_it_only_reduces_authority() {
     let fixture = Fixture::new().await;
     let computer = Uuid::new_v4();

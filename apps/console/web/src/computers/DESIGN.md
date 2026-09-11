@@ -23,7 +23,7 @@ and controller lifetime. A stale asynchronous result cannot populate a new scope
 The collection shows authoritative phases and action flags. Create uses the admitted
 default template. Explicit Stop explains that process memory ends and retained files
 remain. Selection persists per scope, with an exact Computer fragment route. Template
-selection, provider setup controls, grants and file Tasks remain subsequent work.
+selection, provider setup controls and file Tasks remain subsequent work.
 
 `controller.ts` coalesces invalidations during an in-flight read into another read.
 The first subscription baseline overlaps the initial HTTP snapshot. Stream loss marks
@@ -99,3 +99,18 @@ Node behavior tests qualify protocol ordering, callback drain, bounded buffers,
 lease loss, lifecycle recovery and stale epochs. They do not establish interactive
 browser behavior, headed GPU presentation, actual SSO or public deployment. Those
 remain acceptance gates in `docs/COMPUTERS_PLAN.md`.
+
+`AutomationPanel.tsx` shows named grants, application scope, original bounds and expiry.
+Issuance uses current server limits and explicit consent for whole-run Stop on command
+interruption. Management hints disable unavailable actions. The form requests only
+Execute; broader lifecycle permissions require their separate agent integration.
+Existing cached principal names improve selection without requiring administrator
+inventory for core Computers. The application client ID remains an explicit scope.
+
+Before sending, the form saves the generated UUIDv7 request and exact grant body in
+scope-and-Computer-specific session storage. Retry and reload preserve absolute expiry
+and scope. A confirmed result clears that intent; clearing an uncertain request requires
+review and does not revoke an accepted grant. The BFF keeps credentials in its session
+and applies the existing CSRF boundary. Resource invalidations refresh the grant list
+without replacing the focused terminal. This implementation still requires installed
+headed hardware browser acceptance.

@@ -21,6 +21,10 @@ pub(super) enum Operation {
     Read(Uuid),
     Receipt { computer: Uuid, operation: Uuid },
     Access(Uuid),
+    Automation(Uuid),
+    AutomationGrant { computer: Uuid, grant: Uuid },
+    GrantAutomation(Uuid),
+    RevokeAutomation { computer: Uuid, grant: Uuid },
     RevokeAccess { computer: Uuid, grant: Uuid },
     Pairing(Uuid),
     ConfirmPairing { computer: Uuid, pairing: Uuid },
@@ -64,6 +68,16 @@ impl Operation {
         if let Some(grant) = grant_id {
             return match (matched, method, id) {
                 (
+                    "/computers/{profile}/{id}/automation/{grant_id}",
+                    &Method::GET,
+                    Some(computer),
+                ) => Ok(Self::AutomationGrant { computer, grant }),
+                (
+                    "/computers/{profile}/{id}/automation/{grant_id}/revoke",
+                    &Method::POST,
+                    Some(computer),
+                ) => Ok(Self::RevokeAutomation { computer, grant }),
+                (
                     "/computers/{profile}/{id}/access/{grant_id}/revoke",
                     &Method::POST,
                     Some(computer),
@@ -89,6 +103,12 @@ impl Operation {
             ("/computers/{profile}", &Method::POST, None) => Ok(Self::Create),
             ("/computers/{profile}/{id}", &Method::GET, Some(id)) => Ok(Self::Read(id)),
             ("/computers/{profile}/{id}/access", &Method::GET, Some(id)) => Ok(Self::Access(id)),
+            ("/computers/{profile}/{id}/automation", &Method::GET, Some(id)) => {
+                Ok(Self::Automation(id))
+            }
+            ("/computers/{profile}/{id}/automation", &Method::POST, Some(id)) => {
+                Ok(Self::GrantAutomation(id))
+            }
             ("/computers/{profile}/{id}/cli-pairings", &Method::POST, Some(id)) => {
                 Ok(Self::Pairing(id))
             }
@@ -108,6 +128,15 @@ impl Operation {
             Self::List | Self::Create => "computers".into(),
             Self::Read(id) => format!("computers/{id}"),
             Self::Access(id) => format!("computers/{id}/access"),
+            Self::Automation(id) | Self::GrantAutomation(id) => {
+                format!("computers/{id}/automation")
+            }
+            Self::AutomationGrant { computer, grant } => {
+                format!("computers/{computer}/automation/{grant}")
+            }
+            Self::RevokeAutomation { computer, grant } => {
+                format!("computers/{computer}/automation/{grant}/revoke")
+            }
             Self::Pairing(id) => format!("computers/{id}/cli-pairings"),
             Self::ConfirmPairing { computer, pairing } => {
                 format!("computers/{computer}/cli-pairings/{pairing}/confirm")
@@ -131,6 +160,8 @@ impl Operation {
             Self::Create => Some("create"),
             Self::Start(_) => Some("start"),
             Self::Stop(_) => Some("stop"),
+            Self::GrantAutomation(_) => Some("grant_automation"),
+            Self::RevokeAutomation { .. } => Some("revoke_automation"),
             _ => None,
         };
         if let Some(tool) = tool {
@@ -143,6 +174,10 @@ impl Operation {
             );
         }
         let uri = match self {
+            Self::Automation(id) => format!("computer://computers/{id}/automation"),
+            Self::AutomationGrant { computer, grant } => {
+                veoveo_computers_contract::automation_grant_uri(computer, grant)
+            }
             Self::Read(id)
             | Self::Access(id)
             | Self::RevokeAccess { computer: id, .. }
@@ -178,6 +213,8 @@ impl Operation {
             Self::Create
                 | Self::Start(_)
                 | Self::Stop(_)
+                | Self::GrantAutomation(_)
+                | Self::RevokeAutomation { .. }
                 | Self::Ticket(_)
                 | Self::RevokeAccess { .. }
                 | Self::Pairing(_)
@@ -191,6 +228,8 @@ impl Operation {
                 | Self::Read(_)
                 | Self::Receipt { .. }
                 | Self::Access(_)
+                | Self::Automation(_)
+                | Self::AutomationGrant { .. }
                 | Self::RevokeAccess { .. }
         )
     }

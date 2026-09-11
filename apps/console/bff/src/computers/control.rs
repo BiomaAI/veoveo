@@ -148,6 +148,12 @@ fn upstream_path(
             .flatten();
     }
     if let Some(grant) = grant_id {
+        if matched == "/console/api/computers/{id}/automation/{grant_id}" {
+            return id.map(|id| format!("/{id}/automation/{grant}"));
+        }
+        if matched == "/console/api/computers/{id}/automation/{grant_id}/revoke" {
+            return id.map(|id| format!("/{id}/automation/{grant}/revoke"));
+        }
         return (matched == "/console/api/computers/{id}/access/{grant_id}/revoke")
             .then(|| id.map(|id| format!("/{id}/access/{grant}/revoke")))
             .flatten();
@@ -161,6 +167,7 @@ fn upstream_path(
         ("/console/api/computers", None) => Some(String::new()),
         ("/console/api/computers/{id}", Some(id)) => Some(format!("/{id}")),
         ("/console/api/computers/{id}/access", Some(id)) => Some(format!("/{id}/access")),
+        ("/console/api/computers/{id}/automation", Some(id)) => Some(format!("/{id}/automation")),
         ("/console/api/computers/{id}/cli-pairings", Some(id)) => {
             Some(format!("/{id}/cli-pairings"))
         }

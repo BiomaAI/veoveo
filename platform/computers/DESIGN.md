@@ -8,7 +8,7 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command and output-capability envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
-| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0066 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
@@ -48,7 +48,7 @@ The current checkpoint implements private collection admission, operation admiss
 and shared Task linking, dispatch receipts, durable observation budgets and correlated
 domain settlement. The native worker lives in `servers/computers-mcp`. The browser terminal and stock CLI project durable renewable grants through the
 installed service. Named automation grants now have a durable ledger and current
-authority checks. Their public projection and Task integration remain work alongside
+authority checks. Their public command and grant projection shares this domain. Remaining work includes
 deletion with storage acknowledgement, execution and Artifact movement in
 `docs/COMPUTERS_PLAN.md`. Domain tests alone do not establish installed acceptance.
 
@@ -630,3 +630,15 @@ pin acknowledgement remains discoverable; a delivered command cannot recreate a 
 All command readers must understand Completed before public command admission. Native
 worker execution, real Artifact publication and the public end-to-end journey remain
 integration gates.
+
+Migration 0067 adds the canonical execution result address to completed journals and
+their successful shared Task projection. The migration transaction checks that the
+Task identifies Computers execution and that its structured result and error bit agree
+with the journal. An inconsistency aborts the whole migration. Exact result reads use
+current command Task authority, with distinct actual actor and direct owner oversight.
+The migration requires drained old command readers/writers and no downgrade decoder.
+
+Automation inventory includes current management hints and the checked installation
+ceilings. One fresh management authority snapshot supplies the hints; issuance and
+revocation continue to evaluate their own current authority. Exact grant reads authorize
+the owner and do not scan the active inventory, preserving expired/revoked results.

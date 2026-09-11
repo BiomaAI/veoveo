@@ -1,6 +1,6 @@
 import { consoleJson, ConsoleHttpError } from "../consoleHttp.ts";
 import { parseComputer } from "../generatedContracts.ts";
-import type { Action, ApiError, OperationReceipt } from "../generated/computers.ts";
+import type { Action, ApiError, IssueAutomationGrantInput, OperationReceipt } from "../generated/computers.ts";
 
 export async function readComputers(after?: string, signal?: AbortSignal) {
   return parseComputer(
@@ -72,6 +72,32 @@ export async function revokeAccess(computerId: string, grantId: string, signal?:
   if (receipt.computerId !== computerId || receipt.grantId !== grantId || !receipt.revoked)
     throw new Error("The access revocation could not be verified.");
   return receipt;
+}
+export async function readAutomation(computerId: string, signal?: AbortSignal) {
+  const value = parseComputer("automation_grants", await consoleJson(
+    `computers/${encodeURIComponent(computerId)}/automation`, undefined, signal,
+  ));
+  if (value.computerId !== computerId || value.grants.some(g => g.computerId !== computerId))
+    throw new Error("The automation inventory could not be verified.");
+  return value;
+}
+function automationResult(value: unknown, computerId: string, grantId?: string) {
+  const result = parseComputer("automation_grant_result", value);
+  if (result.grant.computerId !== computerId || (grantId && result.grant.grantId !== grantId)
+    || result.result_uri !== `computer://computers/${computerId}/automation/${result.grant.grantId}`)
+    throw new Error("The automation grant could not be verified.");
+  return result;
+}
+export async function grantAutomation(input: IssueAutomationGrantInput) {
+  parseComputer("issue_automation_grant", input);
+  return automationResult(await consoleJson(`computers/${encodeURIComponent(input.computerId)}/automation`, input), input.computerId);
+}
+export async function revokeAutomation(computerId: string, grantId: string) {
+  const result = automationResult(await consoleJson(
+    `computers/${encodeURIComponent(computerId)}/automation/${encodeURIComponent(grantId)}/revoke`, {},
+  ), computerId, grantId);
+  if (!result.grant.revokedAt) throw new Error("The revocation could not be verified.");
+  return result;
 }
 export function computerError(error: unknown): string {
   if (error instanceof ConsoleHttpError) {

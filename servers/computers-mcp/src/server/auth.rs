@@ -12,6 +12,10 @@ use veoveo_mcp_contract::{
     GatewayInternalTokenVerifier, host_authority_is_allowed, parse_request_host_authority,
 };
 
+/// Retained only for the current request; deliberately has no Debug surface.
+#[derive(Clone)]
+pub(crate) struct ForwardedBearer(pub(crate) String);
+
 /// Bound request admission and database work. A subscription's response body has
 /// its own renewable authority deadline after the HTTP response is established.
 pub async fn deadline(request: Request, next: Next) -> Response {
@@ -41,11 +45,17 @@ pub async fn internal(
                 && !token.is_empty()
                 && !token.chars().any(char::is_whitespace)
         })
-        .and_then(|(_, token)| verifier.verify(token).ok());
-    let Some(identity) = identity else {
+        .and_then(|(_, token)| {
+            verifier
+                .verify(token)
+                .ok()
+                .map(|identity| (identity, token.to_owned()))
+        });
+    let Some((identity, bearer)) = identity else {
         return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
     };
     request.extensions_mut().insert(identity);
+    request.extensions_mut().insert(ForwardedBearer(bearer));
     next.run(request).await
 }
 pub async fn host(State(hosts): State<Arc<Vec<String>>>, request: Request, next: Next) -> Response {

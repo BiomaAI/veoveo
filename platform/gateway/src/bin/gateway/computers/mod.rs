@@ -38,6 +38,18 @@ pub(crate) fn router(state: ComputersState) -> Router {
         .route("/computers/{profile}/{id}", get(control::proxy))
         .route("/computers/{profile}/{id}/access", get(control::proxy))
         .route(
+            "/computers/{profile}/{id}/automation",
+            get(control::proxy).post(control::proxy),
+        )
+        .route(
+            "/computers/{profile}/{id}/automation/{grant_id}",
+            get(control::proxy),
+        )
+        .route(
+            "/computers/{profile}/{id}/automation/{grant_id}/revoke",
+            post(control::proxy),
+        )
+        .route(
             "/computers/{profile}/{id}/cli-pairings",
             post(control::proxy),
         )

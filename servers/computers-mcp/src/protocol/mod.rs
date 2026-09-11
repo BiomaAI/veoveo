@@ -1,4 +1,5 @@
 mod auth;
+mod automation;
 mod guard;
 pub(crate) mod resources;
 mod subscriptions;
@@ -66,7 +67,13 @@ impl ServerHandler for ComputersMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         auth::actor(&context)?;
-        let p = page(tasks::tools(), params.as_ref())?;
+        let p = page(
+            tasks::tools()
+                .into_iter()
+                .chain(automation::tools())
+                .collect(),
+            params.as_ref(),
+        )?;
         Ok(ListToolsResult {
             tools: p.items,
             next_cursor: p.next_cursor,
@@ -211,7 +218,10 @@ impl ServerHandler for ComputersMcp {
             (&request.r#ref, request.argument.name.as_str())
             && matches!(
                 reference.uri.as_str(),
-                resources::COMPUTER_TEMPLATE | resources::ACCESS_TEMPLATE
+                resources::COMPUTER_TEMPLATE
+                    | resources::ACCESS_TEMPLATE
+                    | resources::AUTOMATION_TEMPLATE
+                    | resources::GRANT_TEMPLATE
             )
         {
             let authority = self

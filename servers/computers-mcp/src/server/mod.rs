@@ -1,7 +1,8 @@
 mod access_events;
 mod admin;
 mod attachment_authority;
-mod auth;
+pub(crate) mod auth;
+mod automation;
 mod cli;
 mod http_error;
 mod origins;
@@ -42,7 +43,7 @@ pub fn router(
         },
         veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_max_request_body_bytes(64 * 1024)
+            .with_max_request_body_bytes(2 * 1024 * 1024)
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(shutdown.clone()),
     );
@@ -60,6 +61,7 @@ pub fn router(
         .nest(
             "/admin",
             admin::router(app.clone())
+                .merge(automation::router(app.clone()))
                 .merge(pairing::router(app.clone(), allowed_origins.clone()))
                 .merge(terminal::router(
                     app.clone(),

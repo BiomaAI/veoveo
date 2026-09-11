@@ -137,7 +137,7 @@ fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
     assert_eq!(configuration["capacity"]["kind"], "unconfigured");
     let denied = Command::new("helm")
         .args(["template", "computers"])
-        .arg(chart)
+        .arg(&chart)
         .args([
             "--set",
             "installationPreset=custom",
@@ -153,6 +153,22 @@ fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
     assert!(!denied.status.success());
     assert!(
         String::from_utf8_lossy(&denied.stderr).contains("artifact-service for command outputs")
+    );
+    let denied = Command::new("helm")
+        .args(["template", "computers"])
+        .arg(&chart)
+        .args([
+            "--set",
+            "computerCapacity=openshell-docker",
+            "--set-json",
+            "artifactService.allowedAudiences=[\"artifact\"]",
+        ])
+        .output()
+        .unwrap();
+    assert!(!denied.status.success());
+    assert!(
+        String::from_utf8_lossy(&denied.stderr)
+            .contains("computers in artifactService.allowedAudiences")
     );
 }
 

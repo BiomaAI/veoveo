@@ -15,6 +15,25 @@ pub fn identity(
 pub fn actor(context: &RequestContext<RoleServer>) -> Result<ComputerActor, ErrorData> {
     ComputerActor::from_verified(&identity(context)?).map_err(|_| forbidden())
 }
+pub fn caller(
+    context: &RequestContext<RoleServer>,
+) -> Result<veoveo_mcp_contract::PlaneCaller, ErrorData> {
+    let identity = identity(context)?;
+    let bearer = context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .and_then(|parts| {
+            parts
+                .extensions
+                .get::<crate::server::auth::ForwardedBearer>()
+        })
+        .ok_or_else(forbidden)?;
+    Ok(veoveo_mcp_contract::PlaneCaller {
+        memberships: identity.actor.group_memberships(),
+        identity,
+        bearer_token: bearer.0.clone(),
+    })
+}
 pub fn forbidden() -> ErrorData {
     ErrorData::invalid_request("Computer access is not authorized", None)
 }

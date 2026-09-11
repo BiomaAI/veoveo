@@ -572,14 +572,25 @@ Stop includes the provider grace interval. Cancellation and lost-ticket containm
 use the same journal and preserve retained files. Configured startup now supervises
 command and lifecycle workers together. Its v2 configuration validates shared command
 keys and execution-qualified defaults before store access. The Bioma reference retains
-the old template alongside the staged command-capable default. Public admission,
-qualified template maintenance and the installed execution journey remain required.
+the old template alongside the staged command-capable default.
+Qualified template maintenance and the installed execution journey remain required.
 
 Command Task read/cancel and subscription projection now share current domain authority.
 Cross-replica fixtures distinguish the execution actor from Computer ownership, preserve
 owner cancellation after agent revocation and deny a different client or Work Context.
 The listener uses one Task update source and sends a current baseline. Public execution
-admission and installed agent access remain required.
+admission now uses the shared application; installed agent access remains required.
+
+Public MCP command admission now validates the Tasks extension before queueing, binds
+the current named grant, and prepares output authority through the actual caller's
+Artifact identity. A real-store/two-replica HTTP fixture exercises a full 1 MiB binary
+input and repairs unavailable Artifact preparation through the original Task. Changed
+input cannot reuse that request identity. Grant MCP tools and generated HTTP/Console
+management share domain policy, exact result URIs and revocation. The Console saves
+issuance intents before sending and shows current limits plus interruption consent.
+Migration 0067 qualifies atomic completed-result backfill and rejects inconsistent
+Task outcomes. These are local implementation and fixture results. Native scheduler,
+installed agent commands, template maintenance and browser grant acceptance remain.
 
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.

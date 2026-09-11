@@ -4,6 +4,8 @@
 mod access_inventory;
 #[path = "support/application.rs"]
 mod app_support;
+#[path = "support/command_admission.rs"]
+mod command_admission;
 #[path = "../../../platform/computers/tests/support/commands.rs"]
 mod command_support;
 #[path = "support/command_tasks.rs"]

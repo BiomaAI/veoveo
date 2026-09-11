@@ -775,7 +775,10 @@
         "create",
         "start",
         "stop",
-        "revoke_access"
+        "revoke_access",
+        "execute",
+        "grant_automation",
+        "revoke_automation"
       ],
       "prompts": [
         "develop"
@@ -1282,7 +1285,10 @@
               "create",
               "start",
               "stop",
-              "revoke_access"
+              "revoke_access",
+              "execute",
+              "grant_automation",
+              "revoke_automation"
             ]
           },
           "resources": {
@@ -1452,7 +1458,10 @@
               "create",
               "start",
               "stop",
-              "revoke_access"
+              "revoke_access",
+              "execute",
+              "grant_automation",
+              "revoke_automation"
             ]
           },
           "resources": {
@@ -1926,7 +1935,10 @@
               "create",
               "start",
               "stop",
-              "revoke_access"
+              "revoke_access",
+              "execute",
+              "grant_automation",
+              "revoke_automation"
             ]
           },
           "resources": {
@@ -5142,7 +5154,10 @@
             "create",
             "start",
             "stop",
-            "revoke_access"
+            "revoke_access",
+            "execute",
+            "grant_automation",
+            "revoke_automation"
           ],
           "resource_schemes": [
             "computer"
@@ -5191,7 +5206,10 @@
             "create",
             "start",
             "stop",
-            "revoke_access"
+            "revoke_access",
+            "execute",
+            "grant_automation",
+            "revoke_automation"
           ],
           "resource_schemes": [
             "computer"

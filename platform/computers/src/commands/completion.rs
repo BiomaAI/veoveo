@@ -64,6 +64,7 @@ pub(super) fn validate_result(result: &ExecutionResult, command: &CommandOperati
     let limits = command.effective_limits.ok_or(ComputerError::Unavailable)?;
     if result.computer_id != command.computer_id()
         || result.execution_id != command.execution_id()
+        || result.result_uri.execution_id() != command.execution_id()
         || result.exit_code == 124
         || result.stdout.artifact_id.get_version_num() != 7
         || result.stderr.artifact_id.get_version_num() != 7
@@ -94,6 +95,8 @@ impl ComputersStore {
         }
         let mut operation = ticket.dispatch.into_operation();
         let result = ExecutionResult {
+            result_uri: crate::api::ExecutionResultUri::new(operation.execution_id())
+                .map_err(|_| ComputerError::Unavailable)?,
             computer_id: operation.computer_id(),
             execution_id: operation.execution_id(),
             exit_code: ticket.exit_code,

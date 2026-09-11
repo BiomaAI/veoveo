@@ -5,6 +5,8 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+base64.workspace = true
+veoveo-computer-execution = { path = "../../platform/computers/execution" }
 veoveo-computers-transport = { path = "../../platform/computers/transport" }
 anyhow.workspace = true
 clap.workspace = true
@@ -33,11 +35,9 @@ veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 
 [dev-dependencies]
 veoveo-artifact-service = { path = "../../platform/artifacts/service" }
-veoveo-computer-execution = { path = "../../platform/computers/execution" }
 tokio-tungstenite.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
-base64.workspace = true
 reqwest = { workspace = true, features = ["json", "stream", "rustls-no-provider"] }
 nix = { workspace = true, features = ["fs", "user", "mount"] }
 tokio = { workspace = true, features = ["process"] }

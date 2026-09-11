@@ -41,6 +41,9 @@
 {{- if and (eq .Values.computerCapacity "openshell-docker") (not (has "artifact-service" $components)) -}}
 {{- fail "computerCapacity=openshell-docker requires component artifact-service for command outputs" -}}
 {{- end -}}
+{{- if and (eq .Values.computerCapacity "openshell-docker") (not (has "computers" .Values.artifactService.allowedAudiences)) -}}
+{{- fail "computerCapacity=openshell-docker requires computers in artifactService.allowedAudiences" -}}
+{{- end -}}
 {{- if and (ne .Values.installationPreset "custom") (or .Values.components .Values.mcpServers) -}}
 {{- fail "components and mcpServers are valid only with installationPreset=custom" -}}
 {{- end -}}
