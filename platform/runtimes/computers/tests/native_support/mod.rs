@@ -22,6 +22,8 @@ pub struct Provider {
     pub dir: PathBuf,
     pub runtime: OpenShellRuntime,
     pub image: String,
+    #[allow(dead_code)] // Only installation-policy scenarios use the raw fixture endpoint.
+    pub endpoint: String,
     cleanup: Cleanup,
 }
 struct Cleanup {
@@ -257,6 +259,7 @@ enable_bind_mounts = false
             dir,
             runtime,
             image,
+            endpoint: endpoint.clone(),
             cleanup,
         };
         (provider, format!("https://{endpoint}"))

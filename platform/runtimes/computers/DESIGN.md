@@ -51,8 +51,13 @@ from temporary provider unavailability. `models`, `binding`,
 `canonical` and `policy_json` validate the admitted template and exact identity.
 `terminal` and `terminal_output` own the byte stream and replay boundary. `execution`
 owns bounded command streams. `allocation` and `storage` bind retained volumes;
-`policy_continuity` checks effective policy continuity under an external maintenance
-fence. It compares the complete instance-bound template, including guest labels.
+`policy_continuity` checks effective policy continuity after an authenticated retained
+handoff. It compares the complete instance-bound template, including guest labels.
+The owning durable maintenance operation fences mutations before capturing a stopped
+source. Restoration accepts only the allocator's exact source/target receipt and
+does not depend on the deleted provider object. Template preflight allows an image
+change with identical command, static policy, resources and storage sizes. The caller
+must separately qualify image data compatibility before admitting that transition.
 Its `checkpoint` module encodes sensitive policy for immediate journal encryption and
 recovers it without rereading a retired source. It rejects cross-provider, source,
 process, workspace and template identity; unknown or noncanonical encoding also fails.
@@ -183,10 +188,11 @@ ask the allocator to prove physical writer removal and hand off the retained hom
 A current not-found result alone cannot transfer storage. The command fixture adds
 a bounded eight-read/ten-second provider absence check followed by actual allocator
 handoff and fresh-instance creation. Existing command-marker bytes must survive.
-This qualifies adapter composition under fixture-owned quiescence. Durable product
-maintenance, checkpoint journal encryption and dynamic-grant restoration after source
-retirement remain work. The existing policy restoration requires a retained
-Stopped source and cannot supply that future workflow after deletion.
+The fixture also persists an encrypted captured policy, drops its plaintext, retires
+the source, and restores an additive network grant using the authenticated handoff.
+An exact retry verifies the loaded policy without a second update. This qualifies
+adapter composition under fixture-owned quiescence. Durable product maintenance
+admission, journal transitions and installed adoption remain work.
 
 Healthy lifecycle observation uses native WatchSandbox. `wait_for_lifecycle` takes
 the persisted checkpoint, the checked dispatch response and a remaining budget.

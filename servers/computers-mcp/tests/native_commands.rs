@@ -1,6 +1,8 @@
 #![allow(dead_code)] // Shared native fixture operations are scenario-specific.
 #[path = "../../../platform/runtimes/computers/tests/native_support/docker_daemon.rs"]
 mod docker_daemon;
+#[path = "support/maintenance_policy.rs"]
+mod maintenance_policy;
 #[path = "../../../platform/computers/storage/tests/native_support/service.rs"]
 mod native_service_support;
 #[path = "support/command_projection.rs"]
@@ -712,6 +714,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         WorkerStep::Settled
     );
     inspect(&provider.runtime, &binding, "test ! -e replayed-command; test ! -e after-cancel; test ! -e after-revocation; test \"$(cat invocation-count)\" = x").await;
+    maintenance_policy::add_grant(&provider, &binding).await;
     let stop = a
         .queue_operation(
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
@@ -734,6 +737,39 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .await
         .unwrap();
     assert_eq!(captured.fingerprint().len(), 64);
+    let replacement =
+        Binding::replacement(computer.computer_id, Uuid::now_v7(), selected.fingerprint()).unwrap();
+    let maintenance = MaintenanceBinding {
+        operation_id: Uuid::now_v7(),
+        request_id: Uuid::now_v7(),
+        computer_id: computer.computer_id,
+        provider_instance_id: provider.runtime.provider_instance_id(),
+        owner_key: command.binding().owner_key.clone(),
+        actor_key: command.binding().owner_key.clone(),
+        source_instance_id: binding
+            .replacement_instance_id()
+            .unwrap_or(binding.computer_id()),
+        target_instance_id: replacement.replacement_instance_id().unwrap(),
+        source_template_fingerprint: selected.fingerprint(),
+        target_template_fingerprint: selected.fingerprint(),
+        source_resource_id: stopped.sandbox_id.clone(),
+        source_process_id: stopped.main_process_instance_id.clone(),
+        required_labels: command.binding().required_output_labels.clone(),
+    };
+    // A private encrypted file exercises restart decoding without creating a fake
+    // product maintenance journal. The real domain admission remains separate.
+    let sealed = keys
+        .seal_maintenance(
+            &maintenance,
+            &MaintenanceCheckpoint::new(captured.checkpoint().unwrap()).unwrap(),
+        )
+        .unwrap();
+    drop(captured);
+    let checkpoint_path = home.dir.join("maintenance-policy.enc");
+    tokio::fs::write(&checkpoint_path, serde_json::to_vec(&sealed).unwrap())
+        .await
+        .unwrap();
+    drop(sealed);
     let _acknowledgement = provider.runtime.retire(&binding, &stopped).await.unwrap();
     let absent = tokio::time::timeout(Duration::from_secs(10), async {
         for attempt in 0..8 {
@@ -750,10 +786,13 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         absent,
         "retired provider resource did not disappear within its observation budget"
     );
-    let replacement =
-        Binding::replacement(computer.computer_id, Uuid::now_v7(), selected.fingerprint()).unwrap();
-    allocator
-        .handoff(Uuid::now_v7(), &binding, &replacement, &stopped.sandbox_id)
+    let handoff = allocator
+        .handoff(
+            maintenance.operation_id,
+            &binding,
+            &replacement,
+            &stopped.sandbox_id,
+        )
         .await
         .unwrap();
     let checkpoint = veoveo_computers_runtime::LifecycleCheckpoint::create(
@@ -772,6 +811,31 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .wait_for_lifecycle(&checkpoint, &created, Duration::from_secs(30))
         .await
         .unwrap();
+    let sealed = serde_json::from_slice(&tokio::fs::read(&checkpoint_path).await.unwrap()).unwrap();
+    let bytes = keys.open_maintenance(&maintenance, &sealed).unwrap();
+    let recovered = provider
+        .runtime
+        .recover_replacement_policy(bytes.bytes(), &binding, &selected, &stopped)
+        .unwrap();
+    drop(bytes);
+    let restored = provider
+        .runtime
+        .restore_replacement_policy(&recovered, &handoff, &selected, &selected)
+        .await
+        .unwrap();
+    assert!(
+        restored.policy_version > 1,
+        "captured dynamic grant must be restored"
+    );
+    assert_eq!(
+        restored,
+        provider
+            .runtime
+            .restore_replacement_policy(&recovered, &handoff, &selected, &selected)
+            .await
+            .unwrap()
+    );
+    tokio::fs::remove_file(checkpoint_path).await.unwrap();
     inspect(
         &provider.runtime,
         &replacement,
@@ -779,8 +843,6 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     )
     .await;
     assert!(allocator.restore(&binding).await.is_err());
-    // This base-policy fixture does not qualify restoring captured dynamic grants
-    // after retirement; that requires a durable protected policy checkpoint.
     artifact_server.abort();
     let _ = artifact_server.await;
     provider.assert_running();

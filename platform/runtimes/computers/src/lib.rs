@@ -47,7 +47,7 @@ mod storage;
 mod terminal;
 mod terminal_output;
 
-pub use allocation::{AllocationConfig, HomeAllocator};
+pub use allocation::{AllocationConfig, HomeAllocator, RetainedHandoff};
 // Private installation protocol shared with the privileged storage service.
 pub use allocation::wire as storage_protocol;
 pub use binding::Binding;

@@ -3439,3 +3439,17 @@ seconds and passed eleven focused crypto cases in 0.53 seconds. Moving that modu
 updated domain and service imports without changing provider or guest binaries. The
 tests cover maximum-size encryption, rotation and cross-purpose rejection locally;
 they do not require launching a Docker or database fixture.
+
+The extended native command fixture passed post-retirement encrypted policy recovery
+and actual retained handoff in 84.89 seconds after an 8.91-second compile. It reused the
+provider binaries, staged template and allocator. The first added grant selected raw
+TCP and timed out: the pinned supervisor requires startup networking infrastructure
+before expanding transparent TCP policy. An enforced read-only HTTP grant loaded and
+restored through the existing proxy profile. Transparent TCP remains a distinct
+qualification boundary; the test does not replace its missing prerequisites.
+
+The pinned supervisor checks configuration on a ten-second internal cadence. The
+worker observes native watch notifications and does not add status polling. That
+cadence contributes to live policy-update and replacement qualification time. A future
+provider experiment can measure a notification-driven refresh or shorter admitted
+interval; it does not justify another provider rebuild during this delivery step.

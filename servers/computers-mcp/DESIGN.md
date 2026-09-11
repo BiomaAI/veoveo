@@ -489,3 +489,10 @@ after allocator replacement preserves the file and changes the process identity.
 Lost dispatch/settlement and current-policy cases retain their domain fence assertions.
 The fixture establishes this composition; it does not establish public MCP or
 installation acceptance.
+
+The native command fixture also exercises policy continuity across physical writer
+handoff. It adds a scoped fixture grant to the running source, stops it, encrypts the
+captured policy, removes the provider resource, and obtains the allocator's handoff
+receipt. The fresh target loads the captured grant from that encrypted checkpoint;
+retained command markers remain intact. This test composes the production primitives
+without claiming that its fixture file is the product's maintenance journal.

@@ -1,8 +1,8 @@
-//! Installation-only policy continuity for an externally quiesced replacement.
-//! A stopped-state read is not a distributed fence. The installation must drain
-//! controllers/provider work and hold exclusive maintenance authority throughout.
+//! Policy continuity after authenticated retained-writer handoff. The owning
+//! maintenance journal must fence source mutations before capture and retirement.
 use crate::{
-    Binding, DevelopmentTemplate, Observation, OpenShellRuntime, Phase, Result, RuntimeFailure,
+    Binding, DevelopmentTemplate, Observation, OpenShellRuntime, Phase, Result, RetainedHandoff,
+    RuntimeFailure,
     client::request,
     models::valid_fingerprint,
     protocol::{sandbox::v1 as policy, v1 as api},
@@ -249,6 +249,9 @@ impl OpenShellRuntime {
     ) -> Result<ReplacementPolicy> {
         tokio::time::timeout(DEADLINE, async {
             let before = self.policy_bound(source, template).await?;
+            if before.phase != Phase::Stopped {
+                return Err(FAILURE);
+            }
             let config = self.policy_config(&before.provider_id).await?;
             admitted_config(
                 &config,
@@ -279,38 +282,39 @@ impl OpenShellRuntime {
         .map_err(|_| FAILURE)?
     }
 
-    async fn original_stopped(
-        &self,
-        snapshot: &ReplacementPolicy,
-        template: &DevelopmentTemplate,
-    ) -> Result<()> {
-        let before = self.policy_bound(&snapshot.source, template).await?;
-        if before.phase != Phase::Stopped
-            || self.provider_instance_id != snapshot.installation_provider_id
-            || before.provider_id != snapshot.provider_id
-            || before.process != snapshot.process_id
-            || self.policy_config(&snapshot.provider_id).await? != snapshot.config
-            || self.policy_bound(&snapshot.source, template).await? != before
-        {
-            return Err(FAILURE);
-        }
-        Ok(())
-    }
-
-    /// Replay only the captured additive grants onto a new ready instance.
-    /// The installation must already hold an external quiescence fence; this
-    /// method does not stop/start/create either instance or transfer domain state.
+    /// Restore captured additive grants after exact retained-writer handoff.
+    /// The selected template transition permits an image change with identical
+    /// resources, home, command and static policy. No source object is required.
+    /// The owning durable maintenance fence remains required through adoption.
     /// An unconfirmed result requires reconciliation of the same candidate.
     pub async fn restore_replacement_policy(
         &self,
         snapshot: &ReplacementPolicy,
-        target: &Binding,
-        template: &DevelopmentTemplate,
-        operation: Uuid,
+        handoff: &RetainedHandoff,
+        source_template: &DevelopmentTemplate,
+        target_template: &DevelopmentTemplate,
     ) -> Result<PolicyRestoration> {
+        let target = handoff.target();
+        if self.provider_instance_id != snapshot.installation_provider_id
+            || !handoff.matches(
+                self.provider_instance_id,
+                &snapshot.source,
+                &snapshot.provider_id,
+            )
+            || handoff.operation_id().is_nil()
+            || target.replacement_instance_id().is_none()
+            || target == &snapshot.source
+            || target.computer_id() != snapshot.source.computer_id()
+            || source_template.fingerprint() != snapshot.source.template_fingerprint()
+            || target_template.fingerprint() != target.template_fingerprint()
+            || source_template.persistent_home().is_none()
+        {
+            return Err(FAILURE);
+        }
+        source_template.check_replacement_profile(target_template)?;
         tokio::time::timeout(
             DEADLINE,
-            self.restore_policy(snapshot, target, template, operation),
+            self.restore_policy(snapshot, target, target_template, handoff.operation_id()),
         )
         .await
         .map_err(|_| FAILURE)?
@@ -323,15 +327,6 @@ impl OpenShellRuntime {
         template: &DevelopmentTemplate,
         operation: Uuid,
     ) -> Result<PolicyRestoration> {
-        if operation.is_nil()
-            || target.replacement_instance_id().is_none()
-            || target == &snapshot.source
-            || target.computer_id() != snapshot.source.computer_id()
-            || target.template_fingerprint() != snapshot.source.template_fingerprint()
-        {
-            return Err(FAILURE);
-        }
-        self.original_stopped(snapshot, template).await?;
         let bound = self.policy_bound(target, template).await?;
         if bound.phase != Phase::Ready || bound.provider_id == snapshot.provider_id {
             return Err(FAILURE);
@@ -470,7 +465,6 @@ impl OpenShellRuntime {
         {
             return Err(FAILURE);
         }
-        self.original_stopped(snapshot, template).await?;
         Ok(PolicyRestoration {
             policy_version: version,
             policy_hash: hash,

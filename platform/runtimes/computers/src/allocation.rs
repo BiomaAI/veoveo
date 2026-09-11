@@ -63,6 +63,51 @@ pub struct HomeAllocator {
     capacity_bytes: u64,
     provider_id: Uuid,
 }
+
+/// Exact authenticated allocator acknowledgement of irreversible source-writer
+/// exclusion and target admission. It does not authorize domain adoption or replay.
+/// Constructed only after validating the private mTLS handoff reply; never decoded
+/// from a caller-supplied JSON object or provider deletion acknowledgement.
+#[derive(Debug)]
+pub struct RetainedHandoff {
+    provider_id: Uuid,
+    operation_id: Uuid,
+    source: Binding,
+    target: Binding,
+    source_resource_id: String,
+}
+impl RetainedHandoff {
+    pub(crate) fn matches(&self, provider: Uuid, source: &Binding, resource: &str) -> bool {
+        self.provider_id == provider
+            && &self.source == source
+            && self.source_resource_id == resource
+    }
+    pub(crate) fn target(&self) -> &Binding {
+        &self.target
+    }
+    pub(crate) fn operation_id(&self) -> Uuid {
+        self.operation_id
+    }
+
+    // Synthetic transport evidence for unit tests. Integration tests must use the
+    // actual allocator; this constructor is absent from library builds.
+    #[cfg(test)]
+    pub(crate) fn fixture(
+        provider_id: Uuid,
+        operation_id: Uuid,
+        source: Binding,
+        target: Binding,
+        source_resource_id: String,
+    ) -> Self {
+        Self {
+            provider_id,
+            operation_id,
+            source,
+            target,
+            source_resource_id,
+        }
+    }
+}
 impl HomeAllocator {
     pub async fn new(
         config: AllocationConfig,
@@ -150,7 +195,7 @@ impl HomeAllocator {
         source: &Binding,
         target: &Binding,
         source_resource_id: &str,
-    ) -> Result<()> {
+    ) -> Result<RetainedHandoff> {
         if source.computer_id() != target.computer_id()
             || target.template_fingerprint() != self.fingerprint
             || source.replacement_instance_id() == target.replacement_instance_id()
@@ -208,7 +253,14 @@ impl HomeAllocator {
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
             capacity_bytes: (self.capacity_bytes as i64).into(),
         };
-        self.call(&request, &expected, 180).await
+        self.call(&request, &expected, 180).await?;
+        Ok(RetainedHandoff {
+            provider_id: self.provider_id,
+            operation_id,
+            source: source.clone(),
+            target: target.clone(),
+            source_resource_id: source_resource_id.into(),
+        })
     }
     /// Fence a never-claimed allocation and retire its old instance permanently.
     /// The caller must durably fence source mutations before using this operation.
