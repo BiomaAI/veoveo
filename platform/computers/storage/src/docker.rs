@@ -12,6 +12,16 @@ pub(crate) struct RemovedWriter {
     writer: PhysicalWriter,
     engine_id: Uuid,
 }
+/// Zero registered consumers on the original engine, checked while the caller
+/// holds the allocation mutex. This alone does not exclude filesystem writers.
+pub(crate) struct UnclaimedVolume {
+    engine_id: Uuid,
+}
+impl UnclaimedVolume {
+    pub(crate) fn engine_id(&self) -> Uuid {
+        self.engine_id
+    }
+}
 impl RemovedWriter {
     pub(crate) fn writer(&self) -> &PhysicalWriter {
         &self.writer
@@ -49,6 +59,16 @@ struct Create<'a> {
     driver: &'a str,
 }
 impl Docker {
+    pub(crate) async fn prove_unclaimed(&self, volume: &str) -> Result<UnclaimedVolume> {
+        self.verify_engine().await?;
+        if !self.consumers(volume).await?.is_empty() {
+            return Err(StorageError::WriterDenied);
+        }
+        self.verify_engine().await?;
+        Ok(UnclaimedVolume {
+            engine_id: self.engine_id,
+        })
+    }
     /// Enroll the engine reached through an explicit installation-owned socket.
     /// Journal::open must bind this identity before the helper serves requests.
     /// Reopening an existing journal rejects a different observed engine.

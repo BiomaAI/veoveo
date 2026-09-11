@@ -23,7 +23,7 @@ const HOME_UID: u32 = 10001;
 mod fence;
 mod loop_devices;
 mod recovery;
-pub(crate) use fence::FencedHome;
+pub(crate) use fence::{FencedHome, FencedUnclaimedHome};
 pub struct Filesystem {
     journal: Journal,
     reserve_bytes: u64,

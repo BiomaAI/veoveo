@@ -342,6 +342,7 @@ impl Journal {
     }
 }
 
+mod abandonment;
 mod handoff;
 
 fn valid_capacity(bytes: u64) -> bool {

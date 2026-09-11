@@ -598,6 +598,13 @@ agent commands, template maintenance and browser grant acceptance remain.
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
 
+The allocator now has a separate never-claimed admission transition. It requires the
+recorded writer state, original engine, zero registered consumers and verified physical
+detachment before preserving the home under a fresh instance. A delayed old Create
+cannot mount that home. The transition retains the same retry identity across restart
+and cannot reuse a prior handoff target. Durable worker maintenance and provider-effect
+settlement remain required before this can recover an installed Computer.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

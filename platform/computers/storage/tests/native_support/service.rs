@@ -485,6 +485,23 @@ impl Fixture {
         checked(host().args(["rm", "--force", &format!("{}-held", self.service_name)])).await;
     }
     pub async fn drop_handoff_reply(&self, operation: Uuid) {
+        self.drop_storage_reply(serde_json::json!({
+            "schema": "veoveo.io/computer-storage/v1", "operation": "handoff", "providerId": self.provider,
+            "computerId": self.initial.computer_id(), "operationId": operation, "sourceInstanceId": self.initial.computer_id(),
+            "sourceTemplateFingerprint": self.initial.template_fingerprint(), "sourceResourceId": "resource-a",
+            "targetInstanceId": self.replacement.replacement_instance_id().unwrap(), "targetTemplateFingerprint": self.replacement.template_fingerprint(),
+        })).await;
+    }
+    pub async fn drop_abandon_reply(&self, operation: Uuid, source: &Binding, target: &Binding) {
+        self.drop_storage_reply(serde_json::json!({
+            "schema": "veoveo.io/computer-storage/v1", "operation": "abandon", "providerId": self.provider,
+            "computerId": source.computer_id(), "operationId": operation,
+            "sourceInstanceId": source.replacement_instance_id().unwrap_or(source.computer_id()),
+            "sourceTemplateFingerprint": source.template_fingerprint(),
+            "targetInstanceId": target.replacement_instance_id().unwrap(), "targetTemplateFingerprint": target.template_fingerprint(),
+        })).await;
+    }
+    async fn drop_storage_reply(&self, request: serde_json::Value) {
         use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, pem::PemObject};
         use tokio::io::AsyncWriteExt;
         let ca = fs::read(self.dir.join("tls/ca.pem")).unwrap();
@@ -507,12 +524,6 @@ impl Fixture {
             PrivateKeyDer::from_pem_slice(&key).unwrap(),
         )
         .unwrap();
-        let request = serde_json::json!({
-            "schema": "veoveo.io/computer-storage/v1", "operation": "handoff", "providerId": self.provider,
-            "computerId": self.initial.computer_id(), "operationId": operation, "sourceInstanceId": self.initial.computer_id(),
-            "sourceTemplateFingerprint": self.initial.template_fingerprint(), "sourceResourceId": "resource-a",
-            "targetInstanceId": self.replacement.replacement_instance_id().unwrap(), "targetTemplateFingerprint": self.replacement.template_fingerprint(),
-        });
         let raw = serde_json::to_vec(&request).unwrap();
         assert!(raw.len() <= 1024);
         tokio::time::timeout(Duration::from_secs(5), async {

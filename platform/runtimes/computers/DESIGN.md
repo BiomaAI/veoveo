@@ -77,9 +77,8 @@ Computer UUID and admitted instance UUID; every reply must echo all identities e
 The initial instance UUID equals the Computer UUID. A replacement uses its distinct
 durable instance UUID while preserving the original Computer's volume name.
 
-This private protocol has no deployed callers. The existing unreleased v1 shape is
-replaced without an identity-omitting adapter. Missing, duplicate, null and malformed
-identities fail decoding. A reply for another valid provider or instance also fails.
+The private v1 protocol is installed for retained allocation. Missing, duplicate, null
+and malformed identities fail decoding. A reply for another valid provider or instance also fails.
 The local TLS fixture exercises initial and replacement bindings; it establishes
 transport integrity, not physical handoff authority.
 
@@ -100,6 +99,14 @@ records the physical container and requires verified loop detachment before admi
 a new writer. Its Docker engine identity and provider namespace match the recorded
 storage host. Native helper qualification does not establish installed provider or
 worker maintenance integration.
+
+The additional `abandon` operation carries a durable operation UUID and exact
+source/target bindings without a claimed resource ID. It is restricted to a home whose
+journal has never admitted a physical writer. The allocator supplies independent
+engine, consumer and filesystem fencing; the client cannot manufacture that proof.
+Replies echo every identity and capacity. An older helper rejects this operation,
+which requires qualification before maintenance admission. Retiring storage admission
+does not settle an uncertain provider request or release domain capacity.
 
 ## Native Storage Boundary Probe
 
