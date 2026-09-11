@@ -19,6 +19,7 @@ fn binding() -> CommandBinding {
         resource_id: "native-resource".into(),
         process_id: "native-process".into(),
         required_output_labels: Default::default(),
+        replacement_instance_id: None,
     }
 }
 fn key(n: u128) -> CommandSealingKey {
@@ -49,6 +50,30 @@ fn command(value: &str, seconds: u32, bytes: u32) -> CommandPayload {
     .unwrap()
 }
 
+#[test]
+fn replacement_identity_is_authenticated_without_reencoding_initial_envelopes() {
+    let keys = ring(1, &[1]);
+    let initial = binding();
+    let payload = command("private", 30, 1024);
+    let original = keys.seal(&initial, &payload).unwrap();
+    let encoded = serde_json::to_value(&initial).unwrap();
+    assert!(encoded.get("replacement_instance_id").is_none());
+    let restored: CommandBinding = serde_json::from_value(encoded).unwrap();
+    keys.open(&restored, &original).unwrap();
+    assert_eq!(restored.instance_id(), restored.computer_id);
+    let mut replacement = initial.clone();
+    replacement.replacement_instance_id = Some(Uuid::now_v7());
+    assert!(keys.open(&replacement, &original).is_err());
+    let replaced = keys.seal(&replacement, &payload).unwrap();
+    keys.open(&replacement, &replaced).unwrap();
+    assert!(keys.open(&initial, &replaced).is_err());
+    replacement.replacement_instance_id = Some(Uuid::now_v7());
+    assert!(keys.open(&replacement, &replaced).is_err());
+    for invalid in [Uuid::nil(), initial.computer_id] {
+        replacement.replacement_instance_id = Some(invalid);
+        assert!(keys.seal(&replacement, &payload).is_err());
+    }
+}
 #[test]
 fn queued_payload_is_randomized_recoverable_and_has_only_keyed_fingerprints() {
     let keys = ring(1, &[1]);

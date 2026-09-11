@@ -186,8 +186,12 @@ async fn attached(
         LeaseAuthority::issue(checked, baseline.valid_until() - baseline.checked_at())
             .map_err(|_| ())?;
     let (activity, updates) = authority::Activity::new();
-    let binding =
-        Binding::new(id, baseline.computer().template_fingerprint.clone()).map_err(|_| ())?;
+    let binding = Binding::from_instance(
+        id,
+        baseline.computer().instance_id(),
+        baseline.computer().template_fingerprint.clone(),
+    )
+    .map_err(|_| ())?;
     let family =
         veoveo_platform_store::gateway_refresh_family_record_id(baseline.session_family_id());
     let work = async {

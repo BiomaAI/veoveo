@@ -3405,3 +3405,12 @@ home in the same isolated daemon exercises delayed old mounts, a lost reply, hel
 restart and fresh-instance adoption. Existing claimed-writer faults remain in that
 run, including a lingering namespace mount. This keeps physical storage qualification
 independent of the larger worker and gateway dependency graphs.
+
+Replacement identity changes compiled the Store, Task runtime and Computers graph in
+13.59 seconds on the first focused check. The fixture caught a UUID comparison between
+a typed SurrealDB field and its JSON command binding. Canonical text comparison at that
+boundary fixed valid-command rejection while preserving mismatch refusal. The corrected
+command and lifecycle cases took 7.82 and 1.35 seconds after a 5.36-second compile.
+The real-provider command fixture now uses a replacement home within its existing
+installation, avoiding another daemon just to test replacement routing. No provider
+version, image dependency or installed resource changed for this identity work.

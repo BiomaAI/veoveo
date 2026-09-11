@@ -8,6 +8,7 @@ IF $current = NONE OR $computer_state = NONE OR $slot_state.execution != $execut
   OR $current.computer_id != $computer_state.computer_id OR $current.binding != $binding
   OR $computer_state.owner_key != $current.binding.owner_key
   OR $computer_state.template_fingerprint != $current.binding.template_fingerprint
+  OR <string>($computer_state.replacement_instance_id ?? "") != ($current.binding.replacement_instance_id ?? "")
   OR $computer_state.provider_resource_id != $current.binding.resource_id
   OR $computer_state.process_id != $current.binding.process_id
   OR $current.stage != "dispatched" OR $current.dispatch_id != $dispatch_id

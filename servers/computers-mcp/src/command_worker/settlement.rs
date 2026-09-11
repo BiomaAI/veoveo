@@ -11,8 +11,12 @@ impl CommandWorker {
     ) -> Result<WorkerStep> {
         let operation = self.store.begin_command_containment(claim, reason).await?;
         let b = operation.binding();
-        let binding = Binding::new(b.computer_id, b.template_fingerprint.clone())
-            .map_err(|_| CommandWorkerError::Configuration)?;
+        let binding = Binding::from_instance(
+            b.computer_id,
+            b.instance_id(),
+            b.template_fingerprint.clone(),
+        )
+        .map_err(|_| CommandWorkerError::Configuration)?;
         let before = Observation {
             sandbox_id: b.resource_id.clone(),
             main_process_instance_id: b.process_id.clone(),
@@ -206,6 +210,7 @@ fn reached(operation: &CommandOperation, observation: Observation) -> ReachedSta
     ReachedState {
         provider_instance_id: operation.binding().provider_instance_id,
         computer_id: operation.computer_id(),
+        replacement_instance_id: operation.binding().replacement_instance_id,
         template_fingerprint: operation.binding().template_fingerprint.clone(),
         resource_id: observation.sandbox_id,
         process_id: observation.main_process_instance_id,

@@ -29,6 +29,98 @@ async fn setup(db: &TestDb) -> (ComputersStore, ComputersStore, TaskRuntime) {
         TaskRuntime::new(db.a.clone(), "computers", "worker-a"),
     )
 }
+#[tokio::test]
+async fn replacement_lifecycle_keeps_instance_identity_through_dispatch_and_settlement() {
+    use surrealdb::types::{RecordId, Uuid as StoreUuid};
+    let db = TestDb::new().await;
+    let (store, replica, tasks) = setup(&db).await;
+    let actor = owner("alice");
+    let computer = store
+        .reserve(
+            &actor,
+            &Reservation {
+                request_id: Uuid::now_v7(),
+                template_id: "development".into(),
+                template_fingerprint: FINGERPRINT.into(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(computer.instance_id(), computer.computer_id);
+    let record = RecordId::new("computer", StoreUuid::from(computer.computer_id));
+    for invalid in [Uuid::nil(), computer.computer_id] {
+        assert!(
+            db.a.client()
+                .query("UPDATE $computer SET replacement_instance_id=$instance;")
+                .bind(("computer", record.clone()))
+                .bind(("instance", invalid))
+                .await
+                .unwrap()
+                .check()
+                .is_err()
+        );
+    }
+    // This isolated store fixture represents an adopted maintenance instance.
+    // It does not authorize maintenance or mutate installed Computer state.
+    let instance = Uuid::now_v7();
+    db.a.client()
+        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .bind(("computer", record.clone()))
+        .bind(("instance", instance))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert_eq!(
+        replica
+            .get(&actor, computer.computer_id)
+            .await
+            .unwrap()
+            .instance_id(),
+        instance
+    );
+    let (operation, claim) = queue(&store, &tasks, computer.computer_id, Action::Create).await;
+    assert_eq!(operation.instance_id(), instance);
+    let ticket = store.begin_dispatch(&claim).await.unwrap();
+    let mut wrong = reached(&operation, ReachedPhase::Ready, "replacement-run");
+    wrong.replacement_instance_id = None;
+    assert!(
+        store
+            .complete_dispatch(&claim, ticket, wrong)
+            .await
+            .is_err()
+    );
+    let ObservationAdmission::Read(read) = replica.admit_observation(&claim).await.unwrap() else {
+        panic!("expected observation")
+    };
+    replica
+        .complete_observation(
+            &claim,
+            read,
+            reached(&operation, ReachedPhase::Ready, "replacement-run"),
+        )
+        .await
+        .unwrap();
+    let (stop, stop_claim) = queue(&store, &tasks, computer.computer_id, Action::Stop).await;
+    assert_eq!(stop.instance_id(), instance);
+    db.a.client()
+        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .bind(("computer", record))
+        .bind(("instance", Uuid::now_v7()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert!(store.begin_dispatch(&stop_claim).await.is_err());
+    assert_eq!(
+        replica
+            .get(&actor, computer.computer_id)
+            .await
+            .unwrap()
+            .active_operation,
+        Some(stop.operation_id)
+    );
+}
 async fn create(store: &ComputersStore, tasks: &TaskRuntime) -> (Operation, ClaimedTask) {
     let actor = owner("alice");
     let computer = store
@@ -74,6 +166,7 @@ fn reached(op: &Operation, phase: ReachedPhase, process: &str) -> ReachedState {
     ReachedState {
         provider_instance_id: op.provider_instance_id,
         computer_id: op.computer_id,
+        replacement_instance_id: op.replacement_instance_id,
         template_fingerprint: op.template_fingerprint.clone(),
         resource_id: "resource-1".into(),
         process_id: process.into(),

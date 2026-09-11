@@ -7,6 +7,52 @@ use veoveo_computers::{ComputerActor, ComputerError, api::*};
 use veoveo_task_runtime::TaskRuntime;
 
 #[tokio::test]
+async fn replacement_command_identity_survives_replicas_and_blocks_a_changed_instance() {
+    let db = support::TestDb::new().await;
+    let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
+    let instance = Uuid::now_v7();
+    db.a.client()
+        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .bind(("computer", computer_record(computer)))
+        .bind(("instance", instance))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let grant = a
+        .issue_automation_grant(&owner, &support::automation::input(computer))
+        .await
+        .unwrap();
+    let claim = queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
+    assert_eq!(
+        b.command_for_claim(&claim)
+            .await
+            .unwrap()
+            .binding()
+            .instance_id(),
+        instance
+    );
+    db.a.client()
+        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .bind(("computer", computer_record(computer)))
+        .bind(("instance", Uuid::now_v7()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert!(b.begin_command_dispatch(&claim, &keys()).await.is_err());
+    db.a.client()
+        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .bind(("computer", computer_record(computer)))
+        .bind(("instance", instance))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let ticket = b.begin_command_dispatch(&claim, &keys()).await.unwrap();
+    assert_eq!(ticket.binding().instance_id(), instance);
+}
+#[tokio::test]
 async fn one_dispatch_survives_competing_workers_and_lost_ticket_without_replay() {
     use veoveo_computers::commands::CommandStage;
     let db = support::TestDb::new().await;

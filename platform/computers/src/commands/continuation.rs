@@ -152,6 +152,7 @@ impl ComputersStore {
         let current = permit.computer()?;
         let binding = &operation.binding;
         if current.provider_instance_id != binding.provider_instance_id
+            || current.replacement_instance_id != binding.replacement_instance_id
             || crate::identity::owner_key(&current.owner)? != binding.owner_key
             || current.template_fingerprint != binding.template_fingerprint
             || current.provider_resource_id.as_deref() != Some(&binding.resource_id)

@@ -29,6 +29,7 @@ pub struct Operation {
     pub execution_authority: crate::AcceptedAuthority,
     pub provider_instance_id: Uuid,
     pub template_fingerprint: String,
+    pub replacement_instance_id: Option<Uuid>,
     pub action: Action,
     pub stage: OperationStage,
     pub previous_phase: ComputerPhase,
@@ -50,6 +51,9 @@ pub struct Operation {
     pub task_projected_at: Option<DateTime<Utc>>,
 }
 impl Operation {
+    pub fn instance_id(&self) -> Uuid {
+        self.replacement_instance_id.unwrap_or(self.computer_id)
+    }
     pub fn task_id(&self) -> TaskId {
         TaskId::from_uuid(self.operation_id)
     }
@@ -69,6 +73,7 @@ pub(crate) struct OperationRecord {
     execution_authority: OpenObject,
     provider_instance_id: Uuid,
     template_fingerprint: String,
+    replacement_instance_id: Option<Uuid>,
     action: String,
     stage: String,
     previous_phase: String,
@@ -95,6 +100,9 @@ impl TryFrom<OperationRecord> for Operation {
         if value.operation_id.get_version_num() != 7
             || value.computer_id.is_nil()
             || value.provider_instance_id.is_nil()
+            || value
+                .replacement_instance_id
+                .is_some_and(|id| id.is_nil() || id == value.computer_id)
             || value.task != TaskId::from_uuid(value.operation_id).record_id()
         {
             return Err(ComputerError::Unavailable);
@@ -109,6 +117,7 @@ impl TryFrom<OperationRecord> for Operation {
                 )?)?,
                 provider_instance_id: value.provider_instance_id,
                 template_fingerprint: value.template_fingerprint,
+                replacement_instance_id: value.replacement_instance_id,
                 action: serde_json::from_value(serde_json::Value::String(value.action))?,
                 stage: serde_json::from_value(serde_json::Value::String(value.stage))?,
                 previous_phase: serde_json::from_value(serde_json::Value::String(

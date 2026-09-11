@@ -23,8 +23,15 @@ pub struct CommandBinding {
     pub resource_id: String,
     pub process_id: String,
     pub required_output_labels: std::collections::BTreeSet<veoveo_mcp_contract::DataLabelId>,
+    /// Absence is the initial instance. A replacement is part of authenticated
+    /// command identity; original envelopes keep their canonical initial encoding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement_instance_id: Option<Uuid>,
 }
 impl CommandBinding {
+    pub fn instance_id(&self) -> Uuid {
+        self.replacement_instance_id.unwrap_or(self.computer_id)
+    }
     pub(super) fn aad(&self) -> Result<Vec<u8>> {
         let hash = |s: &str| {
             s.len() == 64
@@ -48,6 +55,9 @@ impl CommandBinding {
             || !native_id(&self.resource_id)
             || !native_id(&self.process_id)
             || self.required_output_labels.len() > 256
+            || self
+                .replacement_instance_id
+                .is_some_and(|id| id.is_nil() || id == self.computer_id)
         {
             return Err(ComputerError::InvalidInput);
         }

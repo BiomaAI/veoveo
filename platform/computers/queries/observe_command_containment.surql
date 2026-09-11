@@ -13,6 +13,7 @@ IF $current.stage = "containing" {
     UPDATE $computer SET phase = "recovery_required", updated_at = time::now()
       WHERE active_operation = NONE AND provider_instance_id = $provider
         AND template_fingerprint = $current.binding.template_fingerprint
+        AND <string>(replacement_instance_id ?? "") = ($current.binding.replacement_instance_id ?? "")
         AND provider_resource_id = $current.binding.resource_id AND process_id = $current.binding.process_id
         AND phase != "stopped";
     CREATE outbox_event CONTENT $event;

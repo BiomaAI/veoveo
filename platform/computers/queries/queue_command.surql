@@ -36,6 +36,7 @@ IF $prior = NONE {
     OR $current.owner_context != $expected_owner_context
     OR $current.provider_instance_id != $content.provider_instance_id
     OR $current.template_fingerprint != $content.binding.template_fingerprint
+    OR <string>($current.replacement_instance_id ?? "") != ($content.binding.replacement_instance_id ?? "")
     OR $current.provider_resource_id != $content.binding.resource_id
     OR $current.process_id != $content.binding.process_id { THROW "computer_state_conflict"; };
   UPDATE $computer SET updated_at = updated_at;

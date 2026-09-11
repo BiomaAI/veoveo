@@ -57,6 +57,7 @@ pub enum ReachedPhase {
 pub struct ReachedState {
     pub provider_instance_id: Uuid,
     pub computer_id: Uuid,
+    pub replacement_instance_id: Option<Uuid>,
     pub template_fingerprint: String,
     pub resource_id: String,
     pub process_id: String,
@@ -70,6 +71,7 @@ impl ReachedState {
                 && value.bytes().all(|byte| byte.is_ascii_graphic())
         };
         if self.provider_instance_id != operation.provider_instance_id
+            || self.replacement_instance_id != operation.replacement_instance_id
             || self.computer_id != operation.computer_id
             || self.template_fingerprint != operation.template_fingerprint
             || !valid_id(&self.resource_id)

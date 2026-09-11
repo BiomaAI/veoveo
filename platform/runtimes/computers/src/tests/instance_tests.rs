@@ -1,4 +1,20 @@
 use super::*;
+
+#[test]
+fn persisted_instance_resolution_selects_exact_initial_or_replacement_labels() {
+    let computer = Uuid::now_v7();
+    let instance = Uuid::now_v7();
+    let fingerprint = "a".repeat(64);
+    assert_eq!(
+        Binding::from_instance(computer, computer, fingerprint.clone()).unwrap(),
+        Binding::new(computer, fingerprint.clone()).unwrap()
+    );
+    assert_eq!(
+        Binding::from_instance(computer, instance, fingerprint.clone()).unwrap(),
+        Binding::replacement(computer, instance, fingerprint.clone()).unwrap()
+    );
+    assert!(Binding::from_instance(computer, Uuid::nil(), fingerprint).is_err());
+}
 use std::collections::BTreeSet;
 
 fn replacement(home: bool, instance: u128) -> Binding {
