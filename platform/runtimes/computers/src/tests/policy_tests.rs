@@ -56,7 +56,7 @@ fn sandbox_for(binding: &Binding, id: &str, version: u32) -> api::Sandbox {
     meta.name = binding.name();
     meta.labels = binding.labels();
     meta.resource_version = 6;
-    value.spec = Some(profile().spec(binding.computer_id()).unwrap());
+    value.spec = Some(profile().bound_spec(binding).unwrap());
     let status = value.status.as_mut().unwrap();
     status.current_policy_version = version;
     status.main_process_instance_id = format!("main-{id}");
@@ -341,6 +341,11 @@ async fn restore(running: &Running, snapshot: &ReplacementPolicy) -> Result<Poli
 #[tokio::test]
 async fn additive_policy_restores_once_without_spec_settings_home_or_lifecycle_changes() {
     let running = fixture().await;
+    let original_specs = {
+        let state = running.fake.0.lock().unwrap();
+        let fixture = state.policy_fixture.as_ref().unwrap();
+        (fixture.source.spec.clone(), fixture.target.spec.clone())
+    };
     let snapshot = captured(&running).await;
     assert_eq!(snapshot.fingerprint().len(), 64);
     let again = running
@@ -356,7 +361,8 @@ async fn additive_policy_restores_once_without_spec_settings_home_or_lifecycle_c
         assert_eq!((f.updates, f.watches), (1, 1));
         assert!(f.old_config.policy == f.new_config.policy);
         assert!(f.old_config.settings == f.new_config.settings);
-        assert!(f.source.spec == f.target.spec);
+        assert!(f.source.spec == original_specs.0);
+        assert!(f.target.spec == original_specs.1);
     });
     let state = running.fake.0.lock().unwrap();
     assert_eq!((state.creates, state.starts, state.stops), (0, 0, 0));

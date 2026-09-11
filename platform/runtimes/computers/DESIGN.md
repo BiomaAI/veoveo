@@ -12,7 +12,7 @@ public ingress and installed qualification remain in
 | OpenShell `0.0.116` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
 | OpenShell retained Docker provider | Candidate gateway `0.0.117-veoveo.2` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
 | SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
-| `veoveo.io/computer-storage/v1` | Bounded mTLS prepare/restore/handoff adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
+| `veoveo.io/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
@@ -50,7 +50,8 @@ from temporary provider unavailability. `models`, `binding`,
 `canonical` and `policy_json` validate the admitted template and exact identity.
 `terminal` and `terminal_output` own the byte stream and replay boundary. `execution`
 owns bounded command streams. `allocation` and `storage` bind retained volumes;
-`policy_continuity` checks retained-instance replacement authority.
+`policy_continuity` checks effective policy continuity under an external maintenance
+fence. It compares the complete instance-bound template, including guest labels.
 `lease` enforces local authority deadlines and revocation. `forward_tunnel` owns the
 bounded SSH-only CLI bridge and its independent closure task.
 
@@ -159,6 +160,25 @@ The Docker plugin request decoder accepts bounded JSON bytes because the actual 
 does not supply the ordinary JSON Content-Type expected by Axum's JSON extractor.
 
 ## Completion And Recovery
+
+`retirement` sends one DeleteSandbox request for an exactly observed Stopped resource
+and process. The entire preflight/request has a thirty-second deadline. A changed
+binding, phase or run rejects dispatch; a lost reply remains unknown. The returned
+acknowledgement distinguishes accepted deletion from the provider reporting an absent
+compute resource. Neither result proves physical exclusion or permits releasing a
+home. The owning maintenance journal must hold the original dispatch ticket and keep
+source lifecycle mutations fenced. The selected private provider profile excludes
+concurrent out-of-band administration and never reuses retired instance names.
+
+Recovery may observe the exact original binding within its persisted budget, then
+ask the allocator to prove physical writer removal and hand off the retained home.
+A current not-found result alone cannot transfer storage. The command fixture adds
+a bounded eight-read/ten-second provider absence check followed by actual allocator
+handoff and fresh-instance creation. Existing command-marker bytes must survive.
+This qualifies adapter composition under fixture-owned quiescence. Durable product
+maintenance, protected policy checkpoints and dynamic-grant restoration after source
+retirement remain work. The existing in-memory policy restoration requires a retained
+Stopped source and cannot supply that future workflow after deletion.
 
 Healthy lifecycle observation uses native WatchSandbox. `wait_for_lifecycle` takes
 the persisted checkpoint, the checked dispatch response and a remaining budget.

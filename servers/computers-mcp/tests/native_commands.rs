@@ -726,6 +726,62 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         lifecycle.step(stop).boxed().await.unwrap(),
         WorkerStep::Settled
     );
+    // Retire the exact stopped provider resource, then require the allocator's
+    // independent physical handoff before any fresh instance may use its files.
+    let stopped = provider.runtime.get(&binding).await.unwrap().unwrap();
+    let captured = provider
+        .runtime
+        .capture_replacement_policy(&binding, &selected)
+        .await
+        .unwrap();
+    assert_eq!(captured.fingerprint().len(), 64);
+    let _acknowledgement = provider.runtime.retire(&binding, &stopped).await.unwrap();
+    let absent = tokio::time::timeout(Duration::from_secs(10), async {
+        for attempt in 0..8 {
+            if provider.runtime.get(&binding).await.unwrap().is_none() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(100 << attempt.min(4))).await;
+        }
+        false
+    })
+    .await
+    .unwrap();
+    assert!(
+        absent,
+        "retired provider resource did not disappear within its observation budget"
+    );
+    let replacement =
+        Binding::replacement(computer.computer_id, Uuid::now_v7(), selected.fingerprint()).unwrap();
+    allocator
+        .handoff(Uuid::now_v7(), &binding, &replacement, &stopped.sandbox_id)
+        .await
+        .unwrap();
+    let checkpoint = veoveo_computers_runtime::LifecycleCheckpoint::create(
+        provider.runtime.provider_instance_id(),
+        Uuid::now_v7(),
+        replacement.clone(),
+    )
+    .unwrap();
+    let created = provider
+        .runtime
+        .create(&replacement, &selected)
+        .await
+        .unwrap();
+    provider
+        .runtime
+        .wait_for_lifecycle(&checkpoint, &created, Duration::from_secs(30))
+        .await
+        .unwrap();
+    inspect(
+        &provider.runtime,
+        &replacement,
+        "test \"$(cat invocation-count)\" = x; test ! -e replayed-command",
+    )
+    .await;
+    assert!(allocator.restore(&binding).await.is_err());
+    // This base-policy fixture does not qualify restoring captured dynamic grants
+    // after retirement; that requires a durable protected policy checkpoint.
     artifact_server.abort();
     let _ = artifact_server.await;
     provider.assert_running();
