@@ -2,8 +2,17 @@
 //! the owning worker; admission alone never replaces an instance or frees capacity.
 mod admission;
 mod authority;
+mod checkpoint;
+mod journal;
 mod model;
+mod progress;
+mod queue;
+mod steps;
 pub use model::{MaintenanceOperation, MaintenanceSource, MaintenanceStage, MaintenanceTarget};
+pub use progress::{
+    MaintenanceEvidence, MaintenanceRecovery, MaintenanceStep, MaintenanceStepRecord,
+};
+pub use steps::{MaintenanceObservationAdmission, MaintenanceTicket};
 
 use crate::{ComputerError, Result};
 use serde::Serialize;

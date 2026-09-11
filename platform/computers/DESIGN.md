@@ -11,7 +11,7 @@
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
-| Veoveo private maintenance admission | Migration 0069; one immutable source/target and request identity, a shared `provider_wait` Task and the existing exclusive Computer fence; worker stages and public projection remain implementation work |
+| Veoveo private retained maintenance | Migrations 0069–0070; immutable source/target, shared `provider_wait` Task, exclusive Computer fence, bounded step journal and protected checkpoint; provider worker and public projection remain implementation work |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
 | Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
@@ -333,9 +333,37 @@ physical claim and abandonment rules still govern transfer. Active command execu
 must finish before this admission; coordinated drain is worker integration work.
 
 Admission closes new and renewing attachments through the existing exclusive fence.
-It leaves the observed phase, current instance and template intact. Provider stages,
-encrypted checkpoint persistence, adoption and the public update projection remain
-implementation work; this private admission cannot perform a template upgrade alone.
+It leaves the observed phase, current instance and template intact.
+
+`progress` preserves at most six step receipts: Stop, Capture, Retire, Transfer, Create
+and Restore. An already stopped source starts at Capture. An unknown initial Create
+uses Transfer and Create; it has no applied source policy to capture. Every new step
+requires current named authority, valid for five seconds including policy-read latency.
+Its intent commits under the exact shared Task lease before a dispatch ticket can leave
+the domain. Lost commit replies yield no ticket. Dispatch IDs remain in the history
+after settlement and cannot be reused for another step.
+
+Each step has a persisted 180-second recovery deadline and at most eight admitted reads.
+Backoff and charged read identities survive lease takeover. Observation tickets admit
+no new provider mutation. The owning worker may repeat only a separately qualified
+idempotent allocator operation with the same complete identity. Exhaustion preserves
+the Computer fence and marks recovery required. Policy loss and cancellation after a
+dispatch also preserve the journal. Cancellation before the first dispatch releases
+the new fence; an unresolved initial Create regains its original fence and unknown
+outcome. Operator resumption remains a separate integration requirement and cannot
+reset an uncertain dispatch through ordinary request retry.
+
+Capture settlement creates its encrypted checkpoint in the same transaction as the
+step receipt. The worker must reopen and validate that checkpoint before retirement.
+Only complete histories reach adoption. Adoption atomically replaces the recorded
+instance/template and resource/process, marks Ready and releases the fence under current
+action authority. Quota and the retained owner do not change. The owning worker must
+qualify the exact target run before this private adoption call; domain fixtures alone
+do not prove physical retirement, storage transfer or provider policy loading.
+
+Task projection and retention-pin acknowledgement are repairable through bounded
+worker discovery. Provider orchestration, operator recovery, public update projection
+and installed template qualification remain implementation work.
 
 ## Computer Confidentiality
 
@@ -344,9 +372,9 @@ the operation and request, provider, Computer, owner and actor, source and targe
 instances/templates, source resource/process, and retained labels. `ComputerKeyRing`
 protects them with a distinct maintenance purpose. The adapter validates its private
 format after authenticated opening; the domain has no provider dependency. Encryption
-and decoding grant no maintenance admission or physical writer authority. These
-primitives are ready for the durable journal; maintenance admission currently persists
-its identities without a policy checkpoint.
+and decoding grant no maintenance admission or physical writer authority. A separate
+private `computer_maintenance_policy` row retains the encrypted checkpoint. Missing
+keys, binding changes and damaged envelopes fail closed without recapture after retirement.
 
 `secrets/` protects argv, environment and finite stdin before durable
 admission. The envelope authenticates the Computer, named grant, actual actor,
