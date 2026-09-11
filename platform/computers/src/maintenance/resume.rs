@@ -72,7 +72,7 @@ impl ComputersStore {
         .map_err(|_| ComputerError::Unavailable)?
     }
 
-    async fn resumed_request(
+    pub async fn maintenance_resume_for_request(
         &self,
         actor: &ComputerActor,
         input: &ResumeUpdateInput,
@@ -115,7 +115,7 @@ impl ComputersStore {
         let authority = self
             .maintenance_request_authority(actor, &resume_target())
             .await?;
-        if let Some(prior) = self.resumed_request(actor, input).await? {
+        if let Some(prior) = self.maintenance_resume_for_request(actor, input).await? {
             return Ok(prior);
         }
         let before = self.maintenance(actor.owner(), input.task_id).await?;
@@ -127,7 +127,7 @@ impl ComputersStore {
         {
             // A concurrent exact request may have committed since the first lookup.
             return self
-                .resumed_request(actor, input)
+                .maintenance_resume_for_request(actor, input)
                 .await?
                 .ok_or(ComputerError::StateConflict);
         }
@@ -143,7 +143,7 @@ impl ComputersStore {
             Ok(claim) => claim,
             Err(_) => {
                 return self
-                    .resumed_request(actor, input)
+                    .maintenance_resume_for_request(actor, input)
                     .await?
                     .ok_or(ComputerError::StateConflict);
             }
@@ -295,7 +295,7 @@ impl ComputersStore {
         let _ = tasks.release_observation(&claim).await;
         match result {
             Ok(operation) => Ok(operation),
-            Err(error) => match self.resumed_request(actor, input).await? {
+            Err(error) => match self.maintenance_resume_for_request(actor, input).await? {
                 Some(operation) => Ok(operation),
                 None => Err(error),
             },

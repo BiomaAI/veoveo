@@ -1,6 +1,6 @@
 import { consoleJson, ConsoleHttpError } from "../consoleHttp.ts";
 import { parseComputer } from "../generatedContracts.ts";
-import type { Action, ApiError, IssueAutomationGrantInput, OperationReceipt, UpdateTemplateInput } from "../generated/computers.ts";
+import type { Action, ApiError, IssueAutomationGrantInput, OperationReceipt, UpdateTemplateInput, ResumeUpdateInput } from "../generated/computers.ts";
 
 export async function readComputers(after?: string, signal?: AbortSignal) {
   return parseComputer(
@@ -70,6 +70,15 @@ export async function readMaintenanceOperation(computerId: string, taskId: strin
   ));
   if (value.computerId !== computerId || value.taskId !== taskId)
     throw new Error("The environment update receipt could not be verified.");
+  return value;
+}
+export async function resumeUpdate(input: ResumeUpdateInput) {
+  parseComputer("resume_update_input", input);
+  const value = parseComputer("maintenance_view", await consoleJson(
+    `computers/${encodeURIComponent(input.computerId)}/maintenance/${encodeURIComponent(input.taskId)}/resume`, input,
+  ));
+  if (value.computerId !== input.computerId || value.taskId !== input.taskId)
+    throw new Error("The recovery response could not be verified.");
   return value;
 }
 export async function updateTemplate(input: UpdateTemplateInput) {

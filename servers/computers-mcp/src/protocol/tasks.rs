@@ -51,6 +51,10 @@ pub fn tools() -> Vec<Tool> {
     };
     vec![
         create,
+        Tool::new("resume_update", "Resume the existing paused environment update under current recovery policy. Use its exact updatedAt and explicitly acknowledge any pendingCancellationAt. Keep requestId and all inputs on retries. This retains the home and original dispatch identities; it does not replay an uncertain mutation. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<ResumeUpdateInput>())
+            .with_title("Resume environment update")
+            .with_output_schema::<MaintenanceOutputSchema>()
+            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
         Tool::new("update_template", "Update a Computer to an installation-admitted environment while retaining its home. This stops its processes. Finish active commands first. Omit templateId to select the current default; reuse requestId after a lost reply to retain the original selection. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<UpdateTemplateInput>())
             .with_title("Update environment")
             .with_output_schema::<MaintenanceOutputSchema>()
@@ -135,7 +139,7 @@ impl ComputersMcp {
             "create" => Some(Action::Create),
             "start" => Some(Action::Start),
             "stop" => Some(Action::Stop),
-            "execute" | "update_template" => None,
+            "execute" | "update_template" | "resume_update" => None,
             _ => return Err(ErrorData::invalid_params("unknown Computer tool", None)),
         };
         // Capability admission precedes domain reservation and Task creation.
@@ -167,12 +171,18 @@ impl ComputersMcp {
                 Ok(operation) => operation.task_id().to_string(),
                 Err(error) => return rejection(error),
             }
-        } else if request.name == "update_template" {
-            match self
-                .app
-                .update_template(&auth::actor(&context)?, input(request.arguments)?)
-                .await
-            {
+        } else if matches!(request.name.as_ref(), "update_template" | "resume_update") {
+            let actor = auth::actor(&context)?;
+            let result = if request.name == "resume_update" {
+                self.app
+                    .resume_update(&actor, input(request.arguments)?)
+                    .await
+            } else {
+                self.app
+                    .update_template(&actor, input(request.arguments)?)
+                    .await
+            };
+            match result {
                 Ok(operation) => operation.task_id().to_string(),
                 Err(error) => return rejection(error),
             }

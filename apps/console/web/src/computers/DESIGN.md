@@ -131,6 +131,14 @@ There are no credentials or command bytes in this state.
 Collection invalidations trigger inventory and known-receipt reads, with no periodic
 status query. A paused update shows its recovery reason and retained-home consequence.
 It cannot appear as a spinner or a completed update. Clearing a local request requires
-review unless completion is known and does not cancel the server operation. Operator
-budget resumption remains a separate delivery requirement. Node behavior checks and the
-web build do not establish headed hardware rendering or installed public acceptance.
+review unless completion is known and does not cancel the server operation.
+
+`RecoveryPanel.tsx` exposes current recovery eligibility and requires confirmation before
+continuing. A pending cancellation is named explicitly in that confirmation. The request
+stores the exact paused timestamp and cancellation acknowledgement before dispatch.
+`recoveryRequest.ts` preserves the same request across reload and a lost reply. A new
+request cannot overwrite unresolved intent; a late reply cannot remove newer intent.
+Known responses remain known when local storage fails. Submission errors refresh the
+current receipt without silently changing saved consent. Task cancellation invalidations
+reach the collection feed, including while a worker is paused. Node behavior checks and
+the web build do not establish headed hardware rendering or installed public acceptance.

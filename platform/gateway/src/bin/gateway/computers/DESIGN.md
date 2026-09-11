@@ -82,3 +82,9 @@ tool policy. Its closed input must name the route's Computer and a non-nil reque
 the optional template is an admitted catalog ID. The gateway validates receipt Computer
 and Task identities, bounded distinct target IDs, and consistent recovery phases before
 forwarding. No provider client or maintenance state machine belongs in this adapter.
+
+POST `/maintenance/{operation_id}/resume` requires the named `resume_update` tool
+and contributor membership. Its request and response bind the route's Computer and
+Task. The body contains the original paused timestamp, stable recovery request ID and
+explicit pending-cancellation acknowledgement. A receipt can advertise `canResume` only
+in Recovery Required. This route preserves the existing deadline and no-store boundary.

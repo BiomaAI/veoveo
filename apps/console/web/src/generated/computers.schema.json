@@ -950,6 +950,9 @@
     "MaintenanceView": {
       "additionalProperties": false,
       "properties": {
+        "canResume": {
+          "type": "boolean"
+        },
         "computerId": {
           "format": "uuid",
           "type": "string"
@@ -957,6 +960,13 @@
         "createdAt": {
           "format": "date-time",
           "type": "string"
+        },
+        "pendingCancellationAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "phase": {
           "$ref": "#/$defs/MaintenancePhase"
@@ -992,6 +1002,7 @@
         "sourceTemplateId",
         "targetTemplateId",
         "phase",
+        "canResume",
         "createdAt",
         "updatedAt"
       ],

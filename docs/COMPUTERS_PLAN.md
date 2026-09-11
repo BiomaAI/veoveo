@@ -867,4 +867,12 @@ The journal archives each prior finite window and preserves dispatch/replacement
 same-request retries cannot reset a budget or withdraw a newer cancellation. Migration
 0071 requires drained older Computers readers. Isolated tests cover migration, current
 policy, request races, cancellation and final verification resumption. Public recovery
-projection, native provider resumption and deployed acceptance remain required.
+projection follows this checkpoint; native provider resumption and deployed acceptance remain required.
+
+The public `resume_update` tool and Console recovery action now use that journal.
+The service exposes current recovery eligibility and exact pending cancellation time;
+the gateway/BFF preserve Computer/Task identity and named action policy. Console intent
+survives reload and uncertain replies. A paused Task cancellation invalidates the live
+Computer view without requiring a worker. The HTTP/MCP fixture proves cross-replica
+resumption, unchanged dispatch identity and current policy. Native recovery, the actual
+image transition and headed installed acceptance remain the deployment gates.

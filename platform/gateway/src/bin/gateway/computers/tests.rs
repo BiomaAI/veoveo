@@ -7,6 +7,35 @@ use veoveo_mcp_contract::{GatewayAction, PolicyTarget};
 fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
     let computer = uuid::Uuid::now_v7();
     let task = uuid::Uuid::now_v7();
+    let resume = Operation::from_route(
+        "/computers/{profile}/{id}/maintenance/{operation_id}/resume",
+        &Method::POST,
+        Some(computer),
+        Some(task),
+        None,
+        None,
+    )
+    .unwrap();
+    let (target, actions) = resume.authorization();
+    assert!(matches!(target, PolicyTarget::Tool { tool, .. } if tool.as_str() == "resume_update"));
+    assert_eq!(actions, &[GatewayAction::ToolsCall]);
+    assert!(resume.requires_json());
+    assert!(resume.requires_contributor());
+    assert_eq!(
+        resume.service_path(),
+        format!("computers/{computer}/maintenance/{task}/resume")
+    );
+    assert!(
+        Operation::from_route(
+            "/computers/{profile}/{id}/maintenance/{operation_id}/resume",
+            &Method::GET,
+            Some(computer),
+            Some(task),
+            None,
+            None
+        )
+        .is_err()
+    );
     for (path, id, suffix) in [
         (
             "/computers/{profile}/{id}/maintenance",

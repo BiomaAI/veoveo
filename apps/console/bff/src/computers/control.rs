@@ -159,6 +159,9 @@ fn upstream_path(
             .flatten();
     }
     if let Some(operation) = operation_id {
+        if matched == "/console/api/computers/{id}/maintenance/{operation_id}/resume" {
+            return id.map(|id| format!("/{id}/maintenance/{operation}/resume"));
+        }
         if matched == "/console/api/computers/{id}/maintenance/{operation_id}" {
             return id.map(|id| format!("/{id}/maintenance/{operation}"));
         }

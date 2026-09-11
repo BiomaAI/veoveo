@@ -39,9 +39,37 @@ async fn update(
     if input.computer_id != computer {
         return Err(crate::ApplicationError::Domain(ComputerError::InvalidInput).into());
     }
-    let operation = app.update_template(&actor(&identity)?, input).await?;
-    let view = crate::application::maintenance::view(&operation);
-    let status = if matches!(
+    let actor = actor(&identity)?;
+    let operation = app.update_template(&actor, input).await?;
+    let authority = app
+        .store
+        .control_authority(&actor)
+        .await
+        .map_err(crate::ApplicationError::from)?;
+    let view = app.project_maintenance(&authority, &operation).await?;
+    Ok((status(&view), Json(view)))
+}
+async fn resume(
+    State(app): State<Arc<Application>>,
+    Extension(identity): Extension<GatewayInternalIdentity>,
+    Path((computer, task)): Path<(Uuid, Uuid)>,
+    Json(input): Json<ResumeUpdateInput>,
+) -> Result<(StatusCode, Json<MaintenanceView>), HttpError> {
+    if input.computer_id != computer || input.task_id != task {
+        return Err(crate::ApplicationError::Domain(ComputerError::InvalidInput).into());
+    }
+    let actor = actor(&identity)?;
+    let operation = app.resume_update(&actor, input).await?;
+    let authority = app
+        .store
+        .control_authority(&actor)
+        .await
+        .map_err(crate::ApplicationError::from)?;
+    let view = app.project_maintenance(&authority, &operation).await?;
+    Ok((status(&view), Json(view)))
+}
+fn status(view: &MaintenanceView) -> StatusCode {
+    if matches!(
         view.phase,
         MaintenancePhase::Succeeded
             | MaintenancePhase::Cancelled
@@ -50,13 +78,16 @@ async fn update(
         StatusCode::OK
     } else {
         StatusCode::ACCEPTED
-    };
-    Ok((status, Json(view)))
+    }
 }
 pub(super) fn router(app: Arc<Application>) -> Router {
     Router::new()
         .route("/computers/{id}/maintenance", get(state))
         .route("/computers/{id}/maintenance/{operation_id}", get(operation))
+        .route(
+            "/computers/{id}/maintenance/{operation_id}/resume",
+            post(resume),
+        )
         .route("/computers/{id}/update-template", post(update))
         .with_state(app)
 }

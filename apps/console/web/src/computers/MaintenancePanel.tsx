@@ -4,6 +4,7 @@ import { uuidV7 } from "../agentControl";
 import type { ComputerSnapshot, MaintenancePhase, MaintenanceRecoveryReason } from "../generated/computers";
 import { computerError, readMaintenance, readMaintenanceOperation, updateTemplate } from "./api";
 import { readSavedUpdate, rememberUpdate, sendSavedUpdate, updateFinished, type SavedUpdate } from "./maintenanceRequest";
+import { RecoveryPanel } from "./RecoveryPanel";
 
 const phases: Record<MaintenancePhase, string> = {
   queued: "Update accepted",
@@ -82,7 +83,15 @@ export function MaintenancePanel({ computerId, scope, snapshot, stale }: {
     {visible && <div className="computer-operation"><div>
       <p role="status">{phases[visible.phase]}{stale ? " Last confirmed state; live updates are reconnecting." : ""}</p>
       <p>{visible.sourceTemplateId} → {visible.targetTemplateId}</p>
-      {visible.recovery && <p role="alert">{recovery[visible.recovery]} Your home remains reserved. An installation operator must resolve this operation before another update can begin.</p>}
+      {visible.recovery && <p role="alert">{recovery[visible.recovery]}</p>}
+      <RecoveryPanel key={visible.taskId} operation={visible} scope={scope} stale={stale}
+        refresh={() => { void inventory.refetch(); if (task) void receipt.refetch(); }}
+        onResumed={async (result) => {
+          const receiptKey = ["computers", "maintenance-receipt", computerId, result.taskId];
+          await cache.cancelQueries({ queryKey: receiptKey });
+          cache.setQueryData(receiptKey, result);
+          await inventory.refetch();
+        }} />
       <details><summary>Update reference</summary><code>{visible.taskId}</code></details>
     </div></div>}
     {saved.value && !updateFinished(current) && <div className="computer-operation"><div>

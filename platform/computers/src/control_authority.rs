@@ -70,6 +70,12 @@ impl ControlAuthority {
         }
         self.require_call(&crate::maintenance::target())
     }
+    pub fn require_resume_update(&self) -> Result<()> {
+        if self.snapshot.deadline - Duration::from_secs(25) <= Instant::now() {
+            return Err(ComputerError::Unavailable);
+        }
+        self.require_call(&crate::maintenance::resume_target())
+    }
     fn require_call(&self, target: &PolicyTarget) -> Result<()> {
         self.check_fresh()?;
         if !self

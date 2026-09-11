@@ -81,6 +81,10 @@ async fn forward(
         Operation::Start(_) => normalize::<api::StartInput>(&bytes),
         Operation::Stop(_) => normalize::<api::StopInput>(&bytes),
         Operation::UpdateTemplate(computer) => super::maintenance::input(&bytes, computer),
+        Operation::ResumeUpdate {
+            computer,
+            operation,
+        } => super::maintenance::resume_input(&bytes, computer, operation),
         Operation::Ticket(_) => normalize::<api::TerminalTicketInput>(&bytes),
         Operation::RevokeAccess { .. } => normalize::<api::RevokeAccessBody>(&bytes),
         Operation::RevokeAutomation { .. } => normalize::<api::RevokeAutomationGrantBody>(&bytes),
@@ -167,6 +171,12 @@ async fn forward(
                 if matches!(status, StatusCode::OK | StatusCode::ACCEPTED) =>
             {
                 super::maintenance::receipt(&bytes, computer, None)
+            }
+            Operation::ResumeUpdate {
+                computer,
+                operation,
+            } if matches!(status, StatusCode::OK | StatusCode::ACCEPTED) => {
+                super::maintenance::receipt(&bytes, computer, Some(operation))
             }
             Operation::Access(computer) if status == StatusCode::OK => {
                 access_grants(&bytes, computer)

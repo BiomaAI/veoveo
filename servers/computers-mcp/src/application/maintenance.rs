@@ -22,7 +22,7 @@ impl Application {
         let computer = self.store.get(actor.owner(), computer_id).await?;
         let active = match computer.active_operation {
             Some(id) => match self.store.maintenance(actor.owner(), id).await {
-                Ok(operation) => Some(view(&operation)),
+                Ok(operation) => Some(self.project_maintenance(&authority, &operation).await?),
                 Err(ComputerError::NotFound) => None,
                 Err(error) => return Err(error.into()),
             },
@@ -75,8 +75,95 @@ impl Application {
         if operation.computer_id != computer_id {
             return Err(ComputerError::NotFound.into());
         }
+        let view = self.project_maintenance(&authority, &operation).await?;
         authority.require_read(Some(computer_id))?;
-        Ok(view(&operation))
+        Ok(view)
+    }
+
+    fn supports_maintenance(&self, operation: &MaintenanceOperation) -> bool {
+        self.availability() == CapacityAvailability::Available
+            && operation.provider_instance_id == self.store.provider_instance_id()
+            && self.templates.contains(
+                &operation.source_template_id,
+                &operation.source_template_fingerprint,
+            )
+            && self.templates.contains(
+                &operation.target.template_id,
+                &operation.target.template_fingerprint,
+            )
+            && self.maintenance.as_ref().is_some_and(|profiles| {
+                profiles.admits(
+                    &operation.source_template_fingerprint,
+                    &operation.target.template_fingerprint,
+                )
+            })
+    }
+
+    pub async fn resume_update(
+        &self,
+        actor: &ComputerActor,
+        input: ResumeUpdateInput,
+    ) -> Result<MaintenanceOperation> {
+        let authority = self.store.control_authority(actor).await?;
+        authority.require_resume_update()?;
+        if let Some(prior) = self
+            .store
+            .maintenance_resume_for_request(actor, &input)
+            .await?
+        {
+            authority.require_resume_update()?;
+            return Ok(prior);
+        }
+        let operation = self.store.maintenance(actor.owner(), input.task_id).await?;
+        if operation.computer_id != input.computer_id {
+            return Err(ComputerError::NotFound.into());
+        }
+        if !self.supports_maintenance(&operation) {
+            return Err(ApplicationError::Unavailable);
+        }
+        authority.require_resume_update()?;
+        Ok(self.store.resume_maintenance(actor, &input).await?)
+    }
+
+    pub(crate) async fn project_maintenance(
+        &self,
+        authority: &ControlAuthority,
+        operation: &MaintenanceOperation,
+    ) -> Result<MaintenanceView> {
+        let mut view = view(operation);
+        if let Some(task) = self
+            .tasks
+            .get(&operation.task_id().to_string())
+            .await
+            .map_err(|_| ApplicationError::Unavailable)?
+        {
+            if task.owner != operation.actor
+                || task.recovery_class != veoveo_task_runtime::RecoveryClass::ProviderWait
+                || task.task_type != "computer.maintenance"
+                || task.server != "computers"
+                || task.request
+                    != serde_json::json!({"computerId":operation.computer_id,"maintenanceId":operation.operation_id})
+            {
+                return Err(ApplicationError::Unavailable);
+            }
+            if task.status == veoveo_task_runtime::TaskStatus::CancelRequested {
+                view.pending_cancellation_at = Some(
+                    task.cancel_requested_at
+                        .ok_or(ApplicationError::Unavailable)?,
+                );
+            }
+            view.can_resume = operation.stage == MaintenanceStage::RecoveryRequired
+                && matches!(
+                    task.status,
+                    veoveo_task_runtime::TaskStatus::Queued
+                        | veoveo_task_runtime::TaskStatus::Running
+                        | veoveo_task_runtime::TaskStatus::Waiting
+                        | veoveo_task_runtime::TaskStatus::CancelRequested
+                )
+                && self.supports_maintenance(operation)
+                && authority.require_resume_update().is_ok();
+        }
+        Ok(view)
     }
 
     pub async fn update_template(
@@ -196,6 +283,8 @@ pub(crate) fn view(operation: &MaintenanceOperation) -> MaintenanceView {
                 MaintenanceRecoveryReason::CheckpointUnavailable
             }
         }),
+        can_resume: false,
+        pending_cancellation_at: None,
         created_at: operation.created_at,
         updated_at: operation.updated_at,
     }

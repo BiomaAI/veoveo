@@ -364,6 +364,7 @@ async fn automation_and_update_routes_keep_csrf_and_exact_destination_without_fo
         format!("/{computer}/automation"),
         format!("/{computer}/automation/{grant}/revoke"),
         format!("/{computer}/update-template"),
+        format!("/{computer}/maintenance/{grant}/resume"),
     ] {
         let path = format!("/console/api/computers{suffix}");
         let before = fixture.observed.lock().unwrap().len();

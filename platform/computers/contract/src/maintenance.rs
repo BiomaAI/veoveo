@@ -59,6 +59,8 @@ pub struct MaintenanceView {
     pub target_template_id: String,
     pub phase: MaintenancePhase,
     pub recovery: Option<MaintenanceRecoveryReason>,
+    pub can_resume: bool,
+    pub pending_cancellation_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

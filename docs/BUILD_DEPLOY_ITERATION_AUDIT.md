@@ -3521,3 +3521,12 @@ backfill and final-adoption resumption. These changes need no provider/image reb
 The report still repeats dependency-closure work across distinct checks. Registering
 the exact Task command and caching metadata/file hashes within one recorder invocation
 remain concrete improvements; immutable historical receipts must retain their evidence.
+
+Public resumption reused the HTTP/MCP fixture and passed in 17.60 seconds after a
+5.44-second incremental compile. The expanded browser request suite passed seven cases
+in 157 milliseconds. Gateway checks passed thirteen cases in 4.85 seconds after a
+17.91-second compile. Initial lint caught a JSX closing-tag typo before the production
+build. These are local behavior checks; no provider or image rebuild was necessary.
+The exact domain catalog command includes `-- --nocapture`; omitting those arguments
+unnecessarily classified an otherwise scoped invocation against all repository files.
+Use the declared invocation until the catalog gains the equivalent command.
