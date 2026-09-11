@@ -27,8 +27,7 @@ use veoveo_artifact_service::{
 };
 use veoveo_computer_execution::ExecutionRequest;
 use veoveo_computers::{
-    CapacityPolicy, ComputerActor, ComputersStore, Reservation, api::*, command_secrets::*,
-    commands::*,
+    CapacityPolicy, ComputerActor, ComputersStore, Reservation, api::*, commands::*, secrets::*,
 };
 use veoveo_computers_mcp::{CommandWorker, LifecycleWorker, RetainedHomes, WorkerStep};
 use veoveo_computers_runtime::{Binding, ExecIntent, Phase};
@@ -65,7 +64,7 @@ async fn queue(
     computer: Uuid,
     grant: Uuid,
     payload: CommandPayload,
-    keys: &CommandKeyRing,
+    keys: &ComputerKeyRing,
     plane: &HttpArtifactPlane,
     caller: &PlaneCaller,
 ) -> CommandOperation {
@@ -320,9 +319,9 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     let plane = HttpArtifactPlane::new(endpoint);
     let key_id = Uuid::from_u128(1);
     let keys = Arc::new(
-        CommandKeyRing::new(
+        ComputerKeyRing::new(
             key_id,
-            vec![CommandSealingKey::new(key_id, zeroize::Zeroizing::new([23; 32])).unwrap()],
+            vec![ComputerSealingKey::new(key_id, zeroize::Zeroizing::new([23; 32])).unwrap()],
         )
         .unwrap(),
     );

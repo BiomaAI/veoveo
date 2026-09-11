@@ -3,9 +3,9 @@ use crate::{
     ComputerActor, ComputerError, ComputersStore, Result,
     api::{AutomationPermission, ComputerPhase},
     automation_grants::AutomationAuthority,
-    command_secrets::{CommandBinding, CommandKeyRing, CommandPayload},
     identity::owner_key,
     model::computer_record,
+    secrets::{CommandBinding, CommandPayload, ComputerKeyRing},
 };
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
@@ -37,7 +37,7 @@ impl ComputersStore {
         authority: AutomationAuthority,
         request_id: Uuid,
         payload: &CommandPayload,
-        keys: &CommandKeyRing,
+        keys: &ComputerKeyRing,
     ) -> Result<CommandOperation> {
         tokio::time::timeout(
             std::time::Duration::from_secs(5),
@@ -52,7 +52,7 @@ impl ComputersStore {
         authority: AutomationAuthority,
         request_id: Uuid,
         payload: &CommandPayload,
-        keys: &CommandKeyRing,
+        keys: &ComputerKeyRing,
     ) -> Result<CommandOperation> {
         authority.require_actor(actor)?;
         if authority.permission() != AutomationPermission::Execute {
@@ -215,7 +215,7 @@ impl ComputersStore {
         grant: Uuid,
         request: Uuid,
         payload: &CommandPayload,
-        keys: &CommandKeyRing,
+        keys: &ComputerKeyRing,
     ) -> Result<CommandOperation> {
         actor.check_admission()?;
         if command.binding.actor_key != super::actor_key(actor.accepted())?

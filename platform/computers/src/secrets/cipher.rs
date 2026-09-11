@@ -19,28 +19,31 @@ const TAG_BYTES: usize = 16;
 pub(super) enum SecretKind {
     Command,
     OutputAccess,
+    Maintenance,
 }
 impl SecretKind {
     fn maximum_bytes(self) -> usize {
         match self {
             Self::Command => MAX_PLAINTEXT,
             Self::OutputAccess => super::output_access::MAX_OUTPUT_ACCESS_BYTES,
+            Self::Maintenance => super::maintenance::MAX_CHECKPOINT_BYTES,
         }
     }
     fn domain(self) -> &'static [u8] {
         match self {
             Self::Command => b"command",
             Self::OutputAccess => b"output-access",
+            Self::Maintenance => b"maintenance-policy",
         }
     }
 }
 
 /// Secret material comes from installation-owned storage, never the Computer.
-pub struct CommandSealingKey {
+pub struct ComputerSealingKey {
     id: Uuid,
     secret: Zeroizing<[u8; 32]>,
 }
-impl CommandSealingKey {
+impl ComputerSealingKey {
     pub fn new(id: Uuid, secret: Zeroizing<[u8; 32]>) -> Result<Self> {
         if id.is_nil() {
             return Err(ComputerError::InvalidInput);
@@ -82,7 +85,7 @@ impl DerivedKey {
 /// Serialization is restricted to the private ledger and trusted backups.
 ///
 /// ```compile_fail
-/// use veoveo_computers::command_secrets::SealedCommand;
+/// use veoveo_computers::secrets::SealedCommand;
 /// fn cannot_log(command: SealedCommand) { let _ = format!("{command:?}"); }
 /// ```
 #[derive(Serialize, Deserialize)]
@@ -97,12 +100,12 @@ pub struct SealedCommand {
 
 /// Reads retained keys but writes only with the active key. Removing a required key
 /// fails closed; operators must drain or re-encrypt its pending work first.
-pub struct CommandKeyRing {
+pub struct ComputerKeyRing {
     active: Uuid,
     keys: BTreeMap<Uuid, DerivedKey>,
 }
-impl CommandKeyRing {
-    pub fn new(active: Uuid, keys: Vec<CommandSealingKey>) -> Result<Self> {
+impl ComputerKeyRing {
+    pub fn new(active: Uuid, keys: Vec<ComputerSealingKey>) -> Result<Self> {
         if keys.is_empty() || keys.len() > 4 {
             return Err(ComputerError::InvalidInput);
         }
@@ -137,10 +140,18 @@ impl CommandKeyRing {
         bytes: &[u8],
         kind: SecretKind,
     ) -> Result<SealedCommand> {
+        self.seal_bound_bytes(&binding.aad()?, bytes, kind)
+    }
+    pub(super) fn seal_bound_bytes(
+        &self,
+        binding: &[u8],
+        bytes: &[u8],
+        kind: SecretKind,
+    ) -> Result<SealedCommand> {
         if bytes.len() < 12 || bytes.len() > kind.maximum_bytes() {
             return Err(ComputerError::InvalidInput);
         }
-        let aad = Self::aad(binding, self.active, kind)?;
+        let aad = Self::aad(binding, self.active, kind);
         let key = self
             .keys
             .get(&self.active)
@@ -165,11 +176,11 @@ impl CommandKeyRing {
             fingerprint: STANDARD.encode(key.fingerprint(&aad, bytes)?.finalize().into_bytes()),
         })
     }
-    fn aad(binding: &CommandBinding, key_id: Uuid, kind: SecretKind) -> Result<Vec<u8>> {
+    fn aad(binding: &[u8], key_id: Uuid, kind: SecretKind) -> Vec<u8> {
         let mut aad = key_id.as_bytes().to_vec();
         aad.extend_from_slice(kind.domain());
-        aad.extend_from_slice(&binding.aad()?);
-        Ok(aad)
+        aad.extend_from_slice(binding);
+        aad
     }
     fn key(&self, sealed: &SealedCommand, kind: SecretKind) -> Result<&DerivedKey> {
         if sealed.version != 1
@@ -193,8 +204,16 @@ impl CommandKeyRing {
         sealed: &SealedCommand,
         kind: SecretKind,
     ) -> Result<Zeroizing<Vec<u8>>> {
+        self.open_bound_bytes(&binding.aad()?, sealed, kind)
+    }
+    pub(super) fn open_bound_bytes(
+        &self,
+        binding: &[u8],
+        sealed: &SealedCommand,
+        kind: SecretKind,
+    ) -> Result<Zeroizing<Vec<u8>>> {
         let key = self.key(sealed, kind)?;
-        let aad = Self::aad(binding, sealed.key_id, kind)?;
+        let aad = Self::aad(binding, sealed.key_id, kind);
         let nonce: [u8; NONCE_BYTES] = STANDARD
             .decode(&sealed.nonce)
             .ok()
@@ -237,7 +256,7 @@ impl CommandKeyRing {
         // request were intact. Authentication failure is not changed input.
         self.open(binding, sealed)?;
         let key = self.key(sealed, SecretKind::Command)?;
-        let aad = Self::aad(binding, sealed.key_id, SecretKind::Command)?;
+        let aad = Self::aad(&binding.aad()?, sealed.key_id, SecretKind::Command);
         let bytes = command.encode()?;
         let fingerprint = STANDARD
             .decode(&sealed.fingerprint)

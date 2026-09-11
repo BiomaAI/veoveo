@@ -2,7 +2,7 @@ use super::{CommandDispatchTicket, CommandOperation};
 use crate::{
     ComputerError, ComputersStore, Result,
     api::{ExecutionOutput, ExecutionResult},
-    command_secrets::CommandOutputAccess,
+    secrets::CommandOutputAccess,
 };
 use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;

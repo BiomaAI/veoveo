@@ -1,9 +1,11 @@
-//! Installation-owned encryption for recoverable queued commands. These private
+//! Installation-owned encryption for commands and maintenance. These private
 //! values never belong in a Task request, audit event or public operation view.
 mod cipher;
+mod maintenance;
 mod output_access;
 mod payload;
-pub use cipher::{CommandKeyRing, CommandSealingKey, SealedCommand};
+pub use cipher::{ComputerKeyRing, ComputerSealingKey, SealedCommand};
+pub use maintenance::{MaintenanceBinding, MaintenanceCheckpoint, SealedMaintenanceCheckpoint};
 pub use output_access::{CommandOutputAccess, SealedOutputAccess};
 pub use payload::{CommandBinding, CommandPayload};
 

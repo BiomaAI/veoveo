@@ -13,9 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_computers::{
-    ComputerError, ComputersStore, command_secrets::CommandKeyRing, commands::*,
-};
+use veoveo_computers::{ComputerError, ComputersStore, commands::*, secrets::ComputerKeyRing};
 use veoveo_computers_runtime::{Binding, Observation, OpenShellRuntime, Phase};
 use veoveo_task_runtime::{ClaimedTask, TaskError, TaskRuntime};
 
@@ -40,7 +38,7 @@ pub struct CommandWorker {
     store: ComputersStore,
     tasks: TaskRuntime,
     runtime: OpenShellRuntime,
-    keys: Arc<CommandKeyRing>,
+    keys: Arc<ComputerKeyRing>,
     artifacts: HttpArtifactPlane,
     templates: BTreeSet<String>,
 }
@@ -49,7 +47,7 @@ impl CommandWorker {
         store: ComputersStore,
         tasks: TaskRuntime,
         runtime: OpenShellRuntime,
-        keys: Arc<CommandKeyRing>,
+        keys: Arc<ComputerKeyRing>,
         artifacts: HttpArtifactPlane,
         templates: BTreeSet<String>,
     ) -> Result<Self> {

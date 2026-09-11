@@ -2,8 +2,8 @@
 use crate::{
     AcceptedAuthority, ComputerActor, ComputerError, ComputersStore, Result,
     api::{Action, AutomationPermission},
-    command_secrets::CommandBinding,
     identity::owner_key,
+    secrets::CommandBinding,
 };
 use serde::Deserialize;
 use std::time::{Duration, Instant};

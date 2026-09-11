@@ -120,6 +120,45 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computers",
+        "--lib",
+        "secrets::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computers",
+        "--doc"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

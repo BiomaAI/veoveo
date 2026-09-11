@@ -1,5 +1,5 @@
 use super::{
-    CommandBinding, CommandKeyRing,
+    CommandBinding, ComputerKeyRing,
     cipher::{SealedCommand, SecretKind},
 };
 use crate::{ComputerError, Result};
@@ -59,7 +59,7 @@ impl CommandOutputAccess {
 #[serde(transparent)]
 pub struct SealedOutputAccess(SealedCommand);
 
-impl CommandKeyRing {
+impl ComputerKeyRing {
     pub fn seal_output_access(
         &self,
         binding: &CommandBinding,
