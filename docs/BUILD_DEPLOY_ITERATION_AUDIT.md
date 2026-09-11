@@ -3388,3 +3388,12 @@ unqualified native classifier conservatively includes the whole repository, incl
 those docs. Final native recording now starts after source and documentation freeze.
 A native environment adapter with the owning source closure remains necessary to
 remove this unrelated invalidation without weakening evidence identity.
+
+The staged template's native command journey passed in 57.16 seconds with the
+production HTTP router, workspace SDK and two continuous schedulers. It reuses the
+existing provider fixture for revocation, cancellation and lost-dispatch containment.
+Boxing each scheduler's command-step future carries the earlier stack bound into
+production. A preceding attempt failed before execution because publication had pushed
+the digest to the registry without loading the host Docker cache. The fixture now
+checks that image before creating its database, trust or daemon directories. Pulling
+the exact digest repaired the prerequisite without a build or installed restart.

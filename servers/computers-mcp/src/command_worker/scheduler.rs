@@ -1,4 +1,5 @@
 use super::*;
+use futures::FutureExt;
 use std::collections::HashSet;
 use tokio_util::sync::CancellationToken;
 
@@ -34,7 +35,7 @@ impl CommandWorker {
                         cursor = Some(operation.execution_id());
                         if !active.insert(operation.execution_id()) { continue; }
                         let worker = self.clone();
-                        jobs.spawn(async move { let id = operation.execution_id(); (id, worker.step(operation).await) });
+                        jobs.spawn(async move { let id = operation.execution_id(); (id, worker.step(operation).boxed().await) });
                     }
                 }
             }

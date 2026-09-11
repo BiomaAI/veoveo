@@ -3,6 +3,8 @@
 mod docker_daemon;
 #[path = "../../../platform/computers/storage/tests/native_support/service.rs"]
 mod native_service_support;
+#[path = "support/command_projection.rs"]
+mod projection;
 #[path = "../../../platform/runtimes/computers/tests/native_support/mod.rs"]
 mod provider;
 #[path = "support/signing.rs"]
@@ -132,6 +134,14 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
             "requires {name} binary"
         );
     }
+    let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE").expect("qualified launcher image");
+    // Publication pushes to the registry; native fixture enrollment also needs
+    // this exact digest loaded in the host cache. Check before allocating a DB,
+    // diagnostic certificates or daemon directories.
+    docker_daemon::checked(
+        docker_daemon::host().args(["image", "inspect", &image, "--format", "{{.Id}}"]),
+    )
+    .await;
     let _telemetry = veoveo_mcp_contract::init_server_telemetry(
         "veoveo-computers-native-command",
         "veoveo_computers_mcp=debug",
@@ -139,9 +149,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     .unwrap();
     let db = support::TestDb::new().await;
     support::policy::install(&db.a, support::automation::control()).await;
-    let selected = template::retained_template(
-        std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE").expect("qualified launcher image"),
-    );
+    let selected = template::retained_template(image);
     let home = native_service_support::Fixture::start_with_template(
         Some(selected.clone()),
         "governed_command_worker_publishes_real_outputs_and_contains_revoked_execution",
@@ -308,28 +316,109 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         )
         .unwrap(),
     );
-    let grant = a
-        .issue_automation_grant(&owner, &support::automation::input(computer.computer_id))
-        .await
-        .unwrap();
-    let command = queue(&a, &agent, computer.computer_id, grant.grant_id,
-        payload("printf native-stdout; printf native-stderr >&2; printf x >> invocation-count; cat > received-stdin; printf '%s' \"$PRIVATE_TOKEN\" > received-env; exit 7", 30), &keys, &plane, &caller).await;
-    let id = command.task_id().to_string();
-    let replica = b
-        .pending_commands(None, 100)
+    let (_health, health) = tokio::sync::watch::channel(veoveo_computers_mcp::CapacityHealth {
+        availability: CapacityAvailability::Available,
+        observed_at: Instant::now(),
+    });
+    let app = veoveo_computers_mcp::Application::new(
+        a.clone(),
+        tasks_a.clone(),
+        veoveo_computers_mcp::Templates::new(
+            vec![
+                veoveo_computers_mcp::NamedTemplate::new("development".into(), selected.clone())
+                    .unwrap(),
+            ],
+            Some(selected.fingerprint()),
+        )
+        .unwrap(),
+        health,
+        veoveo_computers_mcp::RuntimeAccess::unavailable(),
+    )
+    .unwrap()
+    .with_execution(keys.clone(), plane.clone(), [selected.fingerprint()].into())
+    .unwrap();
+    let projection = projection::Projection::new(app, &signer).await;
+    let owner_peer = projection
+        .client(signer.identity(
+            support::identity(owner.owner()),
+            "computers",
+            chrono::Utc::now() + chrono::TimeDelta::minutes(5),
+        ))
+        .await;
+    let agent_peer = projection.client(caller.bearer_token.clone()).await;
+    let rmcp::model::CallToolResponse::Complete(issued) = owner_peer
+        .call_tool_once(projection::call(
+            "grant_automation",
+            &support::automation::input(computer.computer_id),
+        ))
         .await
         .unwrap()
-        .into_iter()
-        .find(|c| c.task_id().to_string() == id)
+    else {
+        panic!("grant result missing");
+    };
+    let grant = serde_json::from_value::<AutomationGrantResult>(issued.structured_content.unwrap())
+        .unwrap()
+        .grant;
+    use base64::Engine;
+    let input = ExecuteInput {
+        computer_id: computer.computer_id, grant_id: grant.grant_id, request_id: Uuid::now_v7(),
+        arguments: vec!["/bin/sh".into(), "-c".into(), "printf native-stdout; printf native-stderr >&2; printf x >> invocation-count; cat > received-stdin; printf '%s' \"$PRIVATE_TOKEN\" > received-env; exit 7".into()],
+        directory: ".".into(), environment: BTreeMap::from([("PRIVATE_TOKEN".into(), "native-private-command-value".into())]),
+        stdin: base64::engine::general_purpose::STANDARD.encode(b"native-private-stdin\0\xff"),
+        limits: AutomationExecutionLimits { maximum_seconds: 30, maximum_output_bytes: 1024, on_interruption: AutomationInterruption::StopComputer },
+    };
+    let rmcp::model::CallToolResponse::Task(created) = agent_peer
+        .call_tool_once(projection::call("execute", &input))
+        .await
+        .unwrap()
+    else {
+        panic!("command Task missing");
+    };
+    let id = created.task.task_id;
+    let mut updates = agent_peer
+        .listen(
+            rmcp::model::SubscriptionFilter::builder()
+                .task_id(&id)
+                .build(),
+        )
+        .await
         .unwrap();
-    let (left, right) = tokio::join!(
-        worker_a.step(command).boxed(),
-        worker_b.step(replica).boxed()
-    );
-    assert!(
-        matches!(left, Ok(WorkerStep::Settled)) || matches!(right, Ok(WorkerStep::Settled)),
-        "native command did not settle: {left:?} {right:?}"
-    );
+    let schedulers = projection::Schedulers::start([worker_a.clone(), worker_b.clone()]);
+    tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            let update = updates.next().await.unwrap().expect("Task stream ended");
+            if let rmcp::model::ServerNotification::TaskStatusNotification(update) = update
+                && update.params.task.status().is_terminal()
+            {
+                break;
+            }
+        }
+    })
+    .await
+    .expect("public native command did not settle");
+    let public = agent_peer
+        .get_task(rmcp::model::GetTaskParams::new(&id))
+        .await
+        .unwrap();
+    assert_eq!(public.task.status(), rmcp::model::TaskStatus::Completed);
+    // Wait for the domain-first result's final retention acknowledgement before
+    // ending the continuously running workers used by this journey.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !a.pending_commands(None, 100).await.unwrap().is_empty() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    schedulers.stop().await;
+    let rmcp::model::CallToolResponse::Task(retried) = agent_peer
+        .call_tool_once(projection::call("execute", &input))
+        .await
+        .unwrap()
+    else {
+        panic!("completed retry lost its Task");
+    };
+    assert_eq!(retried.task.task_id, id);
     let task = tasks_a.get(&id).await.unwrap().unwrap();
     assert_eq!(
         task.status,
@@ -343,6 +432,20 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     let result: ExecutionResult =
         serde_json::from_value(response.structured_content.unwrap()).unwrap();
     assert_eq!(result.exit_code, 7);
+    let resource = agent_peer
+        .read_resource(rmcp::model::ReadResourceRequestParams::new(String::from(
+            result.result_uri,
+        )))
+        .await
+        .unwrap();
+    let rmcp::model::ResourceContents::TextResourceContents { text, .. } = &resource.contents[0]
+    else {
+        panic!("command result was not JSON");
+    };
+    assert_eq!(
+        serde_json::from_str::<ExecutionResult>(text).unwrap(),
+        result
+    );
     for (output, expected) in [
         (result.stdout, b"native-stdout".as_slice()),
         (result.stderr, b"native-stderr".as_slice()),
