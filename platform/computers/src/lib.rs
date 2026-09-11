@@ -9,6 +9,7 @@ pub mod commands;
 mod control_authority;
 mod control_session;
 mod current_authority;
+pub mod files;
 mod identity;
 mod lifecycle;
 pub mod maintenance;

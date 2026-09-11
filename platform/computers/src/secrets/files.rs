@@ -34,6 +34,9 @@ pub struct FileTransferBinding {
     pub required_labels: BTreeSet<DataLabelId>,
 }
 impl FileTransferBinding {
+    pub(crate) fn validate(&self) -> Result<()> {
+        self.aad().map(|_| ())
+    }
     pub(super) fn aad(&self) -> Result<Vec<u8>> {
         let hash = |v: &str| {
             v.len() == 64
