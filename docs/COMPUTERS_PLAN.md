@@ -563,7 +563,14 @@ authority a dispatch prerequisite and preserve one usable receipt across replica
 Known exit receipts and exact output references now settle to Completed under the
 current Task lease in migration 0065. Nonzero exits retain their output as tool errors;
 late cancellation and independent owner Stop retain their own history and fences.
-Real service issuance, worker publication and public execution remain required.
+The service worker now obtains real output publication through the internal Artifact
+HTTP plane in its native fixture. Current authority expiry remains independently
+polled during slow reads; policy reductions cannot extend the admitted command.
+Migration 0066 bounds queued preparation and cannot expire dispatched work. Native
+revocation begins containment within the five-second I/O bound, while confirmed
+Stop includes the provider grace interval. Cancellation and lost-ticket containment
+use the same journal and preserve retained files. Production key/configuration wiring
+and the public execution journey remain required.
 
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.

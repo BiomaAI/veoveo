@@ -1,7 +1,5 @@
 #[allow(dead_code)]
 pub mod automation;
-#[allow(dead_code)]
-pub mod commands;
 use veoveo_task_runtime::TaskOwner;
 #[path = "../../../../testing/fixtures/store.rs"]
 mod store;

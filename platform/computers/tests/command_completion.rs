@@ -1,5 +1,7 @@
+#[path = "support/commands.rs"]
+mod command_support;
 mod support;
-use support::commands::*;
+use command_support::*;
 use uuid::Uuid;
 use veoveo_computers::{api::*, commands::*};
 use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskStatus, TaskTransition};

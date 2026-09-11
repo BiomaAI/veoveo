@@ -17,6 +17,48 @@
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
 ordinary catalog and action policy without importing the provider SDK. The `computers-mcp` executable serves the same HTTP router used by fixtures.
 
+## Governed Command Worker
+
+`CommandWorker` composes the command journal, live authority and qualified framed
+guest launcher. It requires an explicit set of execution-qualified template
+fingerprints, the installation key ring and the internal Artifact client. Its
+provider-scoped scheduler admits four active commands per replica. Captured payload
+bytes are limited to 256 MiB at that concurrency; allocator and transport overhead
+are additional. Each Computer also retains its durable exclusive execution slot.
+Production configuration and public execution admission are subsequent integration
+work; exporting this worker does not enable commands in the installed service.
+
+Only the original dispatch receipt can launch the command. A successor that finds
+Dispatched contains the saved run without replaying command bytes. Current authority
+is checked each second, with an independent five-second expiry that stays active
+during blocked reads. The original runtime deadline remains independent as well.
+The worker recovers the current same-worker Task lease after an interrupted renewal
+before writing settlement. Lost ownership leaves the journal for a successor.
+
+Known foreground exit publishes stdout and stderr as separate governed Artifacts.
+Publication uses the prepared Task-bound capability and fixed per-stream idempotency
+keys, then validates occurrence size, descriptor, tenant, Work Context and inherited
+labels. Output identity and grants belong to the Artifact service. Resource links
+convey references only; their public resolution and authorization remain part of the
+pending execution projection. Nonzero exit retains its outputs and sets tool error
+status. This worker makes one publication attempt per stream. An unavailable result
+enters containment; a partially published authorized Artifact may remain.
+
+Cancellation, authority loss and unknown outcomes close local foreground I/O before
+entering the durable containment journal. Confirmed termination follows the native
+Stop profile, which includes the pinned Docker driver's ten-second grace interval.
+The five-second I/O authority bound is not a five-second process-termination claim.
+Database or provider unavailability keeps the original run fenced until positive
+Stop evidence or explicit Recovery Required. Successful foreground completion leaves
+the Computer running under its independent lifecycle policy.
+
+The native fixture owns its real provider, retained allocator, database and HTTP
+Artifact service with filesystem bytes. It checks competing workers, binary stdin,
+private environment, nonzero exit output, current Work Context ownership, grant
+revocation, Task cancellation, retained restart and lost-ticket refusal without
+command replay. Fixed phase/error-class diagnostics exclude command and credential
+contents. These cases do not establish installed agent usability.
+
 ## Installation Configuration And Process
 
 The service image runs as UID 10001 and contains the production executable and

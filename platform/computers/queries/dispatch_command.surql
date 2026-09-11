@@ -21,6 +21,7 @@ LET $computer_state = SELECT * FROM ONLY $computer;
 LET $slot_state = SELECT * FROM ONLY $slot;
 IF $current = NONE OR $computer_state = NONE OR $slot_state = NONE
   OR $current.stage != "queued" OR $current.dispatch_id != NONE
+  OR $current.created_at + $preparation_budget <= $now
   OR $current.execution_id != $execution_id OR $current.binding != $expected_binding
   OR $current.output_access = NONE OR $current.output_access != $expected_output
   OR $current.task != $_provider_task OR $slot_state.execution != $execution

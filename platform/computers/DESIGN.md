@@ -8,7 +8,7 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command and output-capability envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
-| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0065 add private command admission, one-shot dispatch, containment, protected output access and known-result settlement. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0066 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
@@ -360,8 +360,8 @@ event contains command bodies, ciphertext or input fingerprints. The private led
 holds the authenticated envelope until its execution lifecycle permits disposal.
 
 Migration 0061 introduces queued admission. Migration 0062 adds the guarded dispatch
-transition and evidence. Native worker integration, command settlement, output
-Artifacts and public projection remain delivery work. Apply the migration before updating lifecycle admission,
+transition and evidence. The native command worker composes dispatch, output
+Artifacts and settlement; its production wiring and public projection remain delivery work. Apply the migration before updating lifecycle admission,
 and upgrade all workers that can Start before enabling command admission. Rollback
 must drain and settle execution slots before an older lifecycle worker returns;
 removing a slot without termination evidence is forbidden.
@@ -383,22 +383,42 @@ or lost ticket never authorizes another command launch.
 The decision records current owner and source policy without command contents.
 Effective execution limits take the smaller admitted and current grant limits.
 The durable deadline also ends at the grant's effective expiry. The local dispatch
-authority is bounded by its policy snapshot and Task lease; worker renewal must
-continue checking the named grant independently of the original admission token.
+authority expires within five seconds of the dispatch commit, bounded further by
+its policy snapshot and Task lease. Receipt delivery cannot restart that window.
+Worker renewal checks the named grant independently of the original admission token.
 
 Execute grants require `onInterruption: "stop_computer"`. Qualified cancellation
 and containment stop the admitted Computer run, which can end other processes on
 that run. Retained files remain. This consent grants no independent agent Stop
 action and never permits stopping a replacement run. The private envelope's v1
 profile admits only this interruption scope; a future scope requires an explicit
-codec change. The domain now journals containment and interruption settlement. Native worker
-integration and successful-command output publication remain delivery work.
+codec change. The domain journals containment and interruption settlement; the
+service worker publishes outputs through its protected Artifact capability.
 
 Isolated-store tests qualify one dispatch under contention, a successor refusing
 redispatch after loss of the original ticket, cancellation, grant revocation,
 principal disablement, changed native run, lost lease, corrupt command ciphertext,
 current limit reduction and accepted-work continuity after caller-family revocation.
 They launch no provider process and are not installed execution evidence.
+
+## Active Command Authority And Preparation
+
+`command_continuation` checks the exact dispatch metadata and current shared Task
+lease, then evaluates the named grant with current source/owner policy and directory
+state. Its metadata-only query excludes encrypted command and capability bodies.
+The worker holds the already authenticated request. An active read has a four-second
+deadline, and its permission expires within five seconds of the read's beginning.
+The worker keeps the previous expiry timer active while a refresh is pending.
+Cancellation, grant loss and a changed native run end foreground I/O. Policy changes
+can shorten runtime and output limits; later increases cannot restore a limit that
+the active worker already narrowed.
+
+Migration 0066 bounds queued preparation to five minutes. Both dispatch and expiry
+refusal use the database clock. An expired queued command releases its exclusive
+slot as undispatched; the same reason cannot settle a dispatched command. A worker
+that lacks the qualified template or output receipt exposes preparation state until
+that limit. Native-store cases qualify early-expiry refusal, aged dispatch refusal,
+slot release and retained fencing after dispatch.
 
 ## Command Interruption And Containment
 

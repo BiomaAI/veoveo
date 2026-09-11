@@ -106,14 +106,35 @@ impl std::error::Error for BlobStoreError {}
 #[derive(Clone)]
 pub struct ArtifactObjectStore {
     inner: Arc<dyn ObjectStore>,
+    attributes: Attributes,
     multipart: Option<Arc<dyn object_store::multipart::MultipartStore>>,
     reconciliation: Option<s3_multipart::Reconciliation>,
+}
+
+fn private_attributes() -> Attributes {
+    Attributes::from_iter([
+        (Attribute::CacheControl, "no-store"),
+        (Attribute::ContentDisposition, "attachment"),
+        (Attribute::ContentType, "application/octet-stream"),
+    ])
 }
 
 impl ArtifactObjectStore {
     pub fn new(inner: Arc<dyn ObjectStore>) -> Self {
         Self {
             inner,
+            attributes: private_attributes(),
+            multipart: None,
+            reconciliation: None,
+        }
+    }
+
+    /// The local backend has no object-attribute support. Artifact HTTP delivery
+    /// still supplies its governed content type, disposition and cache headers.
+    pub(crate) fn filesystem(inner: object_store::local::LocalFileSystem) -> Self {
+        Self {
+            inner: Arc::new(inner),
+            attributes: Attributes::default(),
             multipart: None,
             reconciliation: None,
         }
@@ -125,6 +146,7 @@ impl ArtifactObjectStore {
     ) -> Self {
         Self {
             inner: inner.clone(),
+            attributes: private_attributes(),
             multipart: Some(inner),
             reconciliation: Some(s3_multipart::Reconciliation::MemoryFixture),
         }
@@ -141,6 +163,7 @@ impl ArtifactObjectStore {
             s3_multipart::S3Multipart::new(inner.clone(), endpoint, bucket, region, allow_http)?;
         Ok(Self {
             inner: inner.clone(),
+            attributes: private_attributes(),
             multipart: Some(inner),
             reconciliation: Some(s3_multipart::Reconciliation::S3(Arc::new(reconciliation))),
         })
@@ -162,13 +185,8 @@ impl BlobStore for ArtifactObjectStore {
     async fn put(&self, object_key: &str, bytes: Vec<u8>) -> Result<(), BlobStoreError> {
         let path = Self::path(object_key)?;
         let payload = PutPayload::from(bytes);
-        let attributes = Attributes::from_iter([
-            (Attribute::CacheControl, "no-store"),
-            (Attribute::ContentDisposition, "attachment"),
-            (Attribute::ContentType, "application/octet-stream"),
-        ]);
         self.inner
-            .put_opts(&path, payload, attributes.into())
+            .put_opts(&path, payload, self.attributes.clone().into())
             .await
             .map_err(map_store_error)?;
         Ok(())
@@ -182,13 +200,8 @@ impl BlobStore for ArtifactObjectStore {
         expected_sha256: &str,
     ) -> Result<VerifiedBlob, BlobStoreError> {
         let path = Self::path(object_key)?;
-        let attributes = Attributes::from_iter([
-            (Attribute::CacheControl, "no-store"),
-            (Attribute::ContentDisposition, "attachment"),
-            (Attribute::ContentType, "application/octet-stream"),
-        ]);
         let mut writer = BufWriter::with_capacity(Arc::clone(&self.inner), path, 8 * 1024 * 1024)
-            .with_attributes(attributes)
+            .with_attributes(self.attributes.clone())
             .with_max_concurrency(2);
         let mut byte_len = 0_u64;
         let mut digest = Sha256::new();
@@ -344,6 +357,43 @@ mod tests {
 
     use super::testing::InMemoryBlobStore;
     use super::*;
+
+    #[tokio::test]
+    async fn filesystem_profile_persists_put_and_verified_stream_across_reopen() {
+        let root = tempfile::tempdir().unwrap();
+        let config = crate::ObjectStoreConfig::Filesystem {
+            root: root.path().to_owned(),
+        };
+        let store = config.build().unwrap();
+        let bytes = b"artifact filesystem bytes\0\xff".to_vec();
+        let sha256 = hex::encode(Sha256::digest(&bytes));
+        store.put("direct/object", bytes.clone()).await.unwrap();
+        store
+            .put_verified_stream(
+                "verified/object",
+                Box::pin(futures::stream::iter([Ok(Bytes::from(bytes.clone()))])),
+                bytes.len() as u64,
+                &sha256,
+            )
+            .await
+            .unwrap();
+        drop(store);
+        let reopened = config.build().unwrap();
+        for key in ["direct/object", "verified/object"] {
+            assert_eq!(reopened.get_bounded(key, 1024).await.unwrap(), bytes);
+            let range = reopened
+                .stream(key, Some(3..9))
+                .await
+                .unwrap()
+                .try_fold(Vec::new(), |mut all, chunk| async move {
+                    all.extend_from_slice(&chunk);
+                    Ok(all)
+                })
+                .await
+                .unwrap();
+            assert_eq!(range, bytes[3..9]);
+        }
+    }
 
     #[tokio::test]
     async fn bounded_reads_and_streaming_are_separate_paths() {

@@ -7,6 +7,7 @@ pub enum CommandRefusal {
     CancelledBeforeDispatch,
     AuthorityDenied,
     RunChanged,
+    PreparationExpired,
 }
 
 /// The reason for containing an admitted run does not claim its writes rolled back.

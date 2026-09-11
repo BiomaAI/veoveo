@@ -1,5 +1,7 @@
+#[path = "support/commands.rs"]
+mod command_support;
 mod support;
-use support::commands::*;
+use command_support::*;
 use uuid::Uuid;
 use veoveo_computers::{ComputerActor, ComputerError, api::*};
 use veoveo_task_runtime::TaskRuntime;

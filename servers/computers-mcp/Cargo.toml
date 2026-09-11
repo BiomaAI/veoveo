@@ -28,8 +28,12 @@ veoveo-computers-runtime = { path = "../../platform/runtimes/computers" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 veoveo-platform-store = { path = "../../platform/store" }
 veoveo-mcp-contract.workspace = true
+veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 
 [dev-dependencies]
+veoveo-artifact-service = { path = "../../platform/artifacts/service" }
+veoveo-computer-execution = { path = "../../platform/computers/execution" }
+zeroize.workspace = true
 tokio-tungstenite.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }

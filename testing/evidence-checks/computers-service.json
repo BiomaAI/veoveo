@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computers-mcp",
+        "--lib"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers-mcp"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "platform/computers/storage/tests"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-mcp",
+        "-p",
+        "veoveo-artifact-service",
+        "-p",
+        "veoveo-platform-store",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers",
+          "veoveo-computers-mcp",
+          "veoveo-artifact-service",
+          "veoveo-platform-store"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "platform/computers/storage/tests"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-computers",
+        "-p",
+        "veoveo-computers-mcp",
+        "-p",
+        "veoveo-artifact-service",
+        "-p",
+        "veoveo-platform-store",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers",
+          "veoveo-computers-mcp",
+          "veoveo-artifact-service",
+          "veoveo-platform-store"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "platform/computers/storage/tests"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}
