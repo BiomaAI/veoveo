@@ -52,6 +52,7 @@ installation or full release-closure gates.
 | Public file handoff | Release 154 imported 1,000,003 binary bytes from an uploaded Artifact into the retained home and exported a distinct Artifact through the Files panel; the governed download matched the original SHA-256 |
 | Drained host restart | Both owner Computers stopped through their public lifecycle actions. The private host restarted with its original Docker identity, admitted the new template and retained both homes |
 | File environment update | Both owner Computers reached Ready on `development-20260911` through public maintenance Tasks; their earlier retained marker files remained readable as UID 10001 |
+| Agent file authority | A named `admin-service` grant exported the retained marker through public MCP Tasks and read its result. The other Computer denied that grant; revocation denied result reads and exact retries |
 
 The public long-session check was interrupted by database memory exhaustion during
 an audit-index migration. Its observed CLI lease activity exceeded ten minutes, but
@@ -74,9 +75,12 @@ The installed file handoff uses source `0b127b5f98fad6376c9ee1d44de57fcb3718d438
 with the coordinated host catalog at `dc8e6dd165785daffed8c3d8eeb033e508efc2c1`.
 Import Task `01a09054-b385-7763-b3e1-3c7feb64c87e` settled in about 251 ms;
 export Task `01a09055-5ee9-7a22-b6b3-47179c6b9804` settled in about 333 ms.
-These are one-file observations, not a throughput benchmark. The download check also
-found that Artifact delivery omitted its filename parameter. The UTF-8 disposition
-correction and removal of duplicate Files success text await their matching images.
+These are one-file observations, not a throughput benchmark. Release 155 supplies
+the UTF-8 filename on downloads and removes duplicate Files success text. The headed
+RTX 4090 browser saved `veoveo-public-export-20260911.bin` with the exact original
+1,000,003 bytes and SHA-256. Its acceptance run used an explicit download directory,
+then restored default browser download behavior. GitOps revision
+`6e6a59b9167f2293ffd4e10776e4fa5490f987be` is Ready.
 
 ## Product Decisions
 
