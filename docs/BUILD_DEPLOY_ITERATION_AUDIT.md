@@ -3665,3 +3665,10 @@ free-space reserve exceeded the filesystem headroom. Removing 55 GiB of rebuilda
 Compiled dependencies, runtime images, retained homes and application data were kept.
 The initial GitOps observation took 169.043 seconds in desired-state apply; this
 includes the unrelated Recording recovery and is not a pure rollout latency measure.
+
+The filename correction staged Artifact Service and Console together in 218.584 seconds.
+Its compilation window was 201.155 seconds, with 3.407 seconds in export. This solve
+compiled a different dependency-feature closure, including SurrealDB core, although
+only Artifact delivery and one Console message changed. Stable feature closures or
+independent cached compilation units should be evaluated before adding more shared
+Bake targets; a shared solve alone does not guarantee warm Rust dependencies.
