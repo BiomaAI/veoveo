@@ -26,6 +26,8 @@ pub struct Operation {
     pub operation_id: Uuid,
     pub computer_id: Uuid,
     pub actor: TaskOwner,
+    pub owner: TaskOwner,
+    pub automation_grant_id: Option<Uuid>,
     pub execution_authority: crate::AcceptedAuthority,
     pub provider_instance_id: Uuid,
     pub template_fingerprint: String,
@@ -70,6 +72,8 @@ pub(crate) struct OperationRecord {
     computer_id: Uuid,
     task: RecordId,
     actor_context: OpenObject,
+    owner_context: OpenObject,
+    automation_grant_id: Option<Uuid>,
     execution_authority: OpenObject,
     provider_instance_id: Uuid,
     template_fingerprint: String,
@@ -112,6 +116,8 @@ impl TryFrom<OperationRecord> for Operation {
                 operation_id: value.operation_id,
                 computer_id: value.computer_id,
                 actor: serde_json::from_value(serde_json::to_value(value.actor_context)?)?,
+                owner: serde_json::from_value(serde_json::to_value(value.owner_context)?)?,
+                automation_grant_id: value.automation_grant_id,
                 execution_authority: serde_json::from_value(serde_json::to_value(
                     value.execution_authority,
                 )?)?,
@@ -154,6 +160,17 @@ impl TryFrom<OperationRecord> for Operation {
             .map_err(|_| ComputerError::Unavailable)?;
         if operation.execution_authority.task_owner() != operation.actor {
             return Err(ComputerError::Unavailable);
+        }
+        match operation.automation_grant_id {
+            Some(id) if id.is_nil() || operation.action == Action::Create => {
+                return Err(ComputerError::Unavailable);
+            }
+            None if crate::identity::owner_key(&operation.owner)?
+                != crate::identity::owner_key(&operation.actor)? =>
+            {
+                return Err(ComputerError::Unavailable);
+            }
+            _ => {}
         }
         match (&operation.dispatch_authority, operation.dispatch_id) {
             (Some(decision), Some(_)) => decision.validate(&operation)?,

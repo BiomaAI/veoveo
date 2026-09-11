@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 76] = [
+const MIGRATIONS: [Migration; 77] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -483,6 +483,12 @@ const MIGRATIONS: [Migration; 76] = [
         name: "computer_file_transfer_preparation",
         filename: "0075_computer_file_transfer_preparation.surql",
         sql: include_str!("../migrations/0075_computer_file_transfer_preparation.surql"),
+    },
+    Migration {
+        version: 76,
+        name: "computer_lifecycle_delegation",
+        filename: "0076_computer_lifecycle_delegation.surql",
+        sql: include_str!("../migrations/0076_computer_lifecycle_delegation.surql"),
     },
 ];
 

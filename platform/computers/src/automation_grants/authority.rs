@@ -38,6 +38,53 @@ pub struct AutomationAuthority {
     family: Option<RecordId>,
 }
 impl AutomationAuthority {
+    pub(crate) fn lifecycle_permit(
+        self,
+        operation: &crate::Operation,
+    ) -> Result<crate::current_authority::ExecutionPermit> {
+        self.check_fresh()?;
+        if self.permission != crate::operation_authority::permission(operation.action)?
+            || self.computer.owner != operation.owner
+            || self.computer.computer_id != operation.computer_id
+            || Some(self.grant_id) != operation.automation_grant_id
+        {
+            return Err(ComputerError::Forbidden);
+        }
+        let target = crate::current_authority::execution_target(operation.action);
+        let trace = TraceId::new(operation.operation_id.to_string()).expect("UUID trace");
+        let evidence = crate::ExecutionDecision {
+            control_revision: self.source_snapshot.control_revision.clone(),
+            control_sha256: self.source_snapshot.control_sha256.clone(),
+            checked_at: self
+                .source_snapshot
+                .checked_at
+                .max(self.owner_snapshot.checked_at),
+            valid_until: self
+                .admission_end
+                .min(self.source_snapshot.checked_at + TimeDelta::seconds(30))
+                .min(self.owner_snapshot.checked_at + TimeDelta::seconds(30)),
+            decision: self
+                .source_snapshot
+                .decision(GatewayAction::ToolsCall, &target, &trace),
+            automation: Some(crate::current_authority::AutomationLifecycleDecision {
+                grant_id: self.grant_id,
+                grant_revision: self.grant_revision,
+                owner: self
+                    .owner_snapshot
+                    .decision(GatewayAction::ToolsCall, &target, &trace),
+            }),
+        };
+        evidence.validate(operation)?;
+        Ok(crate::current_authority::ExecutionPermit {
+            evidence,
+            deadline: self.deadline,
+            revision_record: self.source_snapshot.revision_record.clone(),
+            tenant: self.source_snapshot.tenant.clone(),
+            source: self.source_snapshot.source.clone(),
+            actor: self.source_snapshot.actor.clone(),
+            automation: Some(self),
+        })
+    }
     pub(crate) fn file_decision(
         &self,
         transfer: Uuid,

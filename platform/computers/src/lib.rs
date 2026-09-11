@@ -17,6 +17,7 @@ pub mod maintenance;
 mod model;
 mod operation;
 mod operation_admission;
+mod operation_authority;
 pub mod secrets;
 pub mod session_grants;
 mod store;
@@ -26,12 +27,13 @@ mod worker_queue;
 pub use admission::{CapacityPolicy, Reservation};
 pub use authority::{AcceptedAuthority, ComputerActor};
 pub use control_authority::ControlAuthority;
-pub use current_authority::ExecutionDecision;
+pub use current_authority::{AutomationLifecycleDecision, ExecutionDecision};
 pub use lifecycle::{
     DispatchTicket, ObservationAdmission, ObservationTicket, ReachedPhase, ReachedState,
 };
 pub use model::{Computer, ComputerPage};
 pub use operation::{Operation, OperationStage};
+pub use operation_authority::OperationAccess;
 pub use store::ComputersStore;
 pub use veoveo_computers_contract as api;
 pub use worker_queue::UndispatchedOutcome;

@@ -1,6 +1,7 @@
 use crate::{
-    ComputerActor, ComputerError, ComputersStore, Operation, Result,
+    Computer, ComputerActor, ComputerError, ComputersStore, Operation, Result,
     api::{Action, ComputerPhase},
+    automation_grants::AutomationAuthority,
     identity::{can_mutate, digest, owner_key, permits},
     model::computer_record,
     operation::OperationRecord,
@@ -18,6 +19,8 @@ struct Content {
     computer_id: Uuid,
     task: RecordId,
     actor_context: OpenObject,
+    owner_context: OpenObject,
+    automation_grant_id: Option<Uuid>,
     execution_authority: OpenObject,
     provider_instance_id: Uuid,
     template_fingerprint: String,
@@ -61,7 +64,10 @@ impl ComputersStore {
             return Ok(None);
         };
         let operation = self.operation(caller, id).await?;
-        if operation.computer_id != computer || operation.action != action {
+        if operation.computer_id != computer
+            || operation.action != action
+            || operation.automation_grant_id.is_some()
+        {
             return Err(ComputerError::RequestConflict);
         }
         Ok(Some(operation))
@@ -82,9 +88,54 @@ impl ComputersStore {
         }
         let computer = self.get(caller, computer_id).await?;
         can_mutate(caller)?;
-        let key = owner_key(caller)?;
+        self.queue_lifecycle(&actor, computer, request_id, action, None)
+            .await
+    }
+
+    /// Named authority cannot select or impersonate the retained owner. Admission
+    /// consumes its current snapshot and fences its grant revision transactionally.
+    pub async fn queue_automation_operation(
+        &self,
+        actor: &ComputerActor,
+        authority: AutomationAuthority,
+        request_id: Uuid,
+        action: Action,
+    ) -> Result<Operation> {
+        authority.require_actor(actor)?;
+        if authority.permission() != super::operation_authority::permission(action)? {
+            return Err(ComputerError::Forbidden);
+        }
+        let computer = authority.computer()?.clone();
+        self.queue_lifecycle(actor, computer, request_id, action, Some(authority))
+            .await
+    }
+
+    async fn queue_lifecycle(
+        &self,
+        actor: &ComputerActor,
+        computer: Computer,
+        request_id: Uuid,
+        action: Action,
+        authority: Option<AutomationAuthority>,
+    ) -> Result<Operation> {
+        actor.check_admission()?;
+        if request_id.is_nil() || computer.provider_instance_id != self.provider_instance_id {
+            return Err(ComputerError::InvalidInput);
+        }
+        let caller = actor.owner();
+        let computer_id = computer.computer_id;
+        let grant_id = authority.as_ref().map(AutomationAuthority::grant_id);
+        let key = owner_key(&computer.owner)?;
         let request = request_record(caller, computer_id, request_id)?;
-        let fingerprint = digest(&("veoveo.computer.operation.input.v1", computer_id, action))?;
+        let fingerprint = match grant_id {
+            Some(grant) => digest(&(
+                "veoveo.computer.operation.input.v2",
+                computer_id,
+                action,
+                grant,
+            ))?,
+            None => digest(&("veoveo.computer.operation.input.v1", computer_id, action))?,
+        };
         let id = Uuid::now_v7();
         let (action, previous, next) = match action {
             Action::Create => (
@@ -100,6 +151,8 @@ impl ComputersStore {
             computer_id,
             task: veoveo_task_runtime::TaskId::from_uuid(id).record_id(),
             actor_context: object(caller)?,
+            owner_context: object(&computer.owner)?,
+            automation_grant_id: grant_id,
             execution_authority: object(actor.accepted())?,
             provider_instance_id: computer.provider_instance_id,
             template_fingerprint: computer.template_fingerprint,
@@ -122,32 +175,41 @@ impl ComputersStore {
                 action,
                 actor: &caller.principal_key,
                 authority: &caller.authority,
+                owner: &computer.owner.principal_key,
+                grant_id,
             })?,
         );
-        self.query(
-            include_str!("../queries/queue_operation.surql"),
-            vec![
-                ("request", request.clone().into_value()),
-                (
-                    "admission_expires_at",
-                    actor.admission_expires_at().into_value(),
-                ),
-                ("fingerprint", fingerprint.into_value()),
-                ("computer", computer_record(computer_id).into_value()),
-                (
-                    "execution_slot",
-                    crate::commands::slot(computer_id).into_value(),
-                ),
-                ("owner_key", key.into_value()),
-                ("operation", operation_record(id).into_value()),
-                ("content", content.into_value()),
-                ("expected_updated_at", computer.updated_at.into_value()),
-                ("previous_phase", phase(previous).into_value()),
-                ("next_phase", phase(next).into_value()),
-                ("event", event.into_value()),
-            ],
-        )
-        .await?;
+        let mut bindings = vec![
+            ("request", request.clone().into_value()),
+            (
+                "admission_expires_at",
+                actor.admission_expires_at().into_value(),
+            ),
+            ("fingerprint", fingerprint.into_value()),
+            ("computer", computer_record(computer_id).into_value()),
+            (
+                "execution_slot",
+                crate::commands::slot(computer_id).into_value(),
+            ),
+            ("owner_key", key.into_value()),
+            (
+                "expected_owner_context",
+                object(&computer.owner)?.into_value(),
+            ),
+            ("automation", grant_id.is_some().into_value()),
+            ("operation", operation_record(id).into_value()),
+            ("content", content.into_value()),
+            ("expected_updated_at", computer.updated_at.into_value()),
+            ("previous_phase", phase(previous).into_value()),
+            ("next_phase", phase(next).into_value()),
+            ("event", event.into_value()),
+        ];
+        if let Some(authority) = &authority {
+            bindings.extend(authority.transaction_bindings()?);
+            bindings.push(("policy", self.automation_policy_record().into_value()));
+        }
+        self.query(include_str!("../queries/queue_operation.surql"), bindings)
+            .await?;
         let mut selected = self
             .query(
                 "SELECT VALUE operation_id FROM ONLY $request;",
@@ -155,11 +217,23 @@ impl ComputersStore {
             )
             .await?;
         let operation: Option<Uuid> = selected.take(0).map_err(|_| ComputerError::Unavailable)?;
-        self.operation(caller, operation.ok_or(ComputerError::Unavailable)?)
-            .await
+        let operation = self
+            .read_operation(operation.ok_or(ComputerError::Unavailable)?)
+            .await?;
+        permits(&operation.actor, caller)?;
+        if operation.automation_grant_id != grant_id {
+            return Err(ComputerError::RequestConflict);
+        }
+        Ok(operation)
     }
     pub async fn operation(&self, caller: &TaskOwner, id: Uuid) -> Result<Operation> {
         owner_key(caller)?;
+        let operation = self.read_operation(id).await?;
+        self.get(caller, operation.computer_id).await?;
+        permits(&operation.owner, caller)?;
+        Ok(operation)
+    }
+    pub(crate) async fn read_operation(&self, id: Uuid) -> Result<Operation> {
         let mut response = self
             .query(
                 "SELECT * FROM ONLY $operation;",
@@ -169,15 +243,19 @@ impl ComputersStore {
         let record: Option<OperationRecord> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
         let operation = Operation::try_from(record.ok_or(ComputerError::NotFound)?)?;
-        // A private operation requires the current Computer and original actor authority.
-        self.get(caller, operation.computer_id).await?;
-        permits(&operation.actor, caller)?;
+        if operation.provider_instance_id != self.provider_instance_id {
+            return Err(ComputerError::NotFound);
+        }
         Ok(operation)
     }
     /// Idempotent second half of acceptance. The durable operation reconstructs the
     /// same Task after a process crash or lost task-creation reply.
     pub async fn ensure_operation_task(&self, caller: &TaskOwner, id: Uuid) -> Result<Operation> {
         let operation = self.operation(caller, id).await?;
+        self.link_operation_task(operation).await
+    }
+    pub(crate) async fn link_operation_task(&self, operation: Operation) -> Result<Operation> {
+        let id = operation.operation_id;
         let reference = serde_json::to_value(OperationRef {
             computer_id: operation.computer_id,
             operation_id: id,
@@ -206,6 +284,7 @@ impl ComputersStore {
         if task.task_id != operation.task_id()
             || task.request != reference
             || task.recovery_class != RecoveryClass::ProviderWait
+            || task.owner != operation.actor
         {
             return Err(ComputerError::Unavailable);
         }
@@ -243,6 +322,8 @@ struct Event<'a> {
     action: &'a str,
     actor: &'a str,
     authority: &'a veoveo_mcp_contract::InvocationAuthority,
+    owner: &'a str,
+    grant_id: Option<Uuid>,
 }
 fn object(value: &impl Serialize) -> Result<OpenObject> {
     let serde_json::Value::Object(fields) =

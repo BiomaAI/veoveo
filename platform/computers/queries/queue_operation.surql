@@ -1,5 +1,35 @@
 BEGIN TRANSACTION;
 IF time::now() >= $admission_expires_at { THROW "computer_authority_expired"; };
+IF $automation {
+  LET $now = time::now();
+  LET $head = SELECT * FROM ONLY gateway_control_active:current;
+  LET $revision = SELECT * FROM ONLY $authority_revision;
+  LET $enterprise = SELECT * FROM ONLY $authority_enterprise;
+  LET $tenant = SELECT * FROM ONLY $authority_tenant;
+  LET $source = SELECT * FROM ONLY $authority_source;
+  LET $actor = SELECT * FROM ONLY $authority_actor;
+  LET $owner_source = SELECT * FROM ONLY $authority_owner_source;
+  LET $owner_actor = SELECT * FROM ONLY $authority_owner_actor;
+  IF $authority_expires_at <= $now OR $grant_expires_at <= $now
+    OR $head = NONE OR $head.revision != $authority_revision OR $head.revision_id != $authority_revision_id
+    OR $revision = NONE OR $revision.sha256 != $authority_sha256
+    OR $enterprise.enabled != true OR $tenant.enabled != true OR $source.enabled != true OR $actor.enabled != true
+    OR $owner_source.enabled != true OR $owner_actor.enabled != true { THROW "computer_authority_expired"; };
+  IF $family != NONE {
+    LET $family_state = SELECT * FROM ONLY $family;
+    IF $family_state = NONE OR $family_state.revoked_at != NONE OR $family_state.expires_at <= $now { THROW "computer_authority_expired"; };
+  };
+  LET $grant_state = (UPDATE ONLY $grant SET revision = revision
+    WHERE revision = $grant_revision AND revoked_at = NONE AND expires_at > $now RETURN AFTER);
+  IF $grant_state = NONE OR $grant_state.grant_id != $content.automation_grant_id
+    OR $grant_state.computer_id != $content.computer_id OR $grant_state.grantee != $authority_source
+    OR $grant_state.provider_instance_id != $content.provider_instance_id OR $grant_state.owner_key != $owner_key
+    OR $content.action NOT IN ["start", "stop"] OR $content.action NOT IN $grant_state.permissions
+    { THROW "computer_authority_expired"; };
+  LET $limits = (UPDATE ONLY $policy SET admissions += 1 WHERE fingerprint = $policy_fingerprint RETURN AFTER);
+  IF $limits = NONE { THROW "computer_policy_conflict"; };
+  IF $limits.max_grants = 0 { THROW "computer_authority_expired"; };
+};
 LET $prior = SELECT * FROM ONLY $request;
 IF $prior != NONE {
   IF $prior.fingerprint != $fingerprint { THROW "computer_request_conflict"; };
@@ -11,6 +41,7 @@ IF $prior != NONE {
     THROW "computer_operation_busy";
   };
   IF $current.updated_at != $expected_updated_at
+    OR $current.owner_context != $expected_owner_context
     OR $current.provider_instance_id != $content.provider_instance_id
     OR $current.replacement_instance_id != $content.replacement_instance_id
     OR $current.template_fingerprint != $content.template_fingerprint {

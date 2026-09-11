@@ -103,14 +103,12 @@ impl ComputersStore {
         let expires_at = permit.evidence.valid_until;
         before.dispatch_authority = Some(permit.evidence);
         let id = Uuid::now_v7();
-        self.worker_commit(
-            claimed,
-            &before,
-            ProviderCommit::Dispatch,
-            include_str!("../queries/dispatch.surql"),
+        let mut bindings = if let Some(authority) = &permit.automation {
+            let mut bindings = authority.transaction_bindings()?;
+            bindings.push(("policy", self.automation_policy_record().into_value()));
+            bindings
+        } else {
             vec![
-                ("dispatch_id", id.into_value()),
-                ("dispatch_authority", evidence.into_value()),
                 ("authority_expires_at", expires_at.into_value()),
                 ("authority_revision", permit.revision_record.into_value()),
                 (
@@ -122,7 +120,31 @@ impl ComputersStore {
                 ("authority_tenant", permit.tenant.into_value()),
                 ("authority_source", permit.source.into_value()),
                 ("authority_actor", permit.actor.into_value()),
-            ],
+            ]
+        };
+        bindings.extend([
+            ("dispatch_id", id.into_value()),
+            ("dispatch_authority", evidence.into_value()),
+            ("automation", permit.automation.is_some().into_value()),
+            (
+                "expected_owner_context",
+                serde_json::from_value::<veoveo_platform_store::OpenObject>(
+                    serde_json::to_value(&before.owner).map_err(|_| ComputerError::Unavailable)?,
+                )
+                .map_err(|_| ComputerError::Unavailable)?
+                .into_value(),
+            ),
+            (
+                "owner_key",
+                crate::identity::owner_key(&before.owner)?.into_value(),
+            ),
+        ]);
+        self.worker_commit(
+            claimed,
+            &before,
+            ProviderCommit::Dispatch,
+            include_str!("../queries/dispatch.surql"),
+            bindings,
             "computer.operation_dispatched",
         )
         .await?;

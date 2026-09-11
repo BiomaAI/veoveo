@@ -167,6 +167,7 @@ Hub, administration, and GPU policy.
 | `platform/policy/` | shared policy evaluator, immutable catalog view and pure current session-family predicate; authentication, store reads and freshness remain caller-owned |
 | `platform/computers/src/authority.rs` | verified operation-admission identity and retained source context for explicit current execution policy |
 | `platform/computers/src/current_authority.rs` | fresh immutable policy and directory checks, bounded dispatch authority, and retained current policy decisions |
+| `platform/computers/src/operation_authority.rs` and `operation_admission.rs` | retained owner and actual lifecycle actor separation, named Start/Stop admission, current grant-bound Task access and owner recovery; public activation remains service work |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | shared current policy/directory snapshot and request-scoped action/read permissions; public projections cannot obtain a dispatch ticket |
 | `platform/computers/src/control_session.rs` | exact signed browser-family read and shared binding decision; logout and family expiry constrain control without cancelling accepted work |
 | `platform/computers/` | durable core Computer collections, private human/service ownership, conditional capacity/fence admission, shared Task linking, dispatch receipts, persisted observation budgets and correlated settlement; worker integration lives in `servers/computers-mcp` |

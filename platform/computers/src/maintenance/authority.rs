@@ -52,12 +52,14 @@ impl ComputersStore {
                     checked_at: snapshot.checked_at,
                     valid_until: snapshot.checked_at + chrono::TimeDelta::seconds(5),
                     decision,
+                    automation: None,
                 },
                 deadline,
                 revision_record: snapshot.revision_record,
                 tenant: snapshot.tenant,
                 source: snapshot.source,
                 actor: snapshot.actor,
+                automation: None,
             })
         })
         .await

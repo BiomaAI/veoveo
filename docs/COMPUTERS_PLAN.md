@@ -76,6 +76,16 @@ current grant form requires the grantee's OAuth registration to admit the Consol
 profile. Its new guidance identifies that profile; discovery of eligible clients
 and any explicit cross-profile authority transition remain UX/contract work.
 
+The named lifecycle domain now separates the retained owner from the actor whose
+Task starts or stops the Computer. Its 34 focused store tests cover both policy
+decisions, grant revocation, actor-scoped retries, lost-dispatch observation and
+migration of owner-only history. Source-token expiry leaves accepted work under
+current grant authority. Owner recovery remains possible after revocation. This is
+a local implementation checkpoint; public lifecycle grant inputs, permitted-read
+discovery and the grant-selection UI still require integration and deployment.
+Migration 0076 requires draining old Computers readers and lifecycle workers before
+applying the new schema and admitting named lifecycle operations.
+
 The installed file handoff uses source `0b127b5f98fad6376c9ee1d44de57fcb3718d438`
 with the coordinated host catalog at `dc8e6dd165785daffed8c3d8eeb033e508efc2c1`.
 Import Task `01a09054-b385-7763-b3e1-3c7feb64c87e` settled in about 251 ms;

@@ -85,7 +85,7 @@ impl<G: Preflight> LifecycleWorker<G> {
             Some(task) => task,
             None => {
                 self.store
-                    .ensure_operation_task(&operation.actor, operation.operation_id)
+                    .ensure_operation_task(&operation.owner, operation.operation_id)
                     .await?;
                 self.tasks
                     .get(&id)
