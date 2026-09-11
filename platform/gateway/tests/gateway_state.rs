@@ -411,7 +411,7 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
     }
 
     let retention = second
-        .delete_audit_events_before(now - TimeDelta::days(1))
+        .delete_audit_batch_before(now - TimeDelta::days(1))
         .await
         .unwrap();
     assert_eq!(retention.policy_events_deleted, 1);

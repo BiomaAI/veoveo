@@ -157,6 +157,7 @@ Hub, administration, and GPU policy.
 | `platform/runtimes/computers/provider-patches/Dockerfile` | independent OpenShell OCI build, verified upstream/patch trees and exact provider toolchain; compute-host topology remains separate |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
+| `platform/store/src/gateway_retention.rs` | indexed, bounded gateway audit cleanup; migration 0072 supplies the kind/time index |
 | `platform/policy/` | shared policy evaluator, immutable catalog view and pure current session-family predicate; authentication, store reads and freshness remain caller-owned |
 | `platform/computers/src/authority.rs` | verified operation-admission identity and retained source context for explicit current execution policy |
 | `platform/computers/src/current_authority.rs` | fresh immutable policy and directory checks, bounded dispatch authority, and retained current policy decisions |
