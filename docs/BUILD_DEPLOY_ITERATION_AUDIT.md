@@ -3554,8 +3554,14 @@ the database's 8 GiB limit. Restarts occurred at 08:32:25 and 08:45:17 UTC. Susp
 the bootstrap client did not establish cancellation of its server-side query. The
 repair prepares the same index with `CONCURRENTLY`, validates its physical definition,
 and waits for durable readiness before recording the unchanged migration checksum.
-The online builder retained progress through the second restart. Final installed
-readiness and cleanup timing must be recorded after it completes.
+The online builder retained progress through the second restart. Migration 0072
+committed at 08:57:09 UTC after indexing 19,947,286 existing records and applying
+2,589 concurrent updates. Both gateway replicas completed cleanup at 08:57:29 and
+08:57:33. The installed query plan uses `IndexScan` with the 1,024-row limit.
+This run found no expired gateway audit rows and does not measure backlog deletion
+throughput. Release 152 is Ready; a fresh public browser command at 09:01:30 read
+the retained agent-created file. The runtime/configuration changes did not replace
+either Computer or its provider host.
 
 Two subsequent stages used the canonical image command. Console staging at
 `922b5f3e` took 60.288 seconds, including a 36.219-second compiler window and
