@@ -22,6 +22,7 @@ tokio-util.workspace = true
 tonic.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+zeroize.workspace = true
 url.workspace = true
 veoveo-computers = { path = "../../platform/computers" }
 veoveo-computers-runtime = { path = "../../platform/runtimes/computers" }
@@ -33,7 +34,6 @@ veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 [dev-dependencies]
 veoveo-artifact-service = { path = "../../platform/artifacts/service" }
 veoveo-computer-execution = { path = "../../platform/computers/execution" }
-zeroize.workspace = true
 tokio-tungstenite.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }

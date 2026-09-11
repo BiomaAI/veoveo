@@ -4,6 +4,7 @@
 
 The command generates X.509 P-256 CA and mutual-TLS leaf certificates in PEM, using
 the workspace-qualified Rcgen pin. Provider JWT keys use Ed25519 PKCS#8 and SPKI PEM.
+Command payload encryption uses a 32-byte OS-random key and a UUID key identifier.
 The fixed filenames implement the private host and Computers service trust boundary.
 This is fresh enrollment, with no public authentication protocol or rotation API.
 
@@ -15,8 +16,11 @@ is incomplete and must never be installed as a complete bundle.
 
 Provider and storage have separate CA keys, kept only in the operator directory.
 Workers receive separate client keys for each authority. Only the provider CA signs
-the supervisor guest certificate. Host files contain no worker keys or CA private
-keys. Provider user admission still requires the worker Common Name and the guest
+the supervisor guest certificate. Host files contain no worker keys, command encryption keys or CA private
+keys. Worker output includes `command-key.bin` and its public `command-key-id`.
+Copy that identifier into the service configuration active/key entries and reference
+the mounted binary key file. The identifier is public configuration; key bytes remain
+in the installation Secret and encrypted backup. Provider user admission still requires the worker Common Name and the guest
 still needs its sandbox JWT. Worker endpoints validate the explicit private DNS SAN;
 the provider certificate also admits its internal supervisor hostname.
 

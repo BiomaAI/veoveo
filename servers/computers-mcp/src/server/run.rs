@@ -33,6 +33,11 @@ pub async fn serve(
             store.install_capacity(None, provider.limits),
         )
         .await??;
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            store.install_automation_grant_policy(None, provider.execution.policy),
+        )
+        .await??;
     }
     let (health, receiver) = watch::channel(CapacityHealth {
         availability: if config.provider.is_some() {

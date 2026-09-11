@@ -16,7 +16,8 @@
         ],
         "roots": [
           "testing/fixtures",
-          "platform/computers/storage/tests"
+          "platform/computers/storage/tests",
+          "examples/bioma/computers"
         ]
       },
       "toolchains": [
@@ -50,7 +51,8 @@
         ],
         "roots": [
           "testing/fixtures",
-          "platform/computers/storage/tests"
+          "platform/computers/storage/tests",
+          "examples/bioma/computers"
         ]
       },
       "toolchains": [
@@ -82,7 +84,32 @@
         ],
         "roots": [
           "testing/fixtures",
-          "platform/computers/storage/tests"
+          "platform/computers/storage/tests",
+          "examples/bioma/computers"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computers-mcp",
+        "--test",
+        "service"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers-mcp"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "platform/computers/storage/tests",
+          "examples/bioma/computers"
         ]
       },
       "toolchains": [

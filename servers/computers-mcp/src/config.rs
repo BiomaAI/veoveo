@@ -1,4 +1,8 @@
 //! Installation inputs contain references to trust material, never credentials.
+mod execution;
+use execution::ExecutionConfiguration;
+pub(crate) use execution::PreparedExecution;
+
 use crate::{ApplicationError, NamedTemplate, RetainedHomes, Templates};
 use serde::Deserialize;
 use std::{
@@ -20,7 +24,7 @@ pub enum ConfigurationError {
     #[error("Computers config must be a readable regular JSON file of at most 1 MiB")]
     Document,
     #[error(
-        "Computers config does not match veoveo.io/computers-service/v1 at line {line}, column {column}"
+        "Computers config does not match veoveo.io/computers-service/v2 at line {line}, column {column}"
     )]
     Shape { line: usize, column: usize },
     #[error("Computers requires a non-nil providerInstanceId and a nonzero listen port")]
@@ -35,6 +39,14 @@ pub enum ConfigurationError {
         "Computers requires 1 to 64 distinct admitted templates and an admitted defaultTemplate fingerprint"
     )]
     Templates,
+    #[error(
+        "Computer execution requires valid policy, Artifact endpoint and qualified default template"
+    )]
+    Execution,
+    #[error(
+        "Computer command keys require 1 to 4 distinct IDs and private regular files of exactly 32 bytes"
+    )]
+    ExecutionKey,
     #[error("Computer provider endpoint, workspace and mTLS file references must be valid")]
     ProviderTrust,
     #[error("Computer allocator endpoint and mTLS file references must be valid")]
@@ -44,8 +56,8 @@ pub enum ConfigurationError {
 }
 #[derive(Deserialize)]
 pub enum ConfigSchema {
-    #[serde(rename = "veoveo.io/computers-service/v1")]
-    V1,
+    #[serde(rename = "veoveo.io/computers-service/v2")]
+    V2,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -69,6 +81,7 @@ enum Capacity {
         limits: CapacityPolicy,
         templates: Vec<Template>,
         default_template: String,
+        execution: Box<ExecutionConfiguration>,
     },
 }
 #[derive(Clone, Deserialize)]
@@ -125,6 +138,7 @@ pub(crate) struct PreparedProvider {
     pub gateway: Gateway,
     pub homes: RetainedHomes,
     pub limits: CapacityPolicy,
+    pub execution: PreparedExecution,
 }
 impl Configuration {
     pub async fn load(path: &Path) -> Result<Self> {
@@ -165,7 +179,7 @@ impl Configuration {
             .map_err(|_| ConfigurationError::TimedOut)?
     }
     async fn prepare_inner(self) -> Result<PreparedConfiguration> {
-        let ConfigSchema::V1 = self.schema;
+        let ConfigSchema::V2 = self.schema;
         if self.provider_instance_id.is_nil() || self.listen.port() == 0 {
             return Err(ConfigurationError::Identity);
         }
@@ -194,6 +208,7 @@ impl Configuration {
                 limits,
                 templates,
                 default_template,
+                execution,
             } => {
                 if templates.is_empty() || templates.len() > 64 {
                     return Err(ConfigurationError::Templates);
@@ -223,6 +238,7 @@ impl Configuration {
                 }
                 let templates = Templates::new(admitted, Some(default_template))
                     .map_err(|_| ConfigurationError::Templates)?;
+                let execution = execution.prepare(&templates).await?;
                 gateway
                     .config(self.provider_instance_id)
                     .map_err(|_| ConfigurationError::ProviderTrust)?
@@ -246,6 +262,7 @@ impl Configuration {
                         gateway: *gateway,
                         homes,
                         limits,
+                        execution,
                     }),
                 )
             }

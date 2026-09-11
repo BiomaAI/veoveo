@@ -1,6 +1,8 @@
 //! Readiness observation is separate from the worker's operation-correlated
 //! completion profile. Reconnecting never resubmits an uncertain mutation.
-use crate::{CapacityHealth, LifecycleWorker, RuntimePublisher, config::PreparedProvider};
+use crate::{
+    CapacityHealth, CommandWorker, LifecycleWorker, RuntimePublisher, config::PreparedProvider,
+};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -69,9 +71,24 @@ pub(super) async fn maintain(
                 return;
             }
         };
+        let commands = match CommandWorker::new(
+            store.clone(),
+            tasks.clone(),
+            runtime.clone(),
+            provider.execution.keys.clone(),
+            provider.execution.artifacts.clone(),
+            provider.execution.templates.clone(),
+        ) {
+            Ok(worker) => Arc::new(worker),
+            Err(_) => {
+                report(&health, CapacityAvailability::Maintenance);
+                return;
+            }
+        };
         let stop = shutdown.child_token();
         let _cancel_worker_on_drop = stop.clone().drop_guard();
         let job = tokio::spawn(worker.run(stop.clone()));
+        let command_job = tokio::spawn(commands.run(stop.clone()));
         let mut probes = tokio::time::interval(Duration::from_secs(5));
         probes.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -83,7 +100,7 @@ pub(super) async fn maintain(
                         tokio::time::timeout(Duration::from_secs(5), runtime.ready()),
                         tokio::time::timeout(Duration::from_secs(5), provider.homes.ready()),
                     );
-                    let compute = matches!(compute, Ok(Ok(()))) && !job.is_finished();
+                    let compute = matches!(compute, Ok(Ok(()))) && !job.is_finished() && !command_job.is_finished();
                     if compute { access.available(runtime.clone()); } else { access.unavailable(); }
                     report(&health, if !compute {CapacityAvailability::ComputeUnavailable}
                         else if matches!(storage, Ok(Ok(()))) {CapacityAvailability::Available}
@@ -99,16 +116,19 @@ pub(super) async fn maintain(
         stop.cancel();
         // The worker only abandons its local observation/dispatch futures. Durable
         // leases, provider execution and retained homes survive this process.
-        let mut job = job;
-        if tokio::time::timeout(Duration::from_secs(5), &mut job)
-            .await
-            .is_err()
-        {
-            job.abort();
-            let _ = job.await;
-        }
+        tokio::join!(finish_worker(job), finish_worker(command_job));
         if shutdown.is_cancelled() {
             return;
         }
+    }
+}
+
+async fn finish_worker(mut job: tokio::task::JoinHandle<()>) {
+    if tokio::time::timeout(Duration::from_secs(5), &mut job)
+        .await
+        .is_err()
+    {
+        job.abort();
+        let _ = job.await;
     }
 }

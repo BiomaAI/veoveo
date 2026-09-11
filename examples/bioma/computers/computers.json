@@ -1,5 +1,5 @@
 {
-  "schema": "veoveo.io/computers-service/v1",
+  "schema": "veoveo.io/computers-service/v2",
   "listen": "0.0.0.0:8804",
   "allowedHosts": [
     "computers-mcp:8804"
@@ -37,7 +37,7 @@
     },
     "templates": [
       {
-        "id": "development",
+        "id": "development-retained",
         "fingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
         "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
         "cpus": 2,
@@ -80,8 +80,72 @@
             "runAsGroup": "10001"
           }
         }
+      },
+      {
+        "id": "development",
+        "fingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
+        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99",
+        "cpus": 2,
+        "memoryMib": 2048,
+        "homeCapacityMib": 8192,
+        "temporaryMib": 256,
+        "policy": {
+          "version": 1,
+          "filesystem": {
+            "includeWorkdir": false,
+            "readOnly": [
+              "/usr",
+              "/lib",
+              "/lib64",
+              "/bin",
+              "/etc/passwd",
+              "/etc/group",
+              "/etc/profile",
+              "/etc/profile.d",
+              "/etc/bash.bashrc",
+              "/etc/nsswitch.conf",
+              "/etc/resolv.conf",
+              "/etc/ssl/certs",
+              "/proc",
+              "/sandbox"
+            ],
+            "readWrite": [
+              "/sandbox/persistent",
+              "/tmp",
+              "/dev/null",
+              "/dev/tty",
+              "/dev/pts"
+            ]
+          },
+          "landlock": {
+            "compatibility": "hard_requirement"
+          },
+          "process": {
+            "runAsUser": "10001",
+            "runAsGroup": "10001"
+          }
+        }
       }
     ],
-    "defaultTemplate": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+    "defaultTemplate": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
+    "execution": {
+      "policy": {
+        "maxGrants": 8,
+        "maximumLifetimeSeconds": 28800,
+        "maximumExecutionSeconds": 300,
+        "maximumOutputBytes": 8388608
+      },
+      "artifactEndpoint": "http://artifact-service:8790",
+      "activeKeyId": "0c136d15-0682-41c4-ab2f-eb8c999965ef",
+      "keys": [
+        {
+          "id": "0c136d15-0682-41c4-ab2f-eb8c999965ef",
+          "file": "/etc/veoveo/computers/trust/command-key.bin"
+        }
+      ],
+      "templateFingerprints": [
+        "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32"
+      ]
+    }
   }
 }

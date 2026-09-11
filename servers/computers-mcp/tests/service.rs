@@ -19,6 +19,29 @@ use veoveo_computers_mcp::config::Configuration;
 use veoveo_task_runtime::TaskRuntime;
 
 #[tokio::test]
+async fn bioma_reference_configuration_admits_retained_and_execution_templates() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let files = configuration::Files::new();
+    let mut input: Value = serde_json::from_str(include_str!(
+        "../../../examples/bioma/computers/computers.json"
+    ))
+    .unwrap();
+    input["capacity"]["gateway"]["transport"] = files.tls();
+    input["capacity"]["allocator"] = files.tls();
+    input["capacity"]["execution"]["keys"][0]["file"] = files
+        .0
+        .join("command.key")
+        .to_string_lossy()
+        .into_owned()
+        .into();
+    serde_json::from_value::<Configuration>(input)
+        .unwrap()
+        .prepare()
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn selected_configuration_validates_pins_and_trust_before_provider_connection() {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let files = configuration::Files::new();
@@ -235,4 +258,90 @@ async fn configuration_file_bounds_and_shape_errors_keep_input_bytes_private() {
     };
     assert!(error.to_string().contains("line 1"));
     assert!(!error.to_string().contains("redaction-sentinel"));
+}
+
+#[tokio::test]
+async fn execution_configuration_requires_private_keys_and_a_qualified_default() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let files = configuration::Files::new();
+    let selected = files.configured("127.0.0.1:8787".parse().unwrap());
+    for changed in [
+        "profile",
+        "duplicate",
+        "active",
+        "keys",
+        "relative",
+        "endpoint",
+        "query",
+    ] {
+        let mut value = selected.clone();
+        let execution = &mut value["capacity"]["execution"];
+        match changed {
+            "profile" => execution["templateFingerprints"] = serde_json::json!([]),
+            "duplicate" => execution["templateFingerprints"]
+                .as_array_mut()
+                .unwrap()
+                .push(selected["capacity"]["defaultTemplate"].clone()),
+            "active" => execution["activeKeyId"] = uuid::Uuid::from_u128(2).to_string().into(),
+            "keys" => execution["keys"] = serde_json::json!([]),
+            "relative" => execution["keys"][0]["file"] = "relative-command.key".into(),
+            "endpoint" => {
+                execution["artifactEndpoint"] = "https://user:password@artifact.invalid".into()
+            }
+            "query" => {
+                execution["artifactEndpoint"] = "https://artifact.invalid/?token=fixture".into()
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            serde_json::from_value::<Configuration>(value)
+                .unwrap()
+                .prepare()
+                .await
+                .is_err(),
+            "{changed}"
+        );
+    }
+    let mut old = selected.clone();
+    old["schema"] = "veoveo.io/computers-service/v1".into();
+    assert!(serde_json::from_value::<Configuration>(old).is_err());
+    for size in [0, 31, 33, 1024] {
+        std::fs::write(files.0.join("command.key"), vec![23; size]).unwrap();
+        assert!(
+            serde_json::from_value::<Configuration>(selected.clone())
+                .unwrap()
+                .prepare()
+                .await
+                .is_err()
+        );
+    }
+    std::fs::write(files.0.join("command.key"), [23; 32]).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(
+            files.0.join("command.key"),
+            std::fs::Permissions::from_mode(0o644),
+        )
+        .unwrap();
+        assert!(
+            serde_json::from_value::<Configuration>(selected.clone())
+                .unwrap()
+                .prepare()
+                .await
+                .is_err()
+        );
+        std::fs::set_permissions(
+            files.0.join("command.key"),
+            std::fs::Permissions::from_mode(0o640),
+        )
+        .unwrap();
+        assert!(
+            serde_json::from_value::<Configuration>(selected)
+                .unwrap()
+                .prepare()
+                .await
+                .is_ok()
+        );
+    }
 }

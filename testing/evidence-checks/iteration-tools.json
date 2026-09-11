@@ -112,6 +112,117 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "commands::computers_trust::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
+        "commands::helm::rollout_tests::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deploy-contract",
+        "computer_capacity_adds_the_host_closure_and_requires_core_control"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-deploy-contract"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-computers-mcp",
+        "-p",
+        "veoveo-deploy-contract",
+        "-p",
+        "veoveo-xtask",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computers-mcp",
+          "veoveo-deploy-contract",
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

@@ -57,11 +57,11 @@ computerCapacity: openshell-docker
 computers:
   replicas: 2
   existingConfigMap: bioma-computers-configuration
-  configurationRevision: 8e0535f0114dd5d7fca1a10c79cd523f23a9c1cb724b0d2d8e03f1243e092490
+  configurationRevision: 38757d6142eae0610c20dba3bc0664264373646f59939e63a1b726c9ca66a0d1
   existingTrustSecret: bioma-computers-worker-trust
   host:
     existingConfigMap: bioma-computer-host-configuration
-    configurationRevision: 14e1412a4ebd3765f8fde0a2fd5f265d0d34dfc9ac439f1659095e4f62e78d29
+    configurationRevision: 2786983b69b3edaff64747eb92a47497807de1872ec9bfb984ef6df781450aa0
     existingTrustSecret: bioma-computer-host-trust
     persistence:
       size: 100Gi

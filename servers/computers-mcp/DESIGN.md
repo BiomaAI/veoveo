@@ -11,7 +11,7 @@
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
 | Stock OpenShell CLI `0.0.116`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five qualified SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
-| `veoveo.io/computers-service/v1` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
+| `veoveo.io/computers-service/v2` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
 | OCI Linux AMD64 | `computers-mcp` Bake target, shared Veoveo Rust compiler and digest-pinned Debian trixie runtime with signed archive snapshot `20260910T000000Z` |
 
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
@@ -25,8 +25,9 @@ fingerprints, the installation key ring and the internal Artifact client. Its
 provider-scoped scheduler admits four active commands per replica. Captured payload
 bytes are limited to 256 MiB at that concurrency; allocator and transport overhead
 are additional. Each Computer also retains its durable exclusive execution slot.
-Production configuration and public execution admission are subsequent integration
-work; exporting this worker does not enable commands in the installed service.
+Configured startup runs the command scheduler beside lifecycle observation. It reads
+only enough pending command envelopes to fill its open slots. Public execution
+admission remains integration work; this checkpoint does not expose installed commands.
 
 Only the original dispatch receipt can launch the command. A successor that finds
 Dispatched contains the saved run without replaying command bytes. Current authority
@@ -74,7 +75,7 @@ configuration reference is `VEOVEO_COMPUTERS_CONFIG`. It uses the installation's
 `VEOVEO_INTERNAL_TRUST_JWKS`. Store credentials must be database-scoped. Apply store
 migrations through the installation owner before starting this process.
 
-The configuration schema is `veoveo.io/computers-service/v1`. Its closed root fields
+The configuration schema is `veoveo.io/computers-service/v2`. Its closed root fields
 are `schema`, `listen`, `allowedHosts`, `allowedOrigins`, `access`, `providerInstanceId`
 and `capacity`. `allowedOrigins` contains distinct canonical HTTPS origins. Explicit
 HTTP loopback origins are admitted for local fixtures. Opaque origins, credentials,
@@ -86,7 +87,7 @@ ordinary service restarts. Explicit `capacity: {"kind":"unconfigured"}` keeps th
 core collection available with Setup Required. It creates no capacity policy.
 
 The qualified local variant uses `kind: "openshell_docker"`. Its fields are `gateway`,
-`allocator`, `limits`, `templates` and `defaultTemplate`. Gateway contains `workspace`
+`allocator`, `limits`, `templates`, `defaultTemplate` and `execution`. Gateway contains `workspace`
 and `transport`; allocator is itself a transport. Each transport provides `endpoint`
 as a private host:port plus absolute `caFile`, `certificateFile` and `keyFile` paths.
 Provider and allocator trust are separate installation inputs. No credential belongs
@@ -98,6 +99,30 @@ Limits use `perOwner`, `perTenant` and `provider`. Every template contains `id`,
 selects the canonical retained login command and verifies the entire template against
 its declared fingerprint. `defaultTemplate` names one admitted fingerprint; historical
 fingerprints remain available for retained Computers. A new default does not alter them.
+
+`execution` contains `policy`, `artifactEndpoint`, `activeKeyId`, `keys` and
+`templateFingerprints`. Policy limits are `maxGrants`, `maximumLifetimeSeconds`,
+`maximumExecutionSeconds` and `maximumOutputBytes`. Startup installs that policy
+through the domain's initial-or-exact-retry transaction. Changes require an explicit
+compare-and-set transition. Artifact uses a private HTTP(S) origin without credentials,
+query or path. The default template must be in the distinct execution-qualified set;
+retained templates without the framed launcher remain admitted for their other actions.
+
+Each key has a non-nil `id` and an absolute `file` reference. Accept one to four
+32-byte regular files, with no access for other users or group writers. Kubernetes
+may grant read access through the worker fsGroup. The active key must be present.
+Keys are read into zeroizing buffers; no key or protected command is printed.
+All replicas share active and retained keys. Add a new key to every replica before
+selecting it for writes; retain old keys until all dependent envelopes have expired
+under the retention policy. Never remove keys while pending Tasks still need them.
+Installation-owned encrypted backup includes these keys alongside the encrypted store.
+
+This private configuration is a coordinated v2 hard cut. Drain v1 workers, apply
+migrations through 0066, provision command keys, and start v2 workers with the matching
+configuration. A changed default also requires the compute host to admit that exact
+template through its qualified retained-maintenance procedure. A service rollout alone
+does not upgrade a retained Computer. Downgrade must drain command admission and
+in-flight work; v1 cannot recover command Tasks. Preserve keys and schema on rollback.
 
 Configuration loading and validation each have a ten-second deadline. The regular JSON
 file is capped at 1 MiB. Validate all referenced trust material and selected templates

@@ -74,7 +74,8 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 ## Release publication
 
 Computers capacity is selected by `computerCapacity: openshell-docker`. Its public
-JSON files pin one provider identity and template. This initial development template
+JSON files pin one provider identity and retain the previous template beside the
+new command-capable default. Existing Computers keep their original template. This initial development template
 has Python, Git and shell tools, an 8 GiB retained home, two CPUs and 2 GiB memory.
 It grants no outbound network access. Admission allows two Computers per owner and
 four for this installation. Console and Computers control each use two replicas;
@@ -89,11 +90,21 @@ kubectl --context k3d-veoveo-bioma -n veoveo create secret generic bioma-compute
 kubectl --context k3d-veoveo-bioma -n veoveo create secret generic bioma-computers-worker-trust --from-file=/private/new-computers-trust/worker
 ```
 
+Set `execution.activeKeyId` and the matching key entry in `computers.json` to the
+public identifier in `worker/command-key-id`, then recompute the configuration revision.
+The reference UUID is installation configuration, not a credential. The command key
+file contains exactly 32 random bytes and is mounted only in Computers workers.
+
 The parent directory must already exist. Keep the operator CA keys outside the
 cluster and protect the bundle with installation-owned encrypted backup. Leaf
 certificates expire after 90 days; enrollment on 2026-09-10 requires renewal before
 2026-12-09. Rotation remains a required maintenance qualification before that date.
 Existing retained providers preserve their trust and JWT identity across rollouts.
+For an existing v1 installation, enroll only the new command key in its worker Secret;
+do not replace provider, storage or JWT trust. Drain v1 workers and apply migrations
+through 0066 before starting the v2 service. Admit the added template on the host through
+qualified retained maintenance before selecting it as the default. These source inputs
+are candidates until their installed checks pass.
 The command refuses existing output, and these Secret commands refuse existing names.
 
 Compute the admitted template fingerprint with the production encoder whenever a
