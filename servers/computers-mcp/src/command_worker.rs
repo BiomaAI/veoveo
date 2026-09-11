@@ -1,6 +1,6 @@
 //! The original dispatch owns foreground execution. Successors contain its run;
 //! they never reconstruct an execution attempt from queued command bytes.
-mod guard;
+use crate::io_guard as guard;
 mod lease;
 mod outputs;
 mod scheduler;
@@ -207,9 +207,9 @@ impl CommandWorker {
             Duration::from_secs(1),
             || self.refresh(claim, ticket.operation()),
             |maximum| {
-                constrain
-                    .lock()
-                    .is_ok_and(|mut output| output.constrain(maximum))
+                constrain.lock().is_ok_and(|mut output| {
+                    u32::try_from(maximum).is_ok_and(|limit| output.constrain(limit))
+                })
             },
         )
         .await;

@@ -3,27 +3,96 @@ use std::{
     future::Future,
     time::{Duration, Instant},
 };
-use veoveo_computers::commands::{CommandContinuation, CommandInterruption, CommandRunAuthority};
+use veoveo_computers::{
+    commands::{CommandContinuation, CommandInterruption, CommandRunAuthority},
+    files::{FileContinuation, FileInterruption, FileRunAuthority},
+};
 
-pub(super) enum Interrupted {
-    Domain(CommandInterruption),
+pub(crate) trait Permit {
+    type Reason: Copy;
+    fn valid_until(&self) -> Instant;
+    fn deadline(&self) -> Instant;
+    fn maximum_bytes(&self) -> u64;
+    fn deadline_reason(&self) -> Self::Reason;
+    fn authority_lost() -> Self::Reason;
+}
+pub(crate) enum Continuation<A: Permit> {
+    Authorized(A),
+    Interrupted(A::Reason),
+}
+pub(crate) enum Interrupted<R> {
+    Domain(R),
     LeaseLost,
 }
 
-pub(super) async fn run<T, F, R>(
-    initial: CommandRunAuthority,
+impl Permit for CommandRunAuthority {
+    type Reason = CommandInterruption;
+    fn valid_until(&self) -> Instant {
+        self.valid_until
+    }
+    fn deadline(&self) -> Instant {
+        self.execution_deadline
+    }
+    fn maximum_bytes(&self) -> u64 {
+        u64::from(self.maximum_output_bytes)
+    }
+    fn deadline_reason(&self) -> Self::Reason {
+        self.deadline_reason
+    }
+    fn authority_lost() -> Self::Reason {
+        CommandInterruption::AuthorityLost
+    }
+}
+impl From<CommandContinuation> for Continuation<CommandRunAuthority> {
+    fn from(value: CommandContinuation) -> Self {
+        match value {
+            CommandContinuation::Authorized(a) => Self::Authorized(a),
+            CommandContinuation::Interrupted(r) => Self::Interrupted(r),
+        }
+    }
+}
+impl Permit for FileRunAuthority {
+    type Reason = FileInterruption;
+    fn valid_until(&self) -> Instant {
+        self.valid_until
+    }
+    fn deadline(&self) -> Instant {
+        self.execution_deadline
+    }
+    fn maximum_bytes(&self) -> u64 {
+        self.maximum_bytes
+    }
+    fn deadline_reason(&self) -> Self::Reason {
+        self.deadline_reason
+    }
+    fn authority_lost() -> Self::Reason {
+        FileInterruption::AuthorityLost
+    }
+}
+impl From<FileContinuation> for Continuation<FileRunAuthority> {
+    fn from(value: FileContinuation) -> Self {
+        match value {
+            FileContinuation::Authorized(a) => Self::Authorized(a),
+            FileContinuation::Interrupted(r) => Self::Interrupted(r),
+        }
+    }
+}
+
+pub(crate) async fn run<T, F, R, A: Permit, C: Into<Continuation<A>>>(
+    initial: A,
     pump: impl Future<Output = T>,
     check_every: Duration,
     mut refresh: impl FnMut() -> F,
-    mut constrain_output: impl FnMut(u32) -> bool,
-) -> Result<T, Interrupted>
+    mut constrain_output: impl FnMut(u64) -> bool,
+) -> Result<T, Interrupted<A::Reason>>
 where
-    F: Future<Output = Result<CommandContinuation, R>>,
+    F: Future<Output = Result<C, R>>,
 {
     tokio::pin!(pump);
-    let mut authority = initial;
-    let expires = tokio::time::sleep_until(authority.valid_until.into());
-    let runtime = tokio::time::sleep_until(authority.execution_deadline.into());
+    let mut deadline = initial.deadline();
+    let mut deadline_reason = initial.deadline_reason();
+    let expires = tokio::time::sleep_until(initial.valid_until().into());
+    let runtime = tokio::time::sleep_until(deadline.into());
     tokio::pin!(expires, runtime);
     let mut checks = tokio::time::interval(check_every);
     checks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -31,23 +100,21 @@ where
     loop {
         tokio::select! {
             biased;
-            _ = &mut expires => return Err(Interrupted::Domain(CommandInterruption::AuthorityLost)),
-            _ = &mut runtime => return Err(Interrupted::Domain(authority.deadline_reason)),
+            _ = &mut expires => return Err(Interrupted::Domain(A::authority_lost())),
+            _ = &mut runtime => return Err(Interrupted::Domain(deadline_reason)),
             value = &mut pump => return Ok(value),
             checked = async { checks.tick().await; refresh().await } => {
-                match checked {
-                    Ok(CommandContinuation::Authorized(next)) => {
-                        if next.valid_until <= Instant::now() { return Err(Interrupted::Domain(CommandInterruption::AuthorityLost)); }
-                        if !constrain_output(next.maximum_output_bytes) { return Err(Interrupted::Domain(CommandInterruption::AuthorityLost)); }
-                        if next.execution_deadline < authority.execution_deadline {
-                            authority.execution_deadline = next.execution_deadline;
-                            authority.deadline_reason = next.deadline_reason;
-                            runtime.as_mut().reset(next.execution_deadline.into());
+                match checked.map(Into::into) {
+                    Ok(Continuation::Authorized(next)) => {
+                        if next.valid_until() <= Instant::now() || !constrain_output(next.maximum_bytes()) { return Err(Interrupted::Domain(A::authority_lost())); }
+                        if next.deadline() < deadline {
+                            deadline = next.deadline();
+                            deadline_reason = next.deadline_reason();
+                            runtime.as_mut().reset(deadline.into());
                         }
-                        authority.valid_until = next.valid_until;
-                        expires.as_mut().reset(next.valid_until.into());
+                        expires.as_mut().reset(next.valid_until().into());
                     }
-                    Ok(CommandContinuation::Interrupted(reason)) => return Err(Interrupted::Domain(reason)),
+                    Ok(Continuation::Interrupted(reason)) => return Err(Interrupted::Domain(reason)),
                     Err(_) => return Err(Interrupted::LeaseLost),
                 }
             }

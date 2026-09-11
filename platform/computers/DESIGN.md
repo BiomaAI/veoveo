@@ -9,7 +9,7 @@
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
 | Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels |
-| Veoveo file-transfer journal | Migrations 0073–0074; private request, one-shot dispatch, bounded original-run containment and exact result settlement under a shared `computer.file_transfer` Task lease; native worker and public activation remain pending |
+| Veoveo file-transfer journal | Migrations 0073–0075; private request, one-shot dispatch, bounded original-run containment and exact result settlement under a shared `computer.file_transfer` Task lease; native worker lives in `servers/computers-mcp`; public activation remains pending |
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
@@ -94,7 +94,10 @@ that loses that receipt may contain the saved run, but cannot repeat the transfe
 Current action policy and named-grant limits remain mandatory after admission;
 accepted work does not retain the original browser sign-in as its authority.
 
-The active transfer permit expires within five seconds. Continuation compares exact
+Preparation also receives a short current permit under the exact Task lease. Its
+metadata comparison binds the original creation time, which anchors expiry. The
+retained Computer label floor stays separate from the invocation output floor. The
+active transfer permit expires within five seconds. Continuation compares exact
 journal metadata and the current Task lease without downloading its ciphertext.
 Grant or policy reductions can shorten the transfer duration and byte ceiling.
 Preparation expires after five minutes if no dispatch escaped. A native rejection
@@ -113,8 +116,8 @@ Isolated SurrealDB cases qualify both owner and delegated authority, contested
 one-shot dispatch, sign-in-family independence, current policy reductions, known
 import/export results, helper rejection, cancellation, original-run containment,
 replacement refusal and bounded recovery. The fixture supplies private native
-receipts and Artifact issuance records. Service-owned byte transport, actual Artifact
-redemption and public file controls remain delivery work.
+receipts and Artifact issuance records. The service now composes this journal with actual Artifact redemption and native
+byte movement. Public file controls and production startup remain delivery work.
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated

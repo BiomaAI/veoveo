@@ -9,6 +9,7 @@ mod dispatch;
 mod journal;
 mod model;
 mod outcome;
+mod preparation;
 mod settlement;
 mod tasks;
 use crate::api::FileTransferStage;
@@ -22,6 +23,7 @@ pub use continuation::{FileContinuation, FileRunAuthority};
 pub use dispatch::{FileDispatchDecision, FileDispatchTicket};
 pub use model::FileOperation;
 pub use outcome::{FileInterruption, FileOutcome, FileRefusal};
+pub use preparation::FilePreparation;
 
 fn record(id: uuid::Uuid) -> surrealdb::types::RecordId {
     surrealdb::types::RecordId::new("computer_file_transfer", surrealdb::types::Uuid::from(id))

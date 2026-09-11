@@ -8,8 +8,8 @@ use veoveo_task_runtime::{ClaimedTask, TaskRuntime, TaskStatus};
 
 pub(super) const AUTHORITY_WINDOW: Duration = Duration::from_secs(5);
 
-/// Current authority for an already dispatched foreground stream. This never
-/// creates a second dispatch ticket or extends the original runtime/output limits.
+/// Current authority for preparation or an already dispatched foreground stream.
+/// This never creates a dispatch ticket or extends the original transfer limits.
 pub struct FileRunAuthority {
     pub valid_until: Instant,
     pub execution_deadline: Instant,
@@ -41,8 +41,10 @@ impl ComputersStore {
         claim: &ClaimedTask,
         operation: &FileOperation,
     ) -> Result<FileContinuation> {
-        if operation.stage != FileTransferStage::Dispatched
-            || operation.binding.provider_instance_id != self.provider_instance_id
+        if !matches!(
+            operation.stage,
+            FileTransferStage::Queued | FileTransferStage::Dispatched
+        ) || operation.binding.provider_instance_id != self.provider_instance_id
             || operation.task_id() != claim.snapshot.task_id
             || operation.actor() != claim.snapshot.owner
             || operation.task_reference()? != claim.snapshot.request
@@ -67,6 +69,14 @@ impl ComputersStore {
                     ("task", operation.task_id().record_id().into_value()),
                     ("dispatch_id", operation.dispatch_id.into_value()),
                     (
+                        "stage",
+                        match operation.stage {
+                            FileTransferStage::Queued => "queued",
+                            _ => "dispatched",
+                        }
+                        .into_value(),
+                    ),
+                    (
                         "binding",
                         object(
                             serde_json::to_value(&operation.binding)
@@ -84,17 +94,15 @@ impl ComputersStore {
                     ),
                     (
                         "limits",
-                        object(
-                            serde_json::to_value(
-                                operation
-                                    .effective_limits
-                                    .ok_or(ComputerError::Unavailable)?,
-                            )
-                            .map_err(|_| ComputerError::Unavailable)?,
-                        )?
-                        .into_value(),
+                        operation
+                            .effective_limits
+                            .as_ref()
+                            .map(super::object)
+                            .transpose()?
+                            .into_value(),
                     ),
                     ("dispatched_at", operation.dispatched_at.into_value()),
+                    ("created_at", operation.created_at.into_value()),
                     (
                         "execution_deadline",
                         operation.execution_deadline.into_value(),
@@ -155,29 +163,34 @@ impl ComputersStore {
                 FileInterruption::ExecutionUnknown,
             ));
         }
-        let original = operation
-            .effective_limits
-            .ok_or(ComputerError::Unavailable)?;
         let limits = permit.limits()?;
-        let deadline = (operation.dispatched_at.ok_or(ComputerError::Unavailable)?
-            + TimeDelta::seconds(i64::from(
-                original.maximum_seconds.min(limits.maximum_seconds),
-            )))
-        .min(
-            operation
-                .execution_deadline
-                .ok_or(ComputerError::Unavailable)?,
-        )
-        .min(
-            permit
-                .execution_expiry()
-                .unwrap_or(chrono::DateTime::<Utc>::MAX_UTC),
+        let original = operation.effective_limits.unwrap_or(limits);
+        let original_deadline = operation.execution_deadline.unwrap_or(
+            operation.created_at + TimeDelta::seconds(i64::from(super::FILE_PREPARATION_SECONDS)),
         );
-        let reason = if deadline
-            < operation
-                .execution_deadline
-                .ok_or(ComputerError::Unavailable)?
-        {
+        let deadline = if operation.stage == FileTransferStage::Queued {
+            original_deadline.min(
+                permit
+                    .execution_expiry()
+                    .unwrap_or(chrono::DateTime::<Utc>::MAX_UTC),
+            )
+        } else {
+            (operation.dispatched_at.ok_or(ComputerError::Unavailable)?
+                + TimeDelta::seconds(i64::from(
+                    original.maximum_seconds.min(limits.maximum_seconds),
+                )))
+            .min(
+                operation
+                    .execution_deadline
+                    .ok_or(ComputerError::Unavailable)?,
+            )
+            .min(
+                permit
+                    .execution_expiry()
+                    .unwrap_or(chrono::DateTime::<Utc>::MAX_UTC),
+            )
+        };
+        let reason = if deadline < original_deadline {
             FileInterruption::AuthorityLost
         } else {
             FileInterruption::Deadline

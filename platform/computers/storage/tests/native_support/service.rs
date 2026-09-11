@@ -87,6 +87,7 @@ impl Fixture {
         let root = PathBuf::from(
             std::env::var_os("VEOVEO_COMPUTERS_NATIVE_OUTPUT").expect("owned diagnostics root"),
         );
+        fs::create_dir_all(&root).unwrap();
         let dir = root.join(format!("storage-service-{}", id.simple()));
         fs::create_dir(&dir).unwrap();
         fs::create_dir(dir.join("probe")).unwrap();

@@ -21,6 +21,9 @@ impl FileExitTicket {
     pub fn operation(&self) -> &FileOperation {
         self.dispatch.operation()
     }
+    pub fn transfer(&self) -> &FileTransfer {
+        self.dispatch.payload().transfer()
+    }
     pub fn access(&self) -> &FileTransferAccess {
         self.dispatch.access()
     }

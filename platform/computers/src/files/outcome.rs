@@ -8,6 +8,7 @@ pub enum FileRefusal {
     AuthorityDenied,
     RunChanged,
     PreparationExpired,
+    ArtifactUnavailable,
 }
 
 /// The reason for containing an admitted run does not claim its writes rolled back.
