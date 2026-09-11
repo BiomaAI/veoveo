@@ -1,6 +1,6 @@
 use crate::{
     AcceptedAuthority, ComputerError, Result,
-    command_secrets::{CommandBinding, SealedCommand, SealedOutputAccess},
+    secrets::{CommandBinding, SealedCommand, SealedOutputAccess},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

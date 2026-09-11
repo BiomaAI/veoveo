@@ -7,16 +7,16 @@ use veoveo_computers::{
     ComputerActor, ComputersStore,
     api::*,
     automation_grants::AutomationAuthority,
-    command_secrets::{CommandKeyRing, CommandPayload, CommandSealingKey},
+    secrets::{CommandPayload, ComputerKeyRing, ComputerSealingKey},
 };
 use veoveo_platform_store::RecordId;
 use veoveo_task_runtime::TaskRuntime;
 use zeroize::Zeroizing;
 
-pub fn keys() -> CommandKeyRing {
-    CommandKeyRing::new(
+pub fn keys() -> ComputerKeyRing {
+    ComputerKeyRing::new(
         Uuid::from_u128(1),
-        vec![CommandSealingKey::new(Uuid::from_u128(1), Zeroizing::new([19; 32])).unwrap()],
+        vec![ComputerSealingKey::new(Uuid::from_u128(1), Zeroizing::new([19; 32])).unwrap()],
     )
     .unwrap()
 }

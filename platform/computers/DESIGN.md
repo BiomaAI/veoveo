@@ -7,7 +7,7 @@
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
-| XChaCha20-Poly1305 and HMAC-SHA-256 | Private command and output-capability envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
+| XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
@@ -315,9 +315,17 @@ converter does not enforce JSON Schema `uniqueItems`; the Rust wire deserializer
 rejects duplicate and empty permissions before constructing its bounded set. Public
 protocol integration must retain that strict deserialization. These checks do not establish public agent execution.
 
-## Queued Command Confidentiality
+## Computer Confidentiality
 
-`command_secrets/` protects argv, environment and finite stdin before durable
+Maintenance checkpoints are bounded opaque adapter bytes. Their private binding covers
+the operation and request, provider, Computer, owner and actor, source and target
+instances/templates, source resource/process, and retained labels. `ComputerKeyRing`
+protects them with a distinct maintenance purpose. The adapter validates its private
+format after authenticated opening; the domain has no provider dependency. Encryption
+and decoding grant no maintenance admission or physical writer authority. These
+primitives are ready for the durable journal; they do not yet persist maintenance jobs.
+
+`secrets/` protects argv, environment and finite stdin before durable
 admission. The envelope authenticates the Computer, named grant, actual actor,
 owner, request and execution identities together with the selected provider run
 and template. The immutable binding also captures retained-home labels and both
@@ -339,8 +347,9 @@ An older worker binary is unsupported after adoption.
 
 Installation-owned 256-bit keys derive separate encryption and fingerprint keys
 through HMAC-SHA-256 with fixed domain labels. XChaCha20-Poly1305 uses a fresh random
-192-bit nonce for every seal. Authenticated purpose labels separate command bytes
-from output-capability receipts even under the same key and execution identity. The private request fingerprint is keyed; a database
+192-bit nonce for every seal. Authenticated purpose labels separate command bytes,
+output-capability receipts and maintenance checkpoints even under the same key.
+The private request fingerprint is keyed; a database
 copy does not expose an unkeyed digest for guessing command secrets. Opening checks
 both envelope authentication and the exact bounded guest frame, including refusal
 of trailing bytes. Errors contain no command or parser excerpts. Secret-bearing

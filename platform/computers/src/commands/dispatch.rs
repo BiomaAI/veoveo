@@ -2,7 +2,7 @@ use super::{CommandOperation, CommandStage};
 use crate::{
     ComputerError, ComputersStore, Result,
     api::{AutomationExecutionLimits, AutomationPermission},
-    command_secrets::{CommandBinding, CommandKeyRing, CommandOutputAccess, CommandPayload},
+    secrets::{CommandBinding, CommandOutputAccess, CommandPayload, ComputerKeyRing},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -100,7 +100,7 @@ impl ComputersStore {
     pub async fn begin_command_dispatch(
         &self,
         claim: &ClaimedTask,
-        keys: &CommandKeyRing,
+        keys: &ComputerKeyRing,
     ) -> Result<CommandDispatchTicket> {
         tokio::time::timeout(Duration::from_secs(10), self.dispatch_command(claim, keys))
             .await
@@ -109,7 +109,7 @@ impl ComputersStore {
     async fn dispatch_command(
         &self,
         claim: &ClaimedTask,
-        keys: &CommandKeyRing,
+        keys: &ComputerKeyRing,
     ) -> Result<CommandDispatchTicket> {
         let mut operation = self.worker_command(claim).await?.operation;
         if operation.stage != CommandStage::Queued {

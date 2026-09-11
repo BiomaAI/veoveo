@@ -8,7 +8,7 @@ use uuid::Uuid;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_computers::{
     automation_grants::AutomationGrantPolicy,
-    command_secrets::{CommandKeyRing, CommandSealingKey},
+    secrets::{ComputerKeyRing, ComputerSealingKey},
 };
 use zeroize::Zeroizing;
 
@@ -30,7 +30,7 @@ struct KeyFile {
 #[derive(Clone)]
 pub(crate) struct PreparedExecution {
     pub policy: AutomationGrantPolicy,
-    pub keys: Arc<CommandKeyRing>,
+    pub keys: Arc<ComputerKeyRing>,
     pub artifacts: HttpArtifactPlane,
     pub templates: BTreeSet<String>,
 }
@@ -104,11 +104,11 @@ impl ExecutionConfiguration {
             let mut key = Zeroizing::new([0; 32]);
             key.copy_from_slice(&bytes);
             keys.push(
-                CommandSealingKey::new(source.id, key)
+                ComputerSealingKey::new(source.id, key)
                     .map_err(|_| ConfigurationError::ExecutionKey)?,
             );
         }
-        let keys = CommandKeyRing::new(self.active_key_id, keys)
+        let keys = ComputerKeyRing::new(self.active_key_id, keys)
             .map_err(|_| ConfigurationError::ExecutionKey)?;
         Ok(PreparedExecution {
             policy: self.policy,

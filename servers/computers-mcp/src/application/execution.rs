@@ -6,14 +6,14 @@ use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_computers::{
     ComputerActor, ComputerError,
     api::{AutomationPermission, ExecuteInput},
-    command_secrets::{CommandKeyRing, CommandPayload},
     commands::{CommandOperation, CommandStage},
+    secrets::{CommandPayload, ComputerKeyRing},
 };
 use veoveo_mcp_contract::PlaneCaller;
 use zeroize::Zeroizing;
 
 pub(super) struct ExecutionSupport {
-    keys: Arc<CommandKeyRing>,
+    keys: Arc<ComputerKeyRing>,
     artifacts: HttpArtifactPlane,
     templates: BTreeSet<String>,
 }
@@ -23,7 +23,7 @@ impl Application {
     /// provider reconnect; the worker independently checks each dispatch.
     pub fn with_execution(
         mut self,
-        keys: Arc<CommandKeyRing>,
+        keys: Arc<ComputerKeyRing>,
         artifacts: HttpArtifactPlane,
         templates: BTreeSet<String>,
     ) -> Result<Self> {

@@ -69,7 +69,7 @@ impl CommandBinding {
 /// No Debug, Display or Clone: arguments, environment and stdin may contain secrets.
 ///
 /// ```compile_fail
-/// use veoveo_computers::command_secrets::CommandPayload;
+/// use veoveo_computers::secrets::CommandPayload;
 /// fn cannot_log(command: CommandPayload) { let _ = format!("{command:?}"); }
 /// ```
 pub struct CommandPayload {

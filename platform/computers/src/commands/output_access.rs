@@ -1,7 +1,7 @@
 use super::{CommandOperation, CommandStage, model};
 use crate::{
     ComputerError, ComputersStore, Result,
-    command_secrets::{CommandKeyRing, CommandOutputAccess},
+    secrets::{CommandOutputAccess, ComputerKeyRing},
 };
 use chrono::{TimeDelta, Utc};
 use surrealdb::types::SurrealValue;
@@ -23,7 +23,7 @@ impl CommandOperation {
     /// to Artifacts; it cannot choose a smaller inherited-label floor.
     pub fn output_capability_request(
         &self,
-        keys: &CommandKeyRing,
+        keys: &ComputerKeyRing,
     ) -> Result<Option<IssueArtifactWriteCapabilityRequest>> {
         if self.stage != CommandStage::Queued {
             return Err(ComputerError::InvalidState);
@@ -66,7 +66,7 @@ impl ComputersStore {
         &self,
         command: &CommandOperation,
         capability: IssuedArtifactWriteCapability,
-        keys: &CommandKeyRing,
+        keys: &ComputerKeyRing,
     ) -> Result<CommandOperation> {
         tokio::time::timeout(
             std::time::Duration::from_secs(5),
@@ -79,7 +79,7 @@ impl ComputersStore {
         &self,
         command: &CommandOperation,
         capability: IssuedArtifactWriteCapability,
-        keys: &CommandKeyRing,
+        keys: &ComputerKeyRing,
     ) -> Result<CommandOperation> {
         let saved = self.read_output_command(command).await?;
         let payload = keys.open(&saved.binding, &saved.sealed)?;

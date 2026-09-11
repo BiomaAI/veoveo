@@ -132,8 +132,7 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
     ));
     // Coherent private fixture ages only the encrypted capability, with no wait or
     // provider call. A still-live receipt cannot cover 30s execution + 120s publish.
-    let access =
-        veoveo_computers::command_secrets::CommandOutputAccess::new(capability, 1024).unwrap();
+    let access = veoveo_computers::secrets::CommandOutputAccess::new(capability, 1024).unwrap();
     let sealed = keys.seal_output_access(command.binding(), &access).unwrap();
     let object: veoveo_platform_store::OpenObject =
         serde_json::from_value(serde_json::to_value(sealed).unwrap()).unwrap();

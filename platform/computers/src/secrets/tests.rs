@@ -22,11 +22,11 @@ fn binding() -> CommandBinding {
         replacement_instance_id: None,
     }
 }
-fn key(n: u128) -> CommandSealingKey {
-    CommandSealingKey::new(Uuid::from_u128(n), Zeroizing::new([n as u8; 32])).unwrap()
+fn key(n: u128) -> ComputerSealingKey {
+    ComputerSealingKey::new(Uuid::from_u128(n), Zeroizing::new([n as u8; 32])).unwrap()
 }
-fn ring(active: u128, keys: &[u128]) -> CommandKeyRing {
-    CommandKeyRing::new(
+fn ring(active: u128, keys: &[u128]) -> ComputerKeyRing {
+    ComputerKeyRing::new(
         Uuid::from_u128(active),
         keys.iter().map(|&n| key(n)).collect(),
     )
@@ -190,11 +190,11 @@ fn corruption_and_unknown_versions_never_resolve_a_retry() {
 
 #[test]
 fn binding_shape_keys_and_plaintext_framing_fail_closed() {
-    assert!(CommandSealingKey::new(Uuid::nil(), Zeroizing::new([0; 32])).is_err());
-    assert!(CommandKeyRing::new(Uuid::from_u128(1), vec![]).is_err());
-    assert!(CommandKeyRing::new(Uuid::from_u128(1), vec![key(1), key(1)]).is_err());
-    assert!(CommandKeyRing::new(Uuid::from_u128(1), vec![key(2)]).is_err());
-    assert!(CommandKeyRing::new(Uuid::from_u128(1), (1..=5).map(key).collect()).is_err());
+    assert!(ComputerSealingKey::new(Uuid::nil(), Zeroizing::new([0; 32])).is_err());
+    assert!(ComputerKeyRing::new(Uuid::from_u128(1), vec![]).is_err());
+    assert!(ComputerKeyRing::new(Uuid::from_u128(1), vec![key(1), key(1)]).is_err());
+    assert!(ComputerKeyRing::new(Uuid::from_u128(1), vec![key(2)]).is_err());
+    assert!(ComputerKeyRing::new(Uuid::from_u128(1), (1..=5).map(key).collect()).is_err());
     let keys = ring(1, &[1]);
     let command = command("private", 30, 1024);
     let mut binding = binding();
@@ -216,11 +216,11 @@ fn binding_shape_keys_and_plaintext_framing_fail_closed() {
 
 #[test]
 fn identical_raw_keys_under_different_ids_cannot_substitute_an_envelope() {
-    let keys = CommandKeyRing::new(
+    let keys = ComputerKeyRing::new(
         Uuid::from_u128(1),
         vec![
             key(1),
-            CommandSealingKey::new(Uuid::from_u128(2), Zeroizing::new([1; 32])).unwrap(),
+            ComputerSealingKey::new(Uuid::from_u128(2), Zeroizing::new([1; 32])).unwrap(),
         ],
     )
     .unwrap();

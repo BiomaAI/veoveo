@@ -624,6 +624,13 @@ restart decoding, canonical encoding rejection and provider/instance/process iso
 This encoding requires authenticated journal encryption. It does not yet supply durable
 maintenance admission or post-retirement restoration authority.
 
+The Computers domain protects these checkpoints through its shared installation key
+ring. A distinct authenticated purpose binds the owner, actor, operation, request,
+source and target instances/templates, exact source run and required labels. The
+opaque provider encoding remains outside the domain model. Rotation preserves pending
+work when its key is retained; neither the plaintext nor the envelope implements
+Debug. Durable maintenance journal integration remains the next delivery step.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

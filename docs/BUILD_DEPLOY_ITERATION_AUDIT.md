@@ -3433,3 +3433,9 @@ suite passed in 3.08 seconds after a 6.66-second compile. The change adds a Veov
 protobuf format using existing generators and provider types; it introduces no package,
 provider image or installed-state change. Source-independent decoding is covered here;
 physical retirement remains evidence from the owning native fixture.
+
+Sharing checkpoint protection with the existing Computers key ring compiled in 5.28
+seconds and passed eleven focused crypto cases in 0.53 seconds. Moving that module
+updated domain and service imports without changing provider or guest binaries. The
+tests cover maximum-size encryption, rotation and cross-purpose rejection locally;
+they do not require launching a Docker or database fixture.
