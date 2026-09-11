@@ -2,13 +2,26 @@
 mod admission;
 mod artifact_access;
 mod authority;
+mod completion;
+mod containment;
+mod continuation;
+mod dispatch;
+mod journal;
 mod model;
+mod outcome;
+mod settlement;
 mod tasks;
+use crate::api::FileTransferStage;
 pub use artifact_access::{
     FILE_PREPARATION_SECONDS, FILE_PUBLICATION_SECONDS, FileCapabilityRequest,
 };
 pub use authority::FileTransferAuthority;
+pub use completion::FileExitTicket;
+pub use containment::{ContainmentReadAdmission, FileContainmentRead, FileContainmentStop};
+pub use continuation::{FileContinuation, FileRunAuthority};
+pub use dispatch::{FileDispatchDecision, FileDispatchTicket};
 pub use model::FileOperation;
+pub use outcome::{FileInterruption, FileOutcome, FileRefusal};
 
 fn record(id: uuid::Uuid) -> surrealdb::types::RecordId {
     surrealdb::types::RecordId::new("computer_file_transfer", surrealdb::types::Uuid::from(id))

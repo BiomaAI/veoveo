@@ -38,6 +38,37 @@ pub struct AutomationAuthority {
     family: Option<RecordId>,
 }
 impl AutomationAuthority {
+    pub(crate) fn file_decision(
+        &self,
+        transfer: Uuid,
+    ) -> Result<crate::files::FileDispatchDecision> {
+        self.require_file_transfer()?;
+        let trace = TraceId::new(transfer.to_string()).expect("UUID trace");
+        Ok(crate::files::FileDispatchDecision {
+            control_revision: self.source_snapshot.control_revision.clone(),
+            control_sha256: self.source_snapshot.control_sha256.clone(),
+            grant_id: Some(self.grant_id),
+            grant_revision: Some(self.grant_revision),
+            checked_at: self
+                .source_snapshot
+                .checked_at
+                .max(self.owner_snapshot.checked_at),
+            valid_until: self
+                .admission_end
+                .min(self.source_snapshot.checked_at + TimeDelta::seconds(30))
+                .min(self.owner_snapshot.checked_at + TimeDelta::seconds(30)),
+            source: self.source_snapshot.decision(
+                GatewayAction::ToolsCall,
+                &crate::files::target(),
+                &trace,
+            ),
+            owner: Some(self.owner_snapshot.decision(
+                GatewayAction::ToolsCall,
+                &crate::files::target(),
+                &trace,
+            )),
+        })
+    }
     pub(crate) fn require_file_transfer(&self) -> Result<()> {
         self.check_fresh()?;
         if self.permission != AutomationPermission::Execute {
