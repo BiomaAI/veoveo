@@ -100,6 +100,23 @@ impl ComputersStore {
         &self,
         claim: &ClaimedTask,
     ) -> Result<MaintenanceObservationAdmission> {
+        self.maintenance_observation(claim, false).await
+    }
+
+    /// Final verification shares the last step's remaining read/deadline budget.
+    /// Adoption cannot acquire a fresh unbounded provider observation loop.
+    pub async fn observe_maintenance_adoption(
+        &self,
+        claim: &ClaimedTask,
+    ) -> Result<MaintenanceObservationAdmission> {
+        self.maintenance_observation(claim, true).await
+    }
+
+    async fn maintenance_observation(
+        &self,
+        claim: &ClaimedTask,
+        adoption: bool,
+    ) -> Result<MaintenanceObservationAdmission> {
         let clock = self.worker_maintenance(claim).await?;
         if clock.operation.stage == MaintenanceStage::RecoveryRequired {
             return Ok(MaintenanceObservationAdmission::RecoveryRequired);
@@ -109,7 +126,9 @@ impl ComputersStore {
             .steps()
             .last()
             .ok_or(ComputerError::InvalidState)?;
-        if current.evidence.is_some() {
+        if adoption != (clock.operation.stage == MaintenanceStage::Adopting)
+            || current.evidence.is_some() != adoption
+        {
             return Err(ComputerError::InvalidState);
         }
         if current.observation_reads >= 8 || clock.remaining(current.observation_deadline).is_zero()
@@ -157,7 +176,7 @@ impl ComputersStore {
             .remaining(step.observation_deadline)
             .min(Duration::from_secs(10));
         if step.last_observation_id != Some(observation_id)
-            || step.evidence.is_some()
+            || step.evidence.is_some() != adoption
             || remaining.is_zero()
         {
             return Err(ComputerError::StateConflict);
@@ -216,6 +235,11 @@ impl ComputersStore {
             .ok_or(ComputerError::InvalidState)?;
         last.evidence = Some(evidence);
         last.settled_at = Some(clock.database_time);
+        // Conclusive settlement ends recovery backoff. Final verification may
+        // spend the remaining budget immediately instead of waiting up to 10s.
+        if last.observation_reads > 0 {
+            last.next_observation_at = Some(clock.database_time);
+        }
         if after.next_step().is_none() {
             after.stage = MaintenanceStage::Adopting;
         }
@@ -293,10 +317,28 @@ impl ComputersStore {
         self.maintenance_for_claim(claim).await
     }
     /// The owning worker must freshly qualify the exact created run before adoption.
-    pub async fn adopt_maintenance(&self, claim: &ClaimedTask) -> Result<MaintenanceOperation> {
+    pub async fn adopt_maintenance(
+        &self,
+        claim: &ClaimedTask,
+        ticket: MaintenanceTicket,
+    ) -> Result<MaintenanceOperation> {
+        if ticket.is_dispatch()
+            || ticket.remaining().is_zero()
+            || ticket.operation.stage != MaintenanceStage::Adopting
+        {
+            return Err(ComputerError::StateConflict);
+        }
         let before = self.maintenance_for_claim(claim).await?;
         if before.stage != MaintenanceStage::Adopting || before.created_run().is_none() {
             return Err(ComputerError::InvalidState);
+        }
+        if before.operation_id != ticket.operation.operation_id
+            || before.steps().last().is_none_or(|step| {
+                step.dispatch_id != ticket.dispatch_id
+                    || step.last_observation_id != ticket.observation_id
+            })
+        {
+            return Err(ComputerError::StateConflict);
         }
         let permit = self.authorize_maintenance(&before).await?;
         let mut after = before.clone();

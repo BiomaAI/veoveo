@@ -16,6 +16,16 @@ fn keys(n: u8) -> ComputerKeyRing {
     )
     .unwrap()
 }
+async fn adoption_ticket(
+    store: &ComputersStore,
+    claim: &ClaimedTask,
+) -> veoveo_computers::maintenance::MaintenanceTicket {
+    let ReadAdmission::Read(ticket) = store.observe_maintenance_adoption(claim).await.unwrap()
+    else {
+        panic!("bounded adoption read")
+    };
+    ticket
+}
 async fn queued(db: &TestDb) -> (ComputersStore, ComputersStore, TaskRuntime, ClaimedTask) {
     let (a, b, actor, id) = ready(db).await;
     let operation = a
@@ -136,7 +146,10 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
         a.maintenance_for_claim(&claim).await.unwrap().stage,
         MaintenanceStage::Adopting
     );
-    let complete = b.adopt_maintenance(&claim).await.unwrap();
+    let complete = b
+        .adopt_maintenance(&claim, adoption_ticket(&a, &claim).await)
+        .await
+        .unwrap();
     assert_eq!(complete.stage, MaintenanceStage::Succeeded);
     let current = b
         .get(&operation.actor, operation.computer_id)
@@ -163,7 +176,7 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
             .len(),
         6
     );
-    assert!(a.adopt_maintenance(&claim).await.is_err());
+    assert!(a.observe_maintenance_adoption(&claim).await.is_err());
     assert_eq!(a.pending_maintenance(None, 100).await.unwrap().len(), 1);
     assert!(a.acknowledge_maintenance_task(&complete).await.is_err());
     tasks
@@ -320,7 +333,10 @@ pub(super) async fn initial_failure_retains_unknown_source_through_cancel_and_ad
             .await
             .unwrap();
     }
-    let complete = a.adopt_maintenance(&claim).await.unwrap();
+    let complete = a
+        .adopt_maintenance(&claim, adoption_ticket(b, &claim).await)
+        .await
+        .unwrap();
     assert_eq!(complete.steps().len(), 2);
     let old = b
         .operation(actor.owner(), original.operation_id)

@@ -95,6 +95,16 @@ pub struct Schedulers {
     jobs: Vec<tokio::task::JoinHandle<()>>,
 }
 impl Schedulers {
+    pub fn maintenance(
+        workers: impl IntoIterator<Item = Arc<veoveo_computers_mcp::MaintenanceWorker>>,
+    ) -> Self {
+        let shutdown = CancellationToken::new();
+        let jobs = workers
+            .into_iter()
+            .map(|worker| tokio::spawn(worker.run(shutdown.clone())))
+            .collect();
+        Self { shutdown, jobs }
+    }
     pub fn start(
         workers: impl IntoIterator<Item = Arc<veoveo_computers_mcp::CommandWorker>>,
     ) -> Self {
@@ -109,11 +119,11 @@ impl Schedulers {
         self.shutdown.cancel();
         for mut job in self.jobs.drain(..) {
             match tokio::time::timeout(Duration::from_secs(5), &mut job).await {
-                Ok(result) => result.expect("native command scheduler panicked"),
+                Ok(result) => result.expect("native Computer scheduler panicked"),
                 Err(_) => {
                     job.abort();
                     let _ = job.await;
-                    panic!("native command scheduler did not stop");
+                    panic!("native Computer scheduler did not stop");
                 }
             }
         }

@@ -137,6 +137,16 @@ pub struct LifecycleResult {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MaintenanceResult {
+    #[serde(rename = "result_uri")]
+    pub result_uri: String,
+    pub computer_id: Uuid,
+    pub maintenance_id: Uuid,
+    pub template_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationView {
     pub task_id: Uuid,
     pub computer_id: Uuid,
@@ -373,6 +383,7 @@ struct SchemaBundle {
     limits: ComputerLimits,
     receipt: OperationReceipt,
     lifecycle_result: LifecycleResult,
+    maintenance_result: MaintenanceResult,
     operation: OperationView,
     create_input: CreateInput,
     start_input: StartInput,
@@ -456,6 +467,7 @@ mod tests {
         for name in [
             "ComputerSnapshot",
             "ExecutionResult",
+            "MaintenanceResult",
             "ExecutionOutput",
             "ComputerView",
             "TemplateView",

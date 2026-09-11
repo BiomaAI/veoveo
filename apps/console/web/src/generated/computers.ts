@@ -173,6 +173,7 @@ export interface ComputersApi {
   lifecycle_input: LifecycleInput;
   lifecycle_result: LifecycleResult;
   limits: ComputerLimits;
+  maintenance_result: MaintenanceResult;
   operation: OperationView;
   receipt: OperationReceipt;
   revoke_access_body: RevokeAccessBody;
@@ -481,6 +482,16 @@ export interface ComputerLimits {
   perOwner: number;
   perTenant: number;
   provider: number;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "MaintenanceResult".
+ */
+export interface MaintenanceResult {
+  computerId: string;
+  maintenanceId: string;
+  result_uri: string;
+  templateId: string;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema

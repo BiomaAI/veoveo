@@ -12,8 +12,8 @@ IF $authority_expires_at <= $now OR $head = NONE OR $head.revision != $authority
   THROW "computer_authority_expired";
 };
 IF $family != NONE {
-  LET $session = SELECT * FROM ONLY $family;
-  IF $session = NONE OR $session.revoked_at != NONE OR $session.expires_at <= $now { THROW "computer_authority_expired"; };
+  LET $family_state = SELECT * FROM ONLY $family;
+  IF $family_state = NONE OR $family_state.revoked_at != NONE OR $family_state.expires_at <= $now { THROW "computer_authority_expired"; };
 };
 LET $prior = SELECT * FROM ONLY $request;
 IF $prior != NONE {

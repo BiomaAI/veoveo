@@ -660,6 +660,15 @@ recovery, stale workers, checkpoint repair, policy loss and exhausted budgets. P
 orchestration, explicit operator resumption and the public update UX remain required;
 these domain receipts do not establish actual provider or installed maintenance.
 
+The private maintenance worker now composes that journal with provider Stop/Create,
+physical retained transfer, encrypted policy recovery and Task result projection.
+Final target verification consumes the last step's remaining observation budget.
+The native command fixture uses two worker instances and the real maintenance journal
+instead of its former manual adapter sequence. Its admitted transition reuses the same
+image on a fresh instance. Bounded continuous scheduling is implemented. Executable
+wiring, installation transition declarations,
+public update/recovery UX and different-image/installed qualification remain required.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

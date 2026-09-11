@@ -355,15 +355,19 @@ reset an uncertain dispatch through ordinary request retry.
 
 Capture settlement creates its encrypted checkpoint in the same transaction as the
 step receipt. The worker must reopen and validate that checkpoint before retirement.
-Only complete histories reach adoption. Adoption atomically replaces the recorded
-instance/template and resource/process, marks Ready and releases the fence under current
+Only complete histories reach adoption. Final target verification uses the last step's
+remaining deadline and read budget; a missed observation cannot create an unbounded
+verification loop. Conclusive settlement ends recovery backoff, allowing verification
+to proceed immediately. Adoption consumes that fresh observation ticket and atomically
+replaces the recorded instance/template and resource/process, marks Ready and releases the fence under current
 action authority. Quota and the retained owner do not change. The owning worker must
 qualify the exact target run before this private adoption call; domain fixtures alone
 do not prove physical retirement, storage transfer or provider policy loading.
 
 Task projection and retention-pin acknowledgement are repairable through bounded
-worker discovery. Provider orchestration, operator recovery, public update projection
-and installed template qualification remain implementation work.
+worker discovery. The provider worker composes these transitions in
+`servers/computers-mcp`. Operator recovery, executable worker wiring, public update
+projection and installed template qualification remain implementation work.
 
 ## Computer Confidentiality
 

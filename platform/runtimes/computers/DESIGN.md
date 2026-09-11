@@ -189,14 +189,13 @@ concurrent out-of-band administration and never reuses retired instance names.
 
 Recovery may observe the exact original binding within its persisted budget, then
 ask the allocator to prove physical writer removal and hand off the retained home.
-A current not-found result alone cannot transfer storage. The command fixture adds
-a bounded eight-read/ten-second provider absence check followed by actual allocator
-handoff and fresh-instance creation. Existing command-marker bytes must survive.
-The fixture also persists an encrypted captured policy, drops its plaintext, retires
-the source, and restores an additive network grant using the authenticated handoff.
-An exact retry verifies the loaded policy without a second update. This qualifies
-adapter composition under fixture-owned quiescence. Durable product maintenance
-admission, journal transitions and installed adoption remain work.
+A current not-found result alone cannot transfer storage. The command fixture now
+drives the product maintenance journal and worker through source Stop, encrypted
+policy capture, retirement, allocator handoff and replacement creation. Existing
+command-marker bytes must survive. Policy restoration and final verification recover
+the private checkpoint from the real store after the source has been deleted. Provider
+update recovery uses the read-only entrypoint. The fixture's admitted transition uses
+the same image on a fresh instance; different-image and installed adoption remain work.
 
 Healthy lifecycle observation uses native WatchSandbox. `wait_for_lifecycle` takes
 the persisted checkpoint, the checked dispatch response and a remaining budget.

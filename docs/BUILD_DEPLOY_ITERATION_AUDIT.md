@@ -3468,3 +3468,22 @@ adoption, lease takeover and finite recovery. The ticket now boxes its retained
 operation metadata to keep observation enums small. Migration checks took 8.12 seconds
 to compile and 0.02 seconds to run; warm affected lint took 0.54 seconds. No image or
 provider rebuild was required. The filesystem still had 201 GiB free during this step.
+
+The first product-worker native run rebuilt the Rust service graph in 39.47 seconds
+and found a browser-specific admission failure before maintenance dispatch. A focused
+real-store reproducer isolated it in 1.59 seconds: SurrealQL reserves `$session`, which
+the new browser-family transaction had reused as a local variable. The corrected path
+uses `$family_state`. The native fixture's command and revocation checks had already
+passed; no installed resource was touched. Recovery settlement also now removes its
+remaining backoff before final verification, avoiding an unnecessary delay of up to
+ten seconds after policy loading has been confirmed. The final verification still
+charges the existing persisted read/deadline budget.
+
+The next native run reached maintenance but its inline two-worker driver stopped
+on a failed shared Task transaction during contention. The production maintenance
+scheduler now uses the existing bounded journal-discovery pattern: a store error
+defers work, and the next attempt must recover the same durable stage. The fixture
+runs both continuous schedulers and requires complete adoption, policy restoration,
+retained bytes and Task acknowledgement. It cannot accept an unresolved job merely
+because a worker returned a transient error. This also qualifies the scheduling path
+needed by the executable instead of maintaining another inline retry implementation.
