@@ -2,7 +2,7 @@
 //! the owning worker; admission alone never replaces an instance or frees capacity.
 mod admission;
 mod authority;
-pub(crate) use authority::target;
+pub(crate) use authority::{resume_target, target};
 mod checkpoint;
 mod journal;
 mod model;

@@ -76,6 +76,10 @@ pub(crate) fn router(state: ComputersState) -> Router {
             "/computers/{profile}/{id}/update-template",
             post(control::proxy),
         )
+        .route(
+            "/computers/{profile}/{id}/maintenance/{operation_id}/resume",
+            post(control::proxy),
+        )
         .route("/computers/{profile}/{id}/stop", post(control::proxy))
         .route(
             "/computers/{profile}/{id}/terminal-ticket",

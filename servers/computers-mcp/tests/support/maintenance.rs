@@ -11,9 +11,11 @@ use veoveo_task_runtime::TaskRuntime;
 
 fn control() -> veoveo_mcp_contract::GatewayControlPlane {
     let mut config = app_support::control();
-    let tool = LocalToolName::new("update_template").unwrap();
-    config.servers[0].tools.push(tool.clone());
-    config.policies[0].rules[0].tools.insert(tool);
+    for name in ["update_template", "resume_update"] {
+        let tool = LocalToolName::new(name).unwrap();
+        config.servers[0].tools.push(tool.clone());
+        config.policies[0].rules[0].tools.insert(tool);
+    }
     config
 }
 
@@ -241,6 +243,38 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
         .is_some()
     );
     support::policy::install(&db.b, control()).await;
+    let tasks = TaskRuntime::new(db.a.clone(), "computers", "maintenance-inspect");
+    let claim = tasks
+        .claim_observation(&id, Duration::from_secs(30))
+        .await
+        .unwrap();
+    let ticket = store.begin_maintenance_step(&claim).await.unwrap();
+    let original_dispatch = ticket.operation().steps()[0].dispatch_id;
+    drop(ticket);
+    let paused = store
+        .pause_maintenance(
+            &claim,
+            veoveo_computers::maintenance::MaintenanceRecovery::BudgetExhausted,
+        )
+        .await
+        .unwrap();
+    tasks.release_observation(&claim).await.unwrap();
+    let resource_peer = sdk(&right, alice.clone()).await;
+    let mut resources = resource_peer
+        .listen(
+            SubscriptionFilter::builder()
+                .resource_subscription(uri.clone())
+                .build(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        tokio::time::timeout(Duration::from_secs(5), resources.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .is_some()
+    );
     let cancelled = rpc(
         &client,
         &left,
@@ -251,21 +285,122 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
     )
     .await;
     assert!(cancelled.get("error").is_none(), "{cancelled}");
-    let task = TaskRuntime::new(db.a.clone(), "computers", "maintenance-inspect")
-        .get(&id)
-        .await
-        .unwrap()
-        .unwrap();
+    let task = tasks.get(&id).await.unwrap().unwrap();
     assert!(task.cancel_requested_at.is_some());
-    let event = tokio::time::timeout(Duration::from_secs(5), stream.next())
+    let event = tokio::time::timeout(Duration::from_secs(5), resources.next())
         .await
         .unwrap()
         .unwrap()
         .unwrap();
     assert!(matches!(
         event,
-        ServerNotification::TaskStatusNotification(_)
+        ServerNotification::ResourceUpdatedNotification(_)
     ));
+    resource_peer.cancel().await.unwrap();
+    let url = format!(
+        "{}/admin/computers/{computer}/maintenance/{}",
+        left.base, paused.operation_id
+    );
+    let current: MaintenanceView = client
+        .get(&url)
+        .bearer_auth(&alice)
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(current.can_resume);
+    assert_eq!(current.pending_cancellation_at, task.cancel_requested_at);
+    let mut resume = ResumeUpdateInput {
+        computer_id: computer,
+        task_id: paused.operation_id,
+        request_id: Uuid::now_v7(),
+        expected_updated_at: current.updated_at,
+        acknowledged_cancellation_at: None,
+    };
+    assert_eq!(
+        client
+            .post(format!("{url}/resume"))
+            .bearer_auth(&alice)
+            .json(&resume)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::CONFLICT
+    );
+    resume.acknowledged_cancellation_at = current.pending_cancellation_at;
+    let args = json!({"name":"resume_update","arguments":resume});
+    assert!(
+        rpc(&client, &right, &alice, "tools/call", args.clone(), false)
+            .await
+            .get("error")
+            .is_some()
+    );
+    assert_ne!(
+        client
+            .post(format!("{url}/resume"))
+            .bearer_auth(&bob)
+            .json(&resume)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::ACCEPTED
+    );
+    let mut denied = control();
+    denied.policies[0].rules[0]
+        .tools
+        .remove(&LocalToolName::new("resume_update").unwrap());
+    support::policy::install(&db.a, denied).await;
+    let denied: MaintenanceView = client
+        .get(&url)
+        .bearer_auth(&alice)
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(!denied.can_resume);
+    assert_eq!(
+        client
+            .post(format!("{url}/resume"))
+            .bearer_auth(&alice)
+            .json(&resume)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::FORBIDDEN
+    );
+    support::policy::install(&db.a, control()).await;
+    let response = client
+        .post(format!("{url}/resume"))
+        .bearer_auth(&alice)
+        .json(&resume)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    let resumed: MaintenanceView = response.json().await.unwrap();
+    assert_eq!(resumed.phase, MaintenancePhase::Stopping);
+    assert!(!resumed.can_resume);
+    assert_eq!(resumed.pending_cancellation_at, None);
+    let retried = rpc(&client, &right, &alice, "tools/call", args, true).await;
+    assert_eq!(retried["result"]["taskId"], id);
+    let saved = store
+        .maintenance(&owner, paused.operation_id)
+        .await
+        .unwrap();
+    assert_eq!(saved.steps()[0].dispatch_id, original_dispatch);
+    assert_eq!(saved.steps()[0].observation_reads, 0);
+    assert_eq!(saved.target_instance_id, paused.target_instance_id);
     let mut denied = control();
     denied.policies[0].rules[1].effect = veoveo_mcp_contract::PolicyEffect::Deny;
     support::policy::install(&db.b, denied).await;

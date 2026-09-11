@@ -88,6 +88,10 @@ pub(crate) fn router() -> Router<AppState> {
             "/console/api/computers/{id}/update-template",
             post(control::proxy),
         )
+        .route(
+            "/console/api/computers/{id}/maintenance/{operation_id}/resume",
+            post(control::proxy),
+        )
         .route("/console/api/computers/{id}/stop", post(control::proxy))
         .route(
             "/console/api/computers/{id}/terminal-ticket",

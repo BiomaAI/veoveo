@@ -48,8 +48,8 @@ data compatibility. The native fixture supplies one same-image pair. The schedul
 runs at most four jobs per replica, pages the domain journal and defers Task-store
 conflicts without repeating an uncertain dispatch. Shutdown ends local futures while
 the journal retains its fences. The executable starts this scheduler from the validated
-installation configuration. Explicit operator resumption and different-image/installed
-acceptance remain integration work.
+installation configuration. Different-image, native resumption and installed acceptance
+remain integration work.
 
 ## Public Environment Updates
 
@@ -78,6 +78,22 @@ status 200. Task reads and subscriptions require current Computer read authority
 cancellation additionally requires current update authority. Maintenance Task authority
 has a five-second observation window and subscriptions revalidate every five seconds.
 The existing Computer resource remains the canonical completed result.
+
+`resume_update` and POST `/admin/computers/{id}/maintenance/{task}/resume` use the
+same domain resumption command. Current named recovery policy and ownership govern
+admission. Exact retries resolve the saved request before capacity or profile checks;
+a new window requires the original directed template transition to remain admitted.
+The closed input binds both route identities and the paused update timestamp. Pending
+cancellation requires its exact timestamp as explicit acknowledgement. The returned
+Task keeps its original identity and result contract.
+
+The public receipt exposes `canResume` and `pendingCancellationAt`. Eligibility combines
+current recovery policy, a recoverable shared Task and admitted available capacity.
+The domain still checks the exact paused epoch and current authority transactionally.
+Missing Task linkage disables recovery eligibility until normal worker repair. A
+maintenance Task cancellation invalidates its Computer resources even while the worker
+is paused, allowing the Console to refresh current cancellation consent. That path
+resolves the owned maintenance journal and does not expose another owner's Task.
 
 The Console and gateway consume these fixed routes. The service wire fixture establishes
 cross-replica admission, default rotation, Task access and revocation using a synthetic

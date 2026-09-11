@@ -207,8 +207,19 @@ impl ComputersMcp {
                         let page = platform.read_outbox(cursor, 100).await.map_err(|_| auth::unavailable())?;
                         replay = page.events.len() == 100;
                         for event in page.events {
-                            if event.aggregate_type != "computer" { continue; }
                             let Some(id) = resources::canonical_uuid(&event.aggregate_id) else { continue; };
+                            let id = if event.aggregate_type == "computer" {
+                                id
+                            } else if event.aggregate_type == "task" && event.event_type == "task.cancel_requested" {
+                                // Paused maintenance may have no active worker to emit
+                                // a Computer event. Current cancellation still changes
+                                // its recovery projection and must invalidate the UI.
+                                match self.app.store.maintenance(actor.owner(), id).await {
+                                    Ok(operation) => operation.computer_id,
+                                    Err(veoveo_computers::ComputerError::NotFound) => continue,
+                                    Err(_) => return Err(auth::unavailable()),
+                                }
+                            } else { continue; };
                             match self.app.store.get(actor.owner(), id).await {
                                 Ok(_) => {},
                                 Err(veoveo_computers::ComputerError::NotFound) => continue,

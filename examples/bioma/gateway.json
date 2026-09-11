@@ -779,6 +779,7 @@
         "execute",
         "grant_automation",
         "revoke_automation",
+        "resume_update",
         "update_template"
       ],
       "prompts": [
@@ -5159,6 +5160,7 @@
             "execute",
             "grant_automation",
             "revoke_automation",
+            "resume_update",
             "update_template"
           ],
           "resource_schemes": [
@@ -5212,6 +5214,7 @@
             "execute",
             "grant_automation",
             "revoke_automation",
+            "resume_update",
             "update_template"
           ],
           "resource_schemes": [

@@ -107,6 +107,8 @@ or release of retained capacity.
 `ResumeUpdateInput` names the existing Computer/Task, a fresh request ID and the exact
 paused `updatedAt`. A pending cancellation requires its timestamp in
 `acknowledgedCancellationAt`. This input selects no new target or provider identity.
-The same request cannot renew a recovery budget twice. Defining the generated input
-does not advertise an endpoint; service and Console recovery projection follows the
-qualified domain journal.
+The same request cannot renew a recovery budget twice. Service and Console projections
+use the qualified domain journal. `MaintenanceView.canResume` is an eligibility hint,
+and `pendingCancellationAt` identifies the exact pending Task cancellation to acknowledge.
+An acknowledged cancellation stays in private Task history while this public pending
+field clears. A newer cancellation produces a new timestamp.

@@ -375,8 +375,8 @@ Drain older Computers readers and workers before applying it: their closed step 
 cannot read the new field. The backfill copies original dispatch time and preserves
 deadlines, charged reads and dispatch evidence. Keep this schema and compatible workers
 during template rollback. The isolated migration test reconstructs a pre-0071 step and
-proves exact preservation after the migration. Public recovery actions and native
-resumption qualification remain separate delivery work.
+proves exact preservation after the migration. The service and Console now expose
+this command; native resumption qualification remains separate delivery work.
 
 Capture settlement creates its encrypted checkpoint in the same transaction as the
 step receipt. The worker must reopen and validate that checkpoint before retirement.

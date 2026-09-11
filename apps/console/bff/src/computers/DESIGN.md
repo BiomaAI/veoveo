@@ -100,3 +100,7 @@ an exact Computer forward to the corresponding fixed gateway routes. Updates ret
 cookie authentication, CSRF and bounded body admission. They cannot select a profile or
 destination. A transport retry belongs to the saved browser request and preserves its
 request ID; the BFF never automatically repeats a mutation.
+
+POST `/maintenance/{operation_id}/resume` uses the same cookie/CSRF boundary and fixed
+Computer/Task route. The BFF forwards the saved recovery request without interpreting
+its cancellation consent or creating a new request identity.

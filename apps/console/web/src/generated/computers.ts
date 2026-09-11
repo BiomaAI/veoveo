@@ -536,8 +536,10 @@ export interface MaintenanceState {
  * via the `definition` "MaintenanceView".
  */
 export interface MaintenanceView {
+  canResume: boolean;
   computerId: string;
   createdAt: string;
+  pendingCancellationAt?: string | null;
   phase: MaintenancePhase;
   recovery?: MaintenanceRecoveryReason | null;
   sourceTemplateId: string;

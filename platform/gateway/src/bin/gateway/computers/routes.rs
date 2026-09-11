@@ -23,6 +23,7 @@ pub(super) enum Operation {
     Maintenance(Uuid),
     MaintenanceReceipt { computer: Uuid, operation: Uuid },
     UpdateTemplate(Uuid),
+    ResumeUpdate { computer: Uuid, operation: Uuid },
     Access(Uuid),
     Automation(Uuid),
     AutomationGrant { computer: Uuid, grant: Uuid },
@@ -91,6 +92,14 @@ impl Operation {
         if let Some(operation) = operation_id {
             return match (matched, method, id) {
                 (
+                    "/computers/{profile}/{id}/maintenance/{operation_id}/resume",
+                    &Method::POST,
+                    Some(computer),
+                ) => Ok(Self::ResumeUpdate {
+                    computer,
+                    operation,
+                }),
+                (
                     "/computers/{profile}/{id}/maintenance/{operation_id}",
                     &Method::GET,
                     Some(computer),
@@ -150,6 +159,10 @@ impl Operation {
                 operation,
             } => format!("computers/{computer}/maintenance/{operation}"),
             Self::UpdateTemplate(id) => format!("computers/{id}/update-template"),
+            Self::ResumeUpdate {
+                computer,
+                operation,
+            } => format!("computers/{computer}/maintenance/{operation}/resume"),
             Self::Access(id) => format!("computers/{id}/access"),
             Self::Automation(id) | Self::GrantAutomation(id) => {
                 format!("computers/{id}/automation")
@@ -184,6 +197,7 @@ impl Operation {
             Self::Start(_) => Some("start"),
             Self::Stop(_) => Some("stop"),
             Self::UpdateTemplate(_) => Some("update_template"),
+            Self::ResumeUpdate { .. } => Some("resume_update"),
             Self::GrantAutomation(_) => Some("grant_automation"),
             Self::RevokeAutomation { .. } => Some("revoke_automation"),
             _ => None,
@@ -240,6 +254,7 @@ impl Operation {
                 | Self::Start(_)
                 | Self::Stop(_)
                 | Self::UpdateTemplate(_)
+                | Self::ResumeUpdate { .. }
                 | Self::GrantAutomation(_)
                 | Self::RevokeAutomation { .. }
                 | Self::Ticket(_)
