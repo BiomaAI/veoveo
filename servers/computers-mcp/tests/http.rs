@@ -4,6 +4,10 @@
 mod access_inventory;
 #[path = "support/application.rs"]
 mod app_support;
+#[path = "../../../platform/computers/tests/support/commands.rs"]
+mod command_support;
+#[path = "support/command_tasks.rs"]
+mod command_tasks;
 #[path = "../../../platform/computers/tests/support/mod.rs"]
 #[allow(dead_code)]
 mod support;

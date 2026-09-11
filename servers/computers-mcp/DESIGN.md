@@ -328,6 +328,16 @@ The BFF supplies CSRF enforcement and the browser's explicit code-confirmation U
 The native fixture exercises these HTTP routes across two replicas before running
 the real CLI. It does not establish installed SSO or public ingress.
 
+## Command Task Authority
+
+`protocol/task_authority.rs` composes lifecycle and command authority for the standard
+Tasks handlers. Command lookups use the domain's current named-grant or direct-owner
+policy. The stored execution actor remains the Task owner even when the Computer owner
+requests cancellation. Task reads and updates have an independent authority deadline
+that also bounds blocked persistence work; a late response cannot extend access.
+Command subscriptions revalidate the same authority every five seconds and send no
+command bytes or output capability. Public grant and execution admission remain work.
+
 ## Resource And Task Subscriptions
 
 Every listener has its own sink and authorization. The process admits at most sixty-four
@@ -337,8 +347,11 @@ invalidation baseline and reads current state; transport replay IDs are absent.
 
 The shared platform outbox is authoritative across replicas. LIVE notifications wake a
 bounded persisted-page drain. LIVE loss closes the listener and requires a new baseline.
-Task notifications use the shared durable Task subscription helper. All notifications
-remain filtered by current ownership and requested targets. Provider events and terminal
+Task notifications use one shared durable Task update source for all independently
+authorized targets. The listener establishes that source before projecting a current
+Task baseline, then uses the shared Task projector for updates. A Computer owner may
+observe Tasks owned by several execution actors without creating a watcher per actor.
+All notifications remain filtered by the exact authorized Task owner and requested IDs. Provider events and terminal
 contents never enter these streams.
 
 Capacity health transitions also invalidate requested resources. Expiration of the

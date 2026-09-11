@@ -32,7 +32,7 @@ pub fn payload(value: &str, seconds: u32) -> CommandPayload {
         AutomationExecutionLimits {
             maximum_seconds: seconds,
             maximum_output_bytes: 1024,
-            on_interruption: veoveo_computers_contract::AutomationInterruption::StopComputer,
+            on_interruption: AutomationInterruption::StopComputer,
         },
     )
     .unwrap()

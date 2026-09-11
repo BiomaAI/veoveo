@@ -7,10 +7,19 @@ use rmcp::{
     ErrorData, RoleServer,
     service::{RequestContext, SubscriptionContext},
 };
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    time::{Duration, Instant},
+};
 use veoveo_computers::ComputerActor;
 use veoveo_platform_store::{OutboxEventRecord, PlatformTable};
-use veoveo_task_runtime::DurableTaskUpdateStream;
+use veoveo_task_runtime::{DurableTaskUpdateStream, TaskOwner};
+
+struct ListenerAuthority {
+    actor: ComputerActor,
+    deadline: Instant,
+    tasks: BTreeMap<String, TaskOwner>,
+}
 
 impl ComputersMcp {
     async fn validate_listener(
@@ -18,7 +27,7 @@ impl ComputersMcp {
         request: &RequestContext<RoleServer>,
         uris: &[String],
         tasks: &[String],
-    ) -> Result<(ComputerActor, std::time::Instant), ErrorData> {
+    ) -> Result<ListenerAuthority, ErrorData> {
         let actor = auth::actor(request)?;
         let control = self
             .app
@@ -49,20 +58,18 @@ impl ComputersMcp {
                 }
             }
         }
+        let mut deadline = control.valid_until();
+        let mut owners = BTreeMap::new();
         for id in tasks {
-            let id = resources::canonical_uuid(id)
-                .ok_or_else(|| ErrorData::invalid_params("unknown task", None))?;
-            let operation = self
-                .app
-                .store
-                .operation(actor.owner(), id)
-                .await
-                .map_err(|_| auth::forbidden())?;
-            control
-                .require_read(Some(operation.computer_id))
-                .map_err(|_| auth::forbidden())?;
+            let access = self.task_access_for_actor(&actor, id, false).await?;
+            deadline = deadline.min(access.deadline);
+            owners.insert(id.clone(), access.owner);
         }
-        Ok((actor, control.valid_until()))
+        Ok(ListenerAuthority {
+            actor,
+            deadline,
+            tasks: owners,
+        })
     }
     pub(super) async fn listen_updates(
         &self,
@@ -88,23 +95,46 @@ impl ComputersMcp {
                 None,
             ));
         }
-        let (actor, deadline) = tokio::time::timeout(
+        let authority = tokio::time::timeout(
             Duration::from_secs(5),
             self.validate_listener(context.request_context(), &uris, &task_ids),
         )
         .await
         .map_err(|_| auth::unavailable())??;
+        let actor = &authority.actor;
         let pump = async {
             let mut tasks: DurableTaskUpdateStream = if task_ids.is_empty() {
                 Box::pin(futures::stream::pending())
             } else {
-                veoveo_task_runtime::subscribe_durable_tasks(
-                    &self.app.tasks,
-                    actor.owner().clone(),
-                    task_ids.clone(),
-                )
-                .await?
-                .updates
+                // One shared wake source serves independently authorized Task
+                // owners. Computer ownership and execution actor need not coincide.
+                let updates = self
+                    .app
+                    .tasks
+                    .live_updates()
+                    .await
+                    .map_err(|_| auth::unavailable())?;
+                let owners = std::sync::Arc::new(authority.tasks.clone());
+                let runtime = self.app.tasks.clone();
+                Box::pin(updates.filter_map(move |update| {
+                    let owners = owners.clone();
+                    let runtime = runtime.clone();
+                    async move {
+                        let snapshot = match update {
+                            Ok(update) => update.snapshot,
+                            Err(_) => return Some(Err(auth::unavailable())),
+                        };
+                        let owner = owners.get(&snapshot.task_id.to_string())?;
+                        if snapshot.server != "computers" || snapshot.owner != *owner {
+                            return Some(Err(auth::forbidden()));
+                        }
+                        Some(
+                            veoveo_task_runtime::project_snapshot(&runtime, snapshot)
+                                .await
+                                .map_err(|_| auth::unavailable()),
+                        )
+                    }
+                }))
             };
             // Establish the wake source before the baseline cursor. Each new listener
             // receives an invalidation baseline, then reads committed outbox pages.
@@ -117,6 +147,18 @@ impl ComputersMcp {
                 .latest_outbox_sequence()
                 .await
                 .map_err(|_| auth::unavailable())?;
+            for (id, owner) in &authority.tasks {
+                let snapshot =
+                    veoveo_task_runtime::authorized_snapshot(&self.app.tasks, owner, id).await?;
+                let task = veoveo_task_runtime::project_snapshot(&self.app.tasks, snapshot)
+                    .await
+                    .map_err(|_| auth::unavailable())?;
+                context
+                    .sink()
+                    .notify_task_status(task)
+                    .await
+                    .map_err(|_| auth::unavailable())?;
+            }
             for uri in &uris {
                 context
                     .sink()
@@ -186,7 +228,7 @@ impl ComputersMcp {
             }
         };
         super::guard::run(
-            deadline,
+            authority.deadline,
             Duration::from_secs(5),
             context.cancelled(),
             pump,
@@ -197,7 +239,7 @@ impl ComputersMcp {
                 )
                 .await
                 .map_err(|_| auth::unavailable())?
-                .map(|(_, deadline)| deadline)
+                .map(|authority| authority.deadline)
             },
         )
         .await

@@ -2,6 +2,7 @@ mod auth;
 mod guard;
 pub(crate) mod resources;
 mod subscriptions;
+mod task_authority;
 mod tasks;
 use crate::{Application, ApplicationError};
 use rmcp::{
@@ -87,24 +88,41 @@ impl ServerHandler for ComputersMcp {
         request: GetTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, ErrorData> {
-        let actor = self.task_owner(&context, &request.task_id, false).await?;
-        veoveo_task_runtime::get_durable_task(&self.app.tasks, actor.owner(), request).await
+        let access = self.task_access(&context, &request.task_id, false).await?;
+        access
+            .run(veoveo_task_runtime::get_durable_task(
+                &self.app.tasks,
+                &access.owner,
+                request,
+            ))
+            .await
     }
     async fn update_task(
         &self,
         request: UpdateTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), ErrorData> {
-        let actor = self.task_owner(&context, &request.task_id, false).await?;
-        veoveo_task_runtime::update_durable_task(&self.app.tasks, actor.owner(), request).await
+        let access = self.task_access(&context, &request.task_id, false).await?;
+        access
+            .run(veoveo_task_runtime::update_durable_task(
+                &self.app.tasks,
+                &access.owner,
+                request,
+            ))
+            .await
     }
     async fn cancel_task(
         &self,
         request: CancelTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), ErrorData> {
-        let actor = self.task_owner(&context, &request.task_id, true).await?;
-        veoveo_task_runtime::cancel_durable_task(&self.app.tasks, actor.owner(), request.task_id)
+        let access = self.task_access(&context, &request.task_id, true).await?;
+        access
+            .run(veoveo_task_runtime::cancel_durable_task(
+                &self.app.tasks,
+                &access.owner,
+                request.task_id,
+            ))
             .await
     }
     async fn list_resources(
