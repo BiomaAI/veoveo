@@ -150,6 +150,7 @@ enum Request {
     Ready(wire::ReadyRequest),
     Bound(wire::BoundRequest),
     Handoff(wire::HandoffRequest),
+    Abandon(wire::AbandonRequest),
 }
 fn parse(bytes: &[u8]) -> Result<Request> {
     if bytes.is_empty()
@@ -166,8 +167,11 @@ fn parse(bytes: &[u8]) -> Result<Request> {
     if let Ok(request) = serde_json::from_slice::<wire::BoundRequest>(bytes) {
         return Ok(Request::Bound(request));
     }
-    serde_json::from_slice::<wire::HandoffRequest>(bytes)
-        .map(Request::Handoff)
+    if let Ok(request) = serde_json::from_slice::<wire::HandoffRequest>(bytes) {
+        return Ok(Request::Handoff(request));
+    }
+    serde_json::from_slice::<wire::AbandonRequest>(bytes)
+        .map(Request::Abandon)
         .map_err(|_| StorageError::InvalidIdentity)
 }
 fn uuid(id: &wire::IdentityId) -> Result<Uuid> {
@@ -175,6 +179,42 @@ fn uuid(id: &wire::IdentityId) -> Result<Uuid> {
 }
 async fn request(service: &Service, bytes: &[u8]) -> Result<Vec<u8>> {
     match parse(bytes)? {
+        Request::Abandon(request) => {
+            let provider_id = uuid(&request.provider_id)?;
+            let computer_id = uuid(&request.computer_id)?;
+            let capacity = service
+                .abandon(crate::Abandonment {
+                    operation_id: uuid(&request.operation_id)?,
+                    source: HomeIdentity {
+                        provider_id,
+                        computer_id,
+                        instance_id: uuid(&request.source_instance_id)?,
+                        template_fingerprint: request.source_template_fingerprint.to_string(),
+                    },
+                    target: HomeIdentity {
+                        provider_id,
+                        computer_id,
+                        instance_id: uuid(&request.target_instance_id)?,
+                        template_fingerprint: request.target_template_fingerprint.to_string(),
+                    },
+                })
+                .await?;
+            encode(&wire::AbandonReply {
+                schema: request.schema,
+                operation: "abandon"
+                    .parse()
+                    .map_err(|_| StorageError::InvalidIdentity)?,
+                provider_id: request.provider_id,
+                computer_id: request.computer_id,
+                operation_id: request.operation_id,
+                source_instance_id: request.source_instance_id,
+                source_template_fingerprint: request.source_template_fingerprint,
+                target_instance_id: request.target_instance_id,
+                target_template_fingerprint: request.target_template_fingerprint,
+                status: "ready".parse().map_err(|_| StorageError::InvalidIdentity)?,
+                capacity_bytes: (capacity as i64).into(),
+            })
+        }
         Request::Handoff(request) => {
             let provider_id = uuid(&request.provider_id)?;
             let computer_id = uuid(&request.computer_id)?;
@@ -255,6 +295,29 @@ async fn request(service: &Service, bytes: &[u8]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn abandonment_is_explicit_and_rejects_missing_duplicate_or_writer_fields() {
+        let value = serde_json::json!({
+            "schema": SCHEMA, "operation": "abandon", "providerId": Uuid::from_u128(100),
+            "computerId": Uuid::from_u128(200), "operationId": Uuid::from_u128(300),
+            "sourceInstanceId": Uuid::from_u128(200), "sourceTemplateFingerprint": "a".repeat(64),
+            "targetInstanceId": Uuid::from_u128(400), "targetTemplateFingerprint": "b".repeat(64),
+        });
+        let raw = serde_json::to_vec(&value).unwrap();
+        assert!(matches!(parse(&raw), Ok(Request::Abandon(_))));
+        for field in value.as_object().unwrap().keys() {
+            let mut missing = value.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert!(parse(&serde_json::to_vec(&missing).unwrap()).is_err());
+            let mut duplicate = raw.clone();
+            duplicate.pop();
+            duplicate.extend(format!(",\"{field}\":{} }}", value[field]).bytes());
+            assert!(parse(&duplicate).is_err());
+        }
+        let mut extra = value;
+        extra["sourceResourceId"] = "claimed-resource".into();
+        assert!(parse(&serde_json::to_vec(&extra).unwrap()).is_err());
+    }
     #[test]
     fn handoff_identity_is_closed_and_fits_the_frame_at_the_resource_bound() {
         let value = serde_json::json!({

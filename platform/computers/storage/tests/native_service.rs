@@ -209,5 +209,118 @@ async fn native_service_shared_mount_and_restart() {
     fixture
         .assert_content("c", "held writer remains physical")
         .await;
-    fixture.finish(Some("c")).await;
+    fixture.remove("c").await;
+    // Losing the physical container does not turn a recorded claimed writer
+    // into a never-claimed admission. It still requires exact writer handoff.
+    let forbidden =
+        Binding::replacement(next.computer_id(), uuid::Uuid::now_v7(), "e".repeat(64)).unwrap();
+    next_worker
+        .abandon(uuid::Uuid::now_v7(), &next, &forbidden)
+        .await
+        .unwrap_err();
+    qualify_unclaimed(&fixture).await;
+    fixture.finish(None).await;
+}
+
+async fn qualify_unclaimed(fixture: &Fixture) {
+    let source = Binding::new(uuid::Uuid::now_v7(), "f".repeat(64)).unwrap();
+    let target =
+        Binding::replacement(source.computer_id(), uuid::Uuid::now_v7(), "e".repeat(64)).unwrap();
+    let worker = fixture.worker(fixture.provider).await;
+    let target_worker = fixture
+        .worker_template(
+            fixture.provider,
+            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        )
+        .await;
+    worker.prepare(&source).await.unwrap();
+    let operation = uuid::Uuid::now_v7();
+    // A registered but never-started consumer blocks abandonment as well.
+    fixture.create("pending", &source).await;
+    target_worker
+        .abandon(operation, &source, &target)
+        .await
+        .unwrap_err();
+    worker.restore(&source).await.unwrap();
+    fixture.remove("pending").await;
+    fixture
+        .drop_abandon_reply(operation, &source, &target)
+        .await;
+    target_worker
+        .abandon(operation, &source, &target)
+        .await
+        .unwrap();
+    target_worker
+        .abandon(uuid::Uuid::now_v7(), &source, &target)
+        .await
+        .unwrap_err();
+    worker.restore(&source).await.unwrap_err();
+    // A delayed original provider Create cannot claim the retired home.
+    fixture.create("late", &source).await;
+    fixture.start_container("late", false).await;
+    fixture.remove("late").await;
+    fixture.create("adopted", &target).await;
+    fixture.start_container("adopted", true).await;
+    checked(fixture.docker().args([
+        "exec",
+        &fixture.container("adopted"),
+        "/bin/sh",
+        "-c",
+        "printf recovered > /probe/value",
+    ]))
+    .await;
+    fixture.stop_service().await;
+    fixture.start_service().await;
+    target_worker
+        .abandon(operation, &source, &target)
+        .await
+        .unwrap();
+    fixture.assert_content("adopted", "recovered").await;
+    fixture.remove("adopted").await;
+    let next =
+        Binding::replacement(source.computer_id(), uuid::Uuid::now_v7(), "e".repeat(64)).unwrap();
+    target_worker
+        .handoff(uuid::Uuid::now_v7(), &target, &next, "resource-adopted")
+        .await
+        .unwrap();
+    // Neither maintenance kind may reuse the other's prior target identity.
+    target_worker
+        .abandon(uuid::Uuid::now_v7(), &next, &target)
+        .await
+        .unwrap_err();
+    target_worker
+        .handoff(uuid::Uuid::now_v7(), &next, &target, "resource-adopted")
+        .await
+        .unwrap_err();
+    target_worker
+        .abandon(operation, &source, &target)
+        .await
+        .unwrap_err();
+    target_worker.restore(&next).await.unwrap();
+    // An unclaimed maintenance target may already contain the previous user's
+    // data. Abandoning that admission must preserve the exact retained bytes.
+    let final_target =
+        Binding::replacement(source.computer_id(), uuid::Uuid::now_v7(), "e".repeat(64)).unwrap();
+    target_worker
+        .abandon(uuid::Uuid::now_v7(), &next, &final_target)
+        .await
+        .unwrap();
+    target_worker
+        .abandon(uuid::Uuid::now_v7(), &final_target, &next)
+        .await
+        .unwrap_err();
+    fixture.create("final", &final_target).await;
+    fixture.start_container("final", true).await;
+    fixture.assert_content("final", "recovered").await;
+    fixture.remove("final").await;
+    target_worker
+        .handoff(
+            uuid::Uuid::now_v7(),
+            &final_target,
+            &target,
+            "resource-final",
+        )
+        .await
+        .unwrap_err();
+    target_worker.restore(&final_target).await.unwrap();
 }

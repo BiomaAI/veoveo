@@ -3397,3 +3397,11 @@ production. A preceding attempt failed before execution because publication had 
 the digest to the registry without loading the host Docker cache. The fixture now
 checks that image before creating its database, trust or daemon directories. Pulling
 the exact digest repaired the prerequisite without a build or installed restart.
+
+Never-claimed storage recovery reuses the shared-mount native fixture and staged
+template. Its first extended run passed in 21.18 seconds after a 4.50-second compile.
+The helper binary rebuilt in 8.87 seconds; no provider rebuild was required. A second
+home in the same isolated daemon exercises delayed old mounts, a lost reply, helper
+restart and fresh-instance adoption. Existing claimed-writer faults remain in that
+run, including a lingering namespace mount. This keeps physical storage qualification
+independent of the larger worker and gateway dependency graphs.

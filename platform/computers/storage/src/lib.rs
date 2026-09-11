@@ -1,4 +1,5 @@
 //! Private durable metadata for the privileged retained-storage host.
+mod abandonment;
 mod command;
 mod config;
 mod docker;
@@ -10,6 +11,7 @@ pub mod plugin;
 mod service;
 pub mod transport;
 
+pub use abandonment::Abandonment;
 pub use config::StorageConfig;
 pub use docker::Docker;
 pub use filesystem::Filesystem;

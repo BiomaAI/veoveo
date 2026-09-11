@@ -3,6 +3,19 @@
 use super::*;
 use crate::{Handoff, PhysicalWriter, WriterState, docker::RemovedWriter};
 
+pub(crate) struct FencedUnclaimedHome {
+    pub(super) identity: HomeIdentity,
+    pub(super) engine_id: Uuid,
+}
+impl FencedUnclaimedHome {
+    pub(crate) fn identity(&self) -> &HomeIdentity {
+        &self.identity
+    }
+    pub(crate) fn engine_id(&self) -> Uuid {
+        self.engine_id
+    }
+}
+
 pub(crate) struct FencedHome {
     identity: HomeIdentity,
     removed: RemovedWriter,
@@ -19,6 +32,34 @@ impl FencedHome {
     }
 }
 impl Filesystem {
+    pub(crate) async fn fence_unclaimed(
+        &mut self,
+        identity: &HomeIdentity,
+        empty: crate::docker::UnclaimedVolume,
+    ) -> Result<FencedUnclaimedHome> {
+        let record = self
+            .journal
+            .load(identity.computer_id)?
+            .ok_or(StorageError::RecoveryRequired)?;
+        if record.identity() != identity
+            || empty.engine_id() != self.journal.identity().engine_id
+            || record.writer() != &WriterState::Unclaimed
+        {
+            return Err(StorageError::IdentityMismatch);
+        }
+        self.detach_home(identity, &record).await?;
+        Ok(FencedUnclaimedHome {
+            identity: identity.clone(),
+            engine_id: empty.engine_id(),
+        })
+    }
+    pub(crate) fn commit_abandonment(
+        &mut self,
+        request: &crate::Abandonment,
+        fenced: FencedUnclaimedHome,
+    ) -> Result<()> {
+        self.journal.commit_abandonment(request, fenced)
+    }
     pub(crate) fn claim_writer(
         &mut self,
         identity: &HomeIdentity,
@@ -44,9 +85,20 @@ impl Filesystem {
         {
             return Err(StorageError::IdentityMismatch);
         }
+        self.detach_home(identity, &record).await?;
+        Ok(FencedHome {
+            identity: identity.clone(),
+            removed,
+        })
+    }
+    async fn detach_home(
+        &self,
+        identity: &HomeIdentity,
+        record: &crate::AllocationRecord,
+    ) -> Result<()> {
         let directory = self.journal.directory(identity.computer_id)?;
         let backing = directory.join("home.ext4");
-        verify_backing(&record, &backing)?;
+        verify_backing(record, &backing)?;
         let target = directory.join("mount");
         let devices = associated(&backing).await?;
         if let Some(mount) = mounted(&target).await? {
@@ -67,10 +119,7 @@ impl Filesystem {
         if !associated(&backing).await?.is_empty() || mounted(&target).await?.is_some() {
             return Err(StorageError::RecoveryRequired);
         }
-        Ok(FencedHome {
-            identity: identity.clone(),
-            removed,
-        })
+        Ok(())
     }
 }
 async fn associated(backing: &Path) -> Result<String> {

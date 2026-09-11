@@ -130,11 +130,24 @@ instance as a new target is rejected before physical mutation. A rollback uses a
 fresh instance with the selected old template, after fencing the current writer.
 Template changes must preserve the recorded capacity; resizing remains unsupported.
 
-The current handoff requires a previously claimed source writer. A maintenance
-target that never mounted needs an explicit abandoned-admission recovery path in
-worker maintenance integration; this helper does not infer a provider outcome from
-the absence of a physical claim. The unreleased v1 home record now requires its
-writer state. No installed record or rolling compatibility profile is admitted yet.
+Handoff requires a previously claimed source writer. The separate `abandon` request
+retires a never-claimed admission while preserving its home. The helper checks the
+persisted Unclaimed state, zero registered consumers on the original engine, and the
+same synchronized unmount and verified loop detachment used by claimed handoff.
+The allocation mutex serializes that proof with Mount and admission publication.
+A delayed source Create therefore cannot acquire the home after the target is admitted.
+An absent provider resource alone cannot authorize this transition.
+
+Abandonment carries its own operation UUID and exact source/target identities. Its
+immutable transition occupies the same instance namespace as handoff. A lost reply
+resolves only while that exact target remains current, including after it has acquired
+a writer. Neither transition may reuse an older target. A claimed record requires
+handoff even after the container disappears; abandonment never clears that history.
+Current home records and existing handoff transitions retain their format. Older
+helpers reject the new operation; maintenance admission requires the qualified helper
+artifact before workers dispatch it. Workers must durably fence source mutations and
+track unresolved provider effects separately. This storage proof does not establish
+that an earlier Create had no effect or authorize releasing provider quota.
 
 Delete must first remove physical consumers, then unmount and verify loop detachment.
 Only an explicitly governed purge may remove retained files. Plugin Remove cannot
@@ -212,6 +225,11 @@ instance as the sole consumer, and transfers to a new template without reusing a
 instance identity. The worker's native fixture reuses this launcher with the admitted
 template, production allocation client and native provider on that isolated daemon.
 Public installed acceptance and worker maintenance retain their separate requirements.
+The same fixture qualifies abandonment on a separate home without launching another
+daemon. A registered stopped consumer blocks it. Lost replies and helper restart retain
+the exact transition; a delayed old instance cannot mount. The replacement writes its
+home and later participates in ordinary claimed handoff. Cross-kind target reuse and
+attempted abandonment of a removed but previously claimed writer remain denied.
 
 ## Filesystem Backend And Native Evidence
 

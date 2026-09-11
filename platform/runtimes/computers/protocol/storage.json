@@ -11,9 +11,44 @@
     {"$ref": "#/definitions/BoundReply"},
     {"$ref": "#/definitions/FailureReply"},
     {"$ref": "#/definitions/HandoffRequest"},
-    {"$ref": "#/definitions/HandoffReply"}
+    {"$ref": "#/definitions/HandoffReply"},
+    {"$ref": "#/definitions/AbandonRequest"},
+    {"$ref": "#/definitions/AbandonReply"}
   ],
   "definitions": {
+    "AbandonRequest": {
+      "type": "object", "additionalProperties": false,
+      "description": "Retire only a journaled never-claimed admission after physical fencing. This does not establish the outcome of an earlier provider mutation.",
+      "required": ["schema", "operation", "providerId", "computerId", "operationId", "sourceInstanceId", "sourceTemplateFingerprint", "targetInstanceId", "targetTemplateFingerprint"],
+      "properties": {
+        "schema": {"$ref": "#/definitions/ProtocolSchema"},
+        "operation": {"type": "string", "enum": ["abandon"]},
+        "providerId": {"$ref": "#/definitions/IdentityId"},
+        "computerId": {"$ref": "#/definitions/IdentityId"},
+        "operationId": {"$ref": "#/definitions/IdentityId"},
+        "sourceInstanceId": {"$ref": "#/definitions/IdentityId"},
+        "sourceTemplateFingerprint": {"$ref": "#/definitions/Fingerprint"},
+        "targetInstanceId": {"$ref": "#/definitions/IdentityId"},
+        "targetTemplateFingerprint": {"$ref": "#/definitions/Fingerprint"}
+      }
+    },
+    "AbandonReply": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "operation", "providerId", "computerId", "operationId", "sourceInstanceId", "sourceTemplateFingerprint", "targetInstanceId", "targetTemplateFingerprint", "status", "capacityBytes"],
+      "properties": {
+        "schema": {"$ref": "#/definitions/ProtocolSchema"},
+        "operation": {"type": "string", "enum": ["abandon"]},
+        "providerId": {"$ref": "#/definitions/IdentityId"},
+        "computerId": {"$ref": "#/definitions/IdentityId"},
+        "operationId": {"$ref": "#/definitions/IdentityId"},
+        "sourceInstanceId": {"$ref": "#/definitions/IdentityId"},
+        "sourceTemplateFingerprint": {"$ref": "#/definitions/Fingerprint"},
+        "targetInstanceId": {"$ref": "#/definitions/IdentityId"},
+        "targetTemplateFingerprint": {"$ref": "#/definitions/Fingerprint"},
+        "status": {"type": "string", "enum": ["ready"]},
+        "capacityBytes": {"$ref": "#/definitions/CapacityBytes"}
+      }
+    },
     "SourceResourceId": {"type": "string", "pattern": "^[A-Za-z0-9-]{1,128}$"},
     "HandoffRequest": {
       "type": "object", "additionalProperties": false,

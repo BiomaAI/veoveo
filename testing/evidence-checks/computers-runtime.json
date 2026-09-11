@@ -61,6 +61,79 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-computer-storage",
+        "--lib"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computer-storage"
+        ],
+        "roots": [
+          "platform/runtimes/computers/tests/native_support"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-computer-storage",
+        "-p",
+        "veoveo-computers-runtime",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computer-storage",
+          "veoveo-computers-runtime"
+        ],
+        "roots": [
+          "platform/runtimes/computers/tests/native_support"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-computer-storage",
+        "-p",
+        "veoveo-computers-runtime",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-computer-storage",
+          "veoveo-computers-runtime"
+        ],
+        "roots": [
+          "platform/runtimes/computers/tests/native_support"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }
