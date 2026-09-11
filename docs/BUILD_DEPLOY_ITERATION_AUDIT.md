@@ -3652,3 +3652,16 @@ The release-config check caught stale gateway and Computers configuration revisi
 before publication. Their content identities were updated with the image and chart
 pins, then the same check was rerun. Deriving these installation-owned hashes during
 release assembly would remove a manual step while retaining the exact rollout inputs.
+
+Installed acceptance found that the service catalog admitted the file template while
+the compute host still admitted only the previous two fingerprints. The host catalog
+and its rollout hash now move together, and the Helm tests compare every service
+template against host image preload and retained capacity. This correction requires
+a drained private-host restart, but no new image build.
+
+The release also waited for an existing Recording crash loop: its declared 200 GiB
+free-space reserve exceeded the filesystem headroom. Removing 55 GiB of rebuildable
+`target/debug/incremental` cache restored 239 GiB free and Recording became Ready.
+Compiled dependencies, runtime images, retained homes and application data were kept.
+The initial GitOps observation took 169.043 seconds in desired-state apply; this
+includes the unrelated Recording recovery and is not a pure rollout latency measure.

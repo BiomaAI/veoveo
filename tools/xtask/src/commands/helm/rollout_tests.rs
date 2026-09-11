@@ -173,6 +173,42 @@ fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
 }
 
 #[test]
+fn bioma_compute_host_admits_every_control_plane_template() {
+    let read = |path| -> Value {
+        serde_json::from_slice(&std::fs::read(repository().join(path)).unwrap()).unwrap()
+    };
+    let service = read("examples/bioma/computers/computers.json");
+    let host = read("examples/bioma/computers/host.json");
+    assert_eq!(service["providerInstanceId"], host["providerId"]);
+    let templates = service["capacity"]["templates"].as_array().unwrap();
+    for template in templates {
+        assert!(
+            host["images"]
+                .as_array()
+                .unwrap()
+                .contains(&template["image"]),
+            "compute host must preload {}",
+            template["id"]
+        );
+        let allocation = host["templates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["fingerprint"] == template["fingerprint"])
+            .expect("retained storage must admit every selected template");
+        assert_eq!(
+            allocation["capacityBytes"].as_u64().unwrap(),
+            template["homeCapacityMib"].as_u64().unwrap() * 1024 * 1024
+        );
+    }
+    let default = templates
+        .iter()
+        .find(|entry| entry["fingerprint"] == service["capacity"]["defaultTemplate"])
+        .unwrap();
+    assert_eq!(host["defaultImage"], default["image"]);
+}
+
+#[test]
 fn chart_publication_metadata_preserves_every_bioma_pod_template() {
     for (chart, name, extension, expected_pods) in [
         ("deploy/helm/veoveo", "veoveo", false, 20),
