@@ -640,6 +640,13 @@ an exact restoration retry and retained file checks in 84.89 seconds. The fixtur
 encrypted file is not a product maintenance journal. Durable admission, transitions,
 template-image qualification and installed adoption remain required.
 
+Durable maintenance admission now binds one request to one source and fresh target,
+with a shared Task and the exclusive Computer fence. Current named policy governs
+admission. It accepts a known retained run or an exhausted initial Create while
+preserving that Create's unknown outcome and quota. Concurrent replicas, changed-input
+rejection, interrupted Task linking and corrupt metadata are covered by isolated store
+tests. Provider step journals and public update projection remain the next integration.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

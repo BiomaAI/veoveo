@@ -11,6 +11,7 @@
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
+| Veoveo private maintenance admission | Migration 0069; one immutable source/target and request identity, a shared `provider_wait` Task and the existing exclusive Computer fence; worker stages and public projection remain implementation work |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
 | Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
@@ -315,6 +316,27 @@ converter does not enforce JSON Schema `uniqueItems`; the Rust wire deserializer
 rejects duplicate and empty permissions before constructing its bounded set. Public
 protocol integration must retain that strict deserialization. These checks do not establish public agent execution.
 
+## Retained Maintenance Admission
+
+`queue_maintenance` reserves one replacement UUID under current `update_template`
+policy and contributor authority. Migration 0069 stores its original source binding,
+installation-selected target, request identity and accepted actor without provider
+payloads. The transaction acquires the existing Computer operation fence and writes
+the audit event. Concurrent exact retries find the same replacement and repair the
+same shared `provider_wait` Task if linking was interrupted. A changed target conflicts.
+
+A Ready or Stopped source retains its exact resource and process identity. An exhausted
+initial Create can enter maintenance while its original provider effect remains unknown.
+That original operation stays unresolved and retained quota stays charged. Taking the
+new fence does not prove provider absence or authorize a second writer. The allocator's
+physical claim and abandonment rules still govern transfer. Active command executions
+must finish before this admission; coordinated drain is worker integration work.
+
+Admission closes new and renewing attachments through the existing exclusive fence.
+It leaves the observed phase, current instance and template intact. Provider stages,
+encrypted checkpoint persistence, adoption and the public update projection remain
+implementation work; this private admission cannot perform a template upgrade alone.
+
 ## Computer Confidentiality
 
 Maintenance checkpoints are bounded opaque adapter bytes. Their private binding covers
@@ -323,7 +345,8 @@ instances/templates, source resource/process, and retained labels. `ComputerKeyR
 protects them with a distinct maintenance purpose. The adapter validates its private
 format after authenticated opening; the domain has no provider dependency. Encryption
 and decoding grant no maintenance admission or physical writer authority. These
-primitives are ready for the durable journal; they do not yet persist maintenance jobs.
+primitives are ready for the durable journal; maintenance admission currently persists
+its identities without a policy checkpoint.
 
 `secrets/` protects argv, environment and finite stdin before durable
 admission. The envelope authenticates the Computer, named grant, actual actor,

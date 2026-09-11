@@ -11,6 +11,7 @@ mod control_session;
 mod current_authority;
 mod identity;
 mod lifecycle;
+pub mod maintenance;
 mod model;
 mod operation;
 mod operation_admission;
