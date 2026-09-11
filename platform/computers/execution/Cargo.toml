@@ -13,8 +13,8 @@ base64.workspace = true
 nix = { version = "=0.31.3", features = ["fs", "user"] }
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-

@@ -65,17 +65,7 @@ fn program_input(bytes: &[u8]) -> Result<File, LaunchError> {
 
 /// Replaces the current process; call only from the single-threaded guest binary.
 pub fn launch(request: ExecutionRequest) -> Result<std::convert::Infallible, LaunchError> {
-    if getuid().as_raw() != 10001
-        || geteuid().as_raw() != 10001
-        || getgid().as_raw() != 10001
-        || getegid().as_raw() != 10001
-        || getgroups()
-            .map_err(|_| LaunchError::WrongIdentity)?
-            .iter()
-            .any(|group| group.as_raw() != 10001)
-    {
-        return Err(LaunchError::WrongIdentity);
-    }
+    check_identity()?;
     let working_directory = directory(&request.0.directory)?;
     let input = program_input(&request.0.stdin)?;
     let mut command = Command::new(&request.0.arguments[0]);
@@ -89,6 +79,21 @@ pub fn launch(request: ExecutionRequest) -> Result<std::convert::Infallible, Lau
     drop(working_directory);
     let _ = command.exec();
     Err(LaunchError::ProgramUnavailable)
+}
+
+pub(crate) fn check_identity() -> Result<(), LaunchError> {
+    if getuid().as_raw() != 10001
+        || geteuid().as_raw() != 10001
+        || getgid().as_raw() != 10001
+        || getegid().as_raw() != 10001
+        || getgroups()
+            .map_err(|_| LaunchError::WrongIdentity)?
+            .iter()
+            .any(|group| group.as_raw() != 10001)
+    {
+        return Err(LaunchError::WrongIdentity);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -11,6 +11,27 @@ fn main() -> std::process::ExitCode {
         );
         return std::process::ExitCode::SUCCESS;
     }
+    if arguments.as_slice() == ["--files"] {
+        let mut input = std::io::stdin().lock();
+        let result = veoveo_computer_execution::read_file_request(&mut input).and_then(|request| {
+            veoveo_computer_execution::transfer_file(
+                request,
+                &mut input,
+                &mut std::io::stdout().lock(),
+            )
+        });
+        let code = match result {
+            Ok(_) => 0,
+            Err(veoveo_computer_execution::FileFailure::CommitUnknown) => 124,
+            Err(_) => 125,
+        };
+        if veoveo_computer_execution::write_file_result(&mut std::io::stderr().lock(), &result)
+            .is_err()
+        {
+            return std::process::ExitCode::from(124);
+        }
+        return std::process::ExitCode::from(code);
+    }
     if !arguments.is_empty() {
         eprintln!("Computer execution launcher accepts its private request only on stdin");
         return std::process::ExitCode::from(125);
