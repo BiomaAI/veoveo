@@ -23,6 +23,10 @@ pub mod protocol {
         }
     }
 }
+// Sensitive installation checkpoint types remain private to this adapter.
+mod maintenance_protocol {
+    tonic::include_proto!("veoveo.computers.maintenance.v1");
+}
 mod allocation;
 mod attachment_transport;
 mod binding;

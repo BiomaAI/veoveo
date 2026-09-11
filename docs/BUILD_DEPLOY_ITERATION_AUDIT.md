@@ -3427,3 +3427,9 @@ specifications were identical. Each now carries its own required labels. The cor
 case snapshots both specifications before restoration and proves neither changes.
 That fixture-only edit invalidates the conservative native receipt; a scoped native
 adapter remains necessary to avoid rerunning provider work for unit-fixture changes.
+
+Private policy checkpoint cases reused the existing mTLS fixture. The focused ten-case
+suite passed in 3.08 seconds after a 6.66-second compile. The change adds a Veoveo-owned
+protobuf format using existing generators and provider types; it introduces no package,
+provider image or installed-state change. Source-independent decoding is covered here;
+physical retirement remains evidence from the owning native fixture.
