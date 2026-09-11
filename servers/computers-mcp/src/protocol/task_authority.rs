@@ -101,12 +101,33 @@ impl ComputersMcp {
                 } else {
                     CommandTaskAction::Observe
                 };
-                let access = self
+                let command_access = self
                     .app
                     .store
                     .authorize_command_task(actor, id, action)
-                    .await
-                    .map_err(error)?;
+                    .await;
+                let access = match command_access {
+                    Ok(access) => access,
+                    Err(ComputerError::NotFound) => {
+                        use veoveo_computers::files::FileTaskAction;
+                        let action = if cancel {
+                            FileTaskAction::Cancel
+                        } else {
+                            FileTaskAction::Observe
+                        };
+                        let access = self
+                            .app
+                            .store
+                            .authorize_file_task(actor, id, action)
+                            .await
+                            .map_err(error)?;
+                        return Ok(TaskAccess {
+                            owner: access.owner().map_err(error)?.clone(),
+                            deadline: access.valid_until(),
+                        });
+                    }
+                    Err(cause) => return Err(error(cause)),
+                };
                 Ok(TaskAccess {
                     owner: access.owner().map_err(error)?.clone(),
                     deadline: access.valid_until(),

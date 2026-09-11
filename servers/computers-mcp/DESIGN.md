@@ -238,8 +238,37 @@ binary import/export, exact Artifact receipts, no overwrite, restricted-label re
 pre-dispatch cancellation and lost-ticket containment after grant revocation. The
 retained file survives Stop/Start and the lost import is not replayed. The fixture
 runs against the exact file-qualified template digest recorded by the runtime design.
-Production startup, public file admission and Console controls remain delivery work;
-this private worker checkpoint does not activate file transfers at the public site.
+Public `transfer_file` admission and the fixed HTTP `/admin/computers/{id}/files`
+projection now compose with this worker contract. Startup activation and Console controls
+remain delivery work; source qualification does not activate the public installation.
+
+### Public File Tasks
+
+`transfer_file` requires negotiated Tasks before reserving a slot. Its owner may omit
+`grantId`; an agent needs the named Execute grant and current file policy. The accepted
+request keeps an exact retry identity. An unavailable Artifact service leaves the same
+Task Queued for an authorized caller retry to attach the first adequate read or write
+capability. No bearer survives the request.
+
+`computer://transfers/{transfer_id}` addresses a completed result with a canonical UUIDv7.
+It carries the verified count, SHA-256 and Artifact occurrence ID. Artifact access is
+still authorized separately. The immutable result resource uses Task subscriptions for
+completion, matching command results. Reads validate the Task type and all result IDs.
+A failed or unfinished Task cannot serve a successful result.
+
+GET `/admin/computers/{id}/files/{transfer_id}` returns a bounded metadata projection.
+POST on its `/cancel` child accepts an empty closed body. Each route validates its
+parent Computer under fresh domain authority. The stored actor remains the Task owner.
+The direct Computer owner observes under Read and cancels under Stop policy; the exact
+agent principal/client uses its current Execute grant and file policy. Cancellation
+request time remains visible even when verified completion wins the race. Paths, bytes,
+provider identities and sealed capabilities stay outside the projection.
+
+The public file fixture uses actual Artifact capability HTTP issuance and independent
+service/store replicas. It qualifies both directions, exact retries after issuance
+failure, changed-input rejection, direct-owner cancellation, foreign-parent refusal,
+canonical completed resources and loss of agent access after grant revocation. Its
+synthetic native receipt tests projection only; `native_files` owns byte-effect evidence.
 
 ## Installation Configuration And Process
 
@@ -528,7 +557,7 @@ the real CLI. It does not establish installed SSO or public ingress.
 
 ## Command Task Authority
 
-`protocol/task_authority.rs` composes lifecycle and command authority for the standard
+`protocol/task_authority.rs` composes lifecycle, maintenance, command and file authority for the standard
 Tasks handlers. Command lookups use the domain's current named-grant or direct-owner
 policy. The stored execution actor remains the Task owner even when the Computer owner
 requests cancellation. Task reads and updates have an independent authority deadline

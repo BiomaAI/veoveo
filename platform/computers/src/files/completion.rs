@@ -65,7 +65,7 @@ pub(super) fn validate_result(
 ) -> Result<()> {
     if result.transfer_id != operation.transfer_id()
         || result.computer_id != operation.computer_id()
-        || result.result_uri != crate::api::file_transfer_uri(operation.transfer_id())
+        || result.result_uri.transfer_id() != operation.transfer_id()
         || result.direction != operation.binding.direction
         || result.artifact_id.get_version_num() != 7
         || result.bytes
@@ -106,7 +106,8 @@ impl ComputersStore {
         let (result, rejection) = match ticket.result {
             Ok(receipt) => {
                 let result = FileTransferResult {
-                    result_uri: crate::api::file_transfer_uri(operation.transfer_id()),
+                    result_uri: crate::api::FileTransferResultUri::new(operation.transfer_id())
+                        .map_err(|_| ComputerError::Unavailable)?,
                     computer_id: operation.computer_id(),
                     transfer_id: operation.transfer_id(),
                     direction: operation.binding.direction,

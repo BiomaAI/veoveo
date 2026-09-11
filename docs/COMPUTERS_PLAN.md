@@ -913,3 +913,13 @@ survives reload and uncertain replies. A paused Task cancellation invalidates th
 Computer view without requiring a worker. The HTTP/MCP fixture proves cross-replica
 resumption, unchanged dispatch identity and current policy. Native recovery, the actual
 image transition and headed installed acceptance remain the deployment gates.
+
+### Public File Integration Checkpoint
+
+The regular-file handoff now has public MCP admission, shared Tasks and a canonical
+completed result resource. Native Console HTTP routes project status and cancellation
+through the gateway and cookie BFF. Real-store/Artifact HTTP fixtures cover import and
+export capability repair across replicas, current grant revocation and owner control.
+Native byte movement remains qualified separately. Production file-worker startup,
+installation-qualified template selection, Console controls and the deployed public
+journey are still required before this gate is complete.

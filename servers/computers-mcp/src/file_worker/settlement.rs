@@ -92,7 +92,7 @@ impl FileWorker {
     pub(super) async fn project(&self, operation: &FileOperation) -> Result<()> {
         let transition = match operation.outcome().ok_or(FileWorkerError::Configuration)? {
             FileOutcome::Completed(result) => {
-                let uri = result.result_uri.clone();
+                let uri = String::from(result.result_uri);
                 let mut response = rmcp::model::CallToolResult::structured(
                     serde_json::to_value(result).map_err(|_| FileWorkerError::Configuration)?,
                 );

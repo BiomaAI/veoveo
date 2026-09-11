@@ -88,3 +88,11 @@ and contributor membership. Its request and response bind the route's Computer a
 Task. The body contains the original paused timestamp, stable recovery request ID and
 explicit pending-cancellation acknowledgement. A receipt can advertise `canResume` only
 in Recovery Required. This route preserves the existing deadline and no-store boundary.
+
+File handoff uses POST `/files`, GET `/files/{operation_id}` and POST
+`/files/{operation_id}/cancel` beneath the exact Computer. Admission requires the
+`transfer_file` tool and contributor membership. Status and cancellation traverse parent
+Read policy; the service additionally requires current Stop policy for owner cancellation.
+The gateway validates the closed request, limits, parent and Task identities, canonical
+result URI and bounded result metadata. Binary bytes use the Artifact service. No file
+path becomes a gateway route.

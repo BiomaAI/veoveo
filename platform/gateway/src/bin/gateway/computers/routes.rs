@@ -19,6 +19,9 @@ pub(super) struct Route {
 pub(super) enum Operation {
     List,
     Read(Uuid),
+    TransferFile(Uuid),
+    File { computer: Uuid, operation: Uuid },
+    CancelFile { computer: Uuid, operation: Uuid },
     Receipt { computer: Uuid, operation: Uuid },
     Maintenance(Uuid),
     MaintenanceReceipt { computer: Uuid, operation: Uuid },
@@ -92,6 +95,22 @@ impl Operation {
         if let Some(operation) = operation_id {
             return match (matched, method, id) {
                 (
+                    "/computers/{profile}/{id}/files/{operation_id}",
+                    &Method::GET,
+                    Some(computer),
+                ) => Ok(Self::File {
+                    computer,
+                    operation,
+                }),
+                (
+                    "/computers/{profile}/{id}/files/{operation_id}/cancel",
+                    &Method::POST,
+                    Some(computer),
+                ) => Ok(Self::CancelFile {
+                    computer,
+                    operation,
+                }),
+                (
                     "/computers/{profile}/{id}/maintenance/{operation_id}/resume",
                     &Method::POST,
                     Some(computer),
@@ -122,6 +141,9 @@ impl Operation {
             ("/computers/{profile}", &Method::GET, None) => Ok(Self::List),
             ("/computers/{profile}", &Method::POST, None) => Ok(Self::Create),
             ("/computers/{profile}/{id}", &Method::GET, Some(id)) => Ok(Self::Read(id)),
+            ("/computers/{profile}/{id}/files", &Method::POST, Some(id)) => {
+                Ok(Self::TransferFile(id))
+            }
             ("/computers/{profile}/{id}/maintenance", &Method::GET, Some(id)) => {
                 Ok(Self::Maintenance(id))
             }
@@ -153,6 +175,15 @@ impl Operation {
         match self {
             Self::List | Self::Create => "computers".into(),
             Self::Read(id) => format!("computers/{id}"),
+            Self::TransferFile(id) => format!("computers/{id}/files"),
+            Self::File {
+                computer,
+                operation,
+            } => format!("computers/{computer}/files/{operation}"),
+            Self::CancelFile {
+                computer,
+                operation,
+            } => format!("computers/{computer}/files/{operation}/cancel"),
             Self::Maintenance(id) => format!("computers/{id}/maintenance"),
             Self::MaintenanceReceipt {
                 computer,
@@ -196,6 +227,7 @@ impl Operation {
             Self::Create => Some("create"),
             Self::Start(_) => Some("start"),
             Self::Stop(_) => Some("stop"),
+            Self::TransferFile(_) => Some("transfer_file"),
             Self::UpdateTemplate(_) => Some("update_template"),
             Self::ResumeUpdate { .. } => Some("resume_update"),
             Self::GrantAutomation(_) => Some("grant_automation"),
@@ -217,6 +249,8 @@ impl Operation {
                 veoveo_computers_contract::automation_grant_uri(computer, grant)
             }
             Self::Read(id)
+            | Self::File { computer: id, .. }
+            | Self::CancelFile { computer: id, .. }
             | Self::Maintenance(id)
             | Self::MaintenanceReceipt { computer: id, .. }
             | Self::Access(id)
@@ -253,6 +287,8 @@ impl Operation {
             Self::Create
                 | Self::Start(_)
                 | Self::Stop(_)
+                | Self::TransferFile(_)
+                | Self::CancelFile { .. }
                 | Self::UpdateTemplate(_)
                 | Self::ResumeUpdate { .. }
                 | Self::GrantAutomation(_)
@@ -268,6 +304,8 @@ impl Operation {
             self,
             Self::List
                 | Self::Read(_)
+                | Self::File { .. }
+                | Self::CancelFile { .. }
                 | Self::Receipt { .. }
                 | Self::Maintenance(_)
                 | Self::MaintenanceReceipt { .. }

@@ -2,6 +2,7 @@
 mod authority;
 mod cli;
 mod control;
+mod files;
 mod maintenance;
 mod routes;
 mod terminal;
@@ -37,6 +38,15 @@ pub(crate) fn router(state: ComputersState) -> Router {
             get(control::proxy).post(control::proxy),
         )
         .route("/computers/{profile}/{id}", get(control::proxy))
+        .route("/computers/{profile}/{id}/files", post(control::proxy))
+        .route(
+            "/computers/{profile}/{id}/files/{operation_id}",
+            get(control::proxy),
+        )
+        .route(
+            "/computers/{profile}/{id}/files/{operation_id}/cancel",
+            post(control::proxy),
+        )
         .route("/computers/{profile}/{id}/access", get(control::proxy))
         .route(
             "/computers/{profile}/{id}/automation",

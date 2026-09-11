@@ -312,6 +312,10 @@
       ],
       "type": "string"
     },
+    "CancelFileTransferBody": {
+      "additionalProperties": false,
+      "type": "object"
+    },
     "CapacityAvailability": {
       "enum": [
         "setup_required",
@@ -902,6 +906,78 @@
         "cancelled"
       ],
       "type": "string"
+    },
+    "FileTransferView": {
+      "additionalProperties": false,
+      "description": "Native Console projection of the same durable Task used by MCP callers.",
+      "properties": {
+        "canCancel": {
+          "type": "boolean"
+        },
+        "cancellationRequestedAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "completedAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "direction": {
+          "$ref": "#/$defs/FileTransferDirection"
+        },
+        "message": {
+          "maxLength": 4096,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileTransferResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stage": {
+          "$ref": "#/$defs/FileTransferStage"
+        },
+        "taskId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId",
+        "computerId",
+        "direction",
+        "stage",
+        "canCancel",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
     },
     "IssueAutomationGrantInput": {
       "additionalProperties": false,
@@ -1687,6 +1763,9 @@
     "automation_grants": {
       "$ref": "#/$defs/AutomationGrantCollection"
     },
+    "cancel_file_transfer_body": {
+      "$ref": "#/$defs/CancelFileTransferBody"
+    },
     "cli_pairing_challenge": {
       "$ref": "#/$defs/CliPairingChallenge"
     },
@@ -1722,6 +1801,9 @@
     },
     "file_transfer_stage": {
       "$ref": "#/$defs/FileTransferStage"
+    },
+    "file_transfer_view": {
+      "$ref": "#/$defs/FileTransferView"
     },
     "issue_automation_grant": {
       "$ref": "#/$defs/IssueAutomationGrantInput"
@@ -1810,6 +1892,8 @@
     "transfer_file_input",
     "file_transfer_result",
     "file_transfer_stage",
+    "file_transfer_view",
+    "cancel_file_transfer_body",
     "issue_automation_grant",
     "automation_grant",
     "automation_grants",
