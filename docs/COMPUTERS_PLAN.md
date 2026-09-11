@@ -53,6 +53,7 @@ installation or full release-closure gates.
 | Drained host restart | Both owner Computers stopped through their public lifecycle actions. The private host restarted with its original Docker identity, admitted the new template and retained both homes |
 | File environment update | Both owner Computers reached Ready on `development-20260911` through public maintenance Tasks; their earlier retained marker files remained readable as UID 10001 |
 | Agent file authority | A named `admin-service` grant exported the retained marker through public MCP Tasks and read its result. The other Computer denied that grant; revocation denied result reads and exact retries |
+| Uninterrupted CLI renewal and logout | Release 155 accepted fresh commands on the same stock CLI connection from 12:16:42 to 12:33:18 UTC. Console sign-out closed it; reconnect returned HTTP 403. Fresh SSO showed no access grants and the Computer remained Ready |
 
 The public long-session check was interrupted by database memory exhaustion during
 an audit-index migration. Its observed CLI lease activity exceeded ten minutes, but
@@ -61,8 +62,12 @@ The focused native expiry and blocked-I/O tests remain the precise bound evidenc
 Migration 0072 completed at 08:57:09 UTC through its online preparation path. Both
 gateway replicas subsequently completed cleanup, and release 152 is Ready. A fresh
 public browser command at 09:01:30 read the retained agent-created file. The subsequent
-stable browser observation above spans the renewal interval. Uninterrupted stock CLI
-continuity and installed logout remain separate checks.
+stable browser observation above spans the renewal interval. The later release-155
+stock CLI run spans 996 seconds without an interruption or new pairing. Its final
+command verified the retained marker and imported binary hash. Sign-out was invoked
+at 12:33:27 UTC; connection closure was observed by 12:33:57.790. This sampled
+31-second upper bound does not measure exact closure latency. A new connection at
+12:34:12 returned HTTP 403, and fresh SSO showed the Computer still Ready.
 
 The remaining initial-release work includes agent lifecycle permissions,
 selected-profile backup/key ownership and restore
