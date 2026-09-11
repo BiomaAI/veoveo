@@ -5,6 +5,7 @@ pub(crate) mod auth;
 mod automation;
 mod cli;
 mod http_error;
+mod maintenance;
 mod origins;
 mod pairing;
 mod provider;
@@ -61,6 +62,7 @@ pub fn router(
         .nest(
             "/admin",
             admin::router(app.clone())
+                .merge(maintenance::router(app.clone()))
                 .merge(automation::router(app.clone()))
                 .merge(pairing::router(app.clone(), allowed_origins.clone()))
                 .merge(terminal::router(

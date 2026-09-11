@@ -11,7 +11,7 @@
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
-| Veoveo private retained maintenance | Migrations 0069–0070; immutable source/target, shared `provider_wait` Task, exclusive Computer fence, bounded step journal and protected checkpoint; provider worker and public projection remain implementation work |
+| Veoveo private retained maintenance | Migrations 0069–0070; immutable source/target, shared `provider_wait` Task, exclusive Computer fence, bounded step journal and protected checkpoint; private provider worker and public service projection share this journal |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
 | Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
@@ -727,3 +727,9 @@ Automation inventory includes current management hints and the checked installat
 ceilings. One fresh management authority snapshot supplies the hints; issuance and
 revocation continue to evaluate their own current authority. Exact grant reads authorize
 the owner and do not scan the active inventory, preserving expired/revoked results.
+
+Public maintenance eligibility reuses the admission source-state check and reads the
+execution slot. A retained maintenance fence is busy even when its initial Create had
+an unresolved outcome. Eligibility grants no ticket; admission still atomically checks
+the source, slot, current policy and replacement identity. `ControlAuthority` projects
+update permission with the same named tool policy and a five-second freshness bound.

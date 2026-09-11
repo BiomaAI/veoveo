@@ -116,6 +116,93 @@ impl ComputersStore {
         }
     }
 
+    /// Current state eligibility for a UI projection. Admission still checks the
+    /// same source and execution slot atomically before acquiring the fence.
+    pub async fn maintenance_available(&self, caller: &TaskOwner, id: Uuid) -> Result<bool> {
+        let computer = self.get(caller, id).await?;
+        match self.maintenance_source(caller, &computer).await {
+            Ok(_) => {}
+            Err(ComputerError::InvalidState | ComputerError::OperationBusy) => return Ok(false),
+            Err(error) => return Err(error),
+        }
+        let mut reply = self
+            .query(
+                "SELECT VALUE id FROM ONLY $slot;",
+                vec![("slot", crate::commands::slot(id).into_value())],
+            )
+            .await?;
+        let slot: Option<RecordId> = reply.take(0).map_err(|_| ComputerError::Unavailable)?;
+        Ok(slot.is_none())
+    }
+
+    async fn maintenance_source(
+        &self,
+        caller: &TaskOwner,
+        computer: &crate::Computer,
+    ) -> Result<MaintenanceSource> {
+        match computer.phase {
+            ComputerPhase::Ready | ComputerPhase::Stopped => {
+                if computer.active_operation.is_some() {
+                    return Err(ComputerError::OperationBusy);
+                }
+                let resource_id = computer
+                    .provider_resource_id
+                    .clone()
+                    .ok_or(ComputerError::InvalidState)?;
+                let process_id = computer
+                    .process_id
+                    .clone()
+                    .ok_or(ComputerError::InvalidState)?;
+                if computer.phase == ComputerPhase::Ready {
+                    Ok(MaintenanceSource::Ready {
+                        resource_id,
+                        process_id,
+                    })
+                } else {
+                    Ok(MaintenanceSource::Stopped {
+                        resource_id,
+                        process_id,
+                    })
+                }
+            }
+            ComputerPhase::RecoveryRequired
+                if computer.replacement_instance_id.is_none()
+                    && computer.provider_resource_id.is_none()
+                    && computer.process_id.is_none() =>
+            {
+                let id = computer
+                    .active_operation
+                    .ok_or(ComputerError::InvalidState)?;
+                let original = match self.operation(caller, id).await {
+                    Ok(operation) => operation,
+                    Err(ComputerError::NotFound) => {
+                        let maintenance = self.maintenance(caller, id).await?;
+                        if maintenance.computer_id != computer.computer_id {
+                            return Err(ComputerError::Unavailable);
+                        }
+                        return Err(ComputerError::OperationBusy);
+                    }
+                    Err(error) => return Err(error),
+                };
+                if original.computer_id != computer.computer_id
+                    || original.action != Action::Create
+                    || original.stage != OperationStage::RecoveryRequired
+                    || original.instance_id() != computer.computer_id
+                    || original.template_fingerprint != computer.template_fingerprint
+                    || original.provider_instance_id != self.provider_instance_id
+                    || original.dispatch_id.is_none()
+                    || original
+                        .observation_deadline
+                        .is_none_or(|deadline| deadline > Utc::now())
+                {
+                    return Err(ComputerError::InvalidState);
+                }
+                Ok(MaintenanceSource::InitialFailure { operation_id: id })
+            }
+            _ => Err(ComputerError::InvalidState),
+        }
+    }
+
     /// Reserve one immutable replacement and fence all ordinary Computer control.
     /// The application must qualify the selected template transition before calling.
     /// This does not retire compute, release quota or establish allocator evidence.
@@ -176,57 +263,7 @@ impl ComputersStore {
         if computer.provider_instance_id != self.provider_instance_id {
             return Err(ComputerError::Unavailable);
         }
-        let source = match computer.phase {
-            ComputerPhase::Ready | ComputerPhase::Stopped => {
-                if computer.active_operation.is_some() {
-                    return Err(ComputerError::OperationBusy);
-                }
-                let resource_id = computer
-                    .provider_resource_id
-                    .clone()
-                    .ok_or(ComputerError::InvalidState)?;
-                let process_id = computer
-                    .process_id
-                    .clone()
-                    .ok_or(ComputerError::InvalidState)?;
-                if computer.phase == ComputerPhase::Ready {
-                    MaintenanceSource::Ready {
-                        resource_id,
-                        process_id,
-                    }
-                } else {
-                    MaintenanceSource::Stopped {
-                        resource_id,
-                        process_id,
-                    }
-                }
-            }
-            ComputerPhase::RecoveryRequired
-                if computer.replacement_instance_id.is_none()
-                    && computer.provider_resource_id.is_none()
-                    && computer.process_id.is_none() =>
-            {
-                let id = computer
-                    .active_operation
-                    .ok_or(ComputerError::InvalidState)?;
-                let original = self.operation(caller, id).await?;
-                if original.computer_id != computer_id
-                    || original.action != Action::Create
-                    || original.stage != OperationStage::RecoveryRequired
-                    || original.instance_id() != computer_id
-                    || original.template_fingerprint != computer.template_fingerprint
-                    || original.provider_instance_id != self.provider_instance_id
-                    || original.dispatch_id.is_none()
-                    || original
-                        .observation_deadline
-                        .is_none_or(|deadline| deadline > Utc::now())
-                {
-                    return Err(ComputerError::InvalidState);
-                }
-                MaintenanceSource::InitialFailure { operation_id: id }
-            }
-            _ => return Err(ComputerError::InvalidState),
-        };
+        let source = self.maintenance_source(caller, &computer).await?;
         source.validate()?;
         let source_operation = match source {
             MaintenanceSource::InitialFailure { operation_id } => {

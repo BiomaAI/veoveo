@@ -10,6 +10,8 @@ mod command_admission;
 mod command_support;
 #[path = "support/command_tasks.rs"]
 mod command_tasks;
+#[path = "support/maintenance.rs"]
+mod maintenance;
 #[path = "../../../platform/computers/tests/support/mod.rs"]
 #[allow(dead_code)]
 mod support;

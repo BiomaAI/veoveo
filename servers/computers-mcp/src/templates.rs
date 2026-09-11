@@ -48,10 +48,12 @@ impl Templates {
             return Err(crate::ApplicationError::Configuration);
         }
         let mut admitted = BTreeMap::new();
+        let mut names = std::collections::BTreeSet::new();
         for template in templates {
-            if admitted
-                .insert(template.runtime.fingerprint(), template)
-                .is_some()
+            if !names.insert(template.id.clone())
+                || admitted
+                    .insert(template.runtime.fingerprint(), template)
+                    .is_some()
             {
                 return Err(crate::ApplicationError::Configuration);
             }
@@ -63,6 +65,15 @@ impl Templates {
     }
     pub(crate) fn default(&self) -> Option<&NamedTemplate> {
         self.default.as_ref().and_then(|d| self.admitted.get(d))
+    }
+    pub(crate) fn select(&self, id: Option<&str>) -> Option<&NamedTemplate> {
+        match id {
+            Some(id) => self.admitted.values().find(|template| template.id == id),
+            None => self.default(),
+        }
+    }
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &NamedTemplate> {
+        self.admitted.values()
     }
     pub(crate) fn contains(&self, id: &str, fingerprint: &str) -> bool {
         self.admitted.get(fingerprint).is_some_and(|t| t.id == id)

@@ -41,7 +41,10 @@ impl ComputersMcp {
                     control.require_read(None).map_err(|_| auth::forbidden())?
                 }
                 Some(
-                    ResourceId::Computer(id) | ResourceId::Access(id) | ResourceId::Automation(id),
+                    ResourceId::Computer(id)
+                    | ResourceId::Access(id)
+                    | ResourceId::Automation(id)
+                    | ResourceId::Maintenance(id),
                 ) => {
                     control
                         .require_read(Some(id))
@@ -216,6 +219,7 @@ impl ComputersMcp {
                                     || resources::parse(uri) == Some(ResourceId::Computer(id))
                                     || resources::parse(uri) == Some(ResourceId::Access(id))
                                     || resources::parse(uri) == Some(ResourceId::Automation(id))
+                                    || resources::parse(uri) == Some(ResourceId::Maintenance(id))
                                     || matches!(resources::parse(uri), Some(ResourceId::Grant(computer, _)) if computer == id) {
                                     context.sink().notify_resource_updated(uri.clone()).await.map_err(|_| auth::unavailable())?;
                                 }

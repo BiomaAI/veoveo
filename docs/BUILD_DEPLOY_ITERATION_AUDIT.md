@@ -3487,3 +3487,19 @@ runs both continuous schedulers and requires complete adoption, policy restorati
 retained bytes and Task acknowledgement. It cannot accept an unresolved job merely
 because a worker returned a transient error. This also qualifies the scheduling path
 needed by the executable instead of maintaining another inline retry implementation.
+
+The completed same-image maintenance worker run took 28.212 seconds for the update
+sequence. The combined native command fixture took 109.75 seconds after an 18.52-second
+compile; command revocation and cancellation account for work unrelated to maintenance.
+Its immutable observed-pass receipt is `de09b0de-eeec-4480-be19-6c52eda9ff11`. This remains
+unqualified for environment reuse and installed acceptance. A focused fixture should
+reuse the owned provider/allocator setup before repeated image-transition experiments.
+Seven deferred Task-step warnings accompanied successful replica convergence; distinguish
+expected lease contention from operational errors without treating unknown errors as success.
+
+Executable configuration validation passed seven cases in 9.14 seconds after a
+22.47-second incremental compile. No provider image build was needed. Three receipts
+added roughly twenty thousand manifest lines to the configuration commit. Receipt input
+manifest deduplication and per-invocation metadata/hash caching remain concrete iteration
+work; repeating native execution solely because documentation changed adds no useful
+runtime evidence. Preserve the original attempt and its exact source when recording timing.

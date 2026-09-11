@@ -59,6 +59,12 @@ impl MaintenanceProfiles {
             target_fingerprint: target.into(),
         })
     }
+    pub(crate) fn matches_catalog(&self, templates: &[DevelopmentTemplate]) -> bool {
+        templates.len() == self.templates.len()
+            && templates
+                .iter()
+                .all(|t| self.templates.contains_key(&t.fingerprint()))
+    }
     pub(super) fn for_operation(
         &self,
         operation: &MaintenanceOperation,

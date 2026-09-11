@@ -8,7 +8,7 @@ use veoveo_mcp_contract::{
     WorkContextMembershipLevel,
 };
 
-pub(super) fn target() -> PolicyTarget {
+pub(crate) fn target() -> PolicyTarget {
     PolicyTarget::Tool {
         server: ServerSlug::new("computers").expect("static server"),
         tool: LocalToolName::new("update_template").expect("static tool"),

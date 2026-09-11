@@ -46,7 +46,7 @@ pub fn templates(new_default: bool) -> Templates {
     };
     Templates::new(
         vec![
-            NamedTemplate::new("development".into(), old).unwrap(),
+            NamedTemplate::new("development-retained".into(), old).unwrap(),
             NamedTemplate::new("development".into(), new).unwrap(),
         ],
         Some(default),

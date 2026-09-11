@@ -863,6 +863,30 @@
       ],
       "type": "object"
     },
+    "MaintenancePhase": {
+      "enum": [
+        "queued",
+        "stopping",
+        "saving_policy",
+        "replacing",
+        "starting",
+        "restoring_policy",
+        "verifying",
+        "succeeded",
+        "cancelled",
+        "recovery_required"
+      ],
+      "type": "string"
+    },
+    "MaintenanceRecoveryReason": {
+      "enum": [
+        "observation_budget_exhausted",
+        "authority_denied",
+        "cancellation_requested",
+        "checkpoint_unavailable"
+      ],
+      "type": "string"
+    },
     "MaintenanceResult": {
       "additionalProperties": false,
       "properties": {
@@ -886,6 +910,90 @@
         "computerId",
         "maintenanceId",
         "templateId"
+      ],
+      "type": "object"
+    },
+    "MaintenanceState": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MaintenanceView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "canUpdate": {
+          "type": "boolean"
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TemplateView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "computerId",
+        "targets",
+        "canUpdate"
+      ],
+      "type": "object"
+    },
+    "MaintenanceView": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/MaintenancePhase"
+        },
+        "recovery": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MaintenanceRecoveryReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceTemplateId": {
+          "type": "string"
+        },
+        "targetTemplateId": {
+          "type": "string"
+        },
+        "taskId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "taskId",
+        "sourceTemplateId",
+        "targetTemplateId",
+        "phase",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
@@ -1300,6 +1408,31 @@
     "TerminalToken": {
       "description": "Explicit serialization is the only public exposure path. No Debug or Display.",
       "type": "string"
+    },
+    "UpdateTemplateInput": {
+      "additionalProperties": false,
+      "description": "Select an installation-admitted template, or omit it to choose the current\ndefault on the first request. An exact retry retains the original selection.",
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "templateId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "computerId",
+        "requestId"
+      ],
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1365,6 +1498,12 @@
     "maintenance_result": {
       "$ref": "#/$defs/MaintenanceResult"
     },
+    "maintenance_state": {
+      "$ref": "#/$defs/MaintenanceState"
+    },
+    "maintenance_view": {
+      "$ref": "#/$defs/MaintenanceView"
+    },
     "operation": {
       "$ref": "#/$defs/OperationView"
     },
@@ -1412,6 +1551,9 @@
     },
     "terminal_ticket_input": {
       "$ref": "#/$defs/TerminalTicketInput"
+    },
+    "update_template_input": {
+      "$ref": "#/$defs/UpdateTemplateInput"
     }
   },
   "required": [
@@ -1438,6 +1580,9 @@
     "receipt",
     "lifecycle_result",
     "maintenance_result",
+    "maintenance_state",
+    "maintenance_view",
+    "update_template_input",
     "operation",
     "create_input",
     "start_input",
