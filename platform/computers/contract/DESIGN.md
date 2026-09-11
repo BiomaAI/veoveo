@@ -102,6 +102,14 @@ show the original scope and expiry; current policy can narrow them. These types 
 shared by the public grant routes and command Tasks. The collection reports current
 management hints and installation ceilings; each mutation checks current policy.
 
+`grantablePermissions` is the owner's current subset of the four named permissions.
+`clientChoices` contains at most 128 matching registrations with `oauthClientId`,
+`displayName` and optional `servicePrincipalId`. `clientChoicesTruncated` explicitly
+reports truncation. These fields contain no credentials and authorize no action.
+Automated client issuance binds its canonical service principal; direct clients keep
+an explicit principal. The required collection fields ship in a coordinated rollout
+of Computers, gateway, BFF and Console. They add no persistent format migration.
+
 
 `execution.rs` defines a completed foreground result. Each stream has its own UUIDv7
 Artifact occurrence, including an empty stream, and an exact byte count. The command

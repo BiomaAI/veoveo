@@ -401,6 +401,12 @@ async fn invalid_bounds_unknown_principals_and_foreign_owners_create_no_grants()
         a.issue_automation_grant(&owner, &missing).await,
         Err(ComputerError::NotFound)
     );
+    let mut mismatched = original.clone();
+    mismatched.principal_id = owner.owner().principal_key.clone();
+    assert_eq!(
+        a.issue_automation_grant(&owner, &mismatched).await,
+        Err(ComputerError::InvalidInput)
+    );
     let mut unknown_client = original.clone();
     unknown_client.oauth_client_id = "unknown-client".into();
     assert_eq!(
@@ -439,5 +445,120 @@ async fn invalid_bounds_unknown_principals_and_foreign_owners_create_no_grants()
             .unwrap()
             .grants
             .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn owner_grant_choices_follow_current_permissions_and_registration_scope() {
+    use veoveo_mcp_contract::{
+        AuthMode, GatewayProfileId, LocalToolName, OAuthClientId, ProtectedResourceId,
+    };
+    let db = support::TestDb::new().await;
+    let (a, _, owner, _, computer) = setup(&db).await;
+    let inventory = a.list_automation_grants(&owner, computer).await.unwrap();
+    assert!(inventory.can_grant && inventory.can_revoke);
+    assert_eq!(inventory.grantable_permissions.len(), 4);
+    assert!(!inventory.client_choices_truncated);
+    assert_eq!(
+        inventory
+            .client_choices
+            .iter()
+            .map(|c| c.oauth_client_id.as_str())
+            .collect::<Vec<_>>(),
+        ["console", "delegated", "service"]
+    );
+    assert_eq!(inventory.client_choices[0].service_principal_id, None);
+    assert_eq!(
+        inventory.client_choices[2].service_principal_id.as_deref(),
+        Some("https://computers.test#service")
+    );
+    assert_eq!(
+        inventory.client_choices[2].display_name,
+        "Veoveo Operator Service"
+    );
+
+    let mut current = control();
+    current.policies[0].rules[0]
+        .tools
+        .remove(&LocalToolName::new("start").unwrap());
+    let mut other = current.profiles[0].clone();
+    other.id = GatewayProfileId::new("secondary").unwrap();
+    other.protected_resource =
+        ProtectedResourceId::new("https://computers.test/mcp/secondary").unwrap();
+    other.auth_modes = [AuthMode::OAuthClientCredentials].into();
+    let mut secondary_client = current
+        .oauth_clients
+        .iter()
+        .find(|c| c.id.as_str() == "service")
+        .unwrap()
+        .clone();
+    secondary_client.id = OAuthClientId::new("secondary-service").unwrap();
+    secondary_client.allowed_resources = [other.protected_resource.clone()].into();
+    current.oauth_clients.push(secondary_client);
+    current.profiles.push(other);
+    support::policy::install(&db.b, current.clone()).await;
+    let narrowed = a.list_automation_grants(&owner, computer).await.unwrap();
+    assert!(narrowed.can_grant && narrowed.can_revoke);
+    assert!(
+        !narrowed
+            .grantable_permissions
+            .contains(&AutomationPermission::Start)
+    );
+    assert_eq!(narrowed.client_choices.len(), 3);
+    assert!(
+        !narrowed
+            .client_choices
+            .iter()
+            .any(|client| client.oauth_client_id == "secondary-service")
+    );
+    let mut secondary_request = input(computer);
+    secondary_request.oauth_client_id = "secondary-service".into();
+    assert_eq!(
+        a.issue_automation_grant(&owner, &secondary_request).await,
+        Err(ComputerError::InvalidInput)
+    );
+
+    current.policies[0].rules[0]
+        .tools
+        .remove(&LocalToolName::new("grant_automation").unwrap());
+    support::policy::install(&db.b, current).await;
+    let revoked = a.list_automation_grants(&owner, computer).await.unwrap();
+    assert!(!revoked.can_grant);
+    assert!(revoked.can_revoke);
+    assert!(revoked.grantable_permissions.is_empty());
+    assert!(revoked.client_choices.is_empty());
+}
+
+#[tokio::test]
+async fn owner_grant_choices_are_bounded_and_do_not_limit_exact_client_issuance() {
+    use veoveo_mcp_contract::OAuthClientId;
+    let db = support::TestDb::new().await;
+    let (a, _, owner, _, computer) = setup(&db).await;
+    let mut current = control();
+    for index in 0..130 {
+        let mut client = current.oauth_clients[0].clone();
+        client.id = OAuthClientId::new(format!("hint-{index:03}")).unwrap();
+        current.oauth_clients.push(client);
+    }
+    support::policy::install(&db.b, current).await;
+    let inventory = a.list_automation_grants(&owner, computer).await.unwrap();
+    assert!(inventory.client_choices_truncated);
+    assert_eq!(inventory.client_choices.len(), 128);
+    assert!(
+        inventory
+            .client_choices
+            .windows(2)
+            .all(|pair| pair[0].oauth_client_id < pair[1].oauth_client_id)
+    );
+    assert!(
+        !inventory
+            .client_choices
+            .iter()
+            .any(|client| client.oauth_client_id == "service")
+    );
+    assert!(
+        a.issue_automation_grant(&owner, &input(computer))
+            .await
+            .is_ok()
     );
 }

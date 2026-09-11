@@ -162,6 +162,19 @@ async fn public_command_admission_repairs_one_task_with_actual_artifact_authorit
         .await
         .unwrap();
     assert!(inventory.can_grant && inventory.can_revoke);
+    assert!(
+        inventory
+            .grantable_permissions
+            .contains(&AutomationPermission::Execute)
+    );
+    assert!(
+        inventory
+            .client_choices
+            .iter()
+            .any(|client| client.oauth_client_id == "service"
+                && client.service_principal_id.as_deref()
+                    == Some("https://computers.test#service"))
+    );
     assert_eq!(inventory.grants.len(), 1);
     assert_eq!(
         inventory.limits.maximum_execution_seconds,

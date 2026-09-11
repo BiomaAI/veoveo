@@ -123,6 +123,30 @@
       ],
       "type": "object"
     },
+    "AutomationClientChoice": {
+      "additionalProperties": false,
+      "description": "Registration metadata available to a Computer owner who may issue a grant.\nA choice is a profile hint, never proof of the grantee's current authority.",
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "oauthClientId": {
+          "type": "string"
+        },
+        "servicePrincipalId": {
+          "description": "Automated clients authenticate as this canonical service principal.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "oauthClientId",
+        "displayName"
+      ],
+      "type": "object"
+    },
     "AutomationExecutionLimits": {
       "additionalProperties": false,
       "properties": {
@@ -159,9 +183,27 @@
         "canRevoke": {
           "type": "boolean"
         },
+        "clientChoices": {
+          "items": {
+            "$ref": "#/$defs/AutomationClientChoice"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "clientChoicesTruncated": {
+          "type": "boolean"
+        },
         "computerId": {
           "format": "uuid",
           "type": "string"
+        },
+        "grantablePermissions": {
+          "items": {
+            "$ref": "#/$defs/AutomationPermission"
+          },
+          "maxItems": 4,
+          "type": "array",
+          "uniqueItems": true
         },
         "grants": {
           "items": {
@@ -178,6 +220,9 @@
         "computerId",
         "canGrant",
         "canRevoke",
+        "grantablePermissions",
+        "clientChoices",
+        "clientChoicesTruncated",
         "limits",
         "grants"
       ],

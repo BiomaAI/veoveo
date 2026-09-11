@@ -106,7 +106,11 @@ interruption. Management hints disable unavailable actions. Read, Execute, Start
 Stop are independent selections. Execute requires bounded command limits and
 interruption consent; a lifecycle-only grant carries no execution limits.
 Existing cached principal names improve selection without requiring administrator
-inventory for core Computers. The application client ID remains an explicit scope.
+inventory for core Computers. The current owner projection supplies matching OAuth
+applications and grantable permissions. Selecting an automated application fills its
+canonical service principal; direct applications retain an explicit principal field.
+The form identifies its profile and the enrollment prerequisite. A truncated catalog
+allows an exact registered client ID. Server admission remains authoritative.
 
 Granted Computers identify their current named scopes and omit owner management,
 interactive pairing and environment updates. A fresh Start or Stop selects a current

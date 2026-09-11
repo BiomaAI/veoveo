@@ -16,7 +16,6 @@ use uuid::Uuid;
 use veoveo_platform_store::{
     OpenObject, PrincipalKind, PrincipalRecord, deterministic_principal_id,
 };
-use veoveo_policy::PolicyCatalogView;
 
 #[derive(Serialize, SurrealValue)]
 struct Content {
@@ -106,11 +105,6 @@ impl ComputersStore {
         for permission in &input.permissions {
             authority::require_permission(&owner.snapshot, input.computer_id, *permission)?;
         }
-        let profile = owner
-            .snapshot
-            .catalog
-            .profile(&owner.snapshot.accepted.profile)
-            .ok_or(ComputerError::Forbidden)?;
         let client = owner
             .snapshot
             .catalog
@@ -119,15 +113,7 @@ impl ComputersStore {
             .iter()
             .find(|client| client.id.as_str() == input.oauth_client_id)
             .ok_or(ComputerError::InvalidInput)?;
-        if client.authorization_server != profile.authorization_server
-            || !client
-                .allowed_resources
-                .contains(&profile.protected_resource)
-            || client
-                .tenant
-                .as_ref()
-                .is_some_and(|tenant| tenant != &owner.snapshot.accepted.invocation.tenant)
-        {
+        if !super::management::admitted_client(&owner.snapshot, client) {
             return Err(ComputerError::InvalidInput);
         }
         let policy = self.stored_automation_policy().await?;
@@ -152,6 +138,11 @@ impl ComputersStore {
         let grantee = grantee.ok_or(ComputerError::NotFound)?;
         if !grantee.enabled || grantee.id != grantee_id || grantee.tenant != owner.snapshot.tenant {
             return Err(ComputerError::NotFound);
+        }
+        if let Some(expected) = super::management::service_principal_id(&owner.snapshot, client)?
+            && (principal.as_str() != expected || grantee.kind != PrincipalKind::Service)
+        {
+            return Err(ComputerError::InvalidInput);
         }
         let grant_id = Uuid::now_v7();
         let content = Content {
@@ -259,12 +250,15 @@ impl ComputersStore {
                 grants.push(grant.view);
             }
             let policy = self.stored_automation_policy().await?.checked()?;
-            let management = self.automation_management(actor).await?;
+            let management = self.automation_management(actor, computer_id).await?;
             control.require_read(Some(computer_id))?;
             Ok(AutomationGrantCollection {
                 computer_id,
-                can_grant: management.0 && grants.len() < policy.max_grants as usize,
-                can_revoke: management.1,
+                can_grant: management.can_grant && grants.len() < policy.max_grants as usize,
+                can_revoke: management.can_revoke,
+                grantable_permissions: management.permissions,
+                client_choices: management.clients,
+                client_choices_truncated: management.truncated,
                 limits: crate::api::AutomationGrantLimits {
                     maximum_grants: policy.max_grants,
                     maximum_lifetime_seconds: policy.maximum_lifetime_seconds,
