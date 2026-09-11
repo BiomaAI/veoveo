@@ -86,7 +86,9 @@ git add testing/local-test-report.json testing/test-receipts
 
 GitHub runs only `cargo xtask test-report show --github-summary`. It presents this
 committed local evidence and does not rerun substantive checks or establish current
-host compatibility. The report remains an engineering status record, separate from
+host compatibility. Its locked Cargo metadata query may download uncached dependency
+sources to resolve the complete input graph; it does not require a prewarmed offline
+cache. The report remains an engineering status record, separate from
 release provenance and security attestation. The v2 aggregate is retired; its results
 remain in Git history and were not converted into scoped receipts.
 
