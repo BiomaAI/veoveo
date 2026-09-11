@@ -20,7 +20,7 @@ artifactService:
 
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
-  controlPlaneRevision: 21a6052526098a2d85e43f8322cc481270ab63b8a88bf0f5eda9690ce561459e
+  controlPlaneRevision: cfd2d933d717632ca66508c7cab8c89c375cd7fe015950b5ce34fd8da70964e2
 
 consoleBff:
   replicas: 2
@@ -58,7 +58,7 @@ computerCapacity: openshell-docker
 computers:
   replicas: 2
   existingConfigMap: bioma-computers-configuration
-  configurationRevision: 0b5193965aed0408bf88836abac2e0bbfd3efdd427f2871d0d1042db9a8d521e
+  configurationRevision: 49aff135964a5d27655649d906ead8e66535614adfa6f7bf4aa3a4927609f3aa
   existingTrustSecret: bioma-computers-worker-trust
   host:
     existingConfigMap: bioma-computer-host-configuration

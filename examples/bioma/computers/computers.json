@@ -147,6 +147,15 @@
         "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32"
       ]
     },
-    "maintenanceTransitions": []
+    "maintenanceTransitions": [
+      {
+        "sourceFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
+        "targetFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32"
+      },
+      {
+        "sourceFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
+        "targetFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+      }
+    ]
   }
 }

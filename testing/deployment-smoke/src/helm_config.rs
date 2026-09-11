@@ -376,7 +376,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "name: reason-mcp",
         "--expected-control-plane",
         "/etc/veoveo/gateway/gateway.json",
-        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,datasheet,uav-sim\"",
+        "value: \"computers,artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,datasheet,uav-sim\"",
         "checksum/reason-runtime:",
     ] {
         contains(&bioma, expected)?;
