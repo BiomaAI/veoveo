@@ -3,7 +3,10 @@ mod execution;
 use execution::ExecutionConfiguration;
 pub(crate) use execution::PreparedExecution;
 
-use crate::{ApplicationError, NamedTemplate, RetainedHomes, Templates};
+use crate::{
+    ApplicationError, MaintenanceProfiles, MaintenanceTransition, NamedTemplate, RetainedHomes,
+    Templates,
+};
 use serde::Deserialize;
 use std::{
     net::SocketAddr,
@@ -39,6 +42,8 @@ pub enum ConfigurationError {
         "Computers requires 1 to 64 distinct admitted templates and an admitted defaultTemplate fingerprint"
     )]
     Templates,
+    #[error("Computer maintenance requires distinct admitted and compatible source/target pairs")]
+    Maintenance,
     #[error(
         "Computer execution requires valid policy, Artifact endpoint and qualified default template"
     )]
@@ -82,6 +87,7 @@ enum Capacity {
         templates: Vec<Template>,
         default_template: String,
         execution: Box<ExecutionConfiguration>,
+        maintenance_transitions: Vec<MaintenanceTransition>,
     },
 }
 #[derive(Clone, Deserialize)]
@@ -139,6 +145,7 @@ pub(crate) struct PreparedProvider {
     pub homes: RetainedHomes,
     pub limits: CapacityPolicy,
     pub execution: PreparedExecution,
+    pub maintenance: MaintenanceProfiles,
 }
 impl Configuration {
     pub async fn load(path: &Path) -> Result<Self> {
@@ -209,6 +216,7 @@ impl Configuration {
                 templates,
                 default_template,
                 execution,
+                maintenance_transitions,
             } => {
                 if templates.is_empty() || templates.len() > 64 {
                     return Err(ConfigurationError::Templates);
@@ -238,6 +246,9 @@ impl Configuration {
                 }
                 let templates = Templates::new(admitted, Some(default_template))
                     .map_err(|_| ConfigurationError::Templates)?;
+                let maintenance =
+                    MaintenanceProfiles::new(templates.runtimes(), maintenance_transitions)
+                        .map_err(|_| ConfigurationError::Maintenance)?;
                 let execution = execution.prepare(&templates).await?;
                 gateway
                     .config(self.provider_instance_id)
@@ -263,6 +274,7 @@ impl Configuration {
                         homes,
                         limits,
                         execution,
+                        maintenance,
                     }),
                 )
             }

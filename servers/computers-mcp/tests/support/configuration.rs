@@ -67,6 +67,7 @@ impl Files {
             "keys":[{"id":Uuid::from_u128(1),"file":self.0.join("command.key")}],
             "templateFingerprints":[template.fingerprint()]
         });
+        config["capacity"]["maintenanceTransitions"] = json!([]);
         config
     }
 }

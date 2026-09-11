@@ -180,7 +180,8 @@ ordinary service restarts. Explicit `capacity: {"kind":"unconfigured"}` keeps th
 core collection available with Setup Required. It creates no capacity policy.
 
 The qualified local variant uses `kind: "openshell_docker"`. Its fields are `gateway`,
-`allocator`, `limits`, `templates`, `defaultTemplate` and `execution`. Gateway contains `workspace`
+`allocator`, `limits`, `templates`, `defaultTemplate`, `execution` and
+`maintenanceTransitions`. Gateway contains `workspace`
 and `transport`; allocator is itself a transport. Each transport provides `endpoint`
 as a private host:port plus absolute `caFile`, `certificateFile` and `keyFile` paths.
 Provider and allocator trust are separate installation inputs. No credential belongs
@@ -201,6 +202,14 @@ compare-and-set transition. Artifact uses a private HTTP(S) origin without crede
 query or path. The default template must be in the distinct execution-qualified set;
 retained templates without the framed launcher remain admitted for their other actions.
 
+`maintenanceTransitions` declares at most 256 distinct directed pairs of
+`sourceFingerprint` and `targetFingerprint`. Both endpoints must name admitted
+retained templates with compatible resource, home, command and static policy profiles.
+Only the image may differ. The empty list admits no new environment update. This
+installation declaration records a separately tested transition; execution qualification
+alone does not establish retained data compatibility. Bioma keeps the list empty until
+its exact old-to-new image transition passes the native retained-home qualification.
+
 Each key has a non-nil `id` and an absolute `file` reference. Accept one to four
 32-byte regular files, with no access for other users or group writers. Kubernetes
 may grant read access through the worker fsGroup. The active key must be present.
@@ -211,7 +220,7 @@ under the retention policy. Never remove keys while pending Tasks still need the
 Installation-owned encrypted backup includes these keys alongside the encrypted store.
 
 This private configuration is a coordinated v2 hard cut. Drain v1 workers, apply
-migrations through 0068, provision command keys, and start v2 workers with the matching
+migrations through 0070, provision command keys, and start v2 workers with the matching
 configuration. A changed default also requires the compute host to admit that exact
 template through its qualified retained-maintenance procedure. A service rollout alone
 does not upgrade a retained Computer. Downgrade must drain command admission and
@@ -235,7 +244,9 @@ installation owner to supply the previous policy to the domain's explicit transi
 a stale replica cannot restore its former limits. Binding or configuration failure
 never starts a worker.
 
-The process connects to the qualified native provider in the background. Readiness is
+The process connects to the qualified native provider in the background and supervises
+lifecycle, command and maintenance schedulers together. A scheduler exit withdraws
+compute availability and cancels its peers before reconnecting. Readiness is
 observed every five seconds and expires through the shared availability projection.
 Allocator readiness checks each admitted template with at most eight concurrent calls.
 These are readiness probes; lifecycle completion retains its operation-correlated watch
