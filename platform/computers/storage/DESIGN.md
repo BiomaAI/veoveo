@@ -233,6 +233,11 @@ attempted abandonment of a removed but previously claimed writer remain denied.
 
 ## Filesystem Backend And Native Evidence
 
+The shared service fixture accepts a catalog of exact retained templates. Its allocator
+configuration and worker clients derive each capacity from that template, including an
+installation's larger home. The empty catalog retains the synthetic 512 MiB storage
+fault profile. Template qualification cannot silently substitute that smaller profile.
+
 `filesystem` requires root, a persistent ext-family host volume and a free-space
 reserve. The native profile uses ext4; volatile, overlay and remote roots are rejected.
 A new reservation creates its

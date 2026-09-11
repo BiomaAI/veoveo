@@ -8,6 +8,9 @@ pub struct NamedTemplate {
     pub(crate) runtime: DevelopmentTemplate,
 }
 impl NamedTemplate {
+    pub fn runtime(&self) -> &DevelopmentTemplate {
+        &self.runtime
+    }
     pub fn new(id: String, runtime: DevelopmentTemplate) -> Result<Self, crate::ApplicationError> {
         if id.is_empty()
             || id.len() > 64
@@ -66,7 +69,7 @@ impl Templates {
     pub(crate) fn default(&self) -> Option<&NamedTemplate> {
         self.default.as_ref().and_then(|d| self.admitted.get(d))
     }
-    pub(crate) fn select(&self, id: Option<&str>) -> Option<&NamedTemplate> {
+    pub fn select(&self, id: Option<&str>) -> Option<&NamedTemplate> {
         match id {
             Some(id) => self.admitted.values().find(|template| template.id == id),
             None => self.default(),

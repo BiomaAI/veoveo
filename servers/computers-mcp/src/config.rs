@@ -1,7 +1,9 @@
 //! Installation inputs contain references to trust material, never credentials.
 mod execution;
+mod templates;
 use execution::ExecutionConfiguration;
 pub(crate) use execution::PreparedExecution;
+use templates::Template;
 
 use crate::{
     ApplicationError, MaintenanceProfiles, MaintenanceTransition, NamedTemplate, RetainedHomes,
@@ -16,10 +18,7 @@ use std::{
 use uuid::Uuid;
 use veoveo_computers::CapacityPolicy;
 use veoveo_computers::session_grants::SessionGrantPolicy;
-use veoveo_computers_runtime::{
-    AllocationConfig, DevelopmentTemplate, GatewayConfig, PERSISTENT_COMMAND, PersistentHome,
-    parse_policy,
-};
+use veoveo_computers_runtime::{AllocationConfig, GatewayConfig};
 
 type Result<T> = std::result::Result<T, ConfigurationError>;
 #[derive(Debug, thiserror::Error)]
@@ -117,20 +116,6 @@ impl Gateway {
         .map_err(|_| ApplicationError::Configuration)
     }
 }
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct Template {
-    id: String,
-    fingerprint: String,
-    image: String,
-    cpus: u32,
-    memory_mib: u32,
-    home_capacity_mib: u32,
-    temporary_mib: u32,
-    // Private provider policy uses its generated protobuf JSON mapping. The
-    // runtime enforces the selected retained containment profile after parsing.
-    policy: serde_json::Value,
-}
 pub struct PreparedConfiguration {
     pub(crate) listen: SocketAddr,
     pub(crate) allowed_hosts: Vec<String>,
@@ -148,6 +133,20 @@ pub(crate) struct PreparedProvider {
     pub maintenance: MaintenanceProfiles,
 }
 impl Configuration {
+    /// Inspect and validate exact template inputs without opening installation
+    /// keys or contacting services. This does not establish operational capacity.
+    pub fn template_catalog(&self) -> Result<Templates> {
+        match &self.capacity {
+            Capacity::Unconfigured => {
+                Templates::new(vec![], None).map_err(|_| ConfigurationError::Templates)
+            }
+            Capacity::OpenshellDocker {
+                templates,
+                default_template,
+                ..
+            } => templates::catalog(templates, default_template),
+        }
+    }
     pub async fn load(path: &Path) -> Result<Self> {
         tokio::time::timeout(Duration::from_secs(10), Self::read(path))
             .await
@@ -218,34 +217,7 @@ impl Configuration {
                 execution,
                 maintenance_transitions,
             } => {
-                if templates.is_empty() || templates.len() > 64 {
-                    return Err(ConfigurationError::Templates);
-                }
-                let mut admitted = Vec::with_capacity(templates.len());
-                for (index, t) in templates.into_iter().enumerate() {
-                    let runtime = DevelopmentTemplate::new(
-                        t.image,
-                        t.cpus,
-                        t.memory_mib,
-                        parse_policy(&t.policy)
-                            .map_err(|_| ConfigurationError::Template { index })?,
-                        PERSISTENT_COMMAND.map(str::to_owned).into(),
-                        Some(
-                            PersistentHome::new(t.home_capacity_mib, t.temporary_mib)
-                                .map_err(|_| ConfigurationError::Template { index })?,
-                        ),
-                    )
-                    .map_err(|_| ConfigurationError::Template { index })?;
-                    if runtime.fingerprint() != t.fingerprint {
-                        return Err(ConfigurationError::Template { index });
-                    }
-                    admitted.push(
-                        NamedTemplate::new(t.id, runtime)
-                            .map_err(|_| ConfigurationError::Template { index })?,
-                    );
-                }
-                let templates = Templates::new(admitted, Some(default_template))
-                    .map_err(|_| ConfigurationError::Templates)?;
+                let templates = templates::catalog(&templates, &default_template)?;
                 let maintenance =
                     MaintenanceProfiles::new(templates.runtimes(), maintenance_transitions)
                         .map_err(|_| ConfigurationError::Maintenance)?;

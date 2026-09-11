@@ -195,7 +195,9 @@ policy capture, retirement, allocator handoff and replacement creation. Existing
 command-marker bytes must survive. Policy restoration and final verification recover
 the private checkpoint from the real store after the source has been deleted. Provider
 update recovery uses the read-only entrypoint. The fixture's admitted transition uses
-the same image on a fresh instance; different-image and installed adoption remain work.
+the same image on a fresh instance. The service's `native_maintenance` fixture adds
+explicit installation-template image upgrade, recovery and reverse replacement.
+Installed adoption retains its own acceptance requirement.
 
 Healthy lifecycle observation uses native WatchSandbox. `wait_for_lifecycle` takes
 the persisted checkpoint, the checked dispatch response and a remaining budget.
@@ -321,6 +323,16 @@ The runtime is adapted independently against Veoveo main; provider patches retai
 their original upstream base and declared branch/tree identities.
 
 ## Native Fixture
+
+The retained native fixtures can enroll several digest-pinned images in their private
+Docker daemon. A temporary bounded relay serves bytes from the owned localhost:5001
+registry under each selected image's exact DNS name and unprivileged port. The alias
+and insecure-registry setting exist only inside the disposable daemon. The relay
+container runs the already cached helper image by ID. No installed Docker configuration
+changes and no external registry credentials cross this fixture boundary.
+Cold private-daemon container creation has an explicit sixty-second setup allowance.
+It logs its duration and names its owned container if the reply is lost; it never
+resends Create. This setup allowance does not extend provider operation budgets.
 
 `tests/native_lifecycle.rs` starts the exact patched gateway and supervisor against
 an isolated Docker namespace. It generates mTLS credentials and a separate Ed25519

@@ -9,6 +9,36 @@ use tokio::{
 };
 
 pub const CHILD_ENV: &str = "VEOVEO_STORAGE_REGISTRY_PROXY";
+const PORT_ENV: &str = "VEOVEO_STORAGE_REGISTRY_PORT";
+
+/// The owned local registry supplies exact published bytes. An enrolled alias is
+/// resolved only inside the disposable daemon, preserving the tested image URI.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Registry {
+    pub authority: String,
+    pub host: String,
+    pub port: u16,
+}
+impl Registry {
+    pub fn for_image(image: &str) -> Self {
+        let (authority, path) = image.split_once('/').expect("explicit image registry");
+        let (_, digest) = path
+            .split_once("@sha256:")
+            .expect("digest-pinned fixture image");
+        assert!(digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit()));
+        let url = reqwest::Url::parse(&format!("http://{authority}"))
+            .expect("fixture registry authority");
+        let host = url.host_str().expect("registry host").to_owned();
+        let port = url.port().expect("explicit unprivileged registry port");
+        assert!(port >= 1024 && !host.contains(':'));
+        assert_eq!(authority, format!("{host}:{port}"));
+        Self {
+            authority: authority.into(),
+            host,
+            port,
+        }
+    }
+}
 async fn pipe(a: impl AsyncRead + AsyncWrite + Unpin, b: impl AsyncRead + AsyncWrite + Unpin) {
     let mut a = a;
     let mut b = b;
@@ -20,7 +50,12 @@ async fn pipe(a: impl AsyncRead + AsyncWrite + Unpin, b: impl AsyncRead + AsyncW
 }
 #[allow(dead_code)] // Only the provider fixture reexecutes this entrypoint.
 pub async fn child() -> std::io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:5001").await?;
+    let port: u16 = std::env::var(PORT_ENV)
+        .expect("enrolled relay port")
+        .parse()
+        .expect("port");
+    assert!(port >= 1024);
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
     let slots = Arc::new(Semaphore::new(16));
     let mut sessions = tokio::task::JoinSet::new();
     loop {
@@ -54,7 +89,11 @@ impl Drop for Relay {
     }
 }
 pub async fn pull(daemon: &DockerDaemon, image: &str, test_name: &'static str) {
-    assert!(image.starts_with("localhost:5001/") && image.contains("@sha256:"));
+    let registry = Registry::for_image(image);
+    assert!(
+        daemon.registries.contains(&registry),
+        "registry must be enrolled before daemon startup"
+    );
     let socket = daemon.root.join("run/registry.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600)).unwrap();
@@ -121,9 +160,11 @@ pub async fn pull(daemon: &DockerDaemon, image: &str, test_name: &'static str) {
             .args([
                 "--env",
                 &format!("{CHILD_ENV}=1"),
+                "--env",
+                &format!("{PORT_ENV}={}", registry.port),
                 "--entrypoint",
                 "/registry-relay",
-                image,
+                &daemon.image_id,
                 "--exact",
                 test_name,
                 "--ignored",
@@ -142,7 +183,7 @@ pub async fn pull(daemon: &DockerDaemon, image: &str, test_name: &'static str) {
             "-q",
             "-O",
             "/dev/null",
-            "http://127.0.0.1:5001/v2/",
+            &format!("http://127.0.0.1:{}/v2/", registry.port),
         ]))
         .await;
         if ready.status.success() {

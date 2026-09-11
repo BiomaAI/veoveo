@@ -107,8 +107,8 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     support::policy::install_default(&db.a).await;
     let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE").expect("pinned Computer image");
     let selected = template::retained_template(image);
-    let home = native_service_support::Fixture::start_with_template(
-        Some(selected.clone()),
+    let home = native_service_support::Fixture::start_with_templates(
+        vec![selected.clone()],
         "worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_fenced",
     )
     .await;

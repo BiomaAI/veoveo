@@ -589,3 +589,26 @@ Task lease. The production journal drives Stop, protected Capture, Retire, Trans
 Create and Restore. The target loads the captured grant from the database checkpoint,
 and retained command markers remain intact. This qualifies the worker's private
 composition; public update requests and installed template transitions remain separate.
+
+`tests/native_maintenance.rs` qualifies a directed image pair from an installation's
+canonical configuration. `Configuration::template_catalog` shares executable template
+validation without opening trust files. The fixture preserves image URIs, fingerprints,
+resource limits and retained-home capacity. Set `VEOVEO_COMPUTERS_TRANSITION_CONFIG`,
+`VEOVEO_COMPUTERS_TRANSITION_SOURCE` and `VEOVEO_COMPUTERS_TRANSITION_TARGET` alongside
+the existing native binary/image variables. The selected images must be published in
+the owned local registry. Run `cargo test -p veoveo-computers-mcp --test
+native_maintenance -- --ignored --nocapture` through the evidence recorder.
+
+The scenario creates a real source through LifecycleWorker and upgrades through two
+continuous MaintenanceWorkers. It discards the original Stop response and injects an
+exhausted recovery pause before explicit resumption. The original dispatch identity
+must survive; recovery charges a read before continuing. Domain tests separately
+qualify the eight-read limit. Rollback uses a fresh instance with the current worker
+and schema. Both directions require retained marker bytes, protected policy restoration,
+source writer exclusion and unchanged quota accounting. This isolated qualification
+does not establish installed ingress or authorize obsolete worker/schema rollback.
+The same owned fixture also prepares an unclaimed home and loses the initial Create
+submission before delivery. It advances that fixture's observation deadline, then
+requires the production worker to obtain allocator Abandon before creating the
+replacement. The original Create remains Recovery Required with its dispatch identity.
+The old allocator binding stays excluded and both retained homes remain quota-charged.

@@ -154,8 +154,8 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     let db = support::TestDb::new().await;
     support::policy::install(&db.a, support::automation::control()).await;
     let selected = template::retained_template(image);
-    let home = native_service_support::Fixture::start_with_template(
-        Some(selected.clone()),
+    let home = native_service_support::Fixture::start_with_templates(
+        vec![selected.clone()],
         "governed_command_worker_publishes_real_outputs_and_contains_revoked_execution",
     )
     .await;
