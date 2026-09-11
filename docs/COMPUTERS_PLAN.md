@@ -54,6 +54,8 @@ installation or full release-closure gates.
 | File environment update | Both owner Computers reached Ready on `development-20260911` through public maintenance Tasks; their earlier retained marker files remained readable as UID 10001 |
 | Agent file authority | A named `admin-service` grant exported the retained marker through public MCP Tasks and read its result. The other Computer denied that grant; revocation denied result reads and exact retries |
 | Uninterrupted CLI renewal and logout | Release 155 accepted fresh commands on the same stock CLI connection from 12:16:42 to 12:33:18 UTC. Console sign-out closed it; reconnect returned HTTP 403. Fresh SSO showed no access grants and the Computer remained Ready |
+| Agent discovery and lifecycle | The headed Console issued a Read/Start/Stop grant with no Execute scope. Public MCP discovered the Computer and completed Stop and Start. The browser terminal then verified UID 10001, the earlier marker and the binary's original SHA-256 |
+| Lifecycle retry and revocation | Release 157 returned the original public Task IDs for exact Stop and Start retries without repeating either effect. Revocation removed the Computer from agent discovery and denied exact reads and retries; the owner still read the completed operation receipt |
 
 The public long-session check was interrupted by database memory exhaustion during
 an audit-index migration. Its observed CLI lease activity exceeded ten minutes, but
@@ -69,8 +71,7 @@ at 12:33:27 UTC; connection closure was observed by 12:33:57.790. This sampled
 31-second upper bound does not measure exact closure latency. A new connection at
 12:34:12 returned HTTP 403, and fresh SSO showed the Computer still Ready.
 
-The remaining initial-release work includes agent lifecycle permissions,
-selected-profile backup/key ownership and restore
+The remaining initial-release work includes selected-profile backup/key ownership and restore
 acceptance, and clean/offline installation with complete release evidence. The
 current grant form requires the grantee's OAuth registration to admit the Console
 profile. Its new guidance identifies that profile; discovery of eligible clients
@@ -85,7 +86,7 @@ a local implementation checkpoint. Public MCP and HTTP now accept named lifecycl
 grants, and current Read grants participate in discovery, completion and live updates.
 The Console separates Read, Execute, Start and Stop, preserving the original grant
 across uncertain retries. The affected domain, HTTP/application and Console behavior
-checks pass. Deployment and installed lifecycle acceptance remain required.
+checks pass. The installed lifecycle observations below qualify this public path.
 Migration 0076 requires draining old Computers readers and lifecycle workers before
 applying the new schema and admitting named lifecycle operations.
 
@@ -96,7 +97,14 @@ and no Execute scope. Public MCP discovered the granted Computer, completed Stop
 and Start, and rejected both a different Computer and command execution. An exact
 Stop retry exposed an unconditional gateway route CREATE against an existing source
 Task mapping. The gateway correction preserves the original route and expiry; its
-concurrent real-store tests pass, while installed retry verification remains active.
+concurrent real-store tests pass. Release 157 returned Stop route
+`gtr_-Xvj2ceu2Da5KpsgD-O6Sly7EezVJqsChfUlz_2BRRw` and Start route
+`gtr_PxOMGaqEaQUh6kSaMVdCbhrbmOP3PcYq3nYO1k09vkI` on exact retries, matching
+their first admissions. Both Computers remained Ready. Revoking grant
+`01a090af-f954-7493-8536-a3da44b03a08` removed the agent's collection row and denied
+its exact Computer read and original Stop retry. The owner's Console operation read
+still returned the completed receipt. The browser terminal read the retained marker,
+UID 10001 and SHA-256 `e769cb00db4ef697c91c1851272c953e964f064a6d6bd326736d5c083b8d0fa7`.
 
 The installed file handoff uses source `0b127b5f98fad6376c9ee1d44de57fcb3718d438`
 with the coordinated host catalog at `dc8e6dd165785daffed8c3d8eeb033e508efc2c1`.
