@@ -7,6 +7,7 @@
 
 mod leases;
 mod mcp;
+mod provider_resume;
 mod provider_transaction;
 mod recovery;
 mod runtime;

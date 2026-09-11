@@ -444,6 +444,9 @@ Computers admission and Task recovery reuse its isolated pinned database lifecyc
 
 ### `platform/task-runtime`
 
+`src/provider_resume.rs` joins an explicitly authorized domain recovery request to
+the exact shared observation lease and cancellation epoch in one transaction.
+
 | File | Responsibility |
 |---|---|
 | `types.rs` | runtime configuration, recovery classes, pins, claims, outcomes |

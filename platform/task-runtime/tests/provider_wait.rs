@@ -1,3 +1,5 @@
+#[path = "provider_wait/resume.rs"]
+mod resume;
 #[path = "../../../testing/fixtures/store.rs"]
 mod store;
 use std::{collections::BTreeSet, time::Duration};

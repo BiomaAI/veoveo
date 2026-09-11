@@ -22,6 +22,7 @@ the hosted server contract. Provider SDKs and resource-specific fences belong to
 the owning domain.
 `provider_transaction` composes a domain journal write with the exact shared
 observation-lease receipt in the same database transaction.
+`provider_resume` composes explicit domain recovery with a Task status transition.
 
 ## Provider Observation
 
@@ -62,6 +63,19 @@ The domain body must compare its own operation stage and resource fence atomical
 This helper alone cannot establish single dispatch. It never retries a transaction:
 a lost database reply preserves uncertainty and cannot authorize a provider effect.
 Task model SQL stays in this runtime; the domain supplies only its own journal writes.
+
+`resume_provider_journal` requires the exact current lease, Task status and update
+timestamp. Its domain body must authorize a durable idempotent recovery request and
+compare the paused operation epoch. A pending cancellation requires acknowledgement
+of its exact timestamp. The transaction preserves that timestamp as history, changes
+the Task to Waiting and emits `task.recovery_resumed` with the domain journal commit.
+A cancellation committed after the read rejects the transaction. A later cancellation
+records new pending intent and again prevents dispatch. Ordinary Task transitions
+cannot withdraw cancellation. Resumption never supplies a provider mutation ticket.
+
+The helper changes no stored enum or request shape. Existing recovery profiles cannot
+use it. Domain adoption must qualify finite observation windows, immutable dispatch
+history and request retry semantics before exposing an operator action.
 
 Existing classes keep their behavior. Deterministic Resume work can be reclaimed,
 WebhookWait work stays on its qualified webhook path, and interrupted indeterminate
