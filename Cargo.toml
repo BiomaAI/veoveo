@@ -126,7 +126,7 @@ rig = { git = "https://github.com/rozgo/rig.git", rev = "eefffb118579cd4b1a48f8d
 prost = "=0.14.4"
 re_dataframe = "=0.36.3"
 re_chunk = "=0.36.3"
-re_chunk_store = "=0.36.3"
+re_chunk_store = "=0.37.1"
 re_entity_db = "=0.36.3"
 rcgen = "0.14.9"
 re_sdk = "=0.36.3"
