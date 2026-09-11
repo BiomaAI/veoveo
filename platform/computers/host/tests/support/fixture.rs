@@ -41,6 +41,7 @@ pub struct Fixture {
     pub endpoint: String,
     storage_endpoint: String,
     image: String,
+    replacement_image: String,
     name: String,
     bridge: (String, String),
     generation: u8,
@@ -56,6 +57,18 @@ impl Fixture {
             image.starts_with("sha256:") && image.len() == 71,
             "immutable host image identity"
         );
+        let replacement = std::env::var("VEOVEO_COMPUTERS_HOST_REPLACEMENT_IMAGE")
+            .context("replacement compute host image")?;
+        let replacement_image =
+            checked(host().args(["image", "inspect", &replacement, "--format", "{{.Id}}"])).await?;
+        ensure!(
+            replacement_image.starts_with("sha256:") && replacement_image.len() == 71,
+            "immutable replacement host image identity"
+        );
+        ensure!(
+            replacement_image != image,
+            "host upgrade must change image identity"
+        );
         let provider = Uuid::now_v7();
         let name = format!("veoveo-host-probe-{}", provider.simple());
         let dir = PathBuf::from(
@@ -64,12 +77,35 @@ impl Fixture {
         .join(&name);
         fs::create_dir(&dir)?;
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Inputs<'a> {
+            source_host_image_id: &'a str,
+            target_host_image_id: &'a str,
+            template_image: &'a str,
+            template_fingerprint: String,
+            home_capacity_bytes: u64,
+        }
+        // Preserve the public input tuple after owned trust/data cleanup. The
+        // image's registry must be reachable from the private bridge namespace;
+        // the host's loopback publication port is not a bridge endpoint.
+        fs::write(
+            dir.join("inputs.json"),
+            serde_json::to_vec_pretty(&Inputs {
+                source_host_image_id: &image,
+                target_host_image_id: &replacement_image,
+                template_image: computer_image,
+                template_fingerprint: template.fingerprint(),
+                home_capacity_bytes: 536870912,
+            })?,
+        )?;
         let mut fixture = Self {
             dir,
             provider,
             endpoint: String::new(),
             storage_endpoint: String::new(),
             image,
+            replacement_image,
             name,
             bridge: bridge(),
             generation: 0,
@@ -191,7 +227,8 @@ impl Fixture {
                 checked(host().args(["inspect", "--format", "{{.State.Running}}", &self.name]))
                     .await?
                     == "true",
-                "compute host exited; see diagnostics"
+                "compute host exited; declared inputs and diagnostics at {}",
+                self.dir.display()
             );
             ensure!(
                 tokio::time::Instant::now() < deadline,
@@ -302,11 +339,35 @@ impl Fixture {
         }
     }
     pub async fn replace(&mut self) -> Result<()> {
+        let source = self.image.clone();
+        let started = std::time::Instant::now();
         checked(host().args(["stop", "--time", "40", &self.name])).await?;
         self.logs();
         checked(host().args(["rm", &self.name])).await?;
         self.generation += 1;
-        self.launch().await
+        self.image = self.replacement_image.clone();
+        self.launch().await?;
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Upgrade<'a> {
+            source_image_id: &'a str,
+            target_image_id: &'a str,
+            elapsed_millis: u128,
+        }
+        let evidence = Upgrade {
+            source_image_id: &source,
+            target_image_id: &self.image,
+            elapsed_millis: started.elapsed().as_millis(),
+        };
+        fs::write(
+            self.dir.join("host-upgrade.json"),
+            serde_json::to_vec_pretty(&evidence)?,
+        )?;
+        eprintln!(
+            "Native host image upgrade: {} ms",
+            started.elapsed().as_millis()
+        );
+        Ok(())
     }
     fn cleanup(&self) -> bool {
         self.logs();
