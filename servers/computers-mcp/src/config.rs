@@ -26,7 +26,7 @@ pub enum ConfigurationError {
     #[error("Computers config must be a readable regular JSON file of at most 1 MiB")]
     Document,
     #[error(
-        "Computers config does not match veoveo.io/computers-service/v2 at line {line}, column {column}"
+        "Computers config does not match veoveo.io/computers-service/v3 at line {line}, column {column}"
     )]
     Shape { line: usize, column: usize },
     #[error("Computers requires a non-nil providerInstanceId and a nonzero listen port")]
@@ -60,8 +60,8 @@ pub enum ConfigurationError {
 }
 #[derive(Deserialize)]
 pub enum ConfigSchema {
-    #[serde(rename = "veoveo.io/computers-service/v2")]
-    V2,
+    #[serde(rename = "veoveo.io/computers-service/v3")]
+    V3,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -185,7 +185,7 @@ impl Configuration {
             .map_err(|_| ConfigurationError::TimedOut)?
     }
     async fn prepare_inner(self) -> Result<PreparedConfiguration> {
-        let ConfigSchema::V2 = self.schema;
+        let ConfigSchema::V3 = self.schema;
         if self.provider_instance_id.is_nil() || self.listen.port() == 0 {
             return Err(ConfigurationError::Identity);
         }

@@ -63,6 +63,11 @@ pub async fn serve(
             provider.execution.artifacts.clone(),
             provider.execution.templates.clone(),
         )?;
+        app = app.with_files(
+            provider.execution.keys.clone(),
+            provider.execution.artifacts.clone(),
+            provider.execution.file_templates.clone(),
+        )?;
     }
     let app = Arc::new(app);
     let router = super::router(

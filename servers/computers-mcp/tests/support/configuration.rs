@@ -65,7 +65,7 @@ impl Files {
             "policy": {"maxGrants":2,"maximumLifetimeSeconds":3600,"maximumExecutionSeconds":60,"maximumOutputBytes":65536},
             "artifactEndpoint":"http://127.0.0.1:1", "activeKeyId":Uuid::from_u128(1),
             "keys":[{"id":Uuid::from_u128(1),"file":self.0.join("command.key")}],
-            "templateFingerprints":[template.fingerprint()]
+            "templateFingerprints":[template.fingerprint()], "fileTemplateFingerprints":[template.fingerprint()]
         });
         config["capacity"]["maintenanceTransitions"] = json!([]);
         config
@@ -77,5 +77,5 @@ impl Drop for Files {
     }
 }
 pub fn unconfigured(address: SocketAddr) -> Value {
-    json!({"schema":"veoveo.io/computers-service/v2","listen":address,"allowedHosts":[address.to_string()],"allowedOrigins":[format!("http://{address}")],"access":{"maxGrants":4,"absoluteSeconds":28800,"idleSeconds":1800},"providerInstanceId":Uuid::from_u128(100),"capacity":{"kind":"unconfigured"}})
+    json!({"schema":"veoveo.io/computers-service/v3","listen":address,"allowedHosts":[address.to_string()],"allowedOrigins":[format!("http://{address}")],"access":{"maxGrants":4,"absoluteSeconds":28800,"idleSeconds":1800},"providerInstanceId":Uuid::from_u128(100),"capacity":{"kind":"unconfigured"}})
 }

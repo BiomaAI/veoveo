@@ -133,3 +133,9 @@ field clears. A newer cancellation produces a new timestamp.
 request and completion times. It carries no path or capability. A Completed stage can
 precede Task projection; consumers wait for its result before offering the Artifact.
 `FileTransferResultUri` accepts only the exact canonical UUIDv7 resource address.
+
+`ComputerView.activeExecution` names the current command or file Task independently
+of `activeTaskId`, which retains the lifecycle/maintenance operation. Busy includes
+both fences. `canTransferFiles` reflects current direct-owner eligibility, the Ready
+phase, available capacity and an installation-qualified template. A held execution
+slot disables Start after Stop; it does not remove the owner's Stop action while Ready.

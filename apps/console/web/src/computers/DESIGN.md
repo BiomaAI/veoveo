@@ -142,3 +142,35 @@ Known responses remain known when local storage fails. Submission errors refresh
 current receipt without silently changing saved consent. Task cancellation invalidations
 reach the collection feed, including while a worker is paused. Node behavior checks and
 the web build do not establish headed hardware rendering or installed public acceptance.
+
+## Regular Files
+
+`FilesPanel.tsx` imports a selected Artifact into a retained-relative destination or
+exports a regular file to an Artifact download. Its first profile accepts at most
+64 MiB per file. Parent folders already exist, imports never overwrite, and archives
+remain opaque files. Exported bytes use the Artifact download boundary.
+
+The panel lists readable library entries and authenticated completed upload receipts.
+Users can enter a canonical Artifact reference when it is outside that catalog window.
+The shell's upload queue remains available under Work Context upload policy without
+installation inventory permission. A completed upload can be selected for import;
+file bytes never pass through Computer control routes.
+
+`fileRequest.ts` persists the exact input and UUIDv7 before admission in identity-scoped
+session storage. It rejects changed paths, source occurrences or limits on retries.
+A lost response keeps that intent available for repair. A confirmed receipt survives
+local storage failure, while late replies cannot recreate dismissed intent. These
+records contain metadata only; they hold no body, handle or credential.
+
+Status uses the shared domain Task. Collection events invalidate the file receipt;
+a two-second read of Veoveo's own Task closes the gap between domain settlement and
+Task projection. It stops after completion, a read error or Recovery Required. Browser
+background polling remains disabled. The UI does not query the provider. A completed
+stage waits for its verified result before offering download. Restored local state is
+identified as last confirmed until an authorized response refreshes it.
+
+The cancellation action explains that an active transfer may stop the Computer. Its
+receipt remains pending until the original run's outcome is confirmed. Another command
+or file keeps the Computer busy, and the public flags govern new admission. Owner Stop
+remains independent of that slot. All transfer references and errors use validated
+metadata; private retained paths remain absent from URLs.

@@ -1,5 +1,5 @@
 {
-  "schema": "veoveo.io/computers-service/v2",
+  "schema": "veoveo.io/computers-service/v3",
   "listen": "0.0.0.0:8804",
   "allowedHosts": [
     "computers-mcp:8804"
@@ -125,9 +125,54 @@
             "runAsGroup": "10001"
           }
         }
+      },
+      {
+        "id": "development-20260911",
+        "fingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
+        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5",
+        "cpus": 2,
+        "memoryMib": 2048,
+        "homeCapacityMib": 8192,
+        "temporaryMib": 256,
+        "policy": {
+          "version": 1,
+          "filesystem": {
+            "includeWorkdir": false,
+            "readOnly": [
+              "/usr",
+              "/lib",
+              "/lib64",
+              "/bin",
+              "/etc/passwd",
+              "/etc/group",
+              "/etc/profile",
+              "/etc/profile.d",
+              "/etc/bash.bashrc",
+              "/etc/nsswitch.conf",
+              "/etc/resolv.conf",
+              "/etc/ssl/certs",
+              "/proc",
+              "/sandbox"
+            ],
+            "readWrite": [
+              "/sandbox/persistent",
+              "/tmp",
+              "/dev/null",
+              "/dev/tty",
+              "/dev/pts"
+            ]
+          },
+          "landlock": {
+            "compatibility": "hard_requirement"
+          },
+          "process": {
+            "runAsUser": "10001",
+            "runAsGroup": "10001"
+          }
+        }
       }
     ],
-    "defaultTemplate": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
+    "defaultTemplate": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
     "execution": {
       "policy": {
         "maxGrants": 8,
@@ -144,7 +189,11 @@
         }
       ],
       "templateFingerprints": [
-        "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32"
+        "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
+        "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f"
+      ],
+      "fileTemplateFingerprints": [
+        "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f"
       ]
     },
     "maintenanceTransitions": [
@@ -155,6 +204,22 @@
       {
         "sourceFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
         "targetFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+      },
+      {
+        "sourceFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
+        "targetFingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f"
+      },
+      {
+        "sourceFingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
+        "targetFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+      },
+      {
+        "sourceFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
+        "targetFingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f"
+      },
+      {
+        "sourceFingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
+        "targetFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32"
       }
     ]
   }

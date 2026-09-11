@@ -95,6 +95,10 @@ impl ControlAuthority {
     pub fn allows_action(&self, action: Action) -> bool {
         self.require_action(action).is_ok()
     }
+    pub fn allows_file_transfer(&self) -> bool {
+        self.snapshot.accepted.actor.id == self.snapshot.accepted.request_context.principal.id
+            && self.require_call(&crate::files::target()).is_ok()
+    }
     /// Policy for the canonical collection or exact Computer resource; ownership
     /// and retained labels are independently enforced by the domain read.
     pub fn require_read(&self, computer: Option<Uuid>) -> Result<()> {

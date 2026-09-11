@@ -3619,3 +3619,21 @@ now creates its explicitly selected diagnostics root. The file fixture uses an a
 label and materializes the typed Work Context that the gateway supplies in an installation.
 The real-provider round trip then passed, including actual Artifact capabilities and
 lost-ticket containment. These setup corrections do not change installed authorization.
+
+### File Delivery Iteration Observations, 2026-09-11
+
+The public file checkpoint used scoped source receipts: 856 inputs for service HTTP,
+527 for gateway, and 284 for Console transport. Its final checks passed without building
+GPU workloads. Concurrent Cargo invocations still contended on package/build locks;
+run compilation checks sequentially and overlap only independent Node or read-only work.
+A duplicate included test module caused one Clippy retry and was removed at the fixture
+boundary. Full input manifests made this checkpoint's eleven immutable receipts account
+for most of its 76,083 added lines. Preserve receipt history; deduplicating identical
+manifests remains a measured follow-up rather than a file-delivery prerequisite.
+
+The existing template image was reused by digest. Calculating the new installation's
+canonical template fingerprint used the compiled runtime; its first standalone compile
+selected a mismatched serde_json artifact, and the third dependency variant matched.
+A supported template inspection command would remove that avoidable manual step. Native
+byte tests had already qualified the image before catalog admission. Host storage had
+189 GiB free during these checks, so disk pressure was not blocking this delivery.

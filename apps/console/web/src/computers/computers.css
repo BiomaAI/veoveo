@@ -44,3 +44,10 @@
 .computer-maintenance label { display: grid; gap: .4rem; }
 .computer-maintenance select { padding: .6rem; }
 .computer-maintenance code { overflow-wrap: anywhere; }
+.computer-files { margin-top: 1.5rem; }
+.computer-files fieldset { display: grid; gap: .8rem; margin-top: 1rem; padding: 1rem; border: 1px solid var(--border); min-width: 0; }
+.computer-files label { display: grid; gap: .4rem; }
+.computer-files input, .computer-files select { width: 100%; min-width: 0; padding: .6rem; }
+.computer-files fieldset p { margin: 0; }
+.computer-files code, .computer-files details p { overflow-wrap: anywhere; }
+.computer-files .computer-operation button, .computer-files .computer-operation a { margin-right: .5rem; margin-top: .5rem; }

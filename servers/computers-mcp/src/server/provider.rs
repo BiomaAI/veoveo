@@ -1,8 +1,8 @@
 //! Readiness observation is separate from the worker's operation-correlated
 //! completion profile. Reconnecting never resubmits an uncertain mutation.
 use crate::{
-    CapacityHealth, CommandWorker, LifecycleWorker, MaintenanceWorker, RuntimePublisher,
-    config::PreparedProvider,
+    CapacityHealth, CommandWorker, FileWorker, LifecycleWorker, MaintenanceWorker,
+    RuntimePublisher, config::PreparedProvider,
 };
 use std::{
     sync::Arc,
@@ -100,11 +100,26 @@ pub(super) async fn maintain(
                 return;
             }
         };
+        let files = match FileWorker::new(
+            store.clone(),
+            tasks.clone(),
+            runtime.clone(),
+            provider.execution.keys.clone(),
+            provider.execution.artifacts.clone(),
+            provider.execution.file_templates.clone(),
+        ) {
+            Ok(worker) => Arc::new(worker),
+            Err(_) => {
+                report(&health, CapacityAvailability::Maintenance);
+                return;
+            }
+        };
         let stop = shutdown.child_token();
         let _cancel_worker_on_drop = stop.clone().drop_guard();
         let job = tokio::spawn(worker.run(stop.clone()));
         let command_job = tokio::spawn(commands.run(stop.clone()));
         let maintenance_job = tokio::spawn(maintenance.run(stop.clone()));
+        let file_job = tokio::spawn(files.run(stop.clone()));
         let mut probes = tokio::time::interval(Duration::from_secs(5));
         probes.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -117,7 +132,7 @@ pub(super) async fn maintain(
                         tokio::time::timeout(Duration::from_secs(5), provider.homes.ready()),
                     );
                     let compute = matches!(compute, Ok(Ok(()))) && !job.is_finished()
-                        && !command_job.is_finished() && !maintenance_job.is_finished();
+                        && !command_job.is_finished() && !maintenance_job.is_finished() && !file_job.is_finished();
                     if compute { access.available(runtime.clone()); } else { access.unavailable(); }
                     report(&health, if !compute {CapacityAvailability::ComputeUnavailable}
                         else if matches!(storage, Ok(Ok(()))) {CapacityAvailability::Available}
@@ -137,6 +152,7 @@ pub(super) async fn maintain(
             finish_worker(job),
             finish_worker(command_job),
             finish_worker(maintenance_job),
+            finish_worker(file_job),
         );
         if shutdown.is_cancelled() {
             return;

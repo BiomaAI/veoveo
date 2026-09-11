@@ -20,6 +20,7 @@ pub(super) struct ExecutionConfiguration {
     active_key_id: Uuid,
     keys: Vec<KeyFile>,
     template_fingerprints: Vec<String>,
+    file_template_fingerprints: Vec<String>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -33,6 +34,7 @@ pub(crate) struct PreparedExecution {
     pub keys: Arc<ComputerKeyRing>,
     pub artifacts: HttpArtifactPlane,
     pub templates: BTreeSet<String>,
+    pub file_templates: BTreeSet<String>,
 }
 impl ExecutionConfiguration {
     pub async fn prepare(self, templates: &Templates) -> Result<PreparedExecution> {
@@ -53,6 +55,8 @@ impl ExecutionConfiguration {
             return Err(ConfigurationError::Execution);
         }
         let fingerprints: BTreeSet<_> = self.template_fingerprints.iter().cloned().collect();
+        let file_fingerprints: BTreeSet<_> =
+            self.file_template_fingerprints.iter().cloned().collect();
         let admitted: BTreeSet<_> = templates
             .runtimes()
             .iter()
@@ -66,6 +70,13 @@ impl ExecutionConfiguration {
                 .default()
                 .is_none_or(|t| !fingerprints.contains(&t.runtime.fingerprint()))
             || !(1..=4).contains(&self.keys.len())
+            || file_fingerprints.is_empty()
+            || file_fingerprints.len() > 64
+            || file_fingerprints.len() != self.file_template_fingerprints.len()
+            || !file_fingerprints.is_subset(&fingerprints)
+            || templates
+                .default()
+                .is_none_or(|t| !file_fingerprints.contains(&t.runtime.fingerprint()))
         {
             return Err(ConfigurationError::Execution);
         }
@@ -115,6 +126,7 @@ impl ExecutionConfiguration {
             keys: Arc::new(keys),
             artifacts: HttpArtifactPlane::new(endpoint.as_str().trim_end_matches('/')),
             templates: fingerprints,
+            file_templates: file_fingerprints,
         })
     }
 }

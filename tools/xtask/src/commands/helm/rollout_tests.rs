@@ -133,7 +133,7 @@ fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
         .unwrap();
     let configuration: Value =
         serde_json::from_str(document["data"]["computers.json"].as_str().unwrap()).unwrap();
-    assert_eq!(configuration["schema"], "veoveo.io/computers-service/v2");
+    assert_eq!(configuration["schema"], "veoveo.io/computers-service/v3");
     assert_eq!(configuration["capacity"]["kind"], "unconfigured");
     let denied = Command::new("helm")
         .args(["template", "computers"])

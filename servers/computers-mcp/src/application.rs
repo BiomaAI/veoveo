@@ -115,10 +115,14 @@ impl Application {
             Err(e) => return Err(e.into()),
         };
         let access = self.browser_access(&authority).await?;
+        let active = self
+            .store
+            .active_executions(actor.owner(), &page.computers)
+            .await?;
         let computers = page
             .computers
             .iter()
-            .map(|c| self.view(c, &authority, access))
+            .map(|c| self.view(c, &authority, access, active.get(&c.computer_id).copied()))
             .collect();
         authority.require_read(None)?;
         Ok(ComputerSnapshot {
@@ -142,8 +146,12 @@ impl Application {
         authority.require_read(Some(id))?;
         let computer = self.store.get(actor.owner(), id).await?;
         let access = self.browser_access(&authority).await?;
+        let active = self
+            .store
+            .active_executions(actor.owner(), std::slice::from_ref(&computer))
+            .await?;
         authority.require_read(Some(id))?;
-        Ok(self.view(&computer, &authority, access))
+        Ok(self.view(&computer, &authority, access, active.get(&id).copied()))
     }
     pub async fn operation(
         &self,
@@ -192,6 +200,7 @@ impl Application {
         computer: &Computer,
         authority: &ControlAuthority,
         access: bool,
+        execution: Option<ComputerExecution>,
     ) -> ComputerView {
         let unfenced = computer.active_operation.is_none();
         let template = computer.provider_instance_id == self.store.provider_instance_id()
@@ -203,9 +212,11 @@ impl Application {
             computer_id: computer.computer_id,
             template_id: computer.template_id.clone(),
             phase: computer.phase,
-            busy: !unfenced,
+            busy: !unfenced || execution.is_some(),
             can_create: computer.phase == ComputerPhase::Reserved && admitted(Action::Create),
-            can_start: computer.phase == ComputerPhase::Stopped && admitted(Action::Start),
+            can_start: computer.phase == ComputerPhase::Stopped
+                && execution.is_none()
+                && admitted(Action::Start),
             can_stop: computer.phase == ComputerPhase::Ready && admitted(Action::Stop),
             // Deletion becomes actionable with retained purge.
             can_delete: false,
@@ -216,6 +227,17 @@ impl Application {
                 && self.runtime.current().is_ok()
                 && authority.require_attach(computer.computer_id).is_ok(),
             active_task_id: computer.active_operation,
+            can_transfer_files: execution.is_none()
+                && unfenced
+                && template
+                && computer.phase == ComputerPhase::Ready
+                && self.availability() == CapacityAvailability::Available
+                && self
+                    .files
+                    .as_ref()
+                    .is_some_and(|files| files.templates.contains(&computer.template_fingerprint))
+                && authority.allows_file_transfer(),
+            active_execution: execution,
             created_at: computer.created_at,
             updated_at: computer.updated_at,
         }

@@ -6,6 +6,9 @@ import { AccessPanel } from "./AccessPanel";
 import { AutomationPanel } from "./AutomationPanel";
 import { MaintenancePanel } from "./MaintenancePanel";
 import { CliConnect } from "./CliConnect";
+import { FilesPanel } from "./FilesPanel";
+import type { ArtifactSummary } from "../types";
+import type { QueueState } from "../uploads/queue";
 import { lifecycle, readComputers, readOperation } from "./api";
 import { watchComputers } from "./events";
 import type { CapacityAvailability, ComputerPhase } from "../generated/computers";
@@ -35,9 +38,13 @@ const phases: Record<ComputerPhase, string> = {
 export function ComputersPage({
   scope,
   canReadInstallation,
+  artifacts, uploads, onUpload,
 }: {
   scope: string;
   canReadInstallation: boolean;
+  artifacts: ArtifactSummary[];
+  uploads: QueueState;
+  onUpload: () => void;
 }) {
   const [controller] = useState(
     () =>
@@ -226,6 +233,8 @@ export function ComputersPage({
                 canConnect={selected.canConnect}
               />
             </Suspense>
+            {snapshot && <FilesPanel key={`files:${selected.computerId}`} computer={selected}
+              scope={scope} snapshot={snapshot} stale={state.stale} artifacts={artifacts} uploads={uploads} onUpload={onUpload} />}
             {snapshot && <AccessPanel key={`access:${selected.computerId}`}
               computerId={selected.computerId} snapshot={snapshot} stale={state.stale} />}
             <CliConnect computerId={selected.computerId} canConnect={selected.canConnect} />

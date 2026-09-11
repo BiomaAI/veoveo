@@ -12,7 +12,7 @@
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
 | Stock OpenShell CLI `0.0.116`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five qualified SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
-| `veoveo.io/computers-service/v2` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
+| `veoveo.io/computers-service/v3` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
 | OCI Linux AMD64 | `computers-mcp` Bake target, shared Veoveo Rust compiler and digest-pinned Debian trixie runtime with signed archive snapshot `20260910T000000Z` |
 
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
@@ -239,8 +239,8 @@ pre-dispatch cancellation and lost-ticket containment after grant revocation. Th
 retained file survives Stop/Start and the lost import is not replayed. The fixture
 runs against the exact file-qualified template digest recorded by the runtime design.
 Public `transfer_file` admission and the fixed HTTP `/admin/computers/{id}/files`
-projection now compose with this worker contract. Startup activation and Console controls
-remain delivery work; source qualification does not activate the public installation.
+projection now compose with this worker contract. Configured startup now supervises the worker, and the native Console provides the
+file panel. Installed acceptance is still required for public-site qualification.
 
 ### Public File Tasks
 
@@ -285,7 +285,15 @@ configuration reference is `VEOVEO_COMPUTERS_CONFIG`. It uses the installation's
 `VEOVEO_INTERNAL_TRUST_JWKS`. Store credentials must be database-scoped. Apply store
 migrations through the installation owner before starting this process.
 
-The configuration schema is `veoveo.io/computers-service/v2`. Its closed root fields
+The configuration schema is `veoveo.io/computers-service/v3`. Configured capacity
+requires an explicit nonempty `execution.fileTemplateFingerprints` set. It is a subset
+of command-qualified templates and includes the default. Duplicate or foreign values
+fail validation before store mutation. The same private key ring protects file intent
+under its distinct authenticated purpose. Version 3 does not accept v2 configuration;
+upgrade the configuration and service together. An unconfigured installation still
+exposes core Computers in Setup Required.
+
+Its closed root fields
 are `schema`, `listen`, `allowedHosts`, `allowedOrigins`, `access`, `providerInstanceId`
 and `capacity`. `allowedOrigins` contains distinct canonical HTTPS origins. Explicit
 HTTP loopback origins are admitted for local fixtures. Opaque origins, credentials,
@@ -681,3 +689,20 @@ submission before delivery. It advances that fixture's observation deadline, the
 requires the production worker to obtain allocator Abandon before creating the
 replacement. The original Create remains Recovery Required with its dispatch identity.
 The old allocator binding stays excluded and both retained homes remain quota-charged.
+
+### File Startup And Visible Work
+
+The provider supervisor starts file workers beside lifecycle, command and maintenance
+workers. Health checks include every worker; shutdown cancels their local futures and
+preserves durable Task recovery. The composed process admits four file and four command
+jobs. Their independent 64 MiB capture limits total at most 512 MiB before allocator
+and transport overhead; the domain's shared slot further limits concurrent work per
+Computer.
+
+Collection and exact-Computer reads project the shared execution slot with one bounded
+metadata query. `activeExecution` distinguishes a command Task from a file Task. Busy
+includes that slot, and Start remains unavailable while it is retained after an owner
+Stop. A current owner may still Stop a Ready Computer during execution. File admission
+flags combine current direct-owner policy, Ready state, capacity and the explicit
+qualified template set. Existing retained templates keep their original identity; an
+explicit environment update enables the new helper without discarding their homes.

@@ -144,7 +144,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
     }));
     void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
   }, [queryClient]);
-  const uploadQueue = useMemo(() => bootstrap.canReadInstallation && actor && workContext && tenant ? new UploadQueue(actor, workContext, tenant, receiveUpload) : undefined, [bootstrap.canReadInstallation, actor, workContext, tenant, receiveUpload]);
+  const uploadQueue = useMemo(() => actor && workContext && tenant ? new UploadQueue(actor, workContext, tenant, receiveUpload) : undefined, [actor, workContext, tenant, receiveUpload]);
   const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor, uploadQueue?.reconcile);
   useEffect(() => {
     if (!uploadQueue) return;
@@ -313,7 +313,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
             </div>
           </div>
           <div className="topbar-actions">
-            {snapshot && <button className="button button-secondary" onClick={() => setUploadsOpen(true)} aria-label="Open uploads">
+            {uploadQueue && <button className="button button-secondary" onClick={() => setUploadsOpen(true)} aria-label="Open uploads">
               Uploads{uploadState.entries.length ? ` (${uploadState.entries.filter((entry) => !["Ready", "Cancelled"].includes(entry.phase)).length} active · ${uploadState.entries.filter((entry) => entry.phase === "Ready").length} ready)` : ""}
             </button>}
             <label className="theme-select" title="Console theme">
@@ -361,7 +361,8 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
           }
         >
           {signOutError && <p role="alert">{signOutError}</p>}
-          {view === "computers" && <ComputersPage scope={consoleIdentityScope(bootstrap)} canReadInstallation={bootstrap.canReadInstallation} />}
+          {view === "computers" && <ComputersPage scope={consoleIdentityScope(bootstrap)} canReadInstallation={bootstrap.canReadInstallation}
+            artifacts={snapshot?.artifacts ?? []} uploads={uploadState} onUpload={() => setUploadsOpen(true)} />}
           {view !== "computers" && view !== "apps" && !snapshot && <div className="center-state">
             <p>{inventory.isLoading ? "Loading installation…" : inventory.error instanceof Error ? inventory.error.message : "Installation inventory is unavailable."}</p>
             <button className="button button-secondary" onClick={retrySnapshot}>Retry</button></div>}
@@ -393,7 +394,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
       }} />}
       {currentTask && <TaskDrawer task={currentTask} onClose={() => setSelectedTask(undefined)} />}
     </div>
-      {uploadsOpen && uploadQueue && <UploadPanel queue={uploadQueue} state={uploadState} onClose={() => setUploadsOpen(false)} onView={viewUpload} />}
+      {uploadsOpen && uploadQueue && <UploadPanel queue={uploadQueue} state={uploadState} onClose={() => setUploadsOpen(false)} onView={bootstrap.canReadInstallation ? viewUpload : undefined} />}
     </>
   );
 }
