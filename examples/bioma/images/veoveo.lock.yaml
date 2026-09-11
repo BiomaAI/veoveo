@@ -2,19 +2,19 @@ global:
   veoveoRegistry: k3d-veoveo-registry.localhost:5000
   veoveoTag: ""
   imageDigests:
-    veoveo/computer-host: sha256:6d5f789e7b3dfecf1cee9f699c77cd0049e1fc334fd572d7c9abec61809bc8da
+    veoveo/computer-host: sha256:dda0672f6afcfa3114a3876e4fb8fbd0bbf14d3fd3729b0f86430f6a1ab7fded
     veoveo/computer-template: sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99
-    veoveo/computers-mcp: sha256:cf71beae592a973dc3e98c5d2748cbc096a3eb0ee4a1c128bdf504eadcfe5fd8
+    veoveo/computers-mcp: sha256:212f2f1f9672a185ff83aabb97e856744baaa7cab466b75bc8f1032bc2d0f747
     veoveo/artifact-mcp: sha256:1eb76e5e819053702f6fd55c77fd7b759c904fa4d1168f78018833aa91c3eedf
     veoveo/artifact-service: sha256:43ae5908a72254267130aa546d8928c54914c94c38d9b583db47467766330b0f
     veoveo/chart-mcp: sha256:996b9ebe1b78acc789e0fc92025557fe5b3a598df1c68a79ee3e13f3c85c3fc4
-    veoveo/console-bff: sha256:b44738895fe9406ec473355ebbe578882ef1680e7e2567eaa755bca5001088a8
+    veoveo/console-bff: sha256:6fb0f4320fcf05d6ab149f7927d55c5327f5a0378592c02a5f7f7594a9fe1ec3
     veoveo/cuopt-executor: sha256:14e54f2e0d4192ee1c7dec908b867f766c800e60c3673e76d686219f36065f45
     veoveo/datasheet-mcp: sha256:0bf53c2ba9a66d1ad7f5e9e0da2bc32e46afbfce5067429e41f909a9f3cf30d9
     veoveo/duckdb-mcp: sha256:1d01cc37d818857cb99b9ccf755f4c4a61185b1383d4efd0cef0baabd3e0bc4b
     veoveo/frames-mcp: sha256:dc318c9c69de95534bc64dc955b03e63a78e9655a5a6fe66114bd2bb4b43c73f
     veoveo/map-mcp: sha256:e87b697b112a88b775b103289cbfed019f7110309691eddf2a0a2b660954eb4f
-    veoveo/mcp-gateway: sha256:f273d62dfc0f78274b12459db0ca18b173bdfe57bbdfa5382365c464c4661d41
+    veoveo/mcp-gateway: sha256:a15c64b83e8aea7d224e4b5d5f72431ccc43aa479afe466b2bcbf035ae79ac57
     veoveo/mcp-legacy-bridge: sha256:84b99fd50c39c368854d4144b53f19d56bade3d5337a615a4f3a272913a23dfc
     veoveo/media-mcp: sha256:4098b643ed58fa0888edd6fe3c4ccc283b5fc829331a2ebd2efd8cf180c64cf5
     veoveo/optimization-mcp: sha256:eee4d18dc3bff20ab9bd9954cf6d199c0fff76ad1f2f0cd019a6f13d7e0dadb5

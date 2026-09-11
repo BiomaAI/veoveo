@@ -102,9 +102,18 @@ certificates expire after 90 days; enrollment on 2026-09-10 requires renewal bef
 Existing retained providers preserve their trust and JWT identity across rollouts.
 For an existing v1 installation, enroll only the new command key in its worker Secret;
 do not replace provider, storage or JWT trust. Drain v1 workers and apply migrations
-through 0066 before starting the v2 service. Admit the added template on the host through
+through 0071 before starting the v2 service. Admit the added template on the host through
 qualified retained maintenance before selecting it as the default. These source inputs
 are candidates until their installed checks pass.
+The admitted `development` ↔ `development-20260910` pair has passed the native
+8192 MiB retained-home upgrade, explicit recovery and reverse-replacement fixture.
+Initial Create recovery uses the qualified allocator Abandon path and keeps the
+unknown original operation. The staged host image has also passed forward replacement
+from the installed host image, preserving Docker/provider identity and retained bytes.
+Keep the new worker/schema when reversing a Computer template; older readers cannot
+interpret the maintenance recovery journal. Apply the new key and drain old Computers
+workers before the schema/configuration rollout. Stop the running Computer through its
+existing authorized lifecycle before replacing the private host.
 The command refuses existing output, and these Secret commands refuse existing names.
 
 Compute the admitted template fingerprint with the production encoder whenever a
