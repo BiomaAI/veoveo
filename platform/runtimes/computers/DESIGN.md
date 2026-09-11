@@ -17,6 +17,7 @@ public ingress and installed qualification remain in
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Veoveo private policy checkpoint protobuf v1 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
+| `veoveo.io/computer-files/v1` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command |
 | Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 | Docker volume-plugin API v1; Engine HTTP API `1.53` | Selected volume methods and registered-container enumeration; the worker fixture composes the production allocator with the native provider |
 
@@ -293,6 +294,36 @@ After a timeout, it requires ExecutionUnknown, then Stop and a new process epoch
 detached descendant stops writing and its retained file survives restart. Public Task
 cancellation must compose this Computer-wide Stop boundary and explain its scope.
 This adapter never settles a Task or grants an actor execution authority.
+
+## Regular File Transport
+
+`file_request` carries the private `veoveo.io/computer-files/v1` helper protocol over
+the existing bounded native execution stream. The provider sees only the fixed
+launcher command with `--files`. The caller holds current domain authority and an
+exclusive durable fence, and selects a template qualified with this helper profile.
+The runtime requires the exact admitted Ready resource and process before dispatch
+and verifies that process again at completion.
+
+Import sends a bounded header and exactly the declared binary body. Export streams
+provisional bytes to the caller. A successful native exit must agree with a typed
+helper receipt, exact byte count and SHA-256 before those bytes can be published.
+The helper result has a separate 4 KiB allowance above the 64 MiB file limit.
+Ordinary command-output limits remain unchanged. Paths, bodies and provider commands
+never appear in public result diagnostics.
+
+A definitive helper rejection requires its matching native exit status. Malformed
+results, transport loss, incomplete input and uncertain commits retain
+`ExecutionUnknown`; the caller must contain the selected Computer and cannot replay
+an import. A rejected export may already have produced provisional bytes, which its
+caller discards. This adapter does not issue Artifact capabilities or settle Tasks.
+The native file scenario owns its provider and retained home. It passes with template
+`sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5`:
+1,000,003 binary bytes round-trip with matching SHA-256, an opaque archive remains
+unextracted, overwrite and bad checksum are rejected, and a short body remains
+uncertain. Stop/Start preserves committed bytes while the incomplete destination is
+absent. A stale process observation cannot write a new file. Enabled provider command
+logs omit the requested paths. Public Artifact handoff qualification remains in the
+Computers service.
 
 ## Verification And Delivery Gaps
 

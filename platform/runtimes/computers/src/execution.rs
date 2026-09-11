@@ -18,6 +18,22 @@ pub struct ExecIntent {
     stdin: Vec<u8>,
 }
 impl ExecIntent {
+    pub(crate) fn file_request(timeout_seconds: u32, output_bytes: usize) -> Result<Self> {
+        let mut intent = Self::new(
+            vec![
+                veoveo_computer_execution::LAUNCHER_PATH.into(),
+                "--files".into(),
+            ],
+            veoveo_computer_execution::RETAINED_HOME.into(),
+            timeout_seconds,
+            output_bytes.max(1),
+            vec![],
+        )?;
+        // The private file helper has one bounded result on stderr in addition
+        // to file stdout. Public command-output limits remain unchanged.
+        intent.maximum_output_bytes += crate::file_request::MAX_RESULT_BYTES;
+        Ok(intent)
+    }
     pub fn new(
         command: Vec<String>,
         workdir: String,
