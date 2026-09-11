@@ -3704,3 +3704,10 @@ invalidates the recipient's collection without sending revoked state. That integ
 required another service compile. Completing discovery, completion and subscriptions
 together avoids a subsequent deployment for stale agent views. File and provider
 images remain reusable. Host disk headroom was 225 GiB during these checks.
+
+The public lifecycle image solve at `3cd16e354d8eb13455cbc07b6a7b155c611a8c52`
+published Computers, gateway and Console in 112.210 seconds. The observed compilation
+window was 92.827 seconds; export took 13.124 seconds. The helper, host, templates and
+Artifact Service retained their installed digests. Chart publication again waited
+on the image publication's shared source lock. This is packaging serialization,
+independent of the necessary drained schema transition at activation.
