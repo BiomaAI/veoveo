@@ -5,6 +5,7 @@ import { parseComputer } from "../generatedContracts";
 import type { ComputerSnapshot, IssueAutomationGrantInput } from "../generated/computers";
 import { useSnapshot } from "../queries";
 import { identityLabel } from "../identity";
+import { useConsoleBootstrap } from "../bootstrap";
 import { computerError, grantAutomation, readAutomation, revokeAutomation } from "./api";
 
 export function AutomationPanel({ computerId, scope, snapshot, stale }: {
@@ -12,6 +13,7 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
 }) {
   const cache = useQueryClient();
   const directory = useSnapshot(false);
+  const bootstrap = useConsoleBootstrap();
   const key = `veoveo.computers.automation:${scope}:${computerId}`;
   const [saved, setSaved] = useState<{ input?: IssueAutomationGrantInput; error?: string }>(() => {
     try {
@@ -96,7 +98,7 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
         <label>Principal<input list="computer-agent-principals" value={principal} onChange={e => setPrincipal(e.target.value)} maxLength={2048} required /></label>
         <datalist id="computer-agent-principals">{directory.data?.principals.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}</datalist>
         <label>Application client ID<input value={clientId} onChange={e => setClientId(e.target.value)} maxLength={256} required /></label>
-        <p>Use the client ID that this principal signs in through. The grant applies only to that principal and application.</p>
+        <p>Use the client ID that this principal signs in through. Its registration must allow the <code>{bootstrap.data?.profile ?? "current"}</code> profile used by this Console. The grant applies only to that principal and application.</p>
         <label>Access duration<select name="lifetime" defaultValue={Math.min(3600, limits.maximumLifetimeSeconds)}>{durations.map(seconds => <option key={seconds} value={seconds}>{seconds >= 3600 ? `${seconds / 3600} hours` : seconds >= 60 ? `${seconds / 60} minutes` : `${seconds} seconds`}</option>)}</select></label>
         <label>Maximum seconds per command<input name="seconds" type="number" min={1} max={limits.maximumExecutionSeconds} defaultValue={Math.min(60, limits.maximumExecutionSeconds)} required /></label>
         <label>Maximum output bytes per command<input name="bytes" type="number" min={1} max={limits.maximumOutputBytes} defaultValue={Math.min(1048576, limits.maximumOutputBytes)} required /></label>

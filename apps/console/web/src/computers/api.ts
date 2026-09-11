@@ -151,6 +151,7 @@ export function computerError(error: unknown): string {
         forbidden: "This action is not permitted with your current access.",
         not_found: "This Computer is not available in the current Work Context.",
         invalid_state: "The Computer state changed. Refresh its status before choosing an action.",
+        invalid_input: "The request was rejected. Check its values and application registration before submitting a new request.",
         access_limit: "The attachment limit has been reached.",
         ticket_rejected: "This attachment expired or has already been used. Connect again.",
       };
