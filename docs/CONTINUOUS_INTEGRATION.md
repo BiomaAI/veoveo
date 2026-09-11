@@ -60,8 +60,10 @@ unqualified for reuse. Actual Rust, Cargo, formatter, linter, Protoc and relevan
 Node/npm versions are recorded. Selected Rustup toolchains are identified by those
 observed versions. No secret environment value or public hash of one is recorded.
 
-Input identities use materialized bytes and modes. They survive a commit or move to
-an input-equivalent worktree. Git clean filters cannot hide changes in the files a
+Input identities use materialized bytes and Unix execute bits. Read/write permissions
+vary with checkout umasks and are normalized; permission-sensitive runtime checks
+assert their filesystem configuration separately. Source identities survive a commit
+or move to an input-equivalent worktree. Git clean filters cannot hide changes in the files a
 check reads. New and removed files participate; explicit expected files retain a
 missing marker. Symlink targets must remain inside the repository and may not expose
 ignored files. Unqualified directory links fail with a diagnostic.

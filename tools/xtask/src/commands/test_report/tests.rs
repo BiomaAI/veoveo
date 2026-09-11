@@ -179,6 +179,28 @@ fn identical_materialized_inputs_share_identity_across_worktrees() {
 
 #[cfg(unix)]
 #[test]
+fn checkout_permissions_preserve_identity_but_execution_changes_invalidate() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repo = repository();
+    let path = repo.path().join("service/src/lib.rs");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+    let regular = source(repo.path());
+    for mode in [0o664, 0o600] {
+        fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
+        assert_eq!(source(repo.path()), regular);
+    }
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    let executable = source(repo.path());
+    assert_ne!(executable, regular);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o775)).unwrap();
+    assert_eq!(source(repo.path()), executable);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o754)).unwrap();
+    assert_ne!(source(repo.path()), executable);
+}
+
+#[cfg(unix)]
+#[test]
 fn symlink_targets_participate_and_escape_or_ignored_secrets_are_rejected() {
     use std::os::unix::fs::symlink;
     let repo = repository();

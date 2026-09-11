@@ -201,10 +201,12 @@ pub(super) fn snapshot_with_roots(
             #[cfg(unix)]
             let mode = {
                 use std::os::unix::fs::PermissionsExt;
-                metadata.permissions().mode() & 0o777
+                // Checkout umasks change read/write permissions without changing
+                // source. Preserve materialized execute bits for script inputs.
+                0o644 | (metadata.permissions().mode() & 0o111)
             };
             #[cfg(not(unix))]
-            let mode = u32::from(metadata.permissions().readonly());
+            let mode = 0o644;
             FileContent::File {
                 sha256: format!("sha256:{}", hex::encode(sha.finalize())),
                 bytes: count,

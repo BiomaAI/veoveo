@@ -3761,3 +3761,17 @@ and readiness took 0.829 seconds. This run requested reconciliation. The headed
 RTX 4090 WebGL browser loaded `console-hxaM1AOX.js`, issued a Read-only grant through
 the application selector, and revoked it after public MCP discovered the Computer.
 The post-revocation collection was empty. The private host did not restart.
+
+### CI Report Portability, 2026-09-11
+
+The report-only GitHub job required a complete offline Cargo cache that fresh runners
+do not have. Locked graph discovery now permits dependency downloads. Run
+`34615179118` reached report presentation after 3m34s, then exposed a second portability
+defect: all 554 selected files matched committed bytes, but 552 had different checkout
+permissions. Planner version 3 normalizes read/write permissions while retaining
+execute bits. Its regression test reproduces the failure before the fix.
+
+Four focused checks add about 20,000 receipt lines because each stores the same source
+manifest. Shared manifest storage remains the recorded optimization; this correction
+preserves the immutable receipt format. Fresh-runner report compilation and full
+workspace dependency discovery also remain measurable CI overhead.
