@@ -2,10 +2,11 @@
   "schema": "veoveo.io/computer-host/v1",
   "providerId": "1c1f108d-6cc9-469d-ae78-823c9a9f51c4",
   "namespace": "bioma-computers",
-  "defaultImage": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99",
+  "defaultImage": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5",
   "images": [
     "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
-    "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99"
+    "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99",
+    "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5"
   ],
   "templates": [
     {
@@ -14,6 +15,10 @@
     },
     {
       "fingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
+      "capacityBytes": 8589934592
+    },
+    {
+      "fingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
       "capacityBytes": 8589934592
     }
   ],

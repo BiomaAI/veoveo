@@ -62,7 +62,7 @@ computers:
   existingTrustSecret: bioma-computers-worker-trust
   host:
     existingConfigMap: bioma-computer-host-configuration
-    configurationRevision: 2786983b69b3edaff64747eb92a47497807de1872ec9bfb984ef6df781450aa0
+    configurationRevision: 45d730ad409ef5cc4a78301a17b9fede4f79181fe13802dc08e6ce48c6a3da47
     existingTrustSecret: bioma-computer-host-trust
     persistence:
       size: 100Gi
