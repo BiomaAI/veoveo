@@ -17,6 +17,55 @@
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
 ordinary catalog and action policy without importing the provider SDK. The `computers-mcp` executable serves the same HTTP router used by fixtures.
 
+## Public Command And Grant Admission
+
+MCP `execute` accepts explicit `arguments`, a home-relative `directory`, bounded
+`environment`, standard padded base64 `stdin`, execution `limits`, and the exact
+Computer, grant and request UUIDs. The service admits at most 2 MiB of serialized
+MCP request and 1 MiB of decoded stdin. The guest codec additionally bounds argv
+to 32 KiB and environment to 16 KiB. Arguments are not interpreted by an implicit
+shell. A caller can explicitly select an admitted shell inside the Computer.
+
+Tasks capability admission precedes reservation. The application checks the current
+named principal/client grant and the installation's execution-qualified template set,
+then seals the payload and creates one metadata-only Task. Exact retries return that
+Task across replicas. An altered command under the same request ID is rejected.
+Provider reconnect does not disable access to the application key ring or Artifact
+client. The worker independently authorizes dispatch.
+
+Output preparation forwards the verified request's actual internal bearer to Artifacts.
+Its Task-bound capability is sealed separately; the bearer is never persisted. A failed
+five-second preparation attempt returns the admitted Task. An identical request can
+repair preparation while the caller remains present. Without repair, the queued
+preparation budget expires without executing the command. Authority and Task ownership
+are checked again before returning the Task seed.
+
+A known result has one `result_uri`, `computer://executions/{execution_id}`, and one
+resource link. Reading it requires current command Task authority. The original agent
+loses access after revocation; the direct owner retains oversight. stdout and stderr
+contain Artifact occurrence IDs and byte counts. Their bytes are read through
+`artifact://{artifact_id}` or the governed Artifact HTTP download, under independent
+Artifact authority. Computers introduces no duplicate byte route.
+
+`grant_automation` and `revoke_automation` share the domain management checks with
+GET/POST `/admin/computers/{id}/automation`, exact GET
+`/admin/computers/{id}/automation/{grant_id}`, and POST of an empty JSON object to
+`/admin/computers/{id}/automation/{grant_id}/revoke`. Issuance carries the same
+`computerId` as its route. The collection reports current management hints and
+installation ceilings. Hints authorize no mutation. Each terminal grant result has
+one canonical `computer://computers/{computer_id}/automation/{grant_id}` link;
+exact owner reads preserve revoked and expired state. The collection and exact
+grant resources support current-authority invalidations. The gateway projects
+management as the named tool policy, and the Console BFF retains session/CSRF
+ownership. Agent lifecycle and governed file movement remain separate delivery work.
+
+Migration 0067 backfills canonical result URIs in completed command journals and
+successful shared Tasks in one migration transaction. It rejects mismatched Task
+identity, stored outcome or error semantics before rewriting either record. Drain
+old readers/writers before upgrading; preserve the migration history on rollback.
+Unfinished Tasks project their result with the new worker. This change does not
+rewrite audit history or claim installed migration acceptance.
+
 ## Governed Command Worker
 
 `CommandWorker` composes the command journal, live authority and qualified framed
@@ -26,8 +75,8 @@ provider-scoped scheduler admits four active commands per replica. Captured payl
 bytes are limited to 256 MiB at that concurrency; allocator and transport overhead
 are additional. Each Computer also retains its durable exclusive execution slot.
 Configured startup runs the command scheduler beside lifecycle observation. It reads
-only enough pending command envelopes to fill its open slots. Public execution
-admission remains integration work; this checkpoint does not expose installed commands.
+only enough pending command envelopes to fill its open slots. Public execution admission uses the same domain journal. Installed command
+qualification remains required.
 
 Only the original dispatch receipt can launch the command. A successor that finds
 Dispatched contains the saved run without replaying command bytes. Current authority
@@ -118,7 +167,7 @@ under the retention policy. Never remove keys while pending Tasks still need the
 Installation-owned encrypted backup includes these keys alongside the encrypted store.
 
 This private configuration is a coordinated v2 hard cut. Drain v1 workers, apply
-migrations through 0066, provision command keys, and start v2 workers with the matching
+migrations through 0067, provision command keys, and start v2 workers with the matching
 configuration. A changed default also requires the compute host to admit that exact
 template through its qualified retained-maintenance procedure. A service rollout alone
 does not upgrade a retained Computer. Downgrade must drain command admission and

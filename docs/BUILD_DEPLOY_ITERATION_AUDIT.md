@@ -3365,3 +3365,26 @@ immutable receipt and computes each distinct scope. Report presentation now cost
 than the warm template publication. Further optimization should retain integrity and
 history while sharing file hashes across overlapping scopes and deduplicating manifests.
 This measurement does not justify skipping required evidence or native acceptance.
+
+Public command integration reused the staged launcher and existing native provider
+binaries. The focused two-replica admission test, including a full 1 MiB input and real
+Artifact capability repair, took 10.98 seconds after 5.63 seconds of compilation.
+The Console bundle built in 3.00 seconds after type checking. A shared public-contract
+change rebuilt gateway consumers: its focused test command compiled for 85 seconds
+and ran for 13.29 seconds. Launching that build alongside the HTTP fixture incurred a
+Cargo build-directory wait and coincided with 57 seconds for the eight-case HTTP suite.
+Subsequent formal Rust checks run sequentially to avoid that known contention. This
+observation does not establish a controlled concurrency benchmark.
+
+The new public preparation path exposed a missing Computers audience in the installed
+Artifact configuration. Admission now has a rendered-chart guard, and both default and
+Bioma inputs contain the required audience. Catching the mismatch before deployment
+avoids a cycle of accepted commands waiting for unavailable output capability issuance.
+Disk reserve remained 214 GiB; no installed home, provider journal or image was removed.
+
+The command HTTP suite passed eight cases in 45.39 seconds during formal recording,
+but editing documentation during that run produced `InputsChanged`. The current
+unqualified native classifier conservatively includes the whole repository, including
+those docs. Final native recording now starts after source and documentation freeze.
+A native environment adapter with the owning source closure remains necessary to
+remove this unrelated invalidation without weakening evidence identity.

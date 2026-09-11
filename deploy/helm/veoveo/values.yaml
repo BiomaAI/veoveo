@@ -119,6 +119,7 @@ artifactService:
     digest: ""
   replicas: 2
   allowedAudiences:
+    - computers
     - artifact
     - media
     - timeseries

@@ -49,13 +49,21 @@ pub async fn serve(
     });
     let templates = config.templates.runtimes();
     let (runtime_sender, runtime_access) = crate::RuntimeAccess::channel();
-    let app = Arc::new(Application::new(
+    let mut app = Application::new(
         store.clone(),
         tasks.clone(),
         config.templates,
         receiver,
         runtime_access,
-    )?);
+    )?;
+    if let Some(provider) = &config.provider {
+        app = app.with_execution(
+            provider.execution.keys.clone(),
+            provider.execution.artifacts.clone(),
+            provider.execution.templates.clone(),
+        )?;
+    }
+    let app = Arc::new(app);
     let router = super::router(
         app,
         verifier,

@@ -258,11 +258,42 @@ impl ComputersStore {
                 authority::owned(&grant, actor, computer_id, self.provider_instance_id)?;
                 grants.push(grant.view);
             }
+            let policy = self.stored_automation_policy().await?.checked()?;
+            let management = self.automation_management(actor).await?;
             control.require_read(Some(computer_id))?;
             Ok(AutomationGrantCollection {
                 computer_id,
+                can_grant: management.0 && grants.len() < policy.max_grants as usize,
+                can_revoke: management.1,
+                limits: crate::api::AutomationGrantLimits {
+                    maximum_grants: policy.max_grants,
+                    maximum_lifetime_seconds: policy.maximum_lifetime_seconds,
+                    maximum_execution_seconds: policy.maximum_execution_seconds,
+                    maximum_output_bytes: policy.maximum_output_bytes,
+                },
                 grants,
             })
+        })
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
+    }
+
+    /// Exact owner oversight does not scan the live inventory and preserves
+    /// revoked or expired grant state for an existing result reference.
+    pub async fn get_automation_grant(
+        &self,
+        actor: &ComputerActor,
+        computer_id: Uuid,
+        grant_id: Uuid,
+    ) -> Result<AutomationGrantView> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let control = self.control_authority(actor).await?;
+            control.require_read(Some(computer_id))?;
+            self.get(actor.owner(), computer_id).await?;
+            let grant = self.automation_grant(grant_id).await?;
+            authority::owned(&grant, actor, computer_id, self.provider_instance_id)?;
+            control.require_read(Some(computer_id))?;
+            Ok(grant.view)
         })
         .await
         .map_err(|_| ComputerError::Unavailable)?

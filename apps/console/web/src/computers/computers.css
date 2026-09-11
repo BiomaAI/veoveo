@@ -33,3 +33,9 @@
 .computer-cli-connect { margin-top: 1rem; }
 .computer-cli-connect p { margin: .8rem 0; }
 .computer-cli-connect pre { overflow-wrap: anywhere; white-space: pre-wrap; padding: .8rem; }
+.computer-automation { margin-top: 1.5rem; }
+.computer-automation-form fieldset { display: grid; gap: .8rem; margin-top: 1rem; border: 1px solid var(--border); padding: 1rem; }
+.computer-automation-form label { display: grid; gap: .4rem; }
+.computer-automation-form input:not([type="checkbox"]), .computer-automation-form select { width: 100%; padding: .6rem; }
+.computer-automation-form .computer-pairing-check { display: flex; }
+.computer-automation code { overflow-wrap: anywhere; }

@@ -8,6 +8,9 @@ use veoveo_mcp_contract::docs::ServerDocs;
 pub const COLLECTION: &str = veoveo_computers::api::COMPUTERS_URI;
 pub const COMPUTER_TEMPLATE: &str = "computer://computers/{computer_id}";
 pub const ACCESS_TEMPLATE: &str = "computer://computers/{computer_id}/access";
+pub const EXECUTION_TEMPLATE: &str = "computer://executions/{execution_id}";
+pub const AUTOMATION_TEMPLATE: &str = "computer://computers/{computer_id}/automation";
+pub const GRANT_TEMPLATE: &str = "computer://computers/{computer_id}/automation/{grant_id}";
 pub const PAGE_TEMPLATE: &str = "computer://computers?after={after}";
 pub const DOC_TEMPLATE: &str = "computer://docs/{doc_id}";
 pub static DOCS: LazyLock<ServerDocs> =
@@ -18,6 +21,9 @@ pub enum ResourceId<'a> {
     Collection(Option<Uuid>),
     Computer(Uuid),
     Access(Uuid),
+    Execution(Uuid),
+    Automation(Uuid),
+    Grant(Uuid, Uuid),
     Docs,
     Doc(&'a str),
     Contract,
@@ -28,7 +34,21 @@ pub fn parse(uri: &str) -> Option<ResourceId<'_>> {
         "computer://docs" => Some(ResourceId::Docs),
         "computer://contract" => Some(ResourceId::Contract),
         _ => {
+            if uri.starts_with("computer://executions/") {
+                return veoveo_computers::api::ExecutionResultUri::try_from(uri.to_owned())
+                    .ok()
+                    .map(|uri| ResourceId::Execution(uri.execution_id()));
+            }
             if let Some(id) = uri.strip_prefix("computer://computers/") {
+                if let Some((computer, grant)) = id.split_once("/automation/") {
+                    return Some(ResourceId::Grant(
+                        canonical_uuid(computer)?,
+                        canonical_uuid(grant)?,
+                    ));
+                }
+                if let Some(id) = id.strip_suffix("/automation") {
+                    return canonical_uuid(id).map(ResourceId::Automation);
+                }
                 if let Some(id) = id.strip_suffix("/access") {
                     return canonical_uuid(id).map(ResourceId::Access);
                 }
@@ -76,6 +96,21 @@ pub fn roots() -> Vec<Resource> {
 pub fn templates() -> Vec<ResourceTemplate> {
     [
         (COMPUTER_TEMPLATE, "computer", "One private Computer"),
+        (
+            AUTOMATION_TEMPLATE,
+            "computer-automation",
+            "Live named automation grants for your Computer",
+        ),
+        (
+            GRANT_TEMPLATE,
+            "automation-grant",
+            "Exact automation grant, including revoked or expired state",
+        ),
+        (
+            EXECUTION_TEMPLATE,
+            "execution-result",
+            "Known command exit and governed output references",
+        ),
         (
             ACCESS_TEMPLATE,
             "computer-access",
@@ -139,6 +174,68 @@ impl ComputersMcp {
                 &self
                     .app
                     .access_grants(&actor, id)
+                    .await
+                    .map_err(super::read_error)?,
+            )?,
+            ResourceId::Execution(id) => {
+                let access = self
+                    .app
+                    .store
+                    .authorize_command_task(
+                        &actor,
+                        id,
+                        veoveo_computers::commands::CommandTaskAction::Observe,
+                    )
+                    .await
+                    .map_err(|error| super::read_error(error.into()))?;
+                let read = async {
+                    let task = veoveo_task_runtime::authorized_snapshot(
+                        &self.app.tasks,
+                        access.owner().map_err(|_| auth::forbidden())?,
+                        &id.to_string(),
+                    )
+                    .await?;
+                    if task.status != veoveo_task_runtime::TaskStatus::Succeeded
+                        || task.task_type != "computer.execution"
+                    {
+                        return Err(ErrorData::invalid_params(
+                            "command result is not available",
+                            None,
+                        ));
+                    }
+                    let response: CallToolResult =
+                        serde_json::from_value(task.result.ok_or_else(auth::unavailable)?)
+                            .map_err(|_| auth::unavailable())?;
+                    let result: veoveo_computers::api::ExecutionResult = serde_json::from_value(
+                        response.structured_content.ok_or_else(auth::unavailable)?,
+                    )
+                    .map_err(|_| auth::unavailable())?;
+                    if result.execution_id != id
+                        || result.computer_id != access.computer_id()
+                        || String::from(result.result_uri) != *uri
+                    {
+                        return Err(auth::unavailable());
+                    }
+                    access.owner().map_err(|_| auth::forbidden())?;
+                    json(uri, &result)
+                };
+                tokio::time::timeout_at(tokio::time::Instant::from_std(access.valid_until()), read)
+                    .await
+                    .map_err(|_| auth::forbidden())??
+            }
+            ResourceId::Automation(id) => json(
+                uri,
+                &self
+                    .app
+                    .automation_grants(&actor, id)
+                    .await
+                    .map_err(super::read_error)?,
+            )?,
+            ResourceId::Grant(computer, grant) => json(
+                uri,
+                &self
+                    .app
+                    .automation_grant(&actor, computer, grant)
                     .await
                     .map_err(super::read_error)?,
             )?,

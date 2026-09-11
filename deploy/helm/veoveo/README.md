@@ -349,3 +349,9 @@ class, access modes, managed bytes, and minimum free bytes. Defaults allocate 10
 manage up to 8 GiB, and reserve 1 GiB of filesystem headroom. Cache files survive pod
 replacement; every reuse still requires current Artifact authorization. The shared
 recording spool mount stays read-only and GPU resource requirements remain mandatory.
+
+Configured Computers command execution requires `computers` in
+`artifactService.allowedAudiences`. The chart rejects a configured profile without
+that entry. Artifact policy still checks the forwarded caller and Work Context; the
+audience entry alone grants no file access. Upgrade command readers and workers with
+migration 0067 and the matching service v2 configuration before admitting commands.

@@ -8,6 +8,8 @@ use veoveo_computers::{
     Reservation, api::*,
 };
 use veoveo_task_runtime::TaskRuntime;
+mod automation;
+mod execution;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApplicationError {
@@ -29,6 +31,7 @@ pub struct CapacityHealth {
     pub observed_at: Instant,
 }
 pub struct Application {
+    execution: Option<execution::ExecutionSupport>,
     pub(crate) subscription_slots: std::sync::Arc<tokio::sync::Semaphore>,
     pub(crate) store: ComputersStore,
     pub(crate) tasks: TaskRuntime,
@@ -55,6 +58,7 @@ impl Application {
             return Err(ApplicationError::Configuration);
         }
         Ok(Self {
+            execution: None,
             subscription_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(64)),
             store,
             tasks,

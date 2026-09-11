@@ -351,6 +351,9 @@ pub struct TerminalReady {
 #[allow(dead_code)]
 #[schemars(rename = "ComputersApi")]
 struct SchemaBundle {
+    revoke_automation_grant_body: RevokeAutomationGrantBody,
+    automation_grant_result: AutomationGrantResult,
+    execute_input: ExecuteInput,
     execution_result: ExecutionResult,
     issue_automation_grant: IssueAutomationGrantInput,
     automation_grant: AutomationGrantView,

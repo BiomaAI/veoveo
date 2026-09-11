@@ -153,6 +153,12 @@
     "AutomationGrantCollection": {
       "additionalProperties": false,
       "properties": {
+        "canGrant": {
+          "type": "boolean"
+        },
+        "canRevoke": {
+          "type": "boolean"
+        },
         "computerId": {
           "format": "uuid",
           "type": "string"
@@ -163,11 +169,66 @@
           },
           "maxItems": 64,
           "type": "array"
+        },
+        "limits": {
+          "$ref": "#/$defs/AutomationGrantLimits"
         }
       },
       "required": [
         "computerId",
+        "canGrant",
+        "canRevoke",
+        "limits",
         "grants"
+      ],
+      "type": "object"
+    },
+    "AutomationGrantLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "maximumExecutionSeconds": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximumGrants": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximumLifetimeSeconds": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximumOutputBytes": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maximumGrants",
+        "maximumLifetimeSeconds",
+        "maximumExecutionSeconds",
+        "maximumOutputBytes"
+      ],
+      "type": "object"
+    },
+    "AutomationGrantResult": {
+      "additionalProperties": false,
+      "description": "Addressable grant state, including an expired or revoked grant.",
+      "properties": {
+        "grant": {
+          "$ref": "#/$defs/AutomationGrantView"
+        },
+        "result_uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "result_uri",
+        "grant"
       ],
       "type": "object"
     },
@@ -579,6 +640,62 @@
       ],
       "type": "string"
     },
+    "ExecuteInput": {
+      "additionalProperties": false,
+      "description": "One explicit command. Arguments and environment can contain secrets and have\nno diagnostic formatting surface. Directory is relative to the retained home.",
+      "properties": {
+        "arguments": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1024,
+          "minItems": 1,
+          "type": "array"
+        },
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "directory": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        "environment": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "grantId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/AutomationExecutionLimits"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "stdin": {
+          "description": "RFC 4648 standard padded base64; at most 1 MiB decoded.",
+          "maxLength": 1398104,
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "grantId",
+        "requestId",
+        "arguments",
+        "directory",
+        "environment",
+        "stdin",
+        "limits"
+      ],
+      "type": "object"
+    },
     "ExecutionOutput": {
       "additionalProperties": false,
       "description": "Governed occurrence reference. Bytes remain behind Artifact read authority.",
@@ -618,6 +735,10 @@
           "minimum": 0,
           "type": "integer"
         },
+        "result_uri": {
+          "pattern": "^computer://executions/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
         "stderr": {
           "$ref": "#/$defs/ExecutionOutput"
         },
@@ -626,6 +747,7 @@
         }
       },
       "required": [
+        "result_uri",
         "computerId",
         "executionId",
         "exitCode",
@@ -863,6 +985,10 @@
         "computerId",
         "grantId"
       ],
+      "type": "object"
+    },
+    "RevokeAutomationGrantBody": {
+      "additionalProperties": false,
       "type": "object"
     },
     "RevokeAutomationGrantInput": {
@@ -1162,6 +1288,9 @@
     "automation_grant": {
       "$ref": "#/$defs/AutomationGrantView"
     },
+    "automation_grant_result": {
+      "$ref": "#/$defs/AutomationGrantResult"
+    },
     "automation_grants": {
       "$ref": "#/$defs/AutomationGrantCollection"
     },
@@ -1188,6 +1317,9 @@
     },
     "event": {
       "$ref": "#/$defs/ComputerEvent"
+    },
+    "execute_input": {
+      "$ref": "#/$defs/ExecuteInput"
     },
     "execution_result": {
       "$ref": "#/$defs/ExecutionResult"
@@ -1218,6 +1350,9 @@
     },
     "revoke_automation_grant": {
       "$ref": "#/$defs/RevokeAutomationGrantInput"
+    },
+    "revoke_automation_grant_body": {
+      "$ref": "#/$defs/RevokeAutomationGrantBody"
     },
     "snapshot": {
       "$ref": "#/$defs/ComputerSnapshot"
@@ -1251,6 +1386,9 @@
     }
   },
   "required": [
+    "revoke_automation_grant_body",
+    "automation_grant_result",
+    "execute_input",
     "execution_result",
     "issue_automation_grant",
     "automation_grant",

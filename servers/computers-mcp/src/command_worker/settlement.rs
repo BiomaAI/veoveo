@@ -106,16 +106,14 @@ impl CommandWorker {
                     "Command exited with code {}",
                     result.exit_code
                 ))];
-                for (name, output) in [("stdout", result.stdout), ("stderr", result.stderr)] {
-                    response
-                        .content
-                        .push(rmcp::model::ContentBlock::resource_link(
-                            rmcp::model::Resource::new(
-                                format!("computer://artifact/{}", output.artifact_id),
-                                name,
-                            ),
-                        ));
-                }
+                response
+                    .content
+                    .push(rmcp::model::ContentBlock::resource_link(
+                        rmcp::model::Resource::new(
+                            String::from(result.result_uri),
+                            "Command result",
+                        ),
+                    ));
                 TaskTransition::Succeeded {
                     message: "Command completed".into(),
                     result: serde_json::to_value(response)

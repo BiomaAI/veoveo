@@ -170,3 +170,155 @@ async fn command_task_reads_and_cancellation_preserve_actual_actor_and_owner_aut
     owner_peer.cancel().await.unwrap();
     drop(health);
 }
+
+#[tokio::test]
+async fn completed_command_has_one_canonical_governed_result_resource() {
+    let db = support::TestDb::new().await;
+    let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
+    let grant = a
+        .issue_automation_grant(&owner, &support::automation::input(computer))
+        .await
+        .unwrap();
+    let claim = command_support::queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
+    let signing = Signing::new();
+    let (_health, receiver) = tokio::sync::watch::channel(CapacityHealth {
+        availability: CapacityAvailability::ComputeUnavailable,
+        observed_at: Instant::now(),
+    });
+    let server = Server::new(
+        Application::new(
+            b,
+            TaskRuntime::new(db.b.clone(), "computers", "result-wire"),
+            Templates::new(vec![], None).unwrap(),
+            receiver,
+            RuntimeAccess::unavailable(),
+        )
+        .unwrap(),
+        &signing,
+    )
+    .await;
+    let expires = chrono::Utc::now() + chrono::TimeDelta::minutes(2);
+    let actor_token = signing.identity(support::identity(agent.owner()), "computers", expires);
+    let owner_token = signing.identity(support::identity(owner.owner()), "computers", expires);
+    let client = client();
+    let execution = uuid::Uuid::parse_str(&claim.snapshot.task_id.to_string()).unwrap();
+    let uri = String::from(ExecutionResultUri::new(execution).unwrap());
+    assert!(
+        rpc(
+            &client,
+            &server,
+            &actor_token,
+            "resources/read",
+            json!({"uri":uri}),
+            true
+        )
+        .await
+        .get("error")
+        .is_some()
+    );
+    let exit = a
+        .begin_command_dispatch(&claim, &command_support::keys())
+        .await
+        .unwrap()
+        .observe_exit(7, 3, 4)
+        .unwrap();
+    let completed = a
+        .complete_command_output(
+            &claim,
+            exit,
+            ExecutionOutput {
+                artifact_id: uuid::Uuid::now_v7(),
+                byte_count: 3,
+            },
+            ExecutionOutput {
+                artifact_id: uuid::Uuid::now_v7(),
+                byte_count: 4,
+            },
+        )
+        .await
+        .unwrap();
+    let Some(veoveo_computers::commands::CommandOutcome::Completed(result)) = completed.outcome()
+    else {
+        panic!("known exit did not settle");
+    };
+    let tasks = TaskRuntime::new(db.a.clone(), "computers", &claim.lease_owner);
+    tasks
+        .transition(
+            &claim.snapshot.task_id.to_string(),
+            veoveo_task_runtime::TaskTransition::Succeeded {
+                message: "Command completed".into(),
+                result: json!({
+                    "content": [{"type":"text","text":"Command exited with code 7"},
+                        {"type":"resource_link","name":"Command result","uri":uri}],
+                    "structuredContent":result, "isError":true,
+                }),
+            },
+        )
+        .await
+        .unwrap();
+    a.acknowledge_command_task(&completed).await.unwrap();
+    for token in [&actor_token, &owner_token] {
+        let response = rpc(
+            &client,
+            &server,
+            token,
+            "resources/read",
+            json!({"uri":uri}),
+            true,
+        )
+        .await;
+        assert!(response.get("error").is_none(), "{response}");
+        let projected: ExecutionResult =
+            serde_json::from_str(response["result"]["contents"][0]["text"].as_str().unwrap())
+                .unwrap();
+        assert_eq!(projected, result);
+    }
+    assert!(
+        rpc(
+            &client,
+            &server,
+            &signing.bearer("bob", "computers"),
+            "resources/read",
+            json!({"uri":uri}),
+            true
+        )
+        .await
+        .get("error")
+        .is_some()
+    );
+    a.revoke_automation_grant(
+        &owner,
+        &RevokeAutomationGrantInput {
+            computer_id: computer,
+            grant_id: grant.grant_id,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(
+        rpc(
+            &client,
+            &server,
+            &actor_token,
+            "resources/read",
+            json!({"uri":uri}),
+            true
+        )
+        .await
+        .get("error")
+        .is_some()
+    );
+    assert!(
+        rpc(
+            &client,
+            &server,
+            &owner_token,
+            "resources/read",
+            json!({"uri":uri}),
+            true
+        )
+        .await
+        .get("error")
+        .is_none()
+    );
+}

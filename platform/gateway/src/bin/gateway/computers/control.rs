@@ -82,6 +82,15 @@ async fn forward(
         Operation::Stop(_) => normalize::<api::StopInput>(&bytes),
         Operation::Ticket(_) => normalize::<api::TerminalTicketInput>(&bytes),
         Operation::RevokeAccess { .. } => normalize::<api::RevokeAccessBody>(&bytes),
+        Operation::RevokeAutomation { .. } => normalize::<api::RevokeAutomationGrantBody>(&bytes),
+        Operation::GrantAutomation(computer) => {
+            let input: api::IssueAutomationGrantInput =
+                serde_json::from_slice(&bytes).map_err(|_| Fault::invalid())?;
+            if input.computer_id != computer {
+                return Err(Fault::invalid());
+            }
+            serde_json::to_vec(&input).map_err(|_| ())
+        }
         Operation::Pairing(_) => {
             let input: api::CliPairingInput =
                 serde_json::from_slice(&bytes).map_err(|_| Fault::invalid())?;
@@ -91,7 +100,12 @@ async fn forward(
             serde_json::to_vec(&input).map_err(|_| ())
         }
         Operation::ConfirmPairing { .. } => normalize::<api::CliPairingConfirmBody>(&bytes),
-        Operation::List | Operation::Read(_) | Operation::Receipt { .. } | Operation::Access(_)
+        Operation::List
+        | Operation::Read(_)
+        | Operation::Receipt { .. }
+        | Operation::Access(_)
+        | Operation::Automation(_)
+        | Operation::AutomationGrant { .. }
             if bytes.is_empty() =>
         {
             Ok(Vec::new())
@@ -140,6 +154,25 @@ async fn forward(
             Operation::Access(computer) if status == StatusCode::OK => {
                 access_grants(&bytes, computer)
             }
+            Operation::Automation(computer) if status == StatusCode::OK => {
+                let value: api::AutomationGrantCollection =
+                    serde_json::from_slice(&bytes).map_err(|_| Fault::unavailable())?;
+                if value.computer_id != computer
+                    || value.grants.iter().any(|g| g.computer_id != computer)
+                {
+                    return Err(Fault::unavailable());
+                }
+                serde_json::to_vec(&value).map_err(|_| ())
+            }
+            Operation::GrantAutomation(computer) if status == StatusCode::OK => {
+                automation_result(&bytes, computer, None, false)
+            }
+            Operation::AutomationGrant { computer, grant } if status == StatusCode::OK => {
+                automation_result(&bytes, computer, Some(grant), false)
+            }
+            Operation::RevokeAutomation { computer, grant } if status == StatusCode::OK => {
+                automation_result(&bytes, computer, Some(grant), true)
+            }
             Operation::RevokeAccess { computer, grant } if status == StatusCode::OK => {
                 access_revocation(&bytes, computer, grant)
             }
@@ -176,6 +209,24 @@ async fn forward(
         body,
     )
         .into_response())
+}
+
+fn automation_result(
+    bytes: &[u8],
+    computer: Uuid,
+    grant: Option<Uuid>,
+    revoked: bool,
+) -> Result<Vec<u8>, ()> {
+    let result: api::AutomationGrantResult = serde_json::from_slice(bytes).map_err(|_| ())?;
+    if result.grant.computer_id != computer
+        || result.grant.grant_id.is_nil()
+        || grant.is_some_and(|grant| result.grant.grant_id != grant)
+        || (revoked && result.grant.revoked_at.is_none())
+        || result.result_uri != api::automation_grant_uri(computer, result.grant.grant_id)
+    {
+        return Err(());
+    }
+    serde_json::to_vec(&result).map_err(|_| ())
 }
 
 fn pairing_challenge(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {

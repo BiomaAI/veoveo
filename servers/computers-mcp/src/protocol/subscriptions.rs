@@ -40,7 +40,9 @@ impl ComputersMcp {
                 Some(ResourceId::Collection(_)) => {
                     control.require_read(None).map_err(|_| auth::forbidden())?
                 }
-                Some(ResourceId::Computer(id) | ResourceId::Access(id)) => {
+                Some(
+                    ResourceId::Computer(id) | ResourceId::Access(id) | ResourceId::Automation(id),
+                ) => {
                     control
                         .require_read(Some(id))
                         .map_err(|_| auth::forbidden())?;
@@ -49,6 +51,12 @@ impl ComputersMcp {
                         .get(actor.owner(), id)
                         .await
                         .map_err(|_| auth::forbidden())?;
+                }
+                Some(ResourceId::Grant(computer, grant)) => {
+                    self.app
+                        .automation_grant(&actor, computer, grant)
+                        .await
+                        .map_err(super::read_error)?;
                 }
                 _ => {
                     return Err(ErrorData::invalid_params(
@@ -206,7 +214,9 @@ impl ComputersMcp {
                             for uri in &uris {
                                 if matches!(resources::parse(uri), Some(ResourceId::Collection(_)))
                                     || resources::parse(uri) == Some(ResourceId::Computer(id))
-                                    || resources::parse(uri) == Some(ResourceId::Access(id)) {
+                                    || resources::parse(uri) == Some(ResourceId::Access(id))
+                                    || resources::parse(uri) == Some(ResourceId::Automation(id))
+                                    || matches!(resources::parse(uri), Some(ResourceId::Grant(computer, _)) if computer == id) {
                                     context.sink().notify_resource_updated(uri.clone()).await.map_err(|_| auth::unavailable())?;
                                 }
                             }

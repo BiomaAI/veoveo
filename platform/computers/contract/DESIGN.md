@@ -65,8 +65,8 @@ run while keeping retained files. This scope does not grant an independent Stop
 action. The wire deserializer rejects duplicate and empty permission arrays. The domain enforces that conditional rule
 and current installation ceilings in addition to schema validation. Public views
 show the original scope and expiry; current policy can narrow them. These types are
-available to projections, while public routes and command Tasks remain integration
-work in the domain plan.
+shared by the public grant routes and command Tasks. The collection reports current
+management hints and installation ceilings; each mutation checks current policy.
 
 
 `execution.rs` defines a completed foreground result. Each stream has its own UUIDv7
@@ -83,3 +83,15 @@ of an active command uses the grant's explicit whole-run Stop consent. A cancell
 received after a known foreground exit remains recorded in Task history; it cannot
 replace that known result with a claim that the command never ran. An independently
 admitted owner Stop keeps its own lifecycle fence through result settlement.
+
+`ExecuteInput` is a closed command envelope with explicit argv, home-relative directory,
+environment, standard padded base64 stdin and bounded execution limits. It accepts no
+owner, tenant, image, provider endpoint or credential selector. It has no Debug surface.
+The service and native codec enforce byte limits in addition to the JSON schema.
+`ExecutionResultUri` accepts only the canonical UUIDv7 result path. Completed commands
+use `computer://executions/{execution_id}` as their single addressable product. Artifact
+IDs resolve through `artifact://{artifact_id}` under Artifact read authority.
+
+`AutomationGrantResult` wraps one grant and its canonical result URI. Exact grant reads
+include revoked/expired records even when the live inventory no longer lists them.
+The empty `RevokeAutomationGrantBody` is closed and cannot carry additional authority.

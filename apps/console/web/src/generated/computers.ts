@@ -88,6 +88,11 @@ export type OperationStatus =
 export type RevokeAccessBody = Record<string, never>;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "RevokeAutomationGrantBody".
+ */
+export type RevokeAutomationGrantBody = Record<string, never>;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "CapacityAvailability".
  */
 export type CapacityAvailability =
@@ -152,6 +157,7 @@ export interface ComputersApi {
   access_grants: AccessGrantCollection;
   access_revocation: AccessRevocation;
   automation_grant: AutomationGrantView;
+  automation_grant_result: AutomationGrantResult;
   automation_grants: AutomationGrantCollection;
   cli_pairing_challenge: CliPairingChallenge;
   cli_pairing_confirm_body: CliPairingConfirmBody;
@@ -161,6 +167,7 @@ export interface ComputersApi {
   create_input: CreateInput;
   error: ApiError;
   event: ComputerEvent;
+  execute_input: ExecuteInput;
   execution_result: ExecutionResult;
   issue_automation_grant: IssueAutomationGrantInput;
   lifecycle_input: LifecycleInput;
@@ -171,6 +178,7 @@ export interface ComputersApi {
   revoke_access_body: RevokeAccessBody;
   revoke_access_input: RevokeAccessInput;
   revoke_automation_grant: RevokeAutomationGrantInput;
+  revoke_automation_grant_body: RevokeAutomationGrantBody;
   snapshot: ComputerSnapshot;
   start_input: StartInput;
   stop_input: StopInput;
@@ -255,15 +263,38 @@ export interface AutomationExecutionLimits {
   onInterruption: "stop_computer";
 }
 /**
+ * Addressable grant state, including an expired or revoked grant.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationGrantResult".
+ */
+export interface AutomationGrantResult {
+  grant: AutomationGrantView;
+  result_uri: string;
+}
+/**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "AutomationGrantCollection".
  */
 export interface AutomationGrantCollection {
+  canGrant: boolean;
+  canRevoke: boolean;
   computerId: string;
   /**
    * @maxItems 64
    */
   grants: AutomationGrantView[];
+  limits: AutomationGrantLimits;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationGrantLimits".
+ */
+export interface AutomationGrantLimits {
+  maximumExecutionSeconds: number;
+  maximumGrants: number;
+  maximumLifetimeSeconds: number;
+  maximumOutputBytes: number;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -352,6 +383,32 @@ export interface ComputerEvent {
   kind: ComputerEventKind;
 }
 /**
+ * One explicit command. Arguments and environment can contain secrets and have
+ * no diagnostic formatting surface. Directory is relative to the retained home.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ExecuteInput".
+ */
+export interface ExecuteInput {
+  /**
+   * @minItems 1
+   * @maxItems 1024
+   */
+  arguments: [string, ...string[]];
+  computerId: string;
+  directory: string;
+  environment: {
+    [k: string]: string;
+  };
+  grantId: string;
+  limits: AutomationExecutionLimits;
+  requestId: string;
+  /**
+   * RFC 4648 standard padded base64; at most 1 MiB decoded.
+   */
+  stdin: string;
+}
+/**
  * A known foreground result. Nonzero exit is a completed command with a tool
  * error; it does not imply transport failure or termination of detached children.
  *
@@ -362,6 +419,7 @@ export interface ExecutionResult {
   computerId: string;
   executionId: string;
   exitCode: number;
+  result_uri: string;
   stderr: ExecutionOutput;
   stdout: ExecutionOutput;
 }

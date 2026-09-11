@@ -110,3 +110,8 @@ adapter. The Computer-prefixed pairing and tunnel routes use the existing `/cons
 prefix. Both paths share the application's narrow grant enforcement; neither exposes
 the private provider listener. This change requires coordinated BFF, gateway and
 Computers application images and the additive CLI-ledger migration.
+
+Configured Computers also requires the `computers` Artifact audience. Helm validates
+that the caller's internally signed service assertion can reach capability issuance;
+the Artifact service continues to evaluate caller and Work Context authority. Both
+the chart defaults and Bioma values declare this audience.

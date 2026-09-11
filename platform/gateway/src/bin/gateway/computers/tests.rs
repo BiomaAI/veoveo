@@ -4,6 +4,58 @@ use routes::Operation;
 use veoveo_mcp_contract::{GatewayAction, PolicyTarget};
 
 #[test]
+fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identity() {
+    let computer = uuid::Uuid::now_v7();
+    let grant = uuid::Uuid::now_v7();
+    for (path, grant_id, tool) in [
+        (
+            "/computers/{profile}/{id}/automation",
+            None,
+            "grant_automation",
+        ),
+        (
+            "/computers/{profile}/{id}/automation/{grant_id}/revoke",
+            Some(grant),
+            "revoke_automation",
+        ),
+    ] {
+        let op = Operation::from_route(path, &Method::POST, Some(computer), None, grant_id, None)
+            .unwrap();
+        let (target, actions) = op.authorization();
+        assert!(matches!(target, PolicyTarget::Tool { tool: name, .. } if name.as_str() == tool));
+        assert_eq!(actions, &[GatewayAction::ToolsCall]);
+        assert!(op.requires_contributor());
+        assert!(op.requires_json());
+        assert!(
+            Operation::from_route(
+                path,
+                &Method::GET,
+                Some(computer),
+                Some(grant),
+                grant_id,
+                None
+            )
+            .is_err()
+        );
+    }
+    let op = Operation::from_route(
+        "/computers/{profile}/{id}/automation/{grant_id}",
+        &Method::GET,
+        Some(computer),
+        None,
+        Some(grant),
+        None,
+    )
+    .unwrap();
+    let (target, actions) = op.authorization();
+    assert!(
+        matches!(target, PolicyTarget::Resource { uri, .. } if uri.as_str() == veoveo_computers_contract::automation_grant_uri(computer, grant))
+    );
+    assert_eq!(actions, &[GatewayAction::ResourcesRead]);
+    assert!(!op.requires_contributor());
+}
+
+#[test]
 fn pairing_requires_attachment_authority_and_exact_confirmation_identity() {
     let computer = uuid::Uuid::new_v4();
     let pairing = uuid::Uuid::new_v4();

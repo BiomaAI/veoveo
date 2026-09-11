@@ -4,6 +4,7 @@ global:
 
 artifactService:
   allowedAudiences:
+    - computers
     - artifact
     - media
     - timeseries

@@ -72,15 +72,51 @@ pub struct AutomationGrantView {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AutomationGrantCollection {
     pub computer_id: Uuid,
+    pub can_grant: bool,
+    pub can_revoke: bool,
+    pub limits: AutomationGrantLimits,
     #[schemars(length(max = 64))]
     pub grants: Vec<AutomationGrantView>,
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationGrantLimits {
+    pub maximum_grants: u32,
+    pub maximum_lifetime_seconds: u32,
+    pub maximum_execution_seconds: u32,
+    pub maximum_output_bytes: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RevokeAutomationGrantBody {}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RevokeAutomationGrantInput {
     pub computer_id: Uuid,
     pub grant_id: Uuid,
+}
+
+/// Addressable grant state, including an expired or revoked grant.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationGrantResult {
+    #[serde(rename = "result_uri")]
+    pub result_uri: String,
+    pub grant: AutomationGrantView,
+}
+impl From<AutomationGrantView> for AutomationGrantResult {
+    fn from(grant: AutomationGrantView) -> Self {
+        Self {
+            result_uri: automation_grant_uri(grant.computer_id, grant.grant_id),
+            grant,
+        }
+    }
+}
+pub fn automation_grant_uri(computer: Uuid, grant: Uuid) -> String {
+    format!("computer://computers/{computer}/automation/{grant}")
 }
 
 fn unique_permissions<'de, D: serde::Deserializer<'de>>(

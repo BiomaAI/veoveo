@@ -27,9 +27,10 @@ Contract revision: 3
 The library implements shared lifecycle admission, its worker, and authenticated MCP
 and HTTP projections. The executable uses validated installation configuration.
 Browser and restricted stock CLI transport compose with the native runtime and share
-current authority enforcement. The browser projection is installed. Public CLI pairing,
-agent execution, file movement and the complete installed acceptance matrix remain
-active work. Fixture evidence is not installed-user qualification.
+current authority enforcement. Browser and stock CLI pairing are installed. Public
+command admission and grant management are implemented locally, with real-store/Artifact
+HTTP qualification. Installed agent execution, file movement and the complete installed
+acceptance matrix remain active work. Fixture evidence is not installed-user qualification.
 
 - C01: met
 - C02: met
@@ -41,7 +42,7 @@ active work. Fixture evidence is not installed-user qualification.
 - C08: met
 - C09: met
 - C10: met
-- C11: pending — governed Artifact execution/file tools remain delivery work
+- C11: pending — command outputs use actual-caller Artifact capabilities; governed file tools remain delivery work
 - C12: met
 - C13: met
 - C14: met
