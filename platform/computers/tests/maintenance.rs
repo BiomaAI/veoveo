@@ -348,3 +348,23 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
             .is_none()
     );
 }
+
+#[tokio::test]
+async fn browser_admits_maintenance_for_an_existing_replacement() {
+    let db = TestDb::new().await;
+    let actor =
+        ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
+    let (a, _, id) = support::interactive::ready(&db, &actor).await;
+    support::policy::install(&db.a, control()).await;
+    db.a.client()
+        .query("UPDATE ONLY $computer SET replacement_instance_id = $replacement;")
+        .bind(("computer", RecordId::new("computer", StoreUuid::from(id))))
+        .bind(("replacement", Uuid::now_v7()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    a.queue_maintenance(&actor, id, Uuid::now_v7(), &target())
+        .await
+        .unwrap();
+}

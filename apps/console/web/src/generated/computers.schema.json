@@ -863,6 +863,32 @@
       ],
       "type": "object"
     },
+    "MaintenanceResult": {
+      "additionalProperties": false,
+      "properties": {
+        "computerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "maintenanceId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "result_uri": {
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "result_uri",
+        "computerId",
+        "maintenanceId",
+        "templateId"
+      ],
+      "type": "object"
+    },
     "OperationReceipt": {
       "additionalProperties": false,
       "properties": {
@@ -1336,6 +1362,9 @@
     "limits": {
       "$ref": "#/$defs/ComputerLimits"
     },
+    "maintenance_result": {
+      "$ref": "#/$defs/MaintenanceResult"
+    },
     "operation": {
       "$ref": "#/$defs/OperationView"
     },
@@ -1408,6 +1437,7 @@
     "limits",
     "receipt",
     "lifecycle_result",
+    "maintenance_result",
     "operation",
     "create_input",
     "start_input",

@@ -19,6 +19,14 @@ pub struct RetainedHomes {
     allocators: BTreeMap<String, HomeAllocator>,
 }
 impl RetainedHomes {
+    pub(crate) fn provider_id(&self) -> Uuid {
+        self.provider_id
+    }
+    pub(crate) fn allocator(&self, fingerprint: &str) -> Result<&HomeAllocator, PreflightError> {
+        self.allocators
+            .get(fingerprint)
+            .ok_or(PreflightError::Configuration)
+    }
     /// Each admitted template must agree with the allocator's selected capacity.
     pub async fn ready(&self) -> Result<(), PreflightError> {
         use futures::{StreamExt, TryStreamExt};

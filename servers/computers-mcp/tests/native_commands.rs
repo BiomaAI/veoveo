@@ -31,7 +31,10 @@ use veoveo_computer_execution::ExecutionRequest;
 use veoveo_computers::{
     CapacityPolicy, ComputerActor, ComputersStore, Reservation, api::*, commands::*, secrets::*,
 };
-use veoveo_computers_mcp::{CommandWorker, LifecycleWorker, RetainedHomes, WorkerStep};
+use veoveo_computers_mcp::{
+    CommandWorker, LifecycleWorker, MaintenanceProfiles, MaintenanceTransition, MaintenanceWorker,
+    RetainedHomes, WorkerStep,
+};
 use veoveo_computers_runtime::{Binding, ExecIntent, Phase};
 use veoveo_mcp_contract::{
     ArtifactPlane, GATEWAY_INTERNAL_TOKEN_ISSUER, InvocationProvenance, PlaneCaller, ServerSlug,
@@ -241,7 +244,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         tasks_a.clone(),
         provider.runtime.clone(),
         vec![selected.clone()],
-        homes,
+        homes.clone(),
     )
     .unwrap();
     let create = a
@@ -715,127 +718,118 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     );
     inspect(&provider.runtime, &binding, "test ! -e replayed-command; test ! -e after-cancel; test ! -e after-revocation; test \"$(cat invocation-count)\" = x").await;
     maintenance_policy::add_grant(&provider, &binding).await;
-    let stop = a
-        .queue_operation(
-            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
+    // Real product journal and worker, using the same isolated retained home and
+    // provider tuple. The earlier manual adapter sequence is now owned here.
+    let mut maintenance_control = support::automation::control();
+    let tool = veoveo_mcp_contract::LocalToolName::new("update_template").unwrap();
+    maintenance_control.servers[0].tools.push(tool.clone());
+    maintenance_control.policies[0].rules[0].tools.insert(tool);
+    support::policy::install(&db.a, maintenance_control).await;
+    let actor =
+        ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
+    let operation = a
+        .queue_maintenance(
+            &actor,
             computer.computer_id,
             Uuid::now_v7(),
-            Action::Stop,
+            &veoveo_computers::maintenance::MaintenanceTarget {
+                template_id: "development".into(),
+                template_fingerprint: selected.fingerprint(),
+            },
         )
         .await
         .unwrap();
-    assert_eq!(
-        lifecycle.step(stop).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    // Retire the exact stopped provider resource, then require the allocator's
-    // independent physical handoff before any fresh instance may use its files.
-    let stopped = provider.runtime.get(&binding).await.unwrap().unwrap();
-    let captured = provider
-        .runtime
-        .capture_replacement_policy(&binding, &selected)
-        .await
-        .unwrap();
-    assert_eq!(captured.fingerprint().len(), 64);
-    let replacement =
-        Binding::replacement(computer.computer_id, Uuid::now_v7(), selected.fingerprint()).unwrap();
-    let maintenance = MaintenanceBinding {
-        operation_id: Uuid::now_v7(),
-        request_id: Uuid::now_v7(),
-        computer_id: computer.computer_id,
-        provider_instance_id: provider.runtime.provider_instance_id(),
-        owner_key: command.binding().owner_key.clone(),
-        actor_key: command.binding().owner_key.clone(),
-        source_instance_id: binding
-            .replacement_instance_id()
-            .unwrap_or(binding.computer_id()),
-        target_instance_id: replacement.replacement_instance_id().unwrap(),
-        source_template_fingerprint: selected.fingerprint(),
-        target_template_fingerprint: selected.fingerprint(),
-        source_resource_id: stopped.sandbox_id.clone(),
-        source_process_id: stopped.main_process_instance_id.clone(),
-        required_labels: command.binding().required_output_labels.clone(),
-    };
-    // A private encrypted file exercises restart decoding without creating a fake
-    // product maintenance journal. The real domain admission remains separate.
-    let sealed = keys
-        .seal_maintenance(
-            &maintenance,
-            &MaintenanceCheckpoint::new(captured.checkpoint().unwrap()).unwrap(),
-        )
-        .unwrap();
-    drop(captured);
-    let checkpoint_path = home.dir.join("maintenance-policy.enc");
-    tokio::fs::write(&checkpoint_path, serde_json::to_vec(&sealed).unwrap())
-        .await
-        .unwrap();
-    drop(sealed);
-    let _acknowledgement = provider.runtime.retire(&binding, &stopped).await.unwrap();
-    let absent = tokio::time::timeout(Duration::from_secs(10), async {
-        for attempt in 0..8 {
-            if provider.runtime.get(&binding).await.unwrap().is_none() {
-                return true;
-            }
-            tokio::time::sleep(Duration::from_millis(100 << attempt.min(4))).await;
-        }
-        false
-    })
-    .await
-    .unwrap();
-    assert!(
-        absent,
-        "retired provider resource did not disappear within its observation budget"
-    );
-    let handoff = allocator
-        .handoff(
-            maintenance.operation_id,
-            &binding,
-            &replacement,
-            &stopped.sandbox_id,
-        )
-        .await
-        .unwrap();
-    let checkpoint = veoveo_computers_runtime::LifecycleCheckpoint::create(
-        provider.runtime.provider_instance_id(),
-        Uuid::now_v7(),
-        replacement.clone(),
+    let profiles = MaintenanceProfiles::new(
+        vec![selected.clone()],
+        vec![MaintenanceTransition {
+            source_fingerprint: selected.fingerprint(),
+            target_fingerprint: selected.fingerprint(),
+        }],
     )
     .unwrap();
-    let created = provider
-        .runtime
-        .create(&replacement, &selected)
+    let maintenance_a = MaintenanceWorker::new(
+        a.clone(),
+        tasks_a.clone(),
+        provider.runtime.clone(),
+        profiles.clone(),
+        homes.clone(),
+        keys.clone(),
+    )
+    .unwrap();
+    let maintenance_b = MaintenanceWorker::new(
+        b.clone(),
+        tasks_b.clone(),
+        provider.runtime.clone(),
+        profiles,
+        homes.clone(),
+        keys.clone(),
+    )
+    .unwrap();
+    let schedulers =
+        projection::Schedulers::maintenance([Arc::new(maintenance_a), Arc::new(maintenance_b)]);
+    let started = Instant::now();
+    tokio::time::timeout(Duration::from_secs(180), async {
+        loop {
+            let current = a
+                .maintenance(actor.owner(), operation.operation_id)
+                .await
+                .unwrap();
+            assert_ne!(
+                current.stage,
+                veoveo_computers::maintenance::MaintenanceStage::RecoveryRequired,
+                "native maintenance requires recovery at {:?}",
+                current.steps().last().map(|step| step.step)
+            );
+            let task = tasks_a
+                .get(&operation.task_id().to_string())
+                .await
+                .unwrap()
+                .unwrap();
+            if task.is_terminal() && b.pending_maintenance(None, 100).await.unwrap().is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .expect("native retained maintenance did not settle");
+    schedulers.stop().await;
+    let completed = a
+        .maintenance(actor.owner(), operation.operation_id)
         .await
         .unwrap();
-    provider
-        .runtime
-        .wait_for_lifecycle(&checkpoint, &created, Duration::from_secs(30))
-        .await
-        .unwrap();
-    let sealed = serde_json::from_slice(&tokio::fs::read(&checkpoint_path).await.unwrap()).unwrap();
-    let bytes = keys.open_maintenance(&maintenance, &sealed).unwrap();
-    let recovered = provider
-        .runtime
-        .recover_replacement_policy(bytes.bytes(), &binding, &selected, &stopped)
-        .unwrap();
-    drop(bytes);
-    let restored = provider
-        .runtime
-        .restore_replacement_policy(&recovered, &handoff, &selected, &selected)
-        .await
-        .unwrap();
-    assert!(
-        restored.policy_version > 1,
-        "captured dynamic grant must be restored"
-    );
     assert_eq!(
-        restored,
-        provider
-            .runtime
-            .restore_replacement_policy(&recovered, &handoff, &selected, &selected)
-            .await
-            .unwrap()
+        completed.stage,
+        veoveo_computers::maintenance::MaintenanceStage::Succeeded
     );
-    tokio::fs::remove_file(checkpoint_path).await.unwrap();
+    assert_eq!(completed.steps().len(), 6);
+    assert!(matches!(completed.steps().last().unwrap().evidence,
+        Some(veoveo_computers::maintenance::MaintenanceEvidence::Restored {policy_version,..}) if policy_version > 1));
+    let retained = b.get(actor.owner(), computer.computer_id).await.unwrap();
+    assert_eq!(retained.active_operation, None);
+    assert_eq!(retained.instance_id(), operation.target_instance_id);
+    let replacement = Binding::from_instance(
+        retained.computer_id,
+        retained.instance_id(),
+        retained.template_fingerprint.clone(),
+    )
+    .unwrap();
+    assert!(provider.runtime.get(&binding).await.unwrap().is_none());
+    let task = tasks_a
+        .get(&operation.task_id().to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(task.status, TaskStatus::Succeeded);
+    let result: rmcp::model::CallToolResult = serde_json::from_value(task.result.unwrap()).unwrap();
+    let result: MaintenanceResult =
+        serde_json::from_value(result.structured_content.unwrap()).unwrap();
+    assert_eq!(result.maintenance_id, operation.operation_id);
+    assert_eq!(
+        result.result_uri,
+        veoveo_computers::api::computer_uri(computer.computer_id)
+    );
+    assert!(b.pending_maintenance(None, 100).await.unwrap().is_empty());
     inspect(
         &provider.runtime,
         &replacement,
@@ -843,6 +837,10 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     )
     .await;
     assert!(allocator.restore(&binding).await.is_err());
+    eprintln!(
+        "Native durable retained maintenance settled in {} ms",
+        started.elapsed().as_millis()
+    );
     artifact_server.abort();
     let _ = artifact_server.await;
     provider.assert_running();

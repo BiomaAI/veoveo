@@ -17,6 +17,40 @@
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
 ordinary catalog and action policy without importing the provider SDK. The `computers-mcp` executable serves the same HTTP router used by fixtures.
 
+## Retained Maintenance Worker
+
+`MaintenanceWorker` composes the domain journal with the pinned provider, retained-home
+allocator and installation-owned key ring. Each private step uses one original dispatch
+ticket and renews the shared Task lease during provider work. A lost provider mutation
+reply enters the domain's finite observation budget. Stop and Create recovery read the
+original binding. Retirement recovery checks provider absence, while the independent
+allocator still has to prove physical writer exclusion. An initial Create with unknown
+effect uses the allocator's qualified unclaimed abandonment profile and retains its
+original provider history and quota.
+
+Allocator transfer is the one qualified idempotent replay: every attempt uses the same
+durable maintenance, source and target identities. The allocator can return its original
+receipt after a lost reply or helper restart and refuses superseded targets. Reacquiring
+that receipt for policy verification grants no new instance or dispatch identity.
+
+Capture writes its encrypted checkpoint through the domain transaction. The worker
+reopens and validates it before retiring a known source. Restore reads the same private
+row after source deletion and accepts only the exact retained handoff receipt. A lost
+policy-update reply uses read-only reconciliation and cannot resubmit UpdateConfig.
+The worker verifies the recorded target resource, process and restored policy before
+adoption, consuming a final bounded observation ticket. It publishes the typed
+`MaintenanceResult` and repairs retention acknowledgement across replicas.
+
+`MaintenanceProfiles` accepts at most 256 directed installation-admitted template
+transitions. Both endpoints must exist in the admitted catalog and pass the runtime's
+image-only transition preflight. Declaring a pair is not qualification of its image
+data compatibility. The native fixture supplies one same-image pair. The scheduler
+runs at most four jobs per replica, pages the domain journal and defers Task-store
+conflicts without repeating an uncertain dispatch. Shutdown ends local futures while
+the journal retains its fences. Executable wiring, installation configuration, public
+update admission, explicit operator
+resumption and different-image/installed acceptance remain integration work.
+
 ## Public Command And Grant Admission
 
 MCP `execute` accepts explicit `arguments`, a home-relative `directory`, bounded
@@ -490,9 +524,9 @@ Lost dispatch/settlement and current-policy cases retain their domain fence asse
 The fixture establishes this composition; it does not establish public MCP or
 installation acceptance.
 
-The native command fixture also exercises policy continuity across physical writer
-handoff. It adds a scoped fixture grant to the running source, stops it, encrypts the
-captured policy, removes the provider resource, and obtains the allocator's handoff
-receipt. The fresh target loads the captured grant from that encrypted checkpoint;
-retained command markers remain intact. This test composes the production primitives
-without claiming that its fixture file is the product's maintenance journal.
+The native command fixture now admits a real maintenance Task after adding a scoped
+fixture grant to the running source. Two worker instances compete through the shared
+Task lease. The production journal drives Stop, protected Capture, Retire, Transfer,
+Create and Restore. The target loads the captured grant from the database checkpoint,
+and retained command markers remain intact. This qualifies the worker's private
+composition; public update requests and installed template transitions remain separate.
