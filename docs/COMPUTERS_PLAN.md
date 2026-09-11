@@ -53,7 +53,10 @@ The public long-session check was interrupted by database memory exhaustion duri
 an audit-index migration. Its observed CLI lease activity exceeded ten minutes, but
 the interrupted run does not establish an uninterrupted end-to-end renewal bound.
 The focused native expiry and blocked-I/O tests remain the precise bound evidence.
-Migration recovery and a subsequent stable public continuity check are separate work.
+Migration 0072 completed at 08:57:09 UTC through its online preparation path. Both
+gateway replicas subsequently completed cleanup, and release 152 is Ready. A fresh
+public browser command at 09:01:30 read the retained agent-created file. A subsequent
+stable public long-session check remains separate work.
 
 The remaining initial-release work includes general Artifact file import/export,
 agent lifecycle permissions, selected-profile backup/key ownership and restore
