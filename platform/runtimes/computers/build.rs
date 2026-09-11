@@ -5,6 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     verify_protocol()?;
     verify_terminal_protocol()?;
     generate_openshell()?;
+    generate_maintenance()?;
     generate_allocation()?;
     Ok(())
 }
@@ -58,6 +59,22 @@ fn generate_openshell() -> Result<(), Box<dyn std::error::Error>> {
             ],
             &[root, protoc_bin_vendored::include_path()?],
         )?;
+    Ok(())
+}
+
+fn generate_maintenance() -> Result<(), Box<dyn std::error::Error>> {
+    let mut prost = prost_build::Config::new();
+    prost.protoc_executable(protoc_bin_vendored::protoc_bin_path()?);
+    prost.btree_map(["."]);
+    prost.skip_debug(["."]);
+    prost.extern_path(".openshell", "crate::protocol");
+    prost.compile_protos(
+        &[PathBuf::from("protocol/maintenance.proto")],
+        &[
+            PathBuf::from("protocol"),
+            protoc_bin_vendored::include_path()?,
+        ],
+    )?;
     Ok(())
 }
 

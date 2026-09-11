@@ -3,25 +3,27 @@
 //! controllers/provider work and hold exclusive maintenance authority throughout.
 use crate::{
     Binding, DevelopmentTemplate, Observation, OpenShellRuntime, Phase, Result, RuntimeFailure,
-    canonical,
     client::request,
     models::valid_fingerprint,
     protocol::{sandbox::v1 as policy, v1 as api},
 };
-use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, time::Duration};
 use uuid::Uuid;
+
+mod checkpoint;
 
 const FAILURE: RuntimeFailure = RuntimeFailure::PolicyContinuity;
 const PROVENANCE: &str = "veoveo.io/replacement-policy";
 const DEADLINE: Duration = Duration::from_secs(75);
 
-/// Private in-memory provider snapshot. Deliberately has no Debug or Serialize:
-/// effective settings may be sensitive. A durable operation stores only its
-/// fingerprint and recaptures from the retained original instance on recovery.
+/// Private provider snapshot. Effective settings may be sensitive. Persist only
+/// an authenticated encrypted checkpoint, bound to its durable maintenance job.
+/// This type deliberately has no Debug or Serialize implementation.
 pub struct ReplacementPolicy {
     source: Binding,
+    installation_provider_id: Uuid,
     provider_id: String,
+    process_id: String,
     config: policy::GetSandboxConfigResponse,
     fingerprint: String,
 }
@@ -59,7 +61,7 @@ fn checked(
         || template.persistent_home().is_none()
         || sandbox.spec.as_ref() != Some(&template.bound_spec(binding).map_err(|_| FAILURE)?)
         || !matches!(observed.phase, Phase::Ready | Phase::Stopped)
-        || (observed.phase == Phase::Ready && observed.main_process_instance_id.is_empty())
+        || observed.main_process_instance_id.is_empty()
     {
         return Err(FAILURE);
     }
@@ -262,28 +264,16 @@ impl OpenShellRuntime {
             {
                 return Err(FAILURE);
             }
-            let mut hash = Sha256::new();
-            hash.update(b"veoveo-replacement-policy-v1\0");
-            hash.update(source.computer_id().as_bytes());
-            hash.update(
-                source
-                    .replacement_instance_id()
-                    .unwrap_or(Uuid::nil())
-                    .as_bytes(),
-            );
-            hash.update(source.template_fingerprint().as_bytes());
-            hash.update((before.provider_id.len() as u64).to_be_bytes());
-            hash.update(before.provider_id.as_bytes());
-            hash.update(canonical::encode(
-                &config,
-                ".openshell.sandbox.v1.GetSandboxConfigResponse",
-            ));
-            Ok(ReplacementPolicy {
+            let mut snapshot = ReplacementPolicy {
                 source: source.clone(),
+                installation_provider_id: self.provider_instance_id,
                 provider_id: before.provider_id,
+                process_id: before.process,
                 config,
-                fingerprint: hex::encode(hash.finalize()),
-            })
+                fingerprint: String::new(),
+            };
+            snapshot.update_fingerprint()?;
+            Ok(snapshot)
         })
         .await
         .map_err(|_| FAILURE)?
@@ -296,7 +286,9 @@ impl OpenShellRuntime {
     ) -> Result<()> {
         let before = self.policy_bound(&snapshot.source, template).await?;
         if before.phase != Phase::Stopped
+            || self.provider_instance_id != snapshot.installation_provider_id
             || before.provider_id != snapshot.provider_id
+            || before.process != snapshot.process_id
             || self.policy_config(&snapshot.provider_id).await? != snapshot.config
             || self.policy_bound(&snapshot.source, template).await? != before
         {

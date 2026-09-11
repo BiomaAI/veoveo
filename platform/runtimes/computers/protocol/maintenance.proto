@@ -1,0 +1,19 @@
+// Veoveo-owned private persistence format. Encrypt before durable storage.
+syntax = "proto3";
+package veoveo.computers.maintenance.v1;
+
+import "sandbox.proto";
+
+// Encoded only by the qualified adapter. This is not provider wire traffic,
+// maintenance authority, or proof that a writer has been fenced.
+message PolicyCheckpoint {
+  uint32 version = 1;
+  string gateway_version = 2;
+  bytes provider_instance_id = 3;
+  bytes computer_id = 4;
+  bytes source_instance_id = 5;
+  string template_fingerprint = 6;
+  string resource_id = 7;
+  string process_id = 8;
+  openshell.sandbox.v1.GetSandboxConfigResponse config = 9;
+}

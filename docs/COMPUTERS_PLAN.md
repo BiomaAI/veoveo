@@ -618,6 +618,12 @@ fixture composes retirement, bounded absence observation, physical handoff and r
 file checks on a fresh instance. Product maintenance still needs its durable admission,
 protected policy checkpoint and post-retirement restoration before installed adoption.
 
+The adapter now encodes a bounded private policy checkpoint and can recover its exact
+settings without reading the retired provider object. Focused transport cases exercise
+restart decoding, canonical encoding rejection and provider/instance/process isolation.
+This encoding requires authenticated journal encryption. It does not yet supply durable
+maintenance admission or post-retirement restoration authority.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

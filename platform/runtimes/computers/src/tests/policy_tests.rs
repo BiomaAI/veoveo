@@ -383,6 +383,102 @@ async fn already_matching_policy_is_read_only_and_needs_no_watch() {
 }
 
 #[tokio::test]
+async fn private_checkpoint_recovers_without_source_reads_and_preserves_exact_policy() {
+    let running = fixture().await;
+    let snapshot = captured(&running).await;
+    let fingerprint = snapshot.fingerprint().to_owned();
+    let bytes = snapshot.checkpoint().unwrap();
+    drop(snapshot);
+    let expected = running.runtime.get(&bindings().0).await.unwrap().unwrap();
+    edit(&running, |f| f.calls.clear());
+    let snapshot = running
+        .runtime
+        .recover_replacement_policy(&bytes, &bindings().0, &profile(), &expected)
+        .unwrap();
+    assert_eq!(fingerprint, snapshot.fingerprint());
+    assert!(snapshot.checkpoint().unwrap().as_slice() == bytes.as_slice());
+    edit(&running, |f| assert!(f.calls.is_empty()));
+    let result = restore(&running, &snapshot).await.unwrap();
+    assert_eq!(result.policy_version, 2);
+    edit(&running, |f| {
+        assert!(f.new_config.policy == f.old_config.policy);
+        assert!(f.new_config.settings == f.old_config.settings);
+        assert_eq!(f.updates, 1);
+    });
+}
+
+#[tokio::test]
+async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_process_rebinding() {
+    use crate::maintenance_protocol::PolicyCheckpoint;
+    use prost::Message;
+
+    let running = fixture().await;
+    let snapshot = captured(&running).await;
+    let bytes = snapshot.checkpoint().unwrap();
+    let expected = running.runtime.get(&bindings().0).await.unwrap().unwrap();
+    let rejected = |bytes: &[u8], source: &Binding, expected: &Observation| {
+        assert!(matches!(
+            running
+                .runtime
+                .recover_replacement_policy(bytes, source, &profile(), expected),
+            Err(RuntimeFailure::PolicyContinuity)
+        ));
+    };
+    rejected(&[], &bindings().0, &expected);
+    rejected(&vec![0; 1024 * 1024 + 4097], &bindings().0, &expected);
+    rejected(&bytes[..bytes.len() - 1], &bindings().0, &expected);
+    for suffix in [[0x08, 0x01], [0x50, 0x01]] {
+        let mut invalid = bytes.to_vec();
+        invalid.extend(suffix);
+        rejected(&invalid, &bindings().0, &expected);
+    }
+    rejected(&bytes, &bindings().1, &expected);
+    let mut wrong = expected.clone();
+    wrong.main_process_instance_id = "changed-process".into();
+    rejected(&bytes, &bindings().0, &wrong);
+    wrong = expected.clone();
+    wrong.sandbox_id = "changed-resource".into();
+    rejected(&bytes, &bindings().0, &wrong);
+    wrong = expected.clone();
+    wrong.phase = Phase::Starting;
+    rejected(&bytes, &bindings().0, &wrong);
+    for fault in 0..9 {
+        let mut invalid = PolicyCheckpoint::decode(bytes.as_slice()).unwrap();
+        match fault {
+            0 => invalid.version += 1,
+            1 => invalid.gateway_version = "other-version".into(),
+            2 => invalid.provider_instance_id = Uuid::now_v7().as_bytes().to_vec(),
+            3 => invalid.source_instance_id = Uuid::now_v7().as_bytes().to_vec(),
+            4 => invalid.template_fingerprint = "b".repeat(64),
+            5 => invalid.config = None,
+            6 => invalid.config.as_mut().unwrap().workspace = "different".into(),
+            7 => invalid.config.as_mut().unwrap().version = 0,
+            8 => invalid.config.as_mut().unwrap().global_policy_version = 1,
+            _ => unreachable!(),
+        }
+        rejected(&invalid.encode_to_vec(), &bindings().0, &expected);
+    }
+    let mut different_provider = running.runtime.clone();
+    different_provider.provider_instance_id = Uuid::now_v7();
+    assert!(
+        different_provider
+            .recover_replacement_policy(&bytes, &bindings().0, &profile(), &expected)
+            .is_err()
+    );
+    assert!(
+        different_provider
+            .restore_replacement_policy(&snapshot, &bindings().1, &profile(), Uuid::now_v7())
+            .await
+            .is_err()
+    );
+    edit(&running, |f| {
+        f.source.status.as_mut().unwrap().main_process_instance_id = "later-source-run".into();
+    });
+    assert!(restore(&running, &snapshot).await.is_err());
+    edit(&running, |f| assert_eq!(f.updates, 0));
+}
+
+#[tokio::test]
 async fn lost_mutation_reply_reconciles_the_same_loaded_policy_without_resubmission() {
     let running = fixture().await;
     let snapshot = captured(&running).await;

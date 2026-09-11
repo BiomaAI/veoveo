@@ -15,6 +15,7 @@ public ingress and installed qualification remain in
 | `veoveo.io/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
+| Veoveo private policy checkpoint protobuf v1 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
 | Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 | Docker volume-plugin API v1; Engine HTTP API `1.53` | Selected volume methods and registered-container enumeration; the worker fixture composes the production allocator with the native provider |
@@ -52,6 +53,13 @@ from temporary provider unavailability. `models`, `binding`,
 owns bounded command streams. `allocation` and `storage` bind retained volumes;
 `policy_continuity` checks effective policy continuity under an external maintenance
 fence. It compares the complete instance-bound template, including guest labels.
+Its `checkpoint` module encodes sensitive policy for immediate journal encryption and
+recovers it without rereading a retired source. It rejects cross-provider, source,
+process, workspace and template identity; unknown or noncanonical encoding also fails.
+The checkpoint is bounded to 1 MiB plus 4 KiB of identity overhead. Its internal
+unkeyed fingerprint must remain private with the policy, because settings can contain
+secrets. Returned plaintext buffers are zeroized; generated provider strings do not
+provide a whole-process memory-erasure guarantee.
 `lease` enforces local authority deadlines and revocation. `forward_tunnel` owns the
 bounded SSH-only CLI bridge and its independent closure task.
 
@@ -176,8 +184,8 @@ A current not-found result alone cannot transfer storage. The command fixture ad
 a bounded eight-read/ten-second provider absence check followed by actual allocator
 handoff and fresh-instance creation. Existing command-marker bytes must survive.
 This qualifies adapter composition under fixture-owned quiescence. Durable product
-maintenance, protected policy checkpoints and dynamic-grant restoration after source
-retirement remain work. The existing in-memory policy restoration requires a retained
+maintenance, checkpoint journal encryption and dynamic-grant restoration after source
+retirement remain work. The existing policy restoration requires a retained
 Stopped source and cannot supply that future workflow after deletion.
 
 Healthy lifecycle observation uses native WatchSandbox. `wait_for_lifecycle` takes
