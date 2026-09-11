@@ -8,6 +8,7 @@ use veoveo_mcp_contract::docs::ServerDocs;
 pub const COLLECTION: &str = veoveo_computers::api::COMPUTERS_URI;
 pub const COMPUTER_TEMPLATE: &str = "computer://computers/{computer_id}";
 pub const ACCESS_TEMPLATE: &str = "computer://computers/{computer_id}/access";
+pub const MAINTENANCE_TEMPLATE: &str = "computer://computers/{computer_id}/maintenance";
 pub const EXECUTION_TEMPLATE: &str = "computer://executions/{execution_id}";
 pub const AUTOMATION_TEMPLATE: &str = "computer://computers/{computer_id}/automation";
 pub const GRANT_TEMPLATE: &str = "computer://computers/{computer_id}/automation/{grant_id}";
@@ -21,6 +22,7 @@ pub enum ResourceId<'a> {
     Collection(Option<Uuid>),
     Computer(Uuid),
     Access(Uuid),
+    Maintenance(Uuid),
     Execution(Uuid),
     Automation(Uuid),
     Grant(Uuid, Uuid),
@@ -40,6 +42,9 @@ pub fn parse(uri: &str) -> Option<ResourceId<'_>> {
                     .map(|uri| ResourceId::Execution(uri.execution_id()));
             }
             if let Some(id) = uri.strip_prefix("computer://computers/") {
+                if let Some(id) = id.strip_suffix("/maintenance") {
+                    return canonical_uuid(id).map(ResourceId::Maintenance);
+                }
                 if let Some((computer, grant)) = id.split_once("/automation/") {
                     return Some(ResourceId::Grant(
                         canonical_uuid(computer)?,
@@ -97,6 +102,11 @@ pub fn templates() -> Vec<ResourceTemplate> {
     [
         (COMPUTER_TEMPLATE, "computer", "One private Computer"),
         (
+            MAINTENANCE_TEMPLATE,
+            "computer-maintenance",
+            "Admitted environment updates and active progress",
+        ),
+        (
             AUTOMATION_TEMPLATE,
             "computer-automation",
             "Live named automation grants for your Computer",
@@ -153,6 +163,14 @@ impl ComputersMcp {
         let result = match parse(uri)
             .ok_or_else(|| ErrorData::invalid_params("unknown Computer resource", None))?
         {
+            ResourceId::Maintenance(id) => json(
+                uri,
+                &self
+                    .app
+                    .maintenance_state(&actor, id)
+                    .await
+                    .map_err(super::read_error)?,
+            )?,
             ResourceId::Collection(after) => json(
                 uri,
                 &self

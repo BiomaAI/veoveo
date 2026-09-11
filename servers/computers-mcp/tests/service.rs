@@ -34,6 +34,15 @@ async fn bioma_reference_configuration_admits_retained_and_execution_templates()
         .to_string_lossy()
         .into_owned()
         .into();
+    let mut duplicate = input.clone();
+    duplicate["capacity"]["templates"][1]["id"] = input["capacity"]["templates"][0]["id"].clone();
+    assert!(matches!(
+        serde_json::from_value::<Configuration>(duplicate)
+            .unwrap()
+            .prepare()
+            .await,
+        Err(veoveo_computers_mcp::config::ConfigurationError::Templates)
+    ));
     serde_json::from_value::<Configuration>(input)
         .unwrap()
         .prepare()

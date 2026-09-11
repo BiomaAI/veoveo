@@ -62,6 +62,15 @@ impl ControlAuthority {
         self.snapshot.check_fresh()
     }
     pub fn require_action(&self, action: Action) -> Result<()> {
+        self.require_call(&crate::current_authority::execution_target(action))
+    }
+    pub fn require_update_template(&self) -> Result<()> {
+        if self.snapshot.deadline - Duration::from_secs(25) <= Instant::now() {
+            return Err(ComputerError::Unavailable);
+        }
+        self.require_call(&crate::maintenance::target())
+    }
+    fn require_call(&self, target: &PolicyTarget) -> Result<()> {
         self.check_fresh()?;
         if !self
             .snapshot
@@ -69,11 +78,7 @@ impl ControlAuthority {
             .allows(WorkContextMembershipLevel::Contributor)
             || self
                 .snapshot
-                .decision(
-                    GatewayAction::ToolsCall,
-                    &crate::current_authority::execution_target(action),
-                    &self.trace,
-                )
+                .decision(GatewayAction::ToolsCall, target, &self.trace)
                 .effect
                 != PolicyEffect::Allow
         {

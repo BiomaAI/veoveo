@@ -47,9 +47,41 @@ image-only transition preflight. Declaring a pair is not qualification of its im
 data compatibility. The native fixture supplies one same-image pair. The scheduler
 runs at most four jobs per replica, pages the domain journal and defers Task-store
 conflicts without repeating an uncertain dispatch. Shutdown ends local futures while
-the journal retains its fences. Executable wiring, installation configuration, public
-update admission, explicit operator
-resumption and different-image/installed acceptance remain integration work.
+the journal retains its fences. The executable starts this scheduler from the validated
+installation configuration. Explicit operator resumption and different-image/installed
+acceptance remain integration work.
+
+## Public Environment Updates
+
+The `update_template` tool and POST `/admin/computers/{id}/update-template` share
+one application command. Inputs contain `computerId`, `requestId` and an optional
+installation `templateId`. Template IDs are unique within a catalog. Omitting the
+ID selects the current default on first admission; retries resolve the saved target
+before inspecting a changed default or current capacity. A changed explicit target
+conflicts. Concurrent selection races preserve the first accepted target.
+
+Current contributor membership, owner visibility and `update_template` action policy
+are required. Agents do not inherit this authority from an Execute grant. The worker
+independently rechecks current policy before each new step. An active command prevents
+maintenance admission; finishing or explicitly stopping it precedes the update.
+
+GET `/admin/computers/{id}/maintenance` and the subscribable resource
+`computer://computers/{id}/maintenance` return admitted targets, current eligibility
+and the active maintenance projection. GET `/admin/computers/{id}/maintenance/{task}`
+returns an exact retained receipt. Projections expose template IDs and progress phases,
+including an explicit recovery reason. They contain no provider, instance, checkpoint
+or policy fingerprint. Recovery does not release the fence or present success.
+
+MCP requires Tasks support before admission. The result is the same durable Task as
+HTTP, whose queued/running receipt uses status 202. Completed or paused receipts use
+status 200. Task reads and subscriptions require current Computer read authority;
+cancellation additionally requires current update authority. Maintenance Task authority
+has a five-second observation window and subscriptions revalidate every five seconds.
+The existing Computer resource remains the canonical completed result.
+
+Console and gateway route integration remain work. The service wire fixture establishes
+cross-replica admission, default rotation, Task access and revocation using a synthetic
+capacity profile. It makes no installed or image-compatibility claim.
 
 ## Public Command And Grant Admission
 
@@ -187,7 +219,7 @@ as a private host:port plus absolute `caFile`, `certificateFile` and `keyFile` p
 Provider and allocator trust are separate installation inputs. No credential belongs
 in the JSON document. Kubernetes supplies the referenced secrets through mounted files.
 
-Limits use `perOwner`, `perTenant` and `provider`. Every template contains `id`,
+Limits use `perOwner`, `perTenant` and `provider`. Every template has a unique `id` and contains
 `fingerprint`, `image`, `cpus`, `memoryMib`, `homeCapacityMib`, `temporaryMib` and
 `policy`. The policy uses the pinned provider's protobuf JSON mapping. The service
 selects the canonical retained login command and verifies the entire template against

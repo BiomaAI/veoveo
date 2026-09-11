@@ -847,3 +847,10 @@ Python/shell template has no outbound network permission. The gateway catalog ex
 Computers through explicit user and service policy. Two-replica gateway, Console and
 Computers control are selected with the exact published images; Flux activation and
 public user journeys are the next installed checks.
+
+The service now supervises maintenance alongside lifecycle and commands and validates
+explicit directed template transitions at startup. Public service HTTP/MCP admission
+selects an installation template, preserves its original target on retries, and exposes
+Task progress and recovery without provider details. Template IDs are unique. Current
+read/update policy governs Task observation and cancellation. Gateway/Console integration,
+operator resumption, real image upgrade/rollback and installed acceptance remain required.

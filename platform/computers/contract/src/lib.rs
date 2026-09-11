@@ -5,6 +5,8 @@ mod automation;
 pub use automation::*;
 mod execution;
 pub use execution::*;
+mod maintenance;
+pub use maintenance::*;
 mod pairing;
 use chrono::{DateTime, Utc};
 pub use pairing::*;
@@ -384,6 +386,9 @@ struct SchemaBundle {
     receipt: OperationReceipt,
     lifecycle_result: LifecycleResult,
     maintenance_result: MaintenanceResult,
+    maintenance_state: MaintenanceState,
+    maintenance_view: MaintenanceView,
+    update_template_input: UpdateTemplateInput,
     operation: OperationView,
     create_input: CreateInput,
     start_input: StartInput,
@@ -468,6 +473,9 @@ mod tests {
             "ComputerSnapshot",
             "ExecutionResult",
             "MaintenanceResult",
+            "MaintenanceState",
+            "MaintenanceView",
+            "UpdateTemplateInput",
             "ExecutionOutput",
             "ComputerView",
             "TemplateView",

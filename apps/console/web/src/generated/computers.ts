@@ -70,6 +70,30 @@ export type ComputerEventKind = "snapshot_changed";
 export type Action = "create" | "start" | "stop";
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "MaintenancePhase".
+ */
+export type MaintenancePhase =
+  | "queued"
+  | "stopping"
+  | "saving_policy"
+  | "replacing"
+  | "starting"
+  | "restoring_policy"
+  | "verifying"
+  | "succeeded"
+  | "cancelled"
+  | "recovery_required";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "MaintenanceRecoveryReason".
+ */
+export type MaintenanceRecoveryReason =
+  | "observation_budget_exhausted"
+  | "authority_denied"
+  | "cancellation_requested"
+  | "checkpoint_unavailable";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "OperationStatus".
  */
 export type OperationStatus =
@@ -174,6 +198,8 @@ export interface ComputersApi {
   lifecycle_result: LifecycleResult;
   limits: ComputerLimits;
   maintenance_result: MaintenanceResult;
+  maintenance_state: MaintenanceState;
+  maintenance_view: MaintenanceView;
   operation: OperationView;
   receipt: OperationReceipt;
   revoke_access_body: RevokeAccessBody;
@@ -190,6 +216,7 @@ export interface ComputersApi {
   terminal_server_control: TerminalServerControl;
   terminal_ticket: TerminalTicket;
   terminal_ticket_input: TerminalTicketInput;
+  update_template_input: UpdateTemplateInput;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -495,6 +522,40 @@ export interface MaintenanceResult {
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "MaintenanceState".
+ */
+export interface MaintenanceState {
+  active?: MaintenanceView | null;
+  canUpdate: boolean;
+  computerId: string;
+  targets: TemplateView[];
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "MaintenanceView".
+ */
+export interface MaintenanceView {
+  computerId: string;
+  createdAt: string;
+  phase: MaintenancePhase;
+  recovery?: MaintenanceRecoveryReason | null;
+  sourceTemplateId: string;
+  targetTemplateId: string;
+  taskId: string;
+  updatedAt: string;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "TemplateView".
+ */
+export interface TemplateView {
+  cpus: number;
+  homeCapacityMib?: number | null;
+  memoryMib: number;
+  templateId: string;
+}
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "OperationView".
  */
 export interface OperationView {
@@ -545,16 +606,6 @@ export interface ComputerSnapshot {
   limits?: ComputerLimits | null;
   nextCursor?: string | null;
   template?: TemplateView | null;
-}
-/**
- * This interface was referenced by `ComputersApi`'s JSON-Schema
- * via the `definition` "TemplateView".
- */
-export interface TemplateView {
-  cpus: number;
-  homeCapacityMib?: number | null;
-  memoryMib: number;
-  templateId: string;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -634,4 +685,16 @@ export interface TerminalTicket {
   endpoint: string;
   expiresAt: string;
   token: TerminalToken;
+}
+/**
+ * Select an installation-admitted template, or omit it to choose the current
+ * default on the first request. An exact retry retains the original selection.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "UpdateTemplateInput".
+ */
+export interface UpdateTemplateInput {
+  computerId: string;
+  requestId: string;
+  templateId?: string | null;
 }

@@ -71,6 +71,31 @@ impl ComputersMcp {
                 })
             }
             Err(ComputerError::NotFound) => {
+                let started = Instant::now();
+                match self.app.store.maintenance(actor.owner(), id).await {
+                    Ok(operation) => {
+                        let control = self
+                            .app
+                            .store
+                            .control_authority(actor)
+                            .await
+                            .map_err(error)?;
+                        control
+                            .require_read(Some(operation.computer_id))
+                            .map_err(error)?;
+                        if cancel {
+                            control.require_update_template().map_err(error)?;
+                        }
+                        return Ok(TaskAccess {
+                            owner: actor.owner().clone(),
+                            deadline: control
+                                .valid_until()
+                                .min(started + std::time::Duration::from_secs(5)),
+                        });
+                    }
+                    Err(ComputerError::NotFound) => {}
+                    Err(cause) => return Err(error(cause)),
+                }
                 let action = if cancel {
                     CommandTaskAction::Cancel
                 } else {

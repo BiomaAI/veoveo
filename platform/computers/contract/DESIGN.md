@@ -8,7 +8,7 @@
 | Veoveo Computers projection | Collection snapshots, lifecycle receipts and public phases; this library does not serve an HTTP or MCP endpoint |
 | Veoveo terminal v2 | Bounded authenticated first frame, resize, ready, sequenced lease deadlines and explicit replay-complete controls; raw terminal bytes remain a separate frame type |
 | Veoveo execution result | Known foreground exit code and stdout/stderr Artifact occurrence references; byte counts are bounded metadata, without command text or capability secrets |
-| Veoveo maintenance result | Completed maintenance Task identity, selected template ID and the existing Computer resource URI; provider instances and protected policy remain private |
+| Veoveo maintenance projection | Closed update input, admitted target inventory, progress/recovery phases and completed Task identity with the existing Computer resource URI; provider instances and protected policy remain private |
 | Veoveo automation grant v1 | Named principal and OAuth-client scope, explicit permissions and bounded execution limits; generated JSON projection, no bearer authority |
 | OpenShell CLI `0.0.116` pairing adapter | Custom confirmation-code and IPv4 loopback JSON callback; public requests select no host or authority |
 
@@ -96,3 +96,10 @@ IDs resolve through `artifact://{artifact_id}` under Artifact read authority.
 `AutomationGrantResult` wraps one grant and its canonical result URI. Exact grant reads
 include revoked/expired records even when the live inventory no longer lists them.
 The empty `RevokeAutomationGrantBody` is closed and cannot carry additional authority.
+
+`UpdateTemplateInput` selects an admitted template ID or the first request's default.
+`MaintenanceState` exposes permitted targets and one active update. `MaintenanceView`
+retains its Task identity and explicit progress/recovery phase. A saved target never
+changes because a default changes. These types accept no image, fingerprint, owner or
+provider selector. Cancellation and exhausted recovery do not imply source retirement
+or release of retained capacity.

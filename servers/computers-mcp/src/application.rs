@@ -10,6 +10,7 @@ use veoveo_computers::{
 use veoveo_task_runtime::TaskRuntime;
 mod automation;
 mod execution;
+pub(crate) mod maintenance;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApplicationError {
@@ -32,6 +33,7 @@ pub struct CapacityHealth {
 }
 pub struct Application {
     execution: Option<execution::ExecutionSupport>,
+    maintenance: Option<crate::MaintenanceProfiles>,
     pub(crate) subscription_slots: std::sync::Arc<tokio::sync::Semaphore>,
     pub(crate) store: ComputersStore,
     pub(crate) tasks: TaskRuntime,
@@ -59,6 +61,7 @@ impl Application {
         }
         Ok(Self {
             execution: None,
+            maintenance: None,
             subscription_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(64)),
             store,
             tasks,

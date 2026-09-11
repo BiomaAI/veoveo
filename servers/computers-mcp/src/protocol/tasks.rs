@@ -24,6 +24,12 @@ enum ExecutionOutputSchema {
     Completed(ExecutionResult),
     Rejected(ApiError),
 }
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+enum MaintenanceOutputSchema {
+    Completed(MaintenanceResult),
+    Rejected(ApiError),
+}
 pub fn tools() -> Vec<Tool> {
     let create = Tool::new("create", "Create a retained Computer using the installation default. Reuse requestId when retrying. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<CreateInput>())
         .with_title("Create Computer").with_output_schema::<LifecycleOutput>()
@@ -45,6 +51,10 @@ pub fn tools() -> Vec<Tool> {
     };
     vec![
         create,
+        Tool::new("update_template", "Update a Computer to an installation-admitted environment while retaining its home. This stops its processes. Finish active commands first. Omit templateId to select the current default; reuse requestId after a lost reply to retain the original selection. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<UpdateTemplateInput>())
+            .with_title("Update environment")
+            .with_output_schema::<MaintenanceOutputSchema>()
+            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
         Tool::new("execute", "Run explicit argv in a retained Computer under your named automation grant. Use a home-relative directory and standard padded base64 stdin. Reuse requestId with identical input after a lost reply. Cancellation may stop the Computer run under the grant's explicit interruption scope. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<ExecuteInput>())
             .with_title("Execute Computer command")
             .with_output_schema::<ExecutionOutputSchema>()
@@ -125,7 +135,7 @@ impl ComputersMcp {
             "create" => Some(Action::Create),
             "start" => Some(Action::Start),
             "stop" => Some(Action::Stop),
-            "execute" => None,
+            "execute" | "update_template" => None,
             _ => return Err(ErrorData::invalid_params("unknown Computer tool", None)),
         };
         // Capability admission precedes domain reservation and Task creation.
@@ -154,6 +164,15 @@ impl ComputersMcp {
                 }
             };
             match result {
+                Ok(operation) => operation.task_id().to_string(),
+                Err(error) => return rejection(error),
+            }
+        } else if request.name == "update_template" {
+            match self
+                .app
+                .update_template(&auth::actor(&context)?, input(request.arguments)?)
+                .await
+            {
                 Ok(operation) => operation.task_id().to_string(),
                 Err(error) => return rejection(error),
             }

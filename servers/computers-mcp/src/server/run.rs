@@ -57,6 +57,7 @@ pub async fn serve(
         runtime_access,
     )?;
     if let Some(provider) = &config.provider {
+        app = app.with_maintenance(provider.maintenance.clone())?;
         app = app.with_execution(
             provider.execution.keys.clone(),
             provider.execution.artifacts.clone(),
