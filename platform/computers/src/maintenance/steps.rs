@@ -53,6 +53,7 @@ impl ComputersStore {
             dispatch_id,
             authority: permit.evidence.clone(),
             dispatched_at: clock.database_time,
+            observation_started_at: clock.database_time,
             observation_deadline: clock.database_time + TimeDelta::seconds(180),
             observation_reads: 0,
             last_observation_id: None,

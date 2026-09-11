@@ -118,6 +118,7 @@ pub struct MaintenanceStepRecord {
     pub dispatch_id: Uuid,
     pub authority: ExecutionDecision,
     pub dispatched_at: DateTime<Utc>,
+    pub observation_started_at: DateTime<Utc>,
     pub observation_deadline: DateTime<Utc>,
     pub observation_reads: u8,
     pub last_observation_id: Option<Uuid>,
@@ -178,6 +179,23 @@ impl MaintenanceOperation {
             MaintenanceSource::InitialFailure { .. } => &[Transfer, Create],
         }
     }
+    pub(super) fn resumed_stage(&self) -> MaintenanceStage {
+        if self.progress.steps.len() == self.step_plan().len()
+            && self
+                .progress
+                .steps
+                .last()
+                .is_some_and(|last| last.evidence.is_some())
+        {
+            MaintenanceStage::Adopting
+        } else {
+            self.progress
+                .steps
+                .last()
+                .map(|last| last.step.stage())
+                .unwrap_or(MaintenanceStage::Queued)
+        }
+    }
     pub(super) fn validate_progress(&self) -> Result<()> {
         let fail = || ComputerError::Unavailable;
         let plan = self.step_plan();
@@ -199,8 +217,9 @@ impl MaintenanceOperation {
             if record.step != plan[index]
                 || record.dispatch_id.get_version_num() != 7
                 || !dispatches.insert(record.dispatch_id)
-                || record.observation_deadline <= record.dispatched_at
-                || record.observation_deadline - record.dispatched_at
+                || record.observation_started_at < record.dispatched_at
+                || record.observation_deadline <= record.observation_started_at
+                || record.observation_deadline - record.observation_started_at
                     > chrono::TimeDelta::seconds(180)
                 || record.observation_reads > 8
                 || (record.observation_reads == 0) != record.last_observation_id.is_none()
@@ -237,15 +256,7 @@ impl MaintenanceOperation {
                 .steps
                 .last()
                 .is_some_and(|last| last.evidence.is_some());
-        let expected = if complete {
-            MaintenanceStage::Adopting
-        } else {
-            self.progress
-                .steps
-                .last()
-                .map(|last| last.step.stage())
-                .unwrap_or(MaintenanceStage::Queued)
-        };
+        let expected = self.resumed_stage();
         if !matches!(
             self.stage,
             MaintenanceStage::RecoveryRequired

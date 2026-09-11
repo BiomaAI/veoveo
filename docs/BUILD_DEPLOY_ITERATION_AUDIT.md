@@ -3512,3 +3512,12 @@ compatibility alias. The runtime fingerprints and template image bytes did not c
 The evidence-report presentation for the preceding public-service commit took 30.23
 seconds; its checks were already complete. Repeated Cargo closure and input discovery
 remain a measured opportunity to reduce commit overhead.
+
+Explicit shared Task resumption passed twelve real-store provider-wait cases in
+2.43 seconds with a warm 0.45-second compile. Three conservative receipts added about
+61,000 lines of repeated source manifests. Maintenance resumption then passed twelve
+domain cases in 4.31 seconds after a 4.84-second compile, including a real migration
+backfill and final-adoption resumption. These changes need no provider/image rebuild.
+The report still repeats dependency-closure work across distinct checks. Registering
+the exact Task command and caching metadata/file hashes within one recorder invocation
+remain concrete improvements; immutable historical receipts must retain their evidence.

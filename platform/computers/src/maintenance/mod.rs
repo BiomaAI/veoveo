@@ -8,6 +8,7 @@ mod journal;
 mod model;
 mod progress;
 mod queue;
+mod resume;
 mod steps;
 pub use model::{MaintenanceOperation, MaintenanceSource, MaintenanceStage, MaintenanceTarget};
 pub use progress::{

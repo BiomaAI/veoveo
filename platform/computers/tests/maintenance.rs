@@ -1,5 +1,7 @@
 #[path = "maintenance/journal.rs"]
 mod journal;
+#[path = "maintenance/resume.rs"]
+mod resume;
 mod support;
 use std::time::Duration;
 use support::*;
@@ -16,9 +18,11 @@ use veoveo_task_runtime::{RecoveryClass, TaskRuntime};
 
 fn control() -> GatewayControlPlane {
     let mut control = support::interactive::control();
-    let name = LocalToolName::new("update_template").unwrap();
-    control.servers[0].tools.push(name.clone());
-    control.policies[0].rules[0].tools.insert(name);
+    for name in ["update_template", "resume_update"] {
+        let name = LocalToolName::new(name).unwrap();
+        control.servers[0].tools.push(name.clone());
+        control.policies[0].rules[0].tools.insert(name);
+    }
     control
 }
 fn target() -> MaintenanceTarget {
