@@ -543,6 +543,7 @@ plane and its bounded durable task-read delegation.
 | `store/s3_multipart.rs` and `tests/s3_upload.rs` | bounded S3 enumeration and native installed-storage acceptance for uncertain acknowledgements, restored handles, and physical cleanup |
 | `auth.rs` | internal assertion verification and plane caller |
 | `http.rs` | internal artifact API plus `/s/{token}` redemption |
+| `http/disposition.rs` | occurrence-owned UTF-8 download filenames for full, range and HEAD responses |
 | `http/uploads.rs` | dedicated upload assertion verification, bounded control bodies, and streamed part transport |
 | `config.rs` | fail-closed store/database/audience configuration |
 
