@@ -279,6 +279,18 @@ fence. Only an Execute read exposes execution limits. Public grant routes, scope
 lifecycle Tasks, the native command worker and active-job cancellation remain integration
 work. Revoking the ledger alone does not stop a running Computer.
 
+Command Task observation and cancellation use `authorize_command_task`. Execute
+includes access to that principal/client's own command progress and cancellation;
+it grants no broader Computer or Artifact read. Each request rechecks the current
+named grant, source identity, Work Context, profile and inherited output labels.
+A direct Computer owner can observe under current Read policy and cancel under Stop
+policy, including after the agent grant is revoked. A delegated effective actor cannot
+enter that direct-owner path. The original execution actor remains the Task owner.
+Facades retain the authenticated caller for request audit and use the returned owner
+only to look up the already-authorized Task. The bounded metadata read excludes command
+ciphertext and output capabilities; the resulting authority expires even during a slow
+Task response. This adds no stored format or independent authority cache.
+
 Migration 0060 adds private tables without rewriting Computers or transport grants.
 Apply it before enabling the automation surface. Existing runtime connections do not
 run migrations; additive tables do not require unrelated service rebuilds. Retain the

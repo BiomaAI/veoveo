@@ -1,4 +1,5 @@
 //! Durable command admission. A queued command cannot itself dispatch an effect.
+mod access;
 mod admission;
 mod completion;
 mod containment;
@@ -10,6 +11,7 @@ mod outcome;
 mod output_access;
 mod settlement;
 mod tasks;
+pub use access::{CommandTaskAccess, CommandTaskAction};
 pub use completion::CommandExitTicket;
 pub use containment::{CommandContainmentRead, CommandContainmentStop, ContainmentReadAdmission};
 pub use continuation::{CommandContinuation, CommandRunAuthority};

@@ -3350,3 +3350,18 @@ that configuration reference, includes its exact default image, and checks the c
 core pod count. It caught the reference lock retaining the old default digest. Historical
 retained templates remain in the host allowlist; they are not removed to satisfy a lock
 comparison. The first formal attempt is preserved as failed evidence history.
+
+Command Task authorization reuses the real-store fixture and avoids encrypted payload
+reads on every status request. The two domain access cases took 1.60 seconds after
+5.24 seconds of compilation. The combined HTTP replica/read/cancel/subscription journey
+reuses one database and two service instances; its corrected run took 12.23 seconds after
+5.00 seconds of compilation. The fixture first attempted a progress transition under a
+different worker ID and correctly hit the shared Task lease fence; it now uses the
+actual claim owner. No provider, template or installed workload was restarted.
+
+The aggregate `test-report show` took 21.44 seconds after this checkpoint. It already
+memoizes identical source scopes within one invocation, but still validates every
+immutable receipt and computes each distinct scope. Report presentation now costs more
+than the warm template publication. Further optimization should retain integrity and
+history while sharing file hashes across overlapping scopes and deduplicating manifests.
+This measurement does not justify skipping required evidence or native acceptance.

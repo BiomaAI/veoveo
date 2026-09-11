@@ -575,6 +575,12 @@ keys and execution-qualified defaults before store access. The Bioma reference r
 the old template alongside the staged command-capable default. Public admission,
 qualified template maintenance and the installed execution journey remain required.
 
+Command Task read/cancel and subscription projection now share current domain authority.
+Cross-replica fixtures distinguish the execution actor from Computer ownership, preserve
+owner cancellation after agent revocation and deny a different client or Work Context.
+The listener uses one Task update source and sends a current baseline. Public execution
+admission and installed agent access remain required.
+
 Remaining scoped evidence/build reuse, delegated agent execution, Artifact handoff, retained
 operator recovery and the remaining clean/offline installation gates stay active.
 

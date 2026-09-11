@@ -4,7 +4,7 @@ use rmcp::{ErrorData, RoleServer, model::*, service::RequestContext};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use veoveo_computers::api::ErrorCode as ApiErrorCode;
-use veoveo_computers::{ComputerActor, ComputerError, Operation, api::*};
+use veoveo_computers::{ComputerError, Operation, api::*};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
@@ -154,36 +154,5 @@ impl ComputersMcp {
             .map_err(|_| auth::unavailable())?
             .ok_or_else(auth::unavailable)?;
         Ok(CreateTaskResult::new(veoveo_task_runtime::task_seed(&task)).into())
-    }
-    pub(super) async fn task_owner(
-        &self,
-        context: &RequestContext<RoleServer>,
-        id: &str,
-        cancel: bool,
-    ) -> Result<ComputerActor, ErrorData> {
-        let actor = auth::actor(context)?;
-        let id = super::resources::canonical_uuid(id)
-            .ok_or_else(|| ErrorData::invalid_params("unknown task", None))?;
-        let operation = self
-            .app
-            .store
-            .operation(actor.owner(), id)
-            .await
-            .map_err(|_| ErrorData::invalid_params("unknown task", None))?;
-        let control = self
-            .app
-            .store
-            .control_authority(&actor)
-            .await
-            .map_err(|_| auth::forbidden())?;
-        control
-            .require_read(Some(operation.computer_id))
-            .map_err(|_| auth::forbidden())?;
-        if cancel {
-            control
-                .require_action(operation.action)
-                .map_err(|_| auth::forbidden())?;
-        }
-        Ok(actor)
     }
 }
