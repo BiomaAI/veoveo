@@ -1,3 +1,5 @@
+#[path = "maintenance/journal.rs"]
+mod journal;
 mod support;
 use std::time::Duration;
 use support::*;
@@ -263,6 +265,15 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         .await,
         Err(ComputerError::CapacityFull)
     ));
+    journal::initial_failure_retains_unknown_source_through_cancel_and_adoption(
+        &a,
+        &b,
+        &tasks,
+        &actor,
+        &original,
+        &replacement,
+    )
+    .await;
 }
 
 #[tokio::test]

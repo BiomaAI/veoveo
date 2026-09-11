@@ -3461,3 +3461,10 @@ The Task-repair fault must remove both parts of the fixture's atomic Task/idempo
 transaction; deleting only the Task incorrectly modeled a corrupt database. The scoped
 check hashes 524 files and needs no provider or image rebuild. Migration catalog and
 affected domain lint/format checks passed. Installed maintenance remains pending.
+
+The maintenance journal's eight real-store cases passed in 2.35 seconds after a
+5.63-second compile. They reuse the same fixture for step fencing, encrypted Capture,
+adoption, lease takeover and finite recovery. The ticket now boxes its retained
+operation metadata to keep observation enums small. Migration checks took 8.12 seconds
+to compile and 0.02 seconds to run; warm affected lint took 0.54 seconds. No image or
+provider rebuild was required. The filesystem still had 201 GiB free during this step.

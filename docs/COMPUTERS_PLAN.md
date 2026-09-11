@@ -651,6 +651,15 @@ unchanged baseline cannot resubmit the mutation, and matching additional grants 
 carry the original maintenance provenance. The focused transport faults qualify these
 recovery semantics before the worker starts using them.
 
+Migration 0070 adds bounded durable step histories and encrypted policy persistence.
+New steps consume current-authority dispatch tickets under exact Task leases. Recovery
+has a persisted deadline and read count; takeover cannot redispatch. Capture and its
+encrypted checkpoint commit together. Complete histories adopt the selected instance
+atomically without changing quota. Real-store fixtures cover adoption, cancelled initial
+recovery, stale workers, checkpoint repair, policy loss and exhausted budgets. Provider
+orchestration, explicit operator resumption and the public update UX remain required;
+these domain receipts do not establish actual provider or installed maintenance.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

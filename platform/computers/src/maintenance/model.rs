@@ -28,13 +28,13 @@ impl MaintenanceTarget {
         Ok(())
     }
 }
-fn fingerprint(value: &str) -> bool {
+pub(super) fn fingerprint(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
-fn native_id(value: &str) -> bool {
+pub(super) fn native_id(value: &str) -> bool {
     !value.is_empty() && value.len() <= 256 && value.bytes().all(|b| b.is_ascii_graphic())
 }
 
@@ -104,6 +104,8 @@ pub struct MaintenanceOperation {
     pub target_instance_id: Uuid,
     pub target: MaintenanceTarget,
     pub stage: MaintenanceStage,
+    pub(super) progress: super::progress::MaintenanceProgress,
+    pub task_projected_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -131,6 +133,8 @@ pub(super) struct MaintenanceRecord {
     target_template_id: String,
     target_template_fingerprint: String,
     stage: String,
+    progress: OpenObject,
+    task_projected_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -157,6 +161,8 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
                     template_fingerprint: row.target_template_fingerprint,
                 },
                 stage: serde_json::from_value(serde_json::Value::String(row.stage))?,
+                progress: serde_json::from_value(serde_json::to_value(row.progress)?)?,
+                task_projected_at: row.task_projected_at,
                 created_at: row.created_at,
                 updated_at: row.updated_at,
             })
@@ -194,6 +200,7 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
         {
             return Err(ComputerError::Unavailable);
         }
+        op.validate_progress()?;
         Ok(op)
     }
 }
