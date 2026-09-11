@@ -605,6 +605,12 @@ cannot mount that home. The transition retains the same retry identity across re
 and cannot reuse a prior handoff target. Durable worker maintenance and provider-effect
 settlement remain required before this can recover an installed Computer.
 
+Migration 0068 carries replacement identity through Computer and lifecycle records.
+Command envelopes authenticate that identity, while initial envelopes retain their
+canonical encoding. Lifecycle, terminal, CLI, execution and containment now select the
+persisted instance; current journal checks reject an instance change. This is the
+identity prerequisite for durable maintenance, not an adoption API or installed upgrade.
+
 ## Follow-On Profiles
 
 | Profile | Entry requirement |

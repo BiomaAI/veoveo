@@ -81,6 +81,7 @@ impl ComputersStore {
     ) -> Result<CommandOperation> {
         let binding = &operation.binding;
         if stopped.provider_instance_id != binding.provider_instance_id
+            || stopped.replacement_instance_id != binding.replacement_instance_id
             || stopped.computer_id != binding.computer_id
             || stopped.template_fingerprint != binding.template_fingerprint
             || stopped.resource_id != binding.resource_id

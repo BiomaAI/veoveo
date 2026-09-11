@@ -164,8 +164,9 @@ impl CommandWorker {
                 return Ok(WorkerStep::Waiting);
             }
         };
-        let binding = Binding::new(
+        let binding = Binding::from_instance(
             ticket.binding().computer_id,
+            ticket.binding().instance_id(),
             ticket.binding().template_fingerprint.clone(),
         )
         .map_err(|_| CommandWorkerError::Configuration)?;

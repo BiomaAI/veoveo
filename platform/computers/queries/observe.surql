@@ -6,6 +6,7 @@ IF $current = NONE OR $computer_state = NONE
   OR $current.provider_instance_id != $provider
   OR $computer_state.provider_instance_id != $provider
   OR $current.template_fingerprint != $computer_state.template_fingerprint
+  OR $current.replacement_instance_id != $computer_state.replacement_instance_id
   OR $current.previous_resource_id != $computer_state.provider_resource_id
   OR $current.previous_process_id != $computer_state.process_id
   OR $current.dispatch_id = NONE {

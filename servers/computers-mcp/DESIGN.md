@@ -114,6 +114,10 @@ private environment, nonzero exit output, current Work Context ownership, grant
 revocation, Task cancellation, retained restart and lost-ticket refusal without
 command replay. Fixed phase/error-class diagnostics exclude command and credential
 contents. These cases do not establish installed agent usability.
+The command fixture now starts from a real allocator-adopted replacement home and
+persists that instance in its isolated domain. Lifecycle Create/Stop/Start, SDK command
+dispatch and containment must all address that same replacement. Fixture adoption is
+explicit setup; it does not qualify the still-pending product maintenance workflow.
 
 ## Installation Configuration And Process
 
@@ -173,11 +177,17 @@ under the retention policy. Never remove keys while pending Tasks still need the
 Installation-owned encrypted backup includes these keys alongside the encrypted store.
 
 This private configuration is a coordinated v2 hard cut. Drain v1 workers, apply
-migrations through 0067, provision command keys, and start v2 workers with the matching
+migrations through 0068, provision command keys, and start v2 workers with the matching
 configuration. A changed default also requires the compute host to admit that exact
 template through its qualified retained-maintenance procedure. A service rollout alone
 does not upgrade a retained Computer. Downgrade must drain command admission and
 in-flight work; v1 cannot recover command Tasks. Preserve keys and schema on rollback.
+
+Lifecycle, CLI and browser attachment resolve the persisted replacement instance as
+well as the stable Computer/home UUID. Command dispatch and containment use the
+instance authenticated in the command envelope. These paths cannot fall back to the
+original provider name after maintenance. Persisting an instance identity alone does
+not authorize provider replacement or storage adoption.
 
 Configuration loading and validation each have a ten-second deadline. The regular JSON
 file is capped at 1 MiB. Validate all referenced trust material and selected templates

@@ -207,6 +207,32 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     )
     .await
     .unwrap();
+    // Isolated fixture adoption: qualify all command/lifecycle paths against a
+    // real replacement home. Durable product maintenance admission is separate.
+    let initial = Binding::new(computer.computer_id, selected.fingerprint()).unwrap();
+    let replacement_id = Uuid::now_v7();
+    let binding =
+        Binding::replacement(computer.computer_id, replacement_id, selected.fingerprint()).unwrap();
+    let allocator = home.worker(home.provider).await;
+    allocator.prepare(&initial).await.unwrap();
+    allocator
+        .abandon(Uuid::now_v7(), &initial, &binding)
+        .await
+        .unwrap();
+    db.a.client()
+        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .bind((
+            "computer",
+            surrealdb::types::RecordId::new(
+                "computer",
+                surrealdb::types::Uuid::from(computer.computer_id),
+            ),
+        ))
+        .bind(("instance", replacement_id))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let tasks_a = TaskRuntime::new(db.a.clone(), "computers", "command-native-a");
     let tasks_b = TaskRuntime::new(db.b.clone(), "computers", "command-native-b");
     let lifecycle = LifecycleWorker::new(
@@ -230,7 +256,13 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         lifecycle.step(create).boxed().await.unwrap(),
         WorkerStep::Settled
     );
-    let binding = Binding::new(computer.computer_id, selected.fingerprint()).unwrap();
+    assert_eq!(
+        a.get(owner.owner(), computer.computer_id)
+            .await
+            .unwrap()
+            .instance_id(),
+        replacement_id
+    );
 
     let signer = signing::Signing::new();
     let mut actor = support::owner("service");

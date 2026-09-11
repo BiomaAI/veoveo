@@ -12,6 +12,7 @@ IF $prior != NONE {
   };
   IF $current.updated_at != $expected_updated_at
     OR $current.provider_instance_id != $content.provider_instance_id
+    OR $current.replacement_instance_id != $content.replacement_instance_id
     OR $current.template_fingerprint != $content.template_fingerprint {
     THROW "computer_state_conflict";
   };
@@ -26,6 +27,7 @@ IF $prior != NONE {
     WHERE active_operation = NONE AND phase = $previous_phase
       AND owner_key = $owner_key AND updated_at = $expected_updated_at
       AND provider_instance_id = $content.provider_instance_id
+      AND replacement_instance_id = $content.replacement_instance_id
       AND template_fingerprint = $content.template_fingerprint RETURN AFTER);
   IF $fenced = NONE { THROW "computer_operation_busy"; };
   CREATE $operation CONTENT object::extend($content, {

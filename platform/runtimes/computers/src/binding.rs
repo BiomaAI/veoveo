@@ -13,6 +13,19 @@ pub struct Binding {
 }
 
 impl Binding {
+    /// Resolve the exact persisted home/instance pair. This selects identity;
+    /// it does not authorize replacement or change storage admission.
+    pub fn from_instance(
+        computer_id: Uuid,
+        instance_id: Uuid,
+        template_fingerprint: String,
+    ) -> Result<Self> {
+        if instance_id == computer_id {
+            Self::new(computer_id, template_fingerprint)
+        } else {
+            Self::replacement(computer_id, instance_id, template_fingerprint)
+        }
+    }
     /// The first instance keeps its published name and complete original labels.
     pub fn new(computer_id: Uuid, template_fingerprint: String) -> Result<Self> {
         if computer_id.is_nil() || !valid_fingerprint(&template_fingerprint) {

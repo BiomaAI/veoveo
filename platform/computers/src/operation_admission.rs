@@ -21,6 +21,7 @@ struct Content {
     execution_authority: OpenObject,
     provider_instance_id: Uuid,
     template_fingerprint: String,
+    replacement_instance_id: Option<Uuid>,
     action: String,
 }
 #[derive(Serialize)]
@@ -102,6 +103,7 @@ impl ComputersStore {
             execution_authority: object(actor.accepted())?,
             provider_instance_id: computer.provider_instance_id,
             template_fingerprint: computer.template_fingerprint,
+            replacement_instance_id: computer.replacement_instance_id,
             action: action.into(),
         };
         let event = OutboxDraft::now(

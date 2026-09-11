@@ -151,8 +151,12 @@ async fn attached(
     let (activity, updates) = Activity::new();
     let activity = Arc::new(activity);
     let computer = baseline.computer();
-    let binding = Binding::new(computer.computer_id, computer.template_fingerprint.clone())
-        .map_err(|_| ())?;
+    let binding = Binding::from_instance(
+        computer.computer_id,
+        computer.instance_id(),
+        computer.template_fingerprint.clone(),
+    )
+    .map_err(|_| ())?;
     let family =
         veoveo_platform_store::gateway_refresh_family_record_id(baseline.session_family_id());
     let work = async {

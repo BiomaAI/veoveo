@@ -305,8 +305,9 @@ impl<G: Preflight> LifecycleWorker<G> {
 fn native_intent(
     operation: &Operation,
 ) -> Result<(Binding, LifecycleCheckpoint, Option<Observation>)> {
-    let binding = Binding::new(
+    let binding = Binding::from_instance(
         operation.computer_id,
+        operation.instance_id(),
         operation.template_fingerprint.clone(),
     )
     .map_err(|_| WorkerError::Configuration)?;
@@ -356,6 +357,7 @@ fn reached_state(operation: &Operation, seen: Observation) -> Result<ReachedStat
     Ok(ReachedState {
         provider_instance_id: operation.provider_instance_id,
         computer_id: operation.computer_id,
+        replacement_instance_id: operation.replacement_instance_id,
         template_fingerprint: operation.template_fingerprint.clone(),
         resource_id: seen.sandbox_id,
         process_id: seen.main_process_instance_id,

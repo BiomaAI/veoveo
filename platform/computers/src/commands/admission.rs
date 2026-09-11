@@ -124,6 +124,7 @@ impl ComputersStore {
                 .clone()
                 .ok_or(ComputerError::InvalidState)?,
             required_output_labels,
+            replacement_instance_id: computer.replacement_instance_id,
         };
         let sealed = keys.seal(&binding, payload)?;
         let content = Content {

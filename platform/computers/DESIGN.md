@@ -10,6 +10,7 @@
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command and output-capability envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys; no public wire extension |
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
+| Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
 | Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
@@ -41,6 +42,14 @@ transaction conflict and re-evaluation. A replica cannot admit against cached li
 Collection reads use a bounded UUID cursor. They do not expose another owner's rows.
 The schema records process identity and an active operation fence for the following
 lifecycle checkpoint. The retained Computer UUID is also the home allocation identity.
+
+`replacement_instance_id` identifies a maintenance replacement independently of the
+provider installation UUID. It is absent for the original instance and must otherwise
+be non-nil and distinct from the Computer UUID. Lifecycle admission snapshots it;
+dispatch, observation and settlement compare it against the current Computer fence.
+The runtime resolves that exact instance for lifecycle, terminal and CLI access.
+An old operation cannot settle a different instance even when its template is unchanged.
+The identity field does not authorize maintenance or adopt storage by itself.
 
 ## Delivery Boundary
 
@@ -315,6 +324,18 @@ and template. The immutable binding also captures retained-home labels and both
 Computer-owner and actual-actor output-policy labels, including classification.
 Time and output limits are inside the encrypted payload. It reuses
 the qualified guest frame rather than defining another command serializer.
+
+Replacement commands include their instance UUID in the authenticated binding. Initial
+commands omit that optional member and keep the same v1 associated-data encoding;
+existing initial envelopes need no decrypt-and-reseal migration. Rebinding an envelope
+between initial and replacement instances, or between two replacements, fails
+authentication. Current run checks and journal transactions enforce the same identity
+at admission, dispatch, continuation, output completion and interruption settlement.
+JSON binding UUIDs compare through canonical text at the SurrealQL boundary; the
+Computer and lifecycle journal retain typed UUID fields. Older workers must be drained
+before replacement admission, since they can address only the original instance.
+Selecting an older template retains workers that understand replacement identity.
+An older worker binary is unsupported after adoption.
 
 Installation-owned 256-bit keys derive separate encryption and fingerprint keys
 through HMAC-SHA-256 with fixed domain labels. XChaCha20-Poly1305 uses a fresh random

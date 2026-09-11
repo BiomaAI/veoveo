@@ -14,6 +14,7 @@ pub struct Computer {
     pub provider_instance_id: Uuid,
     pub template_id: String,
     pub template_fingerprint: String,
+    pub replacement_instance_id: Option<Uuid>,
     pub phase: ComputerPhase,
     pub provider_resource_id: Option<String>,
     pub process_id: Option<String>,
@@ -27,6 +28,11 @@ pub struct ComputerPage {
     pub computers: Vec<Computer>,
     pub next_cursor: Option<Uuid>,
 }
+impl Computer {
+    pub fn instance_id(&self) -> Uuid {
+        self.replacement_instance_id.unwrap_or(self.computer_id)
+    }
+}
 
 #[derive(Deserialize, SurrealValue)]
 pub(crate) struct ComputerRecord {
@@ -35,6 +41,7 @@ pub(crate) struct ComputerRecord {
     pub provider_instance_id: Uuid,
     pub template_id: String,
     pub template_fingerprint: String,
+    pub replacement_instance_id: Option<Uuid>,
     pub phase: String,
     pub provider_resource_id: Option<String>,
     pub process_id: Option<String>,
@@ -46,6 +53,12 @@ pub(crate) struct ComputerRecord {
 impl TryFrom<ComputerRecord> for Computer {
     type Error = ComputerError;
     fn try_from(value: ComputerRecord) -> Result<Self> {
+        if value
+            .replacement_instance_id
+            .is_some_and(|id| id.is_nil() || id == value.computer_id)
+        {
+            return Err(ComputerError::Unavailable);
+        }
         let decode = || {
             Ok(Self {
                 computer_id: value.computer_id,
@@ -53,6 +66,7 @@ impl TryFrom<ComputerRecord> for Computer {
                 provider_instance_id: value.provider_instance_id,
                 template_id: value.template_id,
                 template_fingerprint: value.template_fingerprint,
+                replacement_instance_id: value.replacement_instance_id,
                 phase: serde_json::from_value(serde_json::Value::String(value.phase))?,
                 provider_resource_id: value.provider_resource_id,
                 process_id: value.process_id,

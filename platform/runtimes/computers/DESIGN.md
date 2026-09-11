@@ -76,6 +76,7 @@ and capacity. Ready must echo that provider. Prepare and Restore also carry the
 Computer UUID and admitted instance UUID; every reply must echo all identities exactly.
 The initial instance UUID equals the Computer UUID. A replacement uses its distinct
 durable instance UUID while preserving the original Computer's volume name.
+`Binding::from_instance` resolves that persisted pair without changing admission.
 
 The private v1 protocol is installed for retained allocation. Missing, duplicate, null
 and malformed identities fail decoding. A reply for another valid provider or instance also fails.
