@@ -3571,3 +3571,24 @@ so this is not a frontend-only cache benchmark. Gateway staging at `23e4dbaf` to
 The preceding gateway stage at `43960d1e` took 225.627 seconds; switching from a
 multi-target compiler closure to the gateway-only closure rebuilt shared dependency
 features. Preserve exact target/feature attribution when comparing these runs.
+
+## Computer Template Snapshot Correction — September 11, 2026
+
+The first file-helper candidate at `da91f1a1` staged in 177.595 seconds. Rust
+compilation took 1.79 seconds, while APT downloaded 52 MB of indexes in 98 seconds.
+Passing `--snapshot` retained live archive and security index downloads alongside
+the selected snapshot. The image now replaces the base sources with one explicit
+signed HTTPS snapshot configuration. Its independent package-stage build downloaded
+26 MB of indexes in 8 seconds and completed package installation in 46.1 seconds.
+These are single-run network observations; the removed duplicate source closure is
+the reproducible improvement. The package inventory remains embedded in the image.
+
+The bootstrap CA package and installed CA package need not have the same version:
+the fixed archive itself contains the newer update. That version difference alone
+does not establish accidental live-package selection. Native provider qualification
+of the assembled image remains a separate gate.
+
+The first evidence invocation named a nonexistent Docker builder and failed before
+building. The corrected invocation uses the discovered native default builder. This
+diagnostic mistake is retained in the receipt history and does not qualify an image.
+
