@@ -432,7 +432,13 @@ Gateway audit retention selects at most 1,024 record IDs per audit kind through 
 two-second database deadline and returns only IDs. A full batch schedules another
 pass after one second; an empty or partial pass returns to the hourly schedule.
 Failures retry after one minute. Migration 0072 adds the index without rewriting
-audit records. Apply it before admitting the new cleanup worker. Existing workers
+audit records. Its preparation step uses SurrealDB 3.2.4's `CONCURRENTLY` index
+builder outside the migration transaction. It checks the exact physical definition
+and waits for `INFO FOR INDEX` to report `ready` before the original migration SQL
+and checksum commit. Each query has a ten-second client deadline within a
+fifteen-minute preparation budget. A retry observes the same build; it never
+overwrites an index or advances migration history on failed preparation.
+Apply it before admitting the new cleanup worker. Existing workers
 remain schema-compatible during a rolling upgrade, and rollback leaves the index
 in place. Retention preserves the configured age cutoff and other domains' records.
 

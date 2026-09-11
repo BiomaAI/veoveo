@@ -410,6 +410,7 @@ The only durable platform persistence layer.
 |---|---|
 | `config.rs` | root/database auth configuration and validation |
 | `migrations.rs` | ordered SurrealDB 3.2 schema migrations |
+| `migration_preparation.rs` | bounded online index preparation before migration 0072; validates the physical definition and readiness without changing the published checksum |
 | `models.rs` | persisted Rust record and enum definitions |
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
 | `recording_catalog.rs` | recording datasets and layers, durable read grants, projection receipts, expiry, and cleanup |

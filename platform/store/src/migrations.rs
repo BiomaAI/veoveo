@@ -606,6 +606,7 @@ impl PlatformStore {
 
         for version in status.pending_versions.clone() {
             let migration = &MIGRATIONS[version as usize];
+            self.prepare_migration(version).await?;
             let statement = format!(
                 "BEGIN TRANSACTION;\n{}\nCREATE platform_schema_migration:{} CONTENT {{ version: {}, name: $migration_name, checksum: $migration_checksum, applied_at: time::now() }};\nCOMMIT TRANSACTION;",
                 migration.sql, migration.version, migration.version
