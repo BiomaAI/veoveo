@@ -34,6 +34,8 @@ mod canonical;
 mod client;
 mod execution;
 mod execution_request;
+mod file_request;
+pub use file_request::FileTransferResult;
 mod forward_tunnel;
 mod lease;
 mod models;

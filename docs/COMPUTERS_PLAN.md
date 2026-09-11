@@ -47,6 +47,7 @@ installation or full release-closure gates.
 | Agent boundaries | Using the grant on the other Computer was denied. The owner revoked the grant, and further execution was denied before a new Task was admitted |
 | Stock CLI continuity | Unmodified OpenShell 0.0.116 paired through public ingress, read the agent-created file, and later reconnected without pairing after a database interruption. Revocation closed the connection and a fresh connection returned HTTP 403 |
 | Browser recovery | The headed RTX 4090 WebGL browser obtained fresh access after the database interruption and read the same retained file |
+| Browser continuity | The release-152 attachment issued at 09:01:14 UTC accepted a fresh command at 09:18:46 without another sign-in; the retained agent-created file remained readable |
 | Service authentication | Bioma now trusts distinct installation-owned operator/admin service keys. The repository's public conformance fixture cannot obtain tokens for either installed client; cross-client signing is also denied |
 
 The public long-session check was interrupted by database memory exhaustion during
@@ -55,8 +56,9 @@ the interrupted run does not establish an uninterrupted end-to-end renewal bound
 The focused native expiry and blocked-I/O tests remain the precise bound evidence.
 Migration 0072 completed at 08:57:09 UTC through its online preparation path. Both
 gateway replicas subsequently completed cleanup, and release 152 is Ready. A fresh
-public browser command at 09:01:30 read the retained agent-created file. A subsequent
-stable public long-session check remains separate work.
+public browser command at 09:01:30 read the retained agent-created file. The subsequent
+stable browser observation above spans the renewal interval. Uninterrupted stock CLI
+continuity and installed logout remain separate checks.
 
 The remaining initial-release work includes general Artifact file import/export,
 agent lifecycle permissions, selected-profile backup/key ownership and restore

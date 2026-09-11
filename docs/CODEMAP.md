@@ -153,6 +153,7 @@ Hub, administration, and GPU policy.
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
 | `platform/` | internal platform services, persistence, and reusable runtimes |
 | `platform/runtimes/computers/` | private native OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and bounded SSH-only CLI bridge; domain/service and installed qualification remain in the Computers plan |
+| `platform/runtimes/computers/src/file_request.rs` | private regular-file streaming adapter; exact process binding, bounded binary input/output, verified count/hash and native result; Artifact authority and publication remain caller-owned |
 | [`platform/computers/execution/`](../platform/computers/execution/DESIGN.md) | private framed argv codec and packaged guest launcher; fixed provider command, confined launch-directory resolution and finite stdin; `files.rs`, `file_io.rs` and `file_confinement.rs` own the local regular-file helper pending public integration; named agent authority and Task integration live in the Computers domain and service |
 | `platform/runtimes/computers/provider-patches/Dockerfile` | independent OpenShell OCI build, verified upstream/patch trees and exact provider toolchain; compute-host topology remains separate |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |

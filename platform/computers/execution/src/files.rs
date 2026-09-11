@@ -59,7 +59,19 @@ pub struct FileReceipt {
     pub sha256: [u8; 32],
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FileTransferBounds {
+    Import { bytes: u64, sha256: [u8; 32] },
+    Export { maximum_bytes: u64 },
+}
+
 impl FileRequest {
+    pub fn bounds(&self) -> FileTransferBounds {
+        match self.0.operation {
+            FileOperation::Import { bytes, sha256 } => FileTransferBounds::Import { bytes, sha256 },
+            FileOperation::Export { maximum_bytes } => FileTransferBounds::Export { maximum_bytes },
+        }
+    }
     pub fn import(path: String, bytes: u64, sha256: [u8; 32]) -> Result<Self, FileFailure> {
         Self::new(path, FileOperation::Import { bytes, sha256 })
     }

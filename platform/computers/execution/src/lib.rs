@@ -2,7 +2,8 @@
 mod files;
 mod protocol;
 pub use files::{
-    FileFailure, FileReceipt, FileRequest, MAX_FILE_BYTES, read_file_request, write_file_result,
+    FileFailure, FileReceipt, FileRequest, FileTransferBounds, MAX_FILE_BYTES, read_file_request,
+    write_file_result,
 };
 pub use protocol::{ExecutionRequest, LaunchError, MAX_FRAME_BYTES, read_frame};
 

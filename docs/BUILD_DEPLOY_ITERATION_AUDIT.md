@@ -3592,3 +3592,15 @@ The first evidence invocation named a nonexistent Docker builder and failed befo
 building. The corrected invocation uses the discovered native default builder. This
 diagnostic mistake is retained in the receipt history and does not qualify an image.
 
+The corrected complete template staged from `d253bfee` in 74.437 seconds. Rust
+compilation and artifact extraction were cached. Export took 10.206 seconds, with
+5.976 seconds of timestamp normalization; push took 0.315 seconds. Its exact runnable
+digest is `sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5`.
+The real-provider file fixture then passed in 14.35 seconds. This qualifies the
+private helper transport, while public Artifact integration remains delivery work.
+
+Updating the runtime design with the native result invalidated the just-recorded
+checks because the conservative source closure includes its owning design. The
+checks were rerun after documentation was finalized. Finalize qualification wording
+before recording; a future planner refinement must distinguish compiled documentation
+from explanatory prose without excluding actual `include_str!` build inputs.
