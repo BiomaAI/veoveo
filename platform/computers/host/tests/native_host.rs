@@ -113,7 +113,7 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
     stop(&runtime, fixture.provider, &binding).await?;
     std::fs::write(
         fixture.dir.join("result.txt"),
-        "Exact composite OCI image, private network/mount namespace replacement, stable Docker/provider identity, retained bytes, new process and guest user-authority denial passed.\n",
+        "Distinct composite OCI images, private network/mount namespace replacement, stable Docker/provider identity, retained bytes, new process and guest user-authority denial passed.\n",
     )?;
     fixture.finish().await
 }

@@ -130,8 +130,9 @@ guest transport and the exact composite image ABI. Installed template maintenanc
 backup/restore, host-loss durability and encryption/key ownership retain their separate
 release gates in the Computers plan.
 
-`tests/native_host.rs` resolves one candidate host image to its immutable local image
-ID, then uses that same image for both container generations. It creates separate
+`tests/native_host.rs` resolves the source `VEOVEO_COMPUTERS_HOST_IMAGE` and target
+`VEOVEO_COMPUTERS_HOST_REPLACEMENT_IMAGE` to distinct immutable local image IDs. The
+Computer image comes from `VEOVEO_COMPUTERS_HOST_TEST_IMAGE`. It creates separate
 provider/storage trust, preloads a Computer from the explicit local registry and runs
 the production runtime and allocator clients. A Computer writes a retained file under
 UID 10001, stops, and resumes after replacement of the entire compute container and
@@ -141,3 +142,13 @@ authentication cannot acquire provider user authority. The fixture verifies that
 installation bridge identity is unchanged, removes its own containers, verifies loop
 detachment and deletes only its owned retained state and trust. Root-owned fixture
 configuration uses the same read-only file permission contract as mounted configuration.
+The fixture records both host image IDs and the replacement duration in
+`host-upgrade.json`. `inputs.json` preserves the exact template URI/fingerprint,
+home capacity and both host image IDs after fixture cleanup. The template registry
+must be reachable from the private bridge namespace. A publication endpoint bound
+only to the host's loopback cannot be substituted with the host bridge's gateway;
+use the registry's inspected address and port on that bridge.
+Its retained template remains the 512 MiB native host profile;
+the service's separate template-transition fixture qualifies exact installation
+template capacities. This test establishes forward host replacement, not rollback
+to older readers after new storage journal operations have been admitted.
