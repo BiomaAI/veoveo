@@ -398,6 +398,15 @@ UAV source revisions. Single runs establish these checkpoints, not latency distr
 
 ## Recorded Iteration Sinks
 
+On September 11, `cargo xtask test-report show` took 32.863 seconds over 75.06 MiB
+of immutable receipts. Reading each receipt once and sharing one Cargo dependency
+graph within the invocation reduced the next warm run to 6.583 seconds, including
+three additional receipts. The recorder's 18 focused tests pass, including rejection
+of corrupted superseded history and unindexed attempts. Each new command observes
+source and environment again. This local comparison identifies a repeated iteration
+cost; it does not claim a general filesystem throughput result. Input manifests still
+repeat across receipts, and content deduplication remains a separate improvement.
+
 The September 6 audit reproduced these open sinks at revision
 `fd87d2197bbfcd52fa36b397a1666481a74b74e9`. Exact commands, retained trace identities,
 measurement limits, and corrections are recorded in

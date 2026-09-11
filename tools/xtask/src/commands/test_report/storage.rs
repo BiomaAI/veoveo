@@ -194,6 +194,30 @@ pub(super) fn read_receipt(root: &Path, reference: &ReceiptRef) -> Result<Receip
 }
 
 pub(super) fn read_index(root: &Path) -> Result<ReceiptIndex> {
+    read_index_with(root, |_, _| {})
+}
+
+/// Validate every historical attempt once and retain the selected attempts from
+/// that same read. No integrity check is skipped to make presentation cheaper.
+pub(super) fn read_latest(root: &Path) -> Result<BTreeMap<String, Receipt>> {
+    let mut selected = BTreeMap::new();
+    let index = read_index_with(root, |index, receipt| {
+        if index.latest.get(&receipt.check_id) == Some(&receipt.run_id) {
+            selected.insert(receipt.check_id.clone(), receipt);
+        }
+    })?;
+    ensure_index_complete(root, &index)?;
+    ensure!(
+        selected.len() == index.latest.len(),
+        "index selection and receipt identities differ"
+    );
+    Ok(selected)
+}
+
+fn read_index_with(
+    root: &Path,
+    mut consume: impl FnMut(&ReceiptIndex, Receipt),
+) -> Result<ReceiptIndex> {
     let bytes = read_bounded(&root.join(INDEX_PATH))?;
     let index: ReceiptIndex = serde_json::from_slice(&bytes)
         .context("reading v3 evidence index; run a check with the current recorder to replace a historical v2 report")?;
@@ -218,9 +242,10 @@ pub(super) fn read_index(root: &Path) -> Result<ReceiptIndex> {
         let receipt = read_receipt(root, reference)?;
         if receipt.outcome != Outcome::InputsChanged {
             let candidate = (receipt.finished_at, receipt.run_id);
-            let selected = latest.entry(receipt.check_id).or_insert(candidate);
+            let selected = latest.entry(receipt.check_id.clone()).or_insert(candidate);
             *selected = (*selected).max(candidate);
         }
+        consume(&index, receipt);
     }
     ensure!(
         index.latest == latest.into_iter().map(|(key, (_, id))| (key, id)).collect(),

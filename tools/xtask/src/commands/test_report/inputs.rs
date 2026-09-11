@@ -31,6 +31,16 @@ const COMMON: &[&str] = &[
 ];
 
 pub(super) fn snapshot(root: &Path, scope: &InputScope) -> Result<SourceInputs> {
+    snapshot_with_graph(root, scope, &mut None)
+}
+
+/// The caller may share one graph across a single source observation. Check
+/// execution uses independent before/after observations to detect input changes.
+pub(super) fn snapshot_with_graph(
+    root: &Path,
+    scope: &InputScope,
+    graph: &mut Option<cargo_inputs::Graph>,
+) -> Result<SourceInputs> {
     let mut roots = COMMON
         .iter()
         .map(|value| (*value).to_owned())
@@ -41,7 +51,15 @@ pub(super) fn snapshot(root: &Path, scope: &InputScope) -> Result<SourceInputs> 
             packages,
             roots: extra,
         } => {
-            roots.extend(cargo_inputs::roots(root, packages)?);
+            if graph.is_none() {
+                *graph = Some(cargo_inputs::Graph::load(root)?);
+            }
+            roots.extend(
+                graph
+                    .as_ref()
+                    .expect("loaded Cargo graph")
+                    .roots(root, packages)?,
+            );
             roots.extend(extra.iter().cloned());
         }
         InputScope::Console { roots: extra } => roots.extend(extra.iter().cloned()),

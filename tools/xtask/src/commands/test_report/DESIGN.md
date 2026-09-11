@@ -82,6 +82,13 @@ Displaying an observed pass does not renew it. Release verification rejects expi
 runtime evidence, changed installation artifacts, missing required checks and current
 known failures. Local command evidence remains distinct from a release attestation.
 
+One display or coverage verification reads and validates each immutable receipt once.
+The selected results come from that validated read, including validation of superseded
+and failed history. Cargo scopes share one freshly observed dependency graph within
+that invocation. A later invocation observes the graph again. Before and after check
+execution always use independent observations, preserving mutation detection. These
+optimizations do not cache environment authority or extend receipt freshness.
+
 ## Publication And Selection
 
 One run writes one new receipt with a unique run ID. Publication uses an atomic,

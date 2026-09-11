@@ -80,6 +80,43 @@ fn receipt(root: &Path, name: &str) -> Receipt {
 }
 
 #[test]
+fn selected_receipts_validate_superseded_history_and_reject_unindexed_attempts() {
+    let repo = repository();
+    let old = receipt(repo.path(), "old-pass");
+    storage::publish(repo.path(), &old).unwrap();
+    let mut new = receipt(repo.path(), "new-failure");
+    new.outcome = Outcome::Failed;
+    new.exit_code = Some(1);
+    storage::publish(repo.path(), &new).unwrap();
+    let selected = storage::read_latest(repo.path()).unwrap();
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[&new.check_id].run_id, new.run_id);
+    assert_eq!(selected[&new.check_id].outcome, Outcome::Failed);
+    let path = repo
+        .path()
+        .join(RECEIPT_DIRECTORY)
+        .join(format!("{}.json", old.run_id));
+    let original = fs::read(&path).unwrap();
+    let mut changed = original.clone();
+    changed.push(b' ');
+    fs::write(&path, changed).unwrap();
+    assert!(
+        storage::read_latest(repo.path()).is_err(),
+        "superseded receipt integrity still matters"
+    );
+    fs::write(&path, original).unwrap();
+    let missing = repo
+        .path()
+        .join(RECEIPT_DIRECTORY)
+        .join(format!("{}.json", Uuid::new_v4()));
+    fs::copy(path, missing).unwrap();
+    assert!(
+        storage::read_latest(repo.path()).is_err(),
+        "unindexed publication must be recovered first"
+    );
+}
+
+#[test]
 fn unrelated_console_edit_retains_service_but_shared_contract_and_toolchain_invalidate() {
     let repo = repository();
     let before = source(repo.path());

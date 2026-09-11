@@ -46,100 +46,113 @@ struct VeoveoMetadata {
     image_asset_inputs: Vec<String>,
 }
 
-pub(super) fn roots(root: &Path, selected: &[String]) -> Result<Vec<String>> {
-    let compiler = crate::process::output_text("rustc", ["-vV"], Some(root))?;
-    let target = compiler
-        .lines()
-        .find_map(|line| line.strip_prefix("host: "))
-        .context("Rust compiler did not identify its host target")?;
-    let output = crate::process::output(
-        "cargo",
-        [
-            "metadata",
-            "--format-version",
-            "1",
-            "--locked",
-            "--offline",
-            "--all-features",
-            "--filter-platform",
-            target,
-        ],
-        Some(root),
-    )?;
-    roots_from_metadata(root, selected, &output.stdout)
-}
+pub(super) struct Graph(Metadata);
 
-fn roots_from_metadata(root: &Path, selected: &[String], bytes: &[u8]) -> Result<Vec<String>> {
-    let metadata: Metadata =
-        serde_json::from_slice(bytes).context("decoding test Cargo closure")?;
-    let packages: BTreeMap<_, _> = metadata
-        .packages
-        .iter()
-        .map(|package| (package.id.as_str(), package))
-        .collect();
-    let edges: BTreeMap<_, _> = metadata
-        .resolve
-        .nodes
-        .iter()
-        .map(|node| (node.id.as_str(), &node.dependencies))
-        .collect();
-    let mut pending = Vec::new();
-    for name in selected {
-        let matches: Vec<_> = metadata
+impl Graph {
+    pub(super) fn load(root: &Path) -> Result<Self> {
+        let compiler = crate::process::output_text("rustc", ["-vV"], Some(root))?;
+        let target = compiler
+            .lines()
+            .find_map(|line| line.strip_prefix("host: "))
+            .context("Rust compiler did not identify its host target")?;
+        let output = crate::process::output(
+            "cargo",
+            [
+                "metadata",
+                "--format-version",
+                "1",
+                "--locked",
+                "--offline",
+                "--all-features",
+                "--filter-platform",
+                target,
+            ],
+            Some(root),
+        )?;
+        Self::from_bytes(&output.stdout)
+    }
+
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Ok(Self(
+            serde_json::from_slice(bytes).context("decoding test Cargo closure")?,
+        ))
+    }
+
+    pub(super) fn roots(&self, root: &Path, selected: &[String]) -> Result<Vec<String>> {
+        let metadata = &self.0;
+        let packages: BTreeMap<_, _> = metadata
             .packages
             .iter()
-            .filter(|package| package.name == *name && package.source.is_none())
+            .map(|package| (package.id.as_str(), package))
             .collect();
-        ensure!(
-            matches.len() == 1,
-            "test package must resolve to one local package: {name}"
-        );
-        pending.push(matches[0].id.as_str());
-    }
-    let mut visited = BTreeSet::new();
-    let mut roots = BTreeSet::new();
-    while let Some(id) = pending.pop() {
-        if !visited.insert(id) {
-            continue;
+        let edges: BTreeMap<_, _> = metadata
+            .resolve
+            .nodes
+            .iter()
+            .map(|node| (node.id.as_str(), &node.dependencies))
+            .collect();
+        let mut pending = Vec::new();
+        for name in selected {
+            let matches: Vec<_> = metadata
+                .packages
+                .iter()
+                .filter(|package| package.name == *name && package.source.is_none())
+                .collect();
+            ensure!(
+                matches.len() == 1,
+                "test package must resolve to one local package: {name}"
+            );
+            pending.push(matches[0].id.as_str());
         }
-        let package = packages
-            .get(id)
-            .context("Cargo dependency has no package")?;
-        if package.source.is_none() {
-            let directory = package
-                .manifest_path
-                .parent()
-                .context("Cargo manifest has no parent")?;
-            let path = directory.strip_prefix(root).context("test dependency escapes repository; external path dependencies require a qualified adapter")?;
-            let path = path.to_str().context("Cargo package path is not UTF-8")?;
-            relative(path)?;
-            roots.insert(path.to_owned());
-            if let Some(metadata) = &package.metadata {
-                for extra in metadata
-                    .veoveo
-                    .image_build_inputs
-                    .iter()
-                    .chain(&metadata.veoveo.image_asset_inputs)
-                {
-                    relative(extra)?;
-                    roots.insert(extra.to_owned());
+        let mut visited = BTreeSet::new();
+        let mut roots = BTreeSet::new();
+        while let Some(id) = pending.pop() {
+            if !visited.insert(id) {
+                continue;
+            }
+            let package = packages
+                .get(id)
+                .context("Cargo dependency has no package")?;
+            if package.source.is_none() {
+                let directory = package
+                    .manifest_path
+                    .parent()
+                    .context("Cargo manifest has no parent")?;
+                let path = directory.strip_prefix(root).context("test dependency escapes repository; external path dependencies require a qualified adapter")?;
+                let path = path.to_str().context("Cargo package path is not UTF-8")?;
+                relative(path)?;
+                roots.insert(path.to_owned());
+                if let Some(metadata) = &package.metadata {
+                    for extra in metadata
+                        .veoveo
+                        .image_build_inputs
+                        .iter()
+                        .chain(&metadata.veoveo.image_asset_inputs)
+                    {
+                        relative(extra)?;
+                        roots.insert(extra.to_owned());
+                    }
                 }
             }
+            for dependency in edges
+                .get(id)
+                .context("Cargo dependency has no resolution node")?
+                .iter()
+            {
+                pending.push(dependency);
+            }
         }
-        for dependency in edges
-            .get(id)
-            .context("Cargo dependency has no resolution node")?
-            .iter()
-        {
-            pending.push(dependency);
-        }
+        Ok(roots.into_iter().collect())
     }
-    Ok(roots.into_iter().collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn roots_from_metadata(root: &Path, selected: &[String], bytes: &[u8]) -> Result<Vec<String>> {
+        Graph::from_bytes(bytes)?.roots(root, selected)
+    }
 
     #[test]
     fn local_closure_includes_dev_build_and_declared_external_inputs() {
@@ -161,6 +174,13 @@ mod tests {
             ]}
         })).unwrap();
         let roots = roots_from_metadata(root, &["service".to_owned()], &bytes).unwrap();
+        let graph = Graph::from_bytes(&bytes).unwrap();
+        assert_eq!(graph.roots(root, &["service".to_owned()]).unwrap(), roots);
+        assert_eq!(
+            graph.roots(root, &["unrelated".to_owned()]).unwrap(),
+            ["unrelated"]
+        );
+        assert_eq!(graph.roots(root, &["service".to_owned()]).unwrap(), roots);
         assert_eq!(
             roots,
             [

@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 
 use super::{
-    catalog, environment, inputs,
+    cargo_inputs, catalog, environment, inputs,
     model::{CommandIdentity, CoverageProfile, EvidenceClass, Outcome, PROFILE_SCHEMA, Receipt},
     storage,
 };
@@ -22,16 +22,16 @@ pub(super) enum CurrentStatus {
 fn current(
     root: &Path,
     receipt: &Receipt,
-    observed: &mut BTreeMap<String, String>,
+    observed: &mut SourceObservation,
 ) -> Result<CurrentStatus> {
     // One invocation observes an identical closure once. This cache never crosses
     // an invocation or renews runtime evidence.
     let key = serde_json::to_string(&receipt.inputs.scope)?;
-    let digest = match observed.entry(key) {
+    let digest = match observed.digests.entry(key) {
         std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
-        std::collections::btree_map::Entry::Vacant(entry) => {
-            entry.insert(inputs::snapshot(root, &receipt.inputs.scope)?.digest)
-        }
+        std::collections::btree_map::Entry::Vacant(entry) => entry.insert(
+            inputs::snapshot_with_graph(root, &receipt.inputs.scope, &mut observed.cargo)?.digest,
+        ),
     };
     if *digest != receipt.inputs.digest {
         return Ok(CurrentStatus::Stale);
@@ -45,33 +45,21 @@ fn current(
     Ok(CurrentStatus::Passed)
 }
 
-fn latest(root: &Path) -> Result<BTreeMap<String, Receipt>> {
-    let index = storage::read_index(root)?;
-    storage::ensure_index_complete(root, &index)?;
-    let mut selected = BTreeMap::new();
-    for reference in &index.receipts {
-        // Every indexed receipt is integrity checked, including failed history.
-        let receipt = storage::read_receipt(root, reference)?;
-        if index.latest.get(&receipt.check_id) == Some(&receipt.run_id) {
-            selected.insert(receipt.check_id.clone(), receipt);
-        }
-    }
-    ensure!(
-        selected.len() == index.latest.len(),
-        "index selection and receipt identities differ"
-    );
-    Ok(selected)
+#[derive(Default)]
+struct SourceObservation {
+    digests: BTreeMap<String, String>,
+    cargo: Option<cargo_inputs::Graph>,
 }
 
 pub(crate) fn show(repository: &RepositoryContext, github_summary: bool) -> Result<()> {
-    let receipts = latest(repository.root())?;
+    let receipts = storage::read_latest(repository.root())?;
     ensure!(!receipts.is_empty(), "no completed local evidence");
     let mut markdown = String::from(
         "# Local test evidence\n\nSource status is evaluated per check. This informational report does not establish current deployment health or release coverage.\n\n| Check | Current source | Duration | Check identity |\n|---|---|---:|---|\n",
     );
     let mut passing = 0;
     let mut failing = 0;
-    let mut observed = BTreeMap::new();
+    let mut observed = SourceObservation::default();
     for receipt in receipts.values() {
         let status = current(repository.root(), receipt, &mut observed)?;
         passing +=
@@ -179,9 +167,9 @@ pub(crate) fn verify(repository: &RepositoryContext, profile_path: &Path) -> Res
     );
     let profile: CoverageProfile =
         serde_json::from_slice(&fs::read(canonical)?).context("decoding coverage profile")?;
-    let receipts = latest(root)?;
+    let receipts = storage::read_latest(root)?;
     validate_coverage(&profile, &receipts, Utc::now())?;
-    let mut observed = BTreeMap::new();
+    let mut observed = SourceObservation::default();
     let mut environments = BTreeMap::new();
     for receipt in receipts.values() {
         let state = current(root, receipt, &mut observed)?;
