@@ -8,7 +8,8 @@
 | SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
-| Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels; journal activation remains pending |
+| Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels |
+| Veoveo file-transfer admission | Migration 0073; one private request journal and shared execution slot, with an idempotently linked `computer.file_transfer` Task; provider dispatch and public activation remain pending |
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
@@ -62,8 +63,33 @@ can substitute for the other. Rotated keys can read pending work and compare an 
 retry through its original keyed fingerprint. The payload validates the initial
 64 MiB/300-second limits and export filename/media type before sealing. Artifact
 read or write receipts must match the exact transfer Task and direction. Their
-expiry and current authority remain admission/worker checks. This checkpoint adds
-types and protection, without enabling file Tasks or public transfers.
+expiry and current authority remain admission/worker checks.
+
+`files/` now admits private file work and repairs its metadata-only Task link. The
+transaction commits the exact encrypted intent with one execution slot and its audit
+event. Matching retries across replicas return the original transfer; changed input
+cannot reuse its request ID. Artifact capability preparation stores the first receipt
+with enough lifetime. A later receipt can replace one that no longer covers transfer
+and publication. Actual Artifact issuance stays with the service while the real
+caller is present.
+
+Owners use current `transfer_file` action policy. A delegated actor also requires a
+current Execute grant, and both the actor and grant owner must allow the file tool.
+The initial delegated file limit is bounded by that grant's command-output ceiling;
+time is bounded by its execution ceiling. Read permission alone does not expose file
+contents. Admission compares the current policy revision, grant revision and exact
+Computer process inside its transaction. Label-floor construction preserves Computer
+and invocation requirements; the service must still validate imported Artifact labels
+and its read capability before native dispatch.
+
+The execution slot blocks another command, Start or template maintenance. Owner Stop
+remains available to interrupt work. Stop admission preserves the file slot, which
+the file worker may release only after definitive completion or confirmed containment.
+Migration 0073 widens the slot's record target to the two explicit work tables. Existing
+command workers continue to select only their table; lifecycle readers see the same
+slot. Public file admission remains disabled until the updated worker and facades are
+deployed together. This checkpoint has no provider file dispatcher or terminal Task
+settlement and does not make file transfer usable through the public endpoint.
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated

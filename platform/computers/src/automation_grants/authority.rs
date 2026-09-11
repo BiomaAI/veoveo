@@ -38,6 +38,14 @@ pub struct AutomationAuthority {
     family: Option<RecordId>,
 }
 impl AutomationAuthority {
+    pub(crate) fn require_file_transfer(&self) -> Result<()> {
+        self.check_fresh()?;
+        if self.permission != AutomationPermission::Execute {
+            return Err(ComputerError::Forbidden);
+        }
+        require_tool(&self.source_snapshot, "transfer_file")?;
+        require_tool(&self.owner_snapshot, "transfer_file")
+    }
     pub(crate) fn command_decision(
         &self,
         execution: Uuid,
