@@ -2,6 +2,8 @@
 mod application;
 mod command_worker;
 pub mod config;
+mod file_worker;
+mod io_guard;
 mod maintenance_worker;
 mod preflight;
 pub mod protocol;
@@ -16,3 +18,5 @@ pub use preflight::{Preflight, PreflightError, RetainedHomes};
 pub use runtime_access::{RuntimeAccess, RuntimePublisher};
 pub use templates::{NamedTemplate, Templates};
 pub use worker::{LifecycleWorker, WorkerError, WorkerStep};
+
+pub use file_worker::{FileWorker, FileWorkerError};

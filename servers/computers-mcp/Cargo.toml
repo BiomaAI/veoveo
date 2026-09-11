@@ -5,6 +5,8 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+sha2.workspace = true
+hex.workspace = true
 base64.workspace = true
 veoveo-computer-execution = { path = "../../platform/computers/execution" }
 veoveo-computers-transport = { path = "../../platform/computers/transport" }
@@ -42,7 +44,5 @@ reqwest = { workspace = true, features = ["json", "stream", "rustls-no-provider"
 nix = { workspace = true, features = ["fs", "user", "mount"] }
 tokio = { workspace = true, features = ["process"] }
 tokio-rustls.workspace = true
-sha2.workspace = true
-hex.workspace = true
 rcgen.workspace = true
 surrealdb = { version = "=3.2.4", default-features = false, features = ["protocol-ws", "rustls"] }

@@ -6,6 +6,7 @@
 |---|---|
 | Shared Tasks | Qualified `provider_wait` observation leases, domain-first settlement, retained Task projection |
 | Veoveo Computers | Provider-independent operation, Computer, owner and Work Context records in `platform/computers` |
+| `veoveo.io/computer-files/v1` | Private framed metadata and bounded binary regular-file transport through the qualified guest launcher; distinct from public Artifact/MCP resources |
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
 | MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions; installed conformance remains pending |
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
@@ -200,6 +201,45 @@ The command fixture now starts from a real allocator-adopted replacement home an
 persists that instance in its isolated domain. Lifecycle Create/Stop/Start, SDK command
 dispatch and containment must all address that same replacement. Fixture adoption is
 explicit setup; it does not qualify the still-pending product maintenance workflow.
+
+## Governed File Worker
+
+`FileWorker` composes the file journal with the qualified native file adapter and
+actual-caller Artifact capabilities. Its template fingerprint set is explicit. A
+successor contains an uncertain native attempt without repeating file intent.
+The shared I/O guard now serves commands and files; its independent authority timer
+continues to run while a policy read stalls.
+
+Import preparation redeems the Task-bound read capability, validates the source
+occurrence and hashes its bounded binary body. Source labels must fit the retained
+Computer's own label floor. Additional caller clearance cannot silently raise that
+floor. Preparation remains Queued and cancellable, and its five-minute deadline
+survives worker replacement. Migration 0075 gives a failed source preparation a
+specific undispatched result. The source buffer never enters a Task, audit event or
+control-database record.
+
+The worker obtains its one native dispatch ticket only after source preparation.
+It compares the current retained label floor again and enforces reduced byte limits.
+A verified import result references the exact source occurrence. Exports retain
+provisional bytes privately until the native adapter validates the final count,
+hash and process identity. Publication redeems one write capability with a stable
+idempotency key, then validates the returned occurrence and its inherited labels.
+An uncertain native or publication result enters original-run containment.
+
+The initial profile admits four file jobs per scheduler, each bounded to 64 MiB.
+Captured payload bytes therefore have a 256 MiB ceiling per file scheduler; allocator
+and transport overhead are additional. A composed process must also budget its
+independent command scheduler. File movement uses binary HTTP bodies and the
+provider's binary stream, with no base64 payload or temporary host file.
+
+The native file fixture uses an actual Artifact HTTP service, current Work Context
+projection, real database, retained block home and two worker identities. It qualifies
+binary import/export, exact Artifact receipts, no overwrite, restricted-label refusal,
+pre-dispatch cancellation and lost-ticket containment after grant revocation. The
+retained file survives Stop/Start and the lost import is not replayed. The fixture
+runs against the exact file-qualified template digest recorded by the runtime design.
+Production startup, public file admission and Console controls remain delivery work;
+this private worker checkpoint does not activate file transfers at the public site.
 
 ## Installation Configuration And Process
 

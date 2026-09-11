@@ -64,8 +64,12 @@ pub struct FileDispatchTicket {
     access: FileTransferAccess,
     authority_deadline: Instant,
     execution_deadline: Instant,
+    retained_labels: std::collections::BTreeSet<veoveo_mcp_contract::DataLabelId>,
 }
 impl FileDispatchTicket {
+    pub fn retained_labels(&self) -> &std::collections::BTreeSet<veoveo_mcp_contract::DataLabelId> {
+        &self.retained_labels
+    }
     pub(super) fn into_operation(self) -> FileOperation {
         self.operation
     }
@@ -121,6 +125,7 @@ impl ComputersStore {
             .ok_or(ComputerError::InvalidState)?;
         let access = keys.open_file_access(&operation.binding, sealed_access)?;
         let limits = permit.limits()?;
+        let retained_labels = permit.retained_labels()?;
         let effective = FileTransferLimits {
             maximum_seconds: payload.limits().maximum_seconds.min(limits.maximum_seconds),
             maximum_bytes: payload.limits().maximum_bytes.min(limits.maximum_bytes),
@@ -243,6 +248,7 @@ impl ComputersStore {
             return Err(ComputerError::StateConflict);
         }
         Ok(FileDispatchTicket {
+            retained_labels,
             operation: selected.operation,
             payload,
             access,

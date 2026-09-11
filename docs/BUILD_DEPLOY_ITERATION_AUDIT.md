@@ -3604,3 +3604,18 @@ checks because the conservative source closure includes its owning design. The
 checks were rerun after documentation was finalized. Finalize qualification wording
 before recording; a future planner refinement must distinguish compiled documentation
 from explanatory prose without excluding actual `include_str!` build inputs.
+
+## File Worker Qualification — September 11, 2026
+
+The source-scoped file-journal check now records its Cargo dependency closure and
+fixture inputs. Its manifest contains 583 files instead of requiring a whole-repository
+source observation. Native provider evidence still needs an environment adapter before
+release planning may reuse it; a successful standalone fixture is not that adapter.
+
+Fixture setup failures consumed 35.5 seconds of native test runtime during file-worker
+integration. The new run exposed a missing diagnostics parent, an undeclared synthetic
+data label and an absent current Work Context projection. The shared storage fixture
+now creates its explicitly selected diagnostics root. The file fixture uses an admitted
+label and materializes the typed Work Context that the gateway supplies in an installation.
+The real-provider round trip then passed, including actual Artifact capabilities and
+lost-ticket containment. These setup corrections do not change installed authorization.

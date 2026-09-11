@@ -359,3 +359,39 @@ async fn preparation_expiry_and_cancelled_admission_never_dispatch() {
         assert_eq!(slots(&db).await, 0);
     }
 }
+
+#[tokio::test]
+async fn source_preparation_keeps_queued_authority_short_and_cancellable() {
+    let db = support::TestDb::new().await;
+    let (a, _, owner, agent, computer) = setup(&db).await;
+    let grant = a
+        .issue_automation_grant(&owner, &support::automation::input(computer))
+        .await
+        .unwrap();
+    let claim = queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
+    let prepared = a.prepare_file_transfer(&claim, &keys()).await.unwrap();
+    assert_eq!(prepared.operation.stage(), FileTransferStage::Queued);
+    assert_eq!(prepared.authority.maximum_bytes, 1024);
+    assert!(prepared.authority.valid_until <= Instant::now() + Duration::from_secs(5));
+    assert!(prepared.authority.execution_deadline <= Instant::now() + Duration::from_secs(300));
+    let tasks = TaskRuntime::new(db.a.clone(), "computers", "file-worker");
+    tasks
+        .cancel(&claim.snapshot.task_id.to_string())
+        .await
+        .unwrap();
+    assert!(matches!(
+        a.file_continuation(&claim, &prepared.operation)
+            .await
+            .unwrap(),
+        FileContinuation::Interrupted(FileInterruption::Cancelled)
+    ));
+    assert!(a.prepare_file_transfer(&claim, &keys()).await.is_err());
+    assert_eq!(slots(&db).await, 1);
+    a.abort_queued_file(&claim, FileRefusal::CancelledBeforeDispatch)
+        .await
+        .unwrap();
+    assert_eq!(
+        a.get(owner.owner(), computer).await.unwrap().phase,
+        ComputerPhase::Ready
+    );
+}

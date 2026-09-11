@@ -103,6 +103,28 @@ impl FileTransferAuthority {
     }
     pub fn required_labels(&self, actor: &ComputerActor) -> Result<BTreeSet<DataLabelId>> {
         self.require_actor(actor)?;
+        let mut labels = self.retained_labels()?;
+        labels.extend(
+            actor
+                .owner()
+                .authority
+                .output_policy
+                .data_labels
+                .iter()
+                .cloned(),
+        );
+        labels.extend(
+            actor
+                .owner()
+                .authority
+                .output_policy
+                .classification
+                .iter()
+                .cloned(),
+        );
+        Ok(labels)
+    }
+    pub(super) fn retained_labels(&self) -> Result<BTreeSet<DataLabelId>> {
         let computer = self.computer()?;
         let mut labels = computer
             .owner
@@ -110,13 +132,9 @@ impl FileTransferAuthority {
             .iter()
             .map(|value| DataLabelId::new(value.clone()).map_err(|_| ComputerError::Unavailable))
             .collect::<Result<BTreeSet<_>>>()?;
-        for policy in [
-            &computer.owner.authority.output_policy,
-            &actor.owner().authority.output_policy,
-        ] {
-            labels.extend(policy.data_labels.iter().cloned());
-            labels.extend(policy.classification.iter().cloned());
-        }
+        let policy = &computer.owner.authority.output_policy;
+        labels.extend(policy.data_labels.iter().cloned());
+        labels.extend(policy.classification.iter().cloned());
         Ok(labels)
     }
     pub(crate) fn require_actor(&self, actor: &ComputerActor) -> Result<()> {
