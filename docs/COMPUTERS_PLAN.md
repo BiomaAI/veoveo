@@ -56,6 +56,7 @@ installation or full release-closure gates.
 | Uninterrupted CLI renewal and logout | Release 155 accepted fresh commands on the same stock CLI connection from 12:16:42 to 12:33:18 UTC. Console sign-out closed it; reconnect returned HTTP 403. Fresh SSO showed no access grants and the Computer remained Ready |
 | Agent discovery and lifecycle | The headed Console issued a Read/Start/Stop grant with no Execute scope. Public MCP discovered the Computer and completed Stop and Start. The browser terminal then verified UID 10001, the earlier marker and the binary's original SHA-256 |
 | Lifecycle retry and revocation | Release 157 returned the original public Task IDs for exact Stop and Start retries without repeating either effect. Revocation removed the Computer from agent discovery and denied exact reads and retries; the owner still read the completed operation receipt |
+| Guided grant creation | Release 158 suggested the two admin-profile applications. Selecting admin-service filled its canonical principal; a Read-only grant exposed one Computer through public MCP. Revocation removed it from agent discovery, while both owner Computers stayed Ready |
 
 The public long-session check was interrupted by database memory exhaustion during
 an audit-index migration. Its observed CLI lease activity exceeded ten minutes, but
@@ -74,10 +75,10 @@ at 12:33:27 UTC; connection closure was observed by 12:33:57.790. This sampled
 The remaining initial-release work includes selected-profile backup/key ownership and restore
 acceptance, and clean/offline installation with complete release evidence. The
 current grant form requires the grantee's OAuth registration to admit the Console
-profile. The application-choice implementation exposes matching registrations and
-fills automated service principals, with current permission hints. Public acceptance
-of this form is pending deployment. An explicit cross-profile authority transition
-is outside this initial same-profile contract.
+profile. The installed form exposes matching registrations and fills automated service
+principals, with current permission hints. Release 158 passed the headed browser and
+public MCP journey. An explicit cross-profile authority transition is outside this
+initial same-profile contract.
 
 The named lifecycle domain now separates the retained owner from the actor whose
 Task starts or stops the Computer. Its 34 focused store tests cover both policy
