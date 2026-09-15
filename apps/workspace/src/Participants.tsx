@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Search, UserPlus, X } from "lucide-react";
+import { Bot, Check, Search, UserPlus, X } from "lucide-react";
 import { api } from "./api.ts";
 import { initials } from "./identity.ts";
-import type { ChatSnapshot } from "./generated/workspace.ts";
+import type { ConversationSnapshot } from "./api.ts";
 
 export function Participants({ snapshot, personId, onChanged, close }: {
-  snapshot: ChatSnapshot; personId: string; onChanged: () => Promise<void>; close: () => void;
+  snapshot: ConversationSnapshot; personId: string; onChanged: () => Promise<void>; close: () => void;
 }) {
   const { chat, members } = snapshot;
   const owner = chat.owner === personId;
@@ -22,6 +22,9 @@ export function Participants({ snapshot, personId, onChanged, close }: {
     catch (error) { setError(error instanceof Error ? error.message : "Could not update this chat."); }
     finally { setBusy(false); }
   }
+  const catalog = useQuery({ queryKey: ["agent-catalog"], queryFn: ({ signal }) => api.agents(signal), enabled: owner && !chat.archived });
+  const [choice, setChoice] = useState("");
+  const candidate = catalog.data?.find(agent => agent.id === choice);
   const settings = { expectedRevision: chat.revision, title, archived: chat.archived, membersCanInvite: chat.membersCanInvite, owner: chat.owner };
   return <aside className="details" aria-label="Chat details">
     <div className="details-heading"><h2>Chat details</h2><button className="icon-button" onClick={close} aria-label="Close chat details"><X size={19}/></button></div>
@@ -41,6 +44,22 @@ export function Participants({ snapshot, personId, onChanged, close }: {
         <span>{person.displayName}</span><button disabled={busy} onClick={() => void act(() => api.invite(chat.id, person.id, crypto.randomUUID()), `Invitation sent to ${person.displayName}.`)}>Invite</button></div>)}
       <p className="muted">People accept an invitation before joining. Members can read the complete shared history.</p>
     </section>}
+    <section><h3><Bot size={15}/> Agents · {snapshot.activity.agents.filter(agent => agent.active).length}</h3>
+      {snapshot.activity.agents.filter(agent => agent.active).map(agent => <div className="person" key={agent.id}>
+        <span className="avatar small agent-avatar"><Bot size={16}/></span><div><strong>{agent.name}</strong><span>{agent.provider} · {agent.model}</span></div>
+        {owner && <button className="icon-button" aria-label={`Remove ${agent.name}`} disabled={busy} onClick={() => void act(() => api.removeAgent(chat.id, agent.id))}><X size={14}/></button>}
+      </div>)}
+      {owner && !chat.archived && <>
+        {catalog.error && <p className="error">{catalog.error.message}</p>}
+        <label>Add an agent<select aria-label="Choose an agent" value={choice} onChange={event => setChoice(event.target.value)}>
+          <option value="">Choose an agent…</option>
+          {catalog.data?.filter(agent => !snapshot.activity.agents.some(member => member.active && member.definition === agent.id)).map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+        </select></label>
+        {candidate && <div className="agent-disclosure"><p>{candidate.description}</p><p className="muted">{candidate.provider} · {candidate.model}. This agent receives the shared history when asked to respond.</p>
+          <button disabled={busy} onClick={() => void act(async () => { await api.addAgent(chat.id, candidate.id); setChoice(""); })}>Add {candidate.name}</button></div>}
+        {catalog.data?.length === 0 && <p className="muted">No agents are configured for this Work Context.</p>}
+      </>}
+    </section>
     {owner && <section className="settings"><h3>Owner controls</h3>
       <label>Chat name<input value={title} maxLength={200} onChange={event => setTitle(event.target.value)}/></label>
       <button disabled={busy || !title.trim() || title === chat.title} onClick={() => void act(() => api.settings(chat.id, { ...settings, title: title.trim() }))}>Save name</button>

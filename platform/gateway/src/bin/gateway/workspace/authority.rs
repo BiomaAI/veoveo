@@ -75,3 +75,47 @@ pub(super) async fn admit(
         membership,
     ))
 }
+
+/// Long-lived workers recheck the same session-family and JWT revocation boundary
+/// as fresh requests. A saved subject is not perpetual execution authority.
+pub(super) async fn admit_live(
+    state: &WorkspaceState,
+    gateway: &veoveo_mcp_gateway::GatewayState,
+    catalog: &veoveo_mcp_gateway::GatewayCatalog,
+    profile: &veoveo_mcp_contract::GatewayProfileId,
+    subject: &AuthenticatedSubject,
+) -> Result<WorkspaceAuthority, StatusCode> {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let config = catalog.profile(profile).ok_or(StatusCode::NOT_FOUND)?;
+        if subject.access_token.expires_at <= chrono::Utc::now()
+            || !gateway
+                .access_token_session_valid(
+                    profile,
+                    &config.authorization_server,
+                    &subject.access_token,
+                    &subject.principal,
+                )
+                .await
+                .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+        {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+        if let Some(jwt) = &subject.access_token.jwt_id
+            && gateway
+                .jwt_revocation(
+                    profile,
+                    &subject.access_token.issuer,
+                    jwt,
+                    chrono::Utc::now(),
+                )
+                .await
+                .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+                .is_some()
+        {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+        admit(state, subject).await
+    })
+    .await
+    .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+}

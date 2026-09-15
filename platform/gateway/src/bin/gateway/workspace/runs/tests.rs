@@ -1,0 +1,249 @@
+//! Explicit model HTTP fixtures exercise the actual Rig stream and durable run
+//! pipeline. These are not production model or MCP Tasks acceptance.
+use super::*;
+use axum::{
+    Extension,
+    body::{Body, to_bytes},
+    http::Request,
+    response::{Sse, sse::Event},
+};
+use serde_json::{Value, json};
+use std::{
+    convert::Infallible,
+    sync::atomic::{AtomicUsize, Ordering},
+};
+use tokio::sync::Notify;
+use tower::ServiceExt;
+use veoveo_mcp_contract::GatewayControlPlane;
+use veoveo_mcp_gateway::GatewayCatalog;
+
+#[derive(Clone)]
+struct Provider {
+    requests: Arc<AtomicUsize>,
+    release: Arc<Notify>,
+}
+async fn completion(
+    State(provider): State<Provider>,
+    Json(body): Json<Value>,
+) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
+    provider.requests.fetch_add(1, Ordering::SeqCst);
+    let model = body["model"].as_str().unwrap().to_owned();
+    assert!(!body.to_string().contains("PRIVATE OTHER CHAT"));
+    let stream = async_stream::stream! {
+        yield Ok(Event::default().data(json!({"id":"fixture", "object":"chat.completion.chunk", "created":0, "model":model,
+            "choices":[{"index":0,"delta":{"role":"assistant","content":format!("{model} response")},"finish_reason":null}]}).to_string()));
+        provider.release.notified().await;
+        yield Ok(Event::default().data(json!({"id":"fixture", "object":"chat.completion.chunk", "created":0, "model":model,
+            "choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}).to_string()));
+        yield Ok(Event::default().data("[DONE]"));
+    };
+    Sse::new(stream)
+}
+async fn request(app: &Router, path: &str, value: Value) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/workspace-api/operator{path}"))
+                .header("content-type", "application/json")
+                .body(Body::from(value.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let body = to_bytes(response.into_body(), 65536).await.unwrap();
+    (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
+}
+fn catalog() -> GatewayCatalog {
+    let plane: GatewayControlPlane = serde_json::from_str(include_str!(
+        "../../../../../../../configs/gateway.smoke.json"
+    ))
+    .unwrap();
+    GatewayCatalog::from_control_plane(plane).unwrap()
+}
+fn definition(id: &str, base_url: &str) -> config::Definition {
+    serde_json::from_value(
+        json!({"id":id,"name":id,"description":"Explicit fixture","provider":"Fixture",
+        "tenant":"test","work_contexts":["shared"],"instructions":"Respond to the current request.",
+        "model":{"base_url":base_url,"name":id,"api_key":"fixture-key","max_output_tokens":128}}),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again() {
+    tokio::time::timeout(Duration::from_secs(25), async {
+        let db = crate::test_store::TestDb::new().await;
+        super::super::tests::setup(&db.a).await;
+        let provider = Provider {
+            requests: Arc::new(AtomicUsize::new(0)),
+            release: Arc::new(Notify::new()),
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let provider_task = tokio::spawn(
+            axum::serve(
+                listener,
+                Router::new()
+                    .route("/chat/completions", post(completion))
+                    .with_state(provider.clone()),
+            )
+            .into_future(),
+        );
+        let provider_guard = provider_task.abort_handle();
+        struct Abort(tokio::task::AbortHandle);
+        impl Drop for Abort {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+        let _guard = Abort(provider_guard);
+        let mut subject = super::super::tests::subject("Alice");
+        subject.access_token.session_family = None; // signature/session admission is a separate explicit fixture boundary
+        let stop = CancellationToken::new();
+        let _stop_guard = stop.clone().drop_guard();
+        let state = RunState {
+            workspace: WorkspaceState {
+                store: db.a.clone(),
+            },
+            gateway: GatewayState::new(db.b.clone()),
+            catalog: GatewayCatalogHandle::new(Arc::new(catalog())),
+            definitions: Arc::new(vec![
+                definition("writer", &origin),
+                definition("reviewer", &origin),
+            ]),
+            limits: Arc::new(Semaphore::new(16)),
+            stop,
+            http: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap(),
+            keys: keys::ModelKeys {
+                fixture: Some("fixture-key".into()),
+            },
+        };
+        let actor = authority::admit(&state.workspace, &subject).await.unwrap();
+        let chat = WorkspaceChatId::new();
+        db.a.create_workspace_chat(&actor, chat, "Shared")
+            .await
+            .unwrap();
+        let private = WorkspaceChatId::new();
+        db.a.create_workspace_chat(&actor, private, "Other")
+            .await
+            .unwrap();
+        db.a.send_workspace_message(
+            &actor,
+            private,
+            WorkspaceMessageId::new(),
+            "PRIVATE OTHER CHAT",
+            None,
+        )
+        .await
+        .unwrap();
+        let trigger = WorkspaceMessageId::new();
+        db.a.send_workspace_message(&actor, chat, trigger, "Discuss this", None)
+            .await
+            .unwrap();
+        let app = routes(state).layer(Extension(subject));
+        let mut run_ids = Vec::new();
+        let mut starts = Vec::new();
+        for name in ["writer", "reviewer"] {
+            let (status, agent) = request(
+                &app,
+                &format!("/chats/{chat}/agents"),
+                json!({"definition":name}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{agent}");
+            let start = json!({"agent":agent["id"],"trigger":trigger.as_uuid()});
+            let (status, run) = request(&app, &format!("/chats/{chat}/runs"), start.clone()).await;
+            assert_eq!(status, StatusCode::OK, "{run}");
+            run_ids.push(run["id"].as_str().unwrap().to_owned());
+            starts.push(start);
+        }
+        loop {
+            let runs = db.b.workspace_runs(&actor, chat).await.unwrap();
+            if runs.len() == 2 && runs.iter().all(|r| !r.text.is_empty()) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        assert_eq!(provider.requests.load(Ordering::SeqCst), 2);
+        db.a.send_workspace_message(
+            &actor,
+            chat,
+            WorkspaceMessageId::new(),
+            "Human continues",
+            None,
+        )
+        .await
+        .unwrap();
+        let (status, cancelled) = request(
+            &app,
+            &format!("/chats/{chat}/runs/{}/cancel", run_ids[0]),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(cancelled["state"], "cancelled");
+        let (status, repeated) =
+            request(&app, &format!("/chats/{chat}/runs"), starts[0].clone()).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(repeated["id"], run_ids[0]);
+        provider.release.notify_waiters();
+        loop {
+            let runs = db.b.workspace_runs(&actor, chat).await.unwrap();
+            if runs.iter().any(|r| r.state == WorkspaceRunState::Completed) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        assert_eq!(provider.requests.load(Ordering::SeqCst), 2);
+        let restored = db.b.workspace_runs(&actor, chat).await.unwrap();
+        assert!(
+            restored
+                .iter()
+                .any(|r| r.state == WorkspaceRunState::Cancelled)
+        );
+        assert!(
+            restored
+                .iter()
+                .any(|r| r.state == WorkspaceRunState::Completed && r.text == "reviewer response")
+        );
+    })
+    .await
+    .expect("bounded model stream fixture");
+}
+
+#[test]
+fn model_admission_requires_exact_context_registered_provider_secret_and_bounded_output() {
+    let catalog = catalog();
+    let context = &catalog.control_plane().work_contexts[0];
+    let mut definition = definition("helper", "https://model.example/v1");
+    definition.tenant = context.tenant.clone();
+    definition.work_contexts = vec![context.id.clone()];
+    definition.model.api_key =
+        veoveo_mcp_contract::SecretReferenceId::new("media_provider_api_key").unwrap();
+    config::validate(&[definition.clone()], &catalog).unwrap();
+    for destination in [
+        "https://credential@model.example/v1",
+        "https://model.example/v1?key=secret",
+        "file:///tmp/model",
+    ] {
+        let mut invalid = definition.clone();
+        invalid.model.base_url = destination.into();
+        assert!(config::validate(&[invalid], &catalog).is_err());
+    }
+    let mut invalid = definition.clone();
+    invalid.model.max_output_tokens = 9000;
+    assert!(config::validate(&[invalid], &catalog).is_err());
+    let mut invalid = definition.clone();
+    invalid.tenant = veoveo_mcp_contract::TenantId::new("foreign").unwrap();
+    assert!(config::validate(&[invalid], &catalog).is_err());
+    let mut invalid = definition.clone();
+    invalid.model.api_key = veoveo_mcp_contract::SecretReferenceId::new("unregistered").unwrap();
+    assert!(config::validate(&[invalid], &catalog).is_err());
+    assert!(config::validate(&[definition.clone(), definition], &catalog).is_err());
+}

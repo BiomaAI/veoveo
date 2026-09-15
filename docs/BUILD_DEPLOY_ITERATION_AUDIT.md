@@ -16,6 +16,13 @@ local development only; a Workspace image has not yet been built or deployed.
 | Real database fixtures caught an invalid invitation projection | The first friendly invitation inbox used unsupported object shorthand. The corrected explicit field projection passes the same real gateway/database scenario. | Keep projection assertions in the existing API acceptance; do not rely only on compile checks for SurrealQL. |
 | Test receipt volume is a review cost | The API checkpoint adds about 69,000 lines, mostly repeated materialized input records in immutable receipts. An unclassified store check also resulted from an argument-order mismatch. | Use exact catalog commands and focused source boundaries. Retain truthful receipt history; defer receipt compaction instead of interrupting Workspace delivery. |
 
+The narrow model runner adds the already-qualified Rig dependency to the gateway.
+Its first test-profile rebuild takes 1m57s because Cargo recompiles the newly unified
+transport features; the two-stream Rust scenario itself takes 3.55 s. The matching
+Clippy graph takes 1m25s on first use. No DuckDB or Rerun kernel dependency is added.
+The expanded four-author browser fixture takes 20 s and uses the existing headed
+RTX 4090 browser. Workspace model images and rollout remain unmeasured.
+
 The active product and acceptance sequence are in
 [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md). Older measurements below retain their
 original scope and dates.

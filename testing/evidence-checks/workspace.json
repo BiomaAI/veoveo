@@ -89,7 +89,8 @@
           "veoveo-mcp-gateway"
         ],
         "roots": [
-          "testing/fixtures"
+          "testing/fixtures",
+          "configs/gateway.smoke.json"
         ]
       },
       "toolchains": [

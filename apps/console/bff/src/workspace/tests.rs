@@ -286,3 +286,43 @@ async fn chat_stream_uses_cookie_authority_and_rejects_query_credentials() {
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn agent_run_admission_keeps_cookie_identity_and_rejects_browser_model_configuration() {
+    let chat = uuid::Uuid::now_v7();
+    let agent = uuid::Uuid::now_v7();
+    let trigger = uuid::Uuid::now_v7();
+    let run = uuid::Uuid::now_v7();
+    let initiator = uuid::Uuid::now_v7();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let upstream = Router::new().route(&format!("/workspace-api/workspace/chats/{chat}/runs"), post(move |headers: HeaderMap, Json(body): Json<serde_json::Value>| {
+        let observed = observed.clone();
+        async move {
+            observed.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(headers["authorization"], "Bearer cookie-access");
+            assert_eq!(body, serde_json::json!({"agent":agent,"trigger":trigger}));
+            Json(serde_json::json!({"id":run,"agent":agent,"initiator":initiator,"trigger":trigger,"state":"queued","text":"","failure":null,"sequence":4,"updatedSequence":4,"createdAt":"2026-09-15T12:00:00Z"}))
+        }
+    }));
+    let edge = Edge::new(upstream).await;
+    let path = format!("/workspace/api/chats/{chat}/runs");
+    let body = serde_json::json!({"agent":agent,"trigger":trigger}).to_string();
+    assert_eq!(
+        edge.request("POST", &path, true, false, &body)
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    let forged = serde_json::json!({"agent":agent,"trigger":trigger,"modelUrl":"https://untrusted.invalid","initiator":initiator}).to_string();
+    assert_eq!(
+        edge.request("POST", &path, true, true, &forged)
+            .await
+            .status(),
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let response = edge.request("POST", &path, true, true, &body).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}

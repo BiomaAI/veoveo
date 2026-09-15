@@ -1,6 +1,7 @@
 //! Shared browser edge for the independent Workspace client. The upstream origin
 //! and profile are installation configuration; credentials come only from cookies.
 mod events;
+mod runs;
 pub(crate) mod static_assets;
 #[cfg(test)]
 mod tests;
@@ -22,6 +23,7 @@ use crate::{AppState, api};
 
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
+        .merge(runs::router())
         .route("/workspace/api/session", get(session))
         .route("/workspace/api/chats", get(chats).post(create))
         .route("/workspace/api/chats/{chat}", get(snapshot).put(settings))

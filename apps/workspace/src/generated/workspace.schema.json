@@ -1,5 +1,67 @@
 {
   "$defs": {
+    "AddAgent": {
+      "additionalProperties": false,
+      "properties": {
+        "definition": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "definition"
+      ],
+      "type": "object"
+    },
+    "AgentActivity": {
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "items": {
+            "$ref": "#/$defs/ChatAgent"
+          },
+          "type": "array"
+        },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/Run"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agents",
+        "runs"
+      ],
+      "type": "object"
+    },
+    "AgentDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "provider",
+        "model"
+      ],
+      "type": "object"
+    },
     "Chat": {
       "additionalProperties": false,
       "properties": {
@@ -41,6 +103,39 @@
         "sequence",
         "revision",
         "updatedAt"
+      ],
+      "type": "object"
+    },
+    "ChatAgent": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "definition": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "definition",
+        "name",
+        "provider",
+        "model",
+        "active"
       ],
       "type": "object"
     },
@@ -313,6 +408,87 @@
       "description": "Stable authenticated user or service-principal identity.",
       "type": "string"
     },
+    "Run": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunFailure"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "initiator": {
+          "$ref": "#/$defs/PersonId"
+        },
+        "sequence": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/RunState"
+        },
+        "text": {
+          "type": "string"
+        },
+        "trigger": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "updatedSequence": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "agent",
+        "initiator",
+        "trigger",
+        "state",
+        "text",
+        "sequence",
+        "updatedSequence",
+        "createdAt"
+      ],
+      "type": "object"
+    },
+    "RunFailure": {
+      "enum": [
+        "model_unavailable",
+        "permission_changed",
+        "output_limit",
+        "deadline",
+        "worker_lost"
+      ],
+      "type": "string"
+    },
+    "RunState": {
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "cancelled",
+        "interrupted",
+        "failed"
+      ],
+      "type": "string"
+    },
     "SendMessage": {
       "additionalProperties": false,
       "properties": {
@@ -334,6 +510,24 @@
       "required": [
         "id",
         "text"
+      ],
+      "type": "object"
+    },
+    "StartRun": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "trigger": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent",
+        "trigger"
       ],
       "type": "object"
     },
@@ -384,6 +578,15 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "activity": {
+      "$ref": "#/$defs/AgentActivity"
+    },
+    "add_agent": {
+      "$ref": "#/$defs/AddAgent"
+    },
+    "agent_definition": {
+      "$ref": "#/$defs/AgentDefinition"
+    },
     "bootstrap": {
       "$ref": "#/$defs/WorkspaceBootstrap"
     },
@@ -411,6 +614,9 @@
     "snapshot": {
       "$ref": "#/$defs/ChatSnapshot"
     },
+    "start_run": {
+      "$ref": "#/$defs/StartRun"
+    },
     "wake": {
       "$ref": "#/$defs/ChatWake"
     }
@@ -425,7 +631,11 @@
     "invite_person",
     "decide_invitation",
     "settings",
-    "wake"
+    "wake",
+    "agent_definition",
+    "activity",
+    "add_agent",
+    "start_run"
   ],
   "title": "WorkspaceSchema",
   "type": "object"

@@ -94,9 +94,12 @@ pub struct WorkspaceRunUpdate {
 
 /// Immutable prompt boundary. Human messages are immutable; only agent results
 /// completed before admission are eligible. In-flight and later output is absent.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+#[derive(Clone, Debug, PartialEq, SurrealValue)]
 pub struct WorkspaceRunContext {
     pub run: WorkspaceRun,
+    pub trigger: super::super::WorkspaceMessage,
+    pub members: Vec<super::super::WorkspaceMember>,
+    pub people: Vec<super::super::WorkspacePerson>,
     pub messages: Vec<super::super::WorkspaceMessage>,
     pub completed_runs: Vec<WorkspaceRun>,
     pub agents: Vec<WorkspaceAgent>,
