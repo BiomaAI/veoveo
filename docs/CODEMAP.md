@@ -1010,7 +1010,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `oauth.rs` | PKCE login, token exchange, refresh rotation, and shared Console/standalone-App return settlement |
+| [`DESIGN.md`](../apps/console/bff/DESIGN.md), `browser.rs`, `oauth.rs` | shared PKCE login, exchange and refresh with separate Console and Workspace OAuth clients, cookie encryption domains and return-path authority |
 | `session.rs` | XChaCha20-Poly1305 cookies, CSRF material, and bounded same-origin `BrowserReturnPath` authority |
 | `app_host.rs` | typed `/apps/{server}/{page...}` route authority, public no-store entry document, and caller-authorized App bootstrap |
 | `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/input-request BFF projections; browser credentials and database authority never enter an MCP App |

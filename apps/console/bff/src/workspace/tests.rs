@@ -18,7 +18,7 @@ use tower::ServiceExt;
 use crate::{
     AppState, api,
     config::Config,
-    session::{ConsoleSession, SESSION_AAD, SESSION_COOKIE, SessionCipher},
+    session::{BrowserSession, SESSION_AAD, SessionCipher},
 };
 
 struct Edge {
@@ -41,12 +41,14 @@ impl Edge {
         let server = tokio::spawn(async move {
             axum::serve(listener, upstream).await.unwrap();
         });
-        let config = Arc::new(Config::for_test(url));
-        let sessions = SessionCipher::new(config.session_key()).unwrap();
+        let config = Arc::new(Config::workspace_for_test(url));
+        let sessions = SessionCipher::new(config.session_key())
+            .unwrap()
+            .for_app(config.app());
         let now = Utc::now().timestamp();
         let cookie = sessions
             .seal(
-                &ConsoleSession {
+                &BrowserSession {
                     access_token: "cookie-access".into(),
                     access_expires_at: now + 300,
                     refresh_token: "cookie-refresh".into(),
@@ -75,11 +77,12 @@ impl Edge {
             computers: crate::computers::Transport::new(&Default::default()).unwrap(),
         };
         let app = super::router()
+            .route("/workspace/auth/login", get(crate::oauth::login))
             .with_state(state.clone())
             .layer(middleware::from_fn_with_state(state, api::enforce_csrf));
         Self {
             app,
-            cookie: format!("{SESSION_COOKIE}={cookie}"),
+            cookie: format!("veoveo_workspace={cookie}"),
             server,
         }
     }
@@ -113,12 +116,41 @@ impl Edge {
 }
 
 #[tokio::test]
+async fn workspace_login_uses_its_own_client_callback_scopes_and_pending_cookie() {
+    let upstream = Router::new().route("/.well-known/oauth-protected-resource/mcp/workspace", get(|headers: HeaderMap| async move {
+        Json(json!({"resource": format!("http://{}/mcp/workspace", headers["host"].to_str().unwrap()), "scopes_supported":["operator:use","artifact:upload"]}))
+    }));
+    let edge = Edge::new(upstream).await;
+    let response = edge
+        .request(
+            "GET",
+            "/workspace/auth/login?return_to=%2Fworkspace%2F%3Fchat%3Done",
+            false,
+            false,
+            "",
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let url = url::Url::parse(response.headers()["location"].to_str().unwrap()).unwrap();
+    let query: std::collections::BTreeMap<_, _> = url.query_pairs().into_owned().collect();
+    assert_eq!(query["client_id"], "workspace");
+    assert_eq!(query["scope"], "artifact:upload operator:use");
+    assert!(query["resource"].ends_with("/mcp/workspace"));
+    assert!(query["redirect_uri"].ends_with("/workspace/auth/callback"));
+    assert_eq!(query["code_challenge_method"], "S256");
+    let cookie = response.headers()["set-cookie"].to_str().unwrap();
+    assert!(cookie.starts_with("veoveo_workspace_authorization="));
+    assert!(cookie.contains("HttpOnly"));
+    assert!(!cookie.contains("veoveo_console"));
+}
+
+#[tokio::test]
 async fn cookie_identity_and_csrf_are_required_and_browser_headers_do_not_reach_gateway() {
     let requests = Arc::new(AtomicUsize::new(0));
     let observed = requests.clone();
     let id = uuid::Uuid::now_v7();
     let upstream = Router::new().route(
-        "/workspace-api/admin/chats",
+        "/workspace-api/workspace/chats",
         post(move |headers: HeaderMap| {
             let observed = observed.clone();
             async move {
@@ -159,7 +191,7 @@ async fn cookie_identity_and_csrf_are_required_and_browser_headers_do_not_reach_
 
 #[tokio::test]
 async fn search_is_encoded_and_oversized_or_invalid_upstream_payloads_fail_closed() {
-    let upstream = Router::new().route("/workspace-api/admin/people", get(|Query(query): Query<std::collections::BTreeMap<String, String>>| async move {
+    let upstream = Router::new().route("/workspace-api/workspace/people", get(|Query(query): Query<std::collections::BTreeMap<String, String>>| async move {
         assert_eq!(query.len(), 1);
         match query["q"].as_str() {
             "Bob&destination=https://untrusted.invalid" => Json(json!([])),
@@ -215,7 +247,7 @@ async fn chat_stream_uses_cookie_authority_and_rejects_query_credentials() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
     let upstream = Router::new().route(
-        &format!("/workspace-api/admin/chats/{chat}/events"),
+        &format!("/workspace-api/workspace/chats/{chat}/events"),
         get(move |headers: HeaderMap| {
             count.fetch_add(1, Ordering::SeqCst);
             async move {

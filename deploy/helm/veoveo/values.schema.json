@@ -971,7 +971,8 @@
         "outboundCa",
         "rerunMap",
         "oauthScopes",
-        "resources"
+        "resources",
+        "workspace"
       ],
       "properties": {
         "image": {
@@ -1076,6 +1077,39 @@
         },
         "resources": {
           "type": "object"
+        },
+        "workspace": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "oauthClientId",
+            "oauthResource",
+            "mcpTransportUrl",
+            "oauthScopes"
+          ],
+          "properties": {
+            "oauthClientId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "oauthResource": {
+              "type": "string",
+              "pattern": "^$|^https?://[^?#]+/mcp/[A-Za-z0-9_.-]+$"
+            },
+            "mcpTransportUrl": {
+              "type": "string",
+              "pattern": "^$|^https?://[^?#]+/mcp/[A-Za-z0-9_.-]+$"
+            },
+            "oauthScopes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         }
       }
     },

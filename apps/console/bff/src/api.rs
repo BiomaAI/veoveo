@@ -645,7 +645,7 @@ fn forward_read_headers(
 
 /// Margin before access-token expiry at which the proxied SSE stream is cut.
 /// The browser's EventSource reconnects immediately and the new handler run
-/// lands inside `ConsoleSession::should_refresh`'s 30 s window, so the token
+/// lands inside `BrowserSession::should_refresh`'s 30 s window, so the token
 /// is silently refreshed across reconnects.
 const STREAM_TOKEN_MARGIN_SECS: i64 = 5;
 
@@ -810,8 +810,14 @@ pub(crate) fn response_session_headers(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     headers.insert(CSRF_HEADER, value);
     if let Some((cookie, max_age)) = &session.replacement_cookie {
-        set_session_cookie(&mut headers, cookie, *max_age, state.config.secure_cookie())
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        set_session_cookie(
+            &mut headers,
+            cookie,
+            *max_age,
+            state.config.secure_cookie(),
+            state.config.app(),
+        )
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
     Ok(headers)
 }
@@ -832,7 +838,11 @@ fn constant_time_equal(left: &str, right: &str) -> bool {
 pub(crate) fn unauthorized(state: &AppState) -> Response {
     let mut headers = HeaderMap::new();
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    clear_session_cookie(&mut headers, state.config.secure_cookie());
+    clear_session_cookie(
+        &mut headers,
+        state.config.secure_cookie(),
+        state.config.app(),
+    );
     (headers, StatusCode::UNAUTHORIZED).into_response()
 }
 
@@ -865,7 +875,7 @@ mod tests {
         apps::AppTaskRegistry,
         config::Config,
         mcp_client::AuthScopedMcpClientPool,
-        session::{ConsoleSession, SESSION_AAD, SESSION_COOKIE, SessionCipher},
+        session::{BrowserSession, SESSION_AAD, SESSION_COOKIE, SessionCipher},
     };
 
     #[test]
@@ -1017,7 +1027,7 @@ mod tests {
         let config = Arc::new(Config::for_test(gateway_url));
         let sessions = SessionCipher::new(config.session_key()).unwrap();
         let now = Utc::now().timestamp();
-        let session = ConsoleSession {
+        let session = BrowserSession {
             access_token: "access-token".to_owned(),
             access_expires_at: now + 300,
             refresh_token: "refresh-token".to_owned(),

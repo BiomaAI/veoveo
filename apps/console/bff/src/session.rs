@@ -1,5 +1,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
+use crate::browser::BrowserApp;
 use anyhow::{Context, anyhow};
 use axum::http::{
     HeaderMap, HeaderValue,
@@ -19,33 +20,57 @@ const MAX_BROWSER_RETURN_PATH_BYTES: usize = 4096;
 const BROWSER_RETURN_ORIGIN: &str = "https://console.invalid/";
 const CONSOLE_ROOT: &str = "/console/";
 const BROWSER_RETURN_ROOTS: [&str; 3] = [CONSOLE_ROOT, "/apps/", "/workspace/"];
+#[cfg(test)]
 pub(crate) const SESSION_COOKIE: &str = "veoveo_console";
-const AUTHORIZATION_COOKIE: &str = "veoveo_console_authorization";
 pub(crate) const SESSION_AAD: &[u8] = b"veoveo-console-session-v1";
 pub(crate) const AUTHORIZATION_AAD: &[u8] = b"veoveo-console-authorization-v2";
 
 #[derive(Clone)]
-pub(crate) struct SessionCipher(Arc<XChaCha20Poly1305>);
+pub(crate) struct SessionCipher {
+    cipher: Arc<XChaCha20Poly1305>,
+    app: BrowserApp,
+}
 
 impl SessionCipher {
     pub(crate) fn new(key: &[u8; 32]) -> anyhow::Result<Self> {
-        Ok(Self(Arc::new(
-            XChaCha20Poly1305::new_from_slice(key).map_err(|_| anyhow!("invalid session key"))?,
-        )))
+        Ok(Self {
+            cipher: Arc::new(
+                XChaCha20Poly1305::new_from_slice(key)
+                    .map_err(|_| anyhow!("invalid session key"))?,
+            ),
+            app: BrowserApp::Console,
+        })
+    }
+
+    pub(crate) fn for_app(&self, app: BrowserApp) -> Self {
+        Self {
+            cipher: self.cipher.clone(),
+            app,
+        }
+    }
+
+    fn associated_data<'a>(&self, aad: &'a [u8]) -> std::borrow::Cow<'a, [u8]> {
+        match self.app {
+            BrowserApp::Console => std::borrow::Cow::Borrowed(aad),
+            BrowserApp::Workspace => {
+                std::borrow::Cow::Owned([b"veoveo-workspace:".as_slice(), aad].concat())
+            }
+        }
     }
 
     pub(crate) fn seal<T: Serialize>(&self, value: &T, aad: &[u8]) -> anyhow::Result<String> {
+        let aad = self.associated_data(aad);
         let plaintext = serde_json::to_vec(value).context("serializing encrypted cookie")?;
         let mut nonce = [0_u8; NONCE_BYTES];
         getrandom::fill(&mut nonce).context("generating cookie nonce")?;
         let nonce_value = XNonce::from(nonce);
         let ciphertext = self
-            .0
+            .cipher
             .encrypt(
                 &nonce_value,
                 Payload {
                     msg: &plaintext,
-                    aad,
+                    aad: &aad,
                 },
             )
             .map_err(|_| anyhow!("encrypting cookie failed"))?;
@@ -56,6 +81,7 @@ impl SessionCipher {
     }
 
     pub(crate) fn open<T: DeserializeOwned>(&self, encoded: &str, aad: &[u8]) -> anyhow::Result<T> {
+        let aad = self.associated_data(aad);
         let bytes = URL_SAFE_NO_PAD
             .decode(encoded)
             .context("cookie is not base64url")?;
@@ -67,12 +93,12 @@ impl SessionCipher {
             .map_err(|_| anyhow!("cookie nonce is invalid"))?;
         let nonce = XNonce::from(nonce);
         let plaintext = self
-            .0
+            .cipher
             .decrypt(
                 &nonce,
                 Payload {
                     msg: ciphertext,
-                    aad,
+                    aad: &aad,
                 },
             )
             .map_err(|_| anyhow!("cookie authentication failed"))?;
@@ -94,6 +120,16 @@ pub(crate) struct PendingAuthorization {
 pub(crate) struct BrowserReturnPath(String);
 
 impl BrowserReturnPath {
+    pub(crate) fn for_app(candidate: Option<&str>, app: BrowserApp) -> Self {
+        let value = Self::from_untrusted(candidate);
+        let allowed = value.as_str().starts_with(app.root())
+            || (app == BrowserApp::Console && value.as_str().starts_with("/apps/"));
+        if allowed {
+            value
+        } else {
+            Self(app.root().to_owned())
+        }
+    }
     pub(crate) fn from_untrusted(candidate: Option<&str>) -> Self {
         let Some(candidate) = candidate
             .filter(|value| !value.is_empty() && value.len() <= MAX_BROWSER_RETURN_PATH_BYTES)
@@ -137,7 +173,7 @@ impl BrowserReturnPath {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ConsoleSession {
+pub(crate) struct BrowserSession {
     pub(crate) access_token: String,
     pub(crate) access_expires_at: i64,
     pub(crate) refresh_token: String,
@@ -146,7 +182,7 @@ pub(crate) struct ConsoleSession {
     pub(crate) csrf_token: String,
 }
 
-impl ConsoleSession {
+impl BrowserSession {
     pub(crate) fn is_expired(&self, now: i64) -> bool {
         self.refresh_expires_at <= now
     }
@@ -162,15 +198,16 @@ pub(crate) fn random_token() -> anyhow::Result<String> {
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
-pub(crate) fn read_session(headers: &HeaderMap, cipher: &SessionCipher) -> Option<ConsoleSession> {
-    read_cookie(headers, SESSION_COOKIE).and_then(|value| cipher.open(value, SESSION_AAD).ok())
+pub(crate) fn read_session(headers: &HeaderMap, cipher: &SessionCipher) -> Option<BrowserSession> {
+    read_cookie(headers, cipher.app.session_cookie())
+        .and_then(|value| cipher.open(value, SESSION_AAD).ok())
 }
 
 pub(crate) fn read_authorization(
     headers: &HeaderMap,
     cipher: &SessionCipher,
 ) -> Option<PendingAuthorization> {
-    read_cookie(headers, AUTHORIZATION_COOKIE)
+    read_cookie(headers, cipher.app.authorization_cookie())
         .and_then(|value| cipher.open(value, AUTHORIZATION_AAD).ok())
 }
 
@@ -179,24 +216,26 @@ pub(crate) fn set_session_cookie(
     value: &str,
     max_age: u64,
     secure: bool,
+    app: BrowserApp,
 ) -> anyhow::Result<()> {
-    append_cookie(headers, SESSION_COOKIE, value, max_age, secure)
+    append_cookie(headers, app.session_cookie(), value, max_age, secure)
 }
 
 pub(crate) fn set_authorization_cookie(
     headers: &mut HeaderMap,
     value: &str,
     secure: bool,
+    app: BrowserApp,
 ) -> anyhow::Result<()> {
-    append_cookie(headers, AUTHORIZATION_COOKIE, value, 600, secure)
+    append_cookie(headers, app.authorization_cookie(), value, 600, secure)
 }
 
-pub(crate) fn clear_session_cookie(headers: &mut HeaderMap, secure: bool) {
-    clear_cookie(headers, SESSION_COOKIE, secure);
+pub(crate) fn clear_session_cookie(headers: &mut HeaderMap, secure: bool, app: BrowserApp) {
+    clear_cookie(headers, app.session_cookie(), secure);
 }
 
-pub(crate) fn clear_authorization_cookie(headers: &mut HeaderMap, secure: bool) {
-    clear_cookie(headers, AUTHORIZATION_COOKIE, secure);
+pub(crate) fn clear_authorization_cookie(headers: &mut HeaderMap, secure: bool, app: BrowserApp) {
+    clear_cookie(headers, app.authorization_cookie(), secure);
 }
 
 fn read_cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -239,9 +278,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn applications_have_distinct_cookie_names_and_authenticated_encryption_domains() {
+        let console = SessionCipher::new(&[9_u8; 32]).unwrap();
+        let workspace = console.for_app(BrowserApp::Workspace);
+        let secret = "fixture-session";
+        let a = console.seal(&secret, SESSION_AAD).unwrap();
+        let b = workspace.seal(&secret, SESSION_AAD).unwrap();
+        assert!(console.open::<String>(&b, SESSION_AAD).is_err());
+        assert!(workspace.open::<String>(&a, SESSION_AAD).is_err());
+        assert_eq!(workspace.open::<String>(&b, SESSION_AAD).unwrap(), secret);
+        assert_ne!(console.app.session_cookie(), workspace.app.session_cookie());
+        assert_ne!(
+            console.app.authorization_cookie(),
+            workspace.app.authorization_cookie()
+        );
+        assert_eq!(
+            BrowserReturnPath::for_app(Some("/console/"), BrowserApp::Workspace).as_str(),
+            "/workspace/"
+        );
+        assert_eq!(
+            BrowserReturnPath::for_app(Some("/workspace/?chat=one"), BrowserApp::Workspace)
+                .as_str(),
+            "/workspace/?chat=one"
+        );
+    }
+
+    #[test]
     fn encrypted_cookie_round_trips_and_rejects_tampering() {
         let cipher = SessionCipher::new(&[7_u8; 32]).unwrap();
-        let value = ConsoleSession {
+        let value = BrowserSession {
             access_token: "secret-token".to_owned(),
             access_expires_at: 42,
             refresh_token: "secret-refresh-token".to_owned(),
@@ -254,7 +319,7 @@ mod tests {
         let encoded = cipher.seal(&value, SESSION_AAD).unwrap();
         assert!(!encoded.contains("secret-token"));
         assert!(!encoded.contains("secret-refresh-token"));
-        let decoded: ConsoleSession = cipher.open(&encoded, SESSION_AAD).unwrap();
+        let decoded: BrowserSession = cipher.open(&encoded, SESSION_AAD).unwrap();
         assert_eq!(decoded.access_token, "secret-token");
         assert_eq!(decoded.refresh_token, "secret-refresh-token");
         assert!(
@@ -268,14 +333,14 @@ mod tests {
         let tampered = URL_SAFE_NO_PAD.encode(bytes);
         assert!(
             cipher
-                .open::<ConsoleSession>(&tampered, SESSION_AAD)
+                .open::<BrowserSession>(&tampered, SESSION_AAD)
                 .is_err()
         );
     }
 
     #[test]
     fn session_refresh_and_expiry_boundaries_are_distinct() {
-        let session = ConsoleSession {
+        let session = BrowserSession {
             access_token: "access".to_owned(),
             access_expires_at: 100,
             refresh_token: "refresh".to_owned(),

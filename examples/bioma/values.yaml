@@ -20,7 +20,7 @@ artifactService:
 
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
-  controlPlaneRevision: 115edd48c93b2f786a6dc3b3eff658a363e6e40151f2e350404a4babbcac04c8
+  controlPlaneRevision: ff303ff1bc341d7fa468137d26400a17b2e464b4e8da31fd648aecf2a3c62d74
 
 consoleBff:
   replicas: 2

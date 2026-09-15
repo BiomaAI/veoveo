@@ -188,17 +188,16 @@ be scoped and cleaned up through supported operations.
   revocation. Browser-edge tests cover cookie authority, CSRF, fixed destinations,
   bounded responses and OAuth return paths. The interactive client and replayable
   stream are still being implemented; this checkpoint is not a deployed Workspace.
-- Existing Console session bootstrap already admits ordinary authenticated users;
-  reuse that authentication boundary without granting installation inventory access.
 - The human client and contentless SSE stream are implemented. Local acceptance
   covers latest-first paged history, owner controls, two human authors, stable
   interrupted-send retries, reload and mobile layout on headed RTX 4090 WebGL.
   The assistant-ui adapter separately preserves two concurrent agent outputs and
   two human authors. These fixtures do not establish real agent execution.
-- Installation admission still needs a dedicated Workspace OAuth client/profile.
-  Bioma's existing Console profile requires `admin:manage`; reusing its login
-  configuration would prevent ordinary-user access. Share the browser-edge
-  implementation while keeping Workspace session authority separate from Console.
+- Workspace has a dedicated OAuth client/profile with native MCP Tasks and
+  `operator:use` admission. Its browser routes, session cookies and authenticated
+  encryption domain are separate from Console. Installation tests prove that the
+  client cannot request `admin:manage` or client-credentials grants. The edge still
+  shares the public origin; this is authority separation, not XSS isolation.
 - Existing kernel model construction is coupled to the full analytical runtime.
   Extract or reuse the narrow execution boundary as implementation requires; do not
   pull DuckDB and Rerun into the gateway solely to produce chat responses.

@@ -71,12 +71,12 @@ export const api = {
 };
 
 export function loginPath(): string {
-  return `/auth/login?${new URLSearchParams({ return_to: `${location.pathname}${location.search}${location.hash}` })}`;
+  return `/workspace/auth/login?${new URLSearchParams({ return_to: `${location.pathname}${location.search}${location.hash}` })}`;
 }
 
 export async function logout(): Promise<void> {
   if (!csrf) return;
-  const response = await fetch("/auth/logout", { method: "POST", credentials: "same-origin", redirect: "manual",
+  const response = await fetch("/workspace/auth/logout", { method: "POST", credentials: "same-origin", redirect: "manual",
     headers: { "X-Veoveo-CSRF-Token": csrf } });
   if (!(response.ok || response.type === "opaqueredirect")) throw new ApiError(response.status);
   csrf = null;

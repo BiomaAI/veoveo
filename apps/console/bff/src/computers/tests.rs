@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     api,
     config::Config,
-    session::{ConsoleSession, SESSION_AAD, SESSION_COOKIE, SessionCipher},
+    session::{BrowserSession, SESSION_AAD, SESSION_COOKIE, SessionCipher},
 };
 use axum::{
     body::{Body, to_bytes},
@@ -108,7 +108,7 @@ impl Fixture {
     }
     fn cookie(&self, refresh: bool) -> String {
         let now = Utc::now().timestamp();
-        let session = ConsoleSession {
+        let session = BrowserSession {
             access_token: "fixture-access".into(),
             access_expires_at: now + if refresh { 1 } else { 300 },
             refresh_token: "fixture-refresh".into(),
@@ -519,7 +519,7 @@ async fn completed_refresh_is_returned_on_upstream_failure_and_redirects_are_not
             .unwrap()
             .strip_prefix(&format!("{SESSION_COOKIE}="))
             .unwrap();
-        let renewed: ConsoleSession = fixture.state.sessions.open(encoded, SESSION_AAD).unwrap();
+        let renewed: BrowserSession = fixture.state.sessions.open(encoded, SESSION_AAD).unwrap();
         assert_eq!(renewed.access_token, "rotated-fixture-access");
     }
     let observed = fixture.observed.lock().unwrap();

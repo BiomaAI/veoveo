@@ -1959,6 +1959,515 @@
       "metadata": {
         "tenant": "enterprise"
       }
+    },
+    {
+      "id": "workspace",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://veoveo.example/mcp/workspace",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "servers": [
+        {
+          "server": "media",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "artifact",
+              "model_schema",
+              "models",
+              "run"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "media"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://media/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "uav-sim",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "uav-sim"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://uav-sim/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "stream",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "run_recording",
+              "start_live_session",
+              "stop_live_session"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "stream"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://stream/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "reason",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "analyze_recording"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "reason"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://reason/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "timeseries",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "forecast"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "timeseries"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://timeseries/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "duckdb",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "query",
+              "execute",
+              "ingest",
+              "export"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "duckdb"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://duckdb/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "optimization",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "optimize_routes",
+              "optimize_route_scenarios",
+              "solve_convex",
+              "solve_milp",
+              "verify_solution"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "optimization"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://optimization/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "frames",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "batch_transform",
+              "convert_frame",
+              "create_world",
+              "publish_world"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "frames"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://frames/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "map",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "geodesic_direct",
+              "geodesic_inverse",
+              "inspect_corridor",
+              "inspect_geopackage",
+              "inspect_location",
+              "inspect_position",
+              "build_vector_tiles",
+              "commit_feature_changes",
+              "create_feature_layer",
+              "create_map_composition",
+              "derive_raster",
+              "derive_spatial_geometry",
+              "export_feature_layer",
+              "import_feature_layer",
+              "publish_restriction",
+              "publish_feature_layer",
+              "prepare_route_handoff",
+              "query_features",
+              "list_active_dataset_releases",
+              "query_source_features",
+              "reachable_area",
+              "route",
+              "route_matrix",
+              "build_travel_model",
+              "search_locations",
+              "restore_feature",
+              "transform_crs",
+              "update_feature_layer",
+              "update_map_composition",
+              "validate_feature_changes",
+              "validate_geofence",
+              "validate_route",
+              "withdraw_restriction"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "map"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://map/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "view",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "view"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://view/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "time",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "time"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://time/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "datasheet",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "column_stats",
+              "preview_dataset",
+              "profile_dataset"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "datasheet"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://datasheet/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "artifact",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create_share_link",
+              "grant_access",
+              "metadata",
+              "revoke_access",
+              "revoke_share_link",
+              "set_release_state"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "artifact"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://artifact/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "recording",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create_recording_projection"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "recording"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://recording/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "recording-inspect",
+              "recording-project"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "charts",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "render_chart",
+              "compile_chart",
+              "validate_chart",
+              "list_chart_types",
+              "list_themes",
+              "create_chart_view"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "charts"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://charts/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "author_flint_chart"
+            ]
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "computers",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create",
+              "start",
+              "stop",
+              "revoke_access"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "computer"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "develop"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        }
+      ],
+      "metadata": {
+        "purpose": "Shared productivity chats and governed user tools"
+      }
     }
   ],
   "recording_ingest_resources": [
@@ -2063,7 +2572,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "media"
@@ -2261,7 +2771,8 @@
             "artifact_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "artifact"
@@ -2498,7 +3009,8 @@
             "agents_input_request_answer"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "tenant_ids": [
             "enterprise"
@@ -2590,7 +3102,8 @@
             "prompts_get"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "charts"
@@ -2761,7 +3274,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "timeseries"
@@ -2918,7 +3432,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "optimization"
@@ -3120,7 +3635,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "frames"
@@ -3311,7 +3827,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "view"
@@ -3334,7 +3851,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "view"
@@ -3363,7 +3881,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "view"
@@ -3395,7 +3914,8 @@
           "profiles": [
             "operator",
             "admin",
-            "agent"
+            "agent",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3422,7 +3942,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3441,7 +3962,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3463,7 +3985,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3495,7 +4018,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3521,7 +4045,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3543,7 +4068,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3569,7 +4095,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3619,7 +4146,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3642,7 +4170,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3666,7 +4195,8 @@
           "profiles": [
             "operator",
             "admin",
-            "agent"
+            "agent",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3702,7 +4232,8 @@
           "profiles": [
             "operator",
             "admin",
-            "agent"
+            "agent",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3730,7 +4261,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3756,7 +4288,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3779,7 +4312,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3801,7 +4335,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "map"
@@ -3863,7 +4398,8 @@
           "profiles": [
             "operator",
             "admin",
-            "agent"
+            "agent",
+            "workspace"
           ],
           "servers": [
             "time"
@@ -3883,7 +4419,8 @@
           "profiles": [
             "operator",
             "admin",
-            "agent"
+            "agent",
+            "workspace"
           ],
           "servers": [
             "time"
@@ -3911,7 +4448,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "time"
@@ -3938,7 +4476,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "time"
@@ -3960,7 +4499,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "time"
@@ -4012,7 +4552,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "duckdb"
@@ -4177,7 +4718,8 @@
             "artifact_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "recording"
@@ -4311,7 +4853,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "stream"
@@ -4410,7 +4953,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "reason"
@@ -4505,7 +5049,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "datasheet"
@@ -4626,7 +5171,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "uav-sim"
@@ -4680,7 +5226,8 @@
           ],
           "profiles": [
             "operator",
-            "admin"
+            "admin",
+            "workspace"
           ],
           "servers": [
             "uav-sim"
@@ -4925,7 +5472,8 @@
           "profiles": [
             "operator",
             "admin",
-            "agent"
+            "agent",
+            "workspace"
           ],
           "servers": [
             "computers"
@@ -5091,6 +5639,12 @@
             "uav-2-pilot",
             "uav-3-pilot",
             "uav-4-pilot"
+          ]
+        },
+        {
+          "level": "contributor",
+          "oauth_clients": [
+            "workspace"
           ]
         }
       ]
@@ -5535,6 +6089,54 @@
         "path": "examples/bioma/uav-pilot-jwks.json"
       },
       "tenant": "enterprise"
+    },
+    {
+      "id": "workspace",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "direct",
+      "display_name": "Veoveo Workspace",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://veoveo.example/mcp/workspace"
+      ],
+      "grant_types": [
+        "authorization_code_pkce",
+        "refresh_token"
+      ],
+      "auth_methods": [
+        "none"
+      ],
+      "allowed_scopes": [
+        "artifact:upload",
+        "map:dataset:read",
+        "map:feature:publish",
+        "map:feature:read",
+        "map:feature:write",
+        "map:raster:derive",
+        "map:restriction:publish",
+        "map:restriction:withdraw",
+        "map:route",
+        "map:route_matrix",
+        "map:spatial:derive",
+        "operator:use",
+        "time:event:write",
+        "time:read",
+        "time:schedule",
+        "time:timeline",
+        "uav-sim:control",
+        "uav-sim:read",
+        "uav-sim:stream",
+        "view:capture",
+        "view:read",
+        "view:write"
+      ],
+      "metadata": {
+        "client_boundary": "workspace"
+      },
+      "redirect_uris": [
+        "https://veoveo.example/workspace/auth/callback"
+      ]
     }
   ],
   "oidc_clients": [
@@ -5545,7 +6147,8 @@
       "allowed_resources": [
         "https://veoveo.example/mcp/operator",
         "https://veoveo.example/mcp/admin",
-        "https://veoveo.example/mcp/rerun"
+        "https://veoveo.example/mcp/rerun",
+        "https://veoveo.example/mcp/workspace"
       ],
       "client_id": "veoveo-self-hosted",
       "redirect_uri": "https://veoveo.example/oauth/callback",

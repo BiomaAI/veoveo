@@ -283,6 +283,28 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-bioma-acceptance"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-bioma-acceptance"
+        ],
+        "roots": [
+          "examples/bioma",
+          "configs",
+          "deploy/helm/veoveo"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

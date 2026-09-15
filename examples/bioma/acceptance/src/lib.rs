@@ -83,6 +83,57 @@ mod tests {
     }
 
     #[test]
+    fn workspace_admits_humans_without_admin_scope_and_uses_native_tasks() {
+        use veoveo_mcp_contract::{OAuthClientSurface, OAuthGrantType};
+        let plane: GatewayControlPlane =
+            serde_json::from_value(load("examples/bioma/gateway.json")).unwrap();
+        let profile = plane
+            .profiles
+            .iter()
+            .find(|profile| profile.id.as_str() == "workspace")
+            .unwrap();
+        let client = plane
+            .oauth_clients
+            .iter()
+            .find(|client| client.id.as_str() == "workspace")
+            .unwrap();
+        assert_eq!(
+            profile.required_scopes,
+            vec![ScopeName::new("operator:use").unwrap()]
+        );
+        assert!(
+            !client
+                .allowed_scopes
+                .iter()
+                .any(|scope| scope.as_str() == "admin:manage")
+        );
+        assert_eq!(client.client_surface, OAuthClientSurface::FullMcp);
+        assert!(!client.direct_task_call_adapter);
+        assert!(
+            !client
+                .grant_types
+                .contains(&OAuthGrantType::ClientCredentials)
+        );
+        assert!(
+            client
+                .redirect_uris
+                .iter()
+                .any(|uri| uri.as_str() == "https://veoveo.bioma.ai/workspace/auth/callback")
+        );
+        assert!(
+            client
+                .allowed_resources
+                .contains(&profile.protected_resource)
+        );
+        assert!(
+            profile
+                .servers
+                .iter()
+                .any(|server| server.server.as_str() == "computers")
+        );
+    }
+
+    #[test]
     fn computers_are_core_governed_resources_in_user_and_agent_profiles() {
         let catalog =
             GatewayCatalog::load_json(repository_root().join("examples/bioma/gateway.json"))

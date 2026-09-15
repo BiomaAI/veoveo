@@ -3,6 +3,7 @@ mod app_host;
 mod apps;
 mod artifact_upload;
 mod bootstrap;
+mod browser;
 mod cluster;
 mod computers;
 mod config;
@@ -96,6 +97,21 @@ async fn main() -> anyhow::Result<()> {
     };
     let computers_stop = state.computers.stop.clone();
     let csrf_state = state.clone();
+    let workspace_state = AppState {
+        config: Arc::new(config.for_workspace()?),
+        sessions: state.sessions.for_app(browser::BrowserApp::Workspace),
+        cluster: None,
+        ..state.clone()
+    };
+    let workspace_router = workspace::router()
+        .route("/workspace/auth/login", get(oauth::login))
+        .route("/workspace/auth/callback", get(oauth::callback))
+        .route("/workspace/auth/logout", post(oauth::logout))
+        .with_state(workspace_state.clone())
+        .layer(middleware::from_fn_with_state(
+            workspace_state,
+            api::enforce_csrf,
+        ));
 
     let router = Router::new()
         .route("/", get(|| async { Redirect::permanent("/console/") }))
@@ -209,8 +225,7 @@ async fn main() -> anyhow::Result<()> {
         );
     let router = router
         .merge(artifact_upload::router())
-        .merge(computers::router())
-        .merge(workspace::router());
+        .merge(computers::router());
     let router = with_console_static_routes(router, config.asset_dir())?;
     let router = workspace::static_assets::routes(router, config.workspace_asset_dir())?;
     let router = app_host::with_app_host_route(router, config.asset_dir())?
@@ -220,6 +235,7 @@ async fn main() -> anyhow::Result<()> {
             csrf_state,
             api::enforce_csrf,
         ))
+        .merge(workspace_router)
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::X_CONTENT_TYPE_OPTIONS,
             axum::http::HeaderValue::from_static("nosniff"),
