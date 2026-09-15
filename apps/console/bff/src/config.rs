@@ -54,6 +54,7 @@ pub(crate) struct Config {
     rerun_map_provider: RerunMapProvider,
     session_key: [u8; 32],
     asset_dir: PathBuf,
+    workspace_asset_dir: PathBuf,
     max_app_resource_listeners: usize,
     max_app_resource_subscriptions: usize,
 }
@@ -96,6 +97,9 @@ impl Config {
         let asset_dir = std::env::var_os("VEOVEO_CONSOLE_ASSET_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/app/console"));
+        let workspace_asset_dir = std::env::var_os("VEOVEO_WORKSPACE_ASSET_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/app/workspace"));
         let max_app_resource_listeners =
             bounded_capacity("VEOVEO_CONSOLE_MAX_APP_RESOURCE_LISTENERS", "64", 1024)?;
         let max_app_resource_subscriptions =
@@ -114,6 +118,7 @@ impl Config {
             rerun_map_provider,
             session_key,
             asset_dir,
+            workspace_asset_dir,
             max_app_resource_listeners,
             max_app_resource_subscriptions,
         })
@@ -146,6 +151,9 @@ impl Config {
     }
     pub(crate) fn asset_dir(&self) -> &Path {
         &self.asset_dir
+    }
+    pub(crate) fn workspace_asset_dir(&self) -> &Path {
+        &self.workspace_asset_dir
     }
     pub(crate) const fn max_app_resource_listeners(&self) -> usize {
         self.max_app_resource_listeners
@@ -318,6 +326,7 @@ impl Config {
             rerun_map_provider: RerunMapProvider::OpenStreetMap,
             session_key: [7; 32],
             asset_dir: PathBuf::from("/tmp/veoveo-console-test-assets"),
+            workspace_asset_dir: PathBuf::from("/tmp/veoveo-workspace-test-assets"),
             max_app_resource_listeners: 64,
             max_app_resource_subscriptions: 256,
             gateway_url,

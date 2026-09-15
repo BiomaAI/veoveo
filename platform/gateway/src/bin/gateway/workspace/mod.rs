@@ -1,4 +1,5 @@
 mod authority;
+pub(crate) mod events;
 mod projection;
 #[cfg(test)]
 mod tests;
@@ -128,8 +129,8 @@ async fn create(
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Page {
-    #[serde(default)]
-    after: i64,
+    after: Option<i64>,
+    before: Option<i64>,
 }
 
 async fn snapshot(
@@ -140,11 +141,22 @@ async fn snapshot(
 ) -> Api<wire::ChatSnapshot> {
     let actor = authority::admit(&state, &subject).await?;
     let chat = WorkspaceChatId::from_uuid(chat);
-    let snapshot = state
-        .store
-        .workspace_snapshot(&actor, chat, page.after, 100)
-        .await
-        .map_err(fault)?;
+    let snapshot = match (page.after, page.before) {
+        (Some(after), None) => {
+            state
+                .store
+                .workspace_snapshot(&actor, chat, after, 100)
+                .await
+        }
+        (None, before) => {
+            state
+                .store
+                .workspace_recent_snapshot(&actor, chat, before, 100)
+                .await
+        }
+        _ => return Err(StatusCode::BAD_REQUEST),
+    }
+    .map_err(fault)?;
     let people = state
         .store
         .workspace_member_people(&actor, chat)
@@ -223,17 +235,23 @@ async fn invite(
 async fn invitations(
     State(state): State<WorkspaceState>,
     Extension(subject): Extension<AuthenticatedSubject>,
-) -> Api<Vec<wire::Invitation>> {
+) -> Api<Vec<wire::InvitationSummary>> {
     let actor = authority::admit(&state, &subject).await?;
     let invitations = state
         .store
-        .list_workspace_invitations(&actor)
+        .workspace_invitation_inbox(&actor)
         .await
         .map_err(fault)?;
     Ok(Json(
         invitations
             .into_iter()
-            .map(projection::invitation)
+            .map(|value| {
+                Ok::<_, StatusCode>(wire::InvitationSummary {
+                    invitation: projection::invitation(value.invitation)?,
+                    chat_title: value.chat_title,
+                    inviter_name: value.inviter_name,
+                })
+            })
             .collect::<Result<_, _>>()?,
     ))
 }

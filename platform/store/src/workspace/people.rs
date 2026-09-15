@@ -1,6 +1,6 @@
 use surrealdb::types::{RecordId, SurrealValue};
 
-use super::{Result, WorkspaceAuthority, WorkspaceError};
+use super::{Result, WorkspaceAuthority, WorkspaceError, WorkspaceInvitation};
 use crate::{PlatformStore, WorkContextId, WorkContextRecord, WorkspaceChatId};
 
 #[derive(Clone, Debug, SurrealValue)]
@@ -22,6 +22,13 @@ pub struct WorkspaceIdentity {
     pub work_context_title: String,
 }
 
+#[derive(Clone, Debug, SurrealValue)]
+pub struct WorkspaceInvitationSummary {
+    pub invitation: WorkspaceInvitation,
+    pub chat_title: String,
+    pub inviter_name: String,
+}
+
 #[derive(Clone, SurrealValue)]
 struct PeopleQuery {
     chat: Option<RecordId>,
@@ -29,6 +36,20 @@ struct PeopleQuery {
 }
 
 impl PlatformStore {
+    /// Only the named invitee receives this bounded disclosure before joining.
+    pub async fn workspace_invitation_inbox(
+        &self,
+        authority: &WorkspaceAuthority,
+    ) -> Result<Vec<WorkspaceInvitationSummary>> {
+        self.workspace_query(authority, false,
+            "RETURN SELECT { id: id, chat: chat, inviter: inviter, invitee: invitee, state: state, created_at: created_at, expires_at: expires_at } AS invitation, \
+             chat.title AS chat_title, inviter.display_name AS inviter_name \
+             FROM workspace_invitation WHERE invitee = $authority.principal \
+             AND state = 'pending' AND expires_at > time::now() \
+             AND chat.tenant = $authority.tenant AND chat.work_context = $authority.work_context \
+             LIMIT 100;").await
+    }
+
     pub async fn workspace_identity(
         &self,
         authority: &WorkspaceAuthority,

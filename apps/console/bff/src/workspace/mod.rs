@@ -1,5 +1,7 @@
 //! Shared browser edge for the independent Workspace client. The upstream origin
 //! and profile are installation configuration; credentials come only from cookies.
+mod events;
+pub(crate) mod static_assets;
 #[cfg(test)]
 mod tests;
 use std::time::Duration;
@@ -24,6 +26,7 @@ pub(crate) fn router() -> Router<AppState> {
         .route("/workspace/api/chats", get(chats).post(create))
         .route("/workspace/api/chats/{chat}", get(snapshot).put(settings))
         .route("/workspace/api/chats/{chat}/messages", post(send))
+        .route("/workspace/api/chats/{chat}/events", get(events::events))
         .route(
             "/workspace/api/chats/{chat}/members/{person}",
             delete(remove),
@@ -37,7 +40,7 @@ pub(crate) fn router() -> Router<AppState> {
 
 enum Parameters {
     None,
-    Page(i64),
+    Page(Page),
     Search(String),
 }
 
@@ -61,9 +64,15 @@ async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
         let mut url = state.config.workspace_url(path);
         match parameters {
             Parameters::None => {}
-            Parameters::Page(after) => {
-                url.query_pairs_mut()
-                    .append_pair("after", &after.to_string());
+            Parameters::Page(page) => {
+                if let Some(after) = page.after {
+                    url.query_pairs_mut()
+                        .append_pair("after", &after.to_string());
+                }
+                if let Some(before) = page.before {
+                    url.query_pairs_mut()
+                        .append_pair("before", &before.to_string());
+                }
             }
             Parameters::Search(query) => {
                 url.query_pairs_mut().append_pair("q", &query);
@@ -150,8 +159,8 @@ async fn create(
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Page {
-    #[serde(default)]
-    after: i64,
+    after: Option<i64>,
+    before: Option<i64>,
 }
 
 async fn snapshot(
@@ -165,7 +174,7 @@ async fn snapshot(
         &headers,
         Method::GET,
         &format!("/chats/{chat}"),
-        Parameters::Page(page.after),
+        Parameters::Page(page),
         None,
     )
     .await
@@ -206,7 +215,7 @@ async fn invite(
 }
 
 async fn invitations(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    forward::<(), Vec<wire::Invitation>>(
+    forward::<(), Vec<wire::InvitationSummary>>(
         &state,
         &headers,
         Method::GET,

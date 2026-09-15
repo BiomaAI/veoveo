@@ -208,3 +208,49 @@ fn workspace_oauth_return_path_preserves_chat_and_rejects_external_redirects() {
         "/console/"
     );
 }
+
+#[tokio::test]
+async fn chat_stream_uses_cookie_authority_and_rejects_query_credentials() {
+    let chat = uuid::Uuid::now_v7();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let count = calls.clone();
+    let upstream = Router::new().route(
+        &format!("/workspace-api/admin/chats/{chat}/events"),
+        get(move |headers: HeaderMap| {
+            count.fetch_add(1, Ordering::SeqCst);
+            async move {
+                assert_eq!(headers["authorization"], "Bearer cookie-access");
+                assert!(headers.get("cookie").is_none());
+                assert_ne!(headers["host"], "untrusted.invalid");
+                (
+                    [("content-type", "text/event-stream")],
+                    "event: change\nid: 8\ndata: {\"sequence\":8}\n\n",
+                )
+            }
+        }),
+    );
+    let edge = Edge::new(upstream).await;
+    let path = format!("/workspace/api/chats/{chat}/events");
+    assert_eq!(
+        edge.request("GET", &path, false, false, "").await.status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        edge.request("GET", &format!("{path}?token=forged"), true, false, "")
+            .await
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let response = edge.request("GET", &path, true, false, "").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[api::CSRF_HEADER], "csrf");
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let bytes = to_bytes(response.into_body(), 1024).await.unwrap();
+    assert!(
+        std::str::from_utf8(&bytes)
+            .unwrap()
+            .contains("\"sequence\":8")
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}

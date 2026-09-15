@@ -37,6 +37,13 @@ spec:
                 name: console-bff
                 port:
                   number: 8786
+          - path: /workspace
+            pathType: Prefix
+            backend:
+              service:
+                name: console-bff
+                port:
+                  number: 8786
           - path: /_ws_tunnel
             pathType: Exact
             backend:

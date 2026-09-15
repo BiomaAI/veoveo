@@ -39,6 +39,7 @@ export interface WorkspaceSchema {
   create_chat: CreateChat;
   decide_invitation: DecideInvitation;
   invitation: Invitation;
+  invitation_summary: InvitationSummary;
   invite_person: InvitePerson;
   send_message: SendMessage;
   settings: ChatSettings;
@@ -93,6 +94,15 @@ export interface Invitation {
   invitee: PersonId;
   inviter: PersonId;
   state: InvitationState;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "InvitationSummary".
+ */
+export interface InvitationSummary {
+  chatTitle: string;
+  invitation: Invitation;
+  inviterName: string;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema

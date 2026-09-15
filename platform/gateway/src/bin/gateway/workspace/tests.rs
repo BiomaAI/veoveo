@@ -18,7 +18,7 @@ use veoveo_platform_store::{
     deterministic_work_context_id,
 };
 
-fn subject(name: &str) -> AuthenticatedSubject {
+pub(super) fn subject(name: &str) -> AuthenticatedSubject {
     let principal = Principal {
         id: PrincipalId::new(format!("https://workspace.test#{name}")).unwrap(),
         kind: PrincipalKind::User,
@@ -68,7 +68,7 @@ fn subject(name: &str) -> AuthenticatedSubject {
     }
 }
 
-async fn setup(store: &PlatformStore) {
+pub(super) async fn setup(store: &PlatformStore) {
     for name in ["Alice", "Bob", "Eve"] {
         let actor = subject(name);
         store
@@ -193,6 +193,14 @@ async fn ordinary_humans_collaborate_and_cannot_forge_authors_or_read_another_ch
         .0,
         StatusCode::NOT_FOUND
     );
+    let inbox: Vec<workspace::InvitationSummary> =
+        ok(&bob, "GET", "/invitations", Value::Null).await;
+    assert_eq!(inbox.len(), 1);
+    assert_eq!(inbox[0].chat_title, "Project");
+    assert_eq!(inbox[0].inviter_name, "Alice");
+    let outsiders: Vec<workspace::InvitationSummary> =
+        ok(&eve, "GET", "/invitations", Value::Null).await;
+    assert!(outsiders.is_empty());
     let _: workspace::Invitation = ok(
         &bob,
         "POST",
