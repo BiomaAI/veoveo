@@ -5,6 +5,20 @@
 Workspace implementation reuses the installed platform. These measurements cover
 local development only; a Workspace image has not yet been built or deployed.
 
+The affected-image planner selects all 28 Rust targets because `Cargo.lock` changed.
+The actual lock diff adds only the gateway's consumers of already pinned `rig` and
+`jsonschema`; no upstream dependency version changed. Workspace adds private store
+tables and separate HTTP DTOs without changing existing domain MCP wires. The first
+rollout therefore selects gateway and browser edge, retaining the qualified domain,
+Computers host and simulation images. Dependency-specific lockfile impact remains
+a planner improvement; the conservative result is recorded rather than treated as
+evidence that 28 deployments need replacement.
+
+The new model chart fixture renders and validates both agent configuration and
+credential boundaries in 0.2 seconds. Its first test lint caught a redundant Rust
+result wrapper; the corrected fixture passes. Dedicated owner declarations keep
+installation evidence separate from the client command catalog.
+
 The model-to-native-Task integration fixture completes in 3.2 seconds. It caught
 an extra model continuation after a cancelled run's tool admission was rejected;
 the authority-loss signal now stops the model stream before that additional call.

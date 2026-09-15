@@ -45,8 +45,15 @@ impl ServerHandler for Domain {
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
-        _: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
+        assert!(
+            context
+                .meta
+                .client_capabilities()
+                .is_some_and(|capabilities| capabilities.supports_tasks()),
+            "native invocation must carry the negotiated Tasks capability"
+        );
         assert_eq!(request.name, "fixture_task");
         self.calls.fetch_add(1, Ordering::SeqCst);
         if request

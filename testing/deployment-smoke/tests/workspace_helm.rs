@@ -1,0 +1,119 @@
+//! Real Helm rendering of model admission and separate Workspace credentials.
+//! Requires Helm and GNU timeout on the Linux development host; no cluster writes.
+use anyhow::{Context, Result, ensure};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::{io::Write, process::Command};
+
+fn render(values: &Value) -> Result<std::process::Output> {
+    let mut file = tempfile::NamedTempFile::new()?;
+    serde_json::to_writer(file.as_file_mut(), values)?;
+    file.flush()?;
+    Command::new("timeout").args(["25s", "helm", "template", "workspace-test", "deploy/helm/veoveo", "--namespace", "workspace-test",
+        "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"])
+        .arg("--values").arg(file.path())
+        .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
+        .output().context("Workspace chart qualification requires Helm and GNU timeout")
+}
+
+fn objects(output: std::process::Output) -> Result<Vec<Value>> {
+    ensure!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_yaml_ng::Deserializer::from_str(std::str::from_utf8(&output.stdout)?)
+        .map(|document| Value::deserialize(document).map_err(Into::into))
+        .collect()
+}
+
+fn environment<'a>(objects: &'a [Value], name: &str) -> Result<&'a Vec<Value>> {
+    objects
+        .iter()
+        .find(|o| o["kind"] == "Deployment" && o["metadata"]["name"] == name)
+        .and_then(|o| o["spec"]["template"]["spec"]["containers"][0]["env"].as_array())
+        .context("rendered deployment environment")
+}
+
+#[test]
+fn workspace_agent_configuration_has_exact_secret_references_and_separate_browser_authority()
+-> Result<()> {
+    let source: Value =
+        serde_yaml_ng::from_str(include_str!("../../../examples/bioma/values.yaml"))?;
+    let workspace = source["gateway"]["workspace"].clone();
+    let expected = &workspace["agents"];
+    ensure!(expected.as_array().context("configured agents")?.len() == 2);
+    let values = json!({"gateway":{"workspace":workspace}, "consoleBff":{"workspace":source["consoleBff"]["workspace"]}});
+    let rendered = objects(render(&values)?)?;
+    let gateway = environment(&rendered, "mcp-gateway")?;
+    let config = gateway
+        .iter()
+        .find(|v| v["name"] == "VEOVEO_WORKSPACE_AGENTS")
+        .context("agent definitions")?;
+    ensure!(serde_json::from_str::<Value>(config["value"].as_str().unwrap())? == *expected);
+    let key = gateway
+        .iter()
+        .find(|v| v["name"] == "VEOVEO_WORKSPACE_MODEL_API_KEY")
+        .context("model credential")?;
+    ensure!(key.get("value").is_none());
+    ensure!(
+        key["valueFrom"]["secretKeyRef"]
+            == json!({"name":"veoveo-workspace-models","key":"api-key"})
+    );
+    let edge = environment(&rendered, "console-bff")?;
+    ensure!(
+        edge.iter()
+            .all(|v| v["name"] != "VEOVEO_WORKSPACE_MODEL_API_KEY")
+    );
+    ensure!(
+        edge.iter()
+            .any(|v| v["name"] == "VEOVEO_WORKSPACE_OAUTH_CLIENT_ID" && v["value"] == "workspace")
+    );
+    let scopes = edge
+        .iter()
+        .find(|v| v["name"] == "VEOVEO_WORKSPACE_OAUTH_SCOPES")
+        .context("Workspace scopes")?;
+    ensure!(
+        scopes["value"]
+            .as_str()
+            .unwrap()
+            .split_whitespace()
+            .all(|v| !v.contains("admin"))
+    );
+    let empty = objects(render(&json!({}))?)?;
+    ensure!(
+        environment(&empty, "mcp-gateway")?
+            .iter()
+            .any(|v| v["name"] == "VEOVEO_WORKSPACE_AGENTS" && v["value"] == "[]")
+    );
+    Ok(())
+}
+
+#[test]
+fn workspace_chart_rejects_ambient_credentials_and_unbounded_model_settings() -> Result<()> {
+    let source: Value =
+        serde_yaml_ng::from_str(include_str!("../../../examples/bioma/values.yaml"))?;
+    for field in ["credential", "environment", "budget", "tools"] {
+        let mut workspace = source["gateway"]["workspace"].clone();
+        match field {
+            "credential" => {
+                workspace["modelSecrets"]["VEOVEO_WORKSPACE_MODEL_API_KEY"]["value"] =
+                    json!("forbidden-inline-fixture")
+            }
+            "environment" => {
+                workspace["modelSecrets"]["VEOVEO_INTERNAL_SIGNING_KEY_ID"] =
+                    json!({"existingSecret":"wrong","key":"wrong"})
+            }
+            "budget" => workspace["agents"][0]["model"]["max_output_tokens"] = json!(8193),
+            "tools" => workspace["agents"][0]["tools"] = json!(["media__run", "media__run"]),
+            _ => unreachable!(),
+        }
+        ensure!(
+            !render(&json!({"gateway":{"workspace":workspace}}))?
+                .status
+                .success(),
+            "invalid {field} was admitted"
+        );
+    }
+    Ok(())
+}

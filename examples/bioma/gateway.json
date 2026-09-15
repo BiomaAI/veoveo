@@ -6569,6 +6569,16 @@
         "server": "media"
       },
       "metadata": {}
+    },
+    {
+      "id": "workspace_model_api_key",
+      "source": "env",
+      "purpose": "provider_api_key",
+      "locator": "VEOVEO_WORKSPACE_MODEL_API_KEY",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
     }
   ],
   "metadata": {
