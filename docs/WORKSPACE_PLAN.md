@@ -1,0 +1,182 @@
+# Veoveo Workspace Plan
+
+Status: approved for implementation on September 15, 2026. Delivery is active;
+the acceptance gates below are not yet complete.
+
+## Standards And Protocols
+
+Workspace uses the platform's OAuth authorization-code flow with PKCE, encrypted
+same-origin browser sessions and CSRF protection. Its browser API is authenticated
+HTTP JSON with Server-Sent Events for change notification. Rust owns the DTOs and
+generates their TypeScript representation. This API is a Veoveo application contract;
+it does not claim to be an MCP transport.
+
+Capability execution uses the supported MCP `2026-07-28` profile, including the
+Tasks extension, through the existing Rust gateway. Embedded Apps follow MCP Apps
+`2026-01-26` and the explicit extensions in
+[`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md). Computers and
+Artifacts retain their current native contracts. SurrealDB uses the repository's
+qualified `3.2.4` release. New frontend dependencies receive exact qualified pins.
+
+## Product
+
+Workspace is the daily productivity client for people working with other people
+and agents. Console remains the installation administration client. A person opens
+Workspace, creates a chat, invites collaborators, adds agents and completes work
+through the capabilities their organization permits.
+
+A chat belongs to a human owner and one Work Context. Its participants can include
+any admitted combination of humans and agents. A private conversation with one
+assistant is one configuration of that model. Organization policy and capacity
+remain the upper bound on choices made by a chat owner.
+
+The first release is a responsive web application at `/workspace/`. It shares the
+existing browser edge and public origin. Desktop packaging is later work. The
+implementation must be usable at `https://veoveo.bioma.ai`; Bioma supplies the
+installation configuration, while the product and code remain Veoveo.
+
+## Decisions
+
+| Concern | Decision |
+|---|---|
+| Client composition | React and TypeScript with Vite; own navigation, state, identity and interaction design. Qualify assistant-ui's external-store runtime as a presentation component. |
+| Chat authority | Rust domain operations backed by the platform store. Browser role labels and component state never establish authorization. |
+| Ownership | One human owner, explicit ownership transfer, owner-controlled membership and participation settings. Owners remain subject to organization policy. |
+| Invitations | Invite an identified eligible human; acceptance discloses that admitted members receive the chat's shared history. No public bearer invitation grants chat access. |
+| Agent identity | Invite a configured agent definition. Execute it in a separate context identified by chat and agent; do not attach a chat to the autonomous agent's global inbox or memory. |
+| Agent participation | Mention or explicit assignment by default. A configured default assistant handles unaddressed requests. Automatic participation requires an owner setting and bounded triggers. |
+| Multiple responses | Independent run records and output messages. Different agents can stream together while humans continue sending messages. |
+| Conversation history | Shared history for current members. Selective history and message-level audiences are later work. Removal stops future access; it cannot erase copies already received. |
+| Capabilities | Existing governed Tasks, Artifacts, Apps and Computers. Admission to a chat never grants resource access or execution authority. |
+| Deployment | Reuse the gateway and browser edge initially. Add a process only when measured isolation or scaling needs justify it. Static-client changes must not compile Rust. |
+
+The [assistant-ui external-store adapter](https://www.assistant-ui.com/docs/runtimes/custom/external-store)
+supports application-owned messages and persistence. Its default assistant-message
+joining and thread-wide running state need deliberate adaptation: use
+`joinStrategy: "none"`, preserve actual author identity, and make run controls
+specific to each run. Qualification starts with two humans and two agents rather
+than a single-assistant demo. A component that cannot express that interaction can
+be replaced without changing the chat contract.
+
+## Authority And Privacy
+
+Every request resolves the current authenticated human, tenant and Work Context.
+The domain checks active chat membership on reads and writes. Membership changes,
+invitation acceptance, message admission and run admission are transactional. A
+client cannot submit another person's author identity. Foreign-chat identifiers
+must not reveal whether the referenced object exists.
+
+Only an authorized owner or explicitly permitted member may invite participants.
+Invitees must independently have access to the Work Context. Agent definitions
+must be admitted for that context. Adding an agent discloses its provider and
+capability scope before it receives shared history. Retained messages keep their
+original author attribution when a participant leaves.
+
+An agent run records both the acting agent and initiating human. Tool authority is
+the intersection of current human delegation, chat policy, the agent's admitted
+capabilities and the target resource policy. Agent service credentials cannot widen
+that intersection. Membership alone never supplies a Computer automation grant.
+Revocation is checked again before dispatch and before exposing new results.
+Cancellation requests are distinct from revoking access and do not imply undoing
+an already accepted external effect.
+
+Artifact references carry identity, not implicit read grants. Sharing a file is an
+explicit governed action; the client distinguishes a readable attachment from one
+requiring access. A result derived from private inputs must not automatically enter
+shared history: the execution boundary must admit those inputs for the chat's
+audience or keep the result private to the initiating actor. The initial release
+must fail closed for unsupported private-to-shared publication.
+
+Model credentials stay on the server. App frames keep their opaque-origin sandbox
+and exact allowlists. Chat content is untrusted input, including text written by an
+agent. Markdown must not execute HTML. Logs and deployment evidence exclude chat
+bodies, credentials and signed Artifact capabilities.
+
+## Persistence And Recovery
+
+| Entity | Identity and lifecycle |
+|---|---|
+| Chat | Stable ID, tenant, Work Context, owner, title, archive state, settings revision and committed event sequence. |
+| Membership | Chat and principal identity, human/agent kind, role and active/removed state. Agent membership refers to an admitted definition. |
+| Invitation | Chat, inviter, invitee, expiry and pending/accepted/declined/revoked state; acceptance rechecks current authority. |
+| Message | Stable client request identity, server sequence, actual author, reply target and typed content/attachment references. Human messages are immutable initially. |
+| Run | Chat, selected agent, initiating human, triggering message, context boundary, output message, state and execution fence. |
+| Task reference | Owning service and durable Task identity, exact run association and authority; Task state remains owned by its service. |
+| Event | Per-chat committed sequence and typed change reference. Replay is bounded and membership-authorized. |
+
+Message admission and its event commit together. Concurrent writers contend on the
+chat's sequence head, because a database sequence allocation alone does not prove
+commit order. A repeated request returns the original result only when its actor
+and payload agree. A changed payload with the same request identity is a conflict.
+
+Each run freezes a context boundary at admission. Later chat messages do not alter
+an in-flight prompt silently. Per-chat agent state excludes all other chats. Runs
+have independent cancellation, usage limits and deadlines. Agent-authored output
+does not recursively start other agents by default. Any enabled delegation carries
+an explicit parent, finite depth and shared budget.
+
+Durable state survives a browser close and service replacement. Streams notify the
+client about committed changes; reconnect reads authoritative state from the last
+cursor. Gaps or expired cursors request a bounded snapshot. A browser never repeats
+execution merely because a response or stream was lost. Workers use leases and
+fences so a replaced worker cannot publish late output. Uncertain external dispatch
+is reconciled through the owning Task authority and its idempotency contract;
+unsupported ambiguous effects are surfaced, not replayed automatically.
+
+## Experience
+
+The client opens to the person's chats and outstanding work. A chat header identifies
+the Work Context and participants. The composer offers explicit agent selection and
+mentions. Messages show the real author, reply context and attachment access state.
+Several active agents occupy distinct messages, each with its own status and stop
+control. Sending a human message remains available during agent execution.
+
+An activity view keeps durable Tasks visible beyond the originating chat bubble.
+Input requests and approvals show who can act, what is requested and the affected
+capability. Decisions use the existing Task authority. Refreshing the page restores
+pending work without starting it again.
+
+Reuse the governed upload queue and App host after removing administration-specific
+assumptions. Computers is a core Workspace capability: show permitted Computers,
+open terminals through existing grants and make agent delegation explicit. Load
+terminal, visualization and App viewers on demand. Preserve keyboard navigation,
+readable focus states and accessible authorship/status announcements.
+
+## Delivery Sequence
+
+| Step | Deliverable | Acceptance gate |
+|---|---|---|
+| 1 | Owning designs, typed chat model, ordered schema migration and transactional operations | Real database tests for membership, invitation acceptance, cross-context denial, sequence ordering and idempotency. |
+| 2 | User-scoped gateway/browser APIs and replayable change stream | Ordinary users can collaborate without administrative grants; forgery, revocation and cross-chat references are denied. |
+| 3 | Workspace web entry and assistant-ui adapter | Two humans and two agents retain separate authors/messages; simultaneous updates, in-flight sending and reconnect behave correctly. |
+| 4 | Isolated agent execution through shared Rust agent/MCP components | Real model responses, independent cancellation, bounded participation, restart recovery and no context or authority leakage. |
+| 5 | Activity, governed uploads, Apps and Computers | A durable tool operation and input decision survive reload; readable and denied attachments behave correctly; Computer access follows existing grants. |
+| 6 | Scoped build evidence and Bioma-configured deployment | Public authentication and collaboration work on the installed release; headed hardware-browser acceptance and green GitHub evidence. |
+
+Steps may overlap where dependencies allow. An API stub, scripted model fixture or
+local screenshot does not satisfy the installed-release gate. Tests use explicit
+fixtures; production must not contain demo identity or canned agent-response paths.
+
+## Build And Deploy Discipline
+
+Record check duration, image build duration, rollout duration and unexpected rebuilds
+in the existing iteration audit. Keep static assets outside Rust compiler inputs.
+Reuse qualified binary layers and publish only affected components. Choose focused
+checks through the evidence recorder and commit their current receipts with each
+build-input change. Do not spend delivery time on unrelated benchmark expansion or
+a new receipt-format project.
+
+The intentionally paused Isaac Sim workload remains paused. Acceptance must preserve
+existing user Computers and retained data. Temporary test identities and chats must
+be scoped and cleaned up through supported operations.
+
+## Progress
+
+- Approved design recorded; implementation is beginning.
+- Existing agent control exposes an agent-wide wake/episode projection. It lacks a
+  chat boundary and cannot serve as Workspace's shared history.
+- Existing Console session bootstrap already admits ordinary authenticated users;
+  reuse that authentication boundary without granting installation inventory access.
+- Existing kernel model construction is coupled to the full analytical runtime.
+  Extract or reuse the narrow execution boundary as implementation requires; do not
+  pull DuckDB and Rerun into the gateway solely to produce chat responses.
