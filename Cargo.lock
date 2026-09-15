@@ -17189,6 +17189,7 @@ dependencies = [
  "prost",
  "rcgen",
  "reqwest 0.13.4",
+ "rig",
  "rmcp",
  "rustls",
  "secrecy",

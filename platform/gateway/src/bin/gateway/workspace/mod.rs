@@ -1,6 +1,7 @@
 mod authority;
 pub(crate) mod events;
 mod projection;
+pub(crate) mod runs;
 #[cfg(test)]
 mod tests;
 

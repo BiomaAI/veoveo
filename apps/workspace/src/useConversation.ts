@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api.ts";
 import { mergeMessages } from "./conversation.ts";
-import type { ChatSnapshot } from "./generated/workspace.ts";
+import type { ConversationSnapshot } from "./api.ts";
 
 export function useConversation(chat: string, changed: () => void) {
-  const [snapshot, setSnapshot] = useState<ChatSnapshot>();
+  const [snapshot, setSnapshot] = useState<ConversationSnapshot>();
   const [error, setError] = useState<string>();
   const [connected, setConnected] = useState(false);
   const [hasOlder, setHasOlder] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const current = useRef<ChatSnapshot | undefined>(undefined);
+  const current = useRef<ConversationSnapshot | undefined>(undefined);
   const pending = useRef<Promise<void> | undefined>(undefined);
   const rerun = useRef(false);
   const controller = useRef(new AbortController());
   const changedRef = useRef(changed);
   changedRef.current = changed;
-  const commit = useCallback((value: ChatSnapshot) => { current.current = value; setSnapshot(value); }, []);
+  const commit = useCallback((value: ConversationSnapshot) => { current.current = value; setSnapshot(value); }, []);
   const refresh = useCallback(async () => {
     if (pending.current) { rerun.current = true; return pending.current; }
     const signal = controller.current.signal;

@@ -19,6 +19,8 @@ id!(ChatId);
 id!(MessageId);
 id!(MemberId);
 id!(InvitationId);
+id!(AgentId);
+id!(RunId);
 /// Installation-local human identity; never an email address or bearer credential.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
@@ -158,6 +160,83 @@ pub struct ChatWake {
     pub sequence: i64,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentDefinition {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub provider: String,
+    pub model: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ChatAgent {
+    pub id: AgentId,
+    pub definition: String,
+    pub name: String,
+    pub provider: String,
+    pub model: String,
+    pub active: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RunState {
+    Queued,
+    Running,
+    Completed,
+    Cancelled,
+    Interrupted,
+    Failed,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RunFailure {
+    ModelUnavailable,
+    PermissionChanged,
+    OutputLimit,
+    Deadline,
+    WorkerLost,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Run {
+    pub id: RunId,
+    pub agent: AgentId,
+    pub initiator: PersonId,
+    pub trigger: MessageId,
+    pub state: RunState,
+    pub text: String,
+    pub failure: Option<RunFailure>,
+    pub sequence: i64,
+    pub updated_sequence: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentActivity {
+    pub agents: Vec<ChatAgent>,
+    pub runs: Vec<Run>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AddAgent {
+    pub definition: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StartRun {
+    pub agent: AgentId,
+    pub trigger: MessageId,
+}
+
 #[derive(JsonSchema)]
 #[allow(dead_code)]
 struct WorkspaceSchema {
@@ -171,6 +250,10 @@ struct WorkspaceSchema {
     decide_invitation: DecideInvitation,
     settings: ChatSettings,
     wake: ChatWake,
+    agent_definition: AgentDefinition,
+    activity: AgentActivity,
+    add_agent: AddAgent,
+    start_run: StartRun,
 }
 
 pub fn schema_bundle() -> schemars::Schema {

@@ -1,8 +1,10 @@
 import { z } from "zod";
 import schema from "./generated/workspace.schema.json" with { type: "json" };
-import type { Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
+import type { AgentActivity, AgentDefinition, ChatAgent, Run, Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
 
-type Definitions = { Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
+export type ConversationSnapshot = ChatSnapshot & { activity: AgentActivity };
+
+type Definitions = { AgentActivity: AgentActivity; AgentDefinition: AgentDefinition; ChatAgent: ChatAgent; Run: Run; Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
   InvitationSummary: InvitationSummary; Message: Message; Person: Person; WorkspaceBootstrap: WorkspaceBootstrap };
 const validators = new Map<keyof Definitions, z.ZodType>();
 export function parse<K extends keyof Definitions>(kind: K, input: unknown): Definitions[K] {
@@ -60,8 +62,13 @@ export const api = {
     const query = new URLSearchParams(Object.entries(page).map(([key, value]) => [key, String(value)]));
     const value = parse("ChatSnapshot", await request(`/chats/${encodeURIComponent(chat)}?${query}`, "GET", undefined, signal));
     if (value.chat.id !== chat) throw new Error("The chat response could not be verified.");
-    return value;
+    return { ...value, activity: parse("AgentActivity", await request(`/chats/${encodeURIComponent(chat)}/activity`, "GET", undefined, signal)) } satisfies ConversationSnapshot;
   },
+  agents: async (signal?: AbortSignal) => list("AgentDefinition", await request("/agents", "GET", undefined, signal)),
+  addAgent: async (chat: string, definition: string) => parse("ChatAgent", await request(`/chats/${chat}/agents`, "POST", { definition })),
+  removeAgent: async (chat: string, agent: string) => parse("ChatAgent", await request(`/chats/${chat}/agents/${agent}`, "DELETE")),
+  startRun: async (chat: string, agent: string, trigger: string) => parse("Run", await request(`/chats/${chat}/runs`, "POST", { agent, trigger })),
+  cancelRun: async (chat: string, run: string) => parse("Run", await request(`/chats/${chat}/runs/${run}/cancel`, "POST")),
   send: async (chat: string, message: SendMessage) => parse("Message", await request(`/chats/${chat}/messages`, "POST", message)),
   people: async (query: string, signal?: AbortSignal) => list("Person", await request(`/people?q=${encodeURIComponent(query)}`, "GET", undefined, signal)),
   invite: async (chat: string, invitee: string, id: string) => parse("Invitation", await request(`/chats/${chat}/invitations`, "POST", { id, invitee })),

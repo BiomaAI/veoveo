@@ -44,6 +44,9 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
       { id: crypto.randomUUID(), author: members[0].id, text: "Let's bring the launch plan together here.", replyTo: null, sequence: 2, createdAt: new Date().toISOString() },
       { id: crypto.randomUUID(), author: members[1].id, text: "I'll review the schedule and share the next steps.", replyTo: null, sequence: 3, createdAt: new Date().toISOString() },
     ];
+    const agents = ["Writer", "Reviewer"].map(name => ({ id: crypto.randomUUID(), definition: name.toLowerCase(), name, provider: "Explicit browser fixture", model: "No model execution", active: true }));
+    const runs = [];
+    const runStarts = [];
     let uncertain = true;
     const sends = [];
     const pages = await Promise.all([context.newPage(), context.newPage()]);
@@ -58,11 +61,24 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
         let body;
         if (request.method() !== "GET") {
           assert.equal(request.headers()["x-veoveo-csrf-token"], "fixture-csrf");
-          body = request.postDataJSON();
+          body = request.postData() ? request.postDataJSON() : undefined;
         }
         const respond = json => route.fulfill({ status: 200, contentType: "application/json", headers: { "x-veoveo-csrf-token": "fixture-csrf" }, json });
         if (path.pathname.endsWith("/session")) return respond({ person, principalId: `fixture#${person.id}`, tenantId: "test", tenantName: "Shared work", workContext: "default", workContextTitle: "Product team", canContribute: true });
         if (path.pathname.endsWith("/events")) return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: change\ndata: {"sequence":${chat.sequence}}\n\n` });
+        if (path.pathname.endsWith("/activity")) return respond({ agents, runs });
+        if (path.pathname.endsWith("/agents")) return respond(agents.map(agent => ({ id: agent.definition, name: agent.name, description: "Explicit browser fixture", provider: agent.provider, model: agent.model })));
+        if (path.pathname.endsWith("/runs")) {
+          runStarts.push(body);
+          let run = runs.find(run => run.agent === body.agent && run.trigger === body.trigger);
+          if (!run) { run = { ...body, id: crypto.randomUUID(), initiator: person.id, state: "running", text: body.agent === agents[0].id ? "I am drafting the launch notes." : "I am reviewing the schedule.", failure: null, sequence: ++chat.sequence, updatedSequence: chat.sequence, createdAt: new Date().toISOString() }; runs.push(run); }
+          return respond(run);
+        }
+        if (path.pathname.endsWith("/cancel")) {
+          const run = runs.find(run => path.pathname.includes(run.id));
+          assert.ok(run); run.state = "cancelled"; run.updatedSequence = ++chat.sequence;
+          return respond(run);
+        }
         if (path.pathname.endsWith("/invitations")) return respond([]);
         if (path.pathname.endsWith("/chats")) return respond([chat]);
         if (path.pathname.endsWith("/messages")) {
@@ -84,6 +100,8 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     }
     const [owner, member] = pages;
     assert.equal(await owner.locator(".message-author strong").allTextContents().then(names => names.join(",")), "Alice Chen,Bob Rivera");
+    await owner.getByRole("checkbox", { name: "Writer", exact: true }).check();
+    await owner.getByRole("checkbox", { name: "Reviewer", exact: true }).check();
     await owner.getByRole("textbox", { name: "Message", exact: true }).fill("A message with an uncertain response");
     await owner.getByRole("button", { name: "Send message", exact: true }).click();
     await owner.getByRole("alert").waitFor();
@@ -97,16 +115,27 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByText("Owner controls", { exact: true }).waitFor();
     await member.getByRole("button", { name: "Participants", exact: true }).click();
     assert.equal(await member.getByText("Owner controls", { exact: true }).count(), 0);
+    await owner.getByRole("button", { name: "Stop Writer's response", exact: true }).waitFor();
+    await owner.getByRole("button", { name: "Stop Reviewer's response", exact: true }).waitFor();
+    await member.getByRole("textbox", { name: "Message", exact: true }).fill("I can keep writing while both agents respond.");
+    await member.getByRole("button", { name: "Send message", exact: true }).click();
+    await owner.getByText("I can keep writing while both agents respond.", { exact: true }).waitFor();
+    await owner.getByRole("button", { name: "Stop Writer's response", exact: true }).click();
+    await owner.getByText("Response stopped", { exact: true }).waitFor();
+    assert.equal(runs[1].state, "running");
+    assert.equal(runStarts.length, 2);
     await owner.reload();
     await owner.getByText("A message with an uncertain response", { exact: true }).waitFor();
-    assert.equal(sends.length, 2, "reload cannot execute another send");
+    assert.equal(sends.length, 3, "reload cannot execute another send");
+    await owner.getByRole("button", { name: "Stop Reviewer's response", exact: true }).waitFor();
+    assert.equal(runStarts.length, 2, "reload cannot dispatch another run");
     await owner.getByRole("button", { name: "Participants", exact: true }).click();
     const proof = await hardware(owner);
     assert.deepEqual(errors, []);
     const output = new URL("../../../output/workspace-client-local.png", import.meta.url);
     await mkdir(new URL(".", output), { recursive: true });
     await owner.screenshot({ path: fileURLToPath(output) });
-    console.log(JSON.stringify({ evidence: "local HTTP fixture, not installed execution", proof, distinctAuthors: 2, committedMessages: messages.length, sendAttempts: sends.length }));
+    console.log(JSON.stringify({ evidence: "local HTTP fixture, not installed execution", proof, distinctAuthors: 4, committedMessages: messages.length, sendAttempts: sends.length }));
     await owner.setViewportSize({ width: 390, height: 844 });
     await owner.getByRole("button", { name: "Close chat details" }).click();
     assert.equal(await owner.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);

@@ -282,6 +282,12 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         crate::workspace::router(crate::workspace::WorkspaceState {
             store: control_store.platform_store().clone(),
         })
+        .merge(crate::workspace::runs::router(
+            control_store.platform_store().clone(),
+            gateway_state.clone(),
+            catalog.clone(),
+            ct.child_token(),
+        )?)
         .merge(crate::workspace::events::router(
             control_store.platform_store().clone(),
             gateway_state.clone(),

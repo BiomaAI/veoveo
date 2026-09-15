@@ -1,13 +1,16 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiState,
   useExternalMessageConverter, useExternalStoreRuntime } from "@assistant-ui/react";
-import { ArrowUp, Bot, CornerDownLeft } from "lucide-react";
-import { api, ApiError } from "./api.ts";
+import { ArrowUp, Bot, CornerDownLeft, Square } from "lucide-react";
+import { api, ApiError, type ConversationSnapshot } from "./api.ts";
 import { initials } from "./identity.ts";
 import { present, toThreadMessage } from "./conversation.ts";
-import type { ChatSnapshot, SendMessage } from "./generated/workspace.ts";
+import type { SendMessage } from "./generated/workspace.ts";
+
+const RunActions = createContext<(id: string) => void>(() => {});
 
 function ChatMessage() {
+  const cancel = useContext(RunActions);
   const message = useAuiState(state => state.message);
   const meta = message.metadata.custom;
   const name = typeof meta.authorName === "string" ? meta.authorName : "Participant";
@@ -17,16 +20,19 @@ function ChatMessage() {
     <div className="message-body"><div className="message-author"><strong>{name}</strong>{agent && <span className="badge">Agent</span>}
       <time dateTime={message.createdAt.toISOString()}>{message.createdAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>
       <div className="message-text"><MessagePrimitive.Parts /></div>
-      {meta.runState === "running" && <span className="muted" role="status">Working…</span>}
+      {agent && <div className="run-status" role="status">
+        <span>{meta.runState === "queued" ? "Starting…" : meta.runState === "running" ? "Responding…" : meta.runState === "interrupted" ? "Response interrupted. Send a new request to try again." : meta.runState === "cancelled" ? "Response stopped" : meta.runState === "failed" ? "The response could not be completed." : ""}</span>
+        {(meta.runState === "running" || meta.runState === "queued") && meta.canCancel === true && typeof meta.runId === "string" && <button className="stop-response" aria-label={`Stop ${name}'s response`} onClick={() => cancel(meta.runId as string)}><Square size={11}/> Stop response</button>}
+      </div>}
     </div>
   </MessagePrimitive.Root>;
 }
 
 export function Conversation({ snapshot, personId, canContribute, onChanged, onOlder, hasOlder, loadingOlder }: {
-  snapshot: ChatSnapshot; personId: string; canContribute: boolean; onChanged: () => Promise<void>;
+  snapshot: ConversationSnapshot; personId: string; canContribute: boolean; onChanged: () => Promise<void>;
   onOlder: () => void; hasOlder: boolean; loadingOlder: boolean;
 }) {
-  const source = useMemo(() => present(snapshot, personId), [snapshot, personId]);
+  const source = useMemo(() => present(snapshot, personId, snapshot.activity), [snapshot, personId]);
   const converted = useExternalMessageConverter({ callback: toThreadMessage, messages: source, isRunning: false, joinStrategy: "none" });
   // The room is always writable while individual runs execute. Our composer owns
   // stable send identities; assistant-ui owns presentation and scroll behavior.
@@ -34,19 +40,28 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
-  const attempt = useRef<SendMessage | undefined>(undefined);
+  const [selected, setSelected] = useState<string[]>([]);
+  const activeAgents = snapshot.activity.agents.filter(agent => agent.active);
+  const attempt = useRef<{ message: SendMessage; agents: string[] } | undefined>(undefined);
+  const cancel = useCallback(async (id: string) => {
+    try { await api.cancelRun(snapshot.chat.id, id); await onChanged(); }
+    catch (error) { setError(error instanceof Error ? error.message : "Could not stop this response."); }
+  }, [snapshot.chat.id, onChanged]);
   const send = useCallback(async () => {
     if (pending || !draft.trim() || snapshot.chat.archived || !canContribute) return;
     const text = draft.trim();
     if (new TextEncoder().encode(text).length > 32768) { setError("Keep the message under 32 KB."); return; }
-    if (attempt.current && attempt.current.text !== text) {
+    if (attempt.current && attempt.current.message.text !== text) {
       setError("Retry the original message first to confirm whether it was sent."); return;
     }
-    const request = attempt.current ?? { id: crypto.randomUUID(), text, replyTo: null };
+    const request = attempt.current ?? { message: { id: crypto.randomUUID(), text, replyTo: null }, agents: selected.filter(id => activeAgents.some(agent => agent.id === id)) };
     attempt.current = request;
     setPending(true); setError(undefined);
     try {
-      await api.send(snapshot.chat.id, request);
+      await api.send(snapshot.chat.id, request.message);
+      const starts = await Promise.allSettled(request.agents.map(agent => api.startRun(snapshot.chat.id, agent, request.message.id)));
+      const failed = starts.find(result => result.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
       attempt.current = undefined; setDraft("");
       await onChanged();
     } catch (error) {
@@ -54,8 +69,8 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
       setError(error instanceof Error ? error.message : "The message could not be confirmed.");
     }
     finally { setPending(false); }
-  }, [pending, draft, snapshot.chat, canContribute, onChanged]);
-  return <AssistantRuntimeProvider runtime={runtime}>
+  }, [pending, draft, snapshot.chat, canContribute, onChanged, selected, activeAgents]);
+  return <RunActions.Provider value={id => void cancel(id)}><AssistantRuntimeProvider runtime={runtime}>
     <ThreadPrimitive.Root className="conversation">
       <ThreadPrimitive.Viewport className="timeline">
         <div className="timeline-inner">
@@ -65,6 +80,11 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
         </div>
       </ThreadPrimitive.Viewport>
       <div className="composer-area">
+        {activeAgents.length > 0 && <fieldset className="agent-targets" disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}>
+          <legend>Ask an agent</legend>{activeAgents.map(agent => <label key={agent.id} className={selected.includes(agent.id) ? "selected" : ""}>
+            <input type="checkbox" checked={selected.includes(agent.id)} onChange={event => setSelected(current => event.target.checked ? [...current, agent.id] : current.filter(id => id !== agent.id))}/><Bot size={13}/>{agent.name}
+          </label>)}
+        </fieldset>}
         {error && <p role="alert" className="error">{error} {attempt.current && "Your text is kept here; retry uses the same message ID."}</p>}
         <form className="composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea aria-label="Message" placeholder={snapshot.chat.archived ? "This chat is archived" : "Write to everyone in this chat…"}
@@ -79,5 +99,5 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
         <p className="composer-note">Everyone in this chat can read its shared history.</p>
       </div>
     </ThreadPrimitive.Root>
-  </AssistantRuntimeProvider>;
+  </AssistantRuntimeProvider></RunActions.Provider>;
 }

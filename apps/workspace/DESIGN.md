@@ -54,8 +54,11 @@ retry; refreshing restores committed messages without repeating a mutation.
 The gateway and browser edge serve the live stream and assets. A local headed
 RTX 4090 WebGL browser fixture exercises two humans, an interrupted response,
 idempotent retry, owner controls, reload and the mobile layout. Its screenshots
-are local fixture evidence. Agent execution, capability views and installed
-acceptance remain active implementation work.
+are local fixture evidence. Agent admission and explicit recipient selection now
+render separate response streams and stop controls; a two-human/two-agent fixture
+keeps the composer usable and preserves run identities after reload. The Rust
+runner has a separate HTTP-model fixture. MCP Task activity, capability views and
+installed acceptance remain required implementation work.
 
 ## Development And Acceptance
 

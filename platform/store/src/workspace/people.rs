@@ -9,7 +9,7 @@ pub struct WorkspaceContext {
     pub digest: String,
 }
 
-#[derive(Clone, Debug, SurrealValue)]
+#[derive(Clone, Debug, PartialEq, SurrealValue)]
 pub struct WorkspacePerson {
     pub id: RecordId,
     pub display_name: String,

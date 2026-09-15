@@ -142,6 +142,39 @@ open terminals through existing grants and make agent delegation explicit. Load
 terminal, visualization and App viewers on demand. Preserve keyboard navigation,
 readable focus states and accessible authorship/status announcements.
 
+## First-Class MCP Tasks
+
+User priority confirmed September 15: Tasks are a release requirement for the client
+experience. A model run and an MCP Task retain separate identities and lifecycles.
+The client must not represent every long operation as an assistant typing indicator.
+
+| Surface | Required behavior |
+|---|---|
+| In-chat activity | An authorized Task card identifies the initiating person, acting agent, capability, current state and available actions. Several tasks update independently. |
+| Persistent activity | A person's activity view restores outstanding work across chat navigation, reload and browser-edge replacement. It links back to its chat/run without resubmitting the tool. |
+| Progress | Preserve reported progress and status messages. Unknown progress stays indeterminate; do not manufacture percentages or an ETA. |
+| Input required | Present the exact outstanding request with accessible schema-driven controls, actor eligibility and clear submit/decline actions. Preserve opaque request state on the server. Stale responses cannot decide a newer request. |
+| Completion | Show typed success or failure and governed result links. A completed tool can return a domain error; a transport failure does not establish task failure. |
+| Cancellation | Distinguish stopping model output, requesting task cancellation and revoking capability access. Continue showing the authoritative task outcome after a cancellation request. |
+| Reconnect | Read `tasks/get` for the recorded opaque identity, then restore request-scoped task notifications. Never replay `tools/call` to recover status. |
+| Privacy | Chat membership grants no Task or result access. Private operation detail remains in the initiating person's authorized activity until an explicit governed sharing path admits the audience. |
+
+Rust owns native MCP `2026-07-28` Tasks (`tasks/get`, `tasks/update`, `tasks/cancel`)
+and multi-round request semantics. The browser receives typed presentation DTOs.
+Request-scoped `subscriptions/listen` supplies task-ID wakes; `tasks/get` supplies
+current correctness state. Provider completion remains owned by the domain service.
+The client must not add provider polling or invent a second Task state machine.
+
+The existing App-host registry is in memory and tied to a view. It cannot be the
+Workspace recovery record. Persist the task reference, invocation association and
+current-authority binding before presenting an accepted operation. Any unresolved
+dispatch remains explicit and fenced; recovery may not issue a second side effect.
+
+Acceptance must exercise a real task-augmented tool, progress, an input round,
+independent cancellation, reconnect and revoked access. Reload and browser-edge
+replacement must preserve the same task ID. Model text fixtures and task-shaped
+mock cards cannot satisfy this installed-release gate.
+
 ## Delivery Sequence
 
 | Step | Deliverable | Acceptance gate |
@@ -206,3 +239,9 @@ be scoped and cleaned up through supported operations.
   bounded concurrency and persisted interruption after worker loss. The scoped
   database suite passes 55 tests. Model dispatch and the browser run controls still
   remain implementation work; the store fixtures do not execute a model.
+- The model-response checkpoint adds installation-configured agents, real Rig HTTP
+  streaming, named context, per-agent recipient selection and independent stop
+  controls. Local Rust and headed browser fixtures cover concurrent responses,
+  cancellation and reconnect without redispatch. The initial response runner has
+  no external tools; first-class MCP Tasks, capability use, production model
+  configuration and installed acceptance remain required delivery work.
