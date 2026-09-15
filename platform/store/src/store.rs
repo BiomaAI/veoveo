@@ -24,8 +24,15 @@ pub(crate) fn primary_transaction_failure(
     errors.sort_by_key(|(statement, _)| *statement);
     let primary = errors.iter().position(|(_, error)| {
         let message = error.to_string();
-        !message.contains("not executed due to a failed transaction")
-            && !message.contains("Cannot COMMIT")
+        // The server reports a real write conflict on COMMIT and replaces
+        // earlier statement results with NotExecuted. Keep that cause so
+        // bounded retry owners can distinguish contention from a store outage.
+        matches!(
+            error.query_details(),
+            Some(surrealdb::types::QueryError::TransactionConflict)
+        ) || (!message.contains("not executed due to a failed transaction")
+            && !message.contains("not executed due to a cancelled transaction")
+            && !message.contains("Cannot COMMIT"))
     });
     primary
         .map(|index| errors.swap_remove(index))

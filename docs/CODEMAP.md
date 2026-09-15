@@ -427,6 +427,7 @@ The only durable platform persistence layer.
 | `migration_preparation.rs` | bounded online index preparation before migration 0072; validates the physical definition and readiness without changing the published checksum |
 | `models.rs` | persisted Rust record and enum definitions |
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
+| [`workspace/`](../platform/store/src/workspace/DESIGN.md) | shared-chat persistence: transactional human membership and invitations, immutable messages, committed event order, and bounded replay; client and agent execution remain active delivery work |
 | `recording_catalog.rs` | recording datasets and layers, durable read grants, projection receipts, expiry, and cleanup |
 | `administration.rs` | bootstrap, runtime user, migration administration |
 | `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |

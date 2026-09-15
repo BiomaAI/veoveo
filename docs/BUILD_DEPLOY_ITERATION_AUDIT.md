@@ -1,5 +1,21 @@
 # Build And Deployment Iteration Audit
 
+## Workspace Delivery Observations — September 15, 2026
+
+Workspace implementation reuses the installed platform. These measurements cover
+local development only; a Workspace image has not yet been built or deployed.
+
+| Observation | Evidence | Delivery decision |
+|---|---|---|
+| Focused database tests are inexpensive once compiled | The first new test binary compiles in 18.1 s; subsequent store edits compile in about 6 s. Three disposable-database scenarios execute in 1.6–1.9 s. | Keep transaction and concurrency acceptance in the owning store integration test; no separate test service. |
+| Evidence recording costs more than warm checks | The final 52-test command takes 6.9 s, Clippy 0.9 s and formatting 0.2 s. In the sequential recorder chain, 13.6 s and 14.1 s elapse outside the next check between successive command completions. Each receipt declares 282 source inputs. | Preserve scoped evidence and track recorder startup, fingerprinting and receipt-index work separately from compiler time. Do not describe this overhead as a Rust build delay. |
+| One early recorded Clippy attempt required correction | A test used a database RecordId as a HashSet key; strict Clippy rejects its interior-mutability shape. The corrected test uses a stable string key and all three current checks pass. | Run focused test lint before final evidence where practical. Immutable failed-attempt history remains truthful. |
+| The full kernel would add unrelated native dependencies to chat serving | `agents/kernel` links DuckDB and Rerun for autonomous analytical episodes. | Reuse or extract its narrow model/MCP execution boundary; avoid adding that entire dependency tree to the gateway for chat responses. |
+
+The active product and acceptance sequence are in
+[`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md). Older measurements below retain their
+original scope and dates.
+
 Status: completed and accepted on September 8, 2026, at `https://veoveo.bioma.ai`.
 Core changes are committed and the shared charts are active with the Bioma reference configuration. Local compiler
 ABI and throughput experiments have recorded results. Live metadata-only publication

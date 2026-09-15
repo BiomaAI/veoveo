@@ -37,6 +37,7 @@ mod store;
 mod table;
 mod time;
 mod usage;
+pub mod workspace;
 
 pub use artifact_access_requests::{
     ArtifactAccessRequestDecisionDraft, ArtifactAccessRequestDraft, ArtifactAccessRequestQuery,

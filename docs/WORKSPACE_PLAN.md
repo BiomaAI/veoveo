@@ -172,7 +172,14 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
-- Approved design recorded; implementation is beginning.
+- Approved design committed as `034ac8aa`.
+- The first store checkpoint implements human-owned chats, explicit invitation
+  acceptance, member removal, ownership transfer, separate settings revisions,
+  immutable text messages and ordered event replay. Its owning design is
+  [`platform/store/src/workspace/DESIGN.md`](../platform/store/src/workspace/DESIGN.md).
+  The scoped suite passes 52 tests, including real two-client concurrency and
+  revocation races; strict Clippy and formatting pass. This checkpoint does not yet
+  expose a browser API, agent participation or a deployed Workspace.
 - Existing agent control exposes an agent-wide wake/episode projection. It lacks a
   chat boundary and cannot serve as Workspace's shared history.
 - Existing Console session bootstrap already admits ordinary authenticated users;
