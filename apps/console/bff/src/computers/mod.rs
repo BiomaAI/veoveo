@@ -5,7 +5,7 @@ mod events;
 mod pairing;
 mod terminal;
 
-use crate::{AppState, outbound_http::OutboundTrust};
+use crate::{AppState, browser::BrowserApp, outbound_http::OutboundTrust};
 use axum::{
     Json, Router,
     http::{HeaderMap, HeaderValue, StatusCode, header},
@@ -37,77 +37,95 @@ pub(crate) fn router() -> Router<AppState> {
         .route("/_ws_tunnel", get(cli::root))
         .route("/console/computers/{id}/_ws_tunnel", get(cli::scoped))
         .route("/console/computers/{id}/auth/connect", get(pairing::entry))
+        .merge(control_router(BrowserApp::Console))
+}
+
+pub(crate) fn control_router(app: BrowserApp) -> Router<AppState> {
+    let root = app.api_root();
+    Router::new()
         .route(
-            "/console/api/computers/events",
+            &format!("{root}/computers/events"),
             post(events::events).layer(axum::extract::DefaultBodyLimit::max(1024)),
         )
         .route(
-            "/console/api/computers",
+            &format!("{root}/computers"),
             get(control::proxy).post(control::proxy),
         )
-        .route("/console/api/computers/{id}", get(control::proxy))
-        .route("/console/api/computers/{id}/files", post(control::proxy))
+        .route(&format!("{root}/computers/{{id}}"), get(control::proxy))
         .route(
-            "/console/api/computers/{id}/files/{operation_id}",
+            &format!("{root}/computers/{{id}}/files"),
+            post(control::proxy),
+        )
+        .route(
+            &format!("{root}/computers/{{id}}/files/{{operation_id}}"),
             get(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/files/{operation_id}/cancel",
+            &format!("{root}/computers/{{id}}/files/{{operation_id}}/cancel"),
             post(control::proxy),
         )
-        .route("/console/api/computers/{id}/access", get(control::proxy))
         .route(
-            "/console/api/computers/{id}/automation",
+            &format!("{root}/computers/{{id}}/access"),
+            get(control::proxy),
+        )
+        .route(
+            &format!("{root}/computers/{{id}}/automation"),
             get(control::proxy).post(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/automation/{grant_id}",
+            &format!("{root}/computers/{{id}}/automation/{{grant_id}}"),
             get(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/automation/{grant_id}/revoke",
+            &format!("{root}/computers/{{id}}/automation/{{grant_id}}/revoke"),
             post(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/cli-pairings",
+            &format!("{root}/computers/{{id}}/cli-pairings"),
             post(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/cli-pairings/{pairing_id}/confirm",
+            &format!("{root}/computers/{{id}}/cli-pairings/{{pairing_id}}/confirm"),
             post(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/access/{grant_id}/revoke",
+            &format!("{root}/computers/{{id}}/access/{{grant_id}}/revoke"),
             post(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/operations/{operation_id}",
-            get(control::proxy),
-        )
-        .route("/console/api/computers/{id}/start", post(control::proxy))
-        .route(
-            "/console/api/computers/{id}/maintenance",
+            &format!("{root}/computers/{{id}}/operations/{{operation_id}}"),
             get(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/maintenance/{operation_id}",
+            &format!("{root}/computers/{{id}}/start"),
+            post(control::proxy),
+        )
+        .route(
+            &format!("{root}/computers/{{id}}/maintenance"),
             get(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/update-template",
+            &format!("{root}/computers/{{id}}/maintenance/{{operation_id}}"),
+            get(control::proxy),
+        )
+        .route(
+            &format!("{root}/computers/{{id}}/update-template"),
             post(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/maintenance/{operation_id}/resume",
-            post(control::proxy),
-        )
-        .route("/console/api/computers/{id}/stop", post(control::proxy))
-        .route(
-            "/console/api/computers/{id}/terminal-ticket",
+            &format!("{root}/computers/{{id}}/maintenance/{{operation_id}}/resume"),
             post(control::proxy),
         )
         .route(
-            "/console/api/computers/{id}/terminal",
+            &format!("{root}/computers/{{id}}/stop"),
+            post(control::proxy),
+        )
+        .route(
+            &format!("{root}/computers/{{id}}/terminal-ticket"),
+            post(control::proxy),
+        )
+        .route(
+            &format!("{root}/computers/{{id}}/terminal"),
             get(terminal::upgrade),
         )
 }

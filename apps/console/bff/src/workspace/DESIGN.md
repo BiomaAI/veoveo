@@ -42,3 +42,12 @@ the Workspace profile; a receipt or chat membership supplies no read grant. Rang
 and conditional reads retain the governed download boundary. Preview documents
 receive a sandbox CSP without scripts or same-origin authority, including direct
 navigation to HTML or SVG content. No Artifact body is buffered in the edge.
+
+The edge composes the shared resumable upload and Computers control routers beneath
+the Workspace API root. These handlers select the Workspace profile and cookie
+through their application state, including terminal ticket endpoints. Upload parts
+retain their streaming body path outside the chat DTO size limit. Computer commands,
+receipts, file transfers, named grants and terminal relays retain the existing domain
+and transport invariants. CSRF and exact terminal Origin checks apply unchanged.
+The dedicated stock CLI pairing page remains a Console surface until its client
+bootstrap is adapted; this router does not add a Workspace CLI entry page.

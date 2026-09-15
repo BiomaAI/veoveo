@@ -1,6 +1,6 @@
-//! Same-origin upload transport; the Console session selects profile and actor.
+//! Same-origin upload transport; the selected browser session fixes profile and actor.
 
-use crate::{AppState, api};
+use crate::{AppState, api, browser::BrowserApp};
 use axum::{
     Router,
     body::Body,
@@ -15,20 +15,21 @@ use veoveo_mcp_contract::{
     ArtifactUploadId, UPLOAD_PART_BYTE_LEN_HEADER, UPLOAD_PART_SHA256_HEADER,
 };
 
-pub(crate) fn router() -> Router<AppState> {
+pub(crate) fn router(app: BrowserApp) -> Router<AppState> {
+    let root = app.api_root();
     Router::new()
-        .route("/console/api/artifact-uploads/policy", get(proxy))
-        .route("/console/api/artifact-uploads", post(proxy))
+        .route(&format!("{root}/artifact-uploads/policy"), get(proxy))
+        .route(&format!("{root}/artifact-uploads"), post(proxy))
         .route(
-            "/console/api/artifact-uploads/{upload_id}",
+            &format!("{root}/artifact-uploads/{{upload_id}}"),
             get(proxy).delete(proxy),
         )
         .route(
-            "/console/api/artifact-uploads/{upload_id}/parts/{part_number}",
+            &format!("{root}/artifact-uploads/{{upload_id}}/parts/{{part_number}}"),
             put(proxy),
         )
         .route(
-            "/console/api/artifact-uploads/{upload_id}/complete",
+            &format!("{root}/artifact-uploads/{{upload_id}}/complete"),
             post(proxy),
         )
 }

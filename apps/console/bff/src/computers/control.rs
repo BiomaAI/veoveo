@@ -34,8 +34,11 @@ pub(super) async fn proxy(
     let (Ok(Path(route)), Ok(Query(page))) = (route, page) else {
         return fault(StatusCode::BAD_REQUEST);
     };
+    let Some(relative) = matched.as_str().strip_prefix(state.config.app().api_root()) else {
+        return fault(StatusCode::BAD_REQUEST);
+    };
     let Some(path) = upstream_path(
-        matched.as_str(),
+        relative,
         route.id,
         route.operation_id,
         route.grant_id,
@@ -103,7 +106,7 @@ pub(super) async fn proxy(
             if ticket.computer_id != id {
                 return Err(());
             }
-            ticket.endpoint = format!("/console/api/computers/{id}/terminal");
+            ticket.endpoint = format!("{}/computers/{id}/terminal", state.config.app().api_root());
             serde_json::to_vec(&ticket).map_err(|_| ())?.into()
         } else {
             body
@@ -143,56 +146,50 @@ fn upstream_path(
         return None;
     }
     if let Some(pairing) = pairing_id {
-        return (matched == "/console/api/computers/{id}/cli-pairings/{pairing_id}/confirm")
+        return (matched == "/computers/{id}/cli-pairings/{pairing_id}/confirm")
             .then(|| id.map(|id| format!("/{id}/cli-pairings/{pairing}/confirm")))
             .flatten();
     }
     if let Some(grant) = grant_id {
-        if matched == "/console/api/computers/{id}/automation/{grant_id}" {
+        if matched == "/computers/{id}/automation/{grant_id}" {
             return id.map(|id| format!("/{id}/automation/{grant}"));
         }
-        if matched == "/console/api/computers/{id}/automation/{grant_id}/revoke" {
+        if matched == "/computers/{id}/automation/{grant_id}/revoke" {
             return id.map(|id| format!("/{id}/automation/{grant}/revoke"));
         }
-        return (matched == "/console/api/computers/{id}/access/{grant_id}/revoke")
+        return (matched == "/computers/{id}/access/{grant_id}/revoke")
             .then(|| id.map(|id| format!("/{id}/access/{grant}/revoke")))
             .flatten();
     }
     if let Some(operation) = operation_id {
-        if matched == "/console/api/computers/{id}/files/{operation_id}" {
+        if matched == "/computers/{id}/files/{operation_id}" {
             return id.map(|id| format!("/{id}/files/{operation}"));
         }
-        if matched == "/console/api/computers/{id}/files/{operation_id}/cancel" {
+        if matched == "/computers/{id}/files/{operation_id}/cancel" {
             return id.map(|id| format!("/{id}/files/{operation}/cancel"));
         }
-        if matched == "/console/api/computers/{id}/maintenance/{operation_id}/resume" {
+        if matched == "/computers/{id}/maintenance/{operation_id}/resume" {
             return id.map(|id| format!("/{id}/maintenance/{operation}/resume"));
         }
-        if matched == "/console/api/computers/{id}/maintenance/{operation_id}" {
+        if matched == "/computers/{id}/maintenance/{operation_id}" {
             return id.map(|id| format!("/{id}/maintenance/{operation}"));
         }
-        return (matched == "/console/api/computers/{id}/operations/{operation_id}")
+        return (matched == "/computers/{id}/operations/{operation_id}")
             .then(|| id.map(|id| format!("/{id}/operations/{operation}")))
             .flatten();
     }
     match (matched, id) {
-        ("/console/api/computers", None) => Some(String::new()),
-        ("/console/api/computers/{id}", Some(id)) => Some(format!("/{id}")),
-        ("/console/api/computers/{id}/files", Some(id)) => Some(format!("/{id}/files")),
-        ("/console/api/computers/{id}/maintenance", Some(id)) => Some(format!("/{id}/maintenance")),
-        ("/console/api/computers/{id}/update-template", Some(id)) => {
-            Some(format!("/{id}/update-template"))
-        }
-        ("/console/api/computers/{id}/access", Some(id)) => Some(format!("/{id}/access")),
-        ("/console/api/computers/{id}/automation", Some(id)) => Some(format!("/{id}/automation")),
-        ("/console/api/computers/{id}/cli-pairings", Some(id)) => {
-            Some(format!("/{id}/cli-pairings"))
-        }
-        ("/console/api/computers/{id}/start", Some(id)) => Some(format!("/{id}/start")),
-        ("/console/api/computers/{id}/stop", Some(id)) => Some(format!("/{id}/stop")),
-        ("/console/api/computers/{id}/terminal-ticket", Some(id)) => {
-            Some(format!("/{id}/terminal-ticket"))
-        }
+        ("/computers", None) => Some(String::new()),
+        ("/computers/{id}", Some(id)) => Some(format!("/{id}")),
+        ("/computers/{id}/files", Some(id)) => Some(format!("/{id}/files")),
+        ("/computers/{id}/maintenance", Some(id)) => Some(format!("/{id}/maintenance")),
+        ("/computers/{id}/update-template", Some(id)) => Some(format!("/{id}/update-template")),
+        ("/computers/{id}/access", Some(id)) => Some(format!("/{id}/access")),
+        ("/computers/{id}/automation", Some(id)) => Some(format!("/{id}/automation")),
+        ("/computers/{id}/cli-pairings", Some(id)) => Some(format!("/{id}/cli-pairings")),
+        ("/computers/{id}/start", Some(id)) => Some(format!("/{id}/start")),
+        ("/computers/{id}/stop", Some(id)) => Some(format!("/{id}/stop")),
+        ("/computers/{id}/terminal-ticket", Some(id)) => Some(format!("/{id}/terminal-ticket")),
         _ => None,
     }
 }
@@ -206,18 +203,14 @@ mod tests {
         let computer = Uuid::now_v7();
         let task = Uuid::now_v7();
         for (route, expected, operation) in [
+            ("/computers/{id}/files", format!("/{computer}/files"), None),
             (
-                "/console/api/computers/{id}/files",
-                format!("/{computer}/files"),
-                None,
-            ),
-            (
-                "/console/api/computers/{id}/files/{operation_id}",
+                "/computers/{id}/files/{operation_id}",
                 format!("/{computer}/files/{task}"),
                 Some(task),
             ),
             (
-                "/console/api/computers/{id}/files/{operation_id}/cancel",
+                "/computers/{id}/files/{operation_id}/cancel",
                 format!("/{computer}/files/{task}/cancel"),
                 Some(task),
             ),
@@ -231,7 +224,7 @@ mod tests {
         }
         assert!(
             upstream_path(
-                "/console/api/computers/{id}/files/{operation_id}/bytes",
+                "/computers/{id}/files/{operation_id}/bytes",
                 Some(computer),
                 Some(task),
                 None,
@@ -241,7 +234,7 @@ mod tests {
         );
         assert!(
             upstream_path(
-                "/console/api/computers/{id}/files/{operation_id}",
+                "/computers/{id}/files/{operation_id}",
                 Some(computer),
                 Some(task),
                 Some(task),

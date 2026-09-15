@@ -205,6 +205,12 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 160 adds governed Task result preview and download. The original media
+  Task survived the browser-edge replacement; its authorized PNG renders in the
+  RTX 4090 headed browser and the download returns the same governed file. The
+  edge now also has local shared upload and Computers control composition with
+  Workspace-specific session authority. Their client integration remains in progress.
+
 - Release 159 is active at `/workspace/` on veoveo.bioma.ai. Ordinary browser SSO,
   two real agent responses and an agent-created native media Task pass installed
   acceptance. The Task completed through its domain and survived browser reload

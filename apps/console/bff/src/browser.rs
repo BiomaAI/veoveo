@@ -13,6 +13,13 @@ impl BrowserApp {
             Self::Workspace => "/workspace/",
         }
     }
+    pub(crate) const fn api_root(self) -> &'static str {
+        match self {
+            Self::Console => "/console/api",
+            Self::Workspace => "/workspace/api",
+        }
+    }
+
     pub(crate) const fn login(self) -> &'static str {
         match self {
             Self::Console => "/auth/login",
