@@ -274,6 +274,17 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
     );
     let snapshot = db.b.workspace_snapshot(&b, chat, 0, 100).await.unwrap();
     assert_eq!(snapshot.messages.len(), 25);
+    let recent =
+        db.b.workspace_recent_snapshot(&b, chat, None, 7)
+            .await
+            .unwrap();
+    assert_eq!(recent.messages, snapshot.messages[18..]);
+    let before = recent.messages[0].sequence;
+    let previous =
+        db.b.workspace_recent_snapshot(&b, chat, Some(before), 7)
+            .await
+            .unwrap();
+    assert_eq!(previous.messages, snapshot.messages[11..18]);
     assert!(
         snapshot
             .messages

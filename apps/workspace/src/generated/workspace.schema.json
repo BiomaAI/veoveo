@@ -191,6 +191,26 @@
       ],
       "type": "string"
     },
+    "InvitationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "chatTitle": {
+          "type": "string"
+        },
+        "invitation": {
+          "$ref": "#/$defs/Invitation"
+        },
+        "inviterName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "invitation",
+        "chatTitle",
+        "inviterName"
+      ],
+      "type": "object"
+    },
     "InvitePerson": {
       "additionalProperties": false,
       "properties": {
@@ -376,6 +396,9 @@
     "invitation": {
       "$ref": "#/$defs/Invitation"
     },
+    "invitation_summary": {
+      "$ref": "#/$defs/InvitationSummary"
+    },
     "invite_person": {
       "$ref": "#/$defs/InvitePerson"
     },
@@ -396,6 +419,7 @@
     "bootstrap",
     "snapshot",
     "invitation",
+    "invitation_summary",
     "create_chat",
     "send_message",
     "invite_person",

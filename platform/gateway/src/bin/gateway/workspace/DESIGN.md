@@ -28,5 +28,22 @@ installation-local person ID. Acceptance requires that person's current Work
 Context authority; an invitation cannot create it. No global principal inventory,
 policy catalog, credential or arbitrary proxy destination is exposed.
 
-The API remains in implementation. Public registration, browser integration and
-stream acceptance are required before this boundary is considered deployed.
+## Change Stream And History
+
+One process-wide database LIVE subscription carries chat IDs to bounded local
+subscribers. Each stream reads its authorized committed head before emission.
+Database reconciliation runs every 15 seconds, including after LIVE loss; it does
+not query any provider. JWT revocation, session-family authority, current Work
+Context rules and chat membership are rechecked before a wake. Changed gateway
+configuration closes the stream for fresh HTTP admission. Token expiry and a
+five-minute maximum bound its lifetime. Admission permits four streams per person
+and 128 per process. Lag causes durable reconciliation, never mutation replay.
+
+Initial history reads return the latest 100 messages in ascending display order.
+`before` loads older history; `after` reads incremental messages. Supplying both
+is invalid. Clients advance catch-up through the last actual message until the
+page is exhausted. Invitation inbox summaries disclose only the named invitee's
+chat title, inviter name and invitation metadata before acceptance.
+
+Domain and browser-edge stream tests pass. Installed authentication, real agent
+execution and public acceptance remain delivery work.

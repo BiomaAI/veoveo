@@ -502,9 +502,9 @@ fn apply_contract_consumers(
     let apps_contract_changed = changed_paths
         .iter()
         .any(|path| path_matches_input(path, "mcp/apps-extension"));
-    let app_host_changed = changed_paths
-        .iter()
-        .any(|path| path_matches_input(path, "apps/console/web"));
+    let app_host_changed = changed_paths.iter().any(|path| {
+        path_matches_input(path, "apps/console/web") || path_matches_input(path, "apps/workspace")
+    });
     if apps_contract_changed || app_host_changed {
         select(
             targets,
@@ -710,5 +710,15 @@ mod tests {
         );
         assert_eq!(targets, BTreeSet::from(["console-bff".to_owned()]));
         assert!(reasons["console-bff"].contains("MCP App presentation or host contract changed"));
+        let mut workspace_targets = BTreeSet::new();
+        apply_contract_consumers(
+            &BTreeSet::from(["apps/workspace/src/App.tsx".to_owned()]),
+            &mut workspace_targets,
+            &mut reasons,
+        );
+        assert_eq!(
+            workspace_targets,
+            BTreeSet::from(["console-bff".to_owned()])
+        );
     }
 }

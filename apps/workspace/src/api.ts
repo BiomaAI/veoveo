@@ -1,0 +1,84 @@
+import { z } from "zod";
+import schema from "./generated/workspace.schema.json" with { type: "json" };
+import type { Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
+
+type Definitions = { Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
+  InvitationSummary: InvitationSummary; Message: Message; Person: Person; WorkspaceBootstrap: WorkspaceBootstrap };
+const validators = new Map<keyof Definitions, z.ZodType>();
+export function parse<K extends keyof Definitions>(kind: K, input: unknown): Definitions[K] {
+  let validator = validators.get(kind);
+  if (!validator) {
+    const definition: object = { $schema: schema.$schema, $defs: schema.$defs, $ref: `#/$defs/${kind}` };
+    validator = z.fromJSONSchema(definition as Parameters<typeof z.fromJSONSchema>[0]);
+    validators.set(kind, validator);
+  }
+  // Types and schemas are emitted from the same Rust contract.
+  return validator.parse(input) as Definitions[K];
+}
+
+let csrf: string | null = null;
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(status === 401 ? "Sign in to continue." : status === 403 || status === 404
+      ? "This chat or action is no longer available with your access."
+      : status === 409 ? "The chat changed. Refresh its details and try again."
+      : status === 429 ? "There are too many active requests. Please try again shortly."
+      : "The request could not be confirmed. Please try again.");
+    this.status = status;
+  }
+}
+export async function request(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<unknown> {
+  if (method !== "GET" && !csrf) throw new ApiError(401);
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (method !== "GET") {
+    headers["X-Veoveo-CSRF-Token"] = csrf!;
+    headers["Content-Type"] = "application/json";
+  }
+  const response = await fetch(`/workspace/api${path}`, {
+    method, credentials: "same-origin", headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
+  });
+  csrf = response.headers.get("x-veoveo-csrf-token") ?? csrf;
+  if (!response.ok) {
+    if (response.status === 401) { csrf = null; window.dispatchEvent(new Event("workspace-auth-expired")); }
+    throw new ApiError(response.status);
+  }
+  return response.status === 204 ? undefined : response.json();
+}
+function list<K extends keyof Definitions>(kind: K, input: unknown): Definitions[K][] {
+  if (!Array.isArray(input)) throw new Error("The server returned an invalid list.");
+  return input.map(value => parse(kind, value));
+}
+export const api = {
+  session: async (signal?: AbortSignal) => parse("WorkspaceBootstrap", await request("/session", "GET", undefined, signal)),
+  chats: async (signal?: AbortSignal) => list("Chat", await request("/chats", "GET", undefined, signal)),
+  invitations: async (signal?: AbortSignal) => list("InvitationSummary", await request("/invitations", "GET", undefined, signal)),
+  create: async (id: string, title: string) => parse("Chat", await request("/chats", "POST", { id, title })),
+  snapshot: async (chat: string, page: { after?: number; before?: number } = {}, signal?: AbortSignal) => {
+    const query = new URLSearchParams(Object.entries(page).map(([key, value]) => [key, String(value)]));
+    const value = parse("ChatSnapshot", await request(`/chats/${encodeURIComponent(chat)}?${query}`, "GET", undefined, signal));
+    if (value.chat.id !== chat) throw new Error("The chat response could not be verified.");
+    return value;
+  },
+  send: async (chat: string, message: SendMessage) => parse("Message", await request(`/chats/${chat}/messages`, "POST", message)),
+  people: async (query: string, signal?: AbortSignal) => list("Person", await request(`/people?q=${encodeURIComponent(query)}`, "GET", undefined, signal)),
+  invite: async (chat: string, invitee: string, id: string) => parse("Invitation", await request(`/chats/${chat}/invitations`, "POST", { id, invitee })),
+  decide: async (invitation: Invitation, state: "accepted" | "declined") => parse("Invitation", await request(`/invitations/${invitation.id}`, "POST", { chatId: invitation.chatId, state })),
+  settings: async (chat: string, value: ChatSettings) => parse("Chat", await request(`/chats/${chat}`, "PUT", value)),
+  remove: (chat: string, person: string) => request(`/chats/${chat}/members/${person}`, "DELETE"),
+};
+
+export function loginPath(): string {
+  return `/auth/login?${new URLSearchParams({ return_to: `${location.pathname}${location.search}${location.hash}` })}`;
+}
+
+export async function logout(): Promise<void> {
+  if (!csrf) return;
+  const response = await fetch("/auth/logout", { method: "POST", credentials: "same-origin", redirect: "manual",
+    headers: { "X-Veoveo-CSRF-Token": csrf } });
+  if (!(response.ok || response.type === "opaqueredirect")) throw new ApiError(response.status);
+  csrf = null;
+  location.replace("/workspace/");
+}

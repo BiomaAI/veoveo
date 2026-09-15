@@ -105,6 +105,14 @@ pub struct Invitation {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InvitationSummary {
+    pub invitation: Invitation,
+    pub chat_title: String,
+    pub inviter_name: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateChat {
     pub id: ChatId,
     pub title: String,
@@ -156,6 +164,7 @@ struct WorkspaceSchema {
     bootstrap: WorkspaceBootstrap,
     snapshot: ChatSnapshot,
     invitation: Invitation,
+    invitation_summary: InvitationSummary,
     create_chat: CreateChat,
     send_message: SendMessage,
     invite_person: InvitePerson,

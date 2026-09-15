@@ -21,5 +21,9 @@ Redirects fail closed. Session rotation is settled even if the subsequent operat
 fails; upstream 401 clears the invalid session. Responses are `no-store`.
 OAuth return-path validation admits `/workspace/` under the same origin.
 
-Client assets, shared-chat streaming and the installed release remain delivery
-work. This edge does not itself execute agents or confer capability authority.
+The edge streams contentless chat notifications with bounded chunks and preserves
+session rotation headers. The gateway owns ongoing session and membership checks.
+The static entry is `no-store`; content-addressed assets use immutable caching and
+missing bundles return 404. Client assets have their own Docker stage outside Rust
+compiler inputs. The installed release remains delivery work. This edge does not
+itself execute agents or confer capability authority.

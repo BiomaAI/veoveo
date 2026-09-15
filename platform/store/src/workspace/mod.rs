@@ -5,7 +5,9 @@ mod people;
 mod records;
 
 pub use membership::WorkspaceSettings;
-pub use people::{WorkspaceContext, WorkspaceIdentity, WorkspacePerson};
+pub use people::{
+    WorkspaceContext, WorkspaceIdentity, WorkspaceInvitationSummary, WorkspacePerson,
+};
 pub use records::*;
 
 use std::time::Duration;
@@ -58,6 +60,53 @@ struct SendMessage {
 }
 
 impl PlatformStore {
+    pub async fn workspace_head(
+        &self,
+        authority: &WorkspaceAuthority,
+        chat: WorkspaceChatId,
+    ) -> Result<i64> {
+        self.workspace_query(
+            authority,
+            chat.record_id(),
+            "IF !fn::workspace_member($authority, $command) { THROW 'workspace_not_found'; }; \
+             RETURN $command.sequence;",
+        )
+        .await
+    }
+
+    /// A latency hint only. Authorized consumers read the durable chat head.
+    pub async fn workspace_wakes(&self) -> Result<crate::LiveStream<WorkspaceEvent>> {
+        self.client()
+            .select("workspace_event")
+            .live()
+            .await
+            .map_err(|_| WorkspaceError::Unavailable)
+    }
+
+    pub async fn workspace_recent_snapshot(
+        &self,
+        authority: &WorkspaceAuthority,
+        chat: WorkspaceChatId,
+        before: Option<i64>,
+        limit: u32,
+    ) -> Result<WorkspaceSnapshot> {
+        let before = before.unwrap_or(i64::MAX);
+        validate_page(before, limit)?;
+        let mut snapshot: WorkspaceSnapshot = self
+            .workspace_query(
+                authority,
+                ChatQuery {
+                    chat: chat.record_id(),
+                    after: before,
+                    limit: i64::from(limit),
+                },
+                include_str!("queries/recent.surql"),
+            )
+            .await?;
+        snapshot.messages.reverse();
+        Ok(snapshot)
+    }
+
     pub async fn create_workspace_chat(
         &self,
         authority: &WorkspaceAuthority,

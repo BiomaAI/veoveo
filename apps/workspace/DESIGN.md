@@ -14,6 +14,9 @@ assistant-ui `0.15.20` is the first presentation candidate, verified against the
 [upstream package registry](https://www.npmjs.com/package/@assistant-ui/react).
 It must pass the multi-participant qualification before being accepted as the chat
 renderer. Its runtime cannot own chat authorization, persistence or agent execution.
+The adapter qualification passes with two human and two agent authors, concurrent
+agent statuses, subsequent human messages and replay. Playwright `1.63.0`, verified
+from the upstream registry, runs the client-owned browser acceptance fixture.
 
 ## Product And State
 
@@ -41,6 +44,29 @@ access merely to render a reused view.
 
 ## Delivery Status
 
-Canonical generated contracts are being introduced. The interactive client,
-assistant-ui qualification, capability views and installed acceptance remain active
-implementation work. No local fixture counts as production model execution.
+The interactive client implements human chats, latest-first history loading,
+invitations, participant controls, ownership transfer and archiving. It renders
+plain text without executing HTML. A contentless SSE wake requests incremental
+authorized state. A failed ambiguous send retains its original ID and text for
+retry; refreshing restores committed messages without repeating a mutation.
+
+The gateway and browser edge serve the live stream and assets. A local headed
+RTX 4090 WebGL browser fixture exercises two humans, an interrupted response,
+idempotent retry, owner controls, reload and the mobile layout. Its screenshots
+are local fixture evidence. Agent execution, capability views and installed
+acceptance remain active implementation work.
+
+## Development And Acceptance
+
+Run `npm ci` and `npm run dev` in this directory. Vite uses port 4174 and proxies
+the browser edge on 8786. The edge accepts `VEOVEO_WORKSPACE_ASSET_DIR` for its
+built entry directory; the production image uses `/app/workspace`. `npm run build`
+builds only the client. Docker assembles Console and Workspace assets in separate
+frontend stages while reusing the compiled Rust browser edge.
+
+`npm test` runs generated-contract and assistant-ui adapter tests. `npm run
+test:browser` owns a temporary Vite listener, isolated browser context and HTTP
+fixtures. It attaches to headed Chrome at `VEOVEO_BROWSER_CDP` (default localhost
+9222), probes both graphics APIs, and requires hardware before interacting or
+capturing. Its context and listener close on success or failure. No local fixture
+counts as production model execution.

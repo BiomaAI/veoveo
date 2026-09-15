@@ -212,6 +212,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(computers::router())
         .merge(workspace::router());
     let router = with_console_static_routes(router, config.asset_dir())?;
+    let router = workspace::static_assets::routes(router, config.workspace_asset_dir())?;
     let router = app_host::with_app_host_route(router, config.asset_dir())?
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))
         .with_state(state)
