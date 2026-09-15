@@ -42,6 +42,27 @@ Computers host and simulation images. Dependency-specific lockfile impact remain
 a planner improvement; the conservative result is recorded rather than treated as
 evidence that 28 deployments need replacement.
 
+The upload client reuses the existing browser queue and hashing worker. Shared
+package resolution binds React, Query and validation to Workspace's own exact pins;
+it adds no second framework runtime. The entry grows from 107.49 to 114.28 KiB gzip
+for the persistent queue; the upload panel remains a lazy 3.34 KiB gzip chunk. Moving
+Artifact URL construction out of the administrative API module avoids pulling its
+protocol dependency into Workspace. The warm Vite solve takes 0.393 seconds.
+Headed acceptance with a real browser File,
+worker hash, raw part transport and restored receipt takes 30.2 seconds against its
+explicit HTTP fixture. It does not establish installed file storage.
+
+The original evidence catalog mixed browser declarations with every Rust Workspace
+check. Shared component inputs require a new frontend scope, exposing catalog-file
+invalidation across otherwise unrelated Rust checks. Browser declarations now have
+their own catalog; subsequent client changes do not edit the Rust catalog. Receipts
+still repeat full manifests. These are separate costs from Rust compilation.
+
+Requalification caught a stale Bioma acceptance assumption that every installation
+uses the base fixture's exact secret inventory. The assertion now verifies the
+Workspace gateway model credential explicitly and compares the remaining shared
+secrets to the base fixture. All six configuration cases pass.
+
 The new model chart fixture renders and validates both agent configuration and
 credential boundaries in 0.2 seconds. Its first test lint caught a redundant Rust
 result wrapper; the corrected fixture passes. Dedicated owner declarations keep

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { consoleIdentityScope, useConsoleBootstrap } from "../bootstrap";
-import { consoleJson } from "../consoleHttp";
+import { browserJson } from "../browserHttp";
 import { parseComputer } from "../generatedContracts";
 import { pairCli, pairingLocation, PairingFailure } from "./pairing";
 import type { PairingLocation } from "./pairing";
@@ -28,7 +28,7 @@ function PairingForm({ location, identity, scope }: { location: PairingLocation;
   const nameTooLong = new TextEncoder().encode(name.trim()).length > 64;
   const computer = useQuery({
     queryKey: ["cli-pairing-computer", scope, location.computerId],
-    queryFn: async ({ signal }) => parseComputer("computer", await consoleJson(`computers/${location.computerId}`, undefined, signal)),
+    queryFn: async ({ signal }) => parseComputer("computer", await browserJson(`computers/${location.computerId}`, undefined, signal)),
     retry: false,
   });
   async function connect(event: React.SubmitEvent<HTMLFormElement>) {

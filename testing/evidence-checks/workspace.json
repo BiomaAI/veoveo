@@ -225,41 +225,6 @@
     },
     {
       "arguments": [
-        "npm",
-        "--prefix",
-        "apps/workspace",
-        "test"
-      ],
-      "inputs": {
-        "kind": "console",
-        "roots": [
-          "apps/workspace"
-        ]
-      },
-      "toolchains": [
-        "node"
-      ]
-    },
-    {
-      "arguments": [
-        "npm",
-        "--prefix",
-        "apps/workspace",
-        "run",
-        "build"
-      ],
-      "inputs": {
-        "kind": "console",
-        "roots": [
-          "apps/workspace"
-        ]
-      },
-      "toolchains": [
-        "node"
-      ]
-    },
-    {
-      "arguments": [
         "cargo",
         "test",
         "-p",

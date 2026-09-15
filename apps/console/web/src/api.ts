@@ -25,15 +25,15 @@ import type {
 } from "./types";
 import { authenticationRequired, redirectToLogin } from "./auth";
 
-import { consoleSession } from "./csrf";
+import { browserSession } from "./csrf";
 
 export function initializeAppSession(token: string): void {
-  consoleSession.csrfToken = token;
+  browserSession.csrfToken = token;
 }
 
 export async function loadArtifact(artifactId: string): Promise<ArtifactSummary> {
   const response = await fetch(`/console/api/artifacts/${encodeURIComponent(artifactId)}`, { credentials: "same-origin", headers: { Accept: "application/json" } });
-  consoleSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? consoleSession.csrfToken;
+  browserSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? browserSession.csrfToken;
   if (response.status === 401) authenticationRequired();
   if (!response.ok) throw new Error("This artifact is not available with your current access.");
   const artifact = await response.json() as ArtifactSummary;
@@ -51,7 +51,7 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
     headers: { Accept: "application/json" },
     signal
   });
-  consoleSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? undefined;
+  browserSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? undefined;
   if (response.status === 401) {
     authenticationRequired();
   }
@@ -71,7 +71,7 @@ export async function loadCluster(signal?: AbortSignal): Promise<ClusterSnapshot
     signal,
   });
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) consoleSession.csrfToken = rotatedToken;
+  if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) {
     authenticationRequired();
   }
@@ -83,13 +83,13 @@ export async function loadCluster(signal?: AbortSignal): Promise<ClusterSnapshot
 }
 
 export async function consoleMutation<T>(path: string, init: RequestInit): Promise<T> {
-  if (!consoleSession.csrfToken) {
+  if (!browserSession.csrfToken) {
     throw new Error("Console session has not been initialized");
   }
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   headers.set("Content-Type", "application/json");
-  headers.set("X-Veoveo-CSRF-Token", consoleSession.csrfToken);
+  headers.set("X-Veoveo-CSRF-Token", browserSession.csrfToken);
   const response = await fetch(`/console/api/${path.replace(/^\/+/, "")}`, {
     ...init,
     method: init.method ?? "POST",
@@ -112,25 +112,25 @@ export async function consoleMutation<T>(path: string, init: RequestInit): Promi
     throw new Error(detail ?? `Console API returned ${response.status}`);
   }
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) consoleSession.csrfToken = rotatedToken;
+  if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
 export async function logoutConsole(): Promise<void> {
-  if (!consoleSession.csrfToken) {
+  if (!browserSession.csrfToken) {
     throw new Error("Console session has not been initialized");
   }
   const response = await fetch("/auth/logout", {
     method: "POST",
     credentials: "same-origin",
-    headers: { "X-Veoveo-CSRF-Token": consoleSession.csrfToken },
+    headers: { "X-Veoveo-CSRF-Token": browserSession.csrfToken },
     redirect: "manual"
   });
   if (!response.ok) {
     throw new Error(`Console logout returned ${response.status}`);
   }
-  consoleSession.csrfToken = undefined;
+  browserSession.csrfToken = undefined;
   redirectToLogin();
 }
 
@@ -210,7 +210,7 @@ export async function loadAgentConversation(
     },
   );
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) consoleSession.csrfToken = rotatedToken;
+  if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
     throw new Error("Agent conversation is not permitted for this Console session.");
@@ -247,7 +247,7 @@ export async function loadAgentInputRequests(
     },
   );
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) consoleSession.csrfToken = rotatedToken;
+  if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
     throw new Error("Agent input_requests are not permitted for this Console session.");
@@ -356,7 +356,7 @@ export async function loadArtifactAccessRequests(
     signal,
   });
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) consoleSession.csrfToken = rotatedToken;
+  if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) {
     authenticationRequired();
   }
@@ -435,14 +435,6 @@ export async function revokeArtifactShareLink(artifactId: string, linkId: string
   );
 }
 
-export function artifactDownloadUrl(artifactId: string): string {
-  return `/console/api/artifacts/${encodeURIComponent(artifactId)}/download`;
-}
-
-export function artifactPreviewUrl(artifactId: string): string {
-  return `/console/api/artifacts/${encodeURIComponent(artifactId)}/preview`;
-}
-
 export async function loadRecordingPlayback(
   recordingId: string,
   options: { signal?: AbortSignal; recordingGrant?: string } = {}
@@ -499,7 +491,7 @@ export async function loadRecordingProjectionStream(
     signal,
   });
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) consoleSession.csrfToken = rotatedToken;
+  if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
     throw new Error("Recording projection is not permitted by the active policy.");
@@ -528,7 +520,7 @@ export async function loadApps(signal?: AbortSignal): Promise<AppCatalog> {
     signal,
   });
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) consoleSession.csrfToken = rotatedToken;
+  if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) {
     authenticationRequired();
   }
@@ -609,20 +601,20 @@ export async function openAppResourceEvents(
   subscriptions: AppResourceEventSubscription[],
   signal?: AbortSignal | null,
 ): Promise<Response> {
-  if (!consoleSession.csrfToken) throw new Error("Console session has not been initialized");
+  if (!browserSession.csrfToken) throw new Error("Console session has not been initialized");
   const response = await fetch("/console/api/apps/resource-events", {
     method: "POST",
     credentials: "same-origin",
     headers: {
       Accept: "text/event-stream",
       "Content-Type": "application/json",
-      "X-Veoveo-CSRF-Token": consoleSession.csrfToken,
+      "X-Veoveo-CSRF-Token": browserSession.csrfToken,
     },
     body: JSON.stringify({ server, appUri, subscriptions }),
     signal,
   });
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) consoleSession.csrfToken = rotatedToken;
+  if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
     throw new Error("This App resource subscription is not permitted by the active Console policy.");

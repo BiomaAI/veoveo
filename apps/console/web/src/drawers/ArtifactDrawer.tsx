@@ -3,7 +3,7 @@ import { Check, Copy, Download, FileStack, Fingerprint, Link2, ShieldCheck, Tras
 import { DrawerShell } from "./DrawerShell";
 import { StatusPill } from "../components/primitives";
 import { useConfirm } from "../components/confirm";
-import { artifactDownloadUrl } from "../api";
+import { artifactDownloadUrl } from "../artifactUrls";
 import { formatBytes, formatDate } from "../format";
 import {
   useCreateShareLink,

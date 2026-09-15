@@ -1,6 +1,9 @@
+import { configureBrowserApplication } from "./browserApp.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { consoleSession } from "./csrf.ts";
+
+configureBrowserApplication("console");
+import { browserSession } from "./csrf.ts";
 import { UploadQueue } from "./uploads/queue.ts";
 import { requestId, type Policy, type Receipt, type Session } from "./uploads/model.ts";
 
@@ -27,7 +30,7 @@ async function fixture() {
   Object.defineProperty(globalThis, "window", { configurable: true, value: new EventTarget() });
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: { onLine: true } });
   Object.defineProperty(globalThis, "Worker", { configurable: true, value: TestHashWorker });
-  consoleSession.csrfToken = "ephemeral-only";
+  browserSession.csrfToken = "ephemeral-only";
   const file = new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])], "sample.bin", { lastModified: 10 });
   const key = requestId(), uploadId = requestId(), artifactId = requestId();
   const receipt: Receipt = { upload_id: uploadId, artifact_id: artifactId, artifact_uri: `artifact://${artifactId}`, filename: file.name, mime_type: "application/octet-stream", byte_len: file.size, created_at: new Date().toISOString(), sha256: await digest(file) };

@@ -1,6 +1,9 @@
+import { configureBrowserApplication } from "./browserApp.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptConsoleCsrfToken } from "./csrf.ts";
+
+configureBrowserApplication("console");
+import { acceptBrowserCsrfToken } from "./csrf.ts";
 import { pairCli, pairingLocation } from "./computers/pairing.ts";
 
 const computerId = "00000000-0000-4000-8000-000000000001";
@@ -19,7 +22,7 @@ test("pairing accepts only one exact local callback port and stock comparison co
 test("pairing keeps credentials in the one local callback and revokes failed delivery", async () => {
   const previous = globalThis.fetch;
   const token = `vcli1.${grantId}.${"a".repeat(64)}`;
-  acceptConsoleCsrfToken("fixture-csrf");
+  acceptBrowserCsrfToken("fixture-csrf");
   try {
     for (const failDelivery of [false, true]) {
       const calls: string[] = [];

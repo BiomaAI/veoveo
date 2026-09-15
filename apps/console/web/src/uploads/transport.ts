@@ -1,8 +1,9 @@
-import { acceptConsoleCsrfToken, consoleCsrfToken } from "../csrf.ts";
+import { browserApiRoot } from "../browserApp.ts";
+import { acceptBrowserCsrfToken, browserCsrfToken } from "../csrf.ts";
 import type { z } from "zod";
 import { partSchema, type Part } from "./model.ts";
 
-const base = "/console/api/artifact-uploads";
+const base = () => `${browserApiRoot()}/artifact-uploads`;
 export class UploadError extends Error {
   status: number;
   retryAfter: number;
@@ -17,14 +18,14 @@ function failure(status: number, value: unknown, retryAfter?: string | null): Up
 export async function request<T>(path: string, method: string, schema: z.ZodType<T>, signal: AbortSignal, body?: unknown, key?: string): Promise<T> {
   const headers = new Headers({ Accept: "application/json" });
   if (method !== "GET") {
-    const csrf = consoleCsrfToken();
+    const csrf = browserCsrfToken();
     if (!csrf) throw new UploadError(401, "Sign in to continue this upload.");
     headers.set("x-veoveo-csrf-token", csrf);
   }
   if (body !== undefined) headers.set("Content-Type", "application/json");
   if (key) headers.set("Idempotency-Key", key);
-  const response = await fetch(base + path, { method, headers, credentials: "same-origin", signal, body: body === undefined ? undefined : JSON.stringify(body) });
-  acceptConsoleCsrfToken(response.headers.get("x-veoveo-csrf-token"));
+  const response = await fetch(base() + path, { method, headers, credentials: "same-origin", signal, body: body === undefined ? undefined : JSON.stringify(body) });
+  acceptBrowserCsrfToken(response.headers.get("x-veoveo-csrf-token"));
   const value: unknown = response.status === 204 ? undefined : await response.json().catch(() => undefined);
   signal.throwIfAborted();
   if (!response.ok) throw failure(response.status, value, response.headers.get("retry-after"));
@@ -33,12 +34,12 @@ export async function request<T>(path: string, method: string, schema: z.ZodType
 export function putPart(id: string, number: number, blob: Blob, sha: string, timeout: number, signal: AbortSignal, progress: (bytes: number) => void): Promise<Part> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) { reject(signal.reason); return; }
-    const csrf = consoleCsrfToken();
+    const csrf = browserCsrfToken();
     if (!csrf) { reject(new UploadError(401, "Sign in to continue this upload.")); return; }
     const xhr = new XMLHttpRequest();
     const abort = () => xhr.abort();
     const finish = () => signal.removeEventListener("abort", abort);
-    xhr.open("PUT", `${base}/${id}/parts/${number}`);
+    xhr.open("PUT", `${base()}/${id}/parts/${number}`);
     xhr.timeout = (timeout + 5) * 1000;
     xhr.setRequestHeader("x-veoveo-csrf-token", csrf);
     xhr.setRequestHeader("x-veoveo-part-byte-len", String(blob.size));
@@ -47,7 +48,7 @@ export function putPart(id: string, number: number, blob: Blob, sha: string, tim
     xhr.upload.onprogress = (event) => progress(Math.min(blob.size, event.loaded));
     xhr.onload = () => {
       finish();
-      acceptConsoleCsrfToken(xhr.getResponseHeader("x-veoveo-csrf-token"));
+      acceptBrowserCsrfToken(xhr.getResponseHeader("x-veoveo-csrf-token"));
       let value: unknown;
       try { value = JSON.parse(xhr.responseText); } catch { value = undefined; }
       if (xhr.status < 200 || xhr.status >= 300) { reject(failure(xhr.status, value, xhr.getResponseHeader("retry-after"))); return; }

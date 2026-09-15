@@ -1,3 +1,4 @@
+import { configureBrowserApplication } from "./browserApp";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,6 +8,8 @@ import { ConfirmProvider } from "./components/ConfirmDialog";
 import { queryClient } from "./queryClient";
 import { ThemeProvider } from "./ThemeProvider";
 import "./styles.css";
+
+configureBrowserApplication("console");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

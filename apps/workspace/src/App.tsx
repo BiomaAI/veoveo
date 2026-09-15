@@ -1,14 +1,16 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity as ActivityIcon, ArrowRight, Bell, LogOut, Menu, MessageSquare, Plus, Users, X } from "lucide-react";
+import { Activity as ActivityIcon, ArrowRight, Bell, LogOut, Menu, MessageSquare, Plus, Upload, Users, X } from "lucide-react";
 import { api, ApiError, loginPath, logout } from "./api.ts";
 import { initials } from "./identity.ts";
 import { useConversation } from "./useConversation.ts";
+import { useUploads } from "./useUploads.ts";
 import type { Invitation, WorkspaceBootstrap } from "./generated/workspace.ts";
 
 const Conversation = lazy(() => import("./Conversation.tsx").then(module => ({ default: module.Conversation })));
 const Activity = lazy(() => import("./Activity.tsx").then(module => ({ default: module.Activity })));
 const Participants = lazy(() => import("./Participants.tsx").then(module => ({ default: module.Participants })));
+const Uploads = lazy(() => import("./Uploads.tsx").then(module => ({ default: module.Uploads })));
 
 export default function App() {
   const client = useQueryClient();
@@ -33,6 +35,8 @@ function selectedChat(): string | undefined {
 }
 function Workspace({ session }: { session: WorkspaceBootstrap }) {
   const client = useQueryClient();
+  const uploads = useUploads(session);
+  const [uploadsOpen, setUploadsOpen] = useState(false);
   const [selected, setSelected] = useState(selectedChat);
   const [newChat, setNewChat] = useState(false);
   const [inbox, setInbox] = useState(false);
@@ -73,6 +77,7 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
       <button className="new-chat" disabled={!session.canContribute} onClick={() => { setNewChat(true); setError(undefined); }}><Plus size={17}/> New chat</button>
       <button className={`nav-item ${inbox ? "active" : ""}`} onClick={() => { setInbox(true); setActivity(false); setMobileNav(false); void invitations.refetch(); }}><Bell size={16}/> Invitations {!!invitations.data?.length && <span className="count">{invitations.data.length}</span>}</button>
       <button className={`nav-item ${activity ? "active" : ""}`} onClick={() => { setActivity(true); setInbox(false); setMobileNav(false); history.pushState(null, "", "/workspace/?view=activity"); }}><ActivityIcon size={16}/> My activity</button>
+      <button className="nav-item" onClick={() => setUploadsOpen(true)}><Upload size={16}/> Uploads {!!uploads.state.entries.length && <span className="count">{uploads.state.entries.length}</span>}</button>
       <div className="sidebar-section">YOUR CHATS <span>{chats.data?.length ?? 0}</span></div>
       <nav className="chat-list" aria-label="Chats">{chats.data?.map(chat => <button key={chat.id} className={`chat-item ${selected === chat.id && !inbox && !activity ? "active" : ""}`} onClick={() => select(chat.id)}>
         <MessageSquare size={16}/><span>{chat.title}<small>{chat.archived ? "Archived" : new Date(chat.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}</small></span></button>)}
@@ -90,6 +95,7 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
       {error && !newChat && <p className="global-error error" role="alert">{error}</p>}
     </main>
     {newChat && <dialog className="modal-backdrop" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setNewChat(false)}><form className="modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title" onSubmit={event => { event.preventDefault(); void create(); }}><div className="details-heading"><h2 id="new-chat-title">Start a chat</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setNewChat(false)}><X size={18}/></button></div><p>Give this conversation a name. You'll be its owner and can invite people from your workspace.</p><label>Chat name<input autoFocus value={title} maxLength={200} readOnly={busy || !!createId.current} onChange={event => setTitle(event.target.value)} placeholder="e.g. Planning our next release"/></label>{error && <p className="error" role="alert">{error}</p>}<button type="submit" className="primary" disabled={busy || !title.trim()}>{busy ? "Creating…" : createId.current ? "Retry creation" : "Create chat"}<ArrowRight size={16}/></button></form></dialog>}
+    {uploadsOpen && <Suspense fallback={null}><Uploads queue={uploads.queue} state={uploads.state} close={() => setUploadsOpen(false)}/></Suspense>}
   </div>;
 }
 

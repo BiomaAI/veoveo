@@ -1,12 +1,13 @@
+import { browserLoginRoot } from "./browserApp.ts";
 let loginRedirectStarted = false;
 
-function currentConsoleReturnPath(): string {
+function currentBrowserReturnPath(): string {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
-export function consoleLoginPath(returnPath: string): string {
+export function browserLoginPath(returnPath: string): string {
   const query = new URLSearchParams({ return_to: returnPath });
-  return `/auth/login?${query.toString()}`;
+  return `${browserLoginRoot()}?${query.toString()}`;
 }
 
 export class AuthenticationRequiredError extends Error {
@@ -18,13 +19,13 @@ export class AuthenticationRequiredError extends Error {
 
 export function redirectToLogin(
   navigate: (path: string) => void = (path) => window.location.replace(path),
-  returnPath: string = currentConsoleReturnPath(),
+  returnPath: string = currentBrowserReturnPath(),
 ): boolean {
   if (loginRedirectStarted) {
     return false;
   }
   loginRedirectStarted = true;
-  navigate(consoleLoginPath(returnPath));
+  navigate(browserLoginPath(returnPath));
   return true;
 }
 

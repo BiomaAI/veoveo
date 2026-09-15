@@ -1,14 +1,15 @@
+import { browserApiRoot } from "./browserApp.ts";
 import { authenticationRequired } from "./auth.ts";
-import { acceptConsoleCsrfToken, consoleCsrfToken } from "./csrf.ts";
+import { acceptBrowserCsrfToken, browserCsrfToken } from "./csrf.ts";
 
-export class ConsoleHttpError extends Error {
+export class BrowserHttpError extends Error {
   readonly status: number;
   readonly payload: unknown;
   constructor(status: number, payload: unknown) {
     super(
       status === 403
         ? "This action is not permitted with your current access."
-        : `Console request failed (${status}).`,
+        : `Request failed (${status}).`,
     );
     this.status = status;
     this.payload = payload;
@@ -39,21 +40,21 @@ export async function boundedJson(response: Response, limit: number): Promise<un
     reader.releaseLock();
   }
 }
-export async function consoleJson(
+export async function browserJson(
   path: string,
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<unknown> {
   const mutation = body !== undefined;
-  const csrf = consoleCsrfToken();
-  if (mutation && !csrf) throw new Error("The Console session is not ready.");
+  const csrf = browserCsrfToken();
+  if (mutation && !csrf) throw new Error("Your session is not ready.");
   const headers = new Headers({ Accept: "application/json" });
   if (mutation) {
     headers.set("Content-Type", "application/json");
     headers.set("X-Veoveo-CSRF-Token", csrf!);
   }
   const deadline = AbortSignal.timeout(mutation ? 35_000 : 15_000);
-  const response = await fetch(`/console/api/${path}`, {
+  const response = await fetch(`${browserApiRoot()}/${path}`, {
     method: mutation ? "POST" : "GET",
     credentials: "same-origin",
     cache: "no-store",
@@ -62,12 +63,12 @@ export async function consoleJson(
     body: mutation ? JSON.stringify(body) : undefined,
     signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
   });
-  acceptConsoleCsrfToken(response.headers.get("x-veoveo-csrf-token"));
+  acceptBrowserCsrfToken(response.headers.get("x-veoveo-csrf-token"));
   if (response.status === 401) authenticationRequired();
   const payload = await boundedJson(response, 2 * 1024 * 1024).catch((error: unknown) => {
     if (response.ok) throw error;
     return undefined;
   });
-  if (!response.ok) throw new ConsoleHttpError(response.status, payload);
+  if (!response.ok) throw new BrowserHttpError(response.status, payload);
   return payload;
 }

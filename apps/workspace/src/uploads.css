@@ -1,0 +1,15 @@
+.upload-layer {
+  --text: #282a27; --text-soft: var(--muted); --text-xs: 12px; --text-sm: 14px;
+  --border: var(--line); --border-strong: #c4cabc; --accent: var(--green); --surface-raised: var(--green-soft);
+  position: fixed; inset: 0; z-index: 20; display: flex; justify-content: flex-end;
+}
+.upload-layer .drawer-scrim { position: absolute; inset: 0; width: 100%; border: 0; border-radius: 0; background: #17201150; }
+.upload-layer .upload-panel { position: relative; display: flex; flex-direction: column; height: 100%; background: #fff; box-shadow: -10px 0 50px #0002; }
+.upload-layer .upload-panel > header { padding: 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.upload-layer .upload-panel > header span { color: var(--muted); font-size: 12px; }
+.upload-layer .button-primary { background: var(--green); color: #fff; }
+.upload-layer .button { font-size: 12px; padding: 7px 10px; }
+.upload-layer .subdued { color: var(--muted); }
+.upload-layer .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.upload-result-modal { max-width: min(640px, 95vw); max-height: 90vh; overflow: auto; border: 1px solid var(--line); border-radius: 14px; padding: 24px; }
+.upload-result-modal::backdrop { background: #17201180; }

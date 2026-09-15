@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { uuidV7 } from "../agentControl";
-import { artifactDownloadUrl } from "../api";
+import { artifactDownloadUrl } from "../artifactUrls";
 import { formatBytes } from "../format";
 import type { ComputerSnapshot, ComputerView, FileTransferStage, TransferFileInput } from "../generated/computers";
 import type { ArtifactSummary } from "../types";

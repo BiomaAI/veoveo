@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { browserApplication } from "../browserApp.ts";
 import { formatBytes } from "../format.ts";
 import { Hashing } from "./hashing.ts";
 import { describe, duplicate, invalidSelection, policySchema, requestId, savedSchema, sessionSchema, type Entry, type Part, type Policy, type Receipt, type Session } from "./model.ts";
@@ -22,7 +23,9 @@ export class UploadQueue {
 
   constructor(actor: string, context: string, tenant: string, onReceipt: (receipt: Receipt) => void) {
     this.actor = actor; this.context = context; this.onReceipt = onReceipt;
-    this.storageKey = `veoveo.uploads.v1:${JSON.stringify([location.origin, tenant, actor, context])}`;
+    const scope = [location.origin, tenant, actor, context];
+    if (browserApplication() === "workspace") scope.push("workspace");
+    this.storageKey = `veoveo.uploads.v1:${JSON.stringify(scope)}`;
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (raw && raw.length <= 512 * 1024) {
