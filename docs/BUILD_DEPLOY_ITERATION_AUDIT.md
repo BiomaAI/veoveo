@@ -2,8 +2,18 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
-Workspace implementation reuses the installed platform. These measurements cover
-local development only; a Workspace image has not yet been built or deployed.
+Workspace implementation reuses the installed platform. The initial gateway and
+browser-edge images were published from `1ec7bc5c` in 288.410 seconds. Compilation
+occupied 264.412 seconds, with a new shared Cargo feature graph. Console assets
+remained cached; the first Workspace asset solve took 1.57 seconds. Export occupied
+18.408 seconds. These phase windows overlap. The initial public rollout is pending.
+
+The typed Cargo retention pass removed 97.66 GiB of superseded executable copies
+and older incremental variants. It retained running executables, dependency libraries
+and each crate’s newest incremental state. Host free space rose to 323 GiB. No
+Computer volumes or runtime images were deleted. Chart publication waited for the
+image publication source lease, repeating the previously recorded packaging
+serialization cost.
 
 The affected-image planner selects all 28 Rust targets because `Cargo.lock` changed.
 The actual lock diff adds only the gateway's consumers of already pinned `rig` and
@@ -61,7 +71,8 @@ Its first test-profile rebuild takes 1m57s because Cargo recompiles the newly un
 transport features; the two-stream Rust scenario itself takes 3.55 s. The matching
 Clippy graph takes 1m25s on first use. No DuckDB or Rerun kernel dependency is added.
 The expanded four-author browser fixture takes 20 s and uses the existing headed
-RTX 4090 browser. Workspace model images and rollout remain unmeasured.
+RTX 4090 browser. The initial image measurements are recorded above; model response and public rollout
+measurements follow installed acceptance.
 
 The active product and acceptance sequence are in
 [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md). Older measurements below retain their
