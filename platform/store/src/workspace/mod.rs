@@ -3,6 +3,8 @@
 mod membership;
 mod people;
 mod records;
+mod runs;
+pub use runs::*;
 
 pub use membership::WorkspaceSettings;
 pub use people::{

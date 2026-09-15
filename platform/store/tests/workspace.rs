@@ -365,6 +365,17 @@ async fn ownership_settings_and_archive_are_current_and_explicit() {
             .unwrap();
     assert_eq!(transferred.owner, bob.principal_id.record_id());
     assert_eq!(
+        db.a.create_workspace_chat(&a, chat, "Ownership")
+            .await
+            .unwrap()
+            .id,
+        transferred.id
+    );
+    assert_eq!(
+        db.b.create_workspace_chat(&b, chat, "Ownership").await,
+        Err(WorkspaceError::Conflict)
+    );
+    assert_eq!(
         db.a.update_workspace_settings(&a, chat, settings()).await,
         Err(WorkspaceError::Forbidden)
     );
@@ -396,3 +407,6 @@ async fn ownership_settings_and_archive_are_current_and_explicit() {
             .archived
     );
 }
+
+#[path = "workspace/runs.rs"]
+mod runs;

@@ -41,7 +41,7 @@ constraint is documented in its [transaction reference](https://surrealdb.com/do
 Settings use their own revision, so concurrent message traffic does not create a
 settings conflict. Membership changes still serialize with messages on the chat head.
 
-The first persistence checkpoint implements human chat membership, invitations,
-immutable text messages and event replay. Agent definitions, runs, capability
-references and browser routes remain delivery work; these records alone do not
-constitute a usable Workspace release.
+Human chat membership, invitations, immutable text messages and event replay are
+implemented. Per-chat agent admission and durable execution records are owned by
+[`runs/DESIGN.md`](runs/DESIGN.md). Gateway/model execution and installed acceptance
+remain part of the Workspace delivery goal.
