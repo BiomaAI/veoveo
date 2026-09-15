@@ -104,6 +104,8 @@ async fn main() -> anyhow::Result<()> {
         ..state.clone()
     };
     let workspace_router = workspace::router()
+        .merge(artifact_upload::router(browser::BrowserApp::Workspace))
+        .merge(computers::control_router(browser::BrowserApp::Workspace))
         .route("/workspace/auth/login", get(oauth::login))
         .route("/workspace/auth/callback", get(oauth::callback))
         .route("/workspace/auth/logout", post(oauth::logout))
@@ -224,7 +226,7 @@ async fn main() -> anyhow::Result<()> {
             get(recording_playback::projection),
         );
     let router = router
-        .merge(artifact_upload::router())
+        .merge(artifact_upload::router(browser::BrowserApp::Console))
         .merge(computers::router());
     let router = with_console_static_routes(router, config.asset_dir())?;
     let router = workspace::static_assets::routes(router, config.workspace_asset_dir())?;

@@ -1,20 +1,26 @@
-# Computers Console Transport
+# Computers Browser Transport
 
 ## Standards And Protocols
 
 | Boundary | Supported profile |
 |---|---|
 | HTTP, RFC 9110 | Same-origin Computer control routes and bounded JSON forwarding |
-| Existing Console session | Authenticated encrypted cookie, OAuth renewal and constant-time CSRF check for mutations |
+| Existing browser session | Application-specific encrypted cookie, OAuth renewal and constant-time CSRF check for mutations |
 | WebSocket, RFC 6455 | HTTP/1.1 upgrade, exact public Origin and cookie authentication |
 | Veoveo terminal v2 | One-use first frame, binary terminal, bounded resize, replay fence and upstream authority deadline |
 | OpenShell CLI `0.0.116` and gRPC over WebSocket | Custom SSO pairing and binary SSH adapter; private lease controls never reach the stock consumer |
 | MCP `2026-07-28` and server-sent events | Auth-scoped collection subscription projected as typed invalidations over a CSRF-protected HTTP POST |
 
-`/console/api/computers` and its exact Computer children are the native Console edge.
-The configured Console profile and gateway URL select the upstream. Input cannot
+`control_router(BrowserApp)` serves `/console/api/computers` and
+`/workspace/api/computers` through the same handlers. The selected application's
+configured profile, cookie and gateway URL fix the upstream. Input cannot
 override the profile, actor, owner or destination. The existing gateway and Computers
 domain own current authorization. This module has no lifecycle state machine.
+
+The route examples below use the Console prefix. Workspace has the same relative
+control paths and rewrites terminal tickets to its own API prefix. CLI entry and
+stock relay routes remain owned by the existing Console router. The shared control
+router alone does not implement a Workspace CLI pairing page.
 
 GET `/console/api/computers/{id}/operations/{operation_id}` forwards a stored receipt
 read under the current cookie session and configured profile. It accepts no query

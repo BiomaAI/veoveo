@@ -24,6 +24,7 @@ use crate::{
 struct Edge {
     app: Router,
     cookie: String,
+    origin: String,
     server: tokio::task::JoinHandle<()>,
 }
 
@@ -42,6 +43,7 @@ impl Edge {
             axum::serve(listener, upstream).await.unwrap();
         });
         let config = Arc::new(Config::workspace_for_test(url));
+        let origin = config.public_origin();
         let sessions = SessionCipher::new(config.session_key())
             .unwrap()
             .for_app(config.app());
@@ -77,12 +79,19 @@ impl Edge {
             computers: crate::computers::Transport::new(&Default::default()).unwrap(),
         };
         let app = super::router()
+            .merge(crate::artifact_upload::router(
+                crate::browser::BrowserApp::Workspace,
+            ))
+            .merge(crate::computers::control_router(
+                crate::browser::BrowserApp::Workspace,
+            ))
             .route("/workspace/auth/login", get(crate::oauth::login))
             .with_state(state.clone())
             .layer(middleware::from_fn_with_state(state, api::enforce_csrf));
         Self {
             app,
             cookie: format!("veoveo_workspace={cookie}"),
+            origin,
             server,
         }
     }
@@ -113,6 +122,104 @@ impl Edge {
             .await
             .unwrap()
     }
+}
+
+#[tokio::test]
+async fn shared_capability_routes_keep_workspace_cookie_profile_csrf_and_terminal_origin() {
+    let id = uuid::Uuid::now_v7();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let upstream = Router::new()
+        .route(
+            "/artifacts/workspace/upload-policy",
+            get(|headers: HeaderMap| async move {
+                assert_eq!(headers["authorization"], "Bearer cookie-access");
+                assert!(!headers.contains_key("cookie"));
+                Json(json!({"allowed": true}))
+            }),
+        )
+        .route(
+            "/computers/workspace",
+            get(|headers: HeaderMap| async move {
+                assert_eq!(headers["authorization"], "Bearer cookie-access");
+                Json(json!({"computers": []}))
+            }),
+        )
+        .route(
+            &format!("/computers/workspace/{id}/terminal-ticket"),
+            post(move |headers: HeaderMap| {
+                let observed = observed.clone();
+                async move {
+                    observed.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(headers["authorization"], "Bearer cookie-access");
+                    assert!(!headers.contains_key("cookie"));
+                    assert!(headers.contains_key("origin"));
+                    (
+                        StatusCode::CREATED,
+                        Json(veoveo_computers_contract::TerminalTicket {
+                            computer_id: id,
+                            token: veoveo_computers_contract::TerminalToken::new(
+                                "fixture-ticket".into(),
+                            ),
+                            expires_at: Utc::now() + chrono::Duration::seconds(30),
+                            endpoint: "https://untrusted.invalid/terminal".into(),
+                        }),
+                    )
+                }
+            }),
+        );
+    let edge = Edge::new(upstream).await;
+    for route in [
+        "/workspace/api/artifact-uploads/policy",
+        "/workspace/api/computers",
+    ] {
+        assert_eq!(
+            edge.request("GET", route, false, false, "").await.status(),
+            StatusCode::UNAUTHORIZED
+        );
+        let response = edge.request("GET", route, true, false, "").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["cache-control"], "no-store");
+    }
+    let ticket = format!("/workspace/api/computers/{id}/terminal-ticket");
+    assert_eq!(
+        edge.request("POST", &ticket, true, false, "{}")
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        edge.request("POST", &ticket, true, true, "{}")
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let request = Request::builder()
+        .method("POST")
+        .uri(&ticket)
+        .header("cookie", &edge.cookie)
+        .header(api::CSRF_HEADER, "csrf")
+        .header("origin", &edge.origin)
+        .header("authorization", "Bearer browser-forgery")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))
+        .unwrap();
+    let response = edge.app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = to_bytes(response.into_body(), 4096).await.unwrap();
+    let ticket: veoveo_computers_contract::TerminalTicket = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        ticket.endpoint,
+        format!("/workspace/api/computers/{id}/terminal")
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        edge.request("POST", "/workspace/api/artifact-uploads", true, false, "{}")
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
 }
 
 #[tokio::test]
