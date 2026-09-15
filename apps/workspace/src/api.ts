@@ -1,10 +1,11 @@
 import { z } from "zod";
 import schema from "./generated/workspace.schema.json" with { type: "json" };
 import type { AgentActivity, AgentDefinition, ChatAgent, Run, Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
+import type { OperationView, OperationPage, OperationSummary, AnswerOperation, StartOperation, Capability } from "./generated/workspace.ts";
 
 export type ConversationSnapshot = ChatSnapshot & { activity: AgentActivity };
 
-type Definitions = { AgentActivity: AgentActivity; AgentDefinition: AgentDefinition; ChatAgent: ChatAgent; Run: Run; Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
+type Definitions = { OperationView: OperationView; OperationPage: OperationPage; OperationSummary: OperationSummary; Capability: Capability; AgentActivity: AgentActivity; AgentDefinition: AgentDefinition; ChatAgent: ChatAgent; Run: Run; Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
   InvitationSummary: InvitationSummary; Message: Message; Person: Person; WorkspaceBootstrap: WorkspaceBootstrap };
 const validators = new Map<keyof Definitions, z.ZodType>();
 export function parse<K extends keyof Definitions>(kind: K, input: unknown): Definitions[K] {
@@ -69,6 +70,15 @@ export const api = {
   removeAgent: async (chat: string, agent: string) => parse("ChatAgent", await request(`/chats/${chat}/agents/${agent}`, "DELETE")),
   startRun: async (chat: string, agent: string, trigger: string) => parse("Run", await request(`/chats/${chat}/runs`, "POST", { agent, trigger })),
   cancelRun: async (chat: string, run: string) => parse("Run", await request(`/chats/${chat}/runs/${run}/cancel`, "POST")),
+  operations: async (chat?: string, before?: string, signal?: AbortSignal) => {
+    const query = new URLSearchParams(); if (chat) query.set("chat", chat); if (before) query.set("before", before);
+    return parse("OperationPage", await request(`/operations?${query}`, "GET", undefined, signal));
+  },
+  operation: async (id: string, signal?: AbortSignal) => parse("OperationView", await request(`/operations/${id}`, "GET", undefined, signal)),
+  startOperation: async (chat: string, value: StartOperation) => parse("OperationSummary", await request(`/chats/${chat}/operations`, "POST", value)),
+  cancelOperation: (id: string) => request(`/operations/${id}/cancel`, "POST"),
+  answerOperation: (id: string, value: AnswerOperation) => request(`/operations/${id}/input`, "POST", value),
+  capabilities: async (signal?: AbortSignal) => list("Capability", await request("/capabilities", "GET", undefined, signal)),
   send: async (chat: string, message: SendMessage) => parse("Message", await request(`/chats/${chat}/messages`, "POST", message)),
   people: async (query: string, signal?: AbortSignal) => list("Person", await request(`/people?q=${encodeURIComponent(query)}`, "GET", undefined, signal)),
   invite: async (chat: string, invitee: string, id: string) => parse("Invitation", await request(`/chats/${chat}/invitations`, "POST", { id, invitee })),

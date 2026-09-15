@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{PrincipalId, TenantId, WorkContextId};
+mod operations;
+pub use operations::*;
 
 macro_rules! id {
     ($name:ident) => {
@@ -21,6 +23,7 @@ id!(MemberId);
 id!(InvitationId);
 id!(AgentId);
 id!(RunId);
+id!(OperationId);
 /// Installation-local human identity; never an email address or bearer credential.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
@@ -254,6 +257,11 @@ struct WorkspaceSchema {
     activity: AgentActivity,
     add_agent: AddAgent,
     start_run: StartRun,
+    operation: OperationView,
+    operation_page: OperationPage,
+    start_operation: StartOperation,
+    answer_operation: AnswerOperation,
+    capability: Capability,
 }
 
 pub fn schema_bundle() -> schemars::Schema {

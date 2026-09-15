@@ -29,3 +29,9 @@ The static entry is `no-store`; content-addressed assets use immutable caching a
 missing bundles return 404. Client assets have their own Docker stage outside Rust
 compiler inputs. The installed release remains delivery work. This edge does not
 itself execute agents or confer capability authority.
+
+Operation routes forward closed Task projections, input answers and cancellation
+to the fixed Workspace gateway profile. Input DTOs exclude `requestState`, Task
+replacement IDs and authority fields. The same session/CSRF boundary applies to
+these mutations. A bounded comma-separated list of operation UUIDs selects the
+contentless native Task wake stream; the gateway resolves and authorizes Task IDs.

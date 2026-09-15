@@ -326,3 +326,75 @@ async fn agent_run_admission_keeps_cookie_identity_and_rejects_browser_model_con
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn task_answers_and_cancellation_use_cookie_authority_and_closed_request_shapes() {
+    let id = uuid::Uuid::now_v7();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let upstream = Router::new().route(
+        &format!("/workspace-api/workspace/operations/{id}/input"),
+        post(
+            move |headers: HeaderMap, Json(body): Json<serde_json::Value>| {
+                let observed = observed.clone();
+                async move {
+                    assert_eq!(headers["authorization"], "Bearer cookie-access");
+                    assert!(headers.get("cookie").is_none());
+                    assert_eq!(body["revision"], 2);
+                    assert_eq!(body["answers"][0]["content"]["approved"], true);
+                    observed.fetch_add(1, Ordering::SeqCst);
+                    StatusCode::NO_CONTENT
+                }
+            },
+        ),
+    );
+    let edge = Edge::new(upstream).await;
+    let path = format!("/workspace/api/operations/{id}/input");
+    let valid = json!({"revision":2,"answers":[{"id":"approval-1","digest":"abc","decision":"accept","content":{"approved":true}}]});
+    assert_eq!(
+        edge.request("POST", &path, true, false, &valid.to_string())
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    let mut forged = valid.clone();
+    forged["requestState"] = json!("browser-must-not-supply-this");
+    assert_eq!(
+        edge.request("POST", &path, true, true, &forged.to_string())
+            .await
+            .status(),
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        edge.request("POST", &path, true, true, &valid.to_string())
+            .await
+            .status(),
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        edge.request(
+            "POST",
+            &format!("/workspace/api/operations/{id}/cancel"),
+            true,
+            false,
+            ""
+        )
+        .await
+        .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        edge.request(
+            "GET",
+            "/workspace/api/operations/events?ids=invalid",
+            true,
+            false,
+            ""
+        )
+        .await
+        .status(),
+        StatusCode::BAD_REQUEST
+    );
+}

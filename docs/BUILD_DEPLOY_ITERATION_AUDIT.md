@@ -5,6 +5,18 @@
 Workspace implementation reuses the installed platform. These measurements cover
 local development only; a Workspace image has not yet been built or deployed.
 
+The native Tasks checkpoint exposed another avoidable browser-test delay: a final
+capture waited on a background tab even though its form, reload and cancellation
+assertions had passed. Bringing the owned headed tab to the foreground before
+hardware verification and capture reduced the complete extended fixture to 19.2
+seconds. Individual browser actions now have a ten-second timeout, which identifies
+the failing step instead of consuming the whole test deadline. The additional Task
+view is a lazy 5.16 KB gzip chunk; the warm Vite solve remains below one second.
+Adding the gateway consumer of the already qualified JSON Schema dependency also
+produced a new Cargo feature graph and rebuilt shared HTTP/model dependencies.
+Keep those dependency changes within a coherent checkpoint; repeated per-package
+feature graphs remain build churn to measure after installed delivery.
+
 | Observation | Evidence | Delivery decision |
 |---|---|---|
 | Focused database tests are inexpensive once compiled | The first new test binary compiles in 18.1 s; subsequent store edits compile in about 6 s. Three disposable-database scenarios execute in 1.6–1.9 s. | Keep transaction and concurrency acceptance in the owning store integration test; no separate test service. |

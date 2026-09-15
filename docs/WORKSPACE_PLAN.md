@@ -205,6 +205,13 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Native MCP operation routes and the first-class Task client are implemented
+  locally. Real protocol/runtime acceptance covers durable recovery, Task input,
+  subscriptions and cancellation semantics. A headed RTX 4090 browser fixture
+  exercises private chat activity, personal activity, input forms and reload
+  without dispatch. Agent capability invocation and installed acceptance remain
+  delivery gates; these local checks do not establish public availability.
+
 - Private MCP operation receipts now persist dispatch intent, native Task references
   and multi-round continuation fences. Database acceptance proves single dispatch
   under contention, private ownership, stale-form rejection and late settlement
