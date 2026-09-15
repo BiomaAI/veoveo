@@ -194,6 +194,7 @@ Hub, administration, and GPU policy.
 | [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT and command-key enrollment with separate host, worker and operator outputs |
 | `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
 | [`platform/store/src/workspace/runs/`](../platform/store/src/workspace/runs/DESIGN.md) | per-chat agent admission, bounded concurrent runs, fixed context, execution fences, cancellation and interrupted-worker recovery |
+| [`platform/store/src/workspace/operations/`](../platform/store/src/workspace/operations/DESIGN.md) | private MCP operation receipts, at-most-once dispatch claims, durable Task references, bounded MRTR continuation fences and ambiguous-outcome recovery |
 | [`platform/gateway/src/bin/gateway/workspace/runs/`](../platform/gateway/src/bin/gateway/workspace/runs/DESIGN.md) | configured per-chat model execution through Rig, current human authority, bounded streaming and independent cancellation; MCP Tasks integration remains active delivery |
 | `mcp/contract/src/workspace.rs` | typed Workspace chat, membership, invitation, message, agent and run HTTP projections; MCP Task presentation remains delivery work |
 | [`platform/gateway/src/bin/gateway/workspace/`](../platform/gateway/src/bin/gateway/workspace/DESIGN.md) | direct-human Work Context admission, bounded chat/history/invitation routes and membership-authorized durable-head event streams |

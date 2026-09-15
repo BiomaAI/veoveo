@@ -410,3 +410,6 @@ async fn ownership_settings_and_archive_are_current_and_explicit() {
 
 #[path = "workspace/runs.rs"]
 mod runs;
+
+#[path = "workspace/operations.rs"]
+mod operations;

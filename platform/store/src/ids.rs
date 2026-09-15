@@ -122,6 +122,7 @@ domain_id!(AgentInputRequestId, "agent_input_request");
 domain_id!(WorkspaceChatId, "workspace_chat");
 domain_id!(WorkspaceAgentId, "workspace_agent");
 domain_id!(WorkspaceRunId, "workspace_run");
+domain_id!(WorkspaceOperationId, "workspace_operation");
 domain_id!(WorkspaceMemberId, "workspace_member");
 domain_id!(WorkspaceMessageId, "workspace_message");
 domain_id!(WorkspaceInvitationId, "workspace_invitation");
