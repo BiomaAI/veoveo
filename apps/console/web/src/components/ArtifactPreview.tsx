@@ -10,7 +10,7 @@ import {
   Send,
   Video,
 } from "lucide-react";
-import { artifactDownloadUrl, artifactPreviewUrl } from "../api";
+import { artifactDownloadUrl, artifactPreviewUrl } from "../artifactUrls";
 import { redirectToLogin } from "../auth";
 import { useArtifactAccessRequests, useRequestArtifactAccess } from "../queries";
 import type { ArtifactSummary } from "../types";

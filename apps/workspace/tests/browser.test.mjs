@@ -59,9 +59,12 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const sends = [];
     const pages = await Promise.all([context.newPage(), context.newPage()]);
     const errors = [];
+    let uploadAdmissions = 0;
     for (const [index, page] of pages.entries()) {
       await hardware(page);
       const person = index === 0 ? alice : bob;
+      let upload;
+      page.on("request", request => { if (new URL(request.url()).pathname.startsWith("/console/")) errors.push("Workspace contacted a Console route"); });
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/workspace/api/**", async route => {
         const request = route.request();
@@ -69,9 +72,32 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
         let body;
         if (!["GET", "HEAD"].includes(request.method())) {
           assert.equal(request.headers()["x-veoveo-csrf-token"], "fixture-csrf");
-          body = request.postData() ? request.postDataJSON() : undefined;
+          body = request.postData() && request.headers()["content-type"]?.includes("application/json") ? request.postDataJSON() : undefined;
         }
         const respond = json => route.fulfill({ status: 200, contentType: "application/json", headers: { "x-veoveo-csrf-token": "fixture-csrf" }, json });
+        if (path.pathname.endsWith("/artifact-uploads/policy")) return respond({ allowed: true, explanation: "Fixture upload policy", actor: `fixture#${person.id}`, work_context: "default", destination_name: "Product team", access_description: "Owned by you", available_bytes: 1048576,
+          policy: { max_object_bytes: 1048576, tenant_quota_bytes: 1048576, max_active_uploads_per_tenant: 8, part_bytes: 1024, max_part_bytes: 1024, max_parts: 1024, parallel_parts: 1, max_inflight_bytes: 1024, inactivity_seconds: 60, lifetime_seconds: 3600, part_timeout_seconds: 30, allowed_mime_types: ["text/plain"] } });
+        if (path.pathname.includes("/artifact-uploads")) {
+          if (request.method() === "POST" && path.pathname.endsWith("/artifact-uploads")) {
+            uploadAdmissions++;
+            upload = { upload_id: "01a0a75d-3458-78f3-ac54-91f1cab1fea2", state: "open", descriptor: body,
+              layout: { part_bytes: 1024, max_parts: 1024, max_total_bytes: 1048576, parallel_parts: 1 }, accepted_bytes: 0, accepted_part_count: 0, parts: [], created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600000).toISOString() };
+          }
+          assert.ok(upload);
+          if (request.method() === "PUT") {
+            const bytes = request.postDataBuffer();
+            const part = { part_number: 1, byte_len: bytes.length, sha256: request.headers()["x-veoveo-part-sha256"] };
+            assert.equal(bytes.toString(), "Workspace file acceptance");
+            upload.parts = [part]; upload.accepted_bytes = bytes.length; upload.accepted_part_count = 1;
+            return respond(part);
+          }
+          if (path.pathname.endsWith("/complete")) {
+            assert.equal(body.byte_len, upload.accepted_bytes);
+            upload.state = "completed";
+            upload.receipt = { upload_id: upload.upload_id, artifact_id: "01a0a75d-3458-78f3-ac54-91f1cab1fea3", artifact_uri: "artifact://01a0a75d-3458-78f3-ac54-91f1cab1fea3", filename: upload.descriptor.filename, mime_type: "text/plain", byte_len: upload.accepted_bytes, sha256: upload.parts[0].sha256, created_at: new Date().toISOString() };
+          }
+          return respond(upload);
+        }
         if (path.pathname === `/workspace/api/artifacts/${artifact}/preview`) {
           if (!fileAllowed) return route.fulfill({ status: 403 });
           const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
@@ -122,6 +148,12 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
       await page.getByText("Let's bring the launch plan together here.", { exact: true }).waitFor();
     }
     const [owner, member] = pages;
+    await owner.getByRole("button", { name: "Uploads", exact: true }).click();
+    await owner.locator("#upload-files").setInputFiles({ name: "workspace-acceptance.txt", mimeType: "text/plain", buffer: Buffer.from("Workspace file acceptance") });
+    await owner.getByRole("button", { name: "Upload 1 file", exact: true }).click();
+    await owner.getByText("Ready", { exact: true }).waitFor();
+    assert.equal(await owner.getByRole("link", { name: "Download", exact: true }).getAttribute("href"), "/workspace/api/artifacts/01a0a75d-3458-78f3-ac54-91f1cab1fea3/download");
+    await owner.getByRole("button", { name: "Close uploads; transfers continue", exact: true }).last().click();
     assert.equal(await owner.locator(".message-author strong").allTextContents().then(names => names.join(",")), "Alice Chen,Bob Rivera");
     await owner.getByRole("checkbox", { name: "Writer", exact: true }).check();
     await owner.getByRole("checkbox", { name: "Reviewer", exact: true }).check();
@@ -152,6 +184,10 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     assert.equal(sends.length, 3, "reload cannot execute another send");
     await owner.getByRole("button", { name: "Stop Reviewer's response", exact: true }).waitFor();
     assert.equal(runStarts.length, 2, "reload cannot dispatch another run");
+    await owner.getByRole("button", { name: /^Uploads/ }).click();
+    await owner.getByText("Ready", { exact: true }).waitFor();
+    assert.equal(uploadAdmissions, 1, "reload restores a receipt without another upload admission");
+    await owner.getByRole("button", { name: "Close uploads; transfers continue", exact: true }).last().click();
     await owner.getByRole("button", { name: "Participants", exact: true }).click();
     await owner.bringToFront();
     const proof = await hardware(owner);

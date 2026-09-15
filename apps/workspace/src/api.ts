@@ -1,3 +1,4 @@
+import { browserSession } from "../../console/web/src/csrf.ts";
 import { z } from "zod";
 import schema from "./generated/workspace.schema.json" with { type: "json" };
 import type { AgentActivity, AgentDefinition, ChatAgent, Run, Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
@@ -19,7 +20,6 @@ export function parse<K extends keyof Definitions>(kind: K, input: unknown): Def
   return validator.parse(input) as Definitions[K];
 }
 
-let csrf: string | null = null;
 export class ApiError extends Error {
   readonly status: number;
   constructor(status: number) {
@@ -32,10 +32,10 @@ export class ApiError extends Error {
   }
 }
 export async function request(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<unknown> {
-  if (method !== "GET" && !csrf) throw new ApiError(401);
+  if (method !== "GET" && !browserSession.csrfToken) throw new ApiError(401);
   const headers: Record<string, string> = { Accept: "application/json" };
   if (method !== "GET") {
-    headers["X-Veoveo-CSRF-Token"] = csrf!;
+    headers["X-Veoveo-CSRF-Token"] = browserSession.csrfToken!;
     headers["Content-Type"] = "application/json";
   }
   const response = await fetch(`/workspace/api${path}`, {
@@ -43,9 +43,9 @@ export async function request(path: string, method = "GET", body?: unknown, sign
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
   });
-  csrf = response.headers.get("x-veoveo-csrf-token") ?? csrf;
+  browserSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? browserSession.csrfToken;
   if (!response.ok) {
-    if (response.status === 401) { csrf = null; window.dispatchEvent(new Event("workspace-auth-expired")); }
+    if (response.status === 401) { browserSession.csrfToken = undefined; window.dispatchEvent(new Event("workspace-auth-expired")); }
     throw new ApiError(response.status);
   }
   return response.status === 204 ? undefined : response.json();
@@ -92,10 +92,10 @@ export function loginPath(): string {
 }
 
 export async function logout(): Promise<void> {
-  if (!csrf) return;
+  if (!browserSession.csrfToken) return;
   const response = await fetch("/workspace/auth/logout", { method: "POST", credentials: "same-origin", redirect: "manual",
-    headers: { "X-Veoveo-CSRF-Token": csrf } });
+    headers: { "X-Veoveo-CSRF-Token": browserSession.csrfToken } });
   if (!(response.ok || response.type === "opaqueredirect")) throw new ApiError(response.status);
-  csrf = null;
+  browserSession.csrfToken = undefined;
   location.replace("/workspace/");
 }

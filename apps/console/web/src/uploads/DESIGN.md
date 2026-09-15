@@ -13,6 +13,15 @@
 | Browser storage | Small versioned descriptors scoped by origin, tenant, actor, and Work Context; no tokens, file bodies, or part payloads |
 | Accessible dialog | Native labelled input, modal focus containment, Escape dismissal, focus restoration, and phase-only live announcements |
 
+Workspace composes this same queue and panel. Its trusted entrypoint selects the
+Workspace HTTP, CSRF and login boundary through `browserApp.ts`; no transport chooses
+authority from a pathname, caller header or upload descriptor. Workspace metadata
+adds its application name to the version-1 storage scope. Existing Console scopes
+retain their current key. A shared origin is not isolation from same-origin scripts.
+The panel receives its inert background selector from its host and runs in a portal
+beside that background. A file-details dialog temporarily replaces the upload panel,
+which prevents competing keyboard focus traps.
+
 The application shell owns `UploadQueue`. Closing its panel or navigating to another
 Console page does not destroy the queue. A scope change disposes the old queue,
 aborts local work, and drops file handles. The new scope reads only its own saved

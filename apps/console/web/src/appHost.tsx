@@ -1,8 +1,11 @@
+import { configureBrowserApplication } from "./browserApp";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { StandaloneAppHost } from "./StandaloneAppHost";
 import { ThemeProvider } from "./ThemeProvider";
 import "./styles.css";
+
+configureBrowserApplication("console");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

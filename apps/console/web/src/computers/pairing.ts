@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { boundedJson, consoleJson } from "../consoleHttp.ts";
+import { boundedJson, browserJson } from "../browserHttp.ts";
 import { parseComputer } from "../generatedContracts.ts";
 import { revokeAccess } from "./api.ts";
 import type { CliPairingResult } from "../generated/computers.ts";
@@ -36,10 +36,10 @@ export async function pairCli(location: PairingLocation, name: string): Promise<
   let grant: CliPairingResult | undefined;
   let confirming = false;
   try {
-    const challenge = parseComputer("cli_pairing_challenge", await consoleJson(base, input));
+    const challenge = parseComputer("cli_pairing_challenge", await browserJson(base, input));
     if (challenge.computerId !== location.computerId || Date.parse(challenge.expiresAt) <= Date.now()) throw new PairingFailure("The pairing request expired. Run CLI login again.");
     confirming = true;
-    grant = parseComputer("cli_pairing_result", await consoleJson(`${base}/${challenge.pairingId}/confirm`, {}));
+    grant = parseComputer("cli_pairing_result", await browserJson(`${base}/${challenge.pairingId}/confirm`, {}));
     if (grant.computerId !== location.computerId || grant.pairingId !== challenge.pairingId || grant.callbackPort !== location.callbackPort || Date.parse(grant.expiresAt) <= Date.now()) throw new PairingFailure("The pairing response could not be verified.");
     const callback = await fetch(`http://127.0.0.1:${grant.callbackPort}/callback`, {
       method: "POST", mode: "cors", credentials: "omit", cache: "no-store", redirect: "error",

@@ -1,5 +1,6 @@
+import { browserApiRoot } from "../browserApp.ts";
 import { consumeServerSentEvents } from "../apps/resourceEventStream.ts";
-import { acceptConsoleCsrfToken, consoleCsrfToken } from "../csrf.ts";
+import { acceptBrowserCsrfToken, browserCsrfToken } from "../csrf.ts";
 import { authenticationRequired } from "../auth.ts";
 import { parseComputer } from "../generatedContracts.ts";
 
@@ -15,9 +16,9 @@ export function watchComputers(
     const attempt = new AbortController();
     const admission = setTimeout(() => attempt.abort(), 15_000);
     try {
-      const csrf = consoleCsrfToken();
+      const csrf = browserCsrfToken();
       if (!csrf) throw new Error("Session unavailable");
-      const response = await fetch("/console/api/computers/events", {
+      const response = await fetch(`${browserApiRoot()}/computers/events`, {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
@@ -31,7 +32,7 @@ export function watchComputers(
         signal: AbortSignal.any([stop.signal, attempt.signal]),
       });
       clearTimeout(admission);
-      acceptConsoleCsrfToken(response.headers.get("x-veoveo-csrf-token"));
+      acceptBrowserCsrfToken(response.headers.get("x-veoveo-csrf-token"));
       if (response.status === 401) {
         stop.abort();
         authenticationRequired();

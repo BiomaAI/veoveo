@@ -14,6 +14,7 @@ COPY apps/workspace/package.json apps/workspace/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm install --global npm@12.0.2 \
     && npm ci
 COPY apps/workspace ./
+COPY apps/console/web/src /app/apps/console/web/src
 RUN npm run build
 
 FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132

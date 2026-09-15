@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { consoleJson } from "./consoleHttp";
+import { browserJson } from "./browserHttp";
 import { parseConsoleBootstrap } from "./generatedContracts";
 import type { ConsoleBootstrap } from "./generated/console";
 import { demoSnapshot } from "./demo";
@@ -24,7 +24,7 @@ export function useConsoleBootstrap() {
           session: demoSnapshot.session,
         });
       }
-      return parseConsoleBootstrap(await consoleJson("session", undefined, signal));
+      return parseConsoleBootstrap(await browserJson("session", undefined, signal));
     },
     staleTime: 30_000,
     refetchOnWindowFocus: true,

@@ -78,6 +78,23 @@ types remain downloadable. Revoked or unavailable reads explain that a chat link
 does not confer file access. The preview GET rechecks authority; neither a Task
 receipt nor the prior HEAD response grants continuing access.
 
+Uploads reuse the Console-owned queue, hashing worker and accessible panel. Each
+browser entrypoint selects its application once through `browserApp.ts`; shared
+HTTP, CSRF and login helpers then use that explicit root. A missing selection or
+attempt to change applications fails. Workspace never initializes a Console session.
+Its upload metadata has a separate storage scope and retains only descriptors and
+receipt identities, with the same current-authority recovery as Console. The queue
+outlives panel closure and chat navigation. It disposes on identity/context removal.
+Uploaded files remain governed resources; the upload panel does not publish them
+into shared chat history.
+
+Shared component source stays with its existing owner under `apps/console/web/src`.
+Vite resolves shared package imports to Workspace's exact installed dependencies,
+and TypeScript uses the same resolution. React and Query have one instance per
+application. Docker copies the shared source into the independent Workspace asset
+stage; source sharing adds no Rust dependency. The dedicated client evidence catalog
+declares both source trees, independently of the Rust Workspace checks.
+
 ## Development And Acceptance
 
 Run `npm ci` and `npm run dev` in this directory. Vite uses port 4174 and proxies

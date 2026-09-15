@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload, X } from "lucide-react";
 import { formatBytes } from "../format";
-import { artifactDownloadUrl } from "../api";
+import { artifactDownloadUrl } from "../artifactUrls";
 import { redirectToLogin } from "../auth";
 import type { Entry, Receipt } from "./model";
 import type { QueueState, UploadQueue } from "./queue";
 import "./uploads.css";
 
-export function UploadPanel({ queue, state, onClose, onView }: {
-  queue: UploadQueue; state: QueueState; onClose: () => void; onView?: (receipt: Receipt) => Promise<void>;
+export function UploadPanel({ queue, state, onClose, onView, backgroundSelector = ".app-shell" }: {
+  queue: UploadQueue; state: QueueState; onClose: () => void; onView?: (receipt: Receipt) => Promise<void>; backgroundSelector?: string;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -27,11 +27,11 @@ export function UploadPanel({ queue, state, onClose, onView }: {
       else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
     };
     document.addEventListener("keydown", keydown);
-    const shell = document.querySelector<HTMLElement>(".app-shell");
+    const shell = document.querySelector<HTMLElement>(backgroundSelector);
     // The panel is a sibling of the application shell, so underlying controls are inert.
     shell?.setAttribute("inert", "");
     return () => { document.removeEventListener("keydown", keydown); shell?.removeAttribute("inert"); previous?.focus(); };
-  }, []);
+  }, [backgroundSelector]);
   const selected = state.entries.filter((entry) => entry.phase === "Selected");
   const bytes = selected.reduce((sum, entry) => sum + entry.descriptor.byte_len, 0);
   const phases = state.entries.map((entry) => `${entry.descriptor.filename}: ${entry.phase}`).join(". ");
@@ -71,7 +71,7 @@ export function UploadPanel({ queue, state, onClose, onView }: {
         {!state.entries.length && <p className="subdued">Select files to start an upload.</p>}
         <ul className="upload-queue">{state.entries.map((entry) => <UploadRow key={entry.key} entry={entry} queue={queue} onView={onView} />)}</ul>
       </div>
-      <footer>Keep this tab open while sending files. Closing the panel or navigating within Console keeps uploads running.</footer>
+      <footer>Keep this tab open while sending files. Closing the panel or navigating within this app keeps uploads running.</footer>
     </div>
   </div>;
 }
