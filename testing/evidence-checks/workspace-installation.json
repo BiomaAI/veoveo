@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deployment-smoke",
+        "--test",
+        "workspace_helm"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-deployment-smoke"
+        ],
+        "roots": [
+          "deploy/helm/veoveo",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-deployment-smoke",
+        "--test",
+        "workspace_helm",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-deployment-smoke"
+        ],
+        "roots": [
+          "deploy/helm/veoveo",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-deployment-smoke",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-deployment-smoke"
+        ],
+        "roots": [
+          "deploy/helm/veoveo",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}

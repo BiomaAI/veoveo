@@ -11,6 +11,28 @@
 | `veoveo.io/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
 
+## Workspace Models
+
+Workspace models execute in the gateway. `gateway.workspace.agents` supplies its
+closed installation definitions, serialized into `VEOVEO_WORKSPACE_AGENTS`. Each
+definition binds an exact provider endpoint, model, registered secret reference,
+tenant, Work Context allowlist and tool allowlist. The gateway validates these
+against its activated catalog before serving. Empty definitions enable human
+collaboration without an agent. Values never contain provider credentials.
+
+`gateway.workspace.modelSecrets` maps names beginning `VEOVEO_WORKSPACE_MODEL_`
+to exact keys in installation-owned Kubernetes Secrets. These references enter
+only the gateway container. They cannot replace its signing, database or session
+variables. Agent-definition changes alter the Pod template and require new chat
+admission because the definition digest changes. The separate browser-edge
+`consoleBff.workspace` settings continue to select Workspace's own OAuth client,
+resource and requested scopes. They provide no administrator permission.
+
+The model configuration is qualified by `cargo test -p veoveo-deployment-smoke
+--test workspace_helm`, which requires Helm and GNU timeout. It checks the real
+rendered environments and rejects inline keys, reserved variables and out-of-bounds
+definitions. Provider execution and public browser acceptance remain separate checks.
+
 ## Computers Control
 
 The `full` and `extension-foundation` presets include `computers`. A custom partial

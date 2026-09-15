@@ -21,6 +21,32 @@ identity, origins, capacity, and provider selection live here. The build and
 installation architecture does not contain Bioma-specific roles, scopes, or
 release machinery.
 
+## Workspace Models
+
+The Workspace configuration in `values.yaml` admits Assistant and Reviewer in the
+Bioma operations Work Context. It reuses the qualified Cloudflare Workers AI model
+`@cf/moonshotai/kimi-k2.6` from the pilot model configuration. These are separate
+per-chat contexts with explicit capability allowlists. They have no pilot identity,
+simulation control or service credentials. The configured account identifier is
+public configuration; the provider token remains in an installation-owned Secret.
+
+Before activating the Workspace gateway image, create the referenced provider
+Secret from a protected local credential file:
+
+```sh
+kubectl --context k3d-veoveo-bioma -n veoveo create secret generic veoveo-workspace-models --from-file=api-key=/private/cloudflare-api-token
+```
+
+The token needs model inference permission for the account configured in the model
+URL. Do not put it in Helm values, Git or command-line literals. The gateway alone
+receives the selected key through `VEOVEO_WORKSPACE_MODEL_API_KEY`. The browser edge
+uses the distinct Workspace OAuth client and requests operator use, Artifact upload
+and time-read scopes. Work Context and resource policies still govern every action.
+
+The client entry is `/workspace/`. Agent responses can dispatch admitted native MCP
+operations; Task input and results remain in the initiating person's private Activity.
+The installation must pass real model and public Task acceptance after rollout.
+
 Owner-local acceptance checks the shared server contract and validates the complete
 typed installation catalog. Profiles, clients and policy belong to this installation;
 they may differ from the disposable local fixture. Journey checks verify the selected

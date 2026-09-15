@@ -1,4 +1,7 @@
 {{- if include "veoveo.componentEnabled" (list . "gateway") }}
+{{- if gt (len (.Values.gateway.workspace.agents | toJson)) 131072 }}
+{{- fail "gateway.workspace.agents exceeds the 128 KiB configuration bound" }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -67,6 +70,15 @@ spec:
             - /etc/veoveo/gateway/{{ .Values.gateway.controlPlaneKey }}
           env:
             {{- include "veoveo.surrealEnv" . | nindent 12 }}
+            {{- range $name, $reference := .Values.gateway.workspace.modelSecrets }}
+            - name: {{ $name | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $reference.existingSecret | quote }}
+                  key: {{ $reference.key | quote }}
+            {{- end }}
+            - name: VEOVEO_WORKSPACE_AGENTS
+              value: {{ .Values.gateway.workspace.agents | toJson | quote }}
             - name: VEOVEO_INTERNAL_SIGNING_KEY_DER_B64
               valueFrom:
                 secretKeyRef:
