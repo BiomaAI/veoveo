@@ -3,7 +3,6 @@ use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CancelTaskParams, InputRequiredResult, TaskPayload,
     UpdateTaskParams,
 };
-use secrecy::SecretString;
 use tokio::sync::OwnedSemaphorePermit;
 use veoveo_platform_store::workspace::{
     WorkspaceOperationIntent, WorkspaceOperationOutcome as Outcome,
@@ -17,18 +16,11 @@ pub(super) async fn start(
     Json(request): Json<wire::StartOperation>,
 ) -> Api<wire::OperationSummary> {
     let profile = profile(raw_profile)?;
-    let authority = state.authority(&subject, &profile).await?;
-    let bearer = native::bearer(&headers)?;
-    let permit = state
-        .limits
-        .clone()
-        .try_acquire_owned()
-        .map_err(|_| StatusCode::TOO_MANY_REQUESTS)?;
-    let admitted = state
-        .workspace
-        .store
-        .start_workspace_operation(
-            &authority,
+    let caller = Caller::new(profile.clone(), subject, &headers)?;
+    Ok(Json(
+        submit(
+            state,
+            caller,
             WorkspaceOperationId::from_uuid(request.id.0),
             WorkspaceOperationIntent {
                 chat: WorkspaceChatId::from_uuid(chat),
@@ -38,21 +30,52 @@ pub(super) async fn start(
                 arguments: serde_json::to_string(&request.arguments)
                     .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?,
             },
+            false,
         )
+        .await?,
+    ))
+}
+
+pub(super) async fn submit(
+    state: OperationState,
+    caller: Caller,
+    id: WorkspaceOperationId,
+    intent: WorkspaceOperationIntent,
+    wait_for_dispatch: bool,
+) -> Result<wire::OperationSummary, StatusCode> {
+    if intent.profile != caller.profile.as_str() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let authority = state.authority(&caller.subject, &caller.profile).await?;
+    let run_fence = intent.run.map(|(_, fence)| fence);
+    let permit = state
+        .limits
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| StatusCode::TOO_MANY_REQUESTS)?;
+    let admitted = state
+        .workspace
+        .store
+        .start_workspace_operation(&authority, id, intent)
         .await
         .map_err(fault)?;
     let response = projection::summary(&admitted.operation)?;
     if admitted.dispatch {
-        tokio::spawn(dispatch(
+        let dispatched = tokio::spawn(dispatch(
             state,
-            profile,
-            bearer,
+            caller,
             admitted.operation,
             None,
+            run_fence,
             permit,
         ));
+        if wait_for_dispatch {
+            // Keep the model run alive until the native invocation has an
+            // observed receipt. The Task itself continues independently.
+            let _ = dispatched.await;
+        }
     }
-    Ok(Json(response))
+    Ok(response)
 }
 
 pub(super) async fn cancel(
@@ -161,10 +184,14 @@ pub(super) async fn answer(
         call.input_responses = Some(responses);
         tokio::spawn(dispatch(
             state,
-            profile,
-            bearer,
+            Caller {
+                profile,
+                subject,
+                bearer,
+            },
             resumed,
             Some(call),
+            None,
             permit,
         ));
     } else {
@@ -184,19 +211,36 @@ fn call(operation: &WorkspaceOperation) -> Result<CallToolRequestParams, StatusC
 
 async fn dispatch(
     state: OperationState,
-    profile: GatewayProfileId,
-    bearer: SecretString,
+    caller: Caller,
     operation: WorkspaceOperation,
     continuation: Option<CallToolRequestParams>,
+    run_fence: Option<Uuid>,
     _permit: OwnedSemaphorePermit,
 ) {
     let Ok(id) = super::super::projection::uuid(&operation.id) else {
         return;
     };
     let work = async {
-        let Ok(client) = state.native.connect(&profile, &bearer).await else {
+        let Ok(client) = state.native.connect(&caller.profile, &caller.bearer).await else {
             return Outcome::Failed;
         };
+        let Ok(authority) = state.authority(&caller.subject, &caller.profile).await else {
+            return Outcome::Failed;
+        };
+        if state
+            .workspace
+            .store
+            .check_workspace_operation_dispatch(
+                &authority,
+                WorkspaceOperationId::from_uuid(id),
+                operation.fence,
+                run_fence,
+            )
+            .await
+            .is_err()
+        {
+            return Outcome::Failed;
+        }
         let params = match continuation.map(Ok).unwrap_or_else(|| call(&operation)) {
             Ok(value) => value,
             Err(_) => return Outcome::Failed,

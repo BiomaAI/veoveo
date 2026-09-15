@@ -19,6 +19,13 @@ export type PersonId = string;
  */
 export type RunState = "queued" | "running" | "completed" | "cancelled" | "interrupted" | "failed";
 /**
+ * Gateway-scoped tool name after server namespace projection.
+ *
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "GatewayToolName".
+ */
+export type GatewayToolName = string;
+/**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
  * via the `definition` "InputDecision".
  */
@@ -140,6 +147,7 @@ export interface AgentDefinition {
   model: string;
   name: string;
   provider: string;
+  tools: GatewayToolName[];
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema

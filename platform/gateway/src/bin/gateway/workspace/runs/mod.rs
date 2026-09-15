@@ -3,13 +3,19 @@ mod keys;
 mod projection;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tool_tests;
+mod tools;
 mod worker;
 
-use super::{Api, WorkspaceState, authority, fault};
+use super::{
+    Api, WorkspaceState, authority, fault,
+    operations::{Caller, OperationState},
+};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, State},
-    http::{HeaderValue, StatusCode, header::CACHE_CONTROL},
+    http::{HeaderMap, HeaderValue, StatusCode, header::CACHE_CONTROL},
     routing::{delete, get, post},
 };
 use chrono::{TimeDelta, Utc};
@@ -35,6 +41,7 @@ struct RunState {
     stop: CancellationToken,
     http: reqwest::Client,
     keys: keys::ModelKeys,
+    operations: OperationState,
 }
 
 pub(crate) fn router(
@@ -42,6 +49,7 @@ pub(crate) fn router(
     gateway: GatewayState,
     catalog: GatewayCatalogHandle,
     stop: CancellationToken,
+    operations: OperationState,
 ) -> anyhow::Result<Router> {
     let definitions = config::from_env(&catalog.current())?;
     let http = reqwest::Client::builder()
@@ -58,6 +66,7 @@ pub(crate) fn router(
         stop,
         http,
         keys: keys::ModelKeys::default(),
+        operations,
     }))
 }
 
@@ -176,9 +185,11 @@ async fn start(
     State(state): State<RunState>,
     Path((profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
+    headers: HeaderMap,
     Json(request): Json<wire::StartRun>,
 ) -> Api<wire::Run> {
     let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
+    let caller = Caller::new(profile.clone(), subject.clone(), &headers)?;
     let authority = authority::admit_live(
         &state.workspace,
         &state.gateway,
@@ -232,9 +243,7 @@ async fn start(
         .map_err(fault)?;
     let response = projection::run(run.clone())?;
     if run.state == WorkspaceRunState::Queued {
-        tokio::spawn(worker::execute(
-            state, profile, subject, definition, run, permit,
-        ));
+        tokio::spawn(worker::execute(state, caller, definition, run, permit));
     }
     Ok(Json(response))
 }

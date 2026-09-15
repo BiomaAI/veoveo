@@ -82,7 +82,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
         }
         if (path.pathname.endsWith("/events")) return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: change\ndata: {"sequence":${chat.sequence}}\n\n` });
         if (path.pathname.endsWith("/activity")) return respond({ agents, runs });
-        if (path.pathname.endsWith("/agents")) return respond(agents.map(agent => ({ id: agent.definition, name: agent.name, description: "Explicit browser fixture", provider: agent.provider, model: agent.model })));
+        if (path.pathname.endsWith("/agents")) return respond(agents.map(agent => ({ id: agent.definition, name: agent.name, description: "Explicit browser fixture", provider: agent.provider, model: agent.model, tools: [] })));
         if (path.pathname.endsWith("/runs")) {
           runStarts.push(body);
           let run = runs.find(run => run.agent === body.agent && run.trigger === body.trigger);
@@ -161,6 +161,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.setViewportSize({ width: 1440, height: 1000 });
     await owner.getByRole("button", { name: "Activity", exact: true }).click();
     console.log(JSON.stringify({ step: "open task input" }));
+    operation.runId = runs[0].id;
     await owner.getByText("Needs your input", { exact: true }).waitFor();
     await owner.getByRole("spinbutton", { name: "Follow-ups" }).fill("2");
     console.log(JSON.stringify({ step: "submit task input" }));
@@ -189,6 +190,10 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.bringToFront();
     await hardware(owner);
     await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-tasks-local.png", import.meta.url)) });
+    await owner.getByRole("link", { name: chat.title, exact: true }).click();
+    await owner.getByRole("region", { name: "Your activity in this chat", exact: true }).waitFor();
+    await owner.getByText("Writer · Requested for you", { exact: true }).waitFor();
+    assert.equal(operationPosts.length, 2, "opening the originating chat restores the receipt without dispatch");
     assert.deepEqual(errors, []);
 
   } finally {

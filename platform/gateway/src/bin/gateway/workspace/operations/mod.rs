@@ -4,6 +4,8 @@ mod inputs;
 mod native;
 mod projection;
 #[cfg(test)]
+pub(super) mod test_domain;
+#[cfg(test)]
 mod tests;
 
 use super::{Api, WorkspaceState, authority, fault};
@@ -14,6 +16,7 @@ use axum::{
     routing::{get, post},
 };
 use rmcp::model::{GetTaskParams, PaginatedRequestParams};
+use secrecy::SecretString;
 use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Semaphore;
@@ -38,7 +41,48 @@ pub(crate) struct OperationState {
     stop: CancellationToken,
 }
 
+/// Credentials remain in memory and always represent the initiating human.
+#[derive(Clone)]
+pub(crate) struct Caller {
+    pub profile: GatewayProfileId,
+    pub subject: AuthenticatedSubject,
+    pub bearer: SecretString,
+}
+
+impl Caller {
+    pub fn new(
+        profile: GatewayProfileId,
+        subject: AuthenticatedSubject,
+        headers: &HeaderMap,
+    ) -> Result<Self, StatusCode> {
+        Ok(Self {
+            profile,
+            subject,
+            bearer: native::bearer(headers)?,
+        })
+    }
+}
+
 impl OperationState {
+    pub async fn capabilities(
+        &self,
+        caller: &Caller,
+    ) -> Result<Vec<rmcp::model::Tool>, StatusCode> {
+        self.authority(&caller.subject, &caller.profile).await?;
+        let client = self.native.connect(&caller.profile, &caller.bearer).await?;
+        let result = tools(&client).await;
+        client.close().await;
+        result
+    }
+
+    pub async fn submit(
+        &self,
+        caller: Caller,
+        id: WorkspaceOperationId,
+        intent: veoveo_platform_store::workspace::WorkspaceOperationIntent,
+    ) -> Result<wire::OperationSummary, StatusCode> {
+        commands::submit(self.clone(), caller, id, intent, true).await
+    }
     pub fn new(
         store: PlatformStore,
         gateway: GatewayState,
