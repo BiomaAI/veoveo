@@ -35,3 +35,10 @@ to the fixed Workspace gateway profile. Input DTOs exclude `requestState`, Task
 replacement IDs and authority fields. The same session/CSRF boundary applies to
 these mutations. A bounded comma-separated list of operation UUIDs selects the
 contentless native Task wake stream; the gateway resolves and authorizes Task IDs.
+
+Artifact result preview and download use the existing streaming handlers under
+`/workspace/api/artifacts/{id}`. Every read requires the Workspace cookie and fixes
+the Workspace profile; a receipt or chat membership supplies no read grant. Range
+and conditional reads retain the governed download boundary. Preview documents
+receive a sandbox CSP without scripts or same-origin authority, including direct
+navigation to HTML or SVG content. No Artifact body is buffered in the edge.

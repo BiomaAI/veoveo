@@ -205,6 +205,13 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 159 is active at `/workspace/` on veoveo.bioma.ai. Ordinary browser SSO,
+  two real agent responses and an agent-created native media Task pass installed
+  acceptance. The Task completed through its domain and survived browser reload
+  with the identical opaque ID and one operation receipt. GitHub report run
+  `35034777083` passes. Governed result actions, capability views and the remaining
+  installed multi-user/input/replacement gates are still being completed.
+
 - Agent tool execution now uses the native operation journal. Exact configured
   allowlists intersect current human discovery, repeated identical requests keep
   one Task identity, and cancelled runs cannot dispatch later actions. A real local

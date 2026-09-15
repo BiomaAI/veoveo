@@ -116,6 +116,92 @@ impl Edge {
 }
 
 #[tokio::test]
+async fn artifact_results_use_current_workspace_authority_and_sandbox_untrusted_bytes() {
+    let id = uuid::Uuid::now_v7();
+    let denied = uuid::Uuid::now_v7();
+    let upstream = Router::new()
+        .route(
+            &format!("/artifacts/workspace/{id}/download"),
+            get(|headers: HeaderMap| async move {
+                assert_eq!(headers["authorization"], "Bearer cookie-access");
+                assert!(!headers.contains_key("cookie"));
+                assert_ne!(headers["host"], "untrusted.invalid");
+                ([
+                    ("content-type", "image/svg+xml"),
+                    ("cache-control", "no-store"),
+                    ("content-disposition", "attachment; filename=untrusted.svg"),
+                ], "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>fetch('/workspace/api/session')</script></svg>")
+            }),
+        )
+        .route(
+            &format!("/artifacts/workspace/{denied}/download"),
+            get(|| async { StatusCode::FORBIDDEN }),
+        );
+    let edge = Edge::new(upstream).await;
+    let preview = format!("/workspace/api/artifacts/{id}/preview");
+    assert_eq!(
+        edge.request("GET", &preview, false, false, "")
+            .await
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    let response = edge.request("GET", &preview, true, false, "").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-type"], "image/svg+xml");
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    assert_eq!(response.headers()["content-disposition"], "inline");
+    assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+    let policy = response.headers()["content-security-policy"]
+        .to_str()
+        .unwrap();
+    assert!(policy.starts_with("sandbox; default-src 'none';"));
+    assert!(!policy.contains("allow-scripts"));
+    assert!(!policy.contains("allow-same-origin"));
+    assert_eq!(response.headers()["referrer-policy"], "no-referrer");
+    let head = edge.request("HEAD", &preview, true, false, "").await;
+    assert_eq!(head.status(), StatusCode::OK);
+    assert!(to_bytes(head.into_body(), 1024).await.unwrap().is_empty());
+    let download = edge
+        .request(
+            "GET",
+            &format!("/workspace/api/artifacts/{id}/download"),
+            true,
+            false,
+            "",
+        )
+        .await;
+    assert_eq!(download.status(), StatusCode::OK);
+    assert_eq!(
+        download.headers()["content-disposition"],
+        "attachment; filename=untrusted.svg"
+    );
+    assert_eq!(
+        edge.request(
+            "GET",
+            &format!("/workspace/api/artifacts/{denied}/preview"),
+            true,
+            false,
+            ""
+        )
+        .await
+        .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        edge.request(
+            "GET",
+            "/workspace/api/artifacts/invalid/preview",
+            true,
+            false,
+            ""
+        )
+        .await
+        .status(),
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
 async fn workspace_login_uses_its_own_client_callback_scopes_and_pending_cookie() {
     let upstream = Router::new().route("/.well-known/oauth-protected-resource/mcp/workspace", get(|headers: HeaderMap| async move {
         Json(json!({"resource": format!("http://{}/mcp/workspace", headers["host"].to_str().unwrap()), "scopes_supported":["operator:use","artifact:upload"]}))

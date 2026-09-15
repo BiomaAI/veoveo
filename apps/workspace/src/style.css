@@ -923,3 +923,8 @@ p {
 .run-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 7px; font-size: 12px; color: #69726d; }
 .stop-response { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; font-size: 11px; }
 .agent-disclosure { padding: 8px 0; font-size: 13px; }
+.resource-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+.resource-actions button, .resource-download { display: inline-flex; gap: 6px; align-items: center; }
+.resource-download { font-size: 12px; color: var(--text); text-decoration: underline; }
+.task-image { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; margin-top: 12px; border-radius: 8px; }
+.task-resource details { margin-top: 8px; }
