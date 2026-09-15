@@ -38,6 +38,7 @@ pub mod uri;
 pub mod usage;
 pub mod waiters;
 pub mod work_context;
+pub mod workspace;
 
 pub use access::{
     ARTIFACT_PLANE_SCHEME, AccessDecision, AccessLevel, AccessRequest, ArtifactId, ArtifactIdError,

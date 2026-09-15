@@ -278,6 +278,16 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             )),
     );
 
+    router = router.merge(
+        crate::workspace::router(crate::workspace::WorkspaceState {
+            store: control_store.platform_store().clone(),
+        })
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            authenticate_mcp,
+        )),
+    );
+
     let server_health =
         spawn_server_health_prober(catalog.clone(), upstream_http.clone(), ct.child_token());
     let console_stream =

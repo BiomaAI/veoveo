@@ -1,9 +1,11 @@
 //! Durable shared-chat operations. Policy admission is server-owned; membership,
 //! current context and message order are enforced within each transaction.
 mod membership;
+mod people;
 mod records;
 
 pub use membership::WorkspaceSettings;
+pub use people::{WorkspaceContext, WorkspaceIdentity, WorkspacePerson};
 pub use records::*;
 
 use std::time::Duration;

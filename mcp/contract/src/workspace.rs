@@ -1,0 +1,187 @@
+//! Workspace browser application DTOs. This is an HTTP application contract;
+//! agent execution and MCP Tasks retain their own identities and protocols.
+use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::{PrincipalId, TenantId, WorkContextId};
+
+macro_rules! id {
+    ($name:ident) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+        #[serde(transparent)]
+        pub struct $name(pub Uuid);
+    };
+}
+
+id!(ChatId);
+id!(MessageId);
+id!(MemberId);
+id!(InvitationId);
+/// Installation-local human identity; never an email address or bearer credential.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct PersonId(pub Uuid);
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceBootstrap {
+    pub person: Person,
+    pub principal_id: PrincipalId,
+    pub tenant_id: TenantId,
+    pub tenant_name: String,
+    pub work_context: WorkContextId,
+    pub work_context_title: String,
+    pub can_contribute: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Chat {
+    pub id: ChatId,
+    pub title: String,
+    pub owner: PersonId,
+    pub archived: bool,
+    pub members_can_invite: bool,
+    pub sequence: i64,
+    pub revision: i64,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Person {
+    pub id: PersonId,
+    pub display_name: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Member {
+    pub id: MemberId,
+    pub person: Person,
+    pub active: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Message {
+    pub id: MessageId,
+    pub author: MemberId,
+    pub text: String,
+    pub reply_to: Option<MessageId>,
+    pub sequence: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ChatSnapshot {
+    pub chat: Chat,
+    pub members: Vec<Member>,
+    pub messages: Vec<Message>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum InvitationState {
+    Pending,
+    Accepted,
+    Declined,
+    Revoked,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Invitation {
+    pub id: InvitationId,
+    pub chat_id: ChatId,
+    pub inviter: PersonId,
+    pub invitee: PersonId,
+    pub state: InvitationState,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateChat {
+    pub id: ChatId,
+    pub title: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SendMessage {
+    pub id: MessageId,
+    pub text: String,
+    pub reply_to: Option<MessageId>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InvitePerson {
+    pub id: InvitationId,
+    pub invitee: PersonId,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DecideInvitation {
+    pub chat_id: ChatId,
+    pub state: InvitationState,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ChatSettings {
+    pub expected_revision: i64,
+    pub title: String,
+    pub archived: bool,
+    pub members_can_invite: bool,
+    pub owner: PersonId,
+}
+
+/// A wake identifies only a committed chat head. Consumers fetch authorized
+/// state; invitation metadata and private capability results are not broadcast.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ChatWake {
+    pub sequence: i64,
+}
+
+#[derive(JsonSchema)]
+#[allow(dead_code)]
+struct WorkspaceSchema {
+    bootstrap: WorkspaceBootstrap,
+    snapshot: ChatSnapshot,
+    invitation: Invitation,
+    create_chat: CreateChat,
+    send_message: SendMessage,
+    invite_person: InvitePerson,
+    decide_invitation: DecideInvitation,
+    settings: ChatSettings,
+    wake: ChatWake,
+}
+
+pub fn schema_bundle() -> schemars::Schema {
+    schemars::schema_for!(WorkspaceSchema)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn message_admission_rejects_forged_author_and_unknown_control_fields() {
+        let message = serde_json::json!({
+            "id": Uuid::now_v7(), "text": "Hello", "replyTo": null,
+            "author": Uuid::now_v7()
+        });
+        assert!(serde_json::from_value::<SendMessage>(message).is_err());
+        let invitation = serde_json::json!({
+            "id": Uuid::now_v7(), "invitee": Uuid::now_v7(), "role": "owner"
+        });
+        assert!(serde_json::from_value::<InvitePerson>(invitation).is_err());
+    }
+}

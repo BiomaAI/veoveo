@@ -73,6 +73,154 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-gateway"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-console-bff"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-console-bff"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-contract",
+        "--lib",
+        "workspace::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-contract"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-mcp-contract",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "-p",
+        "veoveo-xtask",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store",
+          "veoveo-mcp-contract",
+          "veoveo-mcp-gateway",
+          "veoveo-console-bff",
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/workspace",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-mcp-contract",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "-p",
+        "veoveo-xtask",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store",
+          "veoveo-mcp-contract",
+          "veoveo-mcp-gateway",
+          "veoveo-console-bff",
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "tools/image-build",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma",
+          "apps/workspace",
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }
