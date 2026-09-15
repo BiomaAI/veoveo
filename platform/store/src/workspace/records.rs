@@ -40,6 +40,7 @@ pub struct WorkspaceChat {
     pub tenant: RecordId,
     pub work_context: RecordId,
     pub owner: RecordId,
+    pub created_by: Option<RecordId>,
     pub title: String,
     pub initial_title: String,
     pub archived: bool,
@@ -116,6 +117,12 @@ pub enum WorkspaceEventKind {
     #[serde(rename = "settings")]
     #[surreal(value = "settings")]
     Settings,
+    #[serde(rename = "agent")]
+    #[surreal(value = "agent")]
+    Agent,
+    #[serde(rename = "run")]
+    #[surreal(value = "run")]
+    Run,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]

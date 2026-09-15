@@ -120,6 +120,8 @@ domain_id!(AgentEpisodeId, "agent_episode");
 domain_id!(AgentTaskId, "agent_task");
 domain_id!(AgentInputRequestId, "agent_input_request");
 domain_id!(WorkspaceChatId, "workspace_chat");
+domain_id!(WorkspaceAgentId, "workspace_agent");
+domain_id!(WorkspaceRunId, "workspace_run");
 domain_id!(WorkspaceMemberId, "workspace_member");
 domain_id!(WorkspaceMessageId, "workspace_message");
 domain_id!(WorkspaceInvitationId, "workspace_invitation");

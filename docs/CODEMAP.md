@@ -193,6 +193,7 @@ Hub, administration, and GPU policy.
 | [`tools/xtask/src/commands/test_report/`](../tools/xtask/src/commands/test_report/DESIGN.md) | CE-06 immutable receipts, exact-command source planning, publication/integrity and explicit coverage verification; installed adapters and release-lock coverage composition remain work |
 | [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT and command-key enrollment with separate host, worker and operator outputs |
 | `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
+| [`platform/store/src/workspace/runs/`](../platform/store/src/workspace/runs/DESIGN.md) | per-chat agent admission, bounded concurrent runs, fixed context, execution fences, cancellation and interrupted-worker recovery |
 | `mcp/contract/src/workspace.rs` | typed Workspace chat, human membership, invitation, message and owner-settings HTTP DTOs; agent/run projections remain delivery work |
 | [`platform/gateway/src/bin/gateway/workspace/`](../platform/gateway/src/bin/gateway/workspace/DESIGN.md) | direct-human Work Context admission, bounded chat/history/invitation routes and membership-authorized durable-head event streams |
 | [`apps/console/web/src/computers/`](../apps/console/web/src/computers/DESIGN.md) | native collection, retained lifecycle request recovery, bounded live invalidations, lazy hardware terminal and replay/lease state machine; installed acceptance remains in progress |

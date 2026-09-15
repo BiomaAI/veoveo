@@ -201,3 +201,8 @@ be scoped and cleaned up through supported operations.
 - Existing kernel model construction is coupled to the full analytical runtime.
   Extract or reuse the narrow execution boundary as implementation requires; do not
   pull DuckDB and Rerun into the gateway solely to produce chat responses.
+- The run-store checkpoint adds per-chat agent admission, immutable prompt boundaries,
+  independent run records, transactional claims, publication fences, cancellation,
+  bounded concurrency and persisted interruption after worker loss. The scoped
+  database suite passes 55 tests. Model dispatch and the browser run controls still
+  remain implementation work; the store fixtures do not execute a model.
