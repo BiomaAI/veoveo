@@ -5,6 +5,20 @@
 Workspace implementation reuses the installed platform. These measurements cover
 local development only; a Workspace image has not yet been built or deployed.
 
+The model-to-native-Task integration fixture completes in 3.2 seconds. It caught
+an extra model continuation after a cancelled run's tool admission was rejected;
+the authority-loss signal now stops the model stream before that additional call.
+Native invocation settlement keeps the run alive only through dispatch. Waiting
+for an entire Task would consume a model worker and couple unrelated lifecycles.
+Schema validators compile once per run instead of once per tool request.
+
+The native Tasks checkpoint added about 87,000 lines, predominantly repeated source
+manifests in immutable evidence receipts. The existing content-addressed manifest
+optimization remains future build-system work. One exploratory full-store command
+used an undeclared argument shape and produced unqualified evidence; the exact
+catalogued command then produced the qualifying receipt. Inspect the command
+catalog before recording, because a display name cannot establish coverage.
+
 The native Tasks checkpoint exposed another avoidable browser-test delay: a final
 capture waited on a background tab even though its form, reload and cancellation
 assertions had passed. Bringing the owned headed tab to the foreground before

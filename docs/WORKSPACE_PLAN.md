@@ -205,6 +205,12 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Agent tool execution now uses the native operation journal. Exact configured
+  allowlists intersect current human discovery, repeated identical requests keep
+  one Task identity, and cancelled runs cannot dispatch later actions. A real local
+  model/MCP/runtime fixture passes. Private results remain in the initiating
+  person's Activity; automatic analysis or chaining of private outputs is not
+  supported by this first shared-chat execution boundary. Public rollout remains pending.
 - Native MCP operation routes and the first-class Task client are implemented
   locally. Real protocol/runtime acceptance covers durable recovery, Task input,
   subscriptions and cancellation semantics. A headed RTX 4090 browser fixture

@@ -51,6 +51,12 @@
         },
         "provider": {
           "type": "string"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/GatewayToolName"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -58,7 +64,8 @@
         "name",
         "description",
         "provider",
-        "model"
+        "model",
+        "tools"
       ],
       "type": "object"
     },
@@ -287,6 +294,10 @@
         "state"
       ],
       "type": "object"
+    },
+    "GatewayToolName": {
+      "description": "Gateway-scoped tool name after server namespace projection.",
+      "type": "string"
     },
     "InputAnswer": {
       "additionalProperties": false,

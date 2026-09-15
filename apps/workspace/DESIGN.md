@@ -63,6 +63,9 @@ text and canonical resource references. Native subscriptions wake authorized rea
 visible active tasks reconcile at no less than five seconds or the server's longer
 poll interval. Completed tasks stop that interval. Unknown progress is indeterminate.
 Reload restores receipts and Task references without submitting work. The gateway
+connects admitted agent tools to those same receipts. Activity identifies agent
+requests for the initiating person and links back to the originating chat. Agent
+admission discloses the configured capability scope before sharing history. The gateway
 has native protocol/runtime acceptance; capability views and installed acceptance
 remain required implementation work.
 

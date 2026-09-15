@@ -29,6 +29,12 @@ struct Resume {
     fence: Uuid,
 }
 #[derive(Clone, SurrealValue)]
+struct Dispatch {
+    operation: RecordId,
+    fence: Uuid,
+    run_fence: Option<Uuid>,
+}
+#[derive(Clone, SurrealValue)]
 struct Page {
     chat: Option<RecordId>,
     before: Option<RecordId>,
@@ -43,6 +49,29 @@ struct Settle {
 }
 
 impl PlatformStore {
+    /// Recheck the person's live chat and optional run authority immediately
+    /// before the single external invocation. This never issues a new claim.
+    pub async fn check_workspace_operation_dispatch(
+        &self,
+        authority: &WorkspaceAuthority,
+        id: WorkspaceOperationId,
+        fence: Uuid,
+        run_fence: Option<Uuid>,
+    ) -> Result<()> {
+        let _: bool = self
+            .workspace_query(
+                authority,
+                Dispatch {
+                    operation: id.record_id(),
+                    fence,
+                    run_fence,
+                },
+                include_str!("dispatch.surql"),
+            )
+            .await?;
+        Ok(())
+    }
+
     pub async fn start_workspace_operation(
         &self,
         authority: &WorkspaceAuthority,

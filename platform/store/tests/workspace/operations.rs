@@ -45,6 +45,14 @@ async fn operation_claims_are_private_durable_and_never_replay_unknown_dispatch(
             "only one caller may send tools/call"
         );
         assert_eq!(left.operation, right.operation);
+        db.a.check_workspace_operation_dispatch(&a, id, left.operation.fence, None)
+            .await
+            .unwrap();
+        assert_eq!(
+            db.b.check_workspace_operation_dispatch(&a, id, Uuid::new_v4(), None)
+                .await,
+            Err(WorkspaceError::Conflict)
+        );
         assert_eq!(
             db.b.workspace_operation(&b, id).await,
             Err(WorkspaceError::NotFound)
@@ -129,6 +137,11 @@ async fn operation_claims_are_private_durable_and_never_replay_unknown_dispatch(
         db.a.remove_workspace_member(&a, chat, bob.principal_id)
             .await
             .unwrap();
+        assert_eq!(
+            db.b.check_workspace_operation_dispatch(&b, own, admitted.operation.fence, None)
+                .await,
+            Err(WorkspaceError::NotFound)
+        );
         db.a.settle_workspace_operation(
             own,
             admitted.operation.fence,

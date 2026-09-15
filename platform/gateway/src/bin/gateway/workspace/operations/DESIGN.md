@@ -31,6 +31,12 @@ mutation. Connection failures before a tool request is submitted record a failed
 admission. A received Task ID is retained before the client can observe acceptance.
 No provider completion or provider polling logic exists here.
 
+Agent tools enter the same dispatcher with the exact current run fence and human
+credentials. They wait for the bounded native invocation to settle its receipt,
+which keeps the response run alive through dispatch without waiting for Task
+completion. The worker rechecks authority after connection setup. Explicit human
+continuations use current human admission independently of the old model run.
+
 Every detail read rechecks current Workspace admission. Native Task reads then
 pass the gateway's existing owner, profile and invocation-authority checks.
 Stored synchronous results and pending continuation forms require current tool
@@ -83,5 +89,6 @@ dispatch, schema validation, consumed input, Task subscriptions, completed tool
 errors, cancellation acknowledgement and terminal confirmation. A separate browser
 fixture checks private activity, form submission, reload and independent agent/Task
 controls in headed hardware Chrome. These checks do not establish installed
-acceptance. Agent capability adapters, governed resource viewers and public rollout
+acceptance. Agent capability adapters have a separate real model-to-native-Task
+fixture. Governed resource viewers and public rollout
 remain part of the Workspace goal.

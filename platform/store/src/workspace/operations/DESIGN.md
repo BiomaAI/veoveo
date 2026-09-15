@@ -16,6 +16,9 @@ commits before the gateway calls the tool. One random server-owned fence wins th
 right to dispatch. Concurrent submissions return the same receipt, and a later
 request cannot claim it again. An agent must have a current running lease and the
 matching run fence at admission. Human actions require current chat membership.
+The worker checks the exact receipt fence, dispatch deadline, membership and optional
+run fence again immediately before its external invocation. This transaction shares
+the chat head with membership changes. A stopped run cannot admit another effect.
 Eight unexpired dispatches per person and chat are admitted at a time; the gateway
 also bounds process-wide work.
 

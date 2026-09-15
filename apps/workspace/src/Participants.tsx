@@ -56,6 +56,7 @@ export function Participants({ snapshot, personId, onChanged, close }: {
           {catalog.data?.filter(agent => !snapshot.activity.agents.some(member => member.active && member.definition === agent.id)).map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
         </select></label>
         {candidate && <div className="agent-disclosure"><p>{candidate.description}</p><p className="muted">{candidate.provider} · {candidate.model}. This agent receives the shared history when asked to respond.</p>
+          <p className="muted">{candidate.tools.length ? `Capabilities: ${candidate.tools.join(", ")}. Each use requires the requesting person's current permissions. Results stay in their private Activity.` : "This agent has no external capabilities."}</p>
           <button disabled={busy} onClick={() => void act(async () => { await api.addAgent(chat.id, candidate.id); setChoice(""); })}>Add {candidate.name}</button></div>}
         {catalog.data?.length === 0 && <p className="muted">No agents are configured for this Work Context.</p>}
       </>}

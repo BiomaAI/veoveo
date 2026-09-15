@@ -2,10 +2,10 @@ use super::*;
 use chrono::{TimeDelta, Utc};
 use uuid::Uuid;
 use veoveo_platform_store::{
-    WorkspaceAgentId, WorkspaceRunId,
+    WorkspaceAgentId, WorkspaceOperationId, WorkspaceRunId,
     workspace::{
-        WorkspaceAgentAdmission, WorkspaceRun, WorkspaceRunFailure, WorkspaceRunState,
-        WorkspaceRunUpdate,
+        WorkspaceAgentAdmission, WorkspaceOperationIntent, WorkspaceRun, WorkspaceRunFailure,
+        WorkspaceRunState, WorkspaceRunUpdate,
     },
 };
 
@@ -128,6 +128,37 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
     db.b.claim_workspace_run(&a, chat, run_id(&two), second_fence)
         .await
         .unwrap();
+    let operation_id = WorkspaceOperationId::new();
+    let intent = |run_fence| WorkspaceOperationIntent {
+        chat,
+        run: Some((run_id(&one), run_fence)),
+        profile: "workspace".into(),
+        tool: "fixture_task".into(),
+        arguments: "{}".into(),
+    };
+    assert!(matches!(
+        db.a.start_workspace_operation(&a, operation_id, intent(Uuid::new_v4()))
+            .await,
+        Err(WorkspaceError::Conflict)
+    ));
+    let operation =
+        db.a.start_workspace_operation(&a, operation_id, intent(fence))
+            .await
+            .unwrap()
+            .operation;
+    db.b.check_workspace_operation_dispatch(&a, operation_id, operation.fence, Some(fence))
+        .await
+        .unwrap();
+    assert_eq!(
+        db.b.check_workspace_operation_dispatch(
+            &a,
+            operation_id,
+            operation.fence,
+            Some(Uuid::new_v4())
+        )
+        .await,
+        Err(WorkspaceError::Conflict)
+    );
     db.a.update_workspace_run(
         &a,
         chat,
@@ -169,6 +200,16 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
     db.a.cancel_workspace_run(&a, chat, run_id(&one))
         .await
         .unwrap();
+    assert_eq!(
+        db.b.check_workspace_operation_dispatch(&a, operation_id, operation.fence, Some(fence))
+            .await,
+        Err(WorkspaceError::Conflict)
+    );
+    assert!(matches!(
+        db.a.start_workspace_operation(&a, WorkspaceOperationId::new(), intent(fence))
+            .await,
+        Err(WorkspaceError::Conflict)
+    ));
     assert_eq!(
         db.a.update_workspace_run(
             &a,

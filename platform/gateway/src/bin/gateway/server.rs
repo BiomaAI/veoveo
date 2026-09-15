@@ -278,6 +278,14 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             )),
     );
 
+    let workspace_operations = crate::workspace::operations::OperationState::new(
+        control_store.platform_store().clone(),
+        gateway_state.clone(),
+        catalog.clone(),
+        ct.child_token(),
+        port,
+        deployment.base_url(),
+    )?;
     router = router.merge(
         crate::workspace::router(crate::workspace::WorkspaceState {
             store: control_store.platform_store().clone(),
@@ -287,17 +295,9 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             gateway_state.clone(),
             catalog.clone(),
             ct.child_token(),
+            workspace_operations.clone(),
         )?)
-        .merge(crate::workspace::operations::router(
-            crate::workspace::operations::OperationState::new(
-                control_store.platform_store().clone(),
-                gateway_state.clone(),
-                catalog.clone(),
-                ct.child_token(),
-                port,
-                deployment.base_url(),
-            )?,
-        ))
+        .merge(crate::workspace::operations::router(workspace_operations))
         .merge(crate::workspace::events::router(
             control_store.platform_store().clone(),
             gateway_state.clone(),

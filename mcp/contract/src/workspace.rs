@@ -171,6 +171,7 @@ pub struct AgentDefinition {
     pub description: String,
     pub provider: String,
     pub model: String,
+    pub tools: Vec<crate::GatewayToolName>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]

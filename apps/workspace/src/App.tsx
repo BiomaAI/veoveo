@@ -82,7 +82,7 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
       <div className="identity"><span className="avatar small">{initials(session.person.displayName)}</span><div><strong>{session.person.displayName}</strong><span>Personal workspace</span></div><button className="icon-button" title="Sign out" aria-label="Sign out" onClick={() => void logout().catch(error => setError(error.message))}><LogOut size={16}/></button></div>
     </aside>
     <main className="main"><div className="mobile-top"><button className="icon-button" aria-label="Open chats" onClick={() => setMobileNav(!mobileNav)}><Menu size={20}/></button><span>Veoveo Workspace</span></div>
-      {activity ? <Suspense fallback={<p role="status">Loading activity…</p>}><Activity/></Suspense> : inbox ? <div className="inbox"><span className="eyebrow">YOUR WORKSPACE</span><h1>Invitations</h1><p className="muted">Choose the conversations you want to join.</p>
+      {activity ? <Suspense fallback={<p role="status">Loading activity…</p>}><Activity chats={chats.data}/></Suspense> : inbox ? <div className="inbox"><span className="eyebrow">YOUR WORKSPACE</span><h1>Invitations</h1><p className="muted">Choose the conversations you want to join.</p>
         {invitations.data?.map(({ invitation, chatTitle, inviterName }) => <article className="invitation" key={invitation.id}><div className="avatar"><MessageSquare size={19}/></div><div><h2>{chatTitle}</h2><p>{inviterName} invited you.</p><p className="muted">Joining shares the complete chat history with you. New messages are visible to every member.</p><div className="actions"><button className="primary" disabled={busy} onClick={() => void decide(invitation, "accepted")}>Join chat</button><button disabled={busy} onClick={() => void decide(invitation, "declined")}>Decline</button></div></div></article>)}
         {invitations.data?.length === 0 && <div className="empty-card"><Bell size={25}/><h2>You're all caught up.</h2><p>New chat invitations appear here.</p></div>}
         {invitations.error && <p className="error">{invitations.error.message}</p>}
@@ -96,11 +96,11 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
 function Room({ chat, session, changed }: { chat: string; session: WorkspaceBootstrap; changed: () => void }) {
   const room = useConversation(chat, changed);
   const [details, setDetails] = useState(false);
-  const [activity, setActivity] = useState(false);
+  const [activity, setActivity] = useState(() => new URLSearchParams(location.search).get("panel") === "activity");
   if (!room.snapshot) return <div className="welcome">{room.error ? <><p className="error" role="alert">{room.error}</p><button onClick={() => void room.refresh()}>Try again</button></> : <p role="status">Loading conversation…</p>}</div>;
   return <><header className="chat-header"><div><h1>{room.snapshot.chat.title}</h1><p><span className={`status-dot ${room.connected ? "online" : ""}`}/>{room.connected ? "Connected" : "Reconnecting"}<span>·</span>{room.snapshot.members.filter(member => member.active).length} people{room.snapshot.activity.agents.some(agent => agent.active) && ` · ${room.snapshot.activity.agents.filter(agent => agent.active).length} agents`}{room.snapshot.chat.archived && " · Archived"}</p></div><div className="actions"><button className={activity ? "active" : ""} onClick={() => { setActivity(!activity); setDetails(false); }}><ActivityIcon size={16}/> Activity</button><button className={details ? "active" : ""} onClick={() => { setDetails(!details); setActivity(false); }}><Users size={16}/> Participants</button></div></header>
     <div className="room-content"><Suspense fallback={<p role="status">Opening conversation…</p>}><Conversation snapshot={room.snapshot} personId={session.person.id} canContribute={session.canContribute} onChanged={room.refresh} onOlder={() => void room.older()} hasOlder={room.hasOlder} loadingOlder={room.loadingOlder}/>
-      {activity && <Activity chat={chat} close={() => setActivity(false)}/>}
+      {activity && <Activity chat={chat} agents={room.snapshot.activity} close={() => setActivity(false)}/>}
       {details && <Participants snapshot={room.snapshot} personId={session.person.id} onChanged={room.refresh} close={() => setDetails(false)}/>}</Suspense>
     </div>{room.error && <p className="global-error error" role="alert">{room.error}</p>}</>;
 }

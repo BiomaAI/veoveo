@@ -39,7 +39,7 @@ async fn completion(
     };
     Sse::new(stream)
 }
-async fn request(app: &Router, path: &str, value: Value) -> (StatusCode, Value) {
+pub(super) async fn request(app: &Router, path: &str, value: Value) -> (StatusCode, Value) {
     let response = app
         .clone()
         .oneshot(
@@ -47,6 +47,7 @@ async fn request(app: &Router, path: &str, value: Value) -> (StatusCode, Value) 
                 .method("POST")
                 .uri(format!("/workspace-api/operator{path}"))
                 .header("content-type", "application/json")
+                .header("authorization", "Bearer explicit-workspace-fixture")
                 .body(Body::from(value.to_string()))
                 .unwrap(),
         )
@@ -56,17 +57,17 @@ async fn request(app: &Router, path: &str, value: Value) -> (StatusCode, Value) 
     let body = to_bytes(response.into_body(), 65536).await.unwrap();
     (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
 }
-fn catalog() -> GatewayCatalog {
+pub(super) fn catalog() -> GatewayCatalog {
     let plane: GatewayControlPlane = serde_json::from_str(include_str!(
         "../../../../../../../configs/gateway.smoke.json"
     ))
     .unwrap();
     GatewayCatalog::from_control_plane(plane).unwrap()
 }
-fn definition(id: &str, base_url: &str) -> config::Definition {
+pub(super) fn definition(id: &str, base_url: &str) -> config::Definition {
     serde_json::from_value(
         json!({"id":id,"name":id,"description":"Explicit fixture","provider":"Fixture",
-        "tenant":"test","work_contexts":["shared"],"instructions":"Respond to the current request.",
+        "tenant":"test","work_contexts":["shared"],"instructions":"Respond to the current request.","tools":[],
         "model":{"base_url":base_url,"name":id,"api_key":"fixture-key","max_output_tokens":128}}),
     )
     .unwrap()
@@ -105,6 +106,15 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         let stop = CancellationToken::new();
         let _stop_guard = stop.clone().drop_guard();
         let state = RunState {
+            operations: OperationState::new(
+                db.a.clone(),
+                GatewayState::new(db.b.clone()),
+                GatewayCatalogHandle::new(Arc::new(catalog())),
+                stop.clone(),
+                1,
+                "https://workspace.test",
+            )
+            .unwrap(),
             workspace: WorkspaceState {
                 store: db.a.clone(),
             },

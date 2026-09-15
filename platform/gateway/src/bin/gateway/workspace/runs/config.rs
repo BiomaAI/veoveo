@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use url::Url;
 use veoveo_mcp_contract::{
-    SecretPurpose, SecretReferenceId, TenantId, WorkContextId, workspace as wire,
+    GatewayToolName, SecretPurpose, SecretReferenceId, TenantId, WorkContextId, workspace as wire,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog};
 use veoveo_platform_store::workspace::WorkspaceAgentAdmission;
@@ -22,6 +22,7 @@ pub(super) struct Definition {
     pub work_contexts: Vec<WorkContextId>,
     pub model: Model,
     pub instructions: String,
+    pub tools: Vec<GatewayToolName>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -59,6 +60,7 @@ impl Definition {
             description: self.description.clone(),
             provider: self.provider.clone(),
             model: self.model.name.clone(),
+            tools: self.tools.clone(),
         }
     }
 }
@@ -92,6 +94,11 @@ pub(super) fn validate(definitions: &[Definition], catalog: &GatewayCatalog) -> 
             "Workspace agent id must use lowercase alphanumerics, hyphens or underscores"
         );
         ensure!(ids.insert(&definition.id), "duplicate Workspace agent id");
+        ensure!(
+            definition.tools.len() <= 64
+                && definition.tools.iter().collect::<BTreeSet<_>>().len() == definition.tools.len(),
+            "Workspace agent requires at most 64 distinct tool names"
+        );
         for (name, value, max) in [
             ("name", definition.name.as_str(), 200),
             ("description", definition.description.as_str(), 2000),
