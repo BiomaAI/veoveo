@@ -17184,6 +17184,7 @@ dependencies = [
  "futures",
  "getrandom 0.4.3",
  "hex",
+ "jsonschema",
  "jsonwebtoken 11.0.0",
  "parking_lot",
  "prost",

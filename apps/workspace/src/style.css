@@ -10,6 +10,41 @@
   --green:#365740;
   --green-soft:#e8eee5;
 }
+.activity-page { flex:1; overflow:auto; padding:32px; width:100%; max-width:1000px; margin:0 auto; }
+.task-panel { width:370px; flex:none; border-left:1px solid var(--line); background:#fafbf7; overflow:auto; padding:22px 18px; }
+.activity-privacy { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--muted); margin-bottom:20px; }
+.task-list { display:grid; gap:14px; margin-bottom:18px; }
+.task-card { border:1px solid var(--line); background:#fff; border-radius:12px; padding:17px; min-width:0; overflow-wrap:anywhere; }
+.task-heading { display:flex; gap:10px; align-items:center; margin-bottom:13px; }
+.task-heading>div { flex:1; min-width:0; }
+.task-heading time { font-size:10px; color:var(--muted); }
+.task-icon { color:#8b6830; background:#faf0da; border-radius:8px; padding:7px; display:flex; }
+.task-icon.settled { color:var(--green); background:var(--green-soft); }
+.task-state { font-size:12px; font-weight:600; margin-bottom:5px; }
+.task-card p { font-size:12px; white-space:pre-wrap; }
+.task-progress { height:3px; background:#eaf0e7; overflow:hidden; border-radius:4px; margin:12px 0; }
+.task-progress span { display:block; height:100%; width:30%; background:#758f69; animation:task-progress 1.8s ease-in-out infinite alternate; }
+@keyframes task-progress { to { transform:translateX(235%); } }
+.task-input { margin:14px 0; border-top:1px solid var(--line); padding-top:12px; }
+.task-input fieldset { border:0; padding:0; margin:0; min-width:0; }
+.task-input section { display:grid; gap:11px; margin-bottom:16px; }
+.task-input .check-field { flex-direction:row; align-items:center; gap:8px; }
+.task-input .check-field input { width:auto; }
+.task-input a { display:inline-flex; align-items:center; gap:6px; color:var(--green); }
+.task-input .task-choices { display:grid; gap:8px; }
+.task-input legend { margin-bottom:8px; font-size:12px; }
+.task-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; align-items:center; }
+.task-actions button,.task-resource button { font-size:11px; }
+.task-actions small { color:var(--muted); font-size:10px; }
+.task-result { margin-top:12px; display:grid; gap:9px; }
+.task-result details { font-size:11px; }
+.task-result pre { white-space:pre-wrap; overflow:auto; max-height:240px; font-size:11px; }
+.task-resource { display:grid; gap:5px; padding:10px; border:1px solid var(--line); border-radius:7px; }
+.task-resource code { font-size:10px; }
+.task-card>.error { margin-top:10px; }
+@media(max-width:1000px) { .task-panel { position:absolute; right:0; top:0; bottom:0; z-index:3; box-shadow:-10px 0 30px #0000000a; } }
+@media(max-width:700px) { .task-panel { width:100%; } .activity-page { padding:22px 16px; } .chat-header>.actions { gap:5px; } .chat-header>.actions button { padding:7px; font-size:11px; } }
+@media(prefers-reduced-motion:reduce) { .task-progress span { animation:none; } }
 * {
   box-sizing:border-box;
 }

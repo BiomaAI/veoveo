@@ -24,11 +24,15 @@ pub(super) async fn events(
     Query(_): Query<EmptyQuery>,
     headers: HeaderMap,
 ) -> Response {
-    let session = match api::upstream_session(&state, &headers).await {
+    forward(&state, &headers, &format!("/chats/{chat}/events")).await
+}
+
+pub(super) async fn forward(state: &AppState, headers: &HeaderMap, path: &str) -> Response {
+    let session = match api::upstream_session(state, headers).await {
         Ok(session) => session,
         Err(response) => return response,
     };
-    let settled = match api::response_session_headers(&state, &session) {
+    let settled = match api::response_session_headers(state, &session) {
         Ok(headers) => headers,
         Err(status) => return status.into_response(),
     };
@@ -36,7 +40,7 @@ pub(super) async fn events(
         Duration::from_secs(10),
         state
             .stream_http
-            .get(state.config.workspace_url(&format!("/chats/{chat}/events")))
+            .get(state.config.workspace_url(path))
             .header(HOST, state.config.gateway_host())
             .bearer_auth(&session.session.access_token)
             .send(),
@@ -44,7 +48,7 @@ pub(super) async fn events(
     .await;
     let mut response = match upstream {
         Ok(Ok(upstream)) if upstream.status() == StatusCode::UNAUTHORIZED => {
-            return api::unauthorized(&state);
+            return api::unauthorized(state);
         }
         Ok(Ok(upstream))
             if upstream.status().is_client_error() || upstream.status().is_server_error() =>

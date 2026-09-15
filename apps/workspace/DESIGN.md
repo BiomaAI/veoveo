@@ -57,8 +57,14 @@ idempotent retry, owner controls, reload and the mobile layout. Its screenshots
 are local fixture evidence. Agent admission and explicit recipient selection now
 render separate response streams and stop controls; a two-human/two-agent fixture
 keeps the composer usable and preserves run identities after reload. The Rust
-runner has a separate HTTP-model fixture. MCP Task activity, capability views and
-installed acceptance remain required implementation work.
+runner has a separate HTTP-model fixture. Task activity now has private in-chat and
+personal views, current status, input forms, cancellation acknowledgement, result
+text and canonical resource references. Native subscriptions wake authorized reads;
+visible active tasks reconcile at no less than five seconds or the server's longer
+poll interval. Completed tasks stop that interval. Unknown progress is indeterminate.
+Reload restores receipts and Task references without submitting work. The gateway
+has native protocol/runtime acceptance; capability views and installed acceptance
+remain required implementation work.
 
 ## Development And Acceptance
 

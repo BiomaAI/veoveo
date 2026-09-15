@@ -1,6 +1,7 @@
 //! Shared browser edge for the independent Workspace client. The upstream origin
 //! and profile are installation configuration; credentials come only from cookies.
 mod events;
+mod operations;
 mod runs;
 pub(crate) mod static_assets;
 #[cfg(test)]
@@ -24,6 +25,7 @@ use crate::{AppState, api};
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .merge(runs::router())
+        .merge(operations::router())
         .route("/workspace/api/session", get(session))
         .route("/workspace/api/chats", get(chats).post(create))
         .route("/workspace/api/chats/{chat}", get(snapshot).put(settings))
@@ -37,13 +39,14 @@ pub(crate) fn router() -> Router<AppState> {
         .route("/workspace/api/invitations", get(invitations))
         .route("/workspace/api/invitations/{invitation}", post(decide))
         .route("/workspace/api/people", get(people))
-        .layer(DefaultBodyLimit::max(64 * 1024))
+        .layer(DefaultBodyLimit::max(80 * 1024))
 }
 
 enum Parameters {
     None,
     Page(Page),
     Search(String),
+    Activity(operations::ActivityQuery),
 }
 
 async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
@@ -78,6 +81,15 @@ async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
             }
             Parameters::Search(query) => {
                 url.query_pairs_mut().append_pair("q", &query);
+            }
+            Parameters::Activity(query) => {
+                if let Some(chat) = query.chat {
+                    url.query_pairs_mut().append_pair("chat", &chat.to_string());
+                }
+                if let Some(before) = query.before {
+                    url.query_pairs_mut()
+                        .append_pair("before", &before.to_string());
+                }
             }
         }
         let mut request = state

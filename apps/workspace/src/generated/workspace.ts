@@ -19,6 +19,11 @@ export type PersonId = string;
  */
 export type RunState = "queued" | "running" | "completed" | "cancelled" | "interrupted" | "failed";
 /**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "InputDecision".
+ */
+export type InputDecision = "accept" | "decline" | "cancel";
+/**
  * Stable authenticated user or service-principal identity.
  *
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -44,20 +49,41 @@ export type WorkContextId = string;
  * via the `definition` "InvitationState".
  */
 export type InvitationState = "pending" | "accepted" | "declined" | "revoked";
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "InputKind".
+ */
+export type InputKind = "form" | "link" | "unsupported";
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationPhase".
+ */
+export type OperationPhase =
+  "dispatching" | "input_required" | "task" | "completed" | "failed" | "unconfirmed";
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "TaskState".
+ */
+export type TaskState = "working" | "input_required" | "completed" | "failed" | "cancelled";
 
 export interface WorkspaceSchema {
   activity: AgentActivity;
   add_agent: AddAgent;
   agent_definition: AgentDefinition;
+  answer_operation: AnswerOperation;
   bootstrap: WorkspaceBootstrap;
+  capability: Capability;
   create_chat: CreateChat;
   decide_invitation: DecideInvitation;
   invitation: Invitation;
   invitation_summary: InvitationSummary;
   invite_person: InvitePerson;
+  operation: OperationView;
+  operation_page: OperationPage;
   send_message: SendMessage;
   settings: ChatSettings;
   snapshot: ChatSnapshot;
+  start_operation: StartOperation;
   start_run: StartRun;
   wake: ChatWake;
 }
@@ -117,6 +143,29 @@ export interface AgentDefinition {
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "AnswerOperation".
+ */
+export interface AnswerOperation {
+  answers: InputAnswer[];
+  revision: number;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "InputAnswer".
+ */
+export interface InputAnswer {
+  /**
+   * A domain's elicitation form can have different primitive fields.
+   */
+  content?: {
+    [k: string]: unknown;
+  } | null;
+  decision: InputDecision;
+  digest: string;
+  id: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
  * via the `definition` "WorkspaceBootstrap".
  */
 export interface WorkspaceBootstrap {
@@ -135,6 +184,21 @@ export interface WorkspaceBootstrap {
 export interface Person {
   displayName: string;
   id: PersonId;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "Capability".
+ */
+export interface Capability {
+  description?: string | null;
+  /**
+   * A domain-owned JSON Schema, not a Workspace-controlled record shape.
+   */
+  inputSchema: {
+    [k: string]: unknown;
+  };
+  name: string;
+  title: string;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -180,6 +244,84 @@ export interface InvitationSummary {
 export interface InvitePerson {
   id: string;
   invitee: PersonId;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationView".
+ */
+export interface OperationView {
+  inputs: OperationInput[];
+  operation: OperationSummary;
+  result?: OperationResult | null;
+  task?: TaskView | null;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationInput".
+ */
+export interface OperationInput {
+  digest: string;
+  /**
+   * Native request key plus content digest fences a stale rendered form.
+   */
+  id: string;
+  kind: InputKind;
+  message: string;
+  schema?: unknown;
+  url?: string | null;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationSummary".
+ */
+export interface OperationSummary {
+  chatId: string;
+  createdAt: string;
+  id: string;
+  phase: OperationPhase;
+  revision: number;
+  runId?: string | null;
+  tool: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationResult".
+ */
+export interface OperationResult {
+  isError: boolean;
+  resources: OperationResource[];
+  structured?: unknown;
+  text: string[];
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationResource".
+ */
+export interface OperationResource {
+  mimeType?: string | null;
+  name: string;
+  uri: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "TaskView".
+ */
+export interface TaskView {
+  createdAt: string;
+  id: string;
+  message?: string | null;
+  pollIntervalMs?: number | null;
+  state: TaskState;
+  ttlMs?: number | null;
+  updatedAt: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationPage".
+ */
+export interface OperationPage {
+  items: OperationSummary[];
+  next?: string | null;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -244,6 +386,17 @@ export interface Message {
   replyTo?: string | null;
   sequence: number;
   text: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "StartOperation".
+ */
+export interface StartOperation {
+  arguments: {
+    [k: string]: unknown;
+  };
+  id: string;
+  tool: string;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema

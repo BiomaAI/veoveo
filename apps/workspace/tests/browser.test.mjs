@@ -33,6 +33,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
   const server = await createServer({ root, configFile: `${root}vite.config.ts`, server: { port: 0, host: "127.0.0.1", strictPort: false } });
   const browser = await chromium.connectOverCDP(process.env.VEOVEO_BROWSER_CDP ?? "http://127.0.0.1:9222");
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  context.setDefaultTimeout(10_000);
   try {
     await server.listen();
     const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -47,6 +48,10 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const agents = ["Writer", "Reviewer"].map(name => ({ id: crypto.randomUUID(), definition: name.toLowerCase(), name, provider: "Explicit browser fixture", model: "No model execution", active: true }));
     const runs = [];
     const runStarts = [];
+    const operation = { id: crypto.randomUUID(), chatId: chat.id, runId: null, tool: "fixture_review", phase: "task", revision: 2, createdAt: new Date().toISOString() };
+    const task = { id: "opaque-task-fixture", state: "input_required", message: "Review the requested count.", createdAt: operation.createdAt, updatedAt: operation.createdAt, ttlMs: 300000, pollIntervalMs: 5000 };
+    let inputs = [{ id: "approval-1", digest: "a".repeat(64), kind: "form", message: "How many follow-ups should be prepared?", schema: { type: "object", properties: { count: { type: "integer", title: "Follow-ups", minimum: 1, maximum: 3 } }, required: ["count"] }, url: null }];
+    const operationPosts = [];
     let uncertain = true;
     const sends = [];
     const pages = await Promise.all([context.newPage(), context.newPage()]);
@@ -65,6 +70,16 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
         }
         const respond = json => route.fulfill({ status: 200, contentType: "application/json", headers: { "x-veoveo-csrf-token": "fixture-csrf" }, json });
         if (path.pathname.endsWith("/session")) return respond({ person, principalId: `fixture#${person.id}`, tenantId: "test", tenantName: "Shared work", workContext: "default", workContextTitle: "Product team", canContribute: true });
+        if (path.pathname.endsWith("/operations")) return respond({ items: index === 0 ? [operation] : [], next: null });
+        if (path.pathname.includes(`/operations/${operation.id}`)) {
+          if (request.method() === "POST") {
+            operationPosts.push(path.pathname);
+            if (path.pathname.endsWith("/input")) { assert.equal(body.answers[0].content.count, 2); assert.equal(body.answers[0].id, "approval-1"); inputs = []; task.state = "working"; task.message = "Preparing follow-ups."; }
+            if (path.pathname.endsWith("/cancel")) { task.message = "Cancellation requested."; }
+            return route.fulfill({ status: 204 });
+          }
+          return respond({ operation, task, inputs, result: null });
+        }
         if (path.pathname.endsWith("/events")) return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: change\ndata: {"sequence":${chat.sequence}}\n\n` });
         if (path.pathname.endsWith("/activity")) return respond({ agents, runs });
         if (path.pathname.endsWith("/agents")) return respond(agents.map(agent => ({ id: agent.definition, name: agent.name, description: "Explicit browser fixture", provider: agent.provider, model: agent.model })));
@@ -130,6 +145,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByRole("button", { name: "Stop Reviewer's response", exact: true }).waitFor();
     assert.equal(runStarts.length, 2, "reload cannot dispatch another run");
     await owner.getByRole("button", { name: "Participants", exact: true }).click();
+    await owner.bringToFront();
     const proof = await hardware(owner);
     assert.deepEqual(errors, []);
     const output = new URL("../../../output/workspace-client-local.png", import.meta.url);
@@ -139,8 +155,42 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.setViewportSize({ width: 390, height: 844 });
     await owner.getByRole("button", { name: "Close chat details" }).click();
     assert.equal(await owner.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await owner.bringToFront();
     await hardware(owner);
     await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-client-mobile.png", import.meta.url)) });
+    await owner.setViewportSize({ width: 1440, height: 1000 });
+    await owner.getByRole("button", { name: "Activity", exact: true }).click();
+    console.log(JSON.stringify({ step: "open task input" }));
+    await owner.getByText("Needs your input", { exact: true }).waitFor();
+    await owner.getByRole("spinbutton", { name: "Follow-ups" }).fill("2");
+    console.log(JSON.stringify({ step: "submit task input" }));
+    await owner.getByRole("button", { name: "Continue", exact: true }).click();
+    await owner.getByText("Preparing follow-ups.", { exact: true }).waitFor();
+    assert.equal(await owner.getByRole("spinbutton", { name: "Follow-ups" }).count(), 0);
+    await owner.reload();
+    await owner.getByRole("button", { name: "Activity", exact: true }).click();
+    await owner.getByText("Preparing follow-ups.", { exact: true }).waitFor();
+    assert.equal(operationPosts.length, 1, "reload does not resubmit input or work");
+    console.log(JSON.stringify({ step: "cancel restored task" }));
+    await owner.getByRole("button", { name: "Cancel task", exact: true }).click();
+    await owner.getByText("Waiting for the server to confirm the outcome.", { exact: true }).waitFor();
+    assert.equal(await owner.getByText("Cancelled", { exact: true }).count(), 0, "cancel acknowledgement is not terminal");
+    assert.equal(runs[1].state, "running", "task cancellation does not stop the agent response");
+    task.state = "cancelled"; task.message = "Cancelled by request.";
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByText("Cancelled", { exact: true }).waitFor();
+    await member.getByRole("button", { name: "Activity", exact: true }).click();
+    await member.getByText("No activity yet", { exact: true }).waitFor();
+    await owner.getByRole("button", { name: "My activity", exact: true }).click();
+    await owner.getByText("Cancelled", { exact: true }).waitFor();
+    await owner.reload();
+    await owner.getByText("Cancelled", { exact: true }).waitFor();
+    assert.equal(operationPosts.length, 2);
+    await owner.bringToFront();
+    await hardware(owner);
+    await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-tasks-local.png", import.meta.url)) });
+    assert.deepEqual(errors, []);
+
   } finally {
     await context.close(); await browser.close(); await server.close();
   }
