@@ -17,7 +17,14 @@ An init wait on the same activation boundary could avoid this restart churn.
 Installed SSO, two real model responses and one real media Task pass on headed
 RTX 4090 WebGL. The completed Task retains its exact opaque identity after reload.
 The first result exposes a usability gap: copying a canonical URI is insufficient.
-The next browser-edge/client checkpoint adds governed preview and download actions.
+The browser-edge/client checkpoint adds governed preview and download actions.
+Its image publication at `3652bfb2` takes 43.410 seconds: 32.979 seconds in the
+compiler phase and 2.845 seconds in export. Console assets and frontend dependencies
+remain cached; the Workspace Vite solve takes 0.397 seconds. The new renderer adds
+about 1 KiB gzip to the lazy Activity chunk, leaving the entry bundle unchanged.
+All 95 edge tests and six client behavior cases pass, including exact Workspace
+authority, denied file reads and untrusted-document sandboxing. The headed result
+fixture completes in 18.4 seconds. The chart and gateway image remain reusable.
 
 The typed Cargo retention pass removed 97.66 GiB of superseded executable copies
 and older incremental variants. It retained running executables, dependency libraries
