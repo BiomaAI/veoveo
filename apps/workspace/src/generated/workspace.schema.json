@@ -1,0 +1,408 @@
+{
+  "$defs": {
+    "Chat": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "type": "boolean"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "membersCanInvite": {
+          "type": "boolean"
+        },
+        "owner": {
+          "$ref": "#/$defs/PersonId"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "sequence": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "owner",
+        "archived",
+        "membersCanInvite",
+        "sequence",
+        "revision",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "ChatSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "type": "boolean"
+        },
+        "expectedRevision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "membersCanInvite": {
+          "type": "boolean"
+        },
+        "owner": {
+          "$ref": "#/$defs/PersonId"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "title",
+        "archived",
+        "membersCanInvite",
+        "owner"
+      ],
+      "type": "object"
+    },
+    "ChatSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "chat": {
+          "$ref": "#/$defs/Chat"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/Member"
+          },
+          "type": "array"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "chat",
+        "members",
+        "messages"
+      ],
+      "type": "object"
+    },
+    "ChatWake": {
+      "additionalProperties": false,
+      "description": "A wake identifies only a committed chat head. Consumers fetch authorized\nstate; invitation metadata and private capability results are not broadcast.",
+      "properties": {
+        "sequence": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sequence"
+      ],
+      "type": "object"
+    },
+    "CreateChat": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "type": "object"
+    },
+    "DecideInvitation": {
+      "additionalProperties": false,
+      "properties": {
+        "chatId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/InvitationState"
+        }
+      },
+      "required": [
+        "chatId",
+        "state"
+      ],
+      "type": "object"
+    },
+    "Invitation": {
+      "additionalProperties": false,
+      "properties": {
+        "chatId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "invitee": {
+          "$ref": "#/$defs/PersonId"
+        },
+        "inviter": {
+          "$ref": "#/$defs/PersonId"
+        },
+        "state": {
+          "$ref": "#/$defs/InvitationState"
+        }
+      },
+      "required": [
+        "id",
+        "chatId",
+        "inviter",
+        "invitee",
+        "state",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "InvitationState": {
+      "enum": [
+        "pending",
+        "accepted",
+        "declined",
+        "revoked"
+      ],
+      "type": "string"
+    },
+    "InvitePerson": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "invitee": {
+          "$ref": "#/$defs/PersonId"
+        }
+      },
+      "required": [
+        "id",
+        "invitee"
+      ],
+      "type": "object"
+    },
+    "Member": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "person": {
+          "$ref": "#/$defs/Person"
+        }
+      },
+      "required": [
+        "id",
+        "person",
+        "active"
+      ],
+      "type": "object"
+    },
+    "Message": {
+      "additionalProperties": false,
+      "properties": {
+        "author": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "replyTo": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sequence": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "author",
+        "text",
+        "sequence",
+        "createdAt"
+      ],
+      "type": "object"
+    },
+    "Person": {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/PersonId"
+        }
+      },
+      "required": [
+        "id",
+        "displayName"
+      ],
+      "type": "object"
+    },
+    "PersonId": {
+      "description": "Installation-local human identity; never an email address or bearer credential.",
+      "format": "uuid",
+      "type": "string"
+    },
+    "PrincipalId": {
+      "description": "Stable authenticated user or service-principal identity.",
+      "type": "string"
+    },
+    "SendMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "replyTo": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "TenantId": {
+      "description": "Tenant, organization, or customer boundary identifier.",
+      "type": "string"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    },
+    "WorkspaceBootstrap": {
+      "additionalProperties": false,
+      "properties": {
+        "canContribute": {
+          "type": "boolean"
+        },
+        "person": {
+          "$ref": "#/$defs/Person"
+        },
+        "principalId": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "tenantId": {
+          "$ref": "#/$defs/TenantId"
+        },
+        "tenantName": {
+          "type": "string"
+        },
+        "workContext": {
+          "$ref": "#/$defs/WorkContextId"
+        },
+        "workContextTitle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "person",
+        "principalId",
+        "tenantId",
+        "tenantName",
+        "workContext",
+        "workContextTitle",
+        "canContribute"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "bootstrap": {
+      "$ref": "#/$defs/WorkspaceBootstrap"
+    },
+    "create_chat": {
+      "$ref": "#/$defs/CreateChat"
+    },
+    "decide_invitation": {
+      "$ref": "#/$defs/DecideInvitation"
+    },
+    "invitation": {
+      "$ref": "#/$defs/Invitation"
+    },
+    "invite_person": {
+      "$ref": "#/$defs/InvitePerson"
+    },
+    "send_message": {
+      "$ref": "#/$defs/SendMessage"
+    },
+    "settings": {
+      "$ref": "#/$defs/ChatSettings"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/ChatSnapshot"
+    },
+    "wake": {
+      "$ref": "#/$defs/ChatWake"
+    }
+  },
+  "required": [
+    "bootstrap",
+    "snapshot",
+    "invitation",
+    "create_chat",
+    "send_message",
+    "invite_person",
+    "decide_invitation",
+    "settings",
+    "wake"
+  ],
+  "title": "WorkspaceSchema",
+  "type": "object"
+}

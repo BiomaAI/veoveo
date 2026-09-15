@@ -25,7 +25,7 @@ opentelemetry-otlp.workspace = true
 opentelemetry_sdk.workspace = true
 parking_lot.workspace = true
 rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }
-schemars.workspace = true
+schemars = { workspace = true, features = ["chrono04", "uuid1"] }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }

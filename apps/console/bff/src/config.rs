@@ -268,6 +268,13 @@ impl Config {
         }
     }
 
+    /// Paths are assembled from the Workspace router's typed identifiers.
+    pub(crate) fn workspace_url(&self, path: &str) -> Url {
+        self.gateway_url
+            .join(&format!("/workspace-api/{}{path}", self.admin_profile))
+            .expect("validated profile and Workspace path")
+    }
+
     pub(crate) fn public_origin(&self) -> String {
         self.public_base_url.origin().ascii_serialization()
     }

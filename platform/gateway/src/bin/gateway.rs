@@ -36,8 +36,13 @@ mod recording_playback;
 mod runtime;
 #[path = "gateway/server.rs"]
 mod server;
+#[cfg(test)]
+#[path = "../../../../testing/fixtures/store.rs"]
+mod test_store;
 #[path = "gateway/tokens.rs"]
 mod tokens;
+#[path = "gateway/workspace/mod.rs"]
+mod workspace;
 
 use anyhow::Context;
 use chrono::Utc;

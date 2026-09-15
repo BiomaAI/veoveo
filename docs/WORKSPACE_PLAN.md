@@ -182,6 +182,12 @@ be scoped and cleaned up through supported operations.
   expose a browser API, agent participation or a deployed Workspace.
 - Existing agent control exposes an agent-wide wake/episode projection. It lacks a
   chat boundary and cannot serve as Workspace's shared history.
+- The next checkpoint adds the human-scoped gateway and browser APIs, generated
+  client contracts and safe people search. HTTP tests cover two collaborating
+  humans, an outsider, forged authors, removed membership and current policy
+  revocation. Browser-edge tests cover cookie authority, CSRF, fixed destinations,
+  bounded responses and OAuth return paths. The interactive client and replayable
+  stream are still being implemented; this checkpoint is not a deployed Workspace.
 - Existing Console session bootstrap already admits ordinary authenticated users;
   reuse that authentication boundary without granting installation inventory access.
 - Existing kernel model construction is coupled to the full analytical runtime.

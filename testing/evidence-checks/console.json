@@ -104,7 +104,8 @@
           "extensions",
           "testing",
           "examples/bioma",
-          "apps/console/web"
+          "apps/console/web",
+          "apps/workspace"
         ]
       },
       "toolchains": [

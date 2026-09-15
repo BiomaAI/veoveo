@@ -12,6 +12,7 @@ mod outbound_http;
 mod recording_playback;
 mod session;
 mod viewer_config;
+mod workspace;
 
 use std::{fs, path::Path, sync::Arc, time::Duration};
 
@@ -208,7 +209,8 @@ async fn main() -> anyhow::Result<()> {
         );
     let router = router
         .merge(artifact_upload::router())
-        .merge(computers::router());
+        .merge(computers::router())
+        .merge(workspace::router());
     let router = with_console_static_routes(router, config.asset_dir())?;
     let router = app_host::with_app_host_route(router, config.asset_dir())?
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))

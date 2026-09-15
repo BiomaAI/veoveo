@@ -1,7 +1,6 @@
 //! Actual catalog, assertion signature and durable policy audit; source auth is a fixture.
-#[path = "../../../../../../testing/fixtures/store.rs"]
-mod store;
 use super::*;
+use crate::test_store as store;
 use axum::extract::{Extension, State};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{TimeDelta, Utc};
