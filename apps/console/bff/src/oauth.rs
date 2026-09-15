@@ -19,7 +19,7 @@ use veoveo_mcp_contract::ScopeName;
 use crate::{
     AppState,
     session::{
-        AUTHORIZATION_AAD, BrowserReturnPath, ConsoleSession, PendingAuthorization,
+        AUTHORIZATION_AAD, BrowserReturnPath, BrowserSession, PendingAuthorization,
         clear_authorization_cookie, clear_session_cookie, random_token, read_authorization,
         set_authorization_cookie, set_session_cookie,
     },
@@ -37,7 +37,7 @@ pub(crate) async fn login(
     State(state): State<AppState>,
     Query(query): Query<LoginQuery>,
 ) -> Response {
-    let return_path = BrowserReturnPath::from_untrusted(query.return_to.as_deref());
+    let return_path = BrowserReturnPath::for_app(query.return_to.as_deref(), state.config.app());
     if let Some(failure) = authorization_configuration_failure(&state).await {
         return callback_error(&state, failure.status(), failure, Some(&return_path));
     }
@@ -78,7 +78,12 @@ fn begin_login(state: &AppState, return_path: BrowserReturnPath) -> anyhow::Resu
         .append_pair("state", &oauth_state)
         .append_pair("resource", state.config.oauth_resource().as_str());
     let mut headers = no_store_headers();
-    set_authorization_cookie(&mut headers, &encrypted, state.config.secure_cookie())?;
+    set_authorization_cookie(
+        &mut headers,
+        &encrypted,
+        state.config.secure_cookie(),
+        state.config.app(),
+    )?;
     Ok((headers, Redirect::to(authorize.as_str())).into_response())
 }
 
@@ -288,7 +293,7 @@ pub(crate) async fn callback(
         );
     }
     let now = Utc::now().timestamp();
-    let console_session = ConsoleSession {
+    let console_session = BrowserSession {
         access_token: token.access_token,
         access_expires_at: now + i64::try_from(expires_in).unwrap_or(0),
         refresh_token,
@@ -323,12 +328,17 @@ pub(crate) async fn callback(
         }
     };
     let mut response_headers = no_store_headers();
-    clear_authorization_cookie(&mut response_headers, state.config.secure_cookie());
+    clear_authorization_cookie(
+        &mut response_headers,
+        state.config.secure_cookie(),
+        state.config.app(),
+    );
     if set_session_cookie(
         &mut response_headers,
         &encrypted,
         session_expires_in,
         state.config.secure_cookie(),
+        state.config.app(),
     )
     .is_err()
     {
@@ -373,7 +383,11 @@ pub(crate) async fn logout(State(state): State<AppState>, request_headers: Heade
         }
     }
     let mut headers = no_store_headers();
-    clear_session_cookie(&mut headers, state.config.secure_cookie());
+    clear_session_cookie(
+        &mut headers,
+        state.config.secure_cookie(),
+        state.config.app(),
+    );
     (headers, StatusCode::NO_CONTENT).into_response()
 }
 
@@ -424,33 +438,33 @@ impl CallbackFailure {
     const fn title(self) -> &'static str {
         match self {
             Self::AccessDenied => "Sign-in was cancelled",
-            Self::AuthorizationChanged => "Console authorization changed",
+            Self::AuthorizationChanged => "Sign-in configuration changed",
             Self::ProviderUnavailable => "Sign-in service unavailable",
             Self::SessionExpired => "Sign-in session expired",
             Self::InvalidResponse => "Sign-in response was invalid",
             Self::AuthenticationFailed => "Sign-in could not be completed",
-            Self::Internal => "Console could not create your session",
+            Self::Internal => "Could not create your session",
         }
     }
 
     const fn message(self) -> &'static str {
         match self {
-            Self::AccessDenied => "No Console session was created. Retry when you are ready.",
+            Self::AccessDenied => "No session was created. Retry when you are ready.",
             Self::AuthorizationChanged => {
-                "The Console and the active authorization policy do not agree. This is an installation configuration problem, not an issue with your account. Retry after the installation operator resolves it."
+                "The application and the active authorization policy do not agree. Retry after the installation operator updates the configuration."
             }
             Self::ProviderUnavailable => {
                 "The identity service could not complete this request. Retry sign-in."
             }
-            Self::SessionExpired => "Start a new sign-in request to continue to the Console.",
+            Self::SessionExpired => "Start a new sign-in request to continue.",
             Self::InvalidResponse => {
-                "The Console could not validate the sign-in response. Start sign-in again."
+                "The application could not validate the sign-in response. Start sign-in again."
             }
             Self::AuthenticationFailed => {
-                "The Console could not establish an authorized session. Retry sign-in."
+                "The application could not establish an authorized session. Retry sign-in."
             }
             Self::Internal => {
-                "The Console encountered an internal error while creating your session."
+                "The application encountered an internal error while creating your session."
             }
         }
     }
@@ -472,7 +486,13 @@ fn callback_error(
     failure: CallbackFailure,
     return_path: Option<&BrowserReturnPath>,
 ) -> Response {
-    callback_error_response(state.config.secure_cookie(), status, failure, return_path)
+    callback_error_response(
+        state.config.secure_cookie(),
+        status,
+        failure,
+        return_path,
+        state.config.app(),
+    )
 }
 
 fn callback_error_response(
@@ -480,6 +500,7 @@ fn callback_error_response(
     status: StatusCode,
     failure: CallbackFailure,
     return_path: Option<&BrowserReturnPath>,
+    app: crate::browser::BrowserApp,
 ) -> Response {
     let reference = Uuid::now_v7().to_string();
     tracing::warn!(
@@ -490,12 +511,12 @@ fn callback_error_response(
     );
     let return_path = return_path
         .map(BrowserReturnPath::as_str)
-        .unwrap_or("/console/");
+        .unwrap_or(app.root());
     let retry_query = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("return_to", return_path)
         .finish();
-    let retry_href = format!("/auth/login?{retry_query}");
-    let body = authentication_error_page(failure, &retry_href, &reference);
+    let retry_href = format!("{}?{retry_query}", app.login());
+    let body = authentication_error_page(failure, &retry_href, &reference, app);
     let mut headers = no_store_headers();
     headers.insert(
         HeaderName::from_static("content-security-policy"),
@@ -511,7 +532,7 @@ fn callback_error_response(
         HeaderName::from_static("x-content-type-options"),
         HeaderValue::from_static("nosniff"),
     );
-    clear_authorization_cookie(&mut headers, secure_cookie);
+    clear_authorization_cookie(&mut headers, secure_cookie, app);
     (status, headers, Html(body)).into_response()
 }
 
@@ -519,6 +540,7 @@ fn authentication_error_page(
     failure: CallbackFailure,
     retry_href: &str,
     reference: &str,
+    app: crate::browser::BrowserApp,
 ) -> String {
     format!(
         r#"<!doctype html>
@@ -526,7 +548,7 @@ fn authentication_error_page(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{title} | Console</title>
+  <title>{title} | {app_title}</title>
   <style>
     :root {{ color-scheme: dark; font-family: "Geist Variable", Inter, ui-sans-serif, system-ui, sans-serif; }}
     body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; background: #101012; color: #eae6dc; }}
@@ -547,12 +569,14 @@ fn authentication_error_page(
     <p>{message}</p>
     <nav aria-label="Authentication recovery actions">
       <a href="{retry_href}">Retry sign-in</a>
-      <a href="/console/">Return to Console</a>
+      <a href="{app_root}">Return to {app_title}</a>
     </nav>
     <small>If this continues, share reference <code>{reference}</code> with the installation operator.</small>
   </main>
 </body>
 </html>"#,
+        app_title = app.title(),
+        app_root = app.root(),
         title = failure.title(),
         message = failure.message(),
     )
@@ -605,13 +629,13 @@ struct RevocationRequest<'a> {
 }
 
 pub(crate) struct UpstreamSession {
-    pub(crate) session: ConsoleSession,
+    pub(crate) session: BrowserSession,
     pub(crate) replacement_cookie: Option<(String, u64)>,
 }
 
 pub(crate) async fn upstream_session(
     state: &AppState,
-    mut session: ConsoleSession,
+    mut session: BrowserSession,
 ) -> anyhow::Result<UpstreamSession> {
     let now = Utc::now().timestamp();
     if session.is_expired(now) {
@@ -757,6 +781,7 @@ mod tests {
             StatusCode::BAD_GATEWAY,
             CallbackFailure::ProviderUnavailable,
             Some(&return_path),
+            crate::browser::BrowserApp::Console,
         );
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
         assert_eq!(response.headers().get(CACHE_CONTROL).unwrap(), "no-store");
@@ -806,13 +831,14 @@ mod tests {
             CallbackFailure::AuthorizationChanged.status(),
             CallbackFailure::AuthorizationChanged,
             None,
+            crate::browser::BrowserApp::Console,
         );
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 
         let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
         let body = String::from_utf8(body.to_vec()).unwrap();
-        assert!(body.contains("Console authorization changed"));
-        assert!(body.contains("installation configuration problem"));
+        assert!(body.contains("Sign-in configuration changed"));
+        assert!(body.contains("installation operator updates the configuration"));
         assert!(body.contains("Retry sign-in"));
         assert!(body.contains("Return to Console"));
         assert!(!body.contains("invalid_scope"));

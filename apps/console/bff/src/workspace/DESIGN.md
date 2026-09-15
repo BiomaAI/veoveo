@@ -3,8 +3,8 @@
 ## Standards And Protocols
 
 The browser edge exposes `/workspace/api` as same-origin HTTP JSON. It uses the
-existing OAuth authorization-code/PKCE flow, encrypted session cookie and CSRF
-header. DTOs come from `mcp/contract/src/workspace.rs`; the browser never receives
+shared OAuth authorization-code/PKCE implementation with a dedicated Workspace
+client/profile, encrypted session cookie and CSRF header. DTOs come from `mcp/contract/src/workspace.rs`; the browser never receives
 an access token. Workspace is a separate application using the existing edge
 deployment.
 
@@ -19,7 +19,9 @@ CSRF middleware before execution.
 Responses are decoded to the expected Rust DTO within a byte and time bound.
 Redirects fail closed. Session rotation is settled even if the subsequent operation
 fails; upstream 401 clears the invalid session. Responses are `no-store`.
-OAuth return-path validation admits `/workspace/` under the same origin.
+OAuth routes live under `/workspace/auth/`. Return-path validation admits only
+`/workspace/` paths for this application. Workspace never uses the Console cookie.
+The shared browser authentication boundary is specified in [`../../DESIGN.md`](../../DESIGN.md).
 
 The edge streams contentless chat notifications with bounded chunks and preserves
 session rotation headers. The gateway owns ongoing session and membership checks.

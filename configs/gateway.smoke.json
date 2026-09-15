@@ -173,6 +173,50 @@
         }
       ],
       "metadata": {}
+    },
+    {
+      "id": "workspace",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://veoveo.example/mcp/workspace",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "servers": [
+        {
+          "server": "media",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "artifact",
+              "model_schema",
+              "models",
+              "run"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "media"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        }
+      ],
+      "metadata": {
+        "purpose": "Shared productivity chats and governed user tools"
+      }
     }
   ],
   "recording_ingest_resources": [
@@ -251,7 +295,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "servers": [
             "media"
@@ -345,7 +390,8 @@
             "agents_input_request_answer"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "workspace"
           ],
           "required_scopes": [
             "operator:use"
@@ -465,6 +511,12 @@
             "operator-hosted-delegated",
             "operator-service",
             "smoke-recording-producer"
+          ]
+        },
+        {
+          "level": "contributor",
+          "oauth_clients": [
+            "workspace"
           ]
         }
       ]
@@ -736,6 +788,34 @@
         "path": "configs/jwks.smoke.json"
       },
       "tenant": "tenant-a"
+    },
+    {
+      "id": "workspace",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "direct",
+      "display_name": "Veoveo Workspace",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://veoveo.example/mcp/workspace"
+      ],
+      "grant_types": [
+        "authorization_code_pkce",
+        "refresh_token"
+      ],
+      "auth_methods": [
+        "none"
+      ],
+      "allowed_scopes": [
+        "artifact:upload",
+        "operator:use"
+      ],
+      "metadata": {
+        "client_boundary": "workspace"
+      },
+      "redirect_uris": [
+        "https://veoveo.example/admin/callback"
+      ]
     }
   ],
   "oidc_clients": [
@@ -745,7 +825,8 @@
       "authorization_server": "veoveo",
       "allowed_resources": [
         "https://veoveo.example/mcp/operator",
-        "https://veoveo.example/mcp/admin"
+        "https://veoveo.example/mcp/admin",
+        "https://veoveo.example/mcp/workspace"
       ],
       "client_id": "veoveo",
       "redirect_uri": "https://veoveo.example/oauth/callback",

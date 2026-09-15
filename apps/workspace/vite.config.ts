@@ -10,6 +10,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/workspace/api": "http://127.0.0.1:8786",
+      "/workspace/auth": "http://127.0.0.1:8786",
       "/console/api": { target: "http://127.0.0.1:8786", ws: true },
       "/auth": "http://127.0.0.1:8786",
       "/oauth": "http://127.0.0.1:8788",

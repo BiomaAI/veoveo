@@ -159,7 +159,7 @@ fn part_session(
 }
 
 fn validate_part_session(
-    session: crate::session::ConsoleSession,
+    session: crate::session::BrowserSession,
     scopes: &std::collections::BTreeSet<veoveo_mcp_contract::ScopeName>,
     now: i64,
 ) -> Result<crate::oauth::UpstreamSession, PartSessionRejected> {
@@ -187,10 +187,10 @@ fn part_unauthorized() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::ConsoleSession;
+    use crate::session::BrowserSession;
     use std::collections::BTreeSet;
-    fn session(expires: i64) -> ConsoleSession {
-        ConsoleSession {
+    fn session(expires: i64) -> BrowserSession {
+        BrowserSession {
             access_token: "access".into(),
             access_expires_at: expires,
             refresh_token: "refresh".into(),

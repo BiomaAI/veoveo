@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::browser::BrowserApp;
 use anyhow::{Context, anyhow, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use url::Url;
@@ -42,6 +43,7 @@ impl std::fmt::Debug for RerunMapProvider {
 
 #[derive(Clone)]
 pub(crate) struct Config {
+    app: BrowserApp,
     bind: SocketAddr,
     public_base_url: Url,
     gateway_url: Url,
@@ -49,7 +51,7 @@ pub(crate) struct Config {
     oauth_resource: Url,
     mcp_transport_url: Url,
     oauth_scopes: BTreeSet<ScopeName>,
-    admin_profile: String,
+    profile: String,
     outbound_ca_bundle: Option<PathBuf>,
     rerun_map_provider: RerunMapProvider,
     session_key: [u8; 32],
@@ -73,8 +75,8 @@ impl Config {
         let mcp_transport_url =
             resolve_mcp_transport_url(&oauth_resource, configured_mcp_transport.as_deref())?;
         let oauth_scopes = parse_oauth_scopes(&required("VEOVEO_CONSOLE_OAUTH_SCOPES")?)?;
-        let admin_profile = mcp_profile("VEOVEO_CONSOLE_OAUTH_RESOURCE", &oauth_resource)?;
-        validate_identifier("OAuth resource profile", &admin_profile)?;
+        let profile = mcp_profile("VEOVEO_CONSOLE_OAUTH_RESOURCE", &oauth_resource)?;
+        validate_identifier("OAuth resource profile", &profile)?;
         let outbound_ca_bundle = optional("VEOVEO_CONSOLE_OUTBOUND_CA_BUNDLE")?
             .map(PathBuf::from)
             .map(|path| {
@@ -106,6 +108,7 @@ impl Config {
             bounded_capacity("VEOVEO_CONSOLE_MAX_APP_RESOURCE_SUBSCRIPTIONS", "256", 4096)?;
 
         Ok(Self {
+            app: BrowserApp::Console,
             bind,
             public_base_url,
             gateway_url,
@@ -113,7 +116,7 @@ impl Config {
             oauth_resource,
             mcp_transport_url,
             oauth_scopes,
-            admin_profile,
+            profile,
             outbound_ca_bundle,
             rerun_map_provider,
             session_key,
@@ -126,6 +129,43 @@ impl Config {
 
     pub(crate) const fn bind(&self) -> SocketAddr {
         self.bind
+    }
+    pub(crate) const fn app(&self) -> BrowserApp {
+        self.app
+    }
+
+    /// Reuse transport and session encryption configuration with a distinct
+    /// OAuth client/resource and cookie authentication domain.
+    pub(crate) fn for_workspace(&self) -> anyhow::Result<Self> {
+        let mut workspace = self.clone();
+        workspace.app = BrowserApp::Workspace;
+        workspace.oauth_client_id = env_or("VEOVEO_WORKSPACE_OAUTH_CLIENT_ID", "workspace");
+        validate_identifier(
+            "VEOVEO_WORKSPACE_OAUTH_CLIENT_ID",
+            &workspace.oauth_client_id,
+        )?;
+        workspace.oauth_resource = absolute_url_value(
+            "VEOVEO_WORKSPACE_OAUTH_RESOURCE",
+            &env_or(
+                "VEOVEO_WORKSPACE_OAUTH_RESOURCE",
+                self.public_base_url.join("/mcp/workspace")?.as_str(),
+            ),
+        )?;
+        workspace.profile =
+            mcp_profile("VEOVEO_WORKSPACE_OAUTH_RESOURCE", &workspace.oauth_resource)?;
+        let transport = env_or(
+            "VEOVEO_WORKSPACE_MCP_TRANSPORT_URL",
+            self.gateway_url
+                .join(&format!("/mcp/{}", workspace.profile))?
+                .as_str(),
+        );
+        workspace.mcp_transport_url =
+            resolve_mcp_transport_url(&workspace.oauth_resource, Some(&transport))?;
+        workspace.oauth_scopes = parse_oauth_scopes(&env_or(
+            "VEOVEO_WORKSPACE_OAUTH_SCOPES",
+            "operator:use artifact:upload",
+        ))?;
+        Ok(workspace)
     }
     pub(crate) fn oauth_client_id(&self) -> &str {
         &self.oauth_client_id
@@ -170,7 +210,7 @@ impl Config {
 
     pub(crate) fn callback_url(&self) -> Url {
         self.public_base_url
-            .join("/auth/callback")
+            .join(self.app.callback())
             .expect("validated base URL")
     }
 
@@ -184,7 +224,7 @@ impl Config {
         self.gateway_url
             .join(&format!(
                 "/.well-known/oauth-protected-resource/mcp/{}",
-                self.admin_profile
+                self.profile
             ))
             .expect("validated profile and base URL")
     }
@@ -212,7 +252,7 @@ impl Config {
     pub(crate) fn admin_url(&self, path: &str) -> Url {
         debug_assert!(!path.starts_with('/'));
         self.gateway_url
-            .join(&format!("/admin/{}/{path}", self.admin_profile))
+            .join(&format!("/admin/{}/{path}", self.profile))
             .expect("validated profile and typed path")
     }
 
@@ -220,7 +260,7 @@ impl Config {
         self.gateway_url
             .join(&format!(
                 "/artifacts/{}/{artifact_id}/download",
-                self.admin_profile
+                self.profile
             ))
             .expect("validated profile and artifact id")
     }
@@ -228,7 +268,7 @@ impl Config {
     /// Called only with upload routes assembled from validated identifiers.
     pub(crate) fn artifact_upload_url(&self, path: &str) -> Url {
         self.gateway_url
-            .join(&format!("/artifacts/{}/{path}", self.admin_profile))
+            .join(&format!("/artifacts/{}/{path}", self.profile))
             .expect("validated profile and typed upload route")
     }
 
@@ -236,7 +276,7 @@ impl Config {
         self.gateway_url
             .join(&format!(
                 "/recordings/{}/{recording_id}/playback",
-                self.admin_profile
+                self.profile
             ))
             .expect("validated profile and recording id")
     }
@@ -245,7 +285,7 @@ impl Config {
         self.gateway_url
             .join(&format!(
                 "/recordings/{}/{recording_id}/live/rrd-stream",
-                self.admin_profile
+                self.profile
             ))
             .expect("validated profile and recording id")
     }
@@ -254,7 +294,7 @@ impl Config {
         self.gateway_url
             .join(&format!(
                 "/recordings/{}/{recording_id}/blueprints/{revision}/data.rrd",
-                self.admin_profile
+                self.profile
             ))
             .expect("validated profile and recording/Blueprint ids")
     }
@@ -263,7 +303,7 @@ impl Config {
         self.gateway_url
             .join(&format!(
                 "/recordings/{}/{recording_id}/projections/{projection_id}/data.arrow",
-                self.admin_profile
+                self.profile
             ))
             .expect("validated profile and recording/projection ids")
     }
@@ -279,7 +319,7 @@ impl Config {
     /// Paths are assembled from the Workspace router's typed identifiers.
     pub(crate) fn workspace_url(&self, path: &str) -> Url {
         self.gateway_url
-            .join(&format!("/workspace-api/{}{path}", self.admin_profile))
+            .join(&format!("/workspace-api/{}{path}", self.profile))
             .expect("validated profile and Workspace path")
     }
 
@@ -290,18 +330,18 @@ impl Config {
     /// Only canonical routes assembled from checked Computer identifiers.
     pub(crate) fn computers_url(&self, path: &str) -> Url {
         self.gateway_url
-            .join(&format!("/computers/{}{path}", self.admin_profile))
+            .join(&format!("/computers/{}{path}", self.profile))
             .expect("validated profile and Computer path")
     }
 
     pub(crate) fn session_url(&self) -> Url {
         self.gateway_url
-            .join(&format!("/console-api/{}/session", self.admin_profile))
+            .join(&format!("/console-api/{}/session", self.profile))
             .expect("validated gateway URL and profile")
     }
 
     pub(crate) fn profile(&self) -> &str {
-        &self.admin_profile
+        &self.profile
     }
 
     pub(crate) fn secure_cookie(&self) -> bool {
@@ -309,8 +349,26 @@ impl Config {
     }
 
     #[cfg(test)]
+    pub(crate) fn workspace_for_test(gateway_url: Url) -> Self {
+        let mut config = Self::for_test(gateway_url.clone());
+        config.app = BrowserApp::Workspace;
+        config.oauth_client_id = "workspace".to_owned();
+        config.profile = "workspace".to_owned();
+        config.oauth_resource = gateway_url.join("/mcp/workspace").unwrap();
+        config.mcp_transport_url = config.oauth_resource.clone();
+        config.oauth_scopes = [
+            ScopeName::new("operator:use").unwrap(),
+            ScopeName::new("artifact:upload").unwrap(),
+        ]
+        .into_iter()
+        .collect();
+        config
+    }
+
+    #[cfg(test)]
     pub(crate) fn for_test(gateway_url: Url) -> Self {
         Self {
+            app: BrowserApp::Console,
             bind: "127.0.0.1:0".parse().expect("valid test bind"),
             public_base_url: gateway_url.clone(),
             oauth_client_id: "console".to_owned(),
@@ -321,7 +379,7 @@ impl Config {
             oauth_scopes: BTreeSet::from([
                 ScopeName::new("admin:manage").expect("valid test scope")
             ]),
-            admin_profile: "admin".to_owned(),
+            profile: "admin".to_owned(),
             outbound_ca_bundle: None,
             rerun_map_provider: RerunMapProvider::OpenStreetMap,
             session_key: [7; 32],
@@ -455,13 +513,13 @@ fn resolve_mcp_transport_url(
 ) -> anyhow::Result<Url> {
     let transport = configured_transport.map_or_else(
         || Ok(oauth_resource.clone()),
-        |value| absolute_url_value("VEOVEO_CONSOLE_MCP_TRANSPORT_URL", value),
+        |value| absolute_url_value("MCP transport URL", value),
     )?;
-    let oauth_profile = mcp_profile("VEOVEO_CONSOLE_OAUTH_RESOURCE", oauth_resource)?;
-    let transport_profile = mcp_profile("VEOVEO_CONSOLE_MCP_TRANSPORT_URL", &transport)?;
+    let oauth_profile = mcp_profile("OAuth resource", oauth_resource)?;
+    let transport_profile = mcp_profile("MCP transport URL", &transport)?;
     if transport_profile != oauth_profile {
         bail!(
-            "VEOVEO_CONSOLE_MCP_TRANSPORT_URL profile `{transport_profile}` must match VEOVEO_CONSOLE_OAUTH_RESOURCE profile `{oauth_profile}`"
+            "MCP transport URL profile `{transport_profile}` must match OAuth resource profile `{oauth_profile}`"
         );
     }
     Ok(transport)
@@ -498,7 +556,7 @@ impl std::fmt::Debug for Config {
             .field("oauth_resource", &self.oauth_resource)
             .field("mcp_transport_url", &self.mcp_transport_url)
             .field("oauth_scopes", &self.oauth_scopes)
-            .field("admin_profile", &self.admin_profile)
+            .field("profile", &self.profile)
             .field("outbound_ca_bundle", &self.outbound_ca_bundle)
             .field("rerun_map_provider", &self.rerun_map_provider)
             .field("session_key", &"[REDACTED]")
@@ -520,9 +578,9 @@ fn parse_oauth_scopes(value: &str) -> anyhow::Result<BTreeSet<ScopeName>> {
         .split_ascii_whitespace()
         .map(ScopeName::new)
         .collect::<Result<BTreeSet<_>, _>>()
-        .context("VEOVEO_CONSOLE_OAUTH_SCOPES contains an invalid scope")?;
+        .context("OAuth scopes contain an invalid scope")?;
     if scopes.is_empty() {
-        bail!("VEOVEO_CONSOLE_OAUTH_SCOPES must contain at least one scope");
+        bail!("OAuth scopes must contain at least one scope");
     }
     Ok(scopes)
 }

@@ -419,6 +419,14 @@ consoleBff:
   replicas: 2
   oauthClientId: admin-console
   oauthResource: https://veoveo.enterprise.example/mcp/admin
+  workspace:
+    oauthClientId: workspace
+    # Empty endpoints derive from the public origin and private gateway origin.
+    oauthResource: ""
+    mcpTransportUrl: ""
+    oauthScopes:
+      - operator:use
+      - artifact:upload
   # Network endpoint used only by the Console BFF MCP client. Leave empty to
   # preserve the existing behavior of using oauthResource as the transport.
   mcpTransportUrl: ""
