@@ -615,6 +615,15 @@ fn artifact_stream_response(
         ArtifactStreamPresentation::Preview => {
             headers.insert(CONTENT_DISPOSITION, HeaderValue::from_static("inline"));
             headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+            // Artifact bytes are untrusted, including HTML and SVG served with
+            // their real MIME type. A direct navigation cannot become an app.
+            headers.insert(
+                CONTENT_SECURITY_POLICY,
+                HeaderValue::from_static(
+                    "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+                ),
+            );
+            headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
         }
     }
     let status = upstream.status();

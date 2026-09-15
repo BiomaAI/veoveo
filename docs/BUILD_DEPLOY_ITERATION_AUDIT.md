@@ -6,7 +6,18 @@ Workspace implementation reuses the installed platform. The initial gateway and
 browser-edge images were published from `1ec7bc5c` in 288.410 seconds. Compilation
 occupied 264.412 seconds, with a new shared Cargo feature graph. Console assets
 remained cached; the first Workspace asset solve took 1.57 seconds. Export occupied
-18.408 seconds. These phase windows overlap. The initial public rollout is pending.
+18.408 seconds. These phase windows overlap. Release 159 activated at `527a2af2`.
+Requested reconciliation observed 19.133 seconds in desired-state apply, 1.004
+seconds in rollout and 0.493 seconds in readiness. Source fetch took 0.114 seconds
+because Flux had already fetched the revision. One gateway container started before
+installation-bootstrap committed its control-plane revision, failed closed and
+restarted successfully. Readiness prevented that container from receiving traffic.
+An init wait on the same activation boundary could avoid this restart churn.
+
+Installed SSO, two real model responses and one real media Task pass on headed
+RTX 4090 WebGL. The completed Task retains its exact opaque identity after reload.
+The first result exposes a usability gap: copying a canonical URI is insufficient.
+The next browser-edge/client checkpoint adds governed preview and download actions.
 
 The typed Cargo retention pass removed 97.66 GiB of superseded executable copies
 and older incremental variants. It retained running executables, dependency libraries

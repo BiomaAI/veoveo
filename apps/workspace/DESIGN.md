@@ -69,6 +69,15 @@ admission discloses the configured capability scope before sharing history. The 
 has native protocol/runtime acceptance; capability views and installed acceptance
 remain required implementation work.
 
+Task result Artifact references have explicit preview and download actions. The
+client recognizes the canonical `artifact://{id}` and domain `scheme://artifact/{id}`
+forms with UUIDv7 identities, then uses a fixed same-origin route. It never navigates
+to an arbitrary tool-supplied URL. A fresh governed HEAD request supplies MIME type,
+length and current access before a raster-image preview, bounded to 20 MiB. Other
+types remain downloadable. Revoked or unavailable reads explain that a chat link
+does not confer file access. The preview GET rechecks authority; neither a Task
+receipt nor the prior HEAD response grants continuing access.
+
 ## Development And Acceptance
 
 Run `npm ci` and `npm run dev` in this directory. Vite uses port 4174 and proxies

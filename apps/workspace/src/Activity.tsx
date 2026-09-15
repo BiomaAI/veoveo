@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { Activity as ActivityIcon, Check, CircleAlert, Clock3, LockKeyhole, RefreshCw, Square, X } from "lucide-react";
 import { api, ApiError } from "./api.ts";
 import { TaskInput } from "./TaskInput.tsx";
+import { ResourceResult } from "./ResourceResult.tsx";
 import type { AgentActivity, Chat, InputAnswer, OperationSummary, OperationView } from "./generated/workspace.ts";
 
 function active(view?: OperationView): boolean {
@@ -107,7 +108,7 @@ function TaskCard({ operation, observed, agent, chatTitle, showOrigin }: { opera
       {view.inputs.length > 0 && <TaskInput key={view.inputs.map(input => `${input.id}:${input.digest}`).join("|")} inputs={view.inputs} busy={busy} onAnswer={answers => void answer(answers)} onError={setError}/>}
       {view.operation.phase === "input_required" && view.inputs.length === 0 && <button className="primary" disabled={busy} onClick={() => void answer([])}>Continue operation</button>}
       {view.result && <div className="task-result">{view.result.text.map((text, index) => <p key={index}>{text}</p>)}
-        {view.result.resources.map(resource => <div className="task-resource" key={resource.uri}><strong>{resource.name}</strong><code>{resource.uri}</code><button onClick={() => void navigator.clipboard.writeText(resource.uri).catch(() => setError("The resource link could not be copied."))}>Copy resource link</button></div>)}
+        {view.result.resources.map(resource => <ResourceResult key={resource.uri} resource={resource}/>)}
         {view.result.structured != null && <details><summary>Result details</summary><pre>{JSON.stringify(view.result.structured, null, 2)}</pre></details>}
       </div>}
       {view.task && !completed && <div className="task-actions"><button disabled={busy || cancelAsked} onClick={() => void cancel()}><Square size={12}/> {cancelAsked ? "Cancellation requested" : "Cancel task"}</button>{cancelAsked && <small>Waiting for the server to confirm the outcome.</small>}</div>}

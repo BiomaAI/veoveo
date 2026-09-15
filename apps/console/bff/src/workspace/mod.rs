@@ -26,6 +26,14 @@ pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .merge(runs::router())
         .merge(operations::router())
+        .route(
+            "/workspace/api/artifacts/{artifact_id}/download",
+            get(api::download_artifact),
+        )
+        .route(
+            "/workspace/api/artifacts/{artifact_id}/preview",
+            get(api::preview_artifact),
+        )
         .route("/workspace/api/session", get(session))
         .route("/workspace/api/chats", get(chats).post(create))
         .route("/workspace/api/chats/{chat}", get(snapshot).put(settings))

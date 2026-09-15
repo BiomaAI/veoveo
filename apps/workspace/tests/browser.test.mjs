@@ -52,6 +52,9 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const task = { id: "opaque-task-fixture", state: "input_required", message: "Review the requested count.", createdAt: operation.createdAt, updatedAt: operation.createdAt, ttlMs: 300000, pollIntervalMs: 5000 };
     let inputs = [{ id: "approval-1", digest: "a".repeat(64), kind: "form", message: "How many follow-ups should be prepared?", schema: { type: "object", properties: { count: { type: "integer", title: "Follow-ups", minimum: 1, maximum: 3 } }, required: ["count"] }, url: null }];
     const operationPosts = [];
+    const artifact = "01a0a75d-3458-78f3-ac54-91f1cab1fea1";
+    let result = null;
+    let fileAllowed = false;
     let uncertain = true;
     const sends = [];
     const pages = await Promise.all([context.newPage(), context.newPage()]);
@@ -64,11 +67,16 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
         const request = route.request();
         const path = new URL(request.url());
         let body;
-        if (request.method() !== "GET") {
+        if (!["GET", "HEAD"].includes(request.method())) {
           assert.equal(request.headers()["x-veoveo-csrf-token"], "fixture-csrf");
           body = request.postData() ? request.postDataJSON() : undefined;
         }
         const respond = json => route.fulfill({ status: 200, contentType: "application/json", headers: { "x-veoveo-csrf-token": "fixture-csrf" }, json });
+        if (path.pathname === `/workspace/api/artifacts/${artifact}/preview`) {
+          if (!fileAllowed) return route.fulfill({ status: 403 });
+          const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+          return route.fulfill({ status: 200, contentType: "image/png", headers: { "content-length": String(png.length) }, body: request.method() === "HEAD" ? "" : png });
+        }
         if (path.pathname.endsWith("/session")) return respond({ person, principalId: `fixture#${person.id}`, tenantId: "test", tenantName: "Shared work", workContext: "default", workContextTitle: "Product team", canContribute: true });
         if (path.pathname.endsWith("/operations")) return respond({ items: index === 0 ? [operation] : [], next: null });
         if (path.pathname.includes(`/operations/${operation.id}`)) {
@@ -78,7 +86,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
             if (path.pathname.endsWith("/cancel")) { task.message = "Cancellation requested."; }
             return route.fulfill({ status: 204 });
           }
-          return respond({ operation, task, inputs, result: null });
+          return respond({ operation, task, inputs, result });
         }
         if (path.pathname.endsWith("/events")) return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: change\ndata: {"sequence":${chat.sequence}}\n\n` });
         if (path.pathname.endsWith("/activity")) return respond({ agents, runs });
@@ -194,6 +202,18 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByRole("region", { name: "Your activity in this chat", exact: true }).waitFor();
     await owner.getByText("Writer · Requested for you", { exact: true }).waitFor();
     assert.equal(operationPosts.length, 2, "opening the originating chat restores the receipt without dispatch");
+    task.state = "completed";
+    result = { isError: false, text: [], resources: [{ uri: `media://artifact/${artifact}`, name: "Generated image", mimeType: "image/png" }], structured: null };
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByRole("button", { name: "Preview", exact: true }).click();
+    await owner.getByText("This file is unavailable with your current access. A chat or Task link does not grant file access.", { exact: true }).waitFor();
+    assert.equal(await owner.getByRole("img", { name: "Generated image", exact: true }).count(), 0);
+    fileAllowed = true;
+    await owner.getByRole("button", { name: "Preview", exact: true }).click();
+    await owner.getByRole("img", { name: "Generated image", exact: true }).waitFor();
+    await owner.waitForFunction(() => document.querySelector(".task-image")?.naturalWidth === 1);
+    assert.equal(await owner.getByRole("link", { name: "Download", exact: true }).getAttribute("href"), `/workspace/api/artifacts/${artifact}/download`);
+    assert.equal(operationPosts.length, 2, "preview cannot invoke the original tool");
     assert.deepEqual(errors, []);
 
   } finally {
