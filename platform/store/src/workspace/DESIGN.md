@@ -45,3 +45,7 @@ Human chat membership, invitations, immutable text messages and event replay are
 implemented. Per-chat agent admission and durable execution records are owned by
 [`runs/DESIGN.md`](runs/DESIGN.md). Gateway/model execution and installed acceptance
 remain part of the Workspace delivery goal.
+
+Private MCP dispatch receipts, Task references and continuation fences are owned
+by [`operations/DESIGN.md`](operations/DESIGN.md). They preserve accepted operation
+identity across browser and process restarts without replaying tool calls.

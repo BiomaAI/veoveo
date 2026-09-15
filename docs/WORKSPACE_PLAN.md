@@ -205,6 +205,12 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Private MCP operation receipts now persist dispatch intent, native Task references
+  and multi-round continuation fences. Database acceptance proves single dispatch
+  under contention, private ownership, stale-form rejection and late settlement
+  after revocation. The native MCP client, Task UI and installed acceptance remain
+  active implementation work.
+
 - Approved design committed as `034ac8aa`.
 - The first store checkpoint implements human-owned chats, explicit invitation
   acceptance, member removal, ownership transfer, separate settings revisions,

@@ -1,6 +1,8 @@
 //! Durable shared-chat operations. Policy admission is server-owned; membership,
 //! current context and message order are enforced within each transaction.
 mod membership;
+mod operations;
+pub use operations::*;
 mod people;
 mod records;
 mod runs;
