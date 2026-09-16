@@ -2,6 +2,17 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+Release 164's values-only correction converged with 9.100 seconds in source fetch,
+19.096 seconds in desired-state apply, 0.624 seconds in rollout observation and
+0.405 seconds in readiness. The installed Timeline App Task passed completion and
+reload with one admission. Public browser acceptance then caught a retained-Task
+authorization defect that isolated App bridge fixtures could not expose: expanding
+OAuth scopes changed the gateway's full invocation digest and hid an earlier Task.
+The regression now crosses both the real canonical route store and current policy
+evaluation. Stable ownership is independent of the current permission bundle.
+The original Tasks are the deployment acceptance inputs; no replacement media job
+is needed. This correction selects only the gateway image and reuses the chart.
+
 
 The App checkpoint reuses the private operation journal and the existing iframe
 resource transport. Native HTTP/Task-runtime acceptance passes restart, exact App

@@ -84,15 +84,10 @@ impl GatewayMcp {
             deterministic_work_context_id(tenant_key, subject.authority.work_context.as_str())
                 .map_err(|error| mcp_internal(format!("invalid task Work Context: {error}")))?
                 .record_id();
-        let authority_digest = hex::encode(super::invocation_authorization_fingerprint(
-            &subject.actor,
-            &subject.authority,
-        )?);
         if route.tenant != expected_tenant
             || route.owner != expected_owner
             || route.work_context != expected_work_context
             || record_key(&route.profile)? != self.profile_id.as_str()
-            || route.authority_digest != authority_digest
         {
             tracing::warn!(
                 %task_id,
@@ -102,6 +97,28 @@ impl GatewayMcp {
                 caller_tenant = ?subject.actor.tenant,
                 "canonical task ownership did not match the authenticated subject"
             );
+            return Err(mcp_invalid_params("unknown task id"));
+        }
+        let ownership = self
+            .state
+            .task_route_ownership(&route)
+            .await
+            .map_err(|error| {
+                mcp_internal(format!("failed to read retained Task ownership: {error}"))
+            })?;
+        let owned = match ownership {
+            Some(ownership) => ownership.allows(&subject.actor, &subject.authority),
+            // A version-0 external route has no recoverable ownership metadata.
+            // Preserve its exact admission constraint until its original expiry.
+            None => {
+                route.authority_digest
+                    == hex::encode(super::invocation_authorization_fingerprint(
+                        &subject.actor,
+                        &subject.authority,
+                    )?)
+            }
+        };
+        if !owned {
             return Err(mcp_invalid_params("unknown task id"));
         }
         let server = ServerSlug::new(record_key(&route.server)?)

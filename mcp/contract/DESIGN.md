@@ -168,6 +168,13 @@ before accepting work. The published
 replaces the older per-tool `execution.taskSupport` and request `task` handshake;
 those fields are not part of this profile.
 
+Durable Task ownership binds the actual actor, tenant, Work Context, profile and
+invocation provenance. Current access checks apply on every read, update, cancel
+and subscription. Signing in again or changing unrelated scopes does not create a
+different owner. Retained data labels and current domain permissions still constrain
+results and actions. The gateway's persisted transition is specified in
+[`Task Routes`](../../platform/gateway/src/state/task_routes/DESIGN.md).
+
 A `tools_compat` registration may explicitly enable the direct task-call adapter.
 That adapter supplies the negotiated capability upstream, waits on the canonical
 subscription and returns the terminal result with its canonical Task ID. It shares

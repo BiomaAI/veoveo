@@ -8,6 +8,9 @@ mod policy;
 mod principal_audit;
 pub mod secrets;
 pub mod state;
+#[cfg(test)]
+#[path = "../../../testing/fixtures/store.rs"]
+mod test_store;
 mod tool_name;
 
 pub use auth::{

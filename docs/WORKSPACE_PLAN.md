@@ -205,6 +205,15 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 164 restores scope-qualified Workspace sign-in. The installed Timeline
+  App returned a completed native Task with one durable operation admission; its
+  original ID and validation result survived reload. GitHub run `35043053716`
+  passes. Reauthentication exposed a separate gateway defect: older Tasks were
+  tied to the entire original permission bundle. The correction separates stable
+  actor/provenance ownership from current permission checks and preserves existing
+  first-party Task IDs through retained metadata. Installed recovery of the older
+  media Task remains the next deployment gate.
+
 - Release 162 adds sandboxed Apps and the durable App-origin Task bridge. Installed
   testing found that Workspace requested only three of its already registered
   nonadministrative scopes. Listed Time Tasks were denied by current policy. The

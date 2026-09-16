@@ -513,7 +513,7 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 | `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC plus signed-in display-label continuity |
 | `state/session.rs` | authoritative access-token session-family binding and revocation checks |
 | `state/subscriptions.rs` | durable subscription ownership and forwarding |
-| `state/task_routes.rs` and [`state/task_routes/DESIGN.md`](../platform/gateway/src/state/task_routes/DESIGN.md) | opaque upstream Task mapping, concurrent idempotent projection, retained authority and original route expiry |
+| `state/task_routes.rs`, `state/task_routes/ownership.rs` and [`state/task_routes/DESIGN.md`](../platform/gateway/src/state/task_routes/DESIGN.md) | opaque upstream Task mapping, concurrent idempotent projection, stable actor/provenance ownership, current permission checks and original route expiry; 0081 adds ownership metadata with a bounded version-0 reader |
 | `secrets.rs` | secret-source models and environment/file/Vault resolution |
 
 ### Binary surface: `platform/gateway/src/bin/gateway`
