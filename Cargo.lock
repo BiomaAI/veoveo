@@ -17105,6 +17105,7 @@ dependencies = [
  "rmcp",
  "serde",
  "serde_json",
+ "veoveo-mcp-contract",
 ]
 
 [[package]]

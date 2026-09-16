@@ -1,12 +1,12 @@
 import { browserSession } from "../../console/web/src/csrf.ts";
 import { z } from "zod";
 import schema from "./generated/workspace.schema.json" with { type: "json" };
-import type { AgentActivity, AgentDefinition, ChatAgent, Run, Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
+import type { AppOperationView, AgentActivity, AgentDefinition, ChatAgent, Run, Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
 import type { OperationView, OperationPage, OperationSummary, AnswerOperation, StartOperation, Capability } from "./generated/workspace.ts";
 
 export type ConversationSnapshot = ChatSnapshot & { activity: AgentActivity };
 
-type Definitions = { OperationView: OperationView; OperationPage: OperationPage; OperationSummary: OperationSummary; Capability: Capability; AgentActivity: AgentActivity; AgentDefinition: AgentDefinition; ChatAgent: ChatAgent; Run: Run; Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
+type Definitions = { AppOperationView: AppOperationView; OperationView: OperationView; OperationPage: OperationPage; OperationSummary: OperationSummary; Capability: Capability; AgentActivity: AgentActivity; AgentDefinition: AgentDefinition; ChatAgent: ChatAgent; Run: Run; Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
   InvitationSummary: InvitationSummary; Message: Message; Person: Person; WorkspaceBootstrap: WorkspaceBootstrap };
 const validators = new Map<keyof Definitions, z.ZodType>();
 export function parse<K extends keyof Definitions>(kind: K, input: unknown): Definitions[K] {

@@ -31,6 +31,12 @@ export type GatewayToolName = string;
  */
 export type InputDecision = "accept" | "decline" | "cancel";
 /**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationPhase".
+ */
+export type OperationPhase =
+  "dispatching" | "input_required" | "task" | "completed" | "failed" | "unconfirmed";
+/**
  * Stable authenticated user or service-principal identity.
  *
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -63,12 +69,6 @@ export type InvitationState = "pending" | "accepted" | "declined" | "revoked";
 export type InputKind = "form" | "link" | "unsupported";
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
- * via the `definition` "OperationPhase".
- */
-export type OperationPhase =
-  "dispatching" | "input_required" | "task" | "completed" | "failed" | "unconfirmed";
-/**
- * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
  * via the `definition` "TaskState".
  */
 export type TaskState = "working" | "input_required" | "completed" | "failed" | "cancelled";
@@ -78,6 +78,9 @@ export interface WorkspaceSchema {
   add_agent: AddAgent;
   agent_definition: AgentDefinition;
   answer_operation: AnswerOperation;
+  app_operation: AppOperationView;
+  app_origin: AppOrigin;
+  app_task: AppTaskRequest;
   bootstrap: WorkspaceBootstrap;
   capability: Capability;
   create_chat: CreateChat;
@@ -90,8 +93,10 @@ export interface WorkspaceSchema {
   send_message: SendMessage;
   settings: ChatSettings;
   snapshot: ChatSnapshot;
+  start_app_operation: StartAppOperation;
   start_operation: StartOperation;
   start_run: StartRun;
+  update_app_task: UpdateAppTask;
   wake: ChatWake;
 }
 /**
@@ -171,6 +176,47 @@ export interface InputAnswer {
   decision: InputDecision;
   digest: string;
   id: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "AppOperationView".
+ */
+export interface AppOperationView {
+  /**
+   * Native MCP 2026-07-28 result, validated by the pinned App protocol adapter.
+   */
+  native?: {
+    [k: string]: unknown;
+  };
+  operation: OperationSummary;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationSummary".
+ */
+export interface OperationSummary {
+  chatId: string;
+  createdAt: string;
+  id: string;
+  phase: OperationPhase;
+  revision: number;
+  runId?: string | null;
+  tool: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "AppOrigin".
+ */
+export interface AppOrigin {
+  appUri: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "AppTaskRequest".
+ */
+export interface AppTaskRequest {
+  appUri: string;
+  taskId: string;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -280,19 +326,6 @@ export interface OperationInput {
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
- * via the `definition` "OperationSummary".
- */
-export interface OperationSummary {
-  chatId: string;
-  createdAt: string;
-  id: string;
-  phase: OperationPhase;
-  revision: number;
-  runId?: string | null;
-  tool: string;
-}
-/**
- * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
  * via the `definition` "OperationResult".
  */
 export interface OperationResult {
@@ -397,6 +430,22 @@ export interface Message {
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "StartAppOperation".
+ */
+export interface StartAppOperation {
+  appUri: string;
+  arguments: {
+    [k: string]: unknown;
+  };
+  id: string;
+  inputResponses?: {
+    [k: string]: unknown;
+  } | null;
+  requestState?: string | null;
+  tool: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
  * via the `definition` "StartOperation".
  */
 export interface StartOperation {
@@ -413,6 +462,17 @@ export interface StartOperation {
 export interface StartRun {
   agent: string;
   trigger: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "UpdateAppTask".
+ */
+export interface UpdateAppTask {
+  appUri: string;
+  inputResponses: {
+    [k: string]: unknown;
+  };
+  taskId: string;
 }
 /**
  * A wake identifies only a committed chat head. Consumers fetch authorized

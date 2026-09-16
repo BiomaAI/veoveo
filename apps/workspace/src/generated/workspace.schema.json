@@ -89,6 +89,49 @@
       ],
       "type": "object"
     },
+    "AppOperationView": {
+      "additionalProperties": false,
+      "properties": {
+        "native": {
+          "description": "Native MCP 2026-07-28 result, validated by the pinned App protocol adapter."
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationSummary"
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "type": "object"
+    },
+    "AppOrigin": {
+      "additionalProperties": false,
+      "properties": {
+        "appUri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "appUri"
+      ],
+      "type": "object"
+    },
+    "AppTaskRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "appUri": {
+          "type": "string"
+        },
+        "taskId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "appUri",
+        "taskId"
+      ],
+      "type": "object"
+    },
     "Capability": {
       "additionalProperties": false,
       "properties": {
@@ -810,6 +853,47 @@
       ],
       "type": "object"
     },
+    "StartAppOperation": {
+      "additionalProperties": false,
+      "properties": {
+        "appUri": {
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "inputResponses": {
+          "additionalProperties": true,
+          "default": null,
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "requestState": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "appUri",
+        "tool",
+        "arguments"
+      ],
+      "type": "object"
+    },
     "StartOperation": {
       "additionalProperties": false,
       "properties": {
@@ -910,6 +994,27 @@
       "description": "Tenant, organization, or customer boundary identifier.",
       "type": "string"
     },
+    "UpdateAppTask": {
+      "additionalProperties": false,
+      "properties": {
+        "appUri": {
+          "type": "string"
+        },
+        "inputResponses": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "taskId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "appUri",
+        "taskId",
+        "inputResponses"
+      ],
+      "type": "object"
+    },
     "WorkContextId": {
       "description": "Tenant-local boundary that governs related work and every output it produces.",
       "type": "string"
@@ -965,6 +1070,15 @@
     "answer_operation": {
       "$ref": "#/$defs/AnswerOperation"
     },
+    "app_operation": {
+      "$ref": "#/$defs/AppOperationView"
+    },
+    "app_origin": {
+      "$ref": "#/$defs/AppOrigin"
+    },
+    "app_task": {
+      "$ref": "#/$defs/AppTaskRequest"
+    },
     "bootstrap": {
       "$ref": "#/$defs/WorkspaceBootstrap"
     },
@@ -1001,11 +1115,17 @@
     "snapshot": {
       "$ref": "#/$defs/ChatSnapshot"
     },
+    "start_app_operation": {
+      "$ref": "#/$defs/StartAppOperation"
+    },
     "start_operation": {
       "$ref": "#/$defs/StartOperation"
     },
     "start_run": {
       "$ref": "#/$defs/StartRun"
+    },
+    "update_app_task": {
+      "$ref": "#/$defs/UpdateAppTask"
     },
     "wake": {
       "$ref": "#/$defs/ChatWake"
@@ -1030,7 +1150,12 @@
     "operation_page",
     "start_operation",
     "answer_operation",
-    "capability"
+    "capability",
+    "start_app_operation",
+    "app_operation",
+    "app_origin",
+    "app_task",
+    "update_app_task"
   ],
   "title": "WorkspaceSchema",
   "type": "object"

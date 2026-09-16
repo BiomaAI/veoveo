@@ -96,6 +96,11 @@ impl ClientHandler for Handler {
                 .with_form(Default::default())
                 .with_url(Default::default()),
         );
+        let (key, value) = veoveo_mcp_apps_extension::host_extension_capability();
+        capabilities
+            .extensions
+            .get_or_insert_default()
+            .insert(key, value);
         ClientInfo::new(
             capabilities,
             Implementation::new("veoveo-workspace", env!("CARGO_PKG_VERSION")),

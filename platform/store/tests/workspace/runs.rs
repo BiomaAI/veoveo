@@ -133,6 +133,7 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
         chat,
         run: Some((run_id(&one), run_fence)),
         profile: "workspace".into(),
+        app_uri: None,
         tool: "fixture_task".into(),
         arguments: "{}".into(),
     };

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity as ActivityIcon, ArrowRight, Bell, LogOut, Menu, MessageSquare, Monitor, Plus, Upload, Users, X } from "lucide-react";
+import { Activity as ActivityIcon, ArrowRight, Bell, Grid2X2, LogOut, Menu, MessageSquare, Monitor, Plus, Upload, Users, X } from "lucide-react";
 import { api, ApiError, loginPath, logout } from "./api.ts";
 import { initials } from "./identity.ts";
 import { useConversation } from "./useConversation.ts";
@@ -8,6 +8,7 @@ import { useUploads } from "./useUploads.ts";
 import type { Invitation, WorkspaceBootstrap } from "./generated/workspace.ts";
 
 const Conversation = lazy(() => import("./Conversation.tsx").then(module => ({ default: module.Conversation })));
+const Apps = lazy(() => import("./Apps.tsx").then(module => ({ default: module.Apps })));
 const Activity = lazy(() => import("./Activity.tsx").then(module => ({ default: module.Activity })));
 const Participants = lazy(() => import("./Participants.tsx").then(module => ({ default: module.Participants })));
 const Computers = lazy(() => import("./Computers.tsx").then(module => ({ default: module.Computers })));
@@ -105,10 +106,12 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
 function Room({ chat, session, changed }: { chat: string; session: WorkspaceBootstrap; changed: () => void }) {
   const room = useConversation(chat, changed);
   const [details, setDetails] = useState(false);
+  const [apps, setApps] = useState(() => new URLSearchParams(location.search).has("app"));
   const [activity, setActivity] = useState(() => new URLSearchParams(location.search).get("panel") === "activity");
   if (!room.snapshot) return <div className="welcome">{room.error ? <><p className="error" role="alert">{room.error}</p><button onClick={() => void room.refresh()}>Try again</button></> : <p role="status">Loading conversation…</p>}</div>;
-  return <><header className="chat-header"><div><h1>{room.snapshot.chat.title}</h1><p><span className={`status-dot ${room.connected ? "online" : ""}`}/>{room.connected ? "Connected" : "Reconnecting"}<span>·</span>{room.snapshot.members.filter(member => member.active).length} people{room.snapshot.activity.agents.some(agent => agent.active) && ` · ${room.snapshot.activity.agents.filter(agent => agent.active).length} agents`}{room.snapshot.chat.archived && " · Archived"}</p></div><div className="actions"><button className={activity ? "active" : ""} onClick={() => { setActivity(!activity); setDetails(false); }}><ActivityIcon size={16}/> Activity</button><button className={details ? "active" : ""} onClick={() => { setDetails(!details); setActivity(false); }}><Users size={16}/> Participants</button></div></header>
-    <div className="room-content"><Suspense fallback={<p role="status">Opening conversation…</p>}><Conversation snapshot={room.snapshot} personId={session.person.id} canContribute={session.canContribute} onChanged={room.refresh} onOlder={() => void room.older()} hasOlder={room.hasOlder} loadingOlder={room.loadingOlder}/>
+  return <><header className="chat-header"><div><h1>{room.snapshot.chat.title}</h1><p><span className={`status-dot ${room.connected ? "online" : ""}`}/>{room.connected ? "Connected" : "Reconnecting"}<span>·</span>{room.snapshot.members.filter(member => member.active).length} people{room.snapshot.activity.agents.some(agent => agent.active) && ` · ${room.snapshot.activity.agents.filter(agent => agent.active).length} agents`}{room.snapshot.chat.archived && " · Archived"}</p></div><div className="actions"><button className={apps ? "active" : ""} onClick={() => { setApps(!apps); setActivity(false); setDetails(false); }}><Grid2X2 size={16}/> Apps</button><button className={activity ? "active" : ""} onClick={() => { setActivity(!activity); setDetails(false); setApps(false); }}><ActivityIcon size={16}/> Activity</button><button className={details ? "active" : ""} onClick={() => { setDetails(!details); setActivity(false); setApps(false); }}><Users size={16}/> Participants</button></div></header>
+    <div className="room-content"><Suspense fallback={<p role="status">Opening conversation…</p>}><div className="conversation-container" hidden={apps}><Conversation snapshot={room.snapshot} personId={session.person.id} canContribute={session.canContribute} onChanged={room.refresh} onOlder={() => void room.older()} hasOlder={room.hasOlder} loadingOlder={room.loadingOlder}/></div>
+      {apps && <Apps chat={chat} close={() => setApps(false)} activity={() => { setApps(false); setActivity(true); }}/> }
       {activity && <Activity chat={chat} agents={room.snapshot.activity} close={() => setActivity(false)}/>}
       {details && <Participants snapshot={room.snapshot} personId={session.person.id} onChanged={room.refresh} close={() => setDetails(false)}/>}</Suspense>
     </div>{room.error && <p className="global-error error" role="alert">{room.error}</p>}</>;

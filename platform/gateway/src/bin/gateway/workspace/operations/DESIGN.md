@@ -92,3 +92,30 @@ controls in headed hardware Chrome. These checks do not establish installed
 acceptance. Agent capability adapters have a separate real model-to-native-Task
 fixture. Governed resource viewers and public rollout
 remain part of the Workspace goal.
+
+## Native App Adapter
+
+`apps.rs` hosts the MCP Apps `2026-01-26` tool and Task adapter over the native
+`2026-07-28` client. Current `ui://` resource discovery and current tools establish
+admission. The shared `mcp/apps-extension` resolver admits exact linked tools or
+explicit imported aliases; a frame cannot supply a global gateway tool name.
+Resource discovery is bounded to sixteen pages and 1,024 entries. Dispatch
+rechecks App admission before calling the tool.
+
+An App intent records its URI in the private operation journal. Task access joins
+that origin with the current person, profile and Work Context before any native
+request. App removal or current discovery denial stops access through the App
+bridge. Activity remains the human owner's separate recovery surface, subject to
+its ordinary current tool and Task authority.
+
+An App receives native result envelopes. Multi-round input replaces upstream
+request state with `workspace-operation:{id}:{revision}`. This reference confers no
+authority: current ownership, exact App/chat/tool/arguments, phase and revision all
+must agree before the shared continuation claim. The native opaque state remains
+in the store. Native Task input binds the runtime's lifetime-unique request key and
+validates the current form. The adapter never reports cancellation from an ack.
+
+The real HTTP/Task-runtime fixture qualifies origin denial, current App revocation,
+restart without replay, input validation, cancellation acknowledgement, terminal
+confirmation and fenced multi-round continuation. The browser fixture separately
+qualifies the sandbox channel and recovery in Activity; it is not installed proof.

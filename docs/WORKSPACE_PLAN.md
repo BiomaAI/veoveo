@@ -205,6 +205,19 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 161 serves uploads and the native Computers view. A real public upload
+  downloads byte-for-byte and restores after reload. GitHub run `35038309200`
+  passes. The Computers view correctly exposes the current profile's collection,
+  but existing Console-owned Computers are hidden because resource ownership
+  includes profile identity. Their shared owner quota also prevents a new Workspace
+  Computer. This cross-client ownership decision remains active work; installed
+  Workspace terminal acceptance has not passed.
+
+- App-origin binding is being added to the existing private operation journal.
+  The database test rejects other people, other profiles and other App URIs while
+  recovering the original Task. Gateway enforcement and the embedded client remain
+  implementation work.
+
 - Release 160 adds governed Task result preview and download. The original media
   Task survived the browser-edge replacement; its authorized PNG renders in the
   RTX 4090 headed browser and the download returns the same governed file. The

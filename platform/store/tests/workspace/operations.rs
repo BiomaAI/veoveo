@@ -14,9 +14,108 @@ fn intent(chat: WorkspaceChatId) -> WorkspaceOperationIntent {
         chat,
         run: None,
         profile: "workspace".into(),
+        app_uri: None,
         tool: "computers_create".into(),
         arguments: r#"{"name":"Research","template":"python"}"#.into(),
     }
+}
+
+#[tokio::test]
+async fn app_task_origin_is_durable_private_and_part_of_idempotency() {
+    tokio::time::timeout(Duration::from_secs(45), async {
+        let db = TestDb::new().await;
+        let alice = identity(&db.a, "alice").await;
+        let bob = identity(&db.a, "bob").await;
+        context(&db.a, &alice, "operations").await;
+        let a = authority(&db.a, &alice, "operations").await;
+        let b = authority(&db.b, &bob, "operations").await;
+        let chat = WorkspaceChatId::new();
+        db.a.create_workspace_chat(&a, chat, "App tasks")
+            .await
+            .unwrap();
+        join(&db.a, &a, &b, &bob, chat).await;
+        let app = "ui://media/create.html";
+        let id = WorkspaceOperationId::new();
+        let started =
+            db.a.start_workspace_operation(
+                &a,
+                id,
+                WorkspaceOperationIntent {
+                    app_uri: Some(app.into()),
+                    ..intent(chat)
+                },
+            )
+            .await
+            .unwrap();
+        let settled =
+            db.a.settle_workspace_operation(
+                id,
+                started.operation.fence,
+                Outcome::Task("opaque-app-task".into()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            db.b.workspace_app_task(&a, "workspace", app, "opaque-app-task")
+                .await
+                .unwrap(),
+            settled
+        );
+        for (actor, profile, uri, task) in [
+            (&b, "workspace", app, "opaque-app-task"),
+            (&a, "operator", app, "opaque-app-task"),
+            (&a, "workspace", "ui://media/other.html", "opaque-app-task"),
+            (&a, "workspace", app, "another-task"),
+        ] {
+            assert_eq!(
+                db.b.workspace_app_task(actor, profile, uri, task).await,
+                Err(WorkspaceError::NotFound)
+            );
+        }
+        assert!(matches!(
+            db.b.start_workspace_operation(&a, id, intent(chat)).await,
+            Err(WorkspaceError::Conflict)
+        ));
+        let replay =
+            db.b.start_workspace_operation(
+                &a,
+                id,
+                WorkspaceOperationIntent {
+                    app_uri: Some(app.into()),
+                    ..intent(chat)
+                },
+            )
+            .await
+            .unwrap();
+        assert!(!replay.dispatch);
+        let plain_id = WorkspaceOperationId::new();
+        let plain =
+            db.a.start_workspace_operation(&a, plain_id, intent(chat))
+                .await
+                .unwrap();
+        db.a.settle_workspace_operation(
+            plain_id,
+            plain.operation.fence,
+            Outcome::Task("human-task".into()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            db.b.workspace_app_task(&a, "workspace", app, "human-task")
+                .await,
+            Err(WorkspaceError::NotFound)
+        );
+        // No second App-specific Task store: the normal personal activity sees it.
+        assert!(
+            db.b.workspace_operations(&a, Some(chat), None)
+                .await
+                .unwrap()
+                .iter()
+                .any(|operation| operation == &settled)
+        );
+    })
+    .await
+    .expect("bounded App receipt acceptance");
 }
 
 #[tokio::test]

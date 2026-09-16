@@ -271,6 +271,24 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-apps-extension"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-apps-extension"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

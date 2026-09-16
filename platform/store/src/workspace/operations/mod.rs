@@ -18,6 +18,7 @@ struct Start {
     run: Option<RecordId>,
     run_fence: Option<Uuid>,
     profile: String,
+    app_uri: Option<String>,
     tool: String,
     arguments: String,
     fence: Uuid,
@@ -79,6 +80,12 @@ impl PlatformStore {
         intent: WorkspaceOperationIntent,
     ) -> Result<WorkspaceOperationAdmission> {
         validate_text(&intent.profile, "profile", 128)?;
+        if let Some(uri) = &intent.app_uri {
+            validate_text(uri, "App URI", 2048)?;
+            if !uri.starts_with("ui://") || intent.run.is_some() {
+                return Err(WorkspaceError::Invalid("App origin"));
+            }
+        }
         validate_text(&intent.tool, "tool", 256)?;
         validate_text(&intent.arguments, "arguments", 65_536)?;
         let arguments: serde_json::Map<String, serde_json::Value> =
@@ -97,6 +104,7 @@ impl PlatformStore {
                     run: intent.run.map(|(run, _)| run.record_id()),
                     run_fence: intent.run.map(|(_, fence)| fence),
                     profile: intent.profile,
+                    app_uri: intent.app_uri,
                     tool: intent.tool,
                     arguments,
                     fence,
@@ -140,6 +148,44 @@ impl PlatformStore {
             "IF !fn::workspace_operation_owner($authority, $command) { THROW 'workspace_not_found'; }; \
              RETURN SELECT * FROM ONLY $command;",
         ).await.map(recover)
+    }
+
+    /// An App may recover only its own native Tasks under the current human and
+    /// Work Context. Knowing another App's opaque Task identity grants no access.
+    pub async fn workspace_app_task(
+        &self,
+        authority: &WorkspaceAuthority,
+        profile: &str,
+        app_uri: &str,
+        task_id: &str,
+    ) -> Result<WorkspaceOperation> {
+        #[derive(Clone, SurrealValue)]
+        struct Lookup {
+            profile: String,
+            app_uri: String,
+            task_id: String,
+        }
+        validate_text(profile, "profile", 128)?;
+        validate_text(app_uri, "App URI", 2048)?;
+        validate_text(task_id, "Task ID", 4096)?;
+        let rows: Vec<WorkspaceOperation> = self
+            .workspace_query(
+                authority,
+                Lookup {
+                    profile: profile.into(),
+                    app_uri: app_uri.into(),
+                    task_id: task_id.into(),
+                },
+                "RETURN SELECT * FROM workspace_operation
+            WHERE tenant = $authority.tenant AND work_context = $authority.work_context
+            AND owner = $authority.principal AND profile = $command.profile
+            AND app_uri = $command.app_uri AND task_id = $command.task_id LIMIT 1;",
+            )
+            .await?;
+        rows.into_iter()
+            .next()
+            .map(recover)
+            .ok_or(WorkspaceError::NotFound)
     }
 
     /// Personal activity survives leaving a conversation. This never grants chat

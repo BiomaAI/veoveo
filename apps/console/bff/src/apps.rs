@@ -1201,54 +1201,9 @@ pub(crate) async fn call_app_tool(
             response_headers,
         );
     };
-    let gateway_tool = if request.tool.contains("__") {
-        return with_session_headers(
-            call_error(StatusCode::BAD_REQUEST, "tool alias must be local"),
-            response_headers,
-        );
-    } else if let Some(import) = app_tool_dependencies(app_resource)
-        .iter()
-        .flat_map(|dependency| {
-            dependency
-                .tools
-                .iter()
-                .map(move |import| (dependency, import))
-        })
-        .find(|(_, import)| import.name.as_str() == request.tool)
-    {
-        format!("{}__{}", import.0.server, import.1.target_tool)
-    } else {
-        format!("{}__{}", request.server, request.tool)
-    };
-    let Some(tool) = catalog
-        .tools()
-        .iter()
-        .find(|tool| tool.name.as_ref() == gateway_tool)
+    let Some(tool) =
+        veoveo_mcp_apps_extension::resolve_app_tool(app_resource, catalog.tools(), &request.tool)
     else {
-        return with_session_headers(
-            call_error(StatusCode::NOT_FOUND, "dependency tool is unavailable"),
-            response_headers,
-        );
-    };
-    let allowed = if request.tool.contains("__") {
-        false
-    } else {
-        tool_app_link(tool)
-            .is_some_and(|link| link.visible_to_app() && link.resource_uri == request.app_uri)
-            || app_tool_dependencies(app_resource)
-                .iter()
-                .any(|dependency| {
-                    dependency.tools.iter().any(|import| {
-                        import.name.as_str() == request.tool
-                            && dependency.server.as_str()
-                                == gateway_tool
-                                    .split_once("__")
-                                    .map(|(server, _)| server)
-                                    .unwrap_or("")
-                    })
-                })
-    };
-    if !allowed {
         return with_session_headers(
             call_error(
                 StatusCode::FORBIDDEN,
@@ -1256,7 +1211,8 @@ pub(crate) async fn call_app_tool(
             ),
             response_headers,
         );
-    }
+    };
+    let gateway_tool = tool.name.to_string();
     let target_server = gateway_tool
         .split_once("__")
         .map(|(server, _)| server.to_owned())

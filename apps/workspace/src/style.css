@@ -419,6 +419,7 @@ p {
   background:#7d9d69;
 }
 .room-content {
+  position:relative;
   display:flex;
   flex:1;
   min-height:0;
@@ -928,3 +929,6 @@ p {
 .resource-download { font-size: 12px; color: var(--text); text-decoration: underline; }
 .task-image { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; margin-top: 12px; border-radius: 8px; }
 .task-resource details { margin-top: 8px; }
+
+.conversation-container { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.conversation-container[hidden] { display: none; }

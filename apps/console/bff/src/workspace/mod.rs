@@ -1,5 +1,6 @@
 //! Shared browser edge for the independent Workspace client. The upstream origin
 //! and profile are installation configuration; credentials come only from cookies.
+mod apps;
 mod events;
 mod operations;
 mod runs;
@@ -26,6 +27,7 @@ pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .merge(runs::router())
         .merge(operations::router())
+        .merge(apps::router())
         .route(
             "/workspace/api/artifacts/{artifact_id}/download",
             get(api::download_artifact),

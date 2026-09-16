@@ -134,7 +134,7 @@ impl RunTools {
             }
             budget.insert(id);
         }
-        self.state.operations.submit(self.caller.clone(), WorkspaceOperationId::from_uuid(id), WorkspaceOperationIntent {
+        self.state.operations.submit(self.caller.clone(), WorkspaceOperationId::from_uuid(id), WorkspaceOperationIntent { app_uri: None,
             chat: self.chat, run: Some((self.run, self.fence)), profile: self.caller.profile.to_string(), tool: name, arguments: encoded,
         }).await.map_err(|status| {
             if matches!(status.as_u16(), 401 | 403 | 404 | 409) { self.permission_changed.cancel(); }

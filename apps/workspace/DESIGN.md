@@ -122,3 +122,35 @@ fixtures. It attaches to headed Chrome at `VEOVEO_BROWSER_CDP` (default localhos
 9222), probes both graphics APIs, and requires hardware before interacting or
 capturing. Its context and listener close on success or failure. No local fixture
 counts as production model execution.
+
+## Embedded Apps And Durable Tasks
+
+The lazy Apps view uses the current Workspace MCP catalog and the shared opaque
+`allow-scripts` iframe host. Closing a view preserves an unsent chat draft. Catalog
+updates with unchanged App descriptors do not reconnect a frame or discard its
+resource subscriptions. App output remains private to the initiating person.
+
+The host fixes the App URI and chat on every tool call. The Rust gateway resolves
+local tool aliases against current tool links and declared imports. An App cannot
+select a profile or claim a Task started by another App. Native Task identities are
+stored in the existing operation journal before the bridge returns acceptance.
+`tasks/get`, `tasks/update` and `tasks/cancel` use that persisted origin binding.
+Activity recovers the same receipt after the iframe closes or the edge restarts.
+The initial bridge observes its dispatch receipt; it never repeats `tools/call`
+when a response is lost. An unconfirmed outcome points the user to Activity.
+
+Multi-round App calls receive a host-owned receipt/revision reference. The opaque
+upstream continuation remains in Rust. The host checks the original App, chat,
+arguments and current revision before an explicit continuation. Forms use the
+same current-schema validation as Activity. A cancellation acknowledgement does
+not establish a terminal Task outcome.
+
+`appProtocol.ts` validates the supported MCP result envelopes, preserving native
+extension fields. Generated Rust schemas own the surrounding HTTP DTOs; their
+native result field delegates to this pinned protocol adapter. The exact
+`@modelcontextprotocol/client` 2.0.0 development pin supplies shared bridge types,
+verified against the upstream npm registry on September 15, 2026. No MCP bearer
+transport or token is exposed to the browser. The host supports native Task
+get/update/cancel, reactive resource subscriptions, ordinary tool/resource calls,
+inline views and confirmed HTTPS links. Console-specific agent-message and
+Recording projection extensions are not advertised by Workspace.

@@ -29,7 +29,7 @@ async function hardware(page) {
   return proof;
 }
 
-test("headed Workspace supports shared authors, stable retries, ownership controls and reload", { timeout: 60_000 }, async () => {
+test("headed Workspace supports shared authors, stable retries, ownership controls and reload", { timeout: 90_000 }, async () => {
   const server = await createServer({ root, configFile: `${root}vite.config.ts`, server: { port: 0, host: "127.0.0.1", strictPort: false } });
   const browser = await chromium.connectOverCDP(process.env.VEOVEO_BROWSER_CDP ?? "http://127.0.0.1:9222");
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -60,6 +60,22 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const pages = await Promise.all([context.newPage(), context.newPage()]);
     const errors = [];
     let uploadAdmissions = 0;
+    let appOperation;
+    let appStarts = 0;
+    const appCalls = [];
+    const appDescriptor = { server: "fixture", resourceUri: "ui://fixture/task.html", standalonePath: "/apps/fixture/task.html", name: "Task workbench", description: "Explicit native bridge fixture", tools: [{ name: "start", inputSchema: { type: "object" } }], resourceDependencies: [], toolDependencies: [], agentMessageTargets: [] };
+    const appCatalog = { apps: [appDescriptor], degradations: [] };
+    const nativeAppTask = { resultType: "task", taskId: "opaque-app-fixture", status: "working", createdAt: new Date().toISOString(), lastUpdatedAt: new Date().toISOString(), ttlMs: 300000 };
+    const appHtml = `<!doctype html><html><body><h1>Task bridge fixture</h1><button id="start">Start fixture task</button><button id="get">Read task</button><button id="cancel">Cancel task</button><output id="result"></output><script>
+    let sequence = 0; const waiting = new Map(); let taskId;
+    function rpc(method, params) { return new Promise((resolve, reject) => { const id = ++sequence; waiting.set(id, {resolve, reject}); parent.postMessage({jsonrpc:"2.0", id, method, params}, "*"); }); }
+    addEventListener("message", event => { if (event.source !== parent) return; const pending = waiting.get(event.data.id); if (!pending) return; waiting.delete(event.data.id); event.data.error ? pending.reject(Error(event.data.error.message)) : pending.resolve(event.data.result); });
+    function show(value) { document.querySelector("output").textContent = JSON.stringify(value); }
+    document.querySelector("#start").onclick = async () => { try { const result = await rpc("tools/call", { name: "start", arguments: {} }); taskId = result.taskId; show(result); } catch (error) { show(error.message); } };
+    document.querySelector("#get").onclick = async () => show(await rpc("tasks/get", { taskId }));
+    document.querySelector("#cancel").onclick = async () => show(await rpc("tasks/cancel", { taskId }));
+    rpc("ui/initialize", {protocolVersion:"2026-01-26"}).then(() => document.body.dataset.connected = "true");
+    </script></body></html>`;
     for (const [index, page] of pages.entries()) {
       await hardware(page);
       const person = index === 0 ? alice : bob;
@@ -103,8 +119,22 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
           const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
           return route.fulfill({ status: 200, contentType: "image/png", headers: { "content-length": String(png.length) }, body: request.method() === "HEAD" ? "" : png });
         }
+        if (path.pathname === "/workspace/api/apps") return respond(appCatalog);
+        if (path.pathname === "/workspace/api/apps/events") return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: catalog\ndata: ${JSON.stringify(appCatalog)}\n\n` });
+        if (path.pathname === "/workspace/api/apps/frame") return route.fulfill({ contentType: "text/html", body: appHtml });
+        if (path.pathname.endsWith("/app-operations") && request.method() === "POST") {
+          assert.equal(body.appUri, appDescriptor.resourceUri); assert.equal(body.tool, "start"); appStarts++;
+          appOperation = { id: body.id, chatId: chat.id, runId: null, tool: "fixture__start", phase: "task", revision: 2, createdAt: new Date().toISOString() };
+          return respond(appOperation);
+        }
+        if (path.pathname.includes("/app-operations/")) { assert.equal(body.appUri, appDescriptor.resourceUri); return respond({ operation: appOperation, native: nativeAppTask }); }
+        if (path.pathname.includes("/app-tasks/")) {
+          assert.equal(body.appUri, appDescriptor.resourceUri); assert.equal(body.taskId, nativeAppTask.taskId); appCalls.push(path.pathname);
+          return respond(path.pathname.endsWith("/get") ? { ...nativeAppTask, resultType: "complete" } : { resultType: "complete" });
+        }
+        if (appOperation && path.pathname === `/workspace/api/operations/${appOperation.id}`) return respond({ operation: appOperation, task: { id: nativeAppTask.taskId, state: nativeAppTask.status, message: "App Task continues independently.", createdAt: nativeAppTask.createdAt, updatedAt: nativeAppTask.lastUpdatedAt, ttlMs: 300000, pollIntervalMs: 5000 }, inputs: [], result: null });
         if (path.pathname.endsWith("/session")) return respond({ person, principalId: `fixture#${person.id}`, tenantId: "test", tenantName: "Shared work", workContext: "default", workContextTitle: "Product team", canContribute: true });
-        if (path.pathname.endsWith("/operations")) return respond({ items: index === 0 ? [operation] : [], next: null });
+        if (path.pathname.endsWith("/operations")) return respond({ items: index === 0 ? [...(appOperation ? [appOperation] : []), operation] : [], next: null });
         if (path.pathname.includes(`/operations/${operation.id}`)) {
           if (request.method() === "POST") {
             operationPosts.push(path.pathname);
@@ -250,6 +280,26 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.waitForFunction(() => document.querySelector(".task-image")?.naturalWidth === 1);
     assert.equal(await owner.getByRole("link", { name: "Download", exact: true }).getAttribute("href"), `/workspace/api/artifacts/${artifact}/download`);
     assert.equal(operationPosts.length, 2, "preview cannot invoke the original tool");
+    await owner.getByRole("button", { name: "Close preview", exact: true }).click();
+    await owner.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this unsent draft");
+    await owner.getByRole("button", { name: "Apps", exact: true }).click();
+    await owner.getByRole("button", { name: /Task workbench/ }).click();
+    const frame = owner.frameLocator(".workspace-app-frame");
+    await frame.locator('body[data-connected="true"]').waitFor();
+    assert.equal(await owner.locator(".workspace-app-frame").getAttribute("sandbox"), "allow-scripts");
+    await frame.getByRole("button", { name: "Start fixture task", exact: true }).click();
+    await frame.getByText('"taskId":"opaque-app-fixture"', { exact: false }).waitFor();
+    await frame.getByRole("button", { name: "Read task", exact: true }).click();
+    await frame.getByText('"resultType":"complete"', { exact: false }).waitFor();
+    await frame.getByRole("button", { name: "Cancel task", exact: true }).click();
+    await frame.getByText('{"resultType":"complete"}', { exact: true }).waitFor();
+    assert.equal(appStarts, 1); assert.deepEqual(appCalls, ["/workspace/api/app-tasks/get", "/workspace/api/app-tasks/cancel"]);
+    await owner.getByRole("button", { name: "Back to chat", exact: true }).click();
+    assert.equal(await owner.getByRole("textbox", { name: "Message", exact: true }).inputValue(), "Keep this unsent draft");
+    await owner.goto(`${origin}/workspace/?chat=${chat.id}&panel=activity`);
+    await owner.getByRole("article", { name: "Activity: fixture__start", exact: true }).getByText("App Task continues independently.", { exact: true }).waitFor().catch(async error => { console.log(JSON.stringify({ fixtureBody: await owner.locator("body").innerText(), errors })); throw error; });
+    assert.equal(appStarts, 1, "closing the App and reloading recovers the journal without repeating tools/call");
+    await owner.bringToFront(); await hardware(owner);
     assert.deepEqual(errors, []);
 
   } finally {

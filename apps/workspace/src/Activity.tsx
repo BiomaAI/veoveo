@@ -59,7 +59,7 @@ export function Activity({ chat, close, agents, chats }: { chat?: string; close?
     <p className="activity-privacy"><LockKeyhole size={13}/> Task details and input requests are private to you.</p>
     {query.isPending && <p role="status">Loading your activity…</p>}
     {query.error && <p className="error" role="alert">{query.error.message}<button onClick={() => void query.refetch()}>Refresh activity</button></p>}
-    {query.data && !items.length && <div className="empty-card"><ActivityIcon size={24}/><h3>No activity yet</h3><p>Tasks from your tools and agents will appear here. You can return to them after leaving a chat.</p></div>}
+    {query.data && !items.length && <div className="empty-card"><ActivityIcon size={24}/><h3>No activity yet</h3><p>Tasks from your tools, Apps and agents will appear here. You can return to them after leaving a chat.</p></div>}
     <div className="task-list">{items.slice(0, visible).map(operation => {
       const run = agents?.runs.find(run => run.id === operation.runId);
       const agent = agents?.agents.find(agent => agent.id === run?.agent);
