@@ -205,14 +205,23 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 165 repairs durable Task recovery after permission refresh. The original
+  media Task and the installed Timeline App Task both retain their canonical IDs,
+  completed results and private operation receipts across fresh sign-in and reload.
+  Headed RTX 4090 WebGL acceptance reopens the media preview and observes zero new
+  tool or run submissions. Local qualification passes 86 gateway library cases,
+  53 gateway application cases and 58 store cases, plus strict Clippy, formatting
+  and the rendered installation checks. Installed input/cancel acceptance and the
+  separate Computers ownership and second-human gates remain open.
+
 - Release 164 restores scope-qualified Workspace sign-in. The installed Timeline
   App returned a completed native Task with one durable operation admission; its
   original ID and validation result survived reload. GitHub run `35043053716`
   passes. Reauthentication exposed a separate gateway defect: older Tasks were
   tied to the entire original permission bundle. The correction separates stable
   actor/provenance ownership from current permission checks and preserves existing
-  first-party Task IDs through retained metadata. Installed recovery of the older
-  media Task remains the next deployment gate.
+  first-party Task IDs through retained metadata. Release 165 closes the older
+  media Task recovery gate.
 
 - Release 162 adds sandboxed Apps and the durable App-origin Task bridge. Installed
   testing found that Workspace requested only three of its already registered

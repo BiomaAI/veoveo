@@ -21,6 +21,15 @@ remain the measured cause of this cache churn. The source checkpoint added about
 55,000 lines, mostly ten immutable receipts. One failed lint attempt found the
 same database fixture included twice; a shared test module removed that duplication.
 
+Release 165 converged with 0.168 seconds in source observation, 23.331 seconds in
+desired-state apply, 0.804 seconds in rollout and 1.195 seconds in readiness.
+Source reconciliation had already fetched the revision before this observer ran;
+the source duration is not publication-to-fetch latency. The first browser check
+received an empty Task response and its JSON parser hid the HTTP status. The
+acceptance reader now preserves the status before parsing. The subsequent installed
+check passed both original Tasks, fresh SSO, reload and governed image preview with
+zero new submissions. Evidence is under `output/workspace-public/task-recovery*`.
+
 
 The App checkpoint reuses the private operation journal and the existing iframe
 resource transport. Native HTTP/Task-runtime acceptance passes restart, exact App
