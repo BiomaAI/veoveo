@@ -63,6 +63,16 @@ uses the base fixture's exact secret inventory. The assertion now verifies the
 Workspace gateway model credential explicitly and compares the remaining shared
 secrets to the base fixture. All six configuration cases pass.
 
+The upload/Computers browser-edge image from `c6b108c1` publishes in 38.222 seconds.
+The compiler window is 19.394 seconds, including the shared Workspace control-route
+change; export is 2.921 seconds. The Workspace asset solve is 0.527 seconds. The
+chat entry is 111.87 KiB gzip, with Computers at 15.61 KiB and the hardware terminal
+at 122.77 KiB in separate lazy chunks. Console's 93 cases, lint and build pass;
+Workspace's seven cases and the 30.2-second headed Task/upload fixture pass.
+The existing chart, gateway, Computers service and retained host remain reusable.
+The Console evidence catalog still includes installation configuration broadly,
+which invalidates its receipts on a digest-lock update despite unchanged assets.
+
 The new model chart fixture renders and validates both agent configuration and
 credential boundaries in 0.2 seconds. Its first test lint caught a redundant Rust
 result wrapper; the corrected fixture passes. Dedicated owner declarations keep
