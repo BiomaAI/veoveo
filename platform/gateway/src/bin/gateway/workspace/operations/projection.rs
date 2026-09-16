@@ -1,5 +1,6 @@
 use super::super::projection::uuid;
 use axum::http::StatusCode;
+use base64::{Engine, engine::general_purpose::STANDARD};
 use rmcp::model::{
     CallToolResult, ContentBlock, DetailedTask, InputRequiredResult, TaskPayload, TaskStatus,
 };
@@ -98,8 +99,11 @@ fn result(result: CallToolResult) -> wire::OperationResult {
         is_error: result.is_error.unwrap_or(false),
         text: vec![],
         resources: vec![],
+        images: vec![],
+        omitted_images: 0,
         structured: result.structured_content,
     };
+    let mut image_bytes = 0;
     for content in result.content {
         match content {
             ContentBlock::Text(text) => output.text.push(text.text),
@@ -110,8 +114,60 @@ fn result(result: CallToolResult) -> wire::OperationResult {
                     mime_type: resource.mime_type,
                 })
             }
+            ContentBlock::Image(image) => {
+                let mime_type = match image.mime_type.as_str() {
+                    "image/png" => Some(wire::ResultImageMime::Png),
+                    "image/jpeg" => Some(wire::ResultImageMime::Jpeg),
+                    "image/webp" => Some(wire::ResultImageMime::Webp),
+                    _ => None,
+                };
+                if let Some(mime_type) = mime_type
+                    && output.images.len() < 8
+                    && image.data.len() <= 1024 * 1024 - image_bytes
+                    && !image.data.is_empty()
+                    && STANDARD.decode(&image.data).is_ok()
+                {
+                    image_bytes += image.data.len();
+                    output.images.push(wire::OperationImage {
+                        mime_type,
+                        data: image.data,
+                    });
+                } else {
+                    output.omitted_images += 1;
+                }
+            }
             _ => {}
         }
     }
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn image(mime: &str, data: &str) -> ContentBlock {
+        serde_json::from_value(serde_json::json!({"type":"image","mimeType":mime,"data":data}))
+            .unwrap()
+    }
+
+    #[test]
+    fn result_images_reject_active_content_malformed_data_and_excess_payload() {
+        let large = "AAAA".repeat(256 * 1024);
+        let projected = result(CallToolResult::success(vec![
+            image("image/svg+xml", &STANDARD.encode("<svg/>")),
+            image("image/png", "not base64"),
+            image("image/png", ""),
+            image("image/jpeg", &large),
+            image("image/webp", "AAAA"),
+            ContentBlock::text("The result metadata remains available."),
+        ]));
+        assert_eq!(projected.images.len(), 1);
+        assert_eq!(projected.images[0].mime_type, wire::ResultImageMime::Jpeg);
+        assert_eq!(projected.omitted_images, 4);
+        assert_eq!(projected.text, ["The result metadata remains available."]);
+        let projected = result(CallToolResult::success(vec![image("image/png", "AAAA"); 9]));
+        assert_eq!(projected.images.len(), 8);
+        assert_eq!(projected.omitted_images, 1);
+    }
 }

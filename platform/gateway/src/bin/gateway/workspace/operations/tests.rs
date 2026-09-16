@@ -115,8 +115,10 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         assert_eq!(request(&app, "POST", &input_path, answer(9)).await.0, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(request(&app, "POST", &input_path, answer(2)).await.0, StatusCode::NO_CONTENT);
         assert_eq!(request(&app, "POST", &input_path, answer(2)).await.0, StatusCode::CONFLICT);
+        let image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
         domain.runtime.transition(&task.id, TaskTransition::Succeeded { message: "fixture domain rejection".into(),
-            result: serde_json::to_value(CallToolResult::error(vec![ContentBlock::text("Fixture rejected the requested action.")])).unwrap() }).await.unwrap();
+            result: serde_json::to_value(CallToolResult::error(vec![ContentBlock::text("Fixture rejected the requested action."),
+                serde_json::from_value(json!({"type":"image","mimeType":"image/png","data":image})).unwrap()])).unwrap() }).await.unwrap();
         let changed = tokio::time::timeout(Duration::from_secs(3), async {
             loop { let bytes = wakes.next().await.unwrap().unwrap(); if String::from_utf8_lossy(&bytes).contains("event: change") { break; } }
         }).await;
@@ -124,7 +126,17 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         drop(wakes);
         let restored = detail(&new_app(new_state(db.b.clone(), port)), id).await;
         assert_eq!(restored.task.unwrap().id, task.id);
-        assert!(restored.result.unwrap().is_error);
+        let result = restored.result.unwrap();
+        assert!(result.is_error);
+        assert_eq!(result.images[0].data, image, "native image survives a new gateway state without redispatch");
+        assert_eq!(result.images[0].mime_type, wire::ResultImageMime::Png);
+        assert_eq!(result.omitted_images, 0);
+        let mut other = super::super::tests::subject("Bob");
+        other.access_token.session_family = None;
+        let other_app = router(new_state(db.b.clone(), port)).layer(Extension(other));
+        let (denied, body) = request(&other_app, "GET", &format!("/operations/{id}"), Value::Null).await;
+        assert!(matches!(denied, StatusCode::NOT_FOUND | StatusCode::FORBIDDEN));
+        assert!(!body.to_string().contains(image), "a second person cannot read the image receipt");
         assert_eq!(domain.calls.load(Ordering::SeqCst), 1, "reload never replays tools/call");
 
         let second = Uuid::now_v7();

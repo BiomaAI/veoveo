@@ -96,6 +96,14 @@ types remain downloadable. Revoked or unavailable reads explain that a chat link
 does not confer file access. The preview GET rechecks authority; neither a Task
 receipt nor the prior HEAD response grants continuing access.
 
+Activity displays inline MCP PNG, JPEG and WebP result images from the authorized
+detail response. The gateway bounds their count and encoded size and reports
+omitted images explicitly. Images use data URLs with the closed raster MIME type;
+tool-supplied network URLs and executable image documents are not used. Reload
+restores the original Task image without another tool call. A denied detail refresh
+removes cached result content from the rendered card. A browser decode failure is
+visible alongside the surviving result metadata.
+
 Uploads reuse the Console-owned queue, hashing worker and accessible panel. Each
 browser entrypoint selects its application once through `browserApp.ts`; shared
 HTTP, CSRF and login helpers then use that explicit root. A missing selection or

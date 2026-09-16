@@ -81,6 +81,15 @@ capped at 64 KiB, stored response envelopes at 1 MiB, and the existing browser e
 bounds forwarded JSON at 4 MiB. Tool discovery stops after 16 pages or 512 tools.
 Resource links retain canonical URIs; they do not become direct storage URLs.
 
+The result projection also preserves inline PNG, JPEG and WebP MCP image blocks.
+It admits at most eight images and 1 MiB of encoded image data per result, validates
+standard base64, and reports the count of omitted image blocks. Unsupported media
+types, empty or malformed data, and excess payload do not hide the remaining result.
+Image bytes cross the same current-authority detail read as text; they never enter
+shared chat history or the agent's dispatch receipt. A reload reads the existing
+native result and cannot repeat capture. The browser decodes the admitted raster
+format; the gateway does not render or transcode images.
+
 ## Qualification And Delivery
 
 The native integration fixture uses real Streamable HTTP, the shared durable Task

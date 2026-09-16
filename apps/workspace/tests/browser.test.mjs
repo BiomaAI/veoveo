@@ -60,6 +60,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const artifact = "01a0a75d-3458-78f3-ac54-91f1cab1fea1";
     let result = null;
     let fileAllowed = false;
+    let resultAllowed = true;
     let uncertain = true;
     const sends = [];
     let expireOwnerStream = false;
@@ -160,6 +161,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
         if (path.pathname.endsWith("/session")) return respond({ person, principalId: `fixture#${person.id}`, tenantId: "test", tenantName: "Shared work", workContext: "default", workContextTitle: "Product team", canContribute: true });
         if (path.pathname.endsWith("/operations")) return respond({ items: index === 0 ? [...(appOperation ? [appOperation] : []), operation] : [], next: null });
         if (path.pathname.includes(`/operations/${operation.id}`)) {
+          if (request.method() === "GET" && !resultAllowed) return route.fulfill({ status: 403 });
           if (request.method() === "POST") {
             operationPosts.push(path.pathname);
             if (path.pathname.endsWith("/input")) {
@@ -367,7 +369,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByText("Writer · Requested for you", { exact: true }).waitFor();
     assert.equal(operationPosts.length, 6, "opening the originating chat restores the receipt without dispatch");
     task.state = "completed";
-    result = { isError: false, text: [], resources: [{ uri: `media://artifact/${artifact}`, name: "Generated image", mimeType: "image/png" }], structured: null };
+    result = { isError: false, text: [], resources: [{ uri: `media://artifact/${artifact}`, name: "Generated image", mimeType: "image/png" }], images: [], omittedImages: 0, structured: null };
     await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
     await owner.getByRole("button", { name: "Preview", exact: true }).click();
     await owner.getByText("This file is unavailable with your current access. A chat or Task link does not grant file access.", { exact: true }).waitFor();
@@ -379,6 +381,23 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     assert.equal(await owner.getByRole("link", { name: "Download", exact: true }).getAttribute("href"), `/workspace/api/artifacts/${artifact}/download`);
     assert.equal(operationPosts.length, 6, "preview cannot invoke the original tool");
     await owner.getByRole("button", { name: "Close preview", exact: true }).click();
+    result.images = [{ mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" }];
+    result.omittedImages = 1;
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByRole("img", { name: "Image result 1", exact: true }).scrollIntoViewIfNeeded();
+    await owner.waitForFunction(() => document.querySelector('img[alt="Image result 1"]')?.naturalWidth === 1);
+    await owner.getByText("1 image result is unavailable here.", { exact: false }).waitFor();
+    await owner.goto(`${origin}/workspace/?chat=${chat.id}&panel=activity`);
+    await owner.getByRole("img", { name: "Image result 1", exact: true }).scrollIntoViewIfNeeded();
+    await owner.waitForFunction(() => document.querySelector('img[alt="Image result 1"]')?.naturalWidth === 1);
+    assert.equal(operationPosts.length, 6, "restoring an inline image never resubmits the tool");
+    resultAllowed = false;
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByText("This activity is no longer available with your access, or its retention period has ended.", { exact: true }).waitFor();
+    assert.equal(await owner.getByRole("img", { name: "Image result 1", exact: true }).count(), 0, "denied refresh detaches previously visible image bytes");
+    resultAllowed = true;
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByRole("img", { name: "Image result 1", exact: true }).waitFor();
     await owner.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this unsent draft");
     await owner.getByRole("button", { name: "Apps", exact: true }).click();
     await owner.getByRole("button", { name: /Task workbench/ }).click();

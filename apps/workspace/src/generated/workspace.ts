@@ -74,6 +74,11 @@ export type InvitationState = "pending" | "accepted" | "declined" | "revoked";
 export type InputKind = "form" | "link" | "unsupported";
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "ResultImageMime".
+ */
+export type ResultImageMime = "image/png" | "image/jpeg" | "image/webp";
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
  * via the `definition` "TaskState".
  */
 export type TaskState = "working" | "input_required" | "completed" | "failed" | "cancelled";
@@ -373,10 +378,24 @@ export interface OperationInput {
  * via the `definition` "OperationResult".
  */
 export interface OperationResult {
+  images: OperationImage[];
   isError: boolean;
+  omittedImages: number;
   resources: OperationResource[];
   structured?: unknown;
   text: string[];
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationImage".
+ */
+export interface OperationImage {
+  /**
+   * Validated standard base64; the complete result admits at most eight
+   * images and 1 MiB of encoded image data.
+   */
+  data: string;
+  mimeType: ResultImageMime;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
