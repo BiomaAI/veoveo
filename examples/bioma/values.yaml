@@ -68,9 +68,28 @@ gateway:
 consoleBff:
   workspace:
     oauthScopes:
-      - operator:use
       - artifact:upload
+      - map:dataset:read
+      - map:feature:publish
+      - map:feature:read
+      - map:feature:write
+      - map:raster:derive
+      - map:restriction:publish
+      - map:restriction:withdraw
+      - map:route
+      - map:route_matrix
+      - map:spatial:derive
+      - operator:use
+      - time:event:write
       - time:read
+      - time:schedule
+      - time:timeline
+      - uav-sim:control
+      - uav-sim:read
+      - uav-sim:stream
+      - view:capture
+      - view:read
+      - view:write
   replicas: 2
   oauthResource: https://veoveo.bioma.ai/mcp/admin
   mcpTransportUrl: http://mcp-gateway:8788/mcp/admin

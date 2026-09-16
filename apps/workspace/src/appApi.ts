@@ -35,6 +35,7 @@ export async function callApp(app: AppDescriptor, chat: string, tool: string, ar
     const view = parse("AppOperationView", await browserJson(`app-operations/${operation.id}`, { appUri: app.resourceUri }, signal));
     if (view.operation.id !== operation.id) throw new Error("The App operation response could not be verified.");
     if (view.native) { changed(); return appResult.parse(view.native); }
+    if (view.operation.phase === "failed") throw new Error("The operation was rejected. Open Activity and check your current access before starting it again.");
     if (view.operation.phase !== "dispatching") break;
     await delay(signal);
   }

@@ -205,6 +205,13 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 162 adds sandboxed Apps and the durable App-origin Task bridge. Installed
+  testing found that Workspace requested only three of its already registered
+  nonadministrative scopes. Listed Time Tasks were denied by current policy. The
+  browser configuration now requests the approved client scope set, with a rendered
+  deployment test preventing drift. Existing sessions must sign in again to receive
+  those scopes; domain and Work Context policy still authorize every operation.
+
 - Release 161 serves uploads and the native Computers view. A real public upload
   downloads byte-for-byte and restores after reload. GitHub run `35038309200`
   passes. The Computers view correctly exposes the current profile's collection,
