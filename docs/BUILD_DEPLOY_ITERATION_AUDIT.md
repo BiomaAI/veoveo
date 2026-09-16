@@ -13,6 +13,14 @@ evaluation. Stable ownership is independent of the current permission bundle.
 The original Tasks are the deployment acceptance inputs; no replacement media job
 is needed. This correction selects only the gateway image and reuses the chart.
 
+The gateway-only image from `f520db7f` published in 98.027 seconds. Its compile
+window was 89.399 seconds and export was 4.134 seconds. Narrowing the selected
+target set refreshed 323 source files and removed 41 paths; shared HTTP, SDK and
+model dependencies compiled again. Repeated target-set feature closure changes
+remain the measured cause of this cache churn. The source checkpoint added about
+55,000 lines, mostly ten immutable receipts. One failed lint attempt found the
+same database fixture included twice; a shared test module removed that duplication.
+
 
 The App checkpoint reuses the private operation journal and the existing iframe
 resource transport. Native HTTP/Task-runtime acceptance passes restart, exact App
