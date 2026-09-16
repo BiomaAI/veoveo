@@ -99,8 +99,11 @@ errors, cancellation acknowledgement and terminal confirmation. A separate brows
 fixture checks private activity, form submission, reload and independent agent/Task
 controls in headed hardware Chrome. These checks do not establish installed
 acceptance. Agent capability adapters have a separate real model-to-native-Task
-fixture. Governed resource viewers and public rollout
-remain part of the Workspace goal.
+fixture. Installed public acceptance qualifies native Task completion, cancellation
+and recovery, governed Artifact preview, App invocation and inline capture images.
+A native Task input round remains an installed acceptance gate: current production
+domains do not issue input requests. The current release evidence is tracked in
+[`WORKSPACE_PLAN.md`](../../../../../../../docs/WORKSPACE_PLAN.md).
 
 ## Native App Adapter
 
