@@ -109,6 +109,14 @@ The short index lock covers reload, merge and atomic replacement. Command execut
 does not hold that lock. A crash may leave an unindexed complete receipt, which a
 subsequent index rebuild can recover. It must not expose a partial qualifying result.
 
+Publication validates each indexed receipt against its retained digest once under
+the index lock, including superseded and failed attempts. It retains those references
+and selection timestamps, then reads complete unindexed files to recover interrupted
+publications. This removes a second decode of the historical manifests without
+caching validation across invocations. Missing or modified indexed files, invalid
+selection metadata and malformed recovery files still reject publication. Receipt
+and index formats remain unchanged.
+
 The latest completed attempt for an identity determines its current result. Failed
 attempts remain immutable history. A late run whose inputs changed during execution
 records that fact and cannot replace a qualifying run for newer inputs. Parallel

@@ -1,6 +1,6 @@
 //! Create-only attempts and a recoverable, atomically replaced worktree index.
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -18,6 +18,15 @@ use super::model::{
 
 const MAX_RECEIPT_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_RECEIPTS: usize = 100_000;
+type LatestAttempts = BTreeMap<String, (chrono::DateTime<Utc>, Uuid)>;
+
+fn select_latest(latest: &mut LatestAttempts, receipt: &Receipt) {
+    if receipt.outcome != Outcome::InputsChanged {
+        let candidate = (receipt.finished_at, receipt.run_id);
+        let selected = latest.entry(receipt.check_id.clone()).or_insert(candidate);
+        *selected = (*selected).max(candidate);
+    }
+}
 
 pub(super) fn digest(bytes: &[u8]) -> String {
     format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
@@ -193,6 +202,7 @@ pub(super) fn read_receipt(root: &Path, reference: &ReceiptRef) -> Result<Receip
     Ok(receipt)
 }
 
+#[cfg(test)]
 pub(super) fn read_index(root: &Path) -> Result<ReceiptIndex> {
     read_index_with(root, |_, _| {})
 }
@@ -237,14 +247,10 @@ fn read_index_with(
         index.latest.values().all(|id| ids.contains(id)),
         "index selects a missing receipt"
     );
-    let mut latest = BTreeMap::<String, (chrono::DateTime<Utc>, Uuid)>::new();
+    let mut latest = LatestAttempts::new();
     for reference in &index.receipts {
         let receipt = read_receipt(root, reference)?;
-        if receipt.outcome != Outcome::InputsChanged {
-            let candidate = (receipt.finished_at, receipt.run_id);
-            let selected = latest.entry(receipt.check_id.clone()).or_insert(candidate);
-            *selected = (*selected).max(candidate);
-        }
+        select_latest(&mut latest, &receipt);
         consume(&index, receipt);
     }
     ensure!(
@@ -254,15 +260,42 @@ fn read_index_with(
     Ok(index)
 }
 
-/// Rebuilding from complete immutable files also recovers a crash between receipt
-/// publication and index replacement. Retired v2 entries are never imported.
+/// Validate indexed history once, then recover complete unindexed files left
+/// between receipt publication and index replacement. Retired v2 entries are
+/// never imported. Only references and selection metadata survive each read.
 fn rebuild(root: &Path) -> Result<ReceiptIndex> {
     let mut receipts = Vec::new();
-    let mut latest = BTreeMap::<String, (chrono::DateTime<Utc>, Uuid)>::new();
+    let mut latest = LatestAttempts::new();
+    let old_path = root.join(INDEX_PATH);
+    if old_path.exists() {
+        let bytes = read_bounded(&old_path)?;
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct HistoricalVersion {
+            schema_version: u32,
+        }
+        if !serde_json::from_slice::<HistoricalVersion>(&bytes)
+            .is_ok_and(|header| header.schema_version == 2)
+        {
+            // Keep the validated digests; never rehash changed historical bytes
+            // into new references or bypass superseded and failed attempts.
+            receipts = read_index_with(root, |_, receipt| {
+                select_latest(&mut latest, &receipt);
+            })?
+            .receipts;
+        }
+    }
+    let indexed: BTreeSet<_> = receipts
+        .iter()
+        .map(|reference| receipt_path(root, reference.run_id))
+        .collect();
     for entry in fs::read_dir(evidence_directory(root)?)? {
         let entry = entry?;
         let path = entry.path();
         if path.extension().is_none_or(|extension| extension != "json") {
+            continue;
+        }
+        if indexed.contains(&path) {
             continue;
         }
         ensure!(
@@ -287,13 +320,7 @@ fn rebuild(root: &Path) -> Result<ReceiptIndex> {
             run_id: id,
             sha256: digest(&bytes),
         });
-        if receipt.outcome != Outcome::InputsChanged {
-            let candidate = (receipt.finished_at, id);
-            let selected = latest.entry(receipt.check_id).or_insert(candidate);
-            if candidate > *selected {
-                *selected = candidate;
-            }
-        }
+        select_latest(&mut latest, &receipt);
     }
     receipts.sort_by_key(|reference| reference.run_id);
     Ok(ReceiptIndex {
@@ -338,21 +365,6 @@ pub(super) fn publish(root: &Path, receipt: &Receipt) -> Result<ReceiptRef> {
         .truncate(false)
         .open(root.join(git_path.trim()))?;
     lock.lock().context("locking evidence index publication")?;
-    let old_path = root.join(INDEX_PATH);
-    if old_path.exists() {
-        let bytes = read_bounded(&old_path)?;
-        #[derive(serde::Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct HistoricalVersion {
-            schema_version: u32,
-        }
-        if !serde_json::from_slice::<HistoricalVersion>(&bytes)
-            .is_ok_and(|header| header.schema_version == 2)
-        {
-            // Do not silently bless modified existing receipts when rebuilding.
-            read_index(root)?;
-        }
-    }
     let index = rebuild(root)?;
     let parent = root.join("testing");
     let mut temporary = tempfile::NamedTempFile::new_in(&parent)?;
