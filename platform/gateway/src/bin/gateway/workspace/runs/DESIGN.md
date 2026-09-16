@@ -40,6 +40,13 @@ failure reason. A human-only turn starts no coordinator. The separate run route
 supports an explicit assignment of an existing message authored by that human. Sixteen workers fit in one process; the store separately
 enforces concurrent room capacity. Retrying admission preserves the same run ID.
 
+Model execution is driven by admitted human requests. Automatic participation
+selects agents for a human message; it does not schedule periodic model calls.
+Chat-watch reconciliation and active-worker heartbeats check durable state and
+authority without invoking a model. Task progress, completion and input requests
+update private Activity without starting another model response. Tool receipts may
+advance the already requested response within its existing call budget.
+
 A model call receives a bounded JSON history with stable author IDs and names. Its
 triggering human request remains explicit. Older history can be dropped to fit the
 64 KiB prompt bound, and the prompt marks that truncation. The trigger itself is never

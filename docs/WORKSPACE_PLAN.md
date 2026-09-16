@@ -205,6 +205,23 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 174 makes the existing authorized chat watch settle a lost agent worker
+  without waiting for a manual Activity read. Source `8c945f02` shares the store's
+  fenced reconciliation between both reads. Its real-database regression fails
+  before the correction and passes afterward, preserving partial output and
+  publishing one interruption under concurrent watchers. Public headed RTX 4090
+  acceptance interrupts a running response by replacing gateway replicas one at
+  a time. The connected chat reports `worker_lost`, reload retains the same run,
+  and recovery submits no new work. That installed response had not emitted text;
+  partial-text retention remains qualified by the database regression. An earlier
+  attempt completed during graceful replacement; another waited for visible text
+  and replaced no pods. Neither is worker-loss acceptance. Evidence is under
+  `output/workspace-public/worker-recovery*`. Deployment `20b6c033` passes GitHub
+  run `35065966179`. Reconciliation invokes no model and never restarts a response.
+  The original Statue of Liberty capture and three earlier terminal Tasks reopen
+  with unchanged identities and no submissions. The Computer host remains unchanged
+  and Isaac remains suspended.
+
 - Release 173 preserves inline images in Activity. The installed View App renders
   the Statue of Liberty and completes its native `capture_frame` Task on NVIDIA
   Vulkan. The headed RTX 4090 browser shows the 1280×720 capture. This workflow

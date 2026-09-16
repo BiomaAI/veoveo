@@ -1,5 +1,58 @@
 # Build And Deployment Iteration Audit
 
+## Workspace Worker Recovery — September 16, 2026
+
+Source `8c945f02` makes the existing authorized chat watch settle expired agent
+leases. Previously, only an Activity read performed that reconciliation; an open
+chat could keep displaying a running response after its worker disappeared.
+The store now shares one reconciliation query between both reads. It reads active
+run metadata, preserves partial output and emits one committed interruption event.
+It never calls or queries a model provider. The real-database regression fails
+before the correction and passes afterward, including two concurrent watchers,
+rejection of late publication and replay without restarting the response.
+
+The four recorded source checks take 14.1 seconds for the store, 22.0 seconds for
+the gateway, 15.3 seconds for strict lint and 0.8 seconds for formatting. Only the
+gateway image changes. Staging takes 80.166 seconds; compilation accounts for
+69.657 seconds and export for 4.405 seconds. The source helper refreshes seven
+files and removes 41 paths as the previous two-target selection narrows to the
+gateway. Logs and immutable image evidence are under
+`output/development/workspace-worker-recovery-*`.
+
+Installation qualification takes 9.2 seconds, lint takes 11.6 seconds and
+formatting takes 0.1 seconds. Source and deployment remain separate logical
+commits, but one push publishes both. This avoids a redundant intermediate GitHub
+report run while preserving the tested source identity in image evidence.
+Deployment `20b6c033` reuses the existing chart and converges in 36.773 seconds:
+source fetch takes 9.764 seconds and desired-state application takes 25.655 seconds.
+The local observer build is warm at 0.47 seconds. Evidence is
+`output/workspace-public/worker-recovery-convergence.json`.
+
+An initial public attempt on release 173 replaces both gateway replicas with normal
+shutdown grace. Its response completes during those replacements, so that attempt
+does not qualify worker loss. Its original message and completed run remain
+recorded under `output/workspace-public/worker-recovery*`; no retry reuses that
+admission. Release 174 acceptance uses a separate explicit request and shortened
+shutdown grace, with two ready replicas restored between replacements.
+
+A second attempt waits 90 seconds for visible model output and replaces no pods;
+its run later settles as interrupted at its existing deadline with no text.
+The successful check interrupts as soon as a worker is running, without making
+provider token-arrival timing a prerequisite. The connected headed RTX 4090 browser
+observes `worker_lost` before any manual recovery read. Reload retains that run ID,
+the operation inventory remains unchanged and the only submission is the initial
+human message. No text had arrived in this run; partial-text preservation is
+qualified by the real-database regression, not this public check. Evidence is under
+`output/workspace-public/worker-recovery-release174-early*`.
+
+GitHub run `35065966179` passes for the combined push; its report job takes 3m40s.
+The application rollout takes 36.773 seconds independently of that report tail.
+Read-only public acceptance then reopens the original Statue of Liberty capture
+with its matching digest and all three earlier completed/cancelled Tasks. Reload
+submits no work. The Computer host retains its UID and zero restarts, and Isaac
+remains suspended. This evidence is under
+`output/workspace-public/worker-recovery-release174-retained*`.
+
 ## Workspace Inline Task Images — September 16, 2026
 
 The installed View App's Statue of Liberty capture exposes a concrete result gap:
