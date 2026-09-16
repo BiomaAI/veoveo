@@ -10,6 +10,11 @@ cached. Static source separation alone does not preserve warm compiler reuse whe
 selected feature closures change. Reusing a compatible qualified BFF artifact across
 parent image selections, or keeping its compilation unit stable, remains a concrete
 iteration improvement. This performance debt does not block the working release.
+Release 168 converges in 22.623 seconds with source fetch at 9.174 seconds and
+application at 12.753 seconds. The public removal check makes one human message and
+zero model runs, then archives its dedicated chat. Its original two-agent delivery
+chat and three native Task identities remain available. Deployment GitHub run
+`35052681419` passes.
 
 
 Atomic human turns remove the browser's message-then-run request chain. One request
