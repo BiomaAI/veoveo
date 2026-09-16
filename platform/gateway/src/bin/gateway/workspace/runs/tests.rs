@@ -29,6 +29,17 @@ async fn completion(
     provider.requests.fetch_add(1, Ordering::SeqCst);
     let model = body["model"].as_str().unwrap().to_owned();
     assert!(!body.to_string().contains("PRIVATE OTHER CHAT"));
+    let prompt: Value = serde_json::from_str(
+        body["messages"].as_array().unwrap().last().unwrap()["content"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(prompt["request"]["reply_to"]["kind"], "message");
+    assert_eq!(
+        prompt["request"]["reply_context"]["text"],
+        "The shared topic being discussed"
+    );
     let stream = async_stream::stream! {
         yield Ok(Event::default().data(json!({"id":"fixture", "object":"chat.completion.chunk", "created":0, "model":model,
             "choices":[{"index":0,"delta":{"role":"assistant","content":format!("{model} response")},"finish_reason":null}]}).to_string()));
@@ -157,6 +168,11 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         .await
         .unwrap();
         let trigger = WorkspaceMessageId::new();
+        let reply = WorkspaceMessageId::new();
+        db.a.send_workspace_turn(&actor, chat, veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            id: reply, text: "The shared topic being discussed".into(), reply_to: None, addressed_agents: vec![],
+            deadline: Utc::now() + TimeDelta::seconds(120),
+        }).await.unwrap();
         let app = routes(state).layer(Extension(subject));
         let mut agent_ids = Vec::new();
         for name in ["writer", "reviewer"] {
@@ -164,11 +180,13 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
             assert_eq!(status, StatusCode::OK, "{agent}");
             agent_ids.push(agent["id"].as_str().unwrap().to_owned());
         }
-        let admission = json!({"id":trigger.as_uuid(),"text":"Discuss this", "replyTo":null,"addressedAgents":agent_ids});
+        let admission = json!({"id":trigger.as_uuid(),"text":"Discuss this", "replyTo":{"kind":"message","id":reply.as_uuid()},"addressedAgents":agent_ids});
         let path = format!("/chats/{chat}/messages");
         let (one, two) = tokio::join!(request(&app, &path, admission.clone()), request(&app, &path, admission.clone()));
         assert_eq!(one.0, StatusCode::OK, "{one:?}");
         assert_eq!(one, two);
+        assert_eq!(one.1["replyTo"], admission["replyTo"]);
+        assert_eq!(one.1["replyContext"]["text"], "The shared topic being discussed");
         // Both admissions and the human message survive the completed HTTP
         // request. Concurrent exact replay claims each model dispatch once.
         let mut run_ids = Vec::new();

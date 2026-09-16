@@ -111,3 +111,13 @@ response blocks later dispatch. Browser-edge tests reject caller-selected model 
 A headed hardware browser fixture checks four authors, response-specific controls,
 reconnect and mobile layout. None of these fixtures establishes deployed model or
 MCP Task execution. Public evidence and remaining acceptance are recorded in the Workspace plan.
+
+## Reply-Aware Context
+
+Human turns carry a typed human-message or agent-response reference and a bounded
+server-captured quote. The store checks same-chat authority and settled response text
+inside admission. Each model history turn includes its typed identity; the explicit
+request retains its reply reference and quote even when older history is truncated.
+These values remain untrusted shared-chat data. Private Task outputs do not enter
+this path. The real HTTP model fixture verifies the request quote and excludes the
+other chat's text. The persistence design owns migration and coordinated rollout.

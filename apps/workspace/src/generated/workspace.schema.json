@@ -518,11 +518,24 @@
           "format": "uuid",
           "type": "string"
         },
+        "replyContext": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReplyContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "replyTo": {
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReplyTarget"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "responseAgents": {
@@ -801,6 +814,63 @@
       "description": "Stable authenticated user or service-principal identity.",
       "type": "string"
     },
+    "ReplyContext": {
+      "additionalProperties": false,
+      "description": "A bounded shared-history quote, captured by the server at message admission.",
+      "properties": {
+        "authorName": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "authorName",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ReplyTarget": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "kind": {
+              "const": "message",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "kind": {
+              "const": "response",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "Run": {
       "additionalProperties": false,
       "properties": {
@@ -898,10 +968,13 @@
           "type": "string"
         },
         "replyTo": {
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReplyTarget"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "text": {

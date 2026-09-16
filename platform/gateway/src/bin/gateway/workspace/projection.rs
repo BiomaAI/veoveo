@@ -29,17 +29,28 @@ pub(super) fn message(value: stored::WorkspaceMessage) -> Result<wire::Message, 
         id: wire::MessageId(uuid(&value.id)?),
         author: wire::MemberId(uuid(&value.author)?),
         text: value.text,
-        reply_to: value
-            .reply_to
-            .as_ref()
-            .map(uuid)
-            .transpose()?
-            .map(wire::MessageId),
+        reply_to: value.reply_to.as_ref().map(reply_target).transpose()?,
+        reply_context: value.reply_context.map(|context| wire::ReplyContext {
+            author_name: context.author_name,
+            text: context.text,
+        }),
         sequence: value.sequence,
         addressed_agents: agent_ids(value.addressed_agents.unwrap_or_default())?,
         response_agents: agent_ids(value.response_agents.unwrap_or_default())?,
         created_at: value.created_at,
     })
+}
+
+pub(super) fn reply_target(value: &RecordId) -> Result<wire::ReplyTarget, StatusCode> {
+    match value.table.as_str() {
+        "workspace_message" => Ok(wire::ReplyTarget::Message {
+            id: wire::MessageId(uuid(value)?),
+        }),
+        "workspace_run" => Ok(wire::ReplyTarget::Response {
+            id: wire::RunId(uuid(value)?),
+        }),
+        _ => Err(StatusCode::SERVICE_UNAVAILABLE),
+    }
 }
 
 pub(super) fn person(value: stored::WorkspacePerson) -> Result<wire::Person, StatusCode> {

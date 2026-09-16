@@ -15,6 +15,17 @@ IF $existing != NONE {
     IF $command.reply_to != NONE AND $reply.chat != $command.chat {
         THROW 'workspace_not_found';
     };
+    IF $command.reply_to != NONE AND $reply.state IN ['queued', 'running'] {
+        THROW 'workspace_conflict';
+    };
+    LET $reply_author = IF $reply.author != NONE { SELECT * FROM ONLY $reply.author }
+        ELSE IF $reply.agent != NONE { SELECT * FROM ONLY $reply.agent } ELSE { NONE };
+    LET $reply_person = IF $reply_author.principal = NONE { NONE }
+        ELSE { SELECT * FROM ONLY $reply_author.principal };
+    LET $quote = IF $command.reply_to = NONE { NONE } ELSE { {
+        author_name: string::slice($reply_author.display_name ?? $reply_person.display_name ?? 'Participant', 0, 160),
+        text: string::slice($reply.text, 0, 500)
+    } };
     LET $policy = $current_chat.participation ?? { mode: 'on_request', agents: [] };
     LET $targets = IF $policy.mode = 'automatic' {
         array::union($command.addressed_agents, $policy.agents)
@@ -34,7 +45,7 @@ IF $existing != NONE {
     CREATE ONLY type::record('workspace_event', [$command.chat, $sequence]) SET
         chat = $command.chat, sequence = $sequence, kind = 'message', target = $command.message;
     CREATE ONLY $command.message SET chat = $command.chat, author = $command.member,
-        text = $command.text, reply_to = $command.reply_to, sequence = $sequence,
+        text = $command.text, reply_to = $command.reply_to, reply_context = $quote, sequence = $sequence,
         addressed_agents = $command.addressed_agents, response_agents = $targets;
     FOR $target IN $targets {
         LET $agent = SELECT * FROM ONLY $target;

@@ -205,6 +205,15 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- The full-scope audit found that reply context and typed chat attachment references
+  were still missing from the product surface. Reply admission now distinguishes
+  human messages from settled agent responses, captures bounded shared-history
+  context, and supplies it to the client and model prompt. Local database, model
+  and headed browser checks qualify this path; public rollout is being completed.
+  Typed attachments with explicit governed admission remain implementation work.
+  Personal uploads and private Task previews do not establish shared-message
+  attachment support.
+
 - Release 169 deploys independent native Task input decisions. Each request can be
   answered or declined separately, and unchanged questions retain their drafts
   when a sibling is answered or replaced. The headed RTX 4090 browser fixture

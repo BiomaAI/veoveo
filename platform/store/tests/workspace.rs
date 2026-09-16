@@ -358,7 +358,9 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
             veoveo_platform_store::workspace::WorkspaceTurnRequest {
                 id: WorkspaceMessageId::new(),
                 text: ("Cross-chat reply").to_owned(),
-                reply_to: Some(request),
+                reply_to: Some(
+                    veoveo_platform_store::workspace::WorkspaceReplyTarget::Message(request)
+                ),
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -525,3 +527,6 @@ mod operations;
 
 #[path = "workspace/participation.rs"]
 mod participation;
+
+#[path = "workspace/replies.rs"]
+mod replies;
