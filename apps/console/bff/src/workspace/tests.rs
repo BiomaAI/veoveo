@@ -352,7 +352,7 @@ async fn cookie_identity_and_csrf_are_required_and_browser_headers_do_not_reach_
                 assert_ne!(headers["host"], "untrusted.invalid");
                 observed.fetch_add(1, Ordering::SeqCst);
                 Json(json!({"id":id,"title":"Shared","owner":id,"archived":false,
-                "membersCanInvite":false,"sequence":1,"revision":0,"updatedAt":Utc::now()}))
+                "membersCanInvite":false,"participation":{"mode":"on_request","agents":[]},"sequence":1,"revision":0,"updatedAt":Utc::now()}))
             }
         }),
     );

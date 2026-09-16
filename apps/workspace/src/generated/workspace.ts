@@ -5,7 +5,12 @@
  * via the `definition` "RunFailure".
  */
 export type RunFailure =
-  "model_unavailable" | "permission_changed" | "output_limit" | "deadline" | "worker_lost";
+  | "capacity"
+  | "model_unavailable"
+  | "permission_changed"
+  | "output_limit"
+  | "deadline"
+  | "worker_lost";
 /**
  * Installation-local human identity; never an email address or bearer credential.
  *
@@ -72,6 +77,13 @@ export type InputKind = "form" | "link" | "unsupported";
  * via the `definition` "TaskState".
  */
 export type TaskState = "working" | "input_required" | "completed" | "failed" | "cancelled";
+/**
+ * Human-message response policy. Agent output never triggers participation.
+ *
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "ParticipationMode".
+ */
+export type ParticipationMode = "on_request" | "default" | "automatic";
 
 export interface WorkspaceSchema {
   activity: AgentActivity;
@@ -369,6 +381,7 @@ export interface OperationPage {
  * via the `definition` "SendMessage".
  */
 export interface SendMessage {
+  addressedAgents: string[];
   id: string;
   replyTo?: string | null;
   text: string;
@@ -382,7 +395,16 @@ export interface ChatSettings {
   expectedRevision: number;
   membersCanInvite: boolean;
   owner: PersonId;
+  participation: Participation;
   title: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "Participation".
+ */
+export interface Participation {
+  agents: string[];
+  mode: ParticipationMode;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -402,6 +424,7 @@ export interface Chat {
   id: string;
   membersCanInvite: boolean;
   owner: PersonId;
+  participation: Participation;
   revision: number;
   sequence: number;
   title: string;
@@ -421,10 +444,12 @@ export interface Member {
  * via the `definition` "Message".
  */
 export interface Message {
+  addressedAgents: string[];
   author: string;
   createdAt: string;
   id: string;
   replyTo?: string | null;
+  responseAgents: string[];
   sequence: number;
   text: string;
 }

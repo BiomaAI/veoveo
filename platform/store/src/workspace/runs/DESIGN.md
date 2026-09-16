@@ -6,8 +6,7 @@ This private persistence boundary uses SurrealDB `3.2.4` transactions and typed 
 records. It has no model-provider or MCP transport. Gateway workers own model
 streams and capability authority; browser projections must omit execution fences
 and internal record identities. Migration `0078` adds tables without rewriting
-human messages. The Workspace surface is unreleased, so its installation upgrade
-is coordinated with the gateway and browser edge.
+human messages. Application-contract upgrades are coordinated with the gateway and browser edge.
 
 ## Admission And Context
 
@@ -22,7 +21,7 @@ unique index enforces the pair. A repeated admission returns that same run, incl
 its terminal state. Different agents receive independent run records. The chat head
 serializes admission with membership changes and enforces four concurrent runs.
 
-Admission freezes the committed chat sequence. Prompt reads include immutable human
+Atomic message admission freezes that message's committed sequence for every selected agent. Explicit assignment of an existing own message freezes the current chat sequence. Prompt reads include immutable human
 messages and agent results completed before that boundary, with fixed page bounds.
 They exclude other chats and output still in progress at admission. A model worker
 must apply its own prompt byte/token budget before dispatch.

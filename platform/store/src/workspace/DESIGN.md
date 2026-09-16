@@ -27,7 +27,7 @@ next event sequence and commits the affected record. A database sequence allocat
 is insufficient because allocated order need not equal committed order.
 
 Request IDs are stable UUIDs. Message replay must match chat, author and complete
-content, including reply target. Unknown and inaccessible chat references have the
+content, including reply target and normalized explicit agent destinations. Unknown and inaccessible chat references have the
 same error. Invitations require explicit acceptance by the named human and fresh
 Work Context authority. Accepted invitations cannot restore a removed member.
 
@@ -49,3 +49,30 @@ remain part of the Workspace delivery goal.
 Private MCP dispatch receipts, Task references and continuation fences are owned
 by [`operations/DESIGN.md`](operations/DESIGN.md). They preserve accepted operation
 identity across browser and process restarts without replaying tool calls.
+
+## Human Turns And Participation
+
+`participation.rs` owns atomic human turns. A single transaction commits the message
+and each resolved response run. Owner settings select explicit requests, one default
+assistant for unaddressed messages, or automatic responses from one to four agents.
+Explicit destinations replace the default assistant. Automatic destinations combine
+with explicit requests and deduplicate by agent identity. Every target must remain an
+active agent in this chat, and a turn can address at most four agents.
+
+All runs admitted with a message freeze the message's sequence as their context
+boundary. Request replay compares the original text and explicit destinations. It
+returns the original resolved destinations even after owner settings change. Reads,
+agent output and reconnects never resolve participation again. Removing a configured
+agent updates participation and the owner settings revision in the same transaction.
+
+Room capacity does not reject human text. A response that cannot fit the four-run
+limit commits as failed with the `capacity` reason. The gateway may also reject an
+unclaimed run when its process is full or its configured definition changed. A
+claimed or terminal run cannot be overwritten by that rejection.
+
+Migration `0083` adds optional policy and message-address fields. An existing chat
+without policy uses explicit requests. Existing messages without address metadata
+retain empty destinations and immutable text. This declared persisted-data transition
+requires no history rewrite. The new HTTP request requires `addressedAgents`, and
+full owner settings require `participation`. Gateway and browser edge ship together
+as a coordinated contract cut. Stale clients fail validation and must reload.

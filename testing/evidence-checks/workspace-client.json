@@ -37,6 +37,25 @@
       "toolchains": [
         "node"
       ]
+    },
+    {
+      "arguments": [
+        "npm",
+        "--prefix",
+        "apps/workspace",
+        "run",
+        "test:browser"
+      ],
+      "inputs": {
+        "kind": "console",
+        "roots": [
+          "apps/workspace",
+          "apps/console/web/src"
+        ]
+      },
+      "toolchains": [
+        "node"
+      ]
     }
   ]
 }

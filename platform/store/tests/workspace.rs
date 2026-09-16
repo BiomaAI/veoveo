@@ -109,9 +109,19 @@ async fn invitations_require_the_named_current_human_and_removal_revokes_history
         assert!(db.b.list_workspace_chats(denied).await.unwrap().is_empty());
     }
     let original =
-        db.a.send_workspace_message(&a, chat, WorkspaceMessageId::new(), "Shared history", None)
-            .await
-            .unwrap();
+        db.a.send_workspace_turn(
+            &a,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: WorkspaceMessageId::new(),
+                text: ("Shared history").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+            },
+        )
+        .await
+        .unwrap();
     let invitation = WorkspaceInvitationId::new();
     db.a.invite_workspace_member(&a, chat, invitation, bob.principal_id)
         .await
@@ -136,7 +146,7 @@ async fn invitations_require_the_named_current_human_and_removal_revokes_history
         .await
         .unwrap();
     let snapshot = db.b.workspace_snapshot(&b, chat, 0, 100).await.unwrap();
-    assert_eq!(snapshot.messages, [original]);
+    assert_eq!(snapshot.messages, [original.message]);
     assert_eq!(snapshot.members.len(), 2);
     assert_eq!(
         db.b.invite_workspace_member(&b, chat, WorkspaceInvitationId::new(), eve.principal_id)
@@ -148,13 +158,23 @@ async fn invitations_require_the_named_current_human_and_removal_revokes_history
     let race_message = WorkspaceMessageId::new();
     let (removed, sent) = tokio::join!(
         db.a.remove_workspace_member(&a, chat, bob.principal_id),
-        db.b.send_workspace_message(&b, chat, race_message, "Racing removal", None),
+        db.b.send_workspace_turn(
+            &b,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: race_message,
+                text: ("Racing removal").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+            }
+        ),
     );
     assert!(!removed.unwrap().active);
     match sent {
         Ok(message) => {
             let head = db.a.workspace_events(&a, chat, 0, 100).await.unwrap();
-            assert!(message.sequence < head.through_sequence);
+            assert!(message.message.sequence < head.through_sequence);
         }
         Err(error) => assert_eq!(error, WorkspaceError::NotFound),
     }
@@ -167,8 +187,18 @@ async fn invitations_require_the_named_current_human_and_removal_revokes_history
         Err(WorkspaceError::NotFound)
     );
     assert_eq!(
-        db.b.send_workspace_message(&b, chat, WorkspaceMessageId::new(), "After removal", None)
-            .await,
+        db.b.send_workspace_turn(
+            &b,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: WorkspaceMessageId::new(),
+                text: ("After removal").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+            }
+        )
+        .await,
         Err(WorkspaceError::NotFound)
     );
     assert_eq!(
@@ -240,34 +270,98 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
 
     for _ in 0..12 {
         let (one, two) = tokio::join!(
-            db.a.send_workspace_message(&a, chat, WorkspaceMessageId::new(), "Alice", None),
-            db.b.send_workspace_message(&b, chat, WorkspaceMessageId::new(), "Bob", None),
+            db.a.send_workspace_turn(
+                &a,
+                chat,
+                veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                    id: WorkspaceMessageId::new(),
+                    text: ("Alice").to_owned(),
+                    reply_to: None,
+                    addressed_agents: vec![],
+                    deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+                }
+            ),
+            db.b.send_workspace_turn(
+                &b,
+                chat,
+                veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                    id: WorkspaceMessageId::new(),
+                    text: ("Bob").to_owned(),
+                    reply_to: None,
+                    addressed_agents: vec![],
+                    deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+                }
+            ),
         );
-        assert_ne!(one.unwrap().sequence, two.unwrap().sequence);
+        assert_ne!(one.unwrap().message.sequence, two.unwrap().message.sequence);
     }
     let request = WorkspaceMessageId::new();
     let (one, two) = tokio::join!(
-        db.a.send_workspace_message(&a, chat, request, "Retry safely", None),
-        db.b.send_workspace_message(&a, chat, request, "Retry safely", None),
+        db.a.send_workspace_turn(
+            &a,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: request,
+                text: ("Retry safely").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+            }
+        ),
+        db.b.send_workspace_turn(
+            &a,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: request,
+                text: ("Retry safely").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+            }
+        ),
     );
     assert_eq!(one.unwrap(), two.unwrap());
     assert_eq!(
-        db.a.send_workspace_message(&a, chat, request, "Changed", None)
-            .await,
+        db.a.send_workspace_turn(
+            &a,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: request,
+                text: ("Changed").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+            }
+        )
+        .await,
         Err(WorkspaceError::Conflict)
     );
     assert_eq!(
-        db.b.send_workspace_message(&b, chat, request, "Retry safely", None)
-            .await,
+        db.b.send_workspace_turn(
+            &b,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: request,
+                text: ("Retry safely").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+            }
+        )
+        .await,
         Err(WorkspaceError::Conflict)
     );
     assert_eq!(
-        db.a.send_workspace_message(
+        db.a.send_workspace_turn(
             &a,
             other,
-            WorkspaceMessageId::new(),
-            "Cross-chat reply",
-            Some(request)
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: WorkspaceMessageId::new(),
+                text: ("Cross-chat reply").to_owned(),
+                reply_to: Some(request),
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+            }
         )
         .await,
         Err(WorkspaceError::NotFound)
@@ -339,12 +433,16 @@ async fn ownership_settings_and_archive_are_current_and_explicit() {
         Err(WorkspaceError::Conflict)
     );
     let snapshot = db.a.workspace_snapshot(&a, chat, 0, 100).await.unwrap();
-    db.b.send_workspace_message(
+    db.b.send_workspace_turn(
         &b,
         chat,
-        WorkspaceMessageId::new(),
-        "Settings stay usable",
-        None,
+        veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            id: WorkspaceMessageId::new(),
+            text: ("Settings stay usable").to_owned(),
+            reply_to: None,
+            addressed_agents: vec![],
+            deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+        },
     )
     .await
     .unwrap();
@@ -354,6 +452,7 @@ async fn ownership_settings_and_archive_are_current_and_explicit() {
         archived: false,
         members_can_invite: false,
         owner: bob.principal_id,
+        participation: Default::default(),
     };
     assert_eq!(
         db.b.update_workspace_settings(&b, chat, settings()).await,
@@ -395,8 +494,18 @@ async fn ownership_settings_and_archive_are_current_and_explicit() {
     .await
     .unwrap();
     assert_eq!(
-        db.a.send_workspace_message(&a, chat, WorkspaceMessageId::new(), "Archived", None)
-            .await,
+        db.a.send_workspace_turn(
+            &a,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: WorkspaceMessageId::new(),
+                text: ("Archived").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
+            }
+        )
+        .await,
         Err(WorkspaceError::Conflict)
     );
     assert!(
@@ -413,3 +522,6 @@ mod runs;
 
 #[path = "workspace/operations.rs"]
 mod operations;
+
+#[path = "workspace/participation.rs"]
+mod participation;

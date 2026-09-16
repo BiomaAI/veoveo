@@ -1,8 +1,9 @@
 mod config;
 mod keys;
+mod messages;
 mod projection;
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
 #[cfg(test)]
 mod tool_tests;
 mod tools;
@@ -88,6 +89,10 @@ fn routes(state: RunState) -> Router {
             post(cancel),
         )
         .layer(DefaultBodyLimit::max(16 * 1024))
+        .route(
+            "/workspace-api/{profile}/chats/{chat}/messages",
+            post(messages::send).layer(DefaultBodyLimit::max(64 * 1024)),
+        )
         .layer(SetResponseHeaderLayer::overriding(
             CACHE_CONTROL,
             HeaderValue::from_static("no-store"),

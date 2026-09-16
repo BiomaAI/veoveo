@@ -45,6 +45,7 @@ pub struct WorkspaceChat {
     pub initial_title: String,
     pub archived: bool,
     pub members_can_invite: bool,
+    pub participation: Option<super::WorkspaceParticipation>,
     pub sequence: i64,
     pub revision: i64,
     pub created_at: DateTime<Utc>,
@@ -95,6 +96,8 @@ pub struct WorkspaceMessage {
     pub author: RecordId,
     pub text: String,
     pub reply_to: Option<RecordId>,
+    pub addressed_agents: Option<Vec<RecordId>>,
+    pub response_agents: Option<Vec<RecordId>>,
     pub sequence: i64,
     pub created_at: DateTime<Utc>,
 }

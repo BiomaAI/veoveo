@@ -2,6 +2,28 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+Atomic human turns remove the browser's message-then-run request chain. One request
+now persists the message and up to four response intents. Owner defaults resolve in
+the transaction, so losing the HTTP response cannot lose a selected agent or invent
+another response on retry. Agent capacity failures leave human text committed.
+
+The first gateway qualification took 38.57 seconds to compile and 5.07 seconds to
+execute 53 passing cases, with one existing ignored case. The browser fixture takes
+about 34 seconds and now covers owner policy, leading mentions and atomic retry
+alongside native Task interaction. Sorting destinations exposed a fixture assumption
+that array position identified an agent. Assertions now use agent IDs. Visual review
+also caught clipped mobile controls that the previous overflow assertion missed.
+The test checks each control's viewport bounds. One App fixture run timed out waiting
+for its Task receipt; a diagnostic rerun passed. Its intermittency remains recorded
+for a focused fixture investigation. No installed provider job was repeated.
+
+Broad evidence declarations still invalidate Rust lint receipts after client-only
+layout or fixture edits. A test-only Rust correction also invalidates dependent
+package receipts. These conservative boundaries preserve correctness but add repeat
+execution and large duplicated manifests. The release continues with affected gateway
+and browser-edge images and reuses the installed chart and domain images.
+
+
 The Computers ownership correction keeps retained keys and adds one indexed lookup
 instead of migrating homes or resealing data. Its first complete domain check took
 117.775 seconds. Moving from the domain package to service qualification rebuilt

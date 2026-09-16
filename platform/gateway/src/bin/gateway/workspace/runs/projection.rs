@@ -30,6 +30,7 @@ pub(super) fn run(value: stored::WorkspaceRun) -> Result<wire::Run, StatusCode> 
         },
         text: value.text,
         failure: value.failure.map(|value| match value {
+            F::Capacity => wire::RunFailure::Capacity,
             F::ModelUnavailable => wire::RunFailure::ModelUnavailable,
             F::PermissionChanged => wire::RunFailure::PermissionChanged,
             F::OutputLimit => wire::RunFailure::OutputLimit,

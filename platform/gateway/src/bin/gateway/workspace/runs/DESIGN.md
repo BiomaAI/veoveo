@@ -32,8 +32,12 @@ Installation configuration and deployed model qualification remain delivery work
 
 The Rust store owns run identity, claim fencing, fixed context and cancellation as
 specified in [`platform/store`](../../../../../../store/src/workspace/runs/DESIGN.md).
-The gateway admits a direct human, resolves the configured definition and starts a
-bounded background worker. Sixteen workers fit in one process; the store separately
+`messages.rs` admits the human message and all response intents in one store
+transaction. The response does not depend on a second browser request. An owned
+background coordinator resolves current definitions and starts independently fenced
+workers. Process capacity or definition changes settle unclaimed runs with a closed
+failure reason. A human-only turn starts no coordinator. The separate run route
+supports an explicit assignment of an existing message authored by that human. Sixteen workers fit in one process; the store separately
 enforces concurrent room capacity. Retrying admission preserves the same run ID.
 
 A model call receives a bounded JSON history with stable author IDs and names. Its
@@ -79,8 +83,10 @@ as required by the accepted private-to-shared publication boundary.
 
 ## Browser Experience And Tasks Boundary
 
-Owners admit agents through chat details. The composer explicitly selects recipients
-and supports several agents. Each response has its own status and stop control while
+Owners admit agents and choose their response policy through chat details. The
+composer displays the current destinations before sending. Explicit selections and
+leading `@Name` addresses become typed agent IDs. The server resolves defaults and
+automatic participation inside the transaction. Agent output cannot trigger a turn. Each response has its own status and stop control while
 humans retain the composer. The bounded activity response contains current agent
 membership and the latest 64 runs; stable IDs replace updated output in place.
 Human-history pagination remains independent from the active run window.
@@ -95,7 +101,7 @@ required before Workspace release.
 ## Qualification
 
 A Rust HTTP fixture runs the actual Rig streaming client against an explicitly fake
-provider and the real disposable database. It exercises two independent streams,
+provider and the real disposable database. It exercises atomic two-agent message admission, concurrent replay, two independent streams,
 human writing during execution, one cancellation and retry without a second provider
 call. A second fixture connects the actual model client to native MCP and the durable
 Task runtime. Repeated tool calls create one Task, current discovery narrows the

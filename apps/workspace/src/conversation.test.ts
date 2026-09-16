@@ -33,7 +33,7 @@ test("assistant-ui preserves two humans and two concurrent agents across replay 
 });
 
 test("message replay deduplicates stable identity and orders committed messages", () => {
-  const message = { id: crypto.randomUUID(), author: crypto.randomUUID(), text: "First", replyTo: null, sequence: 2, createdAt: "2026-09-15T12:00:00Z" };
+  const message = { id: crypto.randomUUID(), author: crypto.randomUUID(), text: "First", replyTo: null, addressedAgents: [], responseAgents: [], sequence: 2, createdAt: "2026-09-15T12:00:00Z" };
   const later = { ...message, id: crypto.randomUUID(), sequence: 5, text: "Later" };
   const merged = mergeMessages([later], [message, later]);
   assert.deepEqual(merged.map(message => message.sequence), [2, 5]);

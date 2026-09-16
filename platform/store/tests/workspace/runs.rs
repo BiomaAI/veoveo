@@ -10,7 +10,7 @@ use veoveo_platform_store::{
 };
 
 const DIGEST: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-fn admission(name: &str) -> WorkspaceAgentAdmission {
+pub(super) fn admission(name: &str) -> WorkspaceAgentAdmission {
     WorkspaceAgentAdmission {
         definition: name.into(),
         definition_digest: "a".repeat(64),
@@ -19,19 +19,19 @@ fn admission(name: &str) -> WorkspaceAgentAdmission {
         model: "no-model-in-this-store-test".into(),
     }
 }
-fn record_uuid(record: &surrealdb::types::RecordId) -> Uuid {
+pub(super) fn record_uuid(record: &surrealdb::types::RecordId) -> Uuid {
     match &record.key {
         surrealdb::types::RecordIdKey::Uuid(value) => **value,
         _ => panic!("expected fixture UUID"),
     }
 }
-fn agent_id(run: &surrealdb::types::RecordId) -> WorkspaceAgentId {
+pub(super) fn agent_id(run: &surrealdb::types::RecordId) -> WorkspaceAgentId {
     WorkspaceAgentId::from_uuid(record_uuid(run))
 }
-fn run_id(run: &WorkspaceRun) -> WorkspaceRunId {
+pub(super) fn run_id(run: &WorkspaceRun) -> WorkspaceRunId {
     WorkspaceRunId::from_uuid(record_uuid(&run.id))
 }
-fn update(fence: Uuid, text: &str, state: WorkspaceRunState) -> WorkspaceRunUpdate {
+pub(super) fn update(fence: Uuid, text: &str, state: WorkspaceRunState) -> WorkspaceRunUpdate {
     WorkspaceRunUpdate {
         fence,
         text: text.into(),
@@ -75,15 +75,29 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
     let writer = agent_id(&writer.id);
     let reviewer = agent_id(&reviewer.id);
     let trigger = WorkspaceMessageId::new();
-    db.a.send_workspace_message(&a, chat, trigger, "Please discuss", None)
-        .await
-        .unwrap();
-    db.a.send_workspace_message(
+    db.a.send_workspace_turn(
+        &a,
+        chat,
+        veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            id: trigger,
+            text: ("Please discuss").to_owned(),
+            reply_to: None,
+            addressed_agents: vec![],
+            deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+        },
+    )
+    .await
+    .unwrap();
+    db.a.send_workspace_turn(
         &a,
         private,
-        WorkspaceMessageId::new(),
-        "OTHER CHAT SECRET",
-        None,
+        veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            id: WorkspaceMessageId::new(),
+            text: ("OTHER CHAT SECRET").to_owned(),
+            reply_to: None,
+            addressed_agents: vec![],
+            deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+        },
     )
     .await
     .unwrap();
@@ -178,12 +192,16 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
         .await,
         Err(WorkspaceError::Conflict)
     );
-    db.b.send_workspace_message(
+    db.b.send_workspace_turn(
         &b,
         chat,
-        WorkspaceMessageId::new(),
-        "I can still contribute",
-        None,
+        veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            id: WorkspaceMessageId::new(),
+            text: ("I can still contribute").to_owned(),
+            reply_to: None,
+            addressed_agents: vec![],
+            deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+        },
     )
     .await
     .unwrap();
@@ -273,9 +291,19 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
             .unwrap();
     let agent = agent_id(&agent.id);
     let trigger = WorkspaceMessageId::new();
-    db.b.send_workspace_message(&b, chat, trigger, "Work", None)
-        .await
-        .unwrap();
+    db.b.send_workspace_turn(
+        &b,
+        chat,
+        veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            id: trigger,
+            text: ("Work").to_owned(),
+            reply_to: None,
+            addressed_agents: vec![],
+            deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+        },
+    )
+    .await
+    .unwrap();
     let deadline = Utc::now() + TimeDelta::seconds(120);
     let run =
         db.b.start_workspace_run(&b, chat, agent, trigger, DIGEST, deadline)
@@ -314,9 +342,19 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
         WorkspaceRunState::Interrupted
     );
     let trigger2 = WorkspaceMessageId::new();
-    db.b.send_workspace_message(&b, chat, trigger2, "Explicit new work", None)
-        .await
-        .unwrap();
+    db.b.send_workspace_turn(
+        &b,
+        chat,
+        veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            id: trigger2,
+            text: ("Explicit new work").to_owned(),
+            reply_to: None,
+            addressed_agents: vec![],
+            deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+        },
+    )
+    .await
+    .unwrap();
     let run2 =
         db.b.start_workspace_run(&b, chat, agent, trigger2, DIGEST, deadline)
             .await
@@ -363,9 +401,19 @@ async fn concurrent_admission_is_bounded_and_removing_an_agent_fences_all_its_ru
     let mut triggers = Vec::new();
     for i in 0..5 {
         let trigger = WorkspaceMessageId::new();
-        db.a.send_workspace_message(&a, chat, trigger, &format!("Work {i}"), None)
-            .await
-            .unwrap();
+        db.a.send_workspace_turn(
+            &a,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: trigger,
+                text: format!("Work {i}"),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+            },
+        )
+        .await
+        .unwrap();
         triggers.push(trigger);
     }
     let deadline = Utc::now() + TimeDelta::seconds(120);

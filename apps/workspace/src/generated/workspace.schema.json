@@ -174,6 +174,9 @@
         "owner": {
           "$ref": "#/$defs/PersonId"
         },
+        "participation": {
+          "$ref": "#/$defs/Participation"
+        },
         "revision": {
           "format": "int64",
           "type": "integer"
@@ -196,6 +199,7 @@
         "owner",
         "archived",
         "membersCanInvite",
+        "participation",
         "sequence",
         "revision",
         "updatedAt"
@@ -251,6 +255,9 @@
         "owner": {
           "$ref": "#/$defs/PersonId"
         },
+        "participation": {
+          "$ref": "#/$defs/Participation"
+        },
         "title": {
           "type": "string"
         }
@@ -260,6 +267,7 @@
         "title",
         "archived",
         "membersCanInvite",
+        "participation",
         "owner"
       ],
       "type": "object"
@@ -491,6 +499,13 @@
     "Message": {
       "additionalProperties": false,
       "properties": {
+        "addressedAgents": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
         "author": {
           "format": "uuid",
           "type": "string"
@@ -510,6 +525,13 @@
             "null"
           ]
         },
+        "responseAgents": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
         "sequence": {
           "format": "int64",
           "type": "integer"
@@ -522,6 +544,8 @@
         "id",
         "author",
         "text",
+        "addressedAgents",
+        "responseAgents",
         "sequence",
         "createdAt"
       ],
@@ -723,6 +747,35 @@
       ],
       "type": "object"
     },
+    "Participation": {
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mode": {
+          "$ref": "#/$defs/ParticipationMode"
+        }
+      },
+      "required": [
+        "mode",
+        "agents"
+      ],
+      "type": "object"
+    },
+    "ParticipationMode": {
+      "description": "Human-message response policy. Agent output never triggers participation.",
+      "enum": [
+        "on_request",
+        "default",
+        "automatic"
+      ],
+      "type": "string"
+    },
     "Person": {
       "additionalProperties": false,
       "properties": {
@@ -810,6 +863,7 @@
     },
     "RunFailure": {
       "enum": [
+        "capacity",
         "model_unavailable",
         "permission_changed",
         "output_limit",
@@ -832,6 +886,13 @@
     "SendMessage": {
       "additionalProperties": false,
       "properties": {
+        "addressedAgents": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
         "id": {
           "format": "uuid",
           "type": "string"
@@ -849,7 +910,8 @@
       },
       "required": [
         "id",
-        "text"
+        "text",
+        "addressedAgents"
       ],
       "type": "object"
     },

@@ -1,4 +1,4 @@
-import type { AgentActivity, ChatSnapshot, Message, RunState } from "./generated/workspace.ts";
+import type { AgentActivity, ChatSnapshot, Message, RunState, RunFailure } from "./generated/workspace.ts";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 // Per-message presentation retains identity even when several people or agents
@@ -6,7 +6,7 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 export type PresentedMessage = {
   id: string; text: string; authorId: string; authorName: string;
   kind: "human" | "agent"; createdAt: string; mine: boolean;
-  run?: { id: string; state: RunState; canCancel?: boolean };
+  run?: { id: string; state: RunState; failure?: RunFailure | null; canCancel?: boolean };
 };
 export function toThreadMessage(message: PresentedMessage): ThreadMessageLike & { convertConfig: { joinStrategy: "none" } } {
   return {
@@ -18,7 +18,7 @@ export function toThreadMessage(message: PresentedMessage): ThreadMessageLike & 
     ...(message.kind === "agent" ? { status: (message.run?.state === "running" || message.run?.state === "queued")
       ? { type: "running" as const } : { type: "complete" as const, reason: "stop" as const } } : {}),
     metadata: { custom: { authorId: message.authorId, authorName: message.authorName,
-      mine: message.mine, kind: message.kind, runId: message.run?.id, runState: message.run?.state, canCancel: message.run?.canCancel } },
+      mine: message.mine, kind: message.kind, runId: message.run?.id, runState: message.run?.state, runFailure: message.run?.failure, canCancel: message.run?.canCancel } },
   };
 }
 export function present(snapshot: ChatSnapshot, personId: string, activity?: AgentActivity): PresentedMessage[] {
@@ -35,7 +35,7 @@ export function present(snapshot: ChatSnapshot, personId: string, activity?: Age
     const agent = activity?.agents.find(agent => agent.id === run.agent);
     return { id: run.id, text: run.text, authorId: run.agent, authorName: agent?.name ?? "Agent",
       kind: "agent" as const, createdAt: run.createdAt, mine: false,
-      run: { id: run.id, state: run.state, canCancel: run.initiator === personId || snapshot.chat.owner === personId } };
+      run: { id: run.id, state: run.state, failure: run.failure, canCancel: run.initiator === personId || snapshot.chat.owner === personId } };
   });
   return [...humans, ...agents].sort((a, b) => (bySequence.get(a.id) ?? 0) - (bySequence.get(b.id) ?? 0));
 }

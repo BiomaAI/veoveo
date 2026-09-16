@@ -132,9 +132,19 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
             .await
             .unwrap();
         let trigger = WorkspaceMessageId::new();
-        db.a.send_workspace_message(&actor, chat, trigger, "Use the fixture capability", None)
-            .await
-            .unwrap();
+        db.a.send_workspace_turn(
+            &actor,
+            chat,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: trigger,
+                text: ("Use the fixture capability").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+            },
+        )
+        .await
+        .unwrap();
         let app = routes(state).layer(Extension(subject));
         for name in ["duplicate", "cancel"] {
             let (status, agent) = tests::request(
