@@ -1,5 +1,36 @@
 # Build And Deployment Iteration Audit
 
+## Workspace Task Attribution — September 16, 2026
+
+Source `47903afb` adds typed agent attribution to private operation receipts and
+removes Activity's dependence on the recent chat-run page. The existing retained
+run/agent records supply the projection; there is no migration or client lookup.
+Database, native gateway and headed browser regressions pass. Their ten recorded
+commands take 172.868 seconds, with 101.086 seconds between commands. Those gaps
+include recorder publication, startup and orchestration, rather than test execution.
+The new source receipts add 1.44 MB. This remains recorded iteration debt; delivery
+does not add another receipt-format project.
+
+The gateway/browser registry stage takes 121.941 seconds. Its 105.801-second
+compile window is expected because the shared Rust contract changes. BuildKit's
+export and push windows overlap the other image's compilation and cannot be added
+to that window. These figures do not replace the earlier UI-only reuse measurement.
+Evidence is under `output/development/workspace-attribution*`.
+
+Deployment `2504b0e1` changes the two runtime digests and keeps the existing chart.
+GitOps convergence takes 34.925 seconds, including 10.400 seconds fetching source
+and 23.470 seconds applying desired state. Building the Rust deployment harness
+before observation adds 15.29 seconds after the shared contract changed; this cost
+is outside the convergence duration. The three installation checks also pass.
+
+Release 176's headed RTX 4090 acceptance restores agent identity in personal
+Activity across reload. The original Statue of Liberty image keeps its Task ID
+and content digest, and the three earlier completed/cancelled Tasks remain readable.
+The acceptance observes zero mutation requests. Both gateway and browser-edge
+replicas are ready; the Computer host has the same UID and zero restarts. Isaac
+remains suspended. Installed evidence is under
+`output/workspace-public/agent-attribution*`.
+
 ## Stable Browser Compilation — September 16, 2026
 
 Source `75dcf739` gives the browser edge a dedicated compiler family through the
