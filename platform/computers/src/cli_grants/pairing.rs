@@ -24,7 +24,7 @@ impl ComputersStore {
             control.require_attach(computer_id)?;
             let computer = self.get(actor.owner(), computer_id).await?;
             authority::ready(&computer, self.provider_instance_id)?;
-            let owner = owner_key(actor.owner())?;
+            let owner = owner_key(&computer.owner)?;
             let id = Uuid::now_v7();
             let mut response = self
                 .query(
@@ -111,7 +111,7 @@ impl ComputersStore {
                 read.take(1).map_err(|_| ComputerError::Unavailable)?;
             let policy = policy.ok_or(ComputerError::Unavailable)?;
             let limits = policy.checked()?;
-            let owner = owner_key(actor.owner())?;
+            let owner = owner_key(&computer.owner)?;
             let family = model::family(actor.accepted())?;
             let binding = model::binding_hash(actor.accepted())?;
             if pairing.pairing_id != pairing_id

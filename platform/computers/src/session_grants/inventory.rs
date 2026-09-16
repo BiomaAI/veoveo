@@ -18,8 +18,8 @@ impl ComputersStore {
             }
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
-            self.get(actor.owner(), computer_id).await?;
-            let owner = owner_key(actor.owner())?;
+            let computer = self.get(actor.owner(), computer_id).await?;
+            let owner = owner_key(&computer.owner)?;
             let mut response = self
                 .query(
                     "SELECT * FROM computer_session_grant WHERE owner_key = $owner_key \
@@ -44,6 +44,11 @@ impl ComputersStore {
                 .into_iter()
                 .map(|row| {
                     let accepted = row.accepted()?;
+                    crate::identity::verify_retained_owner(
+                        &computer.owner,
+                        &row.owner_key,
+                        &accepted.task_owner(),
+                    )?;
                     if row.owner_key != owner || row.computer_id != computer_id {
                         return Err(ComputerError::Unavailable);
                     }

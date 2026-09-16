@@ -1,5 +1,7 @@
 use super::{SessionGrantHandle, SessionGrantLease, authority, model, policy::StoredPolicy};
-use crate::{ComputerActor, ComputerError, ComputersStore, Result, identity::owner_key};
+use crate::{
+    ComputerActor, ComputerError, ComputersStore, Result, identity::verify_retained_owner,
+};
 use chrono::{DateTime, TimeDelta, Utc};
 use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;
@@ -65,6 +67,7 @@ impl ComputersStore {
             .ok_or(ComputerError::Forbidden)?;
         authority::require_attach(&snapshot, row.computer_id)?;
         let computer = self.get(&accepted.task_owner(), row.computer_id).await?;
+        verify_retained_owner(&computer.owner, &row.owner_key, &accepted.task_owner())?;
         authority::ready(&computer, self.provider_instance_id)?;
         if computer.provider_resource_id.as_deref() != Some(row.provider_resource_id.as_str())
             || computer.process_id.as_deref() != Some(row.process_id.as_str())
@@ -132,12 +135,17 @@ impl ComputersStore {
                 return Err(ComputerError::InvalidInput);
             }
             let row = self.session_grant(grant_id).await?;
-            if row.owner_key != owner_key(actor.owner())? || row.computer_id != computer_id {
+            if row.computer_id != computer_id {
                 return Err(ComputerError::NotFound);
             }
             let control = self.control_authority(actor).await?;
             control.require_read(Some(row.computer_id))?;
-            self.get(actor.owner(), row.computer_id).await?;
+            let computer = self.get(actor.owner(), row.computer_id).await?;
+            verify_retained_owner(
+                &computer.owner,
+                &row.owner_key,
+                &row.accepted()?.task_owner(),
+            )?;
             self.query(
                 include_str!("../../queries/revoke_session_grant.surql"),
                 vec![

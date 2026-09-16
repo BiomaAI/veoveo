@@ -82,7 +82,6 @@ impl Record {
             .map_err(|_| ComputerError::Forbidden)?;
         if self.id != super::record(self.grant_id)
             || self.grant_id.is_nil()
-            || crate::identity::owner_key(&accepted.task_owner())? != self.owner_key
             || self.family != veoveo_platform_store::gateway_refresh_family_record_id(family_id)
         {
             return Err(ComputerError::Forbidden);

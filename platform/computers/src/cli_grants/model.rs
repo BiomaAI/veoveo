@@ -98,7 +98,6 @@ impl Grant {
         let family = family(&accepted)?;
         if self.id != super::grant_record(self.grant_id)
             || self.grant_id.is_nil()
-            || crate::identity::owner_key(&accepted.task_owner())? != self.owner_key
             || family != self.family
         {
             return Err(ComputerError::Forbidden);

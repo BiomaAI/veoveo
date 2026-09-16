@@ -286,16 +286,17 @@ impl OwnerAuthority {
 }
 pub(super) fn owned(
     grant: &super::model::Grant,
-    actor: &ComputerActor,
-    computer: Uuid,
+    computer: &Computer,
     provider: Uuid,
 ) -> Result<()> {
-    if grant.view.computer_id != computer
-        || grant.owner_key != owner_key(actor.owner())?
-        || grant.provider != provider
-    {
+    if grant.view.computer_id != computer.computer_id || grant.provider != provider {
         return Err(ComputerError::NotFound);
     }
+    crate::identity::verify_retained_owner(
+        &computer.owner,
+        &grant.owner_key,
+        &grant.authority.task_owner(),
+    )?;
     Ok(())
 }
 
@@ -528,6 +529,11 @@ impl ComputersStore {
             .await?;
         let row: Option<ComputerRecord> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let computer = Computer::try_from(row.ok_or(ComputerError::NotFound)?)?;
+        crate::identity::verify_retained_owner(
+            &computer.owner,
+            &grant.owner_key,
+            &grant.authority.task_owner(),
+        )?;
         if computer.provider_instance_id != grant.provider
             || owner_key(&computer.owner)? != grant.owner_key
             || !computer.owner.data_labels.iter().all(|label| {

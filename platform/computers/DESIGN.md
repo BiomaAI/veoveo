@@ -17,6 +17,7 @@
 | Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
 | Veoveo named lifecycle authority | Migration 0076 separates the accepted actor from retained ownership and records the selected grant; coordinated Computers reader/worker drain required |
+| Veoveo resource ownership across clients | Migration 0082 indexes tenant, principal and Work Context over retained records; immutable creation keys and encrypted envelope v1 remain unchanged; coordinated Computers reader/worker drain required before cross-client admission |
 | Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
 
 The domain owns retained Computer identity. Provider transport belongs to
@@ -41,11 +42,45 @@ mutation grants retain their independent admission and dispatch checks. Current 
 views contain metadata only. Terminal and owner management remain outside named
 automation permissions.
 
-Private ownership binds tenant, principal identity, profile and Work Context.
-Changing a display name does not change identity. User and service principals use
+Private resource ownership binds tenant, principal identity and Work Context.
+An authenticated person's Console and Workspace profiles refer to the same retained
+Computer. Each request still evaluates its current profile's action policy. Changing
+a display name does not change identity. User and service principals use
 the same admission rules. A gateway-verified TaskOwner is an internal trust boundary;
 it is never deserialized from a public Computer request. Current caller data labels
 must cover the stored authority labels before a record can be read.
+
+The stored `owner_key` remains the immutable creation binding, including its original
+profile. It is still used by operation fences, encrypted envelopes and grant parent
+checks. Cross-client access must never rewrite that key, reseal private intents or
+substitute the creation profile into a caller's accepted authority. Resource lookup
+uses the retained principal and Work Context fields through a bounded indexed query.
+The authoritative ownership comparison also checks principal kind, issuer and subject.
+
+Interactive and automation grants retain the original Computer key as their parent
+binding. Their accepted authority separately records the actual issuing profile,
+client and session. Current ownership permits inventory and revocation from another
+authorized client. Redemption and renewal preserve each grant's original profile,
+OAuth client and session constraints; a Workspace session cannot take over a Console
+attachment. Capacity counts all grants attached to the Computer across profiles.
+Named automation grantees remain bound to their explicit profile and OAuth client.
+
+Real-store qualification in `tests/resource_ownership.rs` and
+`tests/cross_client_effects.rs` covers retained creation keys and ciphertext, two
+client profiles for one principal/context, other principals and contexts, current
+action denial, retained labels, browser/CLI renewal and revocation, lifecycle and
+file/command Tasks, maintenance and the shared access limit. The collection query's
+native `EXPLAIN` selects `computer_resource_owner`. Installed acceptance must use a
+retained Computer and verify its existing file.
+
+Migration 0082 adds only an index. Existing records need no conversion. Older readers
+reject grants whose accepted profile differs from the creation profile, and older
+workers reject lifecycle records with that same distinction. Drain all old Computers
+service replicas before starting the updated readers/workers; the private compute
+host and retained homes remain running. Apply the index before admission. This is a
+coordinated cut, with no mixed-version service support. Rollback to older readers
+requires ending cross-client access grants and settling affected operations first;
+never repair incompatibility by rewriting actors, ownership keys or ciphertext.
 
 Create reserves one immutable Computer, template fingerprint and provider instance.
 The request UUID is scoped to the owner/context; its canonical fingerprint detects

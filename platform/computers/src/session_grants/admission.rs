@@ -66,7 +66,7 @@ impl ComputersStore {
             ("computer_id", computer_id.into_value()),
             ("grant", super::record(grant_id).into_value()),
             ("grant_id", grant_id.into_value()),
-            ("owner_key", owner_key(actor.owner())?.into_value()),
+            ("owner_key", owner_key(&computer.owner)?.into_value()),
             ("provider", self.provider_instance_id.into_value()),
             ("authority", super::object(actor.accepted())?.into_value()),
             ("family", family.into_value()),
@@ -168,6 +168,11 @@ impl ComputersStore {
             return Err(ComputerError::Forbidden);
         }
         let computer = self.get(actor.owner(), row.computer_id).await?;
+        crate::identity::verify_retained_owner(
+            &computer.owner,
+            &row.owner_key,
+            &accepted.task_owner(),
+        )?;
         authority::ready(&computer, self.provider_instance_id)?;
         let connection_id = Uuid::now_v7();
         let mut result = self
@@ -177,7 +182,7 @@ impl ComputersStore {
                     ("grant", super::record(grant_id).into_value()),
                     ("ticket_hash", hash.into_value()),
                     ("policy", self.session_policy_record().into_value()),
-                    ("owner_key", owner_key(actor.owner())?.into_value()),
+                    ("owner_key", row.owner_key.into_value()),
                     ("connection", connection_id.into_value()),
                     ("computer", computer_record(row.computer_id).into_value()),
                     ("provider", self.provider_instance_id.into_value()),

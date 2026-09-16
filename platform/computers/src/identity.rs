@@ -35,7 +35,7 @@ pub(crate) fn owner_key(owner: &TaskOwner) -> Result<String> {
 }
 
 pub(crate) fn permits(stored: &TaskOwner, caller: &TaskOwner) -> Result<()> {
-    if owner_key(stored)? != owner_key(caller)?
+    if !same_resource_owner(stored, caller)?
         || !stored.data_labels.is_subset(&caller.data_labels)
         || !stored
             .authority
@@ -45,6 +45,32 @@ pub(crate) fn permits(stored: &TaskOwner, caller: &TaskOwner) -> Result<()> {
             .all(|label| caller.data_labels.contains(label.as_str()))
     {
         return Err(ComputerError::NotFound);
+    }
+    Ok(())
+}
+
+/// Profiles govern current actions, while retained resources belong to a
+/// principal in one Work Context. The original storage/encryption key stays intact.
+pub(crate) fn same_resource_owner(stored: &TaskOwner, caller: &TaskOwner) -> Result<bool> {
+    owner_key(stored)?;
+    owner_key(caller)?;
+    Ok(stored.tenant_key() == caller.tenant_key()
+        && stored.principal_key == caller.principal_key
+        && stored.principal_kind == caller.principal_kind
+        && stored.issuer == caller.issuer
+        && stored.subject == caller.subject
+        && stored.authority.work_context == caller.authority.work_context)
+}
+
+/// A grant keeps the retained Computer binding while its accepted actor may use
+/// another profile. Parsing an authority envelope alone does not verify a parent.
+pub(crate) fn verify_retained_owner(
+    stored: &TaskOwner,
+    retained_key: &str,
+    accepted: &TaskOwner,
+) -> Result<()> {
+    if owner_key(stored)? != retained_key || !same_resource_owner(stored, accepted)? {
+        return Err(ComputerError::Unavailable);
     }
     Ok(())
 }
@@ -63,7 +89,7 @@ pub(crate) fn can_mutate(caller: &TaskOwner) -> Result<()> {
 }
 
 pub(crate) fn quota_key(owner: &TaskOwner) -> Result<String> {
-    // Profile and Work Context isolate access, but cannot multiply an owner's quota.
+    // Client profiles and Work Contexts cannot multiply an owner's quota.
     owner_key(owner)?;
     digest(&(
         "veoveo.computer.quota.v1",

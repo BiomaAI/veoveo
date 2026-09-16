@@ -43,6 +43,7 @@ impl ComputersStore {
             let family_end = self.check_control_session(&snapshot).await?.ok_or(ComputerError::Forbidden)?;
             authority::require_attach(&snapshot, grant.computer_id)?;
             let computer = self.get(&accepted.task_owner(), grant.computer_id).await?;
+            crate::identity::verify_retained_owner(&computer.owner, &grant.owner_key, &accepted.task_owner())?;
             authority::ready(&computer, self.provider_instance_id)?;
             if computer.provider_resource_id.as_deref() != Some(connection.provider_resource_id.as_str())
                 || computer.process_id.as_deref() != Some(connection.process_id.as_str())

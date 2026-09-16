@@ -2,6 +2,16 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+The Computers ownership correction keeps retained keys and adds one indexed lookup
+instead of migrating homes or resealing data. Its first complete domain check took
+117.775 seconds. Moving from the domain package to service qualification rebuilt
+shared contract, store, policy and Task-runtime dependencies; the service library's
+six tests took 0.08 seconds after 46.21 seconds of compilation. A test-only Clippy
+correction invalidated those package-wide receipts and required another qualification
+pass. These are separate costs: Cargo feature closure changes cause recompilation,
+while conservative evidence boundaries cause repeat execution. Dependency-aware
+test-source boundaries remain an opportunity after the current delivery.
+
 Release 164's values-only correction converged with 9.100 seconds in source fetch,
 19.096 seconds in desired-state apply, 0.624 seconds in rollout observation and
 0.405 seconds in readiness. The installed Timeline App Task passed completion and

@@ -37,6 +37,7 @@ impl Computer {
 #[derive(Deserialize, SurrealValue)]
 pub(crate) struct ComputerRecord {
     pub computer_id: Uuid,
+    pub owner_key: String,
     pub owner_context: OpenObject,
     pub provider_instance_id: Uuid,
     pub template_id: String,
@@ -75,7 +76,11 @@ impl TryFrom<ComputerRecord> for Computer {
                 updated_at: value.updated_at,
             })
         };
-        decode().map_err(|_: serde_json::Error| ComputerError::Unavailable)
+        let computer = decode().map_err(|_: serde_json::Error| ComputerError::Unavailable)?;
+        if crate::identity::owner_key(&computer.owner)? != value.owner_key {
+            return Err(ComputerError::Unavailable);
+        }
+        Ok(computer)
     }
 }
 

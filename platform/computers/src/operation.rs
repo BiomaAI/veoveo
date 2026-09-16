@@ -165,9 +165,7 @@ impl TryFrom<OperationRecord> for Operation {
             Some(id) if id.is_nil() || operation.action == Action::Create => {
                 return Err(ComputerError::Unavailable);
             }
-            None if crate::identity::owner_key(&operation.owner)?
-                != crate::identity::owner_key(&operation.actor)? =>
-            {
+            None if !crate::identity::same_resource_owner(&operation.owner, &operation.actor)? => {
                 return Err(ComputerError::Unavailable);
             }
             _ => {}

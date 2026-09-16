@@ -4,7 +4,6 @@ use crate::{
         AutomationExecutionLimits, AutomationGrantView, AutomationPermission,
         IssueAutomationGrantInput,
     },
-    identity::owner_key,
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -135,7 +134,6 @@ impl TryFrom<Record> for Grant {
         if row.id != super::record(row.grant_id)
             || row.grant_id.get_version_num() != 7
             || row.provider_instance_id.is_nil()
-            || row.owner_key != owner_key(&authority.task_owner())?
             || permissions.len() != row.permissions.len()
             || row.expires_at <= row.issued_at
             || row.expires_at - row.issued_at > chrono::TimeDelta::days(1)

@@ -4,7 +4,25 @@ use uuid::Uuid;
 use veoveo_mcp_contract::*;
 use veoveo_platform_store::{GatewayRefreshFamilyRecord, gateway_refresh_family_record_id};
 pub async fn identity(db: &super::TestDb, name: &str) -> GatewayInternalIdentity {
-    let owner = super::owner(name);
+    identity_for_profile(
+        db,
+        name,
+        "operator",
+        "console",
+        "https://computers.test/mcp/operator",
+    )
+    .await
+}
+
+pub async fn identity_for_profile(
+    db: &super::TestDb,
+    name: &str,
+    profile: &str,
+    client: &str,
+    resource: &str,
+) -> GatewayInternalIdentity {
+    let mut owner = super::owner(name);
+    owner.profile = profile.into();
     db.a.ensure_identity(
         owner.tenant_key(),
         &owner.principal_key,
@@ -17,6 +35,8 @@ pub async fn identity(db: &super::TestDb, name: &str) -> GatewayInternalIdentity
     let mut identity = super::identity(&owner);
     let id = Uuid::now_v7();
     let context = identity.request_context.as_mut().unwrap();
+    context.access_token.oauth_client_id = OAuthClientId::new(client).unwrap();
+    context.access_token.audience = ProtectedResourceId::new(resource).unwrap();
     context.access_token.session_family =
         Some(GatewayRefreshFamilyId::new(id.to_string()).unwrap());
     let principal = &context.principal;

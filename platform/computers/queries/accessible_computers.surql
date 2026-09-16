@@ -1,5 +1,8 @@
 LET $owned = SELECT VALUE computer_id FROM computer
-  WHERE owner_key = $owner AND provider_instance_id = $provider
+  WHERE tenant_key = $owner_tenant
+    AND owner_context.principal_key = $owner_principal
+    AND owner_context.authority.work_context = $owner_context
+    AND provider_instance_id = $provider
     AND string::starts_with(<string>computer_id, $prefix)
     AND ($after = NONE OR computer_id > $after)
   ORDER BY computer_id LIMIT $limit;
