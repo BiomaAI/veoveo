@@ -33,6 +33,13 @@ the browser requested only three of its twenty-two registered scopes. A rendered
 scope-set test now catches this installation mismatch. This correction needs only
 browser assets and values, with the gateway binary reusable.
 
+The scope correction's browser-edge image at `da8d380a` published in 48.638 seconds,
+but it still compiled Rust for 34.10 seconds. Changing from the previous two-target
+build to the edge alone removed 348 paths from the shared compiler source tree and
+changed the feature closure, despite no edge Rust source edit. A frontend-only
+publication path must reuse its qualified binary independently of the previous
+combined target selection. This is measured cache churn, not frontend build time.
+
 Workspace implementation reuses the installed platform. The initial gateway and
 browser-edge images were published from `1ec7bc5c` in 288.410 seconds. Compilation
 occupied 264.412 seconds, with a new shared Cargo feature graph. Console assets
