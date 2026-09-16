@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 82] = [
+const MIGRATIONS: [Migration; 83] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -519,6 +519,12 @@ const MIGRATIONS: [Migration; 82] = [
         name: "gateway_task_ownership",
         filename: "0081_gateway_task_ownership.surql",
         sql: include_str!("../migrations/0081_gateway_task_ownership.surql"),
+    },
+    Migration {
+        version: 82,
+        name: "computer_resource_ownership",
+        filename: "0082_computer_resource_ownership.surql",
+        sql: include_str!("../migrations/0082_computer_resource_ownership.surql"),
     },
 ];
 

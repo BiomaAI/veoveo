@@ -331,6 +331,10 @@ impl ComputersStore {
                         .into_value(),
                 ),
                 ("computer", computer_record(computer_id).into_value()),
+                (
+                    "retained_owner_key",
+                    owner_key(&computer.owner)?.into_value(),
+                ),
                 ("maintenance", record(id).into_value()),
                 ("content", content.into_value()),
                 ("event", event.into_value()),

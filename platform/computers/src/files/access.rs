@@ -142,12 +142,16 @@ impl ComputersStore {
         {
             return Err(ComputerError::NotFound);
         }
-        let direct_owner = binding.owner_key == owner_key(actor.owner())?
-            && actor.accepted().actor.id == actor.accepted().request_context.principal.id;
-        let (deadline, can_cancel) = if direct_owner {
+        let direct_owner =
+            if actor.accepted().actor.id == actor.accepted().request_context.principal.id {
+                self.retained_owner_computer(actor.owner(), binding.computer_id, &binding.owner_key)
+                    .await?
+            } else {
+                None
+            };
+        let (deadline, can_cancel) = if let Some(computer) = direct_owner {
             let control = self.control_authority(actor).await?;
             control.require_read(Some(binding.computer_id))?;
-            let computer = self.get(actor.owner(), binding.computer_id).await?;
             if computer.provider_instance_id != self.provider_instance_id {
                 return Err(ComputerError::NotFound);
             }

@@ -60,7 +60,7 @@ impl ComputersStore {
         if computer.provider_instance_id != self.provider_instance_id {
             return Err(ComputerError::Forbidden);
         }
-        let key = owner_key(actor.owner())?;
+        let key = owner_key(&computer.owner)?;
         let request = RecordId::new(
             "computer_automation_request",
             digest(&(
@@ -98,7 +98,7 @@ impl ComputersStore {
             let row: Option<model::Record> =
                 read.take(0).map_err(|_| ComputerError::Unavailable)?;
             let grant: model::Grant = row.ok_or(ComputerError::Unavailable)?.try_into()?;
-            authority::owned(&grant, actor, input.computer_id, self.provider_instance_id)?;
+            authority::owned(&grant, &computer, self.provider_instance_id)?;
             owner.check_fresh(actor)?;
             return Ok(grant.view);
         }
@@ -216,7 +216,7 @@ impl ComputersStore {
             .take(index)
             .map_err(|_| ComputerError::Unavailable)?;
         let grant: model::Grant = row.ok_or(ComputerError::Unavailable)?.try_into()?;
-        authority::owned(&grant, actor, input.computer_id, self.provider_instance_id)?;
+        authority::owned(&grant, &computer, self.provider_instance_id)?;
         Ok(grant.view)
     }
 
@@ -228,7 +228,7 @@ impl ComputersStore {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
-            self.get(actor.owner(), computer_id).await?;
+            let computer = self.get(actor.owner(), computer_id).await?;
             let mut response = self
                 .query(
                     "SELECT * FROM computer_automation_grant
@@ -236,7 +236,7 @@ impl ComputersStore {
                    AND revoked_at = NONE AND expires_at > time::now()
                  ORDER BY grant_id LIMIT 64;",
                     vec![
-                        ("owner_key", owner_key(actor.owner())?.into_value()),
+                        ("owner_key", owner_key(&computer.owner)?.into_value()),
                         ("computer_id", computer_id.into_value()),
                     ],
                 )
@@ -246,7 +246,7 @@ impl ComputersStore {
             let mut grants = Vec::new();
             for row in rows {
                 let grant: model::Grant = row.try_into()?;
-                authority::owned(&grant, actor, computer_id, self.provider_instance_id)?;
+                authority::owned(&grant, &computer, self.provider_instance_id)?;
                 grants.push(grant.view);
             }
             let policy = self.stored_automation_policy().await?.checked()?;
@@ -283,9 +283,9 @@ impl ComputersStore {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
-            self.get(actor.owner(), computer_id).await?;
+            let computer = self.get(actor.owner(), computer_id).await?;
             let grant = self.automation_grant(grant_id).await?;
-            authority::owned(&grant, actor, computer_id, self.provider_instance_id)?;
+            authority::owned(&grant, &computer, self.provider_instance_id)?;
             control.require_read(Some(computer_id))?;
             Ok(grant.view)
         })
@@ -300,15 +300,15 @@ impl ComputersStore {
     ) -> Result<AutomationGrantView> {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             let owner = self.automation_owner(actor, "revoke_automation").await?;
-            self.get(actor.owner(), input.computer_id).await?;
+            let computer = self.get(actor.owner(), input.computer_id).await?;
             let grant = self.automation_grant(input.grant_id).await?;
-            authority::owned(&grant, actor, input.computer_id, self.provider_instance_id)?;
+            authority::owned(&grant, &computer, self.provider_instance_id)?;
             let mut params = owner.bindings(actor)?;
             params.extend([
                 ("grant", super::record(input.grant_id).into_value()),
                 ("computer", computer_record(input.computer_id).into_value()),
                 ("computer_id", input.computer_id.into_value()),
-                ("owner_key", owner_key(actor.owner())?.into_value()),
+                ("owner_key", owner_key(&computer.owner)?.into_value()),
                 ("provider", self.provider_instance_id.into_value()),
                 (
                     "event",

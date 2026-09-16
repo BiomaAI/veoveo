@@ -7,6 +7,8 @@ pub use store::TestDb;
 #[allow(dead_code)]
 pub mod browser;
 #[allow(dead_code)]
+pub mod clients;
+#[allow(dead_code)]
 pub mod interactive;
 #[allow(dead_code)] // Only dispatch scenarios consume current policy.
 pub mod policy;

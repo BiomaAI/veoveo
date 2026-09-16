@@ -10,6 +10,18 @@ pub struct ComputersStore {
     pub(crate) provider_instance_id: Uuid,
 }
 
+pub(crate) fn owner_query_bindings(caller: &TaskOwner) -> Result<Vec<(&'static str, Value)>> {
+    owner_key(caller)?;
+    Ok(vec![
+        ("owner_tenant", caller.tenant_key().to_owned().into_value()),
+        ("owner_principal", caller.principal_key.clone().into_value()),
+        (
+            "owner_context",
+            caller.authority.work_context.to_string().into_value(),
+        ),
+    ])
+}
+
 impl ComputersStore {
     /// Bounded completion over the same private owner and retained-label boundary.
     pub async fn complete_ids(
@@ -24,14 +36,10 @@ impl ComputersStore {
         {
             return Err(ComputerError::InvalidInput);
         }
+        let mut params = owner_query_bindings(caller)?;
+        params.push(("prefix", prefix.to_string().into_value()));
         let mut response = self
-            .query(
-                include_str!("../queries/complete.surql"),
-                vec![
-                    ("owner", owner_key(caller)?.into_value()),
-                    ("prefix", prefix.to_string().into_value()),
-                ],
-            )
+            .query(include_str!("../queries/complete.surql"), params)
             .await?;
         let records: Vec<ComputerRecord> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
@@ -73,6 +81,22 @@ impl ComputersStore {
         Ok(computer)
     }
 
+    pub(crate) async fn retained_owner_computer(
+        &self,
+        caller: &TaskOwner,
+        id: Uuid,
+        retained_key: &str,
+    ) -> Result<Option<Computer>> {
+        match self.get(caller, id).await {
+            Ok(computer) => {
+                verify_retained_owner(&computer.owner, retained_key, caller)?;
+                Ok(Some(computer))
+            }
+            Err(ComputerError::NotFound) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     pub async fn list(
         &self,
         caller: &TaskOwner,
@@ -82,15 +106,13 @@ impl ComputersStore {
         if !(1..=100).contains(&limit) {
             return Err(ComputerError::InvalidInput);
         }
+        let mut params = owner_query_bindings(caller)?;
+        params.extend([
+            ("after", after.into_value()),
+            ("limit", i64::from(limit + 1).into_value()),
+        ]);
         let mut response = self
-            .query(
-                include_str!("../queries/list.surql"),
-                vec![
-                    ("owner", owner_key(caller)?.into_value()),
-                    ("after", after.into_value()),
-                    ("limit", i64::from(limit + 1).into_value()),
-                ],
-            )
+            .query(include_str!("../queries/list.surql"), params)
             .await?;
         let records: Vec<ComputerRecord> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;

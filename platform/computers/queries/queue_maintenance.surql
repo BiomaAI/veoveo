@@ -20,7 +20,7 @@ IF $prior != NONE {
   IF $prior.fingerprint != $fingerprint { THROW "computer_request_conflict"; };
 } ELSE {
   LET $current = SELECT * FROM ONLY $computer;
-  IF $current = NONE OR $current.owner_key != $content.owner_key { THROW "computer_not_found"; };
+  IF $current = NONE OR $current.owner_key != $retained_owner_key { THROW "computer_not_found"; };
   IF (SELECT * FROM ONLY $execution_slot) != NONE { THROW "computer_operation_busy"; };
   IF $current.active_operation != $expected_active_operation { THROW "computer_operation_busy"; };
   IF $current.updated_at != $expected_updated_at OR $current.owner_context != $expected_owner_context

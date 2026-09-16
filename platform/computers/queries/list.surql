@@ -1,7 +1,9 @@
 SELECT *
 FROM computer
 WHERE
-  owner_key = $owner
+  tenant_key = $owner_tenant
+  AND owner_context.principal_key = $owner_principal
+  AND owner_context.authority.work_context = $owner_context
   AND (
     $after = NONE
     OR computer_id > $after

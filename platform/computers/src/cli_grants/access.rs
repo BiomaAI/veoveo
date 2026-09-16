@@ -33,6 +33,11 @@ impl ComputersStore {
                 .ok_or(ComputerError::Forbidden)?;
             authority::require_attach(&snapshot, computer_id)?;
             let computer = self.get(&accepted.task_owner(), computer_id).await?;
+            crate::identity::verify_retained_owner(
+                &computer.owner,
+                &grant.owner_key,
+                &accepted.task_owner(),
+            )?;
             authority::ready(&computer, self.provider_instance_id)?;
             let connection_id = Uuid::now_v7();
             let end = (snapshot.checked_at + chrono::TimeDelta::seconds(30))
@@ -102,8 +107,8 @@ impl ComputersStore {
         tokio::time::timeout(Duration::from_secs(5), async {
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
-            self.get(actor.owner(), computer_id).await?;
-            let owner = owner_key(actor.owner())?;
+            let computer = self.get(actor.owner(), computer_id).await?;
+            let owner = owner_key(&computer.owner)?;
             let mut read = self.query("SELECT * FROM computer_cli_grant WHERE owner_key = $owner_key AND computer_id = $computer_id \
                 AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now() \
                 AND family.revoked_at = NONE AND family.expires_at > time::now() ORDER BY grant_id DESC LIMIT 129;", vec![
@@ -114,6 +119,7 @@ impl ComputersStore {
             let family = actor.accepted().request_context.access_token.session_family.as_ref();
             let result = rows.into_iter().map(|row| {
                 let accepted = row.accepted()?;
+                crate::identity::verify_retained_owner(&computer.owner, &row.owner_key, &accepted.task_owner())?;
                 if row.owner_key != owner || row.computer_id != computer_id { return Err(ComputerError::Unavailable); }
                 Ok(CliGrantView { grant_id:row.grant_id, name:row.name,
                     current_session:family.is_some() && family == accepted.request_context.access_token.session_family.as_ref(),
@@ -131,12 +137,17 @@ impl ComputersStore {
     ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let row = self.cli_grant(grant_id).await?;
-            if row.computer_id != computer_id || row.owner_key != owner_key(actor.owner())? {
+            if row.computer_id != computer_id {
                 return Err(ComputerError::NotFound);
             }
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
-            self.get(actor.owner(), computer_id).await?;
+            let computer = self.get(actor.owner(), computer_id).await?;
+            crate::identity::verify_retained_owner(
+                &computer.owner,
+                &row.owner_key,
+                &row.accepted()?.task_owner(),
+            )?;
             self.query(
                 include_str!("../../queries/revoke_cli_grant.surql"),
                 vec![

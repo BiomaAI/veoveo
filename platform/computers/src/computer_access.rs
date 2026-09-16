@@ -2,7 +2,7 @@
 use crate::{
     Computer, ComputerActor, ComputerError, ComputersStore, ControlAuthority, Result,
     api::{AutomationPermission, ComputerAccessMode, ComputerGrantedAccess},
-    identity::owner_key,
+    identity::same_resource_owner,
 };
 use std::time::{Duration, Instant};
 use surrealdb::types::{SurrealValue, Value};
@@ -183,14 +183,13 @@ impl ComputersStore {
                 .await?;
             let rows: Vec<crate::model::ComputerRecord> =
                 read.take(0).map_err(|_| ComputerError::Unavailable)?;
-            let key = owner_key(actor.owner())?;
             let mut computers = Vec::new();
             for row in rows {
                 let computer = Computer::try_from(row)?;
                 if !ids.contains(&computer.computer_id) {
                     return Err(ComputerError::Unavailable);
                 }
-                if owner_key(&computer.owner)? == key {
+                if same_resource_owner(&computer.owner, actor.owner())? {
                     crate::identity::permits(&computer.owner, actor.owner())?;
                     control.require_read(Some(computer.computer_id))?;
                     computers.push(ComputerReadAccess {
@@ -331,8 +330,8 @@ impl ComputersStore {
         control.require_actor(actor)?;
         control.require_read(None)?;
         let mut params = scope(actor)?;
+        params.extend(crate::store::owner_query_bindings(actor.owner())?);
         params.extend([
-            ("owner", owner_key(actor.owner())?.into_value()),
             ("provider", self.provider_instance_id.into_value()),
             ("after", after.into_value()),
             ("limit", i64::from(limit + 1).into_value()),
