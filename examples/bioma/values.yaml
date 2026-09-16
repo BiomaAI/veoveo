@@ -84,8 +84,6 @@ consoleBff:
       - time:read
       - time:schedule
       - time:timeline
-      - uav-sim:control
-      - uav-sim:read
       - uav-sim:stream
       - view:capture
       - view:read

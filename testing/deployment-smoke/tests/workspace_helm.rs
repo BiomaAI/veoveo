@@ -88,11 +88,26 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
         .iter()
         .find(|client| client["id"] == "workspace")
         .context("Workspace client")?;
+    let catalog = veoveo_mcp_gateway::GatewayCatalog::from_control_plane(serde_json::from_value(
+        registered.clone(),
+    )?)?;
+    let profile = registered["profiles"]
+        .as_array()
+        .context("profiles")?
+        .iter()
+        .find(|profile| profile["id"] == "workspace")
+        .context("Workspace profile")?;
+    let supported: std::collections::BTreeSet<String> = catalog
+        .profile_supported_scopes(&serde_json::from_value(profile.clone())?)
+        .into_iter()
+        .map(|scope| scope.to_string())
+        .collect();
     let expected: std::collections::BTreeSet<_> = client["allowed_scopes"]
         .as_array()
         .context("registered scopes")?
         .iter()
         .map(|value| value.as_str().unwrap())
+        .filter(|scope| supported.contains(*scope))
         .collect();
     let requested: std::collections::BTreeSet<_> = scopes["value"]
         .as_str()
@@ -101,7 +116,7 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
         .collect();
     ensure!(
         requested == expected,
-        "Workspace must request its approved capability scopes; catalog visibility alone cannot authorize Task dispatch"
+        "Workspace must request the intersection of registered and policy-supported capability scopes"
     );
     let empty = objects(render(&json!({}))?)?;
     ensure!(
