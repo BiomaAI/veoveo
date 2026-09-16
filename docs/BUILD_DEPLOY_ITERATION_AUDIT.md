@@ -1,5 +1,35 @@
 # Build And Deployment Iteration Audit
 
+## Receipt Publication — September 16, 2026
+
+The recorder now validates indexed history once during publication, retains its
+verified references and selection timestamps, and decodes only unindexed receipts
+during recovery. Every invocation still checks historical digests, including failed
+and superseded attempts. The receipt and index formats are unchanged.
+
+| Same recorder command | Before | After |
+|---|---:|---:|
+| Total elapsed | 25.659 s | 15.150 s |
+| Recorded test command, including its compilation | 8.292 s | 5.086 s |
+| Elapsed outside the test command | 17.367 s | 10.064 s |
+
+This local comparison removes 7.303 seconds of overhead, about 42%, with roughly
+161 MiB of receipt history. The recorder binary was built before timing the changed
+implementation; the row subtracting command time also excludes the differing test
+compiles. Subsequent Clippy and format invocations have 10.037 and 9.976 seconds of
+overhead. These observations qualify the history-processing improvement on this
+host; they do not measure a compiler or deployment speedup. Logs and elapsed
+observations are under `output/development/receipt-publication-*`.
+
+All 21 recorder tests pass, including concurrent publication, changed inputs,
+tampered or missing indexed history, incorrect selection metadata, failed orphan
+recovery and malformed recovery files. Strict Clippy, formatting and report
+presentation pass. The recorder belongs to every check's input boundary, so earlier
+source receipts become historical after this change; the three changed-tool checks
+earn current passing receipts. Installed release 171 keeps its previously qualified
+image identities and public acceptance. This tooling change requires no image build
+or workload rollout. Repeated full manifests remain a separate repository-size cost.
+
 ## Workspace Delivery Observations — September 15, 2026
 
 Attachment-reference source `21920ba2` stages the gateway and browser edge in

@@ -299,9 +299,14 @@ fn modified_receipt_is_rejected_instead_of_blessed_during_rebuild() {
         .join(format!("{}.json", attempt.run_id));
     let mut content = fs::read(&path).unwrap();
     content.push(b' ');
-    fs::write(path, content).unwrap();
+    fs::write(&path, content).unwrap();
     assert!(storage::read_receipt(repo.path(), &reference).is_err());
     assert!(storage::publish(repo.path(), &receipt(repo.path(), "second")).is_err());
+    fs::remove_file(path).unwrap();
+    assert!(
+        storage::publish(repo.path(), &receipt(repo.path(), "third")).is_err(),
+        "publication cannot drop missing indexed history"
+    );
 }
 
 #[test]
@@ -315,6 +320,63 @@ fn complete_unindexed_receipt_is_recovered_by_next_publication() {
     );
     storage::publish(repo.path(), &receipt(repo.path(), "next")).unwrap();
     assert_eq!(storage::read_index(repo.path()).unwrap().receipts.len(), 2);
+}
+
+#[test]
+fn recovery_selects_a_failed_orphan_and_preserves_indexed_references() {
+    let repo = repository();
+    let pass = receipt(repo.path(), "first");
+    let reference = storage::publish(repo.path(), &pass).unwrap();
+    let mut failed = receipt(repo.path(), "orphan");
+    failed.outcome = Outcome::Failed;
+    failed.exit_code = Some(1);
+    write(
+        repo.path(),
+        &format!("{RECEIPT_DIRECTORY}/{}.json", failed.run_id),
+        &serde_json::to_string(&failed).unwrap(),
+    );
+    let mut changed = receipt(repo.path(), "changed");
+    changed.outcome = Outcome::InputsChanged;
+    storage::publish(repo.path(), &changed).unwrap();
+    let index = storage::read_index(repo.path()).unwrap();
+    assert_eq!(index.receipts.len(), 3);
+    assert_eq!(index.latest[&pass.check_id], failed.run_id);
+    assert_eq!(
+        index
+            .receipts
+            .iter()
+            .find(|item| item.run_id == pass.run_id)
+            .unwrap()
+            .sha256,
+        reference.sha256
+    );
+    storage::ensure_index_complete(repo.path(), &index).unwrap();
+
+    let before = fs::read(repo.path().join(INDEX_PATH)).unwrap();
+    write(
+        repo.path(),
+        &format!("{RECEIPT_DIRECTORY}/{}.json", Uuid::new_v4()),
+        "incomplete JSON",
+    );
+    assert!(storage::publish(repo.path(), &receipt(repo.path(), "next")).is_err());
+    assert_eq!(fs::read(repo.path().join(INDEX_PATH)).unwrap(), before);
+}
+
+#[test]
+fn publication_rejects_incorrect_selection_of_valid_history() {
+    let repo = repository();
+    let pass = receipt(repo.path(), "first");
+    storage::publish(repo.path(), &pass).unwrap();
+    let mut failed = receipt(repo.path(), "second");
+    failed.outcome = Outcome::Failed;
+    failed.exit_code = Some(1);
+    storage::publish(repo.path(), &failed).unwrap();
+    let mut index = storage::read_index(repo.path()).unwrap();
+    index.latest.insert(pass.check_id, pass.run_id);
+    let corrupt = serde_json::to_vec(&index).unwrap();
+    fs::write(repo.path().join(INDEX_PATH), &corrupt).unwrap();
+    assert!(storage::publish(repo.path(), &receipt(repo.path(), "third")).is_err());
+    assert_eq!(fs::read(repo.path().join(INDEX_PATH)).unwrap(), corrupt);
 }
 
 #[test]

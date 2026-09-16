@@ -205,6 +205,13 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- The evidence recorder removes the duplicate historical receipt pass during
+  publication. Local elapsed time outside the check falls from 17.367 to 10.064
+  seconds while preserving integrity checks and interrupted-publication recovery.
+  Twenty-one recorder tests, strict Clippy and formatting pass. Measurements are
+  in the existing iteration audit; release 171 needs no runtime rollout for this
+  development-tool change.
+
 - Release 171 deploys typed chat attachments. The composer selects completed
   uploads or explicit Artifact links, then publishes the human-chosen references
   and labels with the message. Public headed RTX 4090 acceptance sends an
