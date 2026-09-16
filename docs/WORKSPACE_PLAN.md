@@ -205,6 +205,16 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 168 closes composer recovery when a selected agent leaves. An explicit
+  action clears the unavailable selection after any ambiguous send is resolved.
+  Public headed hardware acceptance removes an agent, clears the selection and
+  commits a human message with zero response runs. Its dedicated test chat is
+  archived afterward. Evidence is under `output/workspace-public/selection-recovery*`.
+  Source `41f76fc7` passes GitHub run `35052414050`; deployment `d83703f8` passes
+  run `35052681419`. All three retained native Task IDs also recover through this
+  browser-edge release, as recorded in `task-recovery-release168.json`.
+
+
 - Release 167 deploys owner-selected default assistants, leading mentions and
   bounded automatic responses. The public headed RTX 4090 browser sends three
   messages and observes four completed model runs: one default response, one
