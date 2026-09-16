@@ -2,6 +2,16 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+The four-line client recovery fix at `41f76fc7` publishes one browser-edge image in
+47.028 seconds. Narrowing the previous gateway/browser-edge target set to the browser
+edge rebuilds the contract, Apps extension and BFF crates for 31.74 seconds despite
+unchanged Rust source. Workspace assets build in 1.92 seconds and Console assets stay
+cached. Static source separation alone does not preserve warm compiler reuse when
+selected feature closures change. Reusing a compatible qualified BFF artifact across
+parent image selections, or keeping its compilation unit stable, remains a concrete
+iteration improvement. This performance debt does not block the working release.
+
+
 Atomic human turns remove the browser's message-then-run request chain. One request
 now persists the message and up to four response intents. Owner defaults resolve in
 the transaction, so losing the HTTP response cannot lose a selected agent or invent
