@@ -3,9 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { uuidV7 } from "../agentControl";
 import { parseComputer } from "../generatedContracts";
 import type { AutomationPermission, ComputerSnapshot, IssueAutomationGrantInput } from "../generated/computers";
-import { useSnapshot } from "../queries";
-import { identityLabel } from "../identity";
-import { useConsoleBootstrap } from "../bootstrap";
 import { computerError, grantAutomation, readAutomation, revokeAutomation } from "./api";
 
 // Called only when a new form submission is captured, never for a saved retry.
@@ -13,12 +10,11 @@ function grantExpiry(lifetimeSeconds: number): string {
   return new Date(Date.now() + lifetimeSeconds * 1000).toISOString();
 }
 
-export function AutomationPanel({ computerId, scope, snapshot, stale }: {
+export function AutomationPanel({ computerId, scope, snapshot, stale, profile, principals }: {
   computerId: string; scope: string; snapshot: ComputerSnapshot; stale: boolean;
+  profile: string; principals: readonly { id: string; displayName: string }[];
 }) {
   const cache = useQueryClient();
-  const directory = useSnapshot(false);
-  const bootstrap = useConsoleBootstrap();
   const key = `veoveo.computers.automation:${scope}:${computerId}`;
   const [saved, setSaved] = useState<{ input?: IssueAutomationGrantInput; error?: string }>(() => {
     try {
@@ -94,7 +90,7 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
     {inventory.isPending && <p>Loading agent access…</p>}
     {inventory.data?.grants.length === 0 && <p>No active automation grants.</p>}
     {inventory.data?.grants.map(grant => <div className="computer-operation" key={grant.grantId}>
-      <div><strong>{grant.name}</strong><p>{directory.data ? identityLabel(grant.principalId, directory.data) : grant.principalId} · {grant.permissions.join(", ")}</p>
+      <div><strong>{grant.name}</strong><p>{principals.find(principal => principal.id === grant.principalId)?.displayName ?? grant.principalId} · {grant.permissions.join(", ")}</p>
         <small>Application {grant.oauthClientId} · Expires {new Date(grant.expiresAt).toLocaleString()}</small>
         {grant.executionLimits && <p>Each command: up to {grant.executionLimits.maximumSeconds} seconds and {grant.executionLimits.maximumOutputBytes.toLocaleString()} output bytes.</p>}
         <details><summary>Grant reference</summary><code>{grant.grantId}</code></details>
@@ -112,8 +108,8 @@ export function AutomationPanel({ computerId, scope, snapshot, stale }: {
         <datalist id="computer-agent-clients">{inventory.data?.clientChoices.map(client => <option key={client.oauthClientId} value={client.oauthClientId}>{client.displayName}</option>)}</datalist>
         {inventory.data?.clientChoicesTruncated && <p>Showing the first 128 matching applications. Enter an exact client ID for another registered application.</p>}
         <label>Principal<input list={selectedClient?.servicePrincipalId ? undefined : "computer-agent-principals"} value={selectedPrincipal} readOnly={!!selectedClient?.servicePrincipalId} onChange={e => setPrincipal(e.target.value)} maxLength={2048} required /></label>
-        <datalist id="computer-agent-principals">{directory.data?.principals.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}</datalist>
-        <p>Suggested applications are registered for this Console's <code>{bootstrap.data?.profile ?? "current"}</code> profile. The agent must sign in before receiving a grant, and current Work Context policy applies when it acts.</p>
+        <datalist id="computer-agent-principals">{principals.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}</datalist>
+        <p>Suggested applications are registered for the <code>{profile}</code> profile. The agent must sign in before receiving a grant, and current Work Context policy applies when it acts.</p>
         {selectedClient?.servicePrincipalId && <p>This application signs in as the service principal shown above.</p>}
         <label>Access duration<select name="lifetime" defaultValue={Math.min(3600, limits.maximumLifetimeSeconds)}>{durations.map(seconds => <option key={seconds} value={seconds}>{seconds >= 3600 ? `${seconds / 3600} ${seconds === 3600 ? "hour" : "hours"}` : seconds >= 60 ? `${seconds / 60} ${seconds === 60 ? "minute" : "minutes"}` : `${seconds} seconds`}</option>)}</select></label>
         {([

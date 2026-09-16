@@ -1,9 +1,9 @@
 import { useState } from "react";
 
-export function CliConnect({ computerId, canConnect }: { computerId: string; canConnect: boolean }) {
+export function CliConnect({ computerId, canConnect, endpointRoot }: { computerId: string; canConnect: boolean; endpointRoot: string }) {
   const [message, setMessage] = useState<string>();
   const name = `computer-${computerId}`;
-  const endpoint = `${window.location.origin}/console/computers/${computerId}`;
+  const endpoint = `${window.location.origin}${endpointRoot}/${computerId}`;
   const registration = `openshell gateway add ${endpoint} --name ${name}`;
   const connection = `openshell --gateway ${name} sandbox connect ${computerId}`;
   async function copy(value: string) {

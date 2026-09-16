@@ -1,0 +1,8 @@
+.workspace-computers {
+  --border: var(--line); --surface: #fff; --brand-accent: var(--green); --text-xs: 12px;
+  overflow: auto; padding: 28px; flex: 1; min-height: 0;
+}
+.workspace-computers .button-primary { background: var(--green); color: #fff; }
+.workspace-computers .computer-detail { background: #fff; }
+.workspace-computers .computer-automation input[type="checkbox"] { width: auto; }
+@media (max-width: 700px) { .workspace-computers { padding: 16px; } }

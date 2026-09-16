@@ -37,11 +37,14 @@ const phases: Record<ComputerPhase, string> = {
 };
 export function ComputersPage({
   scope,
-  canReadInstallation,
+  canReadInstallation, profile, principals, cliEndpoint,
   artifacts, uploads, onUpload,
 }: {
   scope: string;
   canReadInstallation: boolean;
+  profile: string;
+  principals: readonly { id: string; displayName: string }[];
+  cliEndpoint?: string;
   artifacts: ArtifactSummary[];
   uploads: QueueState;
   onUpload: () => void;
@@ -238,11 +241,11 @@ export function ComputersPage({
               scope={scope} snapshot={snapshot} stale={state.stale} artifacts={artifacts} uploads={uploads} onUpload={onUpload} />}
             {snapshot && selected.accessMode === "owner" && <AccessPanel key={`access:${selected.computerId}`}
               computerId={selected.computerId} snapshot={snapshot} stale={state.stale} />}
-            {selected.accessMode === "owner" && <CliConnect computerId={selected.computerId} canConnect={selected.canConnect} />}
+            {cliEndpoint && selected.accessMode === "owner" && <CliConnect computerId={selected.computerId} canConnect={selected.canConnect} endpointRoot={cliEndpoint} />}
             {snapshot && selected.accessMode === "owner" && <MaintenancePanel key={`maintenance:${selected.computerId}`}
               computerId={selected.computerId} scope={scope} snapshot={snapshot} stale={state.stale} />}
             {snapshot && selected.accessMode === "owner" && snapshot.availability !== "setup_required" && <AutomationPanel key={`automation:${selected.computerId}`}
-              computerId={selected.computerId} scope={scope} snapshot={snapshot} stale={state.stale} />}
+              computerId={selected.computerId} scope={scope} snapshot={snapshot} stale={state.stale} profile={profile} principals={principals} />}
             {selected.accessMode === "granted" && <section aria-label="Your granted access">
               <h4>Your access</h4>
               {selected.grantedAccess.map(grant => <p key={grant.grantId}>{grant.name}: {grant.permissions.join(", ")}. Expires {new Date(grant.expiresAt).toLocaleString()}.</p>)}
