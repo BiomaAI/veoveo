@@ -20,6 +20,8 @@ use crate::{
 
 mod affected;
 pub(crate) mod benchmark;
+#[cfg(test)]
+mod browser_compilation_tests;
 mod buildkit;
 pub(crate) mod cache_benchmark;
 mod normalized;
@@ -112,6 +114,7 @@ enum BuildMode {
 #[serde(rename_all = "kebab-case")]
 enum BuilderFamily {
     RustTrixieV1,
+    RustTrixieBrowserV1,
     RustBookwormV1,
     RustBookwormControlV1,
     RustSumoBullseyeV1,
@@ -121,6 +124,7 @@ impl BuilderFamily {
     fn name(self) -> &'static str {
         match self {
             Self::RustTrixieV1 => "rust-trixie-v1",
+            Self::RustTrixieBrowserV1 => "rust-trixie-browser-v1",
             Self::RustBookwormV1 => "rust-bookworm-v1",
             Self::RustBookwormControlV1 => "rust-bookworm-control-v1",
             Self::RustSumoBullseyeV1 => "rust-sumo-bullseye-v1",
@@ -130,6 +134,7 @@ impl BuilderFamily {
     fn shared_artifact_target(self) -> Option<&'static str> {
         match self {
             Self::RustTrixieV1 => Some("rust-trixie-artifacts"),
+            Self::RustTrixieBrowserV1 => Some("rust-trixie-browser-artifacts"),
             Self::RustBookwormV1 => Some("rust-bookworm-artifacts"),
             Self::RustBookwormControlV1 => Some("rust-bookworm-control-artifacts"),
             _ => None,
@@ -148,6 +153,7 @@ impl BuilderFamily {
     fn target_cache_epoch(self) -> &'static str {
         match self {
             Self::RustTrixieV1 => "9b79bf6f1617",
+            Self::RustTrixieBrowserV1 => "ce84a5edd80c",
             Self::RustBookwormV1 => "d793280d4d65",
             Self::RustBookwormControlV1 => "fdee4764c168",
             Self::RustSumoBullseyeV1 => "79132306a5b6",
@@ -840,6 +846,7 @@ fn rust_labels_present(name: &str, target: &BakeTarget) -> Result<bool> {
 fn parse_family(value: &str) -> Result<BuilderFamily> {
     match value {
         "rust-trixie-v1" => Ok(BuilderFamily::RustTrixieV1),
+        "rust-trixie-browser-v1" => Ok(BuilderFamily::RustTrixieBrowserV1),
         "rust-bookworm-v1" => Ok(BuilderFamily::RustBookwormV1),
         "rust-bookworm-control-v1" => Ok(BuilderFamily::RustBookwormControlV1),
         "rust-sumo-bullseye-v1" => Ok(BuilderFamily::RustSumoBullseyeV1),
@@ -1244,6 +1251,7 @@ mod tests {
     fn cargo_download_caches_are_isolated_by_builder_family() {
         let families = [
             BuilderFamily::RustTrixieV1,
+            BuilderFamily::RustTrixieBrowserV1,
             BuilderFamily::RustBookwormV1,
             BuilderFamily::RustBookwormControlV1,
             BuilderFamily::RustSumoBullseyeV1,
@@ -1262,6 +1270,7 @@ mod tests {
     fn target_cache_epochs_are_explicit_stable_and_unique() {
         let families = [
             BuilderFamily::RustTrixieV1,
+            BuilderFamily::RustTrixieBrowserV1,
             BuilderFamily::RustBookwormV1,
             BuilderFamily::RustBookwormControlV1,
             BuilderFamily::RustSumoBullseyeV1,
