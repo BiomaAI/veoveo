@@ -87,6 +87,10 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
             <input type="checkbox" checked={selected.includes(agent.id)} onChange={event => setSelected(current => event.target.checked ? [...current, agent.id] : current.filter(id => id !== agent.id))}/><Bot size={13}/>{agent.name}
           </label>)}
         </fieldset>}
+        {selected.some(id => !activeAgents.some(agent => agent.id === id)) && <p className="error" role="status">
+          An addressed agent left this chat. <button disabled={pending || !!attempt.current}
+            onClick={() => setSelected(current => current.filter(id => activeAgents.some(agent => agent.id === id)))}>Clear unavailable agents</button>
+        </p>}
         {activeAgents.length > 0 && <p className="composer-note" role="status">{selectionError ?? (responders.length
           ? `Will respond: ${responders.map(id => activeAgents.find(agent => agent.id === id)?.name ?? "Agent").join(", ")}.`
           : "No agent response requested.")} Begin with @Name or select an agent above.</p>}

@@ -168,7 +168,9 @@ One send carries the message and its explicit destinations. The store commits al
 response intents with the human message. A lost response retains the complete request
 for an exact retry. The browser no longer saves text and then starts runs in separate
 requests. A capacity failure appears on the affected response, while people can keep
-writing. Recovery fetches committed state without starting another response.
+writing. Recovery fetches committed state without starting another response. If a selected
+agent leaves the chat, an explicit action clears unavailable selections. A pending
+ambiguous send retains its original destinations until its outcome is confirmed.
 
 Every model response retains its own ID and cancellation control. Its MCP Tasks keep
 their independent native IDs in private Activity, including input rounds and terminal

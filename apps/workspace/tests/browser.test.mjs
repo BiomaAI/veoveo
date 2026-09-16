@@ -331,6 +331,14 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByRole("button", { name: "Participants", exact: true }).click();
     assert.equal(await owner.getByRole("combobox", { name: "Agent participation" }).inputValue(), "automatic");
     assert.equal(runs.length, admittedRuns, "recovery must not resolve automatic participation again");
+    await owner.getByRole("group", { name: "Ask an agent", exact: true }).getByRole("checkbox", { name: "Writer", exact: true }).check();
+    agents[0].active = false;
+    chat.participation = { mode: "automatic", agents: [agents[1].id] }; chat.revision++; chat.sequence++;
+    await owner.getByRole("button", { name: "Clear unavailable agents", exact: true }).click();
+    await owner.getByRole("textbox", { name: "Message", exact: true }).fill("A human can continue after an agent leaves.");
+    assert.equal(await owner.getByRole("button", { name: "Send message", exact: true }).isEnabled(), true);
+    assert.equal(await owner.getByRole("button", { name: "Clear unavailable agents", exact: true }).count(), 0);
+    assert.equal(runs.length, admittedRuns, "clearing a stale selection cannot dispatch work");
     await owner.bringToFront(); await hardware(owner);
     await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-participation-local.png", import.meta.url)) });
     assert.deepEqual(errors, []);
