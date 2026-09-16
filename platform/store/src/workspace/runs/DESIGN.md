@@ -40,11 +40,16 @@ cannot publish. Existing output remains attributed to the agent. Changes commit 
 contentless events in the same transaction. Human message sending does not depend on
 any run's state.
 
-An authorized run-window read reconciles expired leases, deadlines and removed
-participants before returning the latest 64 runs. It persists an interrupted state
-and a closed reason, preserving partial output. Recovery never dispatches a provider
+Authorized chat-head and run-window reads share one recovery query for expired
+leases, deadlines and removed participants. Head reads select bounded execution
+metadata without loading response text. The query persists an interrupted state
+and a closed reason, preserving partial output. Run-window reads return the latest
+64 runs after recovery. Recovery never dispatches a provider
 request. Returning after a service replacement cannot restart execution; an explicit
-new human message creates new work. Workers must independently stop provider streams
+new human message creates new work. Concurrent watches settle one lost run once,
+because recovery and the sequence event commit in the same transaction. The gateway's
+existing 15-second chat reconciliation wakes an open browser after worker loss even
+when no new message arrives. Workers must independently stop provider streams
 on cancellation or authority loss. No MCP Task state is fabricated by this store.
 
 ## Security Boundary And Qualification

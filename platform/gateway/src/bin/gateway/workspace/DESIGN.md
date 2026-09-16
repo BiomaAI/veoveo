@@ -39,6 +39,13 @@ configuration closes the stream for fresh HTTP admission. Token expiry and a
 five-minute maximum bound its lifetime. Admission permits four streams per person
 and 128 per process. Lag causes durable reconciliation, never mutation replay.
 
+The authorized head read also settles expired response-worker leases through the
+store's shared recovery query. This commits one interrupted-run event and wakes
+connected clients even when the worker can no longer publish and nobody opens
+Activity. Recovery reads bounded run metadata; it neither loads response bodies
+into the watch nor contacts a model provider. Concurrent watchers cannot duplicate
+the terminal event or reopen the execution fence.
+
 Initial history reads return the latest 100 messages in ascending display order.
 `before` loads older history; `after` reads incremental messages. Supplying both
 is invalid. Clients advance catch-up through the last actual message until the

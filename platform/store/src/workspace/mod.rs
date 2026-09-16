@@ -62,8 +62,10 @@ impl PlatformStore {
         self.workspace_query(
             authority,
             chat.record_id(),
-            "IF !fn::workspace_member($authority, $command) { THROW 'workspace_not_found'; }; \
-             RETURN $command.sequence;",
+            concat!(
+                include_str!("runs/reconcile.surql"),
+                "RETURN $command.sequence;"
+            ),
         )
         .await
     }

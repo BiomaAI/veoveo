@@ -317,6 +317,15 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
     db.b.claim_workspace_run(&b, chat, run_id(&run), fence)
         .await
         .unwrap();
+    db.b.update_workspace_run(
+        &b,
+        chat,
+        run_id(&run),
+        update(fence, "Partial response", WorkspaceRunState::Running),
+    )
+    .await
+    .unwrap();
+    let before = db.a.workspace_head(&a, chat).await.unwrap();
     // Deliberately expire only the owned fixture lease instead of sleeping.
     db.a.client()
         .query("UPDATE ONLY $run SET lease_until = time::now() - 1s;")
@@ -325,6 +334,18 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
         .unwrap()
         .check()
         .unwrap();
+    let (first_watch, second_watch) =
+        tokio::join!(db.a.workspace_head(&a, chat), db.b.workspace_head(&b, chat),);
+    assert_eq!(
+        first_watch.unwrap(),
+        before + 1,
+        "a chat watch must publish worker loss without an activity read"
+    );
+    assert_eq!(
+        second_watch.unwrap(),
+        before + 1,
+        "concurrent watches settle the lost run only once"
+    );
     assert_eq!(
         db.b.update_workspace_run(
             &b,
@@ -337,6 +358,7 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
     );
     let restored = db.a.workspace_runs(&a, chat).await.unwrap();
     assert_eq!(restored[0].state, WorkspaceRunState::Interrupted);
+    assert_eq!(restored[0].text, "Partial response");
     assert_eq!(restored[0].failure, Some(WorkspaceRunFailure::WorkerLost));
     assert_eq!(
         db.b.start_workspace_run(&b, chat, agent, trigger, DIGEST, deadline)
