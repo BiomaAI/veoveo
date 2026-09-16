@@ -146,7 +146,7 @@ impl PlatformStore {
     ) -> Result<WorkspaceOperation> {
         self.workspace_query(authority, id.record_id(),
             "IF !fn::workspace_operation_owner($authority, $command) { THROW 'workspace_not_found'; }; \
-             RETURN SELECT * FROM ONLY $command;",
+             RETURN SELECT *, IF run = NONE { NONE } ELSE { { id: run.agent, name: run.agent.display_name } } AS agent FROM ONLY $command;",
         ).await.map(recover)
     }
 
@@ -176,7 +176,7 @@ impl PlatformStore {
                     app_uri: app_uri.into(),
                     task_id: task_id.into(),
                 },
-                "RETURN SELECT * FROM workspace_operation
+                "RETURN SELECT *, IF run = NONE { NONE } ELSE { { id: run.agent, name: run.agent.display_name } } AS agent FROM workspace_operation
             WHERE tenant = $authority.tenant AND work_context = $authority.work_context
             AND owner = $authority.principal AND profile = $command.profile
             AND app_uri = $command.app_uri AND task_id = $command.task_id LIMIT 1;",

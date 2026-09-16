@@ -8,10 +8,19 @@ use veoveo_mcp_contract::workspace as wire;
 use veoveo_platform_store::workspace::{WorkspaceOperation, WorkspaceOperationPhase as Phase};
 
 pub(super) fn summary(value: &WorkspaceOperation) -> Result<wire::OperationSummary, StatusCode> {
+    let agent = match (&value.run, &value.agent) {
+        (Some(_), Some(agent)) => Some(wire::OperationAgent {
+            id: wire::AgentId(uuid(&agent.id)?),
+            name: agent.name.clone(),
+        }),
+        (None, None) => None,
+        _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
     Ok(wire::OperationSummary {
         id: wire::OperationId(uuid(&value.id)?),
         chat_id: wire::ChatId(uuid(&value.chat)?),
         run_id: value.run.as_ref().map(uuid).transpose()?.map(wire::RunId),
+        agent,
         tool: value.tool.clone(),
         phase: match value.phase {
             Phase::Dispatching => wire::OperationPhase::Dispatching,

@@ -5,4 +5,4 @@ IF $old.phase NOT IN ['dispatching', 'unconfirmed'] OR $old.fence != $command.fe
 };
 UPDATE ONLY $command.operation SET phase = $command.phase, task_id = $command.task_id,
     response = $command.response, revision += 1, updated_at = time::now();
-RETURN SELECT * FROM ONLY $command.operation;
+RETURN SELECT *, IF run = NONE { NONE } ELSE { { id: run.agent, name: run.agent.display_name } } AS agent FROM ONLY $command.operation;

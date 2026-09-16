@@ -42,6 +42,12 @@ read a receipt, including within a shared chat. Leaving a chat does not orphan
 that person's activity; it still prevents new actions in the chat. Native Task
 reads, answers and cancellation require separate current gateway MCP authorization.
 
+Agent receipts project the retained run’s agent ID and display name in the same
+authorized read. This bounded traversal works after agent removal and after the
+initiator leaves the chat; it does not require chat history or the recent-run page.
+Human and App receipts have no agent attribution. No additional stored field or
+migration is required.
+
 ## Input And Outcomes
 
 An `input_required` response retains its opaque request state on the server. A

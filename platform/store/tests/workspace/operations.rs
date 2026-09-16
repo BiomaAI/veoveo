@@ -213,6 +213,7 @@ async fn operation_claims_are_private_durable_and_never_replay_unknown_dispatch(
             .await
             .unwrap();
         assert_eq!(accepted.phase, Phase::Task);
+        assert!(accepted.agent.is_none());
         assert_eq!(db.b.workspace_operation(&a, id).await.unwrap(), accepted);
         assert!(
             !db.b
@@ -228,11 +229,45 @@ async fn operation_claims_are_private_durable_and_never_replay_unknown_dispatch(
         );
 
         // Leaving the room removes history, but does not orphan one's private Task receipt.
-        let own = WorkspaceOperationId::new();
-        let admitted =
-            db.b.start_workspace_operation(&b, own, intent(chat))
+        let agent =
+            db.a.add_workspace_agent(&a, chat, runs::admission("Researcher"))
                 .await
                 .unwrap();
+        let agent_id = runs::agent_id(&agent.id);
+        let deadline = chrono::Utc::now() + chrono::TimeDelta::seconds(120);
+        let turn =
+            db.b.send_workspace_turn(
+                &b,
+                chat,
+                veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                    id: WorkspaceMessageId::new(),
+                    text: "Research this".into(),
+                    reply_to: None,
+                    attachments: vec![],
+                    addressed_agents: vec![agent_id],
+                    deadline,
+                },
+            )
+            .await
+            .unwrap();
+        let run_id = runs::run_id(&turn.runs[0]);
+        let fence = Uuid::new_v4();
+        db.b.claim_workspace_run(&b, chat, run_id, fence)
+            .await
+            .unwrap();
+        let own = WorkspaceOperationId::new();
+        let mut agent_intent = intent(chat);
+        agent_intent.run = Some((run_id, fence));
+        let admitted =
+            db.b.start_workspace_operation(&b, own, agent_intent)
+                .await
+                .unwrap();
+        let attribution = admitted.operation.agent.clone().unwrap();
+        assert_eq!(attribution.id, agent.id);
+        assert_eq!(attribution.name, "Researcher");
+        db.a.remove_workspace_agent(&a, chat, agent_id)
+            .await
+            .unwrap();
         db.a.remove_workspace_member(&a, chat, bob.principal_id)
             .await
             .unwrap();
@@ -253,11 +288,15 @@ async fn operation_claims_are_private_durable_and_never_replay_unknown_dispatch(
             Err(WorkspaceError::NotFound)
         );
         assert_eq!(
-            db.b.workspace_operations(&b, None, None)
-                .await
-                .unwrap()
-                .len(),
-            1
+            db.b.workspace_operation(&b, own).await.unwrap().agent,
+            Some(attribution.clone())
+        );
+        let personal = db.b.workspace_operations(&b, None, None).await.unwrap();
+        assert_eq!(personal.len(), 1);
+        assert_eq!(personal[0].agent, Some(attribution));
+        assert_eq!(
+            db.a.workspace_operation(&a, own).await,
+            Err(WorkspaceError::NotFound)
         );
         assert!(matches!(
             db.b.start_workspace_operation(&b, WorkspaceOperationId::new(), intent(chat))

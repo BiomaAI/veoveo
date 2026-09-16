@@ -10,4 +10,4 @@ IF $chat.archived OR $old.phase != 'input_required' OR $old.revision != $command
 UPDATE ONLY $old.chat SET updated_at = time::now();
 UPDATE ONLY $command.operation SET phase = 'dispatching', fence = $command.fence,
     revision += 1, round += 1, dispatch_until = time::now() + 90s, updated_at = time::now();
-RETURN SELECT * FROM ONLY $command.operation;
+RETURN SELECT *, IF run = NONE { NONE } ELSE { { id: run.agent, name: run.agent.display_name } } AS agent FROM ONLY $command.operation;

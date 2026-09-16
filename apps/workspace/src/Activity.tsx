@@ -5,7 +5,7 @@ import { api, ApiError } from "./api.ts";
 import { TaskInput } from "./TaskInput.tsx";
 import { ResourceResult } from "./ResourceResult.tsx";
 import { ResultImages } from "./ResultImages.tsx";
-import type { AgentActivity, Chat, InputAnswer, OperationSummary, OperationView } from "./generated/workspace.ts";
+import type { Chat, InputAnswer, OperationSummary, OperationView } from "./generated/workspace.ts";
 
 function active(view?: OperationView): boolean {
   return !!view && (view.operation.phase === "dispatching" || view.task?.state === "working" || view.task?.state === "input_required");
@@ -29,7 +29,7 @@ function label(view: OperationView): string {
   }
 }
 
-export function Activity({ chat, close, agents, chats }: { chat?: string; close?: () => void; agents?: AgentActivity; chats?: Chat[] }) {
+export function Activity({ chat, close, chats }: { chat?: string; close?: () => void; chats?: Chat[] }) {
   const client = useQueryClient();
   const [visible, setVisible] = useState(10);
   const [activeIds, setActiveIds] = useState<Set<string>>(() => new Set());
@@ -62,9 +62,7 @@ export function Activity({ chat, close, agents, chats }: { chat?: string; close?
     {query.error && <p className="error" role="alert">{query.error.message}<button onClick={() => void query.refetch()}>Refresh activity</button></p>}
     {query.data && !items.length && <div className="empty-card"><ActivityIcon size={24}/><h3>No activity yet</h3><p>Tasks from your tools, Apps and agents will appear here. You can return to them after leaving a chat.</p></div>}
     <div className="task-list">{items.slice(0, visible).map(operation => {
-      const run = agents?.runs.find(run => run.id === operation.runId);
-      const agent = agents?.agents.find(agent => agent.id === run?.agent);
-      return <TaskCard key={operation.id} operation={operation} observed={observed} agent={agent?.name} chatTitle={chats?.find(chat => chat.id === operation.chatId)?.title} showOrigin={!chat}/>;
+      return <TaskCard key={operation.id} operation={operation} observed={observed} chatTitle={chats?.find(chat => chat.id === operation.chatId)?.title} showOrigin={!chat}/>;
     })}</div>
     {(visible < items.length || query.hasNextPage) && <button disabled={query.isFetchingNextPage} onClick={() => {
       setVisible(count => count + 10); if (visible >= items.length) void query.fetchNextPage();
@@ -72,7 +70,7 @@ export function Activity({ chat, close, agents, chats }: { chat?: string; close?
   </section>;
 }
 
-function TaskCard({ operation, observed, agent, chatTitle, showOrigin }: { operation: OperationSummary; observed: (id: string, active: boolean) => void; agent?: string; chatTitle?: string; showOrigin: boolean }) {
+function TaskCard({ operation, observed, chatTitle, showOrigin }: { operation: OperationSummary; observed: (id: string, active: boolean) => void; chatTitle?: string; showOrigin: boolean }) {
   const query = useQuery({ queryKey: ["operation", operation.id], queryFn: ({ signal }) => api.operation(operation.id, signal),
     refetchInterval: query => query.state.error ? false : interval(query.state.data), refetchIntervalInBackground: false, retry: false });
   const [busy, setBusy] = useState(false);
@@ -99,7 +97,7 @@ function TaskCard({ operation, observed, agent, chatTitle, showOrigin }: { opera
     <div className="task-heading"><span className={`task-icon ${completed ? "settled" : ""}`}>{state === "completed" && !view?.result?.isError ? <Check size={16}/> : state === "input_required" || state === "failed" || state === "unconfirmed" || view?.result?.isError ? <CircleAlert size={16}/> : <Clock3 size={16}/>}</span>
       <div><h3>{operation.tool.replaceAll("__", " · ").replaceAll("_", " ")}</h3><time dateTime={operation.createdAt}>{new Date(operation.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time></div>
       <button className="icon-button" aria-label="Refresh task" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={14}/></button></div>
-    <p className="task-origin muted">{operation.runId ? `${agent ?? "Agent"} · Requested for you` : "Requested by you"}{showOrigin && <> · <a href={`/workspace/?chat=${operation.chatId}&panel=activity`}>{chatTitle ?? "Open originating chat"}</a></>}</p>
+    <p className="task-origin muted">{operation.runId ? `${operation.agent?.name ?? "Agent"} · Requested for you` : "Requested by you"}{showOrigin && <> · <a href={`/workspace/?chat=${operation.chatId}&panel=activity`}>{chatTitle ?? "Open originating chat"}</a></>}</p>
     {query.isPending && <p role="status">Loading current status…</p>}
     {query.error ? <p className="error" role="alert">{query.error instanceof ApiError && [403, 404].includes(query.error.status) ? "This activity is no longer available with your access, or its retention period has ended." : "Current status is unavailable. The operation has not been restarted."}</p> : view && <>
       <div className="task-state" role="status">{label(view)}</div>

@@ -601,6 +601,23 @@
       ],
       "type": "object"
     },
+    "OperationAgent": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
     "OperationImage": {
       "additionalProperties": false,
       "properties": {
@@ -748,6 +765,16 @@
     "OperationSummary": {
       "additionalProperties": false,
       "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperationAgent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "chatId": {
           "format": "uuid",
           "type": "string"
