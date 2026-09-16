@@ -78,11 +78,27 @@ pub struct Message {
     pub id: MessageId,
     pub author: MemberId,
     pub text: String,
-    pub reply_to: Option<MessageId>,
+    pub reply_to: Option<ReplyTarget>,
+    pub reply_context: Option<ReplyContext>,
     pub addressed_agents: Vec<AgentId>,
     pub response_agents: Vec<AgentId>,
     pub sequence: i64,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ReplyTarget {
+    Message { id: MessageId },
+    Response { id: RunId },
+}
+
+/// A bounded shared-history quote, captured by the server at message admission.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReplyContext {
+    pub author_name: String,
+    pub text: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -133,7 +149,7 @@ pub struct CreateChat {
 pub struct SendMessage {
     pub id: MessageId,
     pub text: String,
-    pub reply_to: Option<MessageId>,
+    pub reply_to: Option<ReplyTarget>,
     pub addressed_agents: Vec<AgentId>,
 }
 
@@ -313,5 +329,23 @@ mod tests {
             "id": Uuid::now_v7(), "invitee": Uuid::now_v7(), "role": "owner"
         });
         assert!(serde_json::from_value::<InvitePerson>(invitation).is_err());
+    }
+
+    #[test]
+    fn reply_targets_are_typed_and_quotes_are_never_client_authored() {
+        let id = Uuid::now_v7();
+        for kind in ["message", "response"] {
+            let value = serde_json::json!({"id":id,"text":"Reply", "addressedAgents":[], "replyTo":{"kind":kind,"id":id}});
+            assert!(serde_json::from_value::<SendMessage>(value.clone()).is_ok());
+            let mut forged = value;
+            forged["replyContext"] =
+                serde_json::json!({"authorName":"Owner", "text":"Forged quote"});
+            assert!(serde_json::from_value::<SendMessage>(forged).is_err());
+        }
+        assert!(serde_json::from_value::<ReplyTarget>(serde_json::json!(id)).is_err());
+        assert!(
+            serde_json::from_value::<ReplyTarget>(serde_json::json!({"kind":"task","id":id}))
+                .is_err()
+        );
     }
 }

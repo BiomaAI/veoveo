@@ -2,6 +2,14 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+Reply-context implementation exposed a qualification failure in the latest published
+SurrealQL formatter, `@surrealdb/surql-fmt` `0.1.0-beta.2`: it moved an authorization
+negation into an IF body and removed dots from nested field definitions. The real
+database suite caught both consequences. Its output was discarded, and the established
+query formatting was retained. The checks also isolated a nested query/block issue
+before rollout; materializing author records before constructing the quote passed.
+This was local implementation churn and never reached the installation.
+
 The independent Task-input change at `8445882b` stages the browser edge in 12.349
 seconds with the Rust artifact action fully cached. It retains the previous
 browser-edge-only target selection, which avoids the feature-closure change seen

@@ -1,0 +1,2229 @@
+{
+  "schemaVersion": "veoveo.io/test-receipt/v1",
+  "runId": "afeafa56-37bb-4701-903a-a1f09b6a1534",
+  "name": "workspace-client-browser",
+  "checkId": "sha256:fe4ad93dc14737878cd0a3e519c8dd056f10ce1cc04ea5ac90ff31660805ccdd",
+  "command": {
+    "kind": "admitted",
+    "arguments": [
+      "npm",
+      "--prefix",
+      "apps/workspace",
+      "run",
+      "test:browser"
+    ]
+  },
+  "provenance": {
+    "revision": "486aca7c60fc7967758ab0b1ecd4100d11c1d16b",
+    "dirty": true
+  },
+  "inputs": {
+    "plannerVersion": 3,
+    "scope": {
+      "kind": "console",
+      "roots": [
+        "apps/workspace",
+        "apps/console/web/src",
+        "testing/evidence-checks/workspace-client.json"
+      ]
+    },
+    "digest": "sha256:150df7d31f4f0d1c57ee76a06384c44aeacb9279e081a470740d8f20c2745e8a",
+    "files": [
+      {
+        "path": ".cargo/config.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9143bae8195b97148e52880a97fa655a00cbc38871016384ec259799ff2f7a25",
+          "bytes": 89,
+          "mode": 420
+        }
+      },
+      {
+        "path": "AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ea38129e90a3781b9a7cafa0b5f72620eddc53c628925d999d35f2b24b03724d",
+          "bytes": 16466,
+          "mode": 420
+        }
+      },
+      {
+        "path": "Cargo.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ab038ba228861295cdcbcc90de1437173d4c55298dddb98d6dbd0c2952b86f5d",
+          "bytes": 431922,
+          "mode": 420
+        }
+      },
+      {
+        "path": "Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:625e679adff224cee5bcebb373aa895787a4e435900fd157de53ecbc5f8d32e4",
+          "bytes": 7425,
+          "mode": 420
+        }
+      },
+      {
+        "path": "agents/kernel/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1f94e32e7747564280cd78533bf057cd574f9eeff56d869161039d0118ddbb11",
+          "bytes": 1267,
+          "mode": 420
+        }
+      },
+      {
+        "path": "agents/runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2806596d740cae740c9a3e9c951f8e1bcfe35aec6b4ebc246f00ce1286d879b9",
+          "bytes": 718,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/bff/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c3f8474eab58b54fa505ff0dd46e73de50c13ef1c333d025eebffa15c101f4df",
+          "bytes": 1303,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/App.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eaaeda4eb21749f5df3521db4d2583954812cf8791cd15f59ab6fcaad9f816e1",
+          "bytes": 19505,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/StandaloneAppHost.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0ee69a09e931b692b1c3a8ae5f002bfee120248cd710fd534afd98153500a944",
+          "bytes": 2172,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/ThemeProvider.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:105b9600013e32c4b366d8424dde3e6489aeda88c871b5ab747e69bb80d31536",
+          "bytes": 735,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/agentControl.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8eef7f47b78ba7f6737476fd09098a0296eb9fa9971f938f8f9299d94bc0e00e",
+          "bytes": 1996,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/agentControl.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:20df8239b742413b8130e73ee17e5f7f527c19ff3fe7a982040776a5ac0bdcf3",
+          "bytes": 2143,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/api.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:42e2cdc8f1a95201a7144544cc5bca01e3fef9edb651785149b9fd3df4937c27",
+          "bytes": 20398,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appAgentMessage.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fdfaeab4c0aa5a09d887db0af768b3b6d7e8c701de7185f5f8e7d2b889928109",
+          "bytes": 1294,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appCatalogLive.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6cac6764dde2da60db99b2644208017fb7696d6347a2f3e3bc8d8373b4e36083",
+          "bytes": 1035,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appCatalogPresentation.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e00366948e331cd085ae3b0d0349401d85b6a3b72ea394121095296104e45c25",
+          "bytes": 1875,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appFramePolicy.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:596ac7c91bf0c095775d9ff0c110429da6385ded224103925a5ab8bb13131ad0",
+          "bytes": 338,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appFrameSizing.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd304f3baa3b63149852d2135ede43c9bc0b8bd80e02dcb1ede90d9439b3965c",
+          "bytes": 567,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appFrameSizing.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0e44f56a8da9cfccd9fc4a5fcd69112ba1edfdc058ba7268e5083eef87e2f9cc",
+          "bytes": 378,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appHost.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:93bc065b740d4908d8015d7e91581152e06f6cdb9c4b688792bfc9fd68bd6e30",
+          "bytes": 471,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appLinks.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1a0213032d949ec5143bbecc32e1724c220a748d0201bb86f72a38abbee15c7a",
+          "bytes": 1113,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appPresentation.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f067a4a306a3d44edc4371f316c6a9b4d34074cbb9acb700153eecb4ff041b0",
+          "bytes": 436,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appPresentation.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2bf5340788991995620bdff168e9465c2168852792e196175d723c9003ecd742",
+          "bytes": 305,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appResourceEventStream.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2c00bcd7d95e616b7810a1781d11f3d5c8bb67f58c9fbb0a86fbd2baab027ff8",
+          "bytes": 4060,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/appResourceRead.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c3bf95a97cdfcf05824d94bc10e83acd0be4f436f754f2d7eab4df93cce8bcbc",
+          "bytes": 2817,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/AppFrame.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:108fecbe14161304d4281ae0d5af6c20cf9f220ed30065a560ee0503d26dbdda",
+          "bytes": 1490,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/agentMessage.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:905df9164b426099e9950fc50d98b1fd4c59bf6821b8d4073edf5b8436e4de34",
+          "bytes": 1092,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/appBridge.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:212db5fa7fd0b0a9359db9e06dda2b56eafbd81c308ac3036fe36a355f85115d",
+          "bytes": 8793,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/bridge.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ebc3a18e549013e2e487ace4af4f9466d22fde947785af0490a8300d83f03adf",
+          "bytes": 9058,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/catalogEvents.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a021ecd63762128558feabe4d6e10b6b42645cdc9e4607a84f016c92065517e8",
+          "bytes": 368,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/catalogPresentation.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b89a06f6b4e1d02a3ac3f35a32f5de9a1884822cc8b22d76b08dd5c708443dc3",
+          "bytes": 2081,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/framePolicy.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:40b36375ad9d4484ef75a3d7da8ca0d6a418232d14c4726beb05a19363e3eca0",
+          "bytes": 50,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/links.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:494c4edf2e3a8f1324e5141556a123d8ffe1f31371d48c89436d1309c6736c81",
+          "bytes": 911,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/protocol.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b4024e761e98429e6420a0120bb37dd78a24cbaa44cc548771235fcafc857522",
+          "bytes": 2312,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/recordingProjectionStream.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b62741a7480a89f72f63e6b2656b760c09dcfa3f09ca375d21afbb2845b72cc4",
+          "bytes": 3192,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/resourceEventStream.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:96ae2b151dd92ca2090a18c0ddc5726aab5d5853014735bad55d20e9c6b7778e",
+          "bytes": 5486,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/resourceRead.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:841eff3614e45bd8505991231096695e830435adf4956b1adf41cb3fa74c6f07",
+          "bytes": 2677,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/apps/resourceTransport.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1696b8d1f9382fb4c3967101243e89e76ae9f2305f5b2fdab1b2864be9926d8c",
+          "bytes": 5767,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/artifactPreview.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a8c366c77e87bd9ee624fd4cb580494ccaababf8170dd94eb2ba3caf366ea0f7",
+          "bytes": 635,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/artifactUploadQueue.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:89f2f9c79f245d1d2c152519b5964007b36c34947546f95df1b6ac5eca07edfd",
+          "bytes": 11272,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/artifactUrls.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95f9ec979992c7122bc7ded19df00b6902899f910145e1c5843e58738bd4bb1a",
+          "bytes": 357,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/auth.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ac4277e78668b3fce49fd62b96e0ada8980d59ac4fd1d292776007df334c11d5",
+          "bytes": 922,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/auth.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d19467e87cdf64ad65038987aff675848f7368579a568f8b7098de7fe30eb245",
+          "bytes": 1009,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/bootstrap.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:221bfe14ca548d38ed0abb4fd39677dcb4ca1134124c2a52c7072046debc9733",
+          "bytes": 1026,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/browserApp.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db0be3e9a49491a154b66cf608185d8b775bc74511d7b6f2683de670f52568b0",
+          "bytes": 921,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/browserHttp.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0358b309d2b11e6a53104481031f05e7e7699f6d4552448262135ffdaac9aacd",
+          "bytes": 2587,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/ArtifactPreview.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d6df4923ddb34013a3dd2f441f4b726346a866743e5d2c6da333dfe9e38ff96e",
+          "bytes": 10500,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/ArtifactTable.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6a029b251ab1f18de01711d8714654b6fab56df78466a7981789bf83a67bb1e5",
+          "bytes": 2570,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/ConfirmDialog.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9a82d0755ae3d0e9b35edba9ae8f8c5c627836ff6e209c13cea7c1f9a93e186",
+          "bytes": 2142,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/GovernedRerunArtifactViewer.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:276d6efc8ec27af6ed72e68877cc6496f4ddbadf414ea54de651643f1ac62e56",
+          "bytes": 2606,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/GovernedRerunViewer.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:562a5713773a4d12d0ef319ebaff34906889f140a68f18c60b49f78c47309412",
+          "bytes": 14722,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/IdentityText.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c84639907734775f20dd4365e9cc8e3a19380786650698127e4fab6d52cb46bb",
+          "bytes": 342,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/TaskTable.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:668f1ffd7d6367a7e15d5de1c3c02fb3fedf3c881730ad109c80271d9a9bc655",
+          "bytes": 1479,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/Toolbar.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:46d922057c5feb68acd23f351a782117f49e3a8c6bcbe61abe3eb893c391d8e2",
+          "bytes": 1050,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/confirm.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:08c98bf33737795ecedc3fc93b69cdd553c0afb976a1178bde7cf52a6af75c1b",
+          "bytes": 437,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/components/primitives.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:25af066ee63907558ebe60dfde74221c6a1e9aa2578db8838f74ff7a51175c92",
+          "bytes": 2050,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computerController.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2391bf7c44b350bb4d121efa3ef046caeaa8ff199014cbf7dd8411f82349f02a",
+          "bytes": 10003,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computerFiles.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fa86e725a5c8be65e61c0a90aae7d4a84498de73cd96afafd1f6655d48713bb2",
+          "bytes": 4714,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computerMaintenance.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d62a85dc2a0a2b0a718958e2ac52d7e88f49e03afbb8396edcfee119bac79942",
+          "bytes": 6445,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computerPairing.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cd3a81a1565959641d94eb8088e48b56f99b598e03e1ddae4c6f02140e07ff4d",
+          "bytes": 4037,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computerTerminal.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3fb200b8dd9cf761cc79928a6e1e39e4ce6c0b859148a1a11216c1c0efa31801",
+          "bytes": 6574,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/AccessPanel.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5a1057349664e0023023e3297adc65a5caec65c3d752e08edff46b5ba1639df0",
+          "bytes": 2422,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/AutomationPanel.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a7501c1ed82562e88116ffd8bd8ff2dd7742641eb418879379eff4b48b2d57ce",
+          "bytes": 11879,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/CliConnect.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:965952826602ff1ea6b08be0ae40e7d76186f659bc17fa67ba2c8cc6008a4e1b",
+          "bytes": 1565,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/CliPairingPage.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9a2bdbffe489bf5204f0c795156f927317123ee713352461ca952226e6a4379b",
+          "bytes": 4345,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/ComputersPage.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d503a42db42b5d31be913c035bd2a6364b28382eb5d6c328e4020e8884ef0b3c",
+          "bytes": 13033,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ad1c1017ac6c4de423f7ce7205be3bd8529c9c74c0c21192f133682eb22f219",
+          "bytes": 13421,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/FilesPanel.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0dd9fffa48d0c50870c315a977c7a75751189bbdc86a97e4ec5b044e98061b2a",
+          "bytes": 12070,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/MaintenancePanel.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a4817cca541ff4c1a8d7541d1ba90efd582478f810cc3f4e0a39f80511ba508c",
+          "bytes": 8459,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/RecoveryPanel.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:55ea0aa09db28795ac9aed948b8a3a94184004275933e8fb6c5f71f831d00125",
+          "bytes": 4293,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/TerminalPanel.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e08ba77dd336c42938c84d418f9c3656213e30f681653e4e38ea5b8461d0b50",
+          "bytes": 9477,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/api.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f12a1469eae2d8c844b09c93f896c27b6bee227e061b5c325c5d6402c919ebaa",
+          "bytes": 8172,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/computers.css",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:224097291d8961563bb7132af17e7a54505695d0903758ef5c14c3ec3d2543ab",
+          "bytes": 4191,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/controller.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0262e3b6d4771a78e1e2d150a9ceef714b96309d48a4b9273d1f52ec18ad80c2",
+          "bytes": 12049,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/events.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6c7eb4edbbe2b68c3068e144665f3dc5073598274205b0dee40201946b1fdc40",
+          "bytes": 2760,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/fileApi.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cc4d9cb88f4e108efa86d502890c5ba49fa8eb69a1efadba36767373ebcbb53d",
+          "bytes": 1561,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/fileRequest.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:84001507353618c0fa1ae9ecd689e5febf64e6a75252effb74283be2ecced531",
+          "bytes": 4085,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/maintenanceRequest.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:681c4cf6a856cfa9894aa4852ebf6634ecd7f94168eec3797ba90383c75379ba",
+          "bytes": 2802,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/pairing.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:185437332e28c44faac8c2ca8d84edb72f49b1993fd77b37d377957d8e8ae5fd",
+          "bytes": 4345,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/recoveryRequest.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:705210498a7a2753c09115b97c6959e44fa27f01e0747a791aacd0cd413fd572",
+          "bytes": 2080,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/computers/terminalSession.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ac64a0df9e3051ab257e7683ae362289e166f3fa4d1f15a3ffc746f2c3c9b3d2",
+          "bytes": 7106,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/csrf.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:684398d94d19e87a8a7f0f0c9b2c229711ac09fd77ab30f9ca4edb6aa76e10f8",
+          "bytes": 344,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/demo.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0b1bf31213f9a51f0de74b4305154637e07e1ab6350c22df58242e5cd67391c8",
+          "bytes": 9435,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/drawers/ArtifactDrawer.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8d63d90399acc9b2175b65ddc116a4e43850821669242f66b8cfcdf4d8585a11",
+          "bytes": 14149,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/drawers/DrawerShell.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:609888185703c304fe6cb23884191f6196cb4fd1ad17a50de52ad38b7d3718dd",
+          "bytes": 883,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/drawers/TaskDrawer.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d5a35280d883a094bffbf00e3cf2d953e3b2ba224d7db7d89ec91cba2dbc22a7",
+          "bytes": 2163,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/format.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:818ebb104ea5974b53f5c80bc69009c463a675e13174083b0b92e7286343935f",
+          "bytes": 623,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/generated/computers.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9659281d2805e2d22fbf5d50fb7d01d34ed0fb33a5eb191784ac60a56112c5f",
+          "bytes": 49167,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/generated/computers.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1a16c39f784f100f0eefe4fa317c496278fdff4720e9dd30dc4867fd0a5f1114",
+          "bytes": 25240,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/generated/console.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:23394e922ba16c69fbe4f8d9592e7b748f1fbab73f5d34253b889ccbc0cf1fd5",
+          "bytes": 3986,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/generated/console.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7419d31a6a95ceefbc883cf3c12d61db552f75f1b9df8a9d0a7b68dcd47eb871",
+          "bytes": 2748,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/generatedContracts.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a15b4682da1829e9f92b35b87330c68bcda54d6a4ce8c4e2f45a4adb92b57b53",
+          "bytes": 4325,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/generatedContracts.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:509c29c054a522ea51d27c473343e23c7090bbf0e20fec5278e6ec031bf34ffe",
+          "bytes": 1248,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/identity.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e92885b1779394b34768b6c7ae8d99f7ed409ca28ba6c3d77093d5a41053cab4",
+          "bytes": 1349,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/identity.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b3cbee4a706272a2c9484a3ad1dd467695c49d8765b03762b05ee31c2281d5a3",
+          "bytes": 1514,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/live.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:016d56ae06164970b99b1f9b46dee6ad7bb210f13a9834dea72a4db27d32ad56",
+          "bytes": 6870,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/main.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b3b94d6656ce8b8599be3524a121feb25b6545399596bfa6a6814a633757c4b7",
+          "bytes": 876,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/queries.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c0c7e0337efd1ffb14172f5261045e94c3bf27af76faf375a8aecc7f1204b8a2",
+          "bytes": 7579,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/queryClient.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dea8e8b84fed2152ed72c9dc3deaebe115b38724f7735ab8537b15e4226bb9a7",
+          "bytes": 472,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/recordingProjectionBridge.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:907cdc8a003c28792d92406ba221d5d8f995a282c2b074447fa10468befad18f",
+          "bytes": 4510,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/recordingRrdFetch.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:23123b549e88381072bb425c0536e7c9ec76635df9179bbf8f2c0b56f2b11a40",
+          "bytes": 1494,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/recordingRrdFetch.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d45b5485792c7195e22f836abae01363aeb2875818098f3972695ae96c3bcec3",
+          "bytes": 2591,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/rerunEmbeddedState.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a406e134116947732d7c0064ec9bd62768a40133cc0ee8a87229f787afc27e5f",
+          "bytes": 435,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/rerunEmbeddedState.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cbc074f3ad0c890e8c01a737bb7d0cd005f5174e4da33bedcf87102320f9bf94",
+          "bytes": 559,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/rerunLiveChannel.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4a33ce289a43c25833644cd3779f6f8e00473d40dba5a4dc1fcd524a99ac0e73",
+          "bytes": 2616,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/rerunLiveChannel.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d8e9c4622902c5d6ba14c185ab78df80eef44e9ef56dc924a8f262819b37a292",
+          "bytes": 5354,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/rerunMap.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f8aeb2a009e70b050f67e6e45be8a9aa7df0cfa6012496c346256f4dd92f1ddb",
+          "bytes": 3050,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/rerunMap.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a2139659525b1cdc624344fbd5dee0f485132954b3a6aff61bbb933e7474213e",
+          "bytes": 4793,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/rerunSources.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e404cb5f2a78e7df8475461de4380409abdad96a1697643b14265f38aa2e6a35",
+          "bytes": 3757,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/rerunSources.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9add0557df1417888e859ecdc6425108f12b61ac1fe5821f94c1cd703cb6032e",
+          "bytes": 3523,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/standaloneBootstrap.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:22cf3d700785c0722bb6c96934ef3f0046732320d433be0eec0709b556e03ab8",
+          "bytes": 1606,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/standaloneBootstrap.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8d6f19eb81f7df306d73ad8534dfd0e329038a58f8ef457419a9a8572205ad22",
+          "bytes": 980,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/styles.css",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85f64851136738d327f7ef6334ddc83310d8c9f8c1f6294f802a90f065551efa",
+          "bytes": 55097,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/theme.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8da9d632c9943ad50972566bb850a32e41fb2146231e1294c976b59c732a6f6c",
+          "bytes": 1446,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/types.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f5bb7156178c4c0d0ad1acda7e3e6d2a695445ec37e474c32b035bd5e4fa96b6",
+          "bytes": 9429,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/uploads/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f0dcfb6c1e8ed62aa04d29dae613fcf1b6c0127de7fdc7cc62c81be9381d856a",
+          "bytes": 5575,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/uploads/UploadPanel.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0435cfb723a66c283e2869068b20de4412feecb6d6cefafea993335f3bc70517",
+          "bytes": 11114,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/uploads/hash.worker.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5ff79ad6479d039e8236957eb96d6ebf4a4a92ab37d2ef3a9b20f9c1b7c76619",
+          "bytes": 542,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/uploads/hashing.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99b111f43a525df1007ef69c1091d687e2dfb66e4a99d693fac8e3c424a28e77",
+          "bytes": 1349,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/uploads/model.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8d3a627504ab3274bc27563227798957008789d099897e4c1b4d18d38aab81aa",
+          "bytes": 6043,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/uploads/queue.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fe259a0357c64b1bc1e3bb5ac596e34c31cbc4d9dab57f81f19cdef16fb0e5c4",
+          "bytes": 23773,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/uploads/transport.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b5fddc888a490251e5bf282af982f3158a4d1c177d82962a1b63745f894b6bef",
+          "bytes": 4391,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/uploads/uploads.css",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e06c73302e833e949e3dc29bd92b938ef7edfed5d4c8bceb512a3702fd7c2fee",
+          "bytes": 1965,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Access.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8de21ef6890bdfb0a7dda8d1cc1dde760e7ea36ea9d25c498d1cb12ef81be7cd",
+          "bytes": 8367,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Agents.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:71d38999c5f0490ce5aa4eb22fc16b5153dd9ba71663948967ad823024087fda",
+          "bytes": 12430,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Apps.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:03d175f4ab86b5164bc73c80ea60e0a5e373b5ac7bc9730bd486101e57e51393",
+          "bytes": 4392,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Artifacts.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e26599a7b2682a29e185baf3ca222c5616dd78a6eb566dd122e39064862d3c39",
+          "bytes": 1831,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Audit.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0d646beacc7fa70fc4284d7efd8e48a168931c7c7737a10882a233289dcaed49",
+          "bytes": 3205,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Cluster.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:961eb68b823fb32c8a5ba11fd091bc9206abcb2467712da2ee35d37e7fd0c5c7",
+          "bytes": 5834,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Mcp.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a8d6f2dd76e992d6743bce5c89f84080bc0c3eb210f07a4caf49d49dc03b2de7",
+          "bytes": 5180,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Overview.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:57359df6a731b083136f61e5662198c7bc0145a8b5beb230ec881ad9f003c4b1",
+          "bytes": 3391,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Recordings.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1cbbd0ec4d27a36c055b2ad7ce36e90bad6656808bc3d91b11473380962883ac",
+          "bytes": 19891,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/views/Work.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:62e9f5261af5d07a4e77b3e8118fdc53b13d2a3375c340973a0180b96f32e8b0",
+          "bytes": 1059,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/web/src/vite-env.d.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+          "bytes": 38,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/.gitignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:61022f949eb49fe0ee5b774835be844845b3d71d9001f676d9ac82bd433e49a7",
+          "bytes": 34,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a1bd4352a53b139f15debc51dc112858b0c6471de33bc5619baf4aa72d5fa7d2",
+          "bytes": 13146,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/index.html",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d030c58009aff3d868ee5e1949dd301907c007e47fd3204e55d45aacb4dc6943",
+          "bytes": 351,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/package-lock.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:00288121926944058bd9f8d97cc4da4eda3c7203c5e0fee3d6547342c79d93d7",
+          "bytes": 117949,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/package.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b44677a20d74b1e8a75248da876bd92d694dbf6ec411d46eb8e8084795b4de6f",
+          "bytes": 924,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/Activity.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9eed486727aa702fb2fed31cefa319ef2b237a276311289a539fb3298c914631",
+          "bytes": 9783,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/AgentParticipation.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8ecfc46602f801e03d208aa173d58e54986e9e8c0774839e09f3f15788465fab",
+          "bytes": 2429,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/App.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cc2b8673ae621e96c2b8e805fbc68f81156890acc9e7af01724c1360ba68345f",
+          "bytes": 14320,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/Apps.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c621e3940bb3e277f554e1e5e9541b714b0b5d0cffb6eda7572d48e27a3a4975",
+          "bytes": 4616,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/Computers.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2903e836b61c9230bf2e4ec2b42b66cab6f6006b3ef130c56812878afdeef227",
+          "bytes": 793,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/Conversation.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c7dca1df7b52c803345d8ce52ad514f35928262e4abeedeed9aa0f6f738d90bb",
+          "bytes": 11020,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/Participants.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e9bfd3db4b70ea1bb3cb2cecb65121997308015b49d7cf5f2e7c456c834c38bb",
+          "bytes": 7339,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/ResourceResult.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ae0126f5b1b329ab82535a84fc2a86b85f7530a87a723a94e08a10da19fd209e",
+          "bytes": 2872,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/TaskInput.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e6097477c025c420380605645374ed5815dcd5f99d05cd540a9b228d885bdcd",
+          "bytes": 4714,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/Uploads.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cf227b1921cb425dc88016728cd2c064a113087c61cea96c70c99142f6821d1d",
+          "bytes": 1257,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/api.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e54aa31f1336eeedb3dc9bca5d2d3497305d442f2f70c44b5ebddcad636303b3",
+          "bytes": 7470,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/appApi.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2db269576ec0af1ddcebe97327bd7c66e2bd91e2b627de2e7313e645e2c30e53",
+          "bytes": 4133,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/appBridge.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:777b572a3cf4c7d6964cde4448c3b9c7f643d68fffef2ddce147a89ac5f12381",
+          "bytes": 3986,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/appProtocol.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1653861b6141cf890da72ae80ea7a2e22142d48c7ef5c402832f926a0513768d",
+          "bytes": 1631,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/appProtocol.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d0a44f749da2f4cbdb3888bdd0d71266f0f88f1b7ef38196ec1368f9753a7c87",
+          "bytes": 3263,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/apps.css",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bb0bd0abee784f44043052ac111e79e7d271c2fc894e4e99f99af0bb90131207",
+          "bytes": 855,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/browserBoundary.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:93b7a5280dedfbd0319faa9eb0a56a7b34703498ea8678ddc911663b22080ae3",
+          "bytes": 1720,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/computers.css",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ca949d8f47b40f84f1ab7b6505f64d9b7df97bd0f6abefd62e0fef18b230ee0f",
+          "bytes": 463,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/conversation.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5a8f1a035d942df01a8106d4ebdaaf91b9fc4304765c3ef6aa0c103c5a057d47",
+          "bytes": 4786,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/conversation.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b9c3363fa774d2eb2fbacffca19ed2b44f977c18aa9a60d22d8998062427b3f0",
+          "bytes": 3935,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/generated/workspace.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f4f6f31dacaad7c155b167b9932b7df3e5cc61a6f9ad12e8998bbf173400fa1e",
+          "bytes": 26869,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/generated/workspace.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1283a3a755f7a5d79c69c819ddc9a30a699cff01f1ac28bc36491c3513045ccb",
+          "bytes": 13590,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/identity.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5205e368ba6ce921f1f46306fa6f38b29287350c15016f274452d0b681ac184c",
+          "bytes": 142,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/main.tsx",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:11bbe3035115a13bc9bdd9f819c6ee2a97f767f8189ed7f2499a670f5515646b",
+          "bytes": 569,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/participation.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c594b549e3bab6b4ff6b472b2d08d54bc349b7fb8c83337f993a139a508e4de1",
+          "bytes": 1608,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/participation.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:48828710779a70f8743572332ca8b245e5c1abc183edb678c65faf2f72aec972",
+          "bytes": 1730,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/resources.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f96b1d9414b4a49861ef82f2d1f6628eb78c3c832479ed58d24c4573aef2efb3",
+          "bytes": 1161,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/resources.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:17909d6f42afe8d64932a94c6fc8264a1ee8570aca79f5f9da30477950313c71",
+          "bytes": 992,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/style.css",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:765aae5dc9364b70456ad9353fc0b8d733b55a90202e4a97deb3ccb27c8523f7",
+          "bytes": 19356,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/taskForms.test.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2cdb26cf5f51c25e7a40f690aaead45c9557817450ffc5d364806430b097769d",
+          "bytes": 1648,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/taskForms.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c52a8eb860683a3191be0abb0d4373544db8e90171c55251645b36f14d227c3f",
+          "bytes": 4544,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/uploads.css",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:af8a0131fe3e7287e744116611a95067e45b711fb71a8eb6b1d29ea7ebf47107",
+          "bytes": 1395,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/useConversation.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8266792270821f256a981fc526d9f9d95f975c55919d8a29ea41314916818a41",
+          "bytes": 4434,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/src/useUploads.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:64bfb3eef5cfe64c467cdde51319d85203747302d998d8cd7407cd3f9063b56e",
+          "bytes": 641,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/tests/browser.test.mjs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1c177e3677a3d0acb5672c2b9d8b5903dce8228a0359300eab7a49518c7e59b5",
+          "bytes": 39787,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/tsconfig.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:01be7f10c762aefa22b5679cb2d966e971ee2a018e893b01a20becdc4db35564",
+          "bytes": 1360,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/workspace/vite.config.ts",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d46d8c9f5e291eb0e862c833aa23a3160c0000175eb782be13b45d4f262a0834",
+          "bytes": 1129,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:105605bc7e4309293b9bcf929e8bc4a392a4bceedcc749ce7d237d3fdafc264e",
+          "bytes": 380,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e0f58abae577eb5a8bc84bc601537c192ebcbf2863a3af8eb98c6c2a8eae766d",
+          "bytes": 535,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19db6b0da730cd9d819349c9020015dea4d76094f46b041a0cdf760e5738512d",
+          "bytes": 250,
+          "mode": 420
+        }
+      },
+      {
+        "path": "extensions/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6f0fe93c4ed4707f1d0837954e7ca481f699900f0bafc092b7030f4450647fd0",
+          "bytes": 386,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6826ffa5a368be745032bcea49398cc9913df3820e3377d9603652594998658a",
+          "bytes": 257,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/bridges/legacy/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:39c13496f2298641f4ebe05857c734f7eb1d4b07c8b9fb6f7512ae829a2a049d",
+          "bytes": 600,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/bridges/stdio/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5df01f12b0b554024fb737677d60748bc5ff6e7182640f500fd307fee402dcc1",
+          "bytes": 518,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/composer/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d8a26fc8446bfdb6ff3252f06a2db51049b2a683bd974c374a976b231696baac",
+          "bytes": 398,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7ccc8d8bd5c6d71b8de32898b766e03862c7e6512470266e5aefe1ac545df69a",
+          "bytes": 1150,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3b08bdc8af3a9df43028c7422492836b2725df977167413a084e268970fad5d1",
+          "bytes": 1304,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/artifacts/client/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b20f806859f510236deabdc19d79a934cfdaab1b4246b02f7d391dd767b97e68",
+          "bytes": 482,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/artifacts/service/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:25c2267bbf32fc4f6a275c8ae10f1bf02c9bfc1e6d4f6948a5a0458cb030fda1",
+          "bytes": 1250,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f1e01910b87096ce64551cb9874669d7d7845f6765283ebc80908bbfdece58c",
+          "bytes": 990,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97253215011f60be54669ff322605d24a1b0d0ca7f5f7709975cd0d33934aac7",
+          "bytes": 318,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/execution/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bb31b3d37db32590506ef82e748f60c404ced9b6d271d082a0920696b8c5727a",
+          "bytes": 412,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/host/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5310e1db048c0b5d1cf2d36e7321de530eb3566e5fd61cba2da59c737cf586bb",
+          "bytes": 713,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/storage/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa5333a81363ecc035d68ea89bd17291334d3262e014650e3425192ed752fd26",
+          "bytes": 716,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/transport/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6681124ea0c6c09c86f846ba83ed512837bffa1a674e592b126bf911310750e",
+          "bytes": 902,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/gateway/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cb8125d9d4adcc88355a84cf3b74ebfe1d58ebca2621191970fa833a7b0ec37c",
+          "bytes": 1977,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/policy/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e82d18fc53d606e8cbdb9ab66da2c6245df6d762817f2afee69c0746e52a2038",
+          "bytes": 251,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/forwarder/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1fd5782ef727d57295b4f29016bf86c6754a833fe3c890303bd5fe9531aa4d78",
+          "bytes": 1216,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/hub/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:359bbbd0684a5c65beb84e2d255b69091b1dbf68b5cd326c7badcafd0ba88f11",
+          "bytes": 1718,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/protocol/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:411dab3d469273d4663bf24daaf70a84bd89c09464ac98854aa272aa61aac454",
+          "bytes": 280,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/reader/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94a78aaf3fd108752729b428744114ca1489c77ae7908ec5ea7d7be61f1f790e",
+          "bytes": 588,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf489348bb63113fb7e713e49e02ff38ee009dc435c6096a57e9e3b23ad998eb",
+          "bytes": 673,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/video/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c4d78e5920f5d4c7c3a7cc6437daf56233cb0fdfddf0a1a48fe645b8a3319b0",
+          "bytes": 582,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/computers/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dfb135c762adac3c37f796055595ca8f0250d99deb743d44940f65fc47012013",
+          "bytes": 1418,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/duckdb/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d7a8b4c7b7068d05fed77933577baa7714c85cf1bc937792d291f0ea145484a",
+          "bytes": 368,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/store/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:596640dce9248c0ae2c5ba8e98cb1905f978e2ed5122d551196ec573d97b97e9",
+          "bytes": 677,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/task-runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db75809a9778af87d2eacd9ac454828234bb9ac6707cd97f0a23304165917632",
+          "bytes": 751,
+          "mode": 420
+        }
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e390d6a0838315f972690f46ef8bae8b7ecc9ee6c1ed70140ef852869c2482e",
+          "bytes": 86,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/artifact-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4b663ad1a3d084a897c48b58efcc1d9054d0bbdac9c951248713334565f745b6",
+          "bytes": 1087,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/computers-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3b443341132f0d840c8037239452217a08d1e698e087d3f65ed4204720b3e336",
+          "bytes": 1957,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:211120cf85b8255ffb2cc8e705170463aea42bb547befd33b78904ae90b0b83b",
+          "bytes": 1365,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/frames-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:36c81ef72d1953256253dd9ae721796bcd84ceff3987ebf88d66950d128f4914",
+          "bytes": 1325,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/map-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1c766b15eefa2ade317eace4602843eb000bf2026e076884efaf613cb4dd8a4",
+          "bytes": 1889,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/media-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:761b8a381e2e9b17e566d737fee6e42b74d450115591dbe45ff1f3b407e38bbd",
+          "bytes": 1257,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:80f05fc71263a8ad08df258bc8ba896af143f6767749032ac4ad5db1ac057639",
+          "bytes": 1320,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/reason-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b412bfcc2425e9c8e28e04200f000b6268d5250d4205686cf8b637774af4434a",
+          "bytes": 1401,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/recording-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e58d8bb620973c4c5f5490eae14d4e3ddf8a85cb5df6a738f90b21775be04b55",
+          "bytes": 2418,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/stream-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c074adef23307177b449169ced81590420ac93352a1263cc683a57b3e004d3aa",
+          "bytes": 1411,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/time-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:153398c1837cb8845e5a3fc58e9934037d263152dc73fbd97f483ff95af030a4",
+          "bytes": 1328,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f5197823ffd3be2c7cb34ad634cdeb8c594fc924177e3413322568087dd24f1",
+          "bytes": 1464,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/uav-sim-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bdc8a0e036c856827b220d62f088a5aca2e5c1791305f4c51bfc948c476886bf",
+          "bytes": 1405,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/view-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9bf0aa4859454db7b389563e76a27997d2336b1138e9185853ded6b15e94bc74",
+          "bytes": 1612,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6cd9e378c68ddd1ddf666bc59c24e16cde766dd87d1237b07122187c2cd674a",
+          "bytes": 1066,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/browser-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bcf75607a9cb8c9aad2333473280d164c88a4c3896aa44f2026b8cfa12d1fb91",
+          "bytes": 621,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/deployment-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4c9506f3100f9bc495aaa61e40a97aa98db828b1bd27d09cb7c47f89f821096b",
+          "bytes": 659,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/evidence-checks/workspace-client.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:faea51f31d30871816dcd5b1529e04462788878dd2e0e4c689ace3637e4fe8c8",
+          "bytes": 1038,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/flight-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0084d0207c697bf7052b2ef093c83284b29a69bb8241625e2926da39efbdf416",
+          "bytes": 682,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3170fff6775e2419448bebbb7aa108e32b3a9b773557b0b4cdd2a9606ac5a866",
+          "bytes": 1935,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/control/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b24b144b645c16de06493ff7052484a9219799740fcbe34f8117895261f16aec",
+          "bytes": 256,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:971eacc7e03acfedc030789b9aed3d6425e3f6f79ba1e5a48475e8aa9c009451",
+          "bytes": 821,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c2d4b0ece1887a3fbe89a4539ab1ea0d7707f0523cd11916d2a84e6a0a3ba3f6",
+          "bytes": 8703,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/cargo_inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4809fe63d1274b7955550646c0547f5b056addbb3c4688c9e8b271856f8edab2",
+          "bytes": 7163,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6bef04651f537dcf12437ec256f16063276e83af8a3b260235d945dfa01669c8",
+          "bytes": 4411,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/environment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b59fee92aa8edffce053ea169166b44fcd849e665f809f6b044217ffc30cfe10",
+          "bytes": 4441,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f61266bb32a16819dc0b3781b57dea986914074633e186b627ce807c9e36e542",
+          "bytes": 7561,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0a24a7a35404a0a9fe08838d33140423b4358f467d0e392e8b53ead7b8212d76",
+          "bytes": 4984,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:250440e6b073b847ef707b4fc88622a1c593188fb276a7bb43921490fac590da",
+          "bytes": 5966,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/report.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:283b5fc328167f210d25aba0b4f5206de2a80619be7931f754046fc1325c9e14",
+          "bytes": 8214,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/storage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a0ee9af82d876ee767281b06770833701325b723c37018e3931a9ba60f9dcc7c",
+          "bytes": 12758,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ca1d232dae48ec1367057f82fe0fbdd5454e36bdb7aa3ffc7bcc2a3e2c371030",
+          "bytes": 16987,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/main.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d63e4e0ceb3fdab89dec0e9ecd103fb896c9436399c00fa174b8e54bdf546335",
+          "bytes": 21985,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/process.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6dd0e084702d90f907fc5977573dc0e49aeb009ffa9a65ddacd73ffde89408e",
+          "bytes": 4957,
+          "mode": 420
+        }
+      }
+    ]
+  },
+  "environment": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "toolchains": [
+      {
+        "name": "node",
+        "version": "v24.14.0"
+      },
+      {
+        "name": "npm",
+        "version": "11.9.0"
+      }
+    ],
+    "runtime": {
+      "class": "source",
+      "bindings": {},
+      "validForSeconds": null
+    },
+    "reusable": true
+  },
+  "startedAt": "2026-09-16T04:35:50.957009213Z",
+  "finishedAt": "2026-09-16T04:36:28.532885476Z",
+  "durationMillis": 37575,
+  "outcome": "passed",
+  "exitCode": 0,
+  "diagnostics": null
+}

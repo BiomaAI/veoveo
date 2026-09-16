@@ -54,9 +54,24 @@ impl WorkspaceParticipation {
 pub struct WorkspaceTurnRequest {
     pub id: WorkspaceMessageId,
     pub text: String,
-    pub reply_to: Option<WorkspaceMessageId>,
+    pub reply_to: Option<WorkspaceReplyTarget>,
     pub addressed_agents: Vec<WorkspaceAgentId>,
     pub deadline: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkspaceReplyTarget {
+    Message(WorkspaceMessageId),
+    Response(WorkspaceRunId),
+}
+
+impl WorkspaceReplyTarget {
+    pub fn record_id(self) -> RecordId {
+        match self {
+            Self::Message(id) => id.record_id(),
+            Self::Response(id) => id.record_id(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, SurrealValue)]
@@ -128,7 +143,7 @@ impl PlatformStore {
                 message: request.id.record_id(),
                 member: human_member(chat, &authority.principal).record_id(),
                 text: request.text,
-                reply_to: request.reply_to.map(WorkspaceMessageId::record_id),
+                reply_to: request.reply_to.map(WorkspaceReplyTarget::record_id),
                 addressed_agents,
                 candidates,
                 deadline: request.deadline,

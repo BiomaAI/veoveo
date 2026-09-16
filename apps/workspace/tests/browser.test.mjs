@@ -194,12 +194,21 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
           if (!message) {
             const targets = chat.participation.mode === "automatic" ? [...new Set([...body.addressedAgents, ...chat.participation.agents])]
               : chat.participation.mode === "default" && !body.addressedAgents.length ? chat.participation.agents : body.addressedAgents;
-            message = { ...body, responseAgents: targets, author: members[index].id, sequence: ++chat.sequence, createdAt: new Date().toISOString() }; messages.push(message);
+            let replyContext = null;
+            assert.equal(body.replyContext, undefined, "the client never supplies a quote");
+            if (body.replyTo) {
+              const target = (body.replyTo.kind === "message" ? messages : runs).find(target => target.id === body.replyTo.id);
+              assert.ok(target);
+              const authorName = body.replyTo.kind === "message" ? members.find(member => member.id === target.author).person.displayName : agents.find(agent => agent.id === target.agent).name;
+              if (body.replyTo.kind === "response") assert.ok(!["queued", "running"].includes(target.state));
+              replyContext = { authorName, text: [...target.text].slice(0, 500).join("") };
+            }
+            message = { ...body, replyContext, responseAgents: targets, author: members[index].id, sequence: ++chat.sequence, createdAt: new Date().toISOString() }; messages.push(message);
             for (const agent of targets) {
               runStarts.push({ agent, trigger: body.id });
               runs.push({ agent, trigger: body.id, id: crypto.randomUUID(), initiator: person.id, state: "running", text: agent === agents[0].id ? "I am drafting the launch notes." : "I am reviewing the schedule.", failure: null, sequence: ++chat.sequence, updatedSequence: chat.sequence, createdAt: new Date().toISOString() });
             }
-          }
+          } else { assert.equal(message.text, body.text); assert.deepEqual(message.replyTo, body.replyTo); assert.deepEqual(message.addressedAgents, body.addressedAgents); }
           if (uncertain) { uncertain = false; return route.abort("failed"); }
           return respond(message);
         }
@@ -231,7 +240,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     assert.equal(sends.length, 2);
     assert.equal(sends[0], sends[1]);
     assert.equal(messages.length, 3);
-    await member.getByText("A message with an uncertain response", { exact: true }).waitFor();
+    await member.locator(".message-text").getByText("A message with an uncertain response", { exact: true }).waitFor();
     await owner.getByRole("button", { name: "Participants", exact: true }).click();
     await owner.getByText("Owner controls", { exact: true }).waitFor();
     await member.getByRole("button", { name: "Participants", exact: true }).click();
@@ -246,7 +255,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     assert.equal(runs.find(run => run.agent === agents[1].id).state, "running");
     assert.equal(runStarts.length, 2);
     await owner.reload();
-    await owner.getByText("A message with an uncertain response", { exact: true }).waitFor();
+    await owner.locator(".message-text").getByText("A message with an uncertain response", { exact: true }).waitFor();
     assert.equal(sends.length, 3, "reload cannot execute another send");
     await owner.getByRole("button", { name: "Stop Reviewer's response", exact: true }).waitFor();
     assert.equal(runStarts.length, 2, "reload cannot dispatch another run");
@@ -387,7 +396,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByText("Will respond: Writer, Reviewer.", { exact: false }).waitFor();
     await owner.getByRole("textbox", { name: "Message", exact: true }).fill("Both agents can help with this.");
     await owner.getByRole("button", { name: "Send message", exact: true }).click();
-    await owner.getByText("Both agents can help with this.", { exact: true }).waitFor();
+    await owner.locator(".message-text").getByText("Both agents can help with this.", { exact: true }).waitFor();
     assert.deepEqual(messages.at(-1).responseAgents, agents.map(agent => agent.id));
     const admittedRuns = runs.length;
     await owner.reload();
@@ -404,6 +413,45 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     assert.equal(runs.length, admittedRuns, "clearing a stale selection cannot dispatch work");
     await owner.bringToFront(); await hardware(owner);
     await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-participation-local.png", import.meta.url)) });
+    assert.deepEqual(errors, []);
+
+    await owner.getByRole("button", { name: "Close chat details", exact: true }).click();
+    chat.participation = { mode: "on_request", agents: [] }; chat.revision++; chat.sequence++;
+    const reviewer = runs.find(run => run.agent === agents[1].id);
+    const response = owner.locator(`[data-message-id="response:${reviewer.id}"]`);
+    assert.equal(await response.getByRole("button", { name: "Reply to Reviewer", exact: true }).isDisabled(), true);
+    reviewer.state = "completed"; chat.sequence++;
+    await owner.getByText("No agent response requested.", { exact: false }).waitFor();
+    const original = messages[1];
+    await owner.locator(`[data-message-id="message:${original.id}"]`).getByRole("button", { name: "Reply to Bob Rivera", exact: true }).click();
+    await owner.getByRole("region", { name: "Reply context", exact: true }).getByText("Reply to Bob Rivera", { exact: true }).waitFor();
+    await owner.getByRole("textbox", { name: "Message", exact: true }).fill("A reply with an interrupted confirmation.");
+    uncertain = true;
+    const beforeReply = sends.length;
+    await owner.getByRole("button", { name: "Send message", exact: true }).click();
+    await owner.getByRole("alert").waitFor();
+    assert.equal(await owner.getByRole("button", { name: "Remove reply", exact: true }).isDisabled(), true);
+    await owner.getByRole("button", { name: "Retry message", exact: true }).click();
+    await owner.waitForFunction(() => document.querySelector('textarea[aria-label="Message"]')?.value === "");
+    assert.equal(sends.length, beforeReply + 2); assert.equal(sends.at(-1), sends.at(-2));
+    const humanReply = messages.at(-1);
+    assert.deepEqual(humanReply.replyTo, { kind: "message", id: original.id });
+    assert.deepEqual(humanReply.responseAgents, []);
+    await response.getByRole("button", { name: "Reply to Reviewer", exact: true }).click();
+    assert.equal(await owner.getByRole("group", { name: "Ask an agent", exact: true }).getByRole("checkbox", { name: "Reviewer", exact: true }).isChecked(), true);
+    await owner.getByRole("textbox", { name: "Message", exact: true }).fill("Please expand on your review.");
+    await owner.getByRole("button", { name: "Send message", exact: true }).click();
+    await owner.waitForFunction(() => document.querySelector('textarea[aria-label="Message"]')?.value === "");
+    const agentReply = messages.at(-1);
+    assert.deepEqual(agentReply.replyTo, { kind: "response", id: reviewer.id });
+    assert.deepEqual(agentReply.addressedAgents, [agents[1].id]);
+    const afterReply = { sends: sends.length, runs: runs.length };
+    await owner.reload();
+    await owner.locator(`[data-message-id="message:${humanReply.id}"] .reply-quote`).getByText("Reply to Bob Rivera", { exact: true }).waitFor();
+    await owner.locator(`[data-message-id="message:${agentReply.id}"] .reply-quote`).getByText("Reply to Reviewer", { exact: true }).waitFor();
+    assert.deepEqual({ sends: sends.length, runs: runs.length }, afterReply, "reply recovery cannot send or dispatch again");
+    await owner.bringToFront(); await hardware(owner);
+    await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-replies-local.png", import.meta.url)) });
     assert.deepEqual(errors, []);
 
   } finally {

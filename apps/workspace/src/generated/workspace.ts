@@ -78,6 +78,19 @@ export type InputKind = "form" | "link" | "unsupported";
  */
 export type TaskState = "working" | "input_required" | "completed" | "failed" | "cancelled";
 /**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "ReplyTarget".
+ */
+export type ReplyTarget =
+  | {
+      id: string;
+      kind: "message";
+    }
+  | {
+      id: string;
+      kind: "response";
+    };
+/**
  * Human-message response policy. Agent output never triggers participation.
  *
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -383,7 +396,7 @@ export interface OperationPage {
 export interface SendMessage {
   addressedAgents: string[];
   id: string;
-  replyTo?: string | null;
+  replyTo?: ReplyTarget | null;
   text: string;
 }
 /**
@@ -448,9 +461,20 @@ export interface Message {
   author: string;
   createdAt: string;
   id: string;
-  replyTo?: string | null;
+  replyContext?: ReplyContext | null;
+  replyTo?: ReplyTarget | null;
   responseAgents: string[];
   sequence: number;
+  text: string;
+}
+/**
+ * A bounded shared-history quote, captured by the server at message admission.
+ *
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "ReplyContext".
+ */
+export interface ReplyContext {
+  authorName: string;
   text: string;
 }
 /**

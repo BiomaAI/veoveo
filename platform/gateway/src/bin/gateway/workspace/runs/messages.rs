@@ -1,6 +1,8 @@
 //! Message admission owns response intent; browser lifetime never splits it.
 use super::*;
-use veoveo_platform_store::workspace::{WorkspaceRunFailure, WorkspaceTurnRequest};
+use veoveo_platform_store::workspace::{
+    WorkspaceReplyTarget, WorkspaceRunFailure, WorkspaceTurnRequest,
+};
 
 pub(super) async fn send(
     State(state): State<RunState>,
@@ -22,9 +24,14 @@ pub(super) async fn send(
             WorkspaceTurnRequest {
                 id: WorkspaceMessageId::from_uuid(request.id.0),
                 text: request.text,
-                reply_to: request
-                    .reply_to
-                    .map(|id| WorkspaceMessageId::from_uuid(id.0)),
+                reply_to: request.reply_to.map(|target| match target {
+                    wire::ReplyTarget::Message { id } => {
+                        WorkspaceReplyTarget::Message(WorkspaceMessageId::from_uuid(id.0))
+                    }
+                    wire::ReplyTarget::Response { id } => {
+                        WorkspaceReplyTarget::Response(WorkspaceRunId::from_uuid(id.0))
+                    }
+                }),
                 addressed_agents: request
                     .addressed_agents
                     .into_iter()

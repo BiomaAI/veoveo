@@ -96,10 +96,17 @@ pub struct WorkspaceMessage {
     pub author: RecordId,
     pub text: String,
     pub reply_to: Option<RecordId>,
+    pub reply_context: Option<WorkspaceReplyContext>,
     pub addressed_agents: Option<Vec<RecordId>>,
     pub response_agents: Option<Vec<RecordId>>,
     pub sequence: i64,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct WorkspaceReplyContext {
+    pub author_name: String,
+    pub text: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]

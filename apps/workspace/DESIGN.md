@@ -186,3 +186,19 @@ Every model response retains its own ID and cancellation control. Its MCP Tasks 
 their independent native IDs in private Activity, including input rounds and terminal
 outcomes. Participation settings grant no additional capability authority and do not
 publish private Task results into shared history.
+
+## Replies
+
+Each human message and terminal agent response offers a Reply action. The composer
+shows the selected author and bounded excerpt, with an explicit removal control.
+Replying to an active agent selects that agent as the explicit recipient; the owner’s
+participation policy still resolves the final response set. Running responses cannot
+be quoted until their text settles. Humans can continue sending other messages.
+
+The pending request freezes the typed reply target alongside text and recipients.
+An interrupted confirmation disables changes to that intent until it is reconciled.
+The timeline displays the server-captured quote after reload, including when the
+original is outside the loaded page. Agent responses also identify their triggering
+human message when it is loaded. Human and response IDs have separate presentation
+namespaces, so a repeated UUID cannot merge their authorship. Quotes render plain text
+and do not carry private operation results or Artifact capabilities.

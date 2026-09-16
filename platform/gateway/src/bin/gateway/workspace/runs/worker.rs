@@ -15,11 +15,12 @@ use serde::Serialize;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::OwnedSemaphorePermit;
 use uuid::Uuid;
+use veoveo_mcp_contract::workspace as wire;
 use veoveo_platform_store::{
     WorkspaceChatId, WorkspaceRunId,
     workspace::{
-        WorkspaceRun, WorkspaceRunContext, WorkspaceRunFailure, WorkspaceRunState,
-        WorkspaceRunUpdate,
+        WorkspaceReplyContext, WorkspaceRun, WorkspaceRunContext, WorkspaceRunFailure,
+        WorkspaceRunState, WorkspaceRunUpdate,
     },
 };
 
@@ -189,11 +190,14 @@ async fn stream(
 
 #[derive(Serialize)]
 struct Turn {
+    id: wire::ReplyTarget,
     author_id: String,
     author_name: String,
     kind: &'static str,
     text: String,
     sequence: i64,
+    reply_to: Option<wire::ReplyTarget>,
+    reply_context: Option<WorkspaceReplyContext>,
 }
 #[derive(Serialize)]
 struct Prompt {
@@ -216,6 +220,9 @@ fn prompt(context: WorkspaceRunContext) -> Result<String, StatusCode> {
         .collect::<Result<std::collections::BTreeMap<_, _>, StatusCode>>()?;
     let trigger = &context.trigger;
     let request = Turn {
+        id: wire::ReplyTarget::Message {
+            id: wire::MessageId(uuid(&trigger.id)?),
+        },
         author_id: uuid(&trigger.author)?.to_string(),
         author_name: person_names
             .get(&uuid(&trigger.author)?)
@@ -224,6 +231,12 @@ fn prompt(context: WorkspaceRunContext) -> Result<String, StatusCode> {
         kind: "human",
         text: trigger.text.clone(),
         sequence: trigger.sequence,
+        reply_to: trigger
+            .reply_to
+            .as_ref()
+            .map(super::super::projection::reply_target)
+            .transpose()?,
+        reply_context: trigger.reply_context.clone(),
     };
     let mut history: Vec<_> = context
         .messages
@@ -231,6 +244,9 @@ fn prompt(context: WorkspaceRunContext) -> Result<String, StatusCode> {
         .filter(|m| m.id != context.run.trigger)
         .map(|m| {
             Ok(Turn {
+                id: wire::ReplyTarget::Message {
+                    id: wire::MessageId(uuid(&m.id)?),
+                },
                 author_id: uuid(&m.author)?.to_string(),
                 author_name: person_names
                     .get(&uuid(&m.author)?)
@@ -239,6 +255,12 @@ fn prompt(context: WorkspaceRunContext) -> Result<String, StatusCode> {
                 kind: "human",
                 text: m.text,
                 sequence: m.sequence,
+                reply_to: m
+                    .reply_to
+                    .as_ref()
+                    .map(super::super::projection::reply_target)
+                    .transpose()?,
+                reply_context: m.reply_context,
             })
         })
         .collect::<Result<_, StatusCode>>()?;
@@ -250,11 +272,18 @@ fn prompt(context: WorkspaceRunContext) -> Result<String, StatusCode> {
             .map(|a| a.display_name.clone())
             .unwrap_or_else(|| "Agent".into());
         history.push(Turn {
+            id: wire::ReplyTarget::Response {
+                id: wire::RunId(uuid(&run.id)?),
+            },
             author_id: uuid(&run.agent)?.to_string(),
             author_name: author,
             kind: "agent",
             text: run.text,
             sequence: run.sequence,
+            reply_to: Some(wire::ReplyTarget::Message {
+                id: wire::MessageId(uuid(&run.trigger)?),
+            }),
+            reply_context: None,
         });
     }
     history.sort_by_key(|m| m.sequence);

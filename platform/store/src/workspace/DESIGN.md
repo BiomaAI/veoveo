@@ -76,3 +76,33 @@ retain empty destinations and immutable text. This declared persisted-data trans
 requires no history rewrite. The new HTTP request requires `addressedAgents`, and
 full owner settings require `participation`. Gateway and browser edge ship together
 as a coordinated contract cut. Stale clients fail validation and must reload.
+
+## Reply Context
+
+A human turn may refer to a human message or a terminal agent response in the same
+chat. `WorkspaceReplyTarget` distinguishes their identities before database binding.
+The transaction rejects foreign, missing and still-running targets before committing
+any message. Exact retry retains the original target and quote. A reply never grants
+access to a private Task result or to another chat.
+
+Admission captures up to 160 Unicode characters of the shared author's name and the first 500 Unicode
+characters of the shared text. This bounded quote remains available when the original
+is outside the latest history page. It is server-authored; the browser sends only the
+typed reference. Both the quote and reference enter the bounded model prompt as
+untrusted chat data. Existing human replies retain their original record references;
+records predating this change may have no captured quote.
+
+Migration `0084` widens the existing reference's allowed record tables and adds
+optional quote fields. It does not rewrite message text or remove any record. The
+HTTP surface makes a coordinated cut to `{kind: "message" | "response", id}`.
+Old cached clients must reload, and mixed gateway/browser versions reject unsupported
+shapes during rollout. Qualify both deployments before admitting new replies. Once
+response references exist, recovery uses the new reader; rollback to a reader that
+assumes every reference is a human message is unsupported. No old wire alias remains.
+
+The database tests qualify Unicode bounds, foreign-chat and removed-member denial,
+ongoing-response rejection, concurrent retry and paged recovery after agent removal.
+Keep the established SQL formatting: `@surrealdb/surql-fmt` `0.1.0-beta.2`, the latest
+published formatter during this change, failed qualification by moving a leading
+negation into an IF body and stripping dots from nested field definitions. Its output
+must not be used for these queries or migrations.
