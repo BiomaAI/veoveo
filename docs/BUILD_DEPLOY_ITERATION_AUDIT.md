@@ -8,6 +8,15 @@ seconds. The chart and other runtime images are reused. Evidence is
 `output/development/workspace-attachments.stage.json`; phases are in
 `output/development/attachments-image.log`.
 
+Release 171 converges in 14.503 seconds, after a separate 15.45-second local
+convergence-harness compile. Flux already observes the source quickly in this run:
+source fetch takes 0.113 seconds, while desired-state application takes 13.119
+seconds. This does not establish a universal fetch latency. Public acceptance
+restores an attachment-only message, previews its existing Artifact and receives a
+real agent response identifying the shared reference. The three retained MCP Tasks
+recover without resubmission. The Computer host retains its original UID and zero
+restarts; Isaac stays paused. Evidence is under `output/workspace-public/attachments*`.
+
 The nine sequential source checks take 128.602 seconds inside their recorded
 commands, but their first-start to last-finish window is 268.391 seconds. The eight
 gaps between commands consume 139.789 seconds, each between 16.288 and 18.308

@@ -205,12 +205,18 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
-- Typed chat attachments now have local database, gateway and headed browser
-  qualification. The composer selects completed uploads or explicit Artifact links,
-  then publishes only the human-chosen references and labels with the message.
-  Attachment-only sends, exact retry, per-reader preview denial and reload are
-  covered. File permissions and private Task contents remain owned by their existing
-  boundaries. Installed rollout and acceptance are in progress.
+- Release 171 deploys typed chat attachments. The composer selects completed
+  uploads or explicit Artifact links, then publishes the human-chosen references
+  and labels with the message. Public headed RTX 4090 acceptance sends an
+  attachment-only message, opens its governed preview and restores it after reload.
+  A real agent identifies the reference by its shared name without reading file
+  contents or calling tools. Local qualification additionally covers exact retry,
+  escaped labels, membership revocation and another member's denied preview.
+  The three retained native Task IDs survive gateway/browser-edge replacement and
+  reload with zero tool submissions. Source `21920ba2` passes GitHub run
+  `35058716241`; deployment `d013364f` updates only those two images. Evidence is
+  under `output/workspace-public/attachments*`. File grants and private Task
+  contents retain their existing authority boundaries.
 
 - Release 170 deploys replies to human messages and settled agent responses.
   Admission captures a bounded quote from the same chat, and model prompts retain
