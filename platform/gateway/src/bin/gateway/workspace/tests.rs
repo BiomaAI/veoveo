@@ -102,6 +102,7 @@ fn app(store: &PlatformStore, subject: AuthenticatedSubject) -> Router {
     super::router(super::WorkspaceState {
         store: store.clone(),
     })
+    .merge(super::runs::tests::empty_routes(store))
     .layer(Extension(subject))
 }
 
@@ -113,6 +114,7 @@ async fn request(app: &Router, method: &str, path: &str, body: Value) -> (Status
                 .method(method)
                 .uri(format!("/workspace-api/operator{path}"))
                 .header("content-type", "application/json")
+                .header("authorization", "Bearer explicit-workspace-fixture")
                 .body(if body.is_null() {
                     Body::empty()
                 } else {
@@ -224,7 +226,7 @@ async fn ordinary_humans_collaborate_and_cannot_forge_authors_or_read_another_ch
         &bob,
         "POST",
         &path,
-        json!({"id":uuid::Uuid::now_v7(),"text":"Hello","replyTo":null}),
+        json!({"id":uuid::Uuid::now_v7(),"text":"Hello","replyTo":null,"addressedAgents":[]}),
     )
     .await;
     let snapshot: workspace::ChatSnapshot =

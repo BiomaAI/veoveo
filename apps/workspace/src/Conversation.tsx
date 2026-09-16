@@ -3,6 +3,7 @@ import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiStat
   useExternalMessageConverter, useExternalStoreRuntime } from "@assistant-ui/react";
 import { ArrowUp, Bot, CornerDownLeft, Square } from "lucide-react";
 import { api, ApiError, type ConversationSnapshot } from "./api.ts";
+import { addressedAgents, responseAgents } from "./participation.ts";
 import { initials } from "./identity.ts";
 import { present, toThreadMessage } from "./conversation.ts";
 import type { SendMessage } from "./generated/workspace.ts";
@@ -21,7 +22,7 @@ function ChatMessage() {
       <time dateTime={message.createdAt.toISOString()}>{message.createdAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>
       <div className="message-text"><MessagePrimitive.Parts /></div>
       {agent && <div className="run-status" role="status">
-        <span>{meta.runState === "queued" ? "Starting…" : meta.runState === "running" ? "Responding…" : meta.runState === "interrupted" ? "Response interrupted. Send a new request to try again." : meta.runState === "cancelled" ? "Response stopped" : meta.runState === "failed" ? "The response could not be completed." : ""}</span>
+        <span>{meta.runState === "queued" ? "Starting…" : meta.runState === "running" ? "Responding…" : meta.runState === "interrupted" ? "Response interrupted. Send a new request to try again." : meta.runState === "cancelled" ? "Response stopped" : meta.runState === "failed" ? meta.runFailure === "capacity" ? "Your message was sent. This agent could not start because response capacity is full." : "The response could not be completed." : ""}</span>
         {(meta.runState === "running" || meta.runState === "queued") && meta.canCancel === true && typeof meta.runId === "string" && <button className="stop-response" aria-label={`Stop ${name}'s response`} onClick={() => cancel(meta.runId as string)}><Square size={11}/> Stop response</button>}
       </div>}
     </div>
@@ -42,7 +43,10 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
   const [error, setError] = useState<string>();
   const [selected, setSelected] = useState<string[]>([]);
   const activeAgents = snapshot.activity.agents.filter(agent => agent.active);
-  const attempt = useRef<{ message: SendMessage; agents: string[] } | undefined>(undefined);
+  const attempt = useRef<SendMessage | undefined>(undefined);
+  let addressed: string[] = [], responders: string[] = [], selectionError: string | undefined;
+  try { addressed = addressedAgents(draft, selected, activeAgents); responders = responseAgents(snapshot.chat.participation, addressed); }
+  catch (error) { selectionError = error instanceof Error ? error.message : "Update your agent selection."; }
   const cancel = useCallback(async (id: string) => {
     try { await api.cancelRun(snapshot.chat.id, id); await onChanged(); }
     catch (error) { setError(error instanceof Error ? error.message : "Could not stop this response."); }
@@ -51,25 +55,23 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
     if (pending || !draft.trim() || snapshot.chat.archived || !canContribute) return;
     const text = draft.trim();
     if (new TextEncoder().encode(text).length > 32768) { setError("Keep the message under 32 KB."); return; }
-    if (attempt.current && attempt.current.message.text !== text) {
+    if (attempt.current && attempt.current.text !== text) {
       setError("Retry the original message first to confirm whether it was sent."); return;
     }
-    const request = attempt.current ?? { message: { id: crypto.randomUUID(), text, replyTo: null }, agents: selected.filter(id => activeAgents.some(agent => agent.id === id)) };
+    if (selectionError && !attempt.current) { setError(selectionError); return; }
+    const request = attempt.current ?? { id: crypto.randomUUID(), text, replyTo: null, addressedAgents: addressed };
     attempt.current = request;
     setPending(true); setError(undefined);
     try {
-      await api.send(snapshot.chat.id, request.message);
-      const starts = await Promise.allSettled(request.agents.map(agent => api.startRun(snapshot.chat.id, agent, request.message.id)));
-      const failed = starts.find(result => result.status === "rejected");
-      if (failed?.status === "rejected") throw failed.reason;
+      await api.send(snapshot.chat.id, request);
       attempt.current = undefined; setDraft("");
       await onChanged();
     } catch (error) {
-      if (error instanceof ApiError && [400, 401, 403, 404, 422].includes(error.status)) attempt.current = undefined;
+      if (error instanceof ApiError && [400, 401, 403, 404, 409, 422].includes(error.status)) attempt.current = undefined;
       setError(error instanceof Error ? error.message : "The message could not be confirmed.");
     }
     finally { setPending(false); }
-  }, [pending, draft, snapshot.chat, canContribute, onChanged, selected, activeAgents]);
+  }, [pending, draft, snapshot.chat, canContribute, onChanged, addressed, selectionError]);
   return <RunActions.Provider value={id => void cancel(id)}><AssistantRuntimeProvider runtime={runtime}>
     <ThreadPrimitive.Root className="conversation">
       <ThreadPrimitive.Viewport className="timeline">
@@ -85,6 +87,9 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
             <input type="checkbox" checked={selected.includes(agent.id)} onChange={event => setSelected(current => event.target.checked ? [...current, agent.id] : current.filter(id => id !== agent.id))}/><Bot size={13}/>{agent.name}
           </label>)}
         </fieldset>}
+        {activeAgents.length > 0 && <p className="composer-note" role="status">{selectionError ?? (responders.length
+          ? `Will respond: ${responders.map(id => activeAgents.find(agent => agent.id === id)?.name ?? "Agent").join(", ")}.`
+          : "No agent response requested.")} Begin with @Name or select an agent above.</p>}
         {error && <p role="alert" className="error">{error} {attempt.current && "Your text is kept here; retry uses the same message ID."}</p>}
         <form className="composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea aria-label="Message" placeholder={snapshot.chat.archived ? "This chat is archived" : "Write to everyone in this chat…"}
@@ -93,7 +98,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); }
             }} />
           <div className="composer-footer"><span><CornerDownLeft size={12}/> Enter to send · Shift + Enter for a new line</span>
-            <button className="send" type="submit" disabled={pending || !draft.trim() || snapshot.chat.archived || !canContribute} aria-label={attempt.current ? "Retry message" : "Send message"}><ArrowUp size={19}/></button>
+            <button className="send" type="submit" disabled={pending || !draft.trim() || snapshot.chat.archived || !canContribute || (!!selectionError && !attempt.current)} aria-label={attempt.current ? "Retry message" : "Send message"}><ArrowUp size={19}/></button>
           </div>
         </form>
         <p className="composer-note">Everyone in this chat can read its shared history.</p>

@@ -154,3 +154,23 @@ transport or token is exposed to the browser. The host supports native Task
 get/update/cancel, reactive resource subscriptions, ordinary tool/resource calls,
 inline views and confirmed HTTPS links. Console-specific agent-message and
 Recording projection extensions are not advertised by Workspace.
+
+## Response Participation
+
+Chat details let the owner choose explicit requests, a default assistant or bounded
+automatic responses. The composer shows which agents will respond. A leading
+`@Name` address selects an active chat agent, including names with spaces. Addresses
+inside quoted text, code or an ordinary message body do not request work. Duplicate
+display names require the explicit agent selection. Agent identities, rather than
+parsed server-side text, cross the HTTP boundary.
+
+One send carries the message and its explicit destinations. The store commits all
+response intents with the human message. A lost response retains the complete request
+for an exact retry. The browser no longer saves text and then starts runs in separate
+requests. A capacity failure appears on the affected response, while people can keep
+writing. Recovery fetches committed state without starting another response.
+
+Every model response retains its own ID and cancellation control. Its MCP Tasks keep
+their independent native IDs in private Activity, including input rounds and terminal
+outcomes. Participation settings grant no additional capability authority and do not
+publish private Task results into shared history.

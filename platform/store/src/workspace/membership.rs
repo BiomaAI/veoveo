@@ -37,6 +37,7 @@ struct Settings {
     archived: bool,
     members_can_invite: bool,
     owner: RecordId,
+    participation: super::WorkspaceParticipation,
 }
 
 /// Full owner settings replacement with optimistic concurrency. The new owner
@@ -47,6 +48,7 @@ pub struct WorkspaceSettings {
     pub archived: bool,
     pub members_can_invite: bool,
     pub owner: PrincipalId,
+    pub participation: super::WorkspaceParticipation,
 }
 
 impl PlatformStore {
@@ -132,6 +134,7 @@ impl PlatformStore {
         settings: WorkspaceSettings,
     ) -> Result<WorkspaceChat> {
         validate_text(&settings.title, "title", 200)?;
+        settings.participation.validate()?;
         self.workspace_query(
             authority,
             Settings {
@@ -141,6 +144,7 @@ impl PlatformStore {
                 archived: settings.archived,
                 members_can_invite: settings.members_can_invite,
                 owner: settings.owner.record_id(),
+                participation: settings.participation,
             },
             include_str!("queries/settings.surql"),
         )

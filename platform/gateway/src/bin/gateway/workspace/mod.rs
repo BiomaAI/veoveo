@@ -19,7 +19,7 @@ use uuid::Uuid;
 use veoveo_mcp_contract::workspace as wire;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
-    PlatformStore, PrincipalId, WorkspaceChatId, WorkspaceInvitationId, WorkspaceMessageId,
+    PlatformStore, PrincipalId, WorkspaceChatId, WorkspaceInvitationId,
     workspace::{WorkspaceError, WorkspaceInvitationState, WorkspaceSettings},
 };
 
@@ -36,7 +36,6 @@ pub(crate) fn router(state: WorkspaceState) -> Router {
             "/workspace-api/{profile}/chats/{chat}",
             get(snapshot).put(settings),
         )
-        .route("/workspace-api/{profile}/chats/{chat}/messages", post(send))
         .route(
             "/workspace-api/{profile}/chats/{chat}/members/{person}",
             delete(remove),
@@ -192,29 +191,6 @@ async fn snapshot(
     }))
 }
 
-async fn send(
-    State(state): State<WorkspaceState>,
-    Path((_profile, chat)): Path<(String, Uuid)>,
-    Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::SendMessage>,
-) -> Api<wire::Message> {
-    let actor = authority::admit(&state, &subject).await?;
-    let message = state
-        .store
-        .send_workspace_message(
-            &actor,
-            WorkspaceChatId::from_uuid(chat),
-            WorkspaceMessageId::from_uuid(request.id.0),
-            &request.text,
-            request
-                .reply_to
-                .map(|id| WorkspaceMessageId::from_uuid(id.0)),
-        )
-        .await
-        .map_err(fault)?;
-    Ok(Json(projection::message(message)?))
-}
-
 async fn invite(
     State(state): State<WorkspaceState>,
     Path((_profile, chat)): Path<(String, Uuid)>,
@@ -321,6 +297,7 @@ async fn settings(
                 archived: request.archived,
                 members_can_invite: request.members_can_invite,
                 owner: PrincipalId::from_uuid(request.owner.0),
+                participation: projection::participation_request(request.participation),
             },
         )
         .await

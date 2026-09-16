@@ -1,6 +1,8 @@
 //! Durable shared-chat operations. Policy admission is server-owned; membership,
 //! current context and message order are enforced within each transaction.
 mod membership;
+mod participation;
+pub use participation::*;
 mod operations;
 pub use operations::*;
 mod people;
@@ -19,10 +21,7 @@ use std::time::Duration;
 use surrealdb::types::{RecordId, SurrealValue, ToSql, Value};
 use uuid::Uuid;
 
-use crate::{
-    PlatformStore, WorkspaceChatId, WorkspaceMemberId, WorkspaceMessageId,
-    store::primary_transaction_error,
-};
+use crate::{PlatformStore, WorkspaceChatId, WorkspaceMemberId, store::primary_transaction_error};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum WorkspaceError {
@@ -52,15 +51,6 @@ struct CreateChat {
     chat: RecordId,
     member: RecordId,
     title: String,
-}
-
-#[derive(Clone, SurrealValue)]
-struct SendMessage {
-    chat: RecordId,
-    message: RecordId,
-    member: RecordId,
-    text: String,
-    reply_to: Option<RecordId>,
 }
 
 impl PlatformStore {
@@ -179,29 +169,6 @@ impl PlatformStore {
                 limit: i64::from(limit),
             },
             include_str!("queries/events.surql"),
-        )
-        .await
-    }
-
-    pub async fn send_workspace_message(
-        &self,
-        authority: &WorkspaceAuthority,
-        chat: WorkspaceChatId,
-        message: WorkspaceMessageId,
-        text: &str,
-        reply_to: Option<WorkspaceMessageId>,
-    ) -> Result<WorkspaceMessage> {
-        validate_text(text, "message", 32_768)?;
-        self.workspace_query(
-            authority,
-            SendMessage {
-                chat: chat.record_id(),
-                message: message.record_id(),
-                member: human_member(chat, &authority.principal).record_id(),
-                text: text.to_owned(),
-                reply_to: reply_to.map(WorkspaceMessageId::record_id),
-            },
-            include_str!("queries/message.surql"),
         )
         .await
     }

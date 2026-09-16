@@ -68,7 +68,6 @@ export const api = {
   agents: async (signal?: AbortSignal) => list("AgentDefinition", await request("/agents", "GET", undefined, signal)),
   addAgent: async (chat: string, definition: string) => parse("ChatAgent", await request(`/chats/${chat}/agents`, "POST", { definition })),
   removeAgent: async (chat: string, agent: string) => parse("ChatAgent", await request(`/chats/${chat}/agents/${agent}`, "DELETE")),
-  startRun: async (chat: string, agent: string, trigger: string) => parse("Run", await request(`/chats/${chat}/runs`, "POST", { agent, trigger })),
   cancelRun: async (chat: string, run: string) => parse("Run", await request(`/chats/${chat}/runs/${run}/cancel`, "POST")),
   operations: async (chat?: string, before?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams(); if (chat) query.set("chat", chat); if (before) query.set("before", before);

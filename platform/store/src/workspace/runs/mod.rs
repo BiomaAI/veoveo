@@ -235,3 +235,33 @@ impl PlatformStore {
             .await
     }
 }
+
+#[derive(Clone, SurrealValue)]
+struct Reject {
+    chat: RecordId,
+    run: RecordId,
+    failure: WorkspaceRunFailure,
+}
+
+impl PlatformStore {
+    /// Reject only an unclaimed admission. A racing worker or cancellation wins
+    /// by changing state; this path cannot overwrite any accepted claim.
+    pub async fn reject_workspace_run(
+        &self,
+        authority: &WorkspaceAuthority,
+        chat: WorkspaceChatId,
+        run: WorkspaceRunId,
+        failure: WorkspaceRunFailure,
+    ) -> Result<WorkspaceRun> {
+        self.workspace_query(
+            authority,
+            Reject {
+                chat: chat.record_id(),
+                run: run.record_id(),
+                failure,
+            },
+            include_str!("reject.surql"),
+        )
+        .await
+    }
+}

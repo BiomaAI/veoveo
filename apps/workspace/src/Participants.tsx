@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, Check, Search, UserPlus, X } from "lucide-react";
 import { api } from "./api.ts";
+import { AgentParticipation } from "./AgentParticipation.tsx";
 import { initials } from "./identity.ts";
 import type { ConversationSnapshot } from "./api.ts";
 
@@ -25,7 +26,7 @@ export function Participants({ snapshot, personId, onChanged, close }: {
   const catalog = useQuery({ queryKey: ["agent-catalog"], queryFn: ({ signal }) => api.agents(signal), enabled: owner && !chat.archived });
   const [choice, setChoice] = useState("");
   const candidate = catalog.data?.find(agent => agent.id === choice);
-  const settings = { expectedRevision: chat.revision, title, archived: chat.archived, membersCanInvite: chat.membersCanInvite, owner: chat.owner };
+  const settings = { expectedRevision: chat.revision, title, archived: chat.archived, membersCanInvite: chat.membersCanInvite, owner: chat.owner, participation: chat.participation };
   return <aside className="details" aria-label="Chat details">
     <div className="details-heading"><h2>Chat details</h2><button className="icon-button" onClick={close} aria-label="Close chat details"><X size={19}/></button></div>
     {error && <p className="error" role="alert">{error}</p>}
@@ -62,6 +63,8 @@ export function Participants({ snapshot, personId, onChanged, close }: {
       </>}
     </section>
     {owner && <section className="settings"><h3>Owner controls</h3>
+      <AgentParticipation key={chat.revision} policy={chat.participation} agents={snapshot.activity.agents} busy={busy}
+        onSave={participation => void act(() => api.settings(chat.id, { ...settings, title: chat.title, participation }))}/>
       <label>Chat name<input value={title} maxLength={200} onChange={event => setTitle(event.target.value)}/></label>
       <button disabled={busy || !title.trim() || title === chat.title} onClick={() => void act(() => api.settings(chat.id, { ...settings, title: title.trim() }))}>Save name</button>
       <label className="check"><input type="checkbox" checked={chat.membersCanInvite} disabled={busy} onChange={event => void act(() => api.settings(chat.id, { ...settings, title: chat.title, membersCanInvite: event.target.checked }))}/> Members may invite people</label>

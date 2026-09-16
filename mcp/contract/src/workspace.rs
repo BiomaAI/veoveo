@@ -51,6 +51,7 @@ pub struct Chat {
     pub owner: PersonId,
     pub archived: bool,
     pub members_can_invite: bool,
+    pub participation: Participation,
     pub sequence: i64,
     pub revision: i64,
     pub updated_at: DateTime<Utc>,
@@ -78,6 +79,8 @@ pub struct Message {
     pub author: MemberId,
     pub text: String,
     pub reply_to: Option<MessageId>,
+    pub addressed_agents: Vec<AgentId>,
+    pub response_agents: Vec<AgentId>,
     pub sequence: i64,
     pub created_at: DateTime<Utc>,
 }
@@ -131,6 +134,7 @@ pub struct SendMessage {
     pub id: MessageId,
     pub text: String,
     pub reply_to: Option<MessageId>,
+    pub addressed_agents: Vec<AgentId>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -154,7 +158,24 @@ pub struct ChatSettings {
     pub title: String,
     pub archived: bool,
     pub members_can_invite: bool,
+    pub participation: Participation,
     pub owner: PersonId,
+}
+
+/// Human-message response policy. Agent output never triggers participation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ParticipationMode {
+    OnRequest,
+    Default,
+    Automatic,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Participation {
+    pub mode: ParticipationMode,
+    pub agents: Vec<AgentId>,
 }
 
 /// A wake identifies only a committed chat head. Consumers fetch authorized
@@ -201,6 +222,7 @@ pub enum RunState {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RunFailure {
+    Capacity,
     ModelUnavailable,
     PermissionChanged,
     OutputLimit,
@@ -283,7 +305,7 @@ mod tests {
     #[test]
     fn message_admission_rejects_forged_author_and_unknown_control_fields() {
         let message = serde_json::json!({
-            "id": Uuid::now_v7(), "text": "Hello", "replyTo": null,
+            "id": Uuid::now_v7(), "text": "Hello", "replyTo": null, "addressedAgents": [],
             "author": Uuid::now_v7()
         });
         assert!(serde_json::from_value::<SendMessage>(message).is_err());

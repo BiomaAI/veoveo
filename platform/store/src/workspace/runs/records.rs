@@ -49,6 +49,8 @@ pub enum WorkspaceRunState {
 #[serde(rename_all = "snake_case")]
 #[surreal(untagged)]
 pub enum WorkspaceRunFailure {
+    #[surreal(value = "capacity")]
+    Capacity,
     #[surreal(value = "model_unavailable")]
     ModelUnavailable,
     #[surreal(value = "permission_changed")]

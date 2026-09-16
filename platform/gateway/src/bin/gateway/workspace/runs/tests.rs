@@ -143,50 +143,58 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         db.a.create_workspace_chat(&actor, private, "Other")
             .await
             .unwrap();
-        db.a.send_workspace_message(
+        db.a.send_workspace_turn(
             &actor,
             private,
-            WorkspaceMessageId::new(),
-            "PRIVATE OTHER CHAT",
-            None,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: WorkspaceMessageId::new(),
+                text: ("PRIVATE OTHER CHAT").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+            },
         )
         .await
         .unwrap();
         let trigger = WorkspaceMessageId::new();
-        db.a.send_workspace_message(&actor, chat, trigger, "Discuss this", None)
-            .await
-            .unwrap();
         let app = routes(state).layer(Extension(subject));
-        let mut run_ids = Vec::new();
-        let mut starts = Vec::new();
+        let mut agent_ids = Vec::new();
         for name in ["writer", "reviewer"] {
-            let (status, agent) = request(
-                &app,
-                &format!("/chats/{chat}/agents"),
-                json!({"definition":name}),
-            )
-            .await;
+            let (status, agent) = request(&app, &format!("/chats/{chat}/agents"), json!({"definition":name})).await;
             assert_eq!(status, StatusCode::OK, "{agent}");
-            let start = json!({"agent":agent["id"],"trigger":trigger.as_uuid()});
-            let (status, run) = request(&app, &format!("/chats/{chat}/runs"), start.clone()).await;
-            assert_eq!(status, StatusCode::OK, "{run}");
-            run_ids.push(run["id"].as_str().unwrap().to_owned());
-            starts.push(start);
+            agent_ids.push(agent["id"].as_str().unwrap().to_owned());
         }
+        let admission = json!({"id":trigger.as_uuid(),"text":"Discuss this", "replyTo":null,"addressedAgents":agent_ids});
+        let path = format!("/chats/{chat}/messages");
+        let (one, two) = tokio::join!(request(&app, &path, admission.clone()), request(&app, &path, admission.clone()));
+        assert_eq!(one.0, StatusCode::OK, "{one:?}");
+        assert_eq!(one, two);
+        // Both admissions and the human message survive the completed HTTP
+        // request. Concurrent exact replay claims each model dispatch once.
+        let mut run_ids = Vec::new();
         loop {
             let runs = db.b.workspace_runs(&actor, chat).await.unwrap();
             if runs.len() == 2 && runs.iter().all(|r| !r.text.is_empty()) {
+                for id in &agent_ids {
+                    let run = runs.iter().find(|run| super::super::projection::uuid(&run.agent).unwrap().to_string() == *id).unwrap();
+                    run_ids.push(super::super::projection::uuid(&run.id).unwrap().to_string());
+                }
+                assert_eq!(runs[0].context_sequence, runs[1].context_sequence);
                 break;
             }
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
         assert_eq!(provider.requests.load(Ordering::SeqCst), 2);
-        db.a.send_workspace_message(
+        db.a.send_workspace_turn(
             &actor,
             chat,
-            WorkspaceMessageId::new(),
-            "Human continues",
-            None,
+            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+                id: WorkspaceMessageId::new(),
+                text: ("Human continues").to_owned(),
+                reply_to: None,
+                addressed_agents: vec![],
+                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+            },
         )
         .await
         .unwrap();
@@ -199,9 +207,9 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         assert_eq!(status, StatusCode::OK);
         assert_eq!(cancelled["state"], "cancelled");
         let (status, repeated) =
-            request(&app, &format!("/chats/{chat}/runs"), starts[0].clone()).await;
+            request(&app, &path, admission.clone()).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(repeated["id"], run_ids[0]);
+        assert_eq!(repeated["id"], trigger.as_uuid().to_string());
         provider.release.notify_waiters();
         loop {
             let runs = db.b.workspace_runs(&actor, chat).await.unwrap();
@@ -256,4 +264,32 @@ fn model_admission_requires_exact_context_registered_provider_secret_and_bounded
     invalid.model.api_key = veoveo_mcp_contract::SecretReferenceId::new("unregistered").unwrap();
     assert!(config::validate(&[invalid], &catalog).is_err());
     assert!(config::validate(&[definition.clone(), definition], &catalog).is_err());
+}
+
+/// Human-only deployment with no configured model is a supported router state.
+pub(crate) fn empty_routes(store: &PlatformStore) -> Router {
+    let gateway = GatewayState::new(store.clone());
+    let catalog = GatewayCatalogHandle::new(Arc::new(catalog()));
+    let stop = CancellationToken::new();
+    routes(RunState {
+        operations: OperationState::new(
+            store.clone(),
+            gateway.clone(),
+            catalog.clone(),
+            stop.clone(),
+            1,
+            "https://workspace.test",
+        )
+        .unwrap(),
+        workspace: WorkspaceState {
+            store: store.clone(),
+        },
+        gateway,
+        catalog,
+        definitions: Arc::new(vec![]),
+        limits: Arc::new(Semaphore::new(16)),
+        stop,
+        http: reqwest::Client::new(),
+        keys: keys::ModelKeys::default(),
+    })
 }

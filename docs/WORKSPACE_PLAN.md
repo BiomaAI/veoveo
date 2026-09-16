@@ -230,9 +230,9 @@ be scoped and cleaned up through supported operations.
   for input. The installed hosted servers currently expose no such input request.
   Native protocol/runtime and headed client fixtures already qualify input decisions,
   stale-request rejection, cancellation and recovery; these are local qualification,
-  not an installed-domain input result. Explicit agent selection is implemented;
-  mention/default-assistant and bounded automatic-participation settings remain plan
-  work. Desktop packaging and selective-history sharing remain later scope.
+  not an installed-domain input result. Owner participation settings and atomic
+  message/run admission pass local qualification, including the headed hardware
+  browser. Their installed rollout is the next release step. Desktop packaging and selective-history sharing remain later scope.
 
 - Release 165 repairs durable Task recovery after permission refresh. The original
   media Task and the installed Timeline App Task both retain their canonical IDs,

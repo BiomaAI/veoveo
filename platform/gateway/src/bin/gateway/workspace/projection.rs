@@ -17,6 +17,7 @@ pub(super) fn chat(value: stored::WorkspaceChat) -> Result<wire::Chat, StatusCod
         owner: wire::PersonId(uuid(&value.owner)?),
         archived: value.archived,
         members_can_invite: value.members_can_invite,
+        participation: participation(value.participation.unwrap_or_default())?,
         sequence: value.sequence,
         revision: value.revision,
         updated_at: value.updated_at,
@@ -35,6 +36,8 @@ pub(super) fn message(value: stored::WorkspaceMessage) -> Result<wire::Message, 
             .transpose()?
             .map(wire::MessageId),
         sequence: value.sequence,
+        addressed_agents: agent_ids(value.addressed_agents.unwrap_or_default())?,
+        response_agents: agent_ids(value.response_agents.unwrap_or_default())?,
         created_at: value.created_at,
     })
 }
@@ -63,4 +66,35 @@ pub(super) fn invitation(
         },
         expires_at: value.expires_at,
     })
+}
+
+fn agent_ids(values: Vec<RecordId>) -> Result<Vec<wire::AgentId>, StatusCode> {
+    values
+        .iter()
+        .map(|id| uuid(id).map(wire::AgentId))
+        .collect()
+}
+fn participation(value: stored::WorkspaceParticipation) -> Result<wire::Participation, StatusCode> {
+    Ok(wire::Participation {
+        mode: match value.mode {
+            stored::WorkspaceParticipationMode::OnRequest => wire::ParticipationMode::OnRequest,
+            stored::WorkspaceParticipationMode::Default => wire::ParticipationMode::Default,
+            stored::WorkspaceParticipationMode::Automatic => wire::ParticipationMode::Automatic,
+        },
+        agents: agent_ids(value.agents)?,
+    })
+}
+pub(super) fn participation_request(value: wire::Participation) -> stored::WorkspaceParticipation {
+    stored::WorkspaceParticipation {
+        mode: match value.mode {
+            wire::ParticipationMode::OnRequest => stored::WorkspaceParticipationMode::OnRequest,
+            wire::ParticipationMode::Default => stored::WorkspaceParticipationMode::Default,
+            wire::ParticipationMode::Automatic => stored::WorkspaceParticipationMode::Automatic,
+        },
+        agents: value
+            .agents
+            .into_iter()
+            .map(|id| veoveo_platform_store::WorkspaceAgentId::from_uuid(id.0).record_id())
+            .collect(),
+    }
 }
