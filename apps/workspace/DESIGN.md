@@ -202,3 +202,31 @@ original is outside the loaded page. Agent responses also identify their trigger
 human message when it is loaded. Human and response IDs have separate presentation
 namespaces, so a repeated UUID cannot merge their authorship. Quotes render plain text
 and do not carry private operation results or Artifact capabilities.
+
+## Chat Attachments
+
+The composer publishes typed Artifact references as part of the immutable human
+message. A person chooses a completed upload or pastes a canonical resource link,
+then reviews the name that will appear in the chat. Up to eight distinct references
+fit in one message, including a message without text. Selection alone sends nothing.
+The original list stays frozen while an uncertain message acknowledgement is resolved.
+
+Names and identities become shared chat content only through this explicit send.
+The message contains no signed URL, private Task payload, fetched filename, MIME
+claim or grant. A reference may name an unavailable file, just as a person can paste
+an opaque identity into text. Admission does not claim that it exists or that every
+member can read it. Labels are human-authored untrusted text and render escaped.
+
+Opening a reference uses the existing Workspace Artifact routes with the current
+reader's credentials. Preview rechecks access with HEAD and GET. Denied or missing
+files have an explicit unavailable state; readable non-image files offer download.
+There is no background fetch of every attachment in a conversation. Chat membership
+and agent participation never grant Artifact reads. Private Task results stay in
+Activity unless a human deliberately publishes a reference; their contents remain
+private. Agents receive the shared references and labels without file contents.
+
+The browser fixture exercises selection from an upload receipt, invalid URL
+rejection, two attachments without text, acknowledgement loss with exact retry,
+owner preview, another member's denied preview, escaped labels and reload without
+another send or upload. Real database tests own immutable list admission and
+membership revocation. Installed acceptance is recorded in the Workspace plan.

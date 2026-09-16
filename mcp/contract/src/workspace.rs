@@ -78,6 +78,7 @@ pub struct Message {
     pub id: MessageId,
     pub author: MemberId,
     pub text: String,
+    pub attachments: Vec<ChatAttachment>,
     pub reply_to: Option<ReplyTarget>,
     pub reply_context: Option<ReplyContext>,
     pub addressed_agents: Vec<AgentId>,
@@ -99,6 +100,13 @@ pub enum ReplyTarget {
 pub struct ReplyContext {
     pub author_name: String,
     pub text: String,
+}
+
+/// Human-published references and labels. Neither the reference nor chat membership grants reads.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ChatAttachment {
+    Artifact { id: crate::ArtifactId, name: String },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -149,6 +157,7 @@ pub struct CreateChat {
 pub struct SendMessage {
     pub id: MessageId,
     pub text: String,
+    pub attachments: Vec<ChatAttachment>,
     pub reply_to: Option<ReplyTarget>,
     pub addressed_agents: Vec<AgentId>,
 }
@@ -321,7 +330,7 @@ mod tests {
     #[test]
     fn message_admission_rejects_forged_author_and_unknown_control_fields() {
         let message = serde_json::json!({
-            "id": Uuid::now_v7(), "text": "Hello", "replyTo": null, "addressedAgents": [],
+            "id": Uuid::now_v7(), "text": "Hello", "replyTo": null, "attachments":[],"addressedAgents": [],
             "author": Uuid::now_v7()
         });
         assert!(serde_json::from_value::<SendMessage>(message).is_err());
@@ -335,7 +344,7 @@ mod tests {
     fn reply_targets_are_typed_and_quotes_are_never_client_authored() {
         let id = Uuid::now_v7();
         for kind in ["message", "response"] {
-            let value = serde_json::json!({"id":id,"text":"Reply", "addressedAgents":[], "replyTo":{"kind":kind,"id":id}});
+            let value = serde_json::json!({"id":id,"text":"Reply", "attachments":[],"addressedAgents":[], "replyTo":{"kind":kind,"id":id}});
             assert!(serde_json::from_value::<SendMessage>(value.clone()).is_ok());
             let mut forged = value;
             forged["replyContext"] =
@@ -347,5 +356,19 @@ mod tests {
             serde_json::from_value::<ReplyTarget>(serde_json::json!({"kind":"task","id":id}))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn attachment_admission_accepts_only_typed_references_and_human_labels() {
+        let attachment = serde_json::json!({"kind":"artifact", "id":crate::ArtifactId::new(), "name":"Shared label"});
+        assert!(serde_json::from_value::<ChatAttachment>(attachment.clone()).is_ok());
+        for field in ["downloadUrl", "content", "grant", "owner", "mimeType"] {
+            let mut forged = attachment.clone();
+            forged[field] = serde_json::json!("untrusted");
+            assert!(serde_json::from_value::<ChatAttachment>(forged).is_err());
+        }
+        let mut invalid = attachment;
+        invalid["id"] = serde_json::json!(Uuid::new_v4());
+        assert!(serde_json::from_value::<ChatAttachment>(invalid).is_err());
     }
 }

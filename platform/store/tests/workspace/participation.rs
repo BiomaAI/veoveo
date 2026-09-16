@@ -15,6 +15,7 @@ fn message(id: WorkspaceMessageId, agents: &[WorkspaceAgentId]) -> WorkspaceTurn
         id,
         text: "Please discuss".into(),
         reply_to: None,
+        attachments: vec![],
         addressed_agents: agents.to_vec(),
         deadline: Utc::now() + TimeDelta::seconds(120),
     }

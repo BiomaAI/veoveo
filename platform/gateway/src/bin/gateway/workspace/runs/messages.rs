@@ -24,6 +24,20 @@ pub(super) async fn send(
             WorkspaceTurnRequest {
                 id: WorkspaceMessageId::from_uuid(request.id.0),
                 text: request.text,
+                attachments: request
+                    .attachments
+                    .into_iter()
+                    .map(|value| match value {
+                        wire::ChatAttachment::Artifact { id, name } => {
+                            veoveo_platform_store::workspace::WorkspaceAttachment {
+                                artifact: veoveo_platform_store::ArtifactId::from_uuid(
+                                    id.as_uuid(),
+                                ),
+                                name,
+                            }
+                        }
+                    })
+                    .collect(),
                 reply_to: request.reply_to.map(|target| match target {
                     wire::ReplyTarget::Message { id } => {
                         WorkspaceReplyTarget::Message(WorkspaceMessageId::from_uuid(id.0))

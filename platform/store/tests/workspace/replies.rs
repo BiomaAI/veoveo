@@ -11,6 +11,7 @@ fn message(id: WorkspaceMessageId, reply_to: Option<Target>) -> WorkspaceTurnReq
         id,
         text: "A reply".into(),
         reply_to,
+        attachments: vec![],
         addressed_agents: vec![],
         deadline: Utc::now() + TimeDelta::seconds(120),
     }

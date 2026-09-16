@@ -139,6 +139,7 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
                 id: trigger,
                 text: ("Use the fixture capability").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
             },

@@ -78,6 +78,25 @@ export type InputKind = "form" | "link" | "unsupported";
  */
 export type TaskState = "working" | "input_required" | "completed" | "failed" | "cancelled";
 /**
+ * Human-published references and labels. Neither the reference nor chat membership grants reads.
+ *
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "ChatAttachment".
+ */
+export type ChatAttachment = {
+  id: ArtifactId;
+  kind: "artifact";
+  name: string;
+};
+/**
+ * Canonical identity of one logical artifact occurrence. Every put creates a
+ * fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.
+ *
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "ArtifactId".
+ */
+export type ArtifactId = string;
+/**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
  * via the `definition` "ReplyTarget".
  */
@@ -395,6 +414,7 @@ export interface OperationPage {
  */
 export interface SendMessage {
   addressedAgents: string[];
+  attachments: ChatAttachment[];
   id: string;
   replyTo?: ReplyTarget | null;
   text: string;
@@ -458,6 +478,7 @@ export interface Member {
  */
 export interface Message {
   addressedAgents: string[];
+  attachments: ChatAttachment[];
   author: string;
   createdAt: string;
   id: string;

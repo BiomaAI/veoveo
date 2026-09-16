@@ -40,6 +40,14 @@ async fn completion(
         prompt["request"]["reply_context"]["text"],
         "The shared topic being discussed"
     );
+    assert_eq!(
+        prompt["request"]["attachment_references"][0]["name"],
+        "Human-published reference"
+    );
+    assert_eq!(
+        prompt["request"]["attachment_references"][0]["kind"],
+        "artifact"
+    );
     let stream = async_stream::stream! {
         yield Ok(Event::default().data(json!({"id":"fixture", "object":"chat.completion.chunk", "created":0, "model":model,
             "choices":[{"index":0,"delta":{"role":"assistant","content":format!("{model} response")},"finish_reason":null}]}).to_string()));
@@ -161,6 +169,7 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
                 id: WorkspaceMessageId::new(),
                 text: ("PRIVATE OTHER CHAT").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
             },
@@ -170,6 +179,7 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         let trigger = WorkspaceMessageId::new();
         let reply = WorkspaceMessageId::new();
         db.a.send_workspace_turn(&actor, chat, veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            attachments: vec![],
             id: reply, text: "The shared topic being discussed".into(), reply_to: None, addressed_agents: vec![],
             deadline: Utc::now() + TimeDelta::seconds(120),
         }).await.unwrap();
@@ -180,12 +190,13 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
             assert_eq!(status, StatusCode::OK, "{agent}");
             agent_ids.push(agent["id"].as_str().unwrap().to_owned());
         }
-        let admission = json!({"id":trigger.as_uuid(),"text":"Discuss this", "replyTo":{"kind":"message","id":reply.as_uuid()},"addressedAgents":agent_ids});
+        let admission = json!({"id":trigger.as_uuid(),"text":"Discuss this", "replyTo":{"kind":"message","id":reply.as_uuid()},"attachments":[{"kind":"artifact","id":veoveo_mcp_contract::ArtifactId::new(),"name":"Human-published reference"}],"addressedAgents":agent_ids});
         let path = format!("/chats/{chat}/messages");
         let (one, two) = tokio::join!(request(&app, &path, admission.clone()), request(&app, &path, admission.clone()));
         assert_eq!(one.0, StatusCode::OK, "{one:?}");
         assert_eq!(one, two);
         assert_eq!(one.1["replyTo"], admission["replyTo"]);
+        assert_eq!(one.1["attachments"], admission["attachments"]);
         assert_eq!(one.1["replyContext"]["text"], "The shared topic being discussed");
         // Both admissions and the human message survive the completed HTTP
         // request. Concurrent exact replay claims each model dispatch once.
@@ -210,6 +221,7 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
                 id: WorkspaceMessageId::new(),
                 text: ("Human continues").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
             },

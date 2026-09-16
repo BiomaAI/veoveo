@@ -116,6 +116,7 @@ async fn invitations_require_the_named_current_human_and_removal_revokes_history
                 id: WorkspaceMessageId::new(),
                 text: ("Shared history").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
             },
@@ -165,6 +166,7 @@ async fn invitations_require_the_named_current_human_and_removal_revokes_history
                 id: race_message,
                 text: ("Racing removal").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -194,6 +196,7 @@ async fn invitations_require_the_named_current_human_and_removal_revokes_history
                 id: WorkspaceMessageId::new(),
                 text: ("After removal").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -277,6 +280,7 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
                     id: WorkspaceMessageId::new(),
                     text: ("Alice").to_owned(),
                     reply_to: None,
+                    attachments: vec![],
                     addressed_agents: vec![],
                     deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
                 }
@@ -288,6 +292,7 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
                     id: WorkspaceMessageId::new(),
                     text: ("Bob").to_owned(),
                     reply_to: None,
+                    attachments: vec![],
                     addressed_agents: vec![],
                     deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
                 }
@@ -304,6 +309,7 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
                 id: request,
                 text: ("Retry safely").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -315,6 +321,7 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
                 id: request,
                 text: ("Retry safely").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -329,6 +336,7 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
                 id: request,
                 text: ("Changed").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -344,6 +352,7 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
                 id: request,
                 text: ("Retry safely").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -361,6 +370,7 @@ async fn two_writers_have_committed_order_idempotent_messages_and_bounded_replay
                 reply_to: Some(
                     veoveo_platform_store::workspace::WorkspaceReplyTarget::Message(request)
                 ),
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -442,6 +452,7 @@ async fn ownership_settings_and_archive_are_current_and_explicit() {
             id: WorkspaceMessageId::new(),
             text: ("Settings stay usable").to_owned(),
             reply_to: None,
+            attachments: vec![],
             addressed_agents: vec![],
             deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
         },
@@ -503,6 +514,7 @@ async fn ownership_settings_and_archive_are_current_and_explicit() {
                 id: WorkspaceMessageId::new(),
                 text: ("Archived").to_owned(),
                 reply_to: None,
+                attachments: vec![],
                 addressed_agents: vec![],
                 deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120)
             }
@@ -530,3 +542,6 @@ mod participation;
 
 #[path = "workspace/replies.rs"]
 mod replies;
+
+#[path = "workspace/attachments.rs"]
+mod attachments;

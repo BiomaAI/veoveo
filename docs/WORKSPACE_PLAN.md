@@ -205,6 +205,13 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Typed chat attachments now have local database, gateway and headed browser
+  qualification. The composer selects completed uploads or explicit Artifact links,
+  then publishes only the human-chosen references and labels with the message.
+  Attachment-only sends, exact retry, per-reader preview denial and reload are
+  covered. File permissions and private Task contents remain owned by their existing
+  boundaries. Installed rollout and acceptance are in progress.
+
 - Release 170 deploys replies to human messages and settled agent responses.
   Admission captures a bounded quote from the same chat, and model prompts retain
   its typed target. Public headed RTX 4090 acceptance sends both reply kinds,
@@ -215,8 +222,8 @@ be scoped and cleaned up through supported operations.
   reload, with zero tool submissions and a working governed Artifact preview.
   Public Task UI bytes match the installed image. Evidence is under
   `output/workspace-public/replies*`.
-  Typed chat attachments remain implementation work. Personal uploads and private
-  Task previews do not establish shared-message attachment support. The second
+  Personal uploads and private Task previews alone do not establish shared-message
+  attachment support. The second
   human's live acceptance remains deferred at the user's direction.
 
 - Release 169 deploys independent native Task input decisions. Each request can be

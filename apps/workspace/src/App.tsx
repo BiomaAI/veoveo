@@ -5,6 +5,7 @@ import { api, ApiError, loginPath, logout } from "./api.ts";
 import { initials } from "./identity.ts";
 import { useConversation } from "./useConversation.ts";
 import { useUploads } from "./useUploads.ts";
+import type { QueueState } from "../../console/web/src/uploads/queue.ts";
 import type { Invitation, WorkspaceBootstrap } from "./generated/workspace.ts";
 
 const Conversation = lazy(() => import("./Conversation.tsx").then(module => ({ default: module.Conversation })));
@@ -95,7 +96,7 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
         {invitations.data?.map(({ invitation, chatTitle, inviterName }) => <article className="invitation" key={invitation.id}><div className="avatar"><MessageSquare size={19}/></div><div><h2>{chatTitle}</h2><p>{inviterName} invited you.</p><p className="muted">Joining shares the complete chat history with you. New messages are visible to every member.</p><div className="actions"><button className="primary" disabled={busy} onClick={() => void decide(invitation, "accepted")}>Join chat</button><button disabled={busy} onClick={() => void decide(invitation, "declined")}>Decline</button></div></div></article>)}
         {invitations.data?.length === 0 && <div className="empty-card"><Bell size={25}/><h2>You're all caught up.</h2><p>New chat invitations appear here.</p></div>}
         {invitations.error && <p className="error">{invitations.error.message}</p>}
-      </div> : selected ? <Room key={selected} chat={selected} session={session} changed={changed}/> : <div className="welcome"><span className="eyebrow">{session.workContextTitle}</span><div className="spark">✳</div><h1>What shall we work on?</h1><p>Start a conversation. Bring people and agents together.<br/>Keep the work, and the context, in one place.</p><button className="primary" disabled={!session.canContribute} onClick={() => setNewChat(true)}><Plus size={17}/> Start a chat</button><div className="welcome-note"><Users size={16}/> You choose who joins each conversation.</div></div>}
+      </div> : selected ? <Room key={selected} chat={selected} session={session} changed={changed} uploads={uploads.state} onUpload={() => setUploadsOpen(true)}/> : <div className="welcome"><span className="eyebrow">{session.workContextTitle}</span><div className="spark">✳</div><h1>What shall we work on?</h1><p>Start a conversation. Bring people and agents together.<br/>Keep the work, and the context, in one place.</p><button className="primary" disabled={!session.canContribute} onClick={() => setNewChat(true)}><Plus size={17}/> Start a chat</button><div className="welcome-note"><Users size={16}/> You choose who joins each conversation.</div></div>}
       {error && !newChat && <p className="global-error error" role="alert">{error}</p>}
     </main>
     {newChat && <dialog className="modal-backdrop" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setNewChat(false)}><form className="modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title" onSubmit={event => { event.preventDefault(); void create(); }}><div className="details-heading"><h2 id="new-chat-title">Start a chat</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setNewChat(false)}><X size={18}/></button></div><p>Give this conversation a name. You'll be its owner and can invite people from your workspace.</p><label>Chat name<input autoFocus value={title} maxLength={200} readOnly={busy || !!createId.current} onChange={event => setTitle(event.target.value)} placeholder="e.g. Planning our next release"/></label>{error && <p className="error" role="alert">{error}</p>}<button type="submit" className="primary" disabled={busy || !title.trim()}>{busy ? "Creating…" : createId.current ? "Retry creation" : "Create chat"}<ArrowRight size={16}/></button></form></dialog>}
@@ -103,7 +104,7 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
   </div>;
 }
 
-function Room({ chat, session, changed }: { chat: string; session: WorkspaceBootstrap; changed: () => void }) {
+function Room({ chat, session, changed, uploads, onUpload }: { chat: string; session: WorkspaceBootstrap; changed: () => void; uploads: QueueState; onUpload: () => void }) {
   const room = useConversation(chat, changed);
   const [details, setDetails] = useState(false);
   const [apps, setApps] = useState(() => new URLSearchParams(location.search).has("app"));
@@ -112,7 +113,7 @@ function Room({ chat, session, changed }: { chat: string; session: WorkspaceBoot
   const people = room.snapshot.members.filter(member => member.active).length;
   const agents = room.snapshot.activity.agents.filter(agent => agent.active).length;
   return <><header className="chat-header"><div><h1>{room.snapshot.chat.title}</h1><p><span className={`status-dot ${room.connected ? "online" : ""}`}/>{room.connected ? "Connected" : "Reconnecting"}<span>·</span><span>{people} {people === 1 ? "person" : "people"}{agents > 0 && ` · ${agents} ${agents === 1 ? "agent" : "agents"}`}</span>{room.snapshot.chat.archived && " · Archived"}</p></div><div className="actions"><button className={apps ? "active" : ""} onClick={() => { setApps(!apps); setActivity(false); setDetails(false); }}><Grid2X2 size={16}/> Apps</button><button className={activity ? "active" : ""} onClick={() => { setActivity(!activity); setDetails(false); setApps(false); }}><ActivityIcon size={16}/> Activity</button><button className={details ? "active" : ""} onClick={() => { setDetails(!details); setActivity(false); setApps(false); }}><Users size={16}/> Participants</button></div></header>
-    <div className="room-content"><Suspense fallback={<p role="status">Opening conversation…</p>}><div className="conversation-container" hidden={apps}><Conversation snapshot={room.snapshot} personId={session.person.id} canContribute={session.canContribute} onChanged={room.refresh} onOlder={() => void room.older()} hasOlder={room.hasOlder} loadingOlder={room.loadingOlder}/></div>
+    <div className="room-content"><Suspense fallback={<p role="status">Opening conversation…</p>}><div className="conversation-container" hidden={apps}><Conversation snapshot={room.snapshot} personId={session.person.id} canContribute={session.canContribute} onChanged={room.refresh} onOlder={() => void room.older()} hasOlder={room.hasOlder} loadingOlder={room.loadingOlder} uploads={uploads} onUpload={onUpload}/></div>
       {apps && <Apps chat={chat} close={() => setApps(false)} activity={() => { setApps(false); setActivity(true); }}/> }
       {activity && <Activity chat={chat} agents={room.snapshot.activity} close={() => setActivity(false)}/>}
       {details && <Participants snapshot={room.snapshot} personId={session.person.id} onChanged={room.refresh} close={() => setDetails(false)}/>}</Suspense>

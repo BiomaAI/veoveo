@@ -226,7 +226,7 @@ async fn ordinary_humans_collaborate_and_cannot_forge_authors_or_read_another_ch
         &bob,
         "POST",
         &path,
-        json!({"id":uuid::Uuid::now_v7(),"text":"Hello","replyTo":null,"addressedAgents":[]}),
+        json!({"id":uuid::Uuid::now_v7(),"text":"Hello","replyTo":null,"attachments":[],"addressedAgents":[]}),
     )
     .await;
     let snapshot: workspace::ChatSnapshot =

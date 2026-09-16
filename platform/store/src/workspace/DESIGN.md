@@ -106,3 +106,28 @@ Keep the established SQL formatting: `@surrealdb/surql-fmt` `0.1.0-beta.2`, the 
 published formatter during this change, failed qualification by moving a leading
 negation into an IF body and stripping dots from nested field definitions. Its output
 must not be used for these queries or migrations.
+
+## Attachment References
+
+A human message can carry up to eight distinct Artifact UUIDv7 references. Each has
+an explicit human-authored name of at most 255 UTF-8 bytes without control
+characters. The whole ordered list participates in exact retry comparison. Changing
+an identity, name or order under the same message ID is a conflict. Attachment-only
+messages are valid; an empty message with no attachments is rejected.
+
+These are references, not object metadata or access capabilities. Message admission
+stores no fetched file data and performs no Artifact mutation. It deliberately
+makes no assertion that an object exists or is readable. The Artifact plane owns
+all subsequent read decisions under the current reader's authority. The same chat
+membership and current Work Context checks govern reference publication and history
+reads. References cannot be used as another chat's message or reply identity.
+
+Migration 0085 adds an optional typed attachment array and admits empty text for
+attachment-only messages. It rewrites no history; records without the array project
+an empty list. The store API enforces message and list bounds before the atomic
+message/event/run admission. The HTTP contract requires the canonical attachment
+list on sends. Deploy the gateway and browser edge together before admitting these
+messages, and reload cached clients. Mixed versions reject unsupported request
+shapes. An older reader that drops attachment presentation is not a supported
+Workspace rollback; recovery rolls forward or coordinates the entire client/server
+cut. There is no destructive data conversion or new backup requirement.

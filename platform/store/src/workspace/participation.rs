@@ -6,8 +6,8 @@ use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use uuid::Uuid;
 
 use super::{
-    Result, WorkspaceAuthority, WorkspaceError, WorkspaceMessage, WorkspaceRun, human_member,
-    validate_text,
+    Result, WorkspaceAttachment, WorkspaceAuthority, WorkspaceError, WorkspaceMessage,
+    WorkspaceRun, human_member, validate_text,
 };
 use crate::{PlatformStore, WorkspaceAgentId, WorkspaceChatId, WorkspaceMessageId, WorkspaceRunId};
 
@@ -54,6 +54,7 @@ impl WorkspaceParticipation {
 pub struct WorkspaceTurnRequest {
     pub id: WorkspaceMessageId,
     pub text: String,
+    pub attachments: Vec<WorkspaceAttachment>,
     pub reply_to: Option<WorkspaceReplyTarget>,
     pub addressed_agents: Vec<WorkspaceAgentId>,
     pub deadline: DateTime<Utc>,
@@ -92,6 +93,7 @@ struct Send {
     message: RecordId,
     member: RecordId,
     text: String,
+    attachments: Vec<WorkspaceAttachment>,
     reply_to: Option<RecordId>,
     addressed_agents: Vec<RecordId>,
     candidates: Vec<Candidate>,
@@ -105,7 +107,23 @@ impl PlatformStore {
         chat: WorkspaceChatId,
         request: WorkspaceTurnRequest,
     ) -> Result<WorkspaceTurn> {
-        validate_text(&request.text, "message", 32_768)?;
+        if !request.text.is_empty() || request.attachments.is_empty() {
+            validate_text(&request.text, "message", 32_768)?;
+        }
+        if request.attachments.len() > 8 {
+            return Err(WorkspaceError::Invalid("attachments"));
+        }
+        for (index, attachment) in request.attachments.iter().enumerate() {
+            validate_text(&attachment.name, "attachment name", 255)?;
+            if attachment.artifact.as_uuid().get_version_num() != 7
+                || attachment.name.chars().any(char::is_control)
+                || request.attachments[..index]
+                    .iter()
+                    .any(|other| other.artifact == attachment.artifact)
+            {
+                return Err(WorkspaceError::Invalid("attachments"));
+            }
+        }
         if request.addressed_agents.len() > 4 {
             return Err(WorkspaceError::Invalid("agent destinations"));
         }
@@ -143,6 +161,7 @@ impl PlatformStore {
                 message: request.id.record_id(),
                 member: human_member(chat, &authority.principal).record_id(),
                 text: request.text,
+                attachments: request.attachments,
                 reply_to: request.reply_to.map(WorkspaceReplyTarget::record_id),
                 addressed_agents,
                 candidates,

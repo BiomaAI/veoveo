@@ -95,12 +95,19 @@ pub struct WorkspaceMessage {
     pub chat: RecordId,
     pub author: RecordId,
     pub text: String,
+    pub attachments: Option<Vec<WorkspaceAttachment>>,
     pub reply_to: Option<RecordId>,
     pub reply_context: Option<WorkspaceReplyContext>,
     pub addressed_agents: Option<Vec<RecordId>>,
     pub response_agents: Option<Vec<RecordId>>,
     pub sequence: i64,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct WorkspaceAttachment {
+    pub artifact: crate::ArtifactId,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
