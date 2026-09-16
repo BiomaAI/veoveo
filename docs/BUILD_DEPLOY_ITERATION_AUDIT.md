@@ -23,6 +23,14 @@ package receipts. These conservative boundaries preserve correctness but add rep
 execution and large duplicated manifests. The release continues with affected gateway
 and browser-edge images and reuses the installed chart and domain images.
 
+Source `fba56c42` stages gateway and browser-edge images in 100.900 seconds. The
+compile window is 72.213 seconds and export is 22.775 seconds. Those windows overlap.
+The Workspace asset build takes 3.45 seconds. The shared browser-edge image also
+rebuilds the unchanged Console asset bundle, which takes 2.17 seconds. Keeping
+frontend source inputs separate within that image would avoid the extra asset work.
+Seventeen receipts add most of this checkpoint's 83,376 lines. Immutable source
+manifests should be shared without weakening exact-input verification.
+
 
 The Computers ownership correction keeps retained keys and adds one indexed lookup
 instead of migrating homes or resealing data. Its first complete domain check took
