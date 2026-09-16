@@ -25,6 +25,14 @@ The observed compile window is 74.457 seconds and export is 17.455 seconds; phas
 overlap. The compiler retained its cache while refreshing 327 selected files. The
 current chart, domain images, Computers host and templates remain unchanged.
 
+Release 162 converged with 8.648 seconds in source fetch, 23.430 seconds in desired
+state apply, 0.641 seconds in rollout observation and 0.896 seconds in readiness.
+The first cold App catalog was wholly degraded before discovery warmed; its live
+stream recovered thirteen Apps. A real Time Task then failed policy admission:
+the browser requested only three of its twenty-two registered scopes. A rendered
+scope-set test now catches this installation mismatch. This correction needs only
+browser assets and values, with the gateway binary reusable.
+
 Workspace implementation reuses the installed platform. The initial gateway and
 browser-edge images were published from `1ec7bc5c` in 288.410 seconds. Compilation
 occupied 264.412 seconds, with a new shared Cargo feature graph. Console assets

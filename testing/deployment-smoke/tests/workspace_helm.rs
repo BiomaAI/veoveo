@@ -80,6 +80,29 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
             .split_whitespace()
             .all(|v| !v.contains("admin"))
     );
+    let registered: Value =
+        serde_json::from_str(include_str!("../../../examples/bioma/gateway.json"))?;
+    let client = registered["oauth_clients"]
+        .as_array()
+        .context("clients")?
+        .iter()
+        .find(|client| client["id"] == "workspace")
+        .context("Workspace client")?;
+    let expected: std::collections::BTreeSet<_> = client["allowed_scopes"]
+        .as_array()
+        .context("registered scopes")?
+        .iter()
+        .map(|value| value.as_str().unwrap())
+        .collect();
+    let requested: std::collections::BTreeSet<_> = scopes["value"]
+        .as_str()
+        .unwrap()
+        .split_whitespace()
+        .collect();
+    ensure!(
+        requested == expected,
+        "Workspace must request its approved capability scopes; catalog visibility alone cannot authorize Task dispatch"
+    );
     let empty = objects(render(&json!({}))?)?;
     ensure!(
         environment(&empty, "mcp-gateway")?
