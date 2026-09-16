@@ -205,14 +205,20 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
-- The installed View App renders the Statue of Liberty and completes its native
-  `capture_frame` Task on NVIDIA Vulkan. The headed RTX 4090 browser shows the
-  1280×720 capture. This real workflow exposes an Activity gap: its result
-  projection discards inline images. The correction preserves bounded typed raster
+- Release 173 preserves inline images in Activity. The installed View App renders
+  the Statue of Liberty and completes its native `capture_frame` Task on NVIDIA
+  Vulkan. The headed RTX 4090 browser shows the 1280×720 capture. This workflow
+  exposed an Activity gap: its result
+  projection discarded inline images. The correction preserves bounded typed raster
   results, reports omitted images, and removes visible results on an access denial.
-  Native recovery and browser regressions pass; rollout and recovery of this same
-  installed capture remain the next check. The existing camera form supplies input
-  before capture and does not qualify a Task `input_required` round.
+  Native recovery and browser regressions pass. After gateway and browser-edge
+  replacement, Activity displays that original capture and restores it on reload
+  with the same Task ID and image digest. Acceptance submits no new work and also
+  recovers the three retained completed/cancelled Tasks. Source `250cda6e` passes
+  GitHub run `35063382903`; deployment `e9402faf` passes run `35063751323`. Evidence is under
+  `output/workspace-public/view-landmark*` and `result-images-convergence.json`.
+  The existing camera form supplies input before capture and does not qualify a
+  Task `input_required` round.
 
 - Release 172 also qualifies independent agent cancellation with real installed
   models. Assistant and Reviewer run concurrently; cancelling Assistant leaves
