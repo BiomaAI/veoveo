@@ -2,6 +2,27 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+Attachment-reference source `21920ba2` stages the gateway and browser edge in
+96.481 seconds. Rust compilation accounts for 81.349 seconds and export for 9.450
+seconds. The chart and other runtime images are reused. Evidence is
+`output/development/workspace-attachments.stage.json`; phases are in
+`output/development/attachments-image.log`.
+
+The nine sequential source checks take 128.602 seconds inside their recorded
+commands, but their first-start to last-finish window is 268.391 seconds. The eight
+gaps between commands consume 139.789 seconds, each between 16.288 and 18.308
+seconds. This is recorder/tool invocation overhead in a continuous script, not
+interactive editing time. The ten source receipts, including the separate headed
+browser check, contribute most of the checkpoint's 47,374 added lines. Optimizing
+evidence preparation and history processing is a concrete follow-up alongside
+compiler reuse; the measurement does not yet identify which recorder stage dominates.
+Code inspection identifies a specific duplicate pass: `test_report/storage.rs::publish`
+validates the indexed history, then `rebuild` reads and decodes those receipts again.
+The receipt directory is 161 MiB at this checkpoint. Reusing the already validated
+records within that publication, while still detecting tampering and recovering
+unindexed completed receipts, is a focused optimization candidate. No integrity
+check was bypassed for this delivery.
+
 Reply-context source `bc8098dd` stages the gateway and browser edge together in
 89.591 seconds. The observed Rust compile window is 72.989 seconds; the changed
 store and shared wire contract rebuild their consumers. Export takes 10.941
