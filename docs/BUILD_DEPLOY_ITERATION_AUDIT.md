@@ -10,6 +10,14 @@ in the preceding release. Export takes 1.844 seconds. The image evidence is
 `output/development/task-input-image.log`. This measures successful warm reuse;
 cross-selection compiler reuse remains unresolved.
 
+Release 169 converges in 22.646 seconds: source fetch takes 9.281 seconds and
+desired-state application takes 12.831 seconds. Only the browser edge changes.
+Public recovery preserves the three original Task IDs and reads the existing
+Artifact with zero operation submissions. Local and container asset names differ;
+the public check compares Activity bytes with the pinned image's bundle rather
+than assuming the host build has the same asset name. The original Computer host
+keeps its pod UID and zero restarts; Isaac Sim remains suspended at zero replicas.
+
 The expanded headed browser fixture passes in 37.6 seconds, and the local client
 build takes 4.1 seconds. New input decisions exposed two old hardcoded mutation
 counts in the fixture; updating them cost one failed run and a rerun. The source

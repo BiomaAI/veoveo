@@ -205,6 +205,17 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 169 deploys independent native Task input decisions. Each request can be
+  answered or declined separately, and unchanged questions retain their drafts
+  when a sibling is answered or replaced. The headed RTX 4090 browser fixture
+  qualifies partial answers, a lost decline reply, stale-request rejection and
+  complete synchronous continuation batches. The public Workspace loads the
+  pinned image's exact Activity bundle and restores all three retained Task IDs
+  across reload with zero submissions; the governed image preview remains usable.
+  Evidence is under `output/workspace-public/task-input-*`. Source `8445882b`
+  passes GitHub run `35054323792`; deployment commit `252ddf44` updates only the
+  browser edge. This release does not claim a live installed-domain input round.
+
 - Release 168 closes composer recovery when a selected agent leaves. An explicit
   action clears the unavailable selection after any ambiguous send is resolved.
   Public headed hardware acceptance removes an agent, clears the selection and
