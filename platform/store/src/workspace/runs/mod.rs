@@ -231,8 +231,12 @@ impl PlatformStore {
         authority: &WorkspaceAuthority,
         chat: WorkspaceChatId,
     ) -> Result<Vec<WorkspaceRun>> {
-        self.workspace_query(authority, chat.record_id(), include_str!("list.surql"))
-            .await
+        self.workspace_query(
+            authority,
+            chat.record_id(),
+            concat!(include_str!("reconcile.surql"), include_str!("list.surql")),
+        )
+        .await
     }
 }
 
