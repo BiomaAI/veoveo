@@ -11,6 +11,17 @@ seconds. Other runtime images and the chart are reused. Evidence is
 74,000 lines to this source checkpoint; repeated input manifests remain a review
 and repository-size cost.
 
+Release 170 converges in 31.072 seconds after a separate 15.14-second compilation
+of the local convergence harness. Source fetch takes 9.746 seconds; desired-state
+application takes 19.685 seconds. Public reply acceptance admits two human messages
+and one real model response, then preserves their IDs and quotes through reload.
+The Computer host retains its original pod UID and zero restarts; Isaac remains
+paused. Deployment evidence is `output/workspace-public/replies-convergence.json`.
+The subsequent Task recovery check reads the three retained native identities and
+their existing Artifact preview with zero operation submissions. It compares the
+public Activity module to the installed image bytes; no host/container asset-name
+assumption participates. Evidence is `output/workspace-public/replies-task-recovery.json`.
+
 Reply-context implementation exposed a qualification failure in the latest published
 SurrealQL formatter, `@surrealdb/surql-fmt` `0.1.0-beta.2`: it moved an authorization
 negation into an IF body and removed dots from nested field definitions. The real
