@@ -57,7 +57,10 @@ export function useConversation(chat: string, changed: () => void) {
     const source = new EventSource(`/workspace/api/chats/${encodeURIComponent(chat)}/events`);
     source.onopen = () => { setConnected(true); void refresh(); };
     source.addEventListener("change", () => { void refresh(); });
-    source.addEventListener("expired", () => { source.close(); setConnected(false); void refresh(); });
+    // Expiry ends this watch, not the conversation. EventSource reconnects at
+    // the server's retry interval and the new request rechecks authority. A
+    // denied snapshot clears history; a temporary check failure can recover.
+    source.addEventListener("expired", () => { setConnected(false); void refresh(); });
     source.onerror = () => { setConnected(false); void refresh(); };
     const focused = () => { if (document.visibilityState === "visible") void refresh(); };
     document.addEventListener("visibilitychange", focused);

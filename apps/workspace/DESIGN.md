@@ -51,6 +51,14 @@ plain text without executing HTML. A contentless SSE wake requests incremental
 authorized state. A failed ambiguous send retains its original ID and text for
 retry; refreshing restores committed messages without repeating a mutation.
 
+An expired chat watch refreshes authorized state and allows native EventSource
+reconnection at the server's retry interval. Fresh HTTP admission checks access
+again. A temporary authority-read failure can recover without reloading the page;
+a denied snapshot clears the retained conversation and composer. Reconnecting
+never submits a message, response run or tool operation. The browser fixture
+requires a later message to arrive on the renewed stream and separately checks
+that revoked access removes the transcript.
+
 The gateway and browser edge serve the live stream and assets. A local headed
 RTX 4090 WebGL browser fixture exercises two humans, an interrupted response,
 idempotent retry, owner controls, reload and the mobile layout. Its screenshots

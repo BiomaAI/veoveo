@@ -62,6 +62,10 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     let fileAllowed = false;
     let uncertain = true;
     const sends = [];
+    let expireOwnerStream = false;
+    let revokeOwner = false;
+    let ownerRevoked = false;
+    let messageAfterReconnect;
     const pages = await Promise.all([context.newPage(), context.newPage()]);
     const errors = [];
     let uploadAdmissions = 0;
@@ -96,6 +100,18 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
           body = request.postData() && request.headers()["content-type"]?.includes("application/json") ? request.postDataJSON() : undefined;
         }
         const respond = json => route.fulfill({ status: 200, contentType: "application/json", headers: { "x-veoveo-csrf-token": "fixture-csrf" }, json });
+        if (index === 0 && path.pathname === `/workspace/api/chats/${chat.id}/events`) {
+          if (ownerRevoked) return route.fulfill({ status: 403 });
+          if (expireOwnerStream || revokeOwner) {
+            expireOwnerStream = false; ownerRevoked = revokeOwner;
+            return route.fulfill({ contentType: "text/event-stream", body: "retry: 250\nevent: expired\ndata: {}\n\n" });
+          }
+          if (messageAfterReconnect) {
+            messages.push({ ...messageAfterReconnect, sequence: ++chat.sequence });
+            messageAfterReconnect = undefined;
+          }
+        }
+        if (index === 0 && ownerRevoked && path.pathname.startsWith(`/workspace/api/chats/${chat.id}`)) return route.fulfill({ status: 403 });
         if (path.pathname.endsWith("/artifact-uploads/policy")) return respond({ allowed: true, explanation: "Fixture upload policy", actor: `fixture#${person.id}`, work_context: "default", destination_name: "Product team", access_description: "Owned by you", available_bytes: 1048576,
           policy: { max_object_bytes: 1048576, tenant_quota_bytes: 1048576, max_active_uploads_per_tenant: 8, part_bytes: 1024, max_part_bytes: 1024, max_parts: 1024, parallel_parts: 1, max_inflight_bytes: 1024, inactivity_seconds: 60, lifetime_seconds: 3600, part_timeout_seconds: 30, allowed_mime_types: ["text/plain"] } });
         if (path.pathname.includes("/artifact-uploads")) {
@@ -503,6 +519,22 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.bringToFront(); await hardware(owner);
     await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-attachments-local.png", import.meta.url)) });
     assert.deepEqual(errors, []);
+
+    // A fresh read after an expired watch is insufficient: a later commit must
+    // arrive through a newly admitted stream without focus, reload or mutation.
+    expireOwnerStream = true;
+    const recoveredMessage = { id: crypto.randomUUID(), author: members[1].id,
+      text: "A later message after stream recovery.", replyTo: null, attachments: [],
+      addressedAgents: [], responseAgents: [], createdAt: new Date().toISOString() };
+    messageAfterReconnect = recoveredMessage;
+    await owner.locator(".message-text").getByText(recoveredMessage.text, { exact: true }).waitFor();
+    assert.deepEqual({ sends: sends.length, runs: runs.length, uploads: uploadAdmissions }, afterFiles);
+    revokeOwner = true;
+    await owner.getByText("This chat or action is no longer available with your access.", { exact: true }).waitFor();
+    await owner.getByRole("textbox", { name: "Message", exact: true }).waitFor({ state: "detached" });
+    assert.equal(await owner.locator(".message-text").count(), 0, "revocation clears retained conversation state");
+    assert.deepEqual({ sends: sends.length, runs: runs.length, uploads: uploadAdmissions }, afterFiles);
+    console.log(JSON.stringify({ evidence: "local HTTP fixture", expiredWatchReconnected: true, laterMessageDelivered: recoveredMessage.id, revokedHistoryCleared: true }));
 
   } finally {
     await context.close(); await browser.close(); await server.close();
