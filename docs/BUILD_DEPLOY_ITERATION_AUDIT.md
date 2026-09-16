@@ -1,5 +1,56 @@
 # Build And Deployment Iteration Audit
 
+## Workspace Inline Task Images — September 16, 2026
+
+The installed View App's Statue of Liberty capture exposes a concrete result gap:
+the App renders its native JPEG, while Activity projects only text and metadata.
+Source `250cda6e` adds bounded raster images to the existing authorized projection
+and client. This requires the gateway and browser-edge images. The View renderer,
+Map server, chart and Computers retain their qualified installed digests.
+
+Nine source checks pass. Gateway qualification takes 32.498 seconds including its
+compile, with 54 passing cases and one previously ignored case. All 97 browser-edge
+cases pass in a 22.371-second command. The headed RTX 4090 client fixture takes
+45.943 seconds and checks restored images, omission disclosure and removal after a
+denied refresh. Eight gaps between the sequential recorded commands each cost about
+8–11 seconds outside the check. Nine immutable receipts account for most of the
+44,104 added lines in the source commit. Receipt manifest reuse remains a separate
+development-system improvement.
+
+Image staging takes 89.767 seconds. The observed compiler phase is 73.328 seconds;
+export is 10.889 seconds. The source helper refreshes 329 files as the target set
+expands from browser edge alone to gateway and edge. The source and shared contract
+change require compilation here; the earlier target-selection reuse problem remains
+separately recorded. One invalid target spelling (`gateway` instead of the declared
+`mcp-gateway`) exits during graph resolution in 1.675 seconds before any image build.
+Logs and immutable image identities are under
+`output/development/workspace-result-images*`.
+
+The installation check takes 18.5 seconds, its strict lint takes 15.3 seconds, and
+formatting takes 0.1 seconds. Release 173 reuses the existing chart and converges in
+25.098 seconds: 0.449 seconds fetching source and 23.760 seconds applying desired
+state. The local Rust observer separately recompiles for 14.38 seconds after the
+shared contract change. These measurements use explicitly requested reconciliation.
+
+Public acceptance restores the original 1280×720 JPEG from the original Task and
+verifies its SHA-256 digest after reload with zero submissions. The three earlier
+Tasks retain their identities and terminal states. Both changed deployments have
+two ready replicas. The Computer host keeps its UID and zero restarts; Isaac remains
+suspended. Evidence is under `output/workspace-public/view-landmark-recovery*` and
+`result-images-convergence.json`.
+
+The source and deployment GitHub reports pass in runs `35063382903` and
+`35063751323`. The deployment report job takes 3m46s even though local checks already
+provide committed evidence. Fresh-runner report compilation remains a CI latency
+cost separate from the 25-second application rollout.
+
+Independent real-agent cancellation also passes on release 172. An earlier check
+waited 90 seconds for both models to emit text simultaneously, although both runs
+completed successfully. The corrected check observes concurrent running states,
+cancels one response, commits a human message while the other is active, and observes
+the remaining response complete. Provider token-arrival timing does not define
+independent cancellation. Both attempts retain their evidence and admitted run IDs.
+
 ## Workspace Chat Reconnect — September 16, 2026
 
 The browser closed its EventSource permanently on an expired chat watch, including
