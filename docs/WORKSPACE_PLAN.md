@@ -205,14 +205,19 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
-- The full-scope audit found that reply context and typed chat attachment references
-  were still missing from the product surface. Reply admission now distinguishes
-  human messages from settled agent responses, captures bounded shared-history
-  context, and supplies it to the client and model prompt. Local database, model
-  and headed browser checks qualify this path; public rollout is being completed.
-  Typed attachments with explicit governed admission remain implementation work.
-  Personal uploads and private Task previews do not establish shared-message
-  attachment support.
+- Release 170 deploys replies to human messages and settled agent responses.
+  Admission captures a bounded quote from the same chat, and model prompts retain
+  its typed target. Public headed RTX 4090 acceptance sends both reply kinds,
+  receives a real agent response, and restores their identities and quotes after
+  reload. No private Task output enters shared history. Source `bc8098dd` passes
+  GitHub run `35056949844`; deployment `15dd8529` updates the gateway and browser
+  edge together. All three existing native Task IDs survive that replacement and
+  reload, with zero tool submissions and a working governed Artifact preview.
+  Public Task UI bytes match the installed image. Evidence is under
+  `output/workspace-public/replies*`.
+  Typed chat attachments remain implementation work. Personal uploads and private
+  Task previews do not establish shared-message attachment support. The second
+  human's live acceptance remains deferred at the user's direction.
 
 - Release 169 deploys independent native Task input decisions. Each request can be
   answered or declined separately, and unchanged questions retain their drafts
