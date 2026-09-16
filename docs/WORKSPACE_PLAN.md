@@ -205,6 +205,20 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 167 deploys owner-selected default assistants, leading mentions and
+  bounded automatic responses. The public headed RTX 4090 browser sends three
+  messages and observes four completed model runs: one default response, one
+  mention override and two automatic responses. Each message makes one send
+  request and no separate run admission. Reload restores the same run IDs without
+  new execution. The delivery-check chat's original explicit-request policy is
+  restored afterward. The two completed Tasks and the cancelled Task retain their
+  original IDs across the gateway/browser-edge replacement and reload. Fresh SSO
+  also restores their visible states and the governed image preview. Evidence is
+  under `output/workspace-public/participation*` and `task-ui-release167*`. Source
+  `fba56c42` passes GitHub run `35051299590`. Deployment commit `ae21fa72` changes
+  only the gateway and browser-edge image lock and passes GitHub run `35051639049`.
+
+
 - Release 166 makes existing Computers available across authorized Console and
   Workspace profiles for the same person and Work Context. Current action policy
   remains profile-specific, while creation keys, retained homes and encrypted
@@ -230,9 +244,8 @@ be scoped and cleaned up through supported operations.
   for input. The installed hosted servers currently expose no such input request.
   Native protocol/runtime and headed client fixtures already qualify input decisions,
   stale-request rejection, cancellation and recovery; these are local qualification,
-  not an installed-domain input result. Owner participation settings and atomic
-  message/run admission pass local qualification, including the headed hardware
-  browser. Their installed rollout is the next release step. Desktop packaging and selective-history sharing remain later scope.
+  not an installed-domain input result. Participation settings and atomic human
+  turns pass installed acceptance in release 167. Desktop packaging and selective-history sharing remain later scope.
 
 - Release 165 repairs durable Task recovery after permission refresh. The original
   media Task and the installed Timeline App Task both retain their canonical IDs,
