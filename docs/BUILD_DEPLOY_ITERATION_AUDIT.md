@@ -14,6 +14,30 @@ This client-only change selects the browser-edge image. Gateway and domain image
 the chart, Computers and retained storage do not need rebuilding. Source evidence
 and elapsed observations are under `output/development/workspace-reconnect-*`.
 
+Staging source `d49f0112` takes 47.555 seconds. It unexpectedly compiles the shared
+contract, Apps extension and browser edge, despite no changes to their Rust sources
+or manifests. Cargo takes 32.69 seconds; the observed compile phase is 34.328
+seconds and export is 2.892 seconds. The preceding solve selected both gateway and
+browser edge; this solve selects only the browser edge. Source freshness reports
+zero refreshed files and 361 removed paths. The old and new image's browser-edge
+binary hashes differ. These facts identify a target-set/cache reuse investigation,
+not a proven cause. Preserve exact build-input and feature qualification when
+correcting reuse across target sets. Binary comparisons are in
+`output/development/workspace-reconnect-binary-comparison.json`.
+
+Release 172 converges in 23.143 seconds: source fetch takes 9.299 seconds and desired
+state application takes 12.863 seconds. The local observer build is warm at 0.41
+seconds. An initial Chrome offline-emulation attempt does not interrupt the already
+open stream and supplies no recovery evidence. The successful public check replaces
+the two browser-edge pods sequentially, waiting for two ready replicas between
+deletions. The real stream disconnects, reconnects through fresh admission and
+delivers the next committed message. Reload preserves the message without new
+agent runs or operations. The retained completed and cancelled Tasks keep their
+identities, and the governed preview still works. The Computer host retains its UID
+and zero restarts; Isaac remains suspended. Public assets match the pinned image.
+Evidence is under `output/workspace-public/reconnect*`; deployment GitHub run
+`35061050982` passes.
+
 ## Receipt Publication — September 16, 2026
 
 The recorder now validates indexed history once during publication, retains its

@@ -205,6 +205,17 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 172 repairs chat stream recovery after an expired watch. The headed
+  browser regression fails before the fix and passes afterward, including clearing
+  history on revoked access. Public RTX 4090 acceptance replaces browser-edge pods
+  one at a time, observes reconnection and a later committed message through the
+  renewed stream, then restores that message after reload without new agent runs
+  or tool operations. The three retained Tasks also recover with their original
+  IDs and a working governed preview. Source `d49f0112` passes GitHub run
+  `35060841521`; deployment `aba15ed7` passes run `35061050982`. Evidence is under
+  `output/workspace-public/reconnect*`. Second-human and installed-domain Task-input
+  acceptance retain their separately documented status.
+
 - The evidence recorder removes the duplicate historical receipt pass during
   publication. Local elapsed time outside the check falls from 17.367 to 10.064
   seconds while preserving integrity checks and interrupted-publication recovery.
