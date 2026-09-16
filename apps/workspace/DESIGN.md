@@ -69,6 +69,16 @@ admission discloses the configured capability scope before sharing history. The 
 has native protocol/runtime acceptance; capability views and installed acceptance
 remain required implementation work.
 
+Each native Task input request has its own form and decision. An unsupported form
+can be declined while other requests remain answerable. Unchanged requests keep
+their in-memory drafts when a sibling is answered; a changed request digest resets
+only that request. Submissions and cancellation keep controls disabled until the
+current-state read settles. A lost reply triggers a read without repeating the
+decision. Synchronous multi-round tool continuations retain one complete response
+batch because they consume one protected request state. The headed client fixture
+qualifies both paths, including stale-request rejection and an interrupted decline
+reply. These fixtures do not establish an installed domain's input behavior.
+
 Task result Artifact references have explicit preview and download actions. The
 client recognizes the canonical `artifact://{id}` and domain `scheme://artifact/{id}`
 forms with UUIDv7 identities, then uses a fixed same-origin route. It never navigates

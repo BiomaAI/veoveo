@@ -50,7 +50,12 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const runStarts = [];
     const operation = { id: crypto.randomUUID(), chatId: chat.id, runId: null, tool: "fixture_review", phase: "task", revision: 2, createdAt: new Date().toISOString() };
     const task = { id: "opaque-task-fixture", state: "input_required", message: "Review the requested count.", createdAt: operation.createdAt, updatedAt: operation.createdAt, ttlMs: 300000, pollIntervalMs: 5000 };
-    let inputs = [{ id: "approval-1", digest: "a".repeat(64), kind: "form", message: "How many follow-ups should be prepared?", schema: { type: "object", properties: { count: { type: "integer", title: "Follow-ups", minimum: 1, maximum: 3 } }, required: ["count"] }, url: null }];
+    let inputs = [
+      { id: "approval-1", digest: "a".repeat(64), kind: "form", message: "How many follow-ups should be prepared?", schema: { type: "object", properties: { count: { type: "integer", title: "Follow-ups", minimum: 1, maximum: 3 } }, required: ["count"] }, url: null },
+      { id: "notes", digest: "b".repeat(64), kind: "form", message: "Add a note for the follow-ups.", schema: { type: "object", properties: { note: { type: "string", title: "Follow-up note" } }, required: ["note"] }, url: null },
+      { id: "complex", digest: "c".repeat(64), kind: "form", message: "Review the nested details.", schema: { type: "object", properties: { nested: { type: "object" } } }, url: null },
+    ];
+    let changeInput = true;
     const operationPosts = [];
     const artifact = "01a0a75d-3458-78f3-ac54-91f1cab1fea1";
     let result = null;
@@ -138,11 +143,39 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
         if (path.pathname.includes(`/operations/${operation.id}`)) {
           if (request.method() === "POST") {
             operationPosts.push(path.pathname);
-            if (path.pathname.endsWith("/input")) { assert.equal(body.answers[0].content.count, 2); assert.equal(body.answers[0].id, "approval-1"); inputs = []; task.state = "working"; task.message = "Preparing follow-ups."; }
+            if (path.pathname.endsWith("/input")) {
+              assert.equal(body.revision, operation.revision);
+              if (operation.phase === "input_required") {
+                assert.deepEqual(body.answers.map(answer => ({ id: answer.id, digest: answer.digest, decision: answer.decision, content: answer.content })), [
+                  { id: "sync-name", digest: "e".repeat(64), decision: "accept", content: { name: "A plan" } },
+                  { id: "sync-count", digest: "f".repeat(64), decision: "accept", content: { count: 2 } },
+                ], "synchronous continuation preserves its complete input batch");
+                inputs = []; operation.phase = "completed"; operation.revision++;
+                return route.fulfill({ status: 204 });
+              }
+              assert.equal(body.answers.length, 1, "one decision never answers a different request");
+              const answer = body.answers[0];
+              const input = inputs.find(input => input.id === answer.id);
+              assert.ok(input); assert.equal(answer.digest, input.digest);
+              if (answer.id === "approval-1" && changeInput) {
+                changeInput = false; operation.revision++; input.digest = "d".repeat(64); input.schema.properties.count.minimum = 3;
+                return route.fulfill({ status: 409 });
+              }
+              if (answer.id === "complex") { assert.equal(answer.decision, "decline"); assert.equal(answer.content, null); }
+              else {
+                assert.equal(answer.decision, "accept");
+                assert.deepEqual(answer.content, answer.id === "approval-1" ? { count: 3 } : { note: "Keep this answer while the other request changes." });
+              }
+              inputs = inputs.filter(input => input.id !== answer.id); operation.revision++;
+              if (!inputs.length) { task.state = "working"; task.message = "Preparing follow-ups."; }
+              // The server accepted the decline, but its reply is lost. Recovery
+              // must read status and preserve other drafts, without replaying it.
+              if (answer.id === "complex") return route.abort("failed");
+            }
             if (path.pathname.endsWith("/cancel")) { task.message = "Cancellation requested."; }
             return route.fulfill({ status: 204 });
           }
-          return respond({ operation, task, inputs, result });
+          return respond({ operation, task: operation.phase === "task" ? task : null, inputs, result });
         }
         if (path.pathname.endsWith("/events")) return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: change\ndata: {"sequence":${chat.sequence}}\n\n` });
         if (path.pathname.endsWith("/activity")) return respond({ agents, runs });
@@ -244,14 +277,30 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     operation.runId = runs.find(run => run.agent === agents[0].id).id;
     await owner.getByText("Needs your input", { exact: true }).waitFor();
     await owner.getByRole("spinbutton", { name: "Follow-ups" }).fill("2");
-    console.log(JSON.stringify({ step: "submit task input" }));
-    await owner.getByRole("button", { name: "Continue", exact: true }).click();
+    await owner.getByRole("textbox", { name: "Follow-up note" }).fill("Keep this answer while the other request changes.");
+    console.log(JSON.stringify({ step: "independent task inputs and lost decline reply" }));
+    await owner.getByRole("button", { name: "Decline request", exact: true }).click();
+    await owner.getByText("Your answer could not be confirmed. The current request has been refreshed.", { exact: true }).waitFor();
+    await owner.getByRole("button", { name: "Decline request", exact: true }).waitFor({ state: "detached" });
+    assert.equal(await owner.getByRole("spinbutton", { name: "Follow-ups" }).inputValue(), "2");
+    assert.equal(operationPosts.length, 1, "lost reply does not replay the decline");
+    const countRequest = owner.getByRole("form", { name: "How many follow-ups should be prepared?", exact: true });
+    await countRequest.getByRole("button", { name: "Continue", exact: true }).click();
+    await owner.getByText("This input request changed. Review the current request below.", { exact: true }).waitFor();
+    await owner.waitForFunction(() => document.querySelector('input[type="number"]')?.min === "3");
+    assert.equal(await owner.getByRole("spinbutton", { name: "Follow-ups" }).inputValue(), "", "a changed request requires a fresh answer");
+    assert.equal(await owner.getByRole("textbox", { name: "Follow-up note" }).inputValue(), "Keep this answer while the other request changes.", "an unchanged request retains its draft");
+    await owner.getByRole("spinbutton", { name: "Follow-ups" }).fill("3");
+    await countRequest.getByRole("button", { name: "Continue", exact: true }).click();
+    await countRequest.waitFor({ state: "detached" });
+    assert.equal(await owner.getByRole("textbox", { name: "Follow-up note" }).inputValue(), "Keep this answer while the other request changes.");
+    await owner.getByRole("form", { name: "Add a note for the follow-ups.", exact: true }).getByRole("button", { name: "Continue", exact: true }).click();
     await owner.getByText("Preparing follow-ups.", { exact: true }).waitFor();
     assert.equal(await owner.getByRole("spinbutton", { name: "Follow-ups" }).count(), 0);
     await owner.reload();
     await owner.getByRole("button", { name: "Activity", exact: true }).click();
     await owner.getByText("Preparing follow-ups.", { exact: true }).waitFor();
-    assert.equal(operationPosts.length, 1, "reload does not resubmit input or work");
+    assert.equal(operationPosts.length, 4, "reload does not resubmit input or work");
     console.log(JSON.stringify({ step: "cancel restored task" }));
     await owner.getByRole("button", { name: "Cancel task", exact: true }).click();
     await owner.getByText("Waiting for the server to confirm the outcome.", { exact: true }).waitFor();
@@ -266,14 +315,28 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByText("Cancelled", { exact: true }).waitFor();
     await owner.reload();
     await owner.getByText("Cancelled", { exact: true }).waitFor();
-    assert.equal(operationPosts.length, 2);
+    assert.equal(operationPosts.length, 5);
+    operation.phase = "input_required"; operation.revision++;
+    inputs = [
+      { id: "sync-name", digest: "e".repeat(64), kind: "form", message: "Name this plan.", schema: { type: "object", properties: { name: { type: "string", title: "Plan name" } }, required: ["name"] }, url: null },
+      { id: "sync-count", digest: "f".repeat(64), kind: "form", message: "Choose its size.", schema: { type: "object", properties: { count: { type: "integer", title: "Plan size" } }, required: ["count"] }, url: null },
+    ];
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByRole("textbox", { name: "Plan name" }).fill("A plan");
+    await owner.getByRole("spinbutton", { name: "Plan size" }).fill("2");
+    await owner.getByRole("button", { name: "Continue", exact: true }).click();
+    await owner.getByText("Completed", { exact: true }).waitFor();
+    assert.equal(operationPosts.length, 6);
+    operation.phase = "task";
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByText("Cancelled", { exact: true }).waitFor();
     await owner.bringToFront();
     await hardware(owner);
     await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-tasks-local.png", import.meta.url)) });
     await owner.getByRole("link", { name: chat.title, exact: true }).click();
     await owner.getByRole("region", { name: "Your activity in this chat", exact: true }).waitFor();
     await owner.getByText("Writer · Requested for you", { exact: true }).waitFor();
-    assert.equal(operationPosts.length, 2, "opening the originating chat restores the receipt without dispatch");
+    assert.equal(operationPosts.length, 6, "opening the originating chat restores the receipt without dispatch");
     task.state = "completed";
     result = { isError: false, text: [], resources: [{ uri: `media://artifact/${artifact}`, name: "Generated image", mimeType: "image/png" }], structured: null };
     await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
@@ -285,7 +348,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByRole("img", { name: "Generated image", exact: true }).waitFor();
     await owner.waitForFunction(() => document.querySelector(".task-image")?.naturalWidth === 1);
     assert.equal(await owner.getByRole("link", { name: "Download", exact: true }).getAttribute("href"), `/workspace/api/artifacts/${artifact}/download`);
-    assert.equal(operationPosts.length, 2, "preview cannot invoke the original tool");
+    assert.equal(operationPosts.length, 6, "preview cannot invoke the original tool");
     await owner.getByRole("button", { name: "Close preview", exact: true }).click();
     await owner.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this unsent draft");
     await owner.getByRole("button", { name: "Apps", exact: true }).click();

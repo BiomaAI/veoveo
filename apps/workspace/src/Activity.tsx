@@ -84,13 +84,13 @@ function TaskCard({ operation, observed, agent, chatTitle, showOrigin }: { opera
     if (busy) return; setBusy(true); setError(undefined);
     try { await api.cancelOperation(operation.id); setCancelAsked(true); }
     catch { setError("Cancellation could not be confirmed. Refresh the task to check its current state."); }
-    finally { setBusy(false); await query.refetch(); }
+    finally { await query.refetch(); setBusy(false); }
   }
   async function answer(answers: InputAnswer[]) {
     if (busy || !view) return; setBusy(true); setError(undefined);
     try { await api.answerOperation(operation.id, { revision: view.operation.revision, answers }); }
     catch (error) { setError(error instanceof ApiError && error.status === 409 ? "This input request changed. Review the current request below." : "Your answer could not be confirmed. The current request has been refreshed."); }
-    finally { setBusy(false); await query.refetch(); }
+    finally { await query.refetch(); setBusy(false); }
   }
   const state = view?.task?.state ?? view?.operation.phase;
   const completed = ["completed", "failed", "cancelled"].includes(state ?? "");
@@ -105,7 +105,7 @@ function TaskCard({ operation, observed, agent, chatTitle, showOrigin }: { opera
       {view.task?.message && <p>{view.task.message}</p>}
       {active(view) && state !== "input_required" && <div className="task-progress" role="progressbar" aria-label="Task in progress"><span/></div>}
       {state === "unconfirmed" && <p>The connection ended before the outcome was recorded. This operation will not be submitted again automatically.</p>}
-      {view.inputs.length > 0 && <TaskInput key={view.inputs.map(input => `${input.id}:${input.digest}`).join("|")} inputs={view.inputs} busy={busy} onAnswer={answers => void answer(answers)} onError={setError}/>}
+      {view.inputs.length > 0 && <TaskInput independent={!!view.task} inputs={view.inputs} busy={busy} onAnswer={answers => void answer(answers)} onError={setError}/>}
       {view.operation.phase === "input_required" && view.inputs.length === 0 && <button className="primary" disabled={busy} onClick={() => void answer([])}>Continue operation</button>}
       {view.result && <div className="task-result">{view.result.text.map((text, index) => <p key={index}>{text}</p>)}
         {view.result.resources.map(resource => <ResourceResult key={resource.uri} resource={resource}/>)}

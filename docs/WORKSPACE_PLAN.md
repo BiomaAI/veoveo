@@ -249,8 +249,10 @@ be scoped and cleaned up through supported operations.
   zero submissions. Evidence is under `output/workspace-public/computers*`,
   `task-recovery-release166*` and `cancel-task*`.
 
-- Remaining installed acceptance is a second real human's invitation/collaboration
-  journey and a native Task input round from an installed domain that actually asks
+- The second real human's installed invitation/collaboration journey is deferred
+  at the user's request on September 15 because no second person is available.
+  It remains an acceptance follow-up and does not block independent delivery work.
+  The other installed follow-up is a native Task input round from a domain that actually asks
   for input. The installed hosted servers currently expose no such input request.
   Native protocol/runtime and headed client fixtures already qualify input decisions,
   stale-request rejection, cancellation and recovery; these are local qualification,
