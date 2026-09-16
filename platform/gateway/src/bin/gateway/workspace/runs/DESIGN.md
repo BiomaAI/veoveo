@@ -26,7 +26,7 @@ browser response. A human owner sees provider/model and capability disclosure be
 agent. Existing agent membership records bind the complete definition digest.
 Configuration changes require new admission before another run uses that definition.
 The default empty catalog permits human collaboration but provides no model fixture.
-Installation configuration and deployed model qualification remain delivery work.
+The Workspace plan records installed model and Task qualification separately from local fixtures.
 
 ## Execution
 
@@ -95,8 +95,9 @@ Stopping a response is distinct from requesting MCP Task cancellation. The accep
 first-class Task behavior is in
 [`WORKSPACE_PLAN.md`](../../../../../../../docs/WORKSPACE_PLAN.md#first-class-mcp-tasks).
 Task references, native Tasks input rounds, private results and cross-restart
-activity have local runtime and browser qualification. Installed acceptance remains
-required before Workspace release.
+activity have local runtime and browser qualification. Public releases also qualify
+real Task completion, cancellation and recovery. Installed native-input acceptance
+remains open because the installed domains do not request input.
 
 ## Qualification
 
@@ -109,4 +110,4 @@ agent allowlist, private input prompts stay out of model context, and cancelling
 response blocks later dispatch. Browser-edge tests reject caller-selected model settings and forged initiators.
 A headed hardware browser fixture checks four authors, response-specific controls,
 reconnect and mobile layout. None of these fixtures establishes deployed model or
-MCP Task execution. Public acceptance remains mandatory.
+MCP Task execution. Public evidence and remaining acceptance are recorded in the Workspace plan.

@@ -31,6 +31,17 @@ frontend source inputs separate within that image would avoid the extra asset wo
 Seventeen receipts add most of this checkpoint's 83,376 lines. Immutable source
 manifests should be shared without weakening exact-input verification.
 
+The values-only deployment check compiles for 21.43 seconds before running its two
+chart cases in 0.23 seconds. Its dependency closure recompiles gateway and store code.
+The convergence harness adds a separate 14.40-second development build. Release 167
+then converges in 32.099 seconds: requested source fetch 5.263, desired-state apply
+25.442, rollout 0.589 and readiness 0.627 seconds. The public check completes four
+model responses from three message admissions, then restores three original Task
+IDs without another tool operation. Retained Computer host identity and zero restart
+count are unchanged. Isaac remains suspended. The scope did not require another
+chart publication or any provider image rebuild. GitHub source run `35051299590`
+and deployment run `35051639049` both pass.
+
 
 The Computers ownership correction keeps retained keys and adds one indexed lookup
 instead of migrating homes or resealing data. Its first complete domain check took
