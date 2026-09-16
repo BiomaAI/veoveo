@@ -1,5 +1,19 @@
 # Build And Deployment Iteration Audit
 
+## Workspace Chat Reconnect — September 16, 2026
+
+The browser closed its EventSource permanently on an expired chat watch, including
+when a later authorized read succeeded. The new headed hardware regression first
+fails waiting for a message committed after expiry. Removing that explicit close
+lets the native reconnect request pass through current server admission. The same
+fixture verifies that revoked access clears the transcript and composer without
+submitting any work. Its passing execution takes 40.001 seconds; recorder wall time
+is 48.203 seconds. Client unit and production-build commands also pass.
+
+This client-only change selects the browser-edge image. Gateway and domain images,
+the chart, Computers and retained storage do not need rebuilding. Source evidence
+and elapsed observations are under `output/development/workspace-reconnect-*`.
+
 ## Receipt Publication — September 16, 2026
 
 The recorder now validates indexed history once during publication, retains its
