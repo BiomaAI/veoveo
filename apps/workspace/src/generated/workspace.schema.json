@@ -601,6 +601,23 @@
       ],
       "type": "object"
     },
+    "OperationImage": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "description": "Validated standard base64; the complete result admits at most eight\nimages and 1 MiB of encoded image data.",
+          "type": "string"
+        },
+        "mimeType": {
+          "$ref": "#/$defs/ResultImageMime"
+        }
+      },
+      "required": [
+        "mimeType",
+        "data"
+      ],
+      "type": "object"
+    },
     "OperationInput": {
       "additionalProperties": false,
       "properties": {
@@ -691,8 +708,19 @@
     "OperationResult": {
       "additionalProperties": false,
       "properties": {
+        "images": {
+          "items": {
+            "$ref": "#/$defs/OperationImage"
+          },
+          "type": "array"
+        },
         "isError": {
           "type": "boolean"
+        },
+        "omittedImages": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
         },
         "resources": {
           "items": {
@@ -711,7 +739,9 @@
       "required": [
         "isError",
         "text",
-        "resources"
+        "resources",
+        "images",
+        "omittedImages"
       ],
       "type": "object"
     },
@@ -907,6 +937,14 @@
           "type": "object"
         }
       ]
+    },
+    "ResultImageMime": {
+      "enum": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "type": "string"
     },
     "Run": {
       "additionalProperties": false,

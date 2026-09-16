@@ -4,6 +4,7 @@ import { Activity as ActivityIcon, Check, CircleAlert, Clock3, LockKeyhole, Refr
 import { api, ApiError } from "./api.ts";
 import { TaskInput } from "./TaskInput.tsx";
 import { ResourceResult } from "./ResourceResult.tsx";
+import { ResultImages } from "./ResultImages.tsx";
 import type { AgentActivity, Chat, InputAnswer, OperationSummary, OperationView } from "./generated/workspace.ts";
 
 function active(view?: OperationView): boolean {
@@ -108,6 +109,7 @@ function TaskCard({ operation, observed, agent, chatTitle, showOrigin }: { opera
       {view.inputs.length > 0 && <TaskInput independent={!!view.task} inputs={view.inputs} busy={busy} onAnswer={answers => void answer(answers)} onError={setError}/>}
       {view.operation.phase === "input_required" && view.inputs.length === 0 && <button className="primary" disabled={busy} onClick={() => void answer([])}>Continue operation</button>}
       {view.result && <div className="task-result">{view.result.text.map((text, index) => <p key={index}>{text}</p>)}
+        <ResultImages images={view.result.images} omitted={view.result.omittedImages}/>
         {view.result.resources.map(resource => <ResourceResult key={resource.uri} resource={resource}/>)}
         {view.result.structured != null && <details><summary>Result details</summary><pre>{JSON.stringify(view.result.structured, null, 2)}</pre></details>}
       </div>}

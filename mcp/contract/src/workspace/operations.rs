@@ -128,12 +128,33 @@ pub struct OperationResource {
     pub mime_type: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum ResultImageMime {
+    #[serde(rename = "image/png")]
+    Png,
+    #[serde(rename = "image/jpeg")]
+    Jpeg,
+    #[serde(rename = "image/webp")]
+    Webp,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OperationImage {
+    pub mime_type: ResultImageMime,
+    /// Validated standard base64; the complete result admits at most eight
+    /// images and 1 MiB of encoded image data.
+    pub data: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationResult {
     pub is_error: bool,
     pub text: Vec<String>,
     pub resources: Vec<OperationResource>,
+    pub images: Vec<OperationImage>,
+    pub omitted_images: u32,
     pub structured: Option<serde_json::Value>,
 }
 

@@ -205,6 +205,24 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- The installed View App renders the Statue of Liberty and completes its native
+  `capture_frame` Task on NVIDIA Vulkan. The headed RTX 4090 browser shows the
+  1280×720 capture. This real workflow exposes an Activity gap: its result
+  projection discards inline images. The correction preserves bounded typed raster
+  results, reports omitted images, and removes visible results on an access denial.
+  Native recovery and browser regressions pass; rollout and recovery of this same
+  installed capture remain the next check. The existing camera form supplies input
+  before capture and does not qualify a Task `input_required` round.
+
+- Release 172 also qualifies independent agent cancellation with real installed
+  models. Assistant and Reviewer run concurrently; cancelling Assistant leaves
+  Reviewer active. A human message commits while Reviewer runs, and Reviewer then
+  completes. Reload retains the original cancelled/completed identities without
+  new runs or operations. Evidence is under
+  `output/workspace-public/independent-agents-cancel*`. An earlier attempt waited
+  for both providers to emit visible text simultaneously and timed out after both
+  responses completed; that attempt supplies no cancellation evidence.
+
 - Release 172 repairs chat stream recovery after an expired watch. The headed
   browser regression fails before the fix and passes afterward, including clearing
   history on revoked access. Public RTX 4090 acceptance replaces browser-edge pods
