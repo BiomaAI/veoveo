@@ -2,6 +2,15 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+Reply-context source `bc8098dd` stages the gateway and browser edge together in
+89.591 seconds. The observed Rust compile window is 72.989 seconds; the changed
+store and shared wire contract rebuild their consumers. Export takes 10.941
+seconds. Other runtime images and the chart are reused. Evidence is
+`output/development/workspace-replies.stage.json`, with phase details in
+`output/development/replies-image.log`. The 16 immutable check receipts add about
+74,000 lines to this source checkpoint; repeated input manifests remain a review
+and repository-size cost.
+
 Reply-context implementation exposed a qualification failure in the latest published
 SurrealQL formatter, `@surrealdb/surql-fmt` `0.1.0-beta.2`: it moved an authorization
 negation into an IF body and removed dots from nested field definitions. The real
