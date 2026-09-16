@@ -205,6 +205,19 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 176 gives private Activity durable agent attribution. Source `47903afb`
+  projects the retained agent ID and name with each authorized operation receipt;
+  the client no longer depends on the open chat's recent response window. Database
+  acceptance preserves attribution after agent removal and the initiator leaving
+  the chat, while another member cannot read the receipt. All ten scoped source
+  checks pass, including the headed browser regression. Deployment `2504b0e1`
+  converges in 34.925 seconds. Public headed RTX 4090 acceptance identifies
+  Assistant in personal Activity before and after reload, restores the original
+  Statue of Liberty capture and three earlier terminal Tasks, and submits no work.
+  Evidence is under `output/workspace-public/agent-attribution*`. The Computer host
+  retains its identity and Isaac remains suspended. The second-person installed
+  journey and a real domain Task-input round remain the previously recorded gates.
+
 - Release 175 gives the browser edge a stable compilation boundary for frontend
   iteration. Source `75dcf739` uses the existing image planner and artifact recipe
   with one browser package selection. Selecting backend images in the same build
