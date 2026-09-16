@@ -95,6 +95,19 @@ application. Docker copies the shared source into the independent Workspace asse
 stage; source sharing adds no Rust dependency. The dedicated client evidence catalog
 declares both source trees, independently of the Rust Workspace checks.
 
+Computers reuses the native collection, access controls, file transfers and hardware
+terminal through Workspace's fixed browser routes. Host props supply the profile and
+known principal names; rendering never fetches administrative inventory. The native
+browser terminal is available here. Stock CLI pairing retains its Console entry until
+that separate public client is qualified for Workspace. Scope keys include the
+application, tenant, principal and Work Context. Navigating away disconnects the
+terminal and preserves the Computer's running processes and retained files.
+
+The terminal pins `@xterm/xterm` 6.0.0, `@xterm/addon-fit` 0.11.0 and
+`@xterm/addon-webgl` 0.19.0, verified as the latest stable releases at their upstream
+npm registry on September 15, 2026. These are the same qualified native terminal
+dependencies used by Console. The terminal bundle loads only in the Computers view.
+
 ## Development And Acceptance
 
 Run `npm ci` and `npm run dev` in this directory. Vite uses port 4174 and proxies

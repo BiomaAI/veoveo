@@ -6,8 +6,8 @@ export default defineConfig({
   base: "/workspace/",
   plugins: [react()],
   resolve: {
-    dedupe: ["react", "react-dom", "@tanstack/react-query", "zod", "lucide-react"],
-    alias: Object.fromEntries(["react", "react-dom", "@tanstack/react-query", "zod", "lucide-react"].map(name =>
+    dedupe: ["react", "react-dom", "@tanstack/react-query", "zod", "lucide-react", "@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-webgl"],
+    alias: Object.fromEntries(["react", "react-dom", "@tanstack/react-query", "zod", "lucide-react", "@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-webgl"].map(name =>
       [name, fileURLToPath(new URL(`./node_modules/${name}`, import.meta.url))])),
   },
   server: {
@@ -16,7 +16,7 @@ export default defineConfig({
     strictPort: true,
     fs: { allow: [fileURLToPath(new URL("../", import.meta.url))] },
     proxy: {
-      "/workspace/api": "http://127.0.0.1:8786",
+      "/workspace/api": { target: "http://127.0.0.1:8786", ws: true },
       "/workspace/auth": "http://127.0.0.1:8786",
       "/console/api": { target: "http://127.0.0.1:8786", ws: true },
       "/auth": "http://127.0.0.1:8786",

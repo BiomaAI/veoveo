@@ -41,6 +41,15 @@
       ],
       "lucide-react": [
         "./node_modules/lucide-react"
+      ],
+      "@xterm/xterm": [
+        "./node_modules/@xterm/xterm"
+      ],
+      "@xterm/addon-fit": [
+        "./node_modules/@xterm/addon-fit"
+      ],
+      "@xterm/addon-webgl": [
+        "./node_modules/@xterm/addon-webgl"
       ]
     }
   },

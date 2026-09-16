@@ -106,7 +106,10 @@ interruption. Management hints disable unavailable actions. Read, Execute, Start
 Stop are independent selections. Execute requires bounded command limits and
 interruption consent; a lifecycle-only grant carries no execution limits.
 Existing cached principal names improve selection without requiring administrator
-inventory for core Computers. The current owner projection supplies matching OAuth
+inventory for core Computers. The host supplies those names and its profile as
+explicit props; the panel performs no Console bootstrap or inventory lookup.
+Workspace composes the same page through its own fixed browser routes and omits
+the Console-specific stock CLI entry. The current owner projection supplies matching OAuth
 applications and grantable permissions. Selecting an automated application fills its
 canonical service principal; direct applications retain an explicit principal field.
 The form identifies its profile and the enrollment prerequisite. A truncated catalog

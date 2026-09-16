@@ -362,6 +362,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
         >
           {signOutError && <p role="alert">{signOutError}</p>}
           {view === "computers" && <ComputersPage scope={consoleIdentityScope(bootstrap)} canReadInstallation={bootstrap.canReadInstallation}
+            profile={bootstrap.profile} principals={snapshot?.principals ?? []} cliEndpoint="/console/computers"
             artifacts={snapshot?.artifacts ?? []} uploads={uploadState} onUpload={() => setUploadsOpen(true)} />}
           {view !== "computers" && view !== "apps" && !snapshot && <div className="center-state">
             <p>{inventory.isLoading ? "Loading installation…" : inventory.error instanceof Error ? inventory.error.message : "Installation inventory is unavailable."}</p>
