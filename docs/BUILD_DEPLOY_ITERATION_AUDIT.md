@@ -20,6 +20,11 @@ than five seconds while work is active. Move the workbench onto that longer-live
 observation policy in a separately qualified shared-App update; provider completion
 must remain webhook-owned.
 
+The gateway and browser-edge App images at `06a010b0` publish in 97.978 seconds.
+The observed compile window is 74.457 seconds and export is 17.455 seconds; phases
+overlap. The compiler retained its cache while refreshing 327 selected files. The
+current chart, domain images, Computers host and templates remain unchanged.
+
 Workspace implementation reuses the installed platform. The initial gateway and
 browser-edge images were published from `1ec7bc5c` in 288.410 seconds. Compilation
 occupied 264.412 seconds, with a new shared Cargo feature graph. Console assets
