@@ -205,6 +205,21 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 175 gives the browser edge a stable compilation boundary for frontend
+  iteration. Source `75dcf739` uses the existing image planner and artifact recipe
+  with one browser package selection. Selecting backend images in the same build
+  cannot widen that selection. A real Workspace HTML edit builds in 12.952 seconds
+  with zero Rust compilation and the same binary digest; the temporary edit is
+  restored. A subsequent browser-only registry stage takes 5.305 seconds and
+  preserves the original image digest. All 47 focused image tests pass, alongside
+  strict lint, formatting and installation checks. Deployment `37dba2b9` converges
+  in 23.855 seconds. Installed headed RTX 4090 acceptance restores the original
+  Statue of Liberty capture and three earlier terminal Tasks without submissions.
+  Evidence and measured cold-cache cost are in the iteration audit and
+  `output/workspace-public/browser-compilation*`. GitHub run `35067538752` passes.
+  The existing Console's authenticated session and administrative snapshot also
+  pass their installed read checks.
+
 - Release 174 makes the existing authorized chat watch settle a lost agent worker
   without waiting for a manual Activity read. Source `8c945f02` shares the store's
   fenced reconciliation between both reads. Its real-database regression fails

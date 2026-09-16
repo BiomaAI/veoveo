@@ -1,5 +1,58 @@
 # Build And Deployment Iteration Audit
 
+## Stable Browser Compilation — September 16, 2026
+
+Source `75dcf739` gives the browser edge a dedicated compiler family through the
+existing image planner and artifact recipe. Its package selection stays
+`veoveo-console-bff` when gateway or other platform images join the build. The old
+combined selection changes 32 shared package feature sets compared with browser-only
+compilation, including `bytes/serde`, `hyper/http2` and
+`tracing/release_max_level_debug`. That explains why unchanged browser sources can
+produce a different binary when the runtime selection changes. The exact feature
+comparison is under `output/development/workspace-browser-compilation-*`.
+
+The new family uses the official digest-pinned Rust 1.98.1 Trixie image. Rust's
+release catalog and the official image registry were checked on September 16.
+The first build includes its cold compiler environment and dependency caches.
+No browser process or runtime image is added.
+
+| Measurement | Observed result |
+|---|---|
+| First combined gateway/browser stage | 190.105 s, including cold browser compiler setup and a 151 s Cargo build |
+| Changed Workspace page, browser-only local image build | 12.952 s; Rust compile action cached, zero compiled Rust packages |
+| Canonical source, browser-only registry stage after the combined build | 5.305 s; Rust compile action cached, exact original image digest |
+| Installed browser-edge rollout | 23.855 s; source fetch 9.960 s, desired-state application 13.064 s |
+
+The UI probe changes the Workspace HTML title and verifies that the resulting image
+contains that change. Both images contain the same browser binary SHA-256,
+`5c4b715050896611f93ddfa25b9ffe34e6fa58c14ac86e18cf2670a312855b87`.
+The probe restores the original source and removes its temporary image. It is not
+deployed. Its local Docker export and the separate registry-stage measurement are
+different operations; their durations are not a matched before/after stage ratio.
+The first combined build returns the existing gateway digest unchanged.
+
+All 47 focused image tests pass, with one previously ignored case. Their recorded
+command takes 5.641 seconds, strict lint takes 16.832 seconds and formatting takes
+0.200 seconds. The real planning regression compares complete browser-family input
+identities and resolved compiler arguments for standalone and platform-core
+selection. Existing source-boundary tests qualify frontend exclusion and shared
+compiler-input invalidation. Installation tests, lint and formatting also pass.
+The three installation commands total 1.849 seconds, while the two gaps between
+them total 21.289 seconds. Recorder overhead remains a separate measured cost.
+
+Deployment `37dba2b9` changes only the browser-edge digest and reuses the chart.
+Release 175 restores the original Statue of Liberty capture, including its image
+digest, and the three earlier completed/cancelled Tasks through the headed RTX 4090
+browser. Reload submits no work. Both browser-edge replicas are ready; the gateway
+and Computer host keep their installed identities. Public evidence is under
+`output/workspace-public/browser-compilation*`. Source and deployment commits ship
+in one push to avoid an intermediate GitHub report run.
+
+GitHub run `35067538752` passes in 3m05s. The retained Console session and
+administrative snapshot also return authenticated JSON after session renewal;
+these are API checks, not a new Console visual qualification. The Workspace
+check remains headed hardware-browser evidence. Isaac remains suspended.
+
 ## Workspace Worker Recovery — September 16, 2026
 
 Source `8c945f02` makes the existing authorized chat watch settle expired agent
