@@ -25,6 +25,18 @@ run again against the final lock before rollout. The host and template image inp
 did not change; narrower fixture declarations could avoid this repeat if they retain
 the exact inputs actually consumed by those tests.
 
+Release 166 drains the two old Computers service replicas before activating the
+cross-client reader/worker boundary. The compute host keeps pod UID
+`8d5ad233-ab0b-4842-82b3-699fc86a9ab2` and zero restarts. Requested GitOps convergence
+takes 33.898 seconds: source fetch 9.114, desired-state apply 23.372, rollout 0.389
+and readiness 0.841 seconds. Isaac stays suspended with zero replicas. Public
+Workspace acceptance passes the retained file checksum after terminal lease renewal,
+both original Tasks after fresh sign-in/reload, and one new Task's cancellation and
+restoration. The first terminal acceptance assertion counted two POST-based read
+subscriptions as mutations; classifying that documented endpoint separately fixes
+the test. No product change or image rebuild was needed. GitHub deployment run
+`35047965343` passes. Evidence is under `output/workspace-public/`.
+
 Release 164's values-only correction converged with 9.100 seconds in source fetch,
 19.096 seconds in desired-state apply, 0.624 seconds in rollout observation and
 0.405 seconds in readiness. The installed Timeline App Task passed completion and

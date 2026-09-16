@@ -205,14 +205,43 @@ be scoped and cleaned up through supported operations.
 
 ## Progress
 
+- Release 166 makes existing Computers available across authorized Console and
+  Workspace profiles for the same person and Work Context. Current action policy
+  remains profile-specific, while creation keys, retained homes and encrypted
+  intents stay unchanged. The public headed RTX 4090 browser lists both retained
+  Computers, opens a Workspace terminal, observes lease renewal and reads the
+  existing file with its original SHA-256. Disconnect and reload leave both Ready.
+  The private host retains its pod identity and zero restarts. Domain qualification
+  passes 126 cases; application/HTTP qualification passes 17, alongside six service
+  cases, migration checks and strict lint/format. GitHub runs `35047434741` and
+  `35047965343` pass.
+
+- The same release qualifies cancellation through public Activity. One agent-issued
+  media Task, `gtr_RDDvNFYdGQhrn7B0ZGN3vvaKTB-f0zjqH_EO_p9T0Gs`, moves from Working
+  to the server-confirmed Cancelled state after one cancellation request. Reload
+  preserves its canonical ID and creates no further operation. This establishes the
+  MCP Task outcome, not reversal of an external effect. The two original completed
+  Tasks also recover across the gateway replacement, fresh sign-in and reload with
+  zero submissions. Evidence is under `output/workspace-public/computers*`,
+  `task-recovery-release166*` and `cancel-task*`.
+
+- Remaining installed acceptance is a second real human's invitation/collaboration
+  journey and a native Task input round from an installed domain that actually asks
+  for input. The installed hosted servers currently expose no such input request.
+  Native protocol/runtime and headed client fixtures already qualify input decisions,
+  stale-request rejection, cancellation and recovery; these are local qualification,
+  not an installed-domain input result. Explicit agent selection is implemented;
+  mention/default-assistant and bounded automatic-participation settings remain plan
+  work. Desktop packaging and selective-history sharing remain later scope.
+
 - Release 165 repairs durable Task recovery after permission refresh. The original
   media Task and the installed Timeline App Task both retain their canonical IDs,
   completed results and private operation receipts across fresh sign-in and reload.
   Headed RTX 4090 WebGL acceptance reopens the media preview and observes zero new
   tool or run submissions. Local qualification passes 86 gateway library cases,
   53 gateway application cases and 58 store cases, plus strict Clippy, formatting
-  and the rendered installation checks. Installed input/cancel acceptance and the
-  separate Computers ownership and second-human gates remain open.
+  and the rendered installation checks. Its then-open Computers and cancellation
+  gates pass on release 166; installed input and second-human gates remain open.
 
 - Release 164 restores scope-qualified Workspace sign-in. The installed Timeline
   App returned a completed native Task with one durable operation admission; its
