@@ -40,6 +40,14 @@ changed the feature closure, despite no edge Rust source edit. A frontend-only
 publication path must reuse its qualified binary independently of the previous
 combined target selection. This is measured cache churn, not frontend build time.
 
+Release 163 exposed two stale UAV scopes in the client registration that are absent
+from protected-resource metadata. Requesting all registered scopes therefore stopped
+sign-in. The configuration now selects the twenty scopes in the intersection of
+client registration and active resource policy. The rendered Helm test uses the
+actual gateway catalog method that publishes that metadata. A registration-only
+check cannot establish OAuth admission. The fix changes values and tests; no image
+publication is needed.
+
 Workspace implementation reuses the installed platform. The initial gateway and
 browser-edge images were published from `1ec7bc5c` in 288.410 seconds. Compilation
 occupied 264.412 seconds, with a new shared Cargo feature graph. Console assets

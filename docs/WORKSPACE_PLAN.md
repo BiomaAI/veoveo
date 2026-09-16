@@ -208,7 +208,8 @@ be scoped and cleaned up through supported operations.
 - Release 162 adds sandboxed Apps and the durable App-origin Task bridge. Installed
   testing found that Workspace requested only three of its already registered
   nonadministrative scopes. Listed Time Tasks were denied by current policy. The
-  browser configuration now requests the approved client scope set, with a rendered
+  browser configuration now requests the intersection of approved client scopes
+  and policy-supported resource scopes, with a rendered
   deployment test preventing drift. Existing sessions must sign in again to receive
   those scopes; domain and Work Context policy still authorize every operation.
 

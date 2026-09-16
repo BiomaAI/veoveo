@@ -24,3 +24,6 @@ veoveo-deploy-contract.workspace = true
 veoveo-deploy-runtime.workspace = true
 veoveo-extension-contract.workspace = true
 veoveo-image-build-control.workspace = true
+
+[dev-dependencies]
+veoveo-mcp-gateway = { path = "../../platform/gateway" }
