@@ -12,6 +12,19 @@ pass. These are separate costs: Cargo feature closure changes cause recompilatio
 while conservative evidence boundaries cause repeat execution. Dependency-aware
 test-source boundaries remain an opportunity after the current delivery.
 
+Source `00c7dfa5` staged Computers and gateway images in 292.303 seconds. The
+compile window occupied 280.193 seconds; export occupied 4.248 seconds. Adding
+Computers to the preceding gateway-only target set rebuilt shared HTTP, MCP, Rig,
+SurrealDB and policy dependencies. Both final binaries compiled together. The chart,
+browser edge, host and templates retain their installed digests. This stage is an
+immutable development publication; its qualification comes from the scoped test
+receipts and subsequent installed acceptance. GitHub run `35047434741` passes.
+Updating the image lock also invalidates the Computers HTTP/application receipt,
+because that command admits the installation inputs. Its seventeen cases therefore
+run again against the final lock before rollout. The host and template image inputs
+did not change; narrower fixture declarations could avoid this repeat if they retain
+the exact inputs actually consumed by those tests.
+
 Release 164's values-only correction converged with 9.100 seconds in source fetch,
 19.096 seconds in desired-state apply, 0.624 seconds in rollout observation and
 0.405 seconds in readiness. The installed Timeline App Task passed completion and
