@@ -78,8 +78,9 @@ and runs falling outside the recent conversation window. Agent
 admission discloses the configured capability scope before sharing history. The gateway
 has native protocol/runtime acceptance. Installed qualification covers real model
 responses, native Task completion and cancellation, Apps, governed uploads and
-retained Computer terminals. Public acceptance and the remaining second-person and
-native Task-input gates are recorded in the Workspace plan.
+retained Computer terminals. Public acceptance and the nonblocking distinct-person and
+production Task-input follow-ups are recorded in the Workspace plan under the
+user’s September 16 delivery decision.
 
 Each native Task input request has its own form and decision. An unsupported form
 can be declined while other requests remain answerable. Unchanged requests keep

@@ -1,7 +1,8 @@
 # Veoveo Workspace Plan
 
-Status: approved for implementation on September 15, 2026. Delivery is active;
-the acceptance gates below are not yet complete.
+Status: first web release implemented and deployed on September 16, 2026.
+Release 176 is usable at `https://veoveo.bioma.ai/workspace/`. The user accepted
+the two installed follow-ups below as nonblocking on September 16.
 
 ## Standards And Protocols
 
@@ -170,10 +171,11 @@ Workspace recovery record. Persist the task reference, invocation association an
 current-authority binding before presenting an accepted operation. Any unresolved
 dispatch remains explicit and fenced; recovery may not issue a second side effect.
 
-Acceptance must exercise a real task-augmented tool, progress, an input round,
-independent cancellation, reconnect and revoked access. Reload and browser-edge
-replacement must preserve the same task ID. Model text fixtures and task-shaped
-mock cards cannot satisfy this installed-release gate.
+Acceptance exercises a real task-augmented tool, progress, independent cancellation,
+reconnect and revoked access. Reload and browser-edge replacement preserve the same
+task ID. Input rounds are qualified through the native protocol/runtime and headed
+client tests. An installed domain input round remains the explicit follow-up below;
+model text fixtures and task-shaped mock cards do not count as that result.
 
 ## Delivery Sequence
 
@@ -203,7 +205,48 @@ The intentionally paused Isaac Sim workload remains paused. Acceptance must pres
 existing user Computers and retained data. Temporary test identities and chats must
 be scoped and cleaned up through supported operations.
 
+## Delivery Acceptance — September 16, 2026
+
+The user authorized browser validation on their behalf and directed that acceptance
+requiring another person be recorded as pending rather than blocking delivery.
+The implementation and deployed web client are complete for this goal. The two
+follow-ups below retain their evidence limits; neither is reported as an installed
+pass. Desktop packaging and selective-history sharing remain later product work.
+
+| Requirement | Evidence and result |
+|---|---|
+| User-scoped authentication, invitations and private chats | Gateway tests execute independent Alice, Bob and Eve identities against the real database; named acceptance, forgery rejection, removal and inaccessible chats pass. Browser-edge tests enforce cookie identity, CSRF and fixed profiles. The installed owner session passes; the distinct-person journey remains a follow-up. |
+| Owner controls and concurrent conversation | Store tests qualify ownership transfer, settings conflicts, ordering, idempotency and archive admission. `final-owner-acceptance.json` records two public browser tabs committing independent messages, receiving both updates and restoring the same IDs after reload. Rename, invitation policy and archive changes reach the other tab. Both tabs use the same person. |
+| Two humans and two agents in assistant-ui | The real adapter test preserves four distinct authors, concurrent agent states and replay. The headed client fixture uses separate human identities, keeps the composer writable and qualifies independent controls, mobile layout and access removal. These are local qualification results. |
+| Isolated agents and governed execution | Run-store tests enforce per-chat context, frozen history boundaries, current membership and fenced publication. Native model-to-Task tests reject duplicate dispatch and post-cancellation effects. Installed `participation.json` and `independent-agents-cancel.json` record real model responses, one agent continuing after the other stops, and a human message while work runs. |
+| Durable recovery | `reconnect.json` records browser-edge replacement and subsequent event delivery. `worker-recovery-release174-early.json` records automatic worker-loss interruption without redispatch; partial-text retention is separately proven by the database test. The final browser check restores existing native Tasks and the original View image digest. |
+| First-class MCP Tasks | Native gateway/runtime tests cover schema-validated input, stale answers, continuations, subscriptions, private results, domain errors and cancellation acknowledgement. The headed fixture qualifies independent input decisions and reload. Installed completion, cancellation, attribution and recovery pass in `final-task-recovery.json`; production input remains a follow-up. |
+| Artifacts, uploads and Apps | `upload.json` records one governed upload and reload recovery; `attachments.json` records explicit file references and agent recognition without a new read grant. Local tests reject unreadable results and unauthorized App origins. The installed View App's native capture remains readable; the final check downloads the retained 63-byte upload. |
+| Core Computers and retained data | `final-computers.json` records both existing Computers ready, a terminal connection with lease renewal, the unchanged retained-file checksum and clean disconnection. Workspace uses its own governed routes. The Computer host keeps its UID and zero restarts. |
+| Console and reusable Rust platform | `final-console.json` records the installed administrative Overview and authenticated JSON session/snapshot. Workspace reuses the existing gateway, browser edge, policy, store and Task runtime; no additional production service was introduced. |
+| Deployment, evidence and iteration | Release 176 has two ready gateway replicas and two ready browser-edge replicas at the committed digests. Scoped test receipts are committed. The build audit records source checks, staging, rollout, recorder overhead and the proven UI-only build with zero Rust compilation. Isaac remains suspended. |
+
+The final public records and headed hardware-browser images are under
+`output/workspace-public/final-*`. Hardware WebGL uses the RTX 4090; the browser's
+fallback WebGPU adapter is not counted as GPU evidence. These final checks start no
+agent runs or tool Tasks. The two temporary owner-control chats are archived.
+The first automation attempt stopped on an immediate checkbox-state assertion;
+the completed check waits for the authoritative asynchronous settings response.
+
+### Pending Follow-Ups
+
+| Follow-up | Current evidence | Completion condition |
+|---|---|---|
+| Distinct-person installed collaboration | Independent identity/store/API tests and the two-human/two-agent browser fixture pass. The public client has been driven under the owner's account, including concurrent tabs. | An independently authenticated second person accepts an invitation, exchanges messages, exercises ownership transfer and loses access after removal. |
+| Installed domain Task input | Native MCP and headed client input tests pass. Current production domains issue no mid-task input request; the View camera form supplies settings before dispatch. | A real domain Task requests input, an authorized person answers it in Workspace, and reload preserves the same Task identity and consumed decision. |
+
+These are tracked follow-ups under the user's September 16 acceptance decision.
+They do not require further implementation for this delivery goal.
+
 ## Progress
+
+Entries below preserve the historical state of each delivery checkpoint. The
+acceptance decision and follow-ups above define the current delivery status.
 
 - Release 176 gives private Activity durable agent attribution. Source `47903afb`
   projects the retained agent ID and name with each authorized operation receipt;
