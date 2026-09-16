@@ -48,7 +48,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const agents = ["Writer", "Reviewer"].map(name => ({ id: crypto.randomUUID(), definition: name.toLowerCase(), name, provider: "Explicit browser fixture", model: "No model execution", active: true }));
     const runs = [];
     const runStarts = [];
-    const operation = { id: crypto.randomUUID(), chatId: chat.id, runId: null, tool: "fixture_review", phase: "task", revision: 2, createdAt: new Date().toISOString() };
+    const operation = { id: crypto.randomUUID(), chatId: chat.id, runId: null, agent: null, tool: "fixture_review", phase: "task", revision: 2, createdAt: new Date().toISOString() };
     const task = { id: "opaque-task-fixture", state: "input_required", message: "Review the requested count.", createdAt: operation.createdAt, updatedAt: operation.createdAt, ttlMs: 300000, pollIntervalMs: 5000 };
     let inputs = [
       { id: "approval-1", digest: "a".repeat(64), kind: "form", message: "How many follow-ups should be prepared?", schema: { type: "object", properties: { count: { type: "integer", title: "Follow-ups", minimum: 1, maximum: 3 } }, required: ["count"] }, url: null },
@@ -149,7 +149,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
         if (path.pathname === "/workspace/api/apps/frame") return route.fulfill({ contentType: "text/html", body: appHtml });
         if (path.pathname.endsWith("/app-operations") && request.method() === "POST") {
           assert.equal(body.appUri, appDescriptor.resourceUri); assert.equal(body.tool, "start"); appStarts++;
-          appOperation = { id: body.id, chatId: chat.id, runId: null, tool: "fixture__start", phase: "task", revision: 2, createdAt: new Date().toISOString() };
+          appOperation = { id: body.id, chatId: chat.id, runId: null, agent: null, tool: "fixture__start", phase: "task", revision: 2, createdAt: new Date().toISOString() };
           return respond(appOperation);
         }
         if (path.pathname.includes("/app-operations/")) { assert.equal(body.appUri, appDescriptor.resourceUri); return respond({ operation: appOperation, native: nativeAppTask }); }
@@ -305,7 +305,8 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.setViewportSize({ width: 1440, height: 1000 });
     await owner.getByRole("button", { name: "Activity", exact: true }).click();
     console.log(JSON.stringify({ step: "open task input" }));
-    operation.runId = runs.find(run => run.agent === agents[0].id).id;
+    operation.runId = crypto.randomUUID(); // Retained Task from a run outside the recent chat window.
+    operation.agent = { id: agents[0].id, name: agents[0].name };
     await owner.getByText("Needs your input", { exact: true }).waitFor();
     await owner.getByRole("spinbutton", { name: "Follow-ups" }).fill("2");
     await owner.getByRole("textbox", { name: "Follow-up note" }).fill("Keep this answer while the other request changes.");
@@ -344,8 +345,10 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await member.getByText("No activity yet", { exact: true }).waitFor();
     await owner.getByRole("button", { name: "My activity", exact: true }).click();
     await owner.getByText("Cancelled", { exact: true }).waitFor();
+    await owner.locator(".task-origin").filter({ hasText: "Writer · Requested for you" }).waitFor();
     await owner.reload();
     await owner.getByText("Cancelled", { exact: true }).waitFor();
+    await owner.locator(".task-origin").filter({ hasText: "Writer · Requested for you" }).waitFor();
     assert.equal(operationPosts.length, 5);
     operation.phase = "input_required"; operation.revision++;
     inputs = [

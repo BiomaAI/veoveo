@@ -28,4 +28,4 @@ IF $old != NONE {
         profile = $command.profile, app_uri = $command.app_uri, tool = $command.tool, arguments = $command.arguments,
         phase = 'dispatching', fence = $command.fence, dispatch_until = time::now() + 90s;
 };
-RETURN SELECT * FROM ONLY $command.operation;
+RETURN SELECT *, IF run = NONE { NONE } ELSE { { id: run.agent, name: run.agent.display_name } } AS agent FROM ONLY $command.operation;

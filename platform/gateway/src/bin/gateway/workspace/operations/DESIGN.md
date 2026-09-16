@@ -45,6 +45,11 @@ does not confer Task read, input, cancellation or result authority. Leaving a
 conversation preserves personal receipt navigation under current Work Context
 authority, without restoring that conversation's history.
 
+Operation summaries include the retained agent ID and display name when a run
+requested the work. The same private receipt authority governs attribution. Both
+personal and in-chat Activity can identify the agent without fetching chat history
+or relying on the latest response window.
+
 ## Tasks And Input
 
 Task payloads remain native. A completed Task can carry a tool-domain error, which

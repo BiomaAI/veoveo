@@ -1,12 +1,17 @@
 //! Actual Rig -> native MCP -> durable Task integration using explicit local providers.
 use super::*;
 use axum::response::{Sse, sse::Event};
+use axum::{
+    body::{Body, to_bytes},
+    http::Request,
+};
 use serde_json::{Value, json};
 use std::{
     convert::Infallible,
     sync::atomic::{AtomicUsize, Ordering},
 };
 use tokio::sync::Notify;
+use tower::ServiceExt;
 use veoveo_platform_store::workspace::WorkspaceOperationPhase;
 
 #[derive(Clone, Default)]
@@ -103,6 +108,8 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
             "https://workspace.test",
         )
         .unwrap();
+        let operation_app =
+            super::super::operations::router(operations.clone()).layer(Extension(subject.clone()));
         let definitions = ["duplicate", "cancel"].map(|id| {
             let mut definition = tests::definition(id, &origin);
             definition.tools = vec![
@@ -215,6 +222,26 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
         assert_eq!(operations[0].phase, WorkspaceOperationPhase::Task);
         assert!(operations[0].run.is_some());
         assert!(operations[0].task_id.is_some());
+        let response = operation_app
+            .oneshot(
+                Request::builder()
+                    .uri("/workspace-api/operator/operations")
+                    .header("authorization", "Bearer explicit-workspace-fixture")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let page: wire::OperationPage =
+            serde_json::from_slice(&to_bytes(response.into_body(), 65536).await.unwrap()).unwrap();
+        assert_eq!(page.items.len(), 1);
+        let attribution = page.items[0].agent.as_ref().unwrap();
+        assert_eq!(attribution.name, "duplicate");
+        assert_eq!(
+            attribution.id.0,
+            super::super::projection::uuid(&operations[0].agent.as_ref().unwrap().id).unwrap()
+        );
         let completed = db.b.workspace_runs(&actor, chat).await.unwrap();
         assert!(
             completed

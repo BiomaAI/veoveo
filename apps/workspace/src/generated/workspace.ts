@@ -244,6 +244,7 @@ export interface AppOperationView {
  * via the `definition` "OperationSummary".
  */
 export interface OperationSummary {
+  agent?: OperationAgent | null;
   chatId: string;
   createdAt: string;
   id: string;
@@ -251,6 +252,14 @@ export interface OperationSummary {
   revision: number;
   runId?: string | null;
   tool: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationAgent".
+ */
+export interface OperationAgent {
+  id: string;
+  name: string;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema

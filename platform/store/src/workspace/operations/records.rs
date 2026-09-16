@@ -15,6 +15,8 @@ pub struct WorkspaceOperation {
     pub owner: RecordId,
     pub chat: RecordId,
     pub run: Option<RecordId>,
+    /// Read projection from the retained run and agent, independent of chat access.
+    pub agent: Option<WorkspaceOperationAgent>,
     pub profile: String,
     pub app_uri: Option<String>,
     pub tool: String,
@@ -28,6 +30,12 @@ pub struct WorkspaceOperation {
     pub response: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, SurrealValue)]
+pub struct WorkspaceOperationAgent {
+    pub id: RecordId,
+    pub name: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, SurrealValue)]

@@ -1,5 +1,5 @@
 //! Closed browser projections over native MCP Tasks and tool continuations.
-use super::{ChatId, OperationId, RunId};
+use super::{AgentId, ChatId, OperationId, RunId};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -40,10 +40,18 @@ pub struct OperationSummary {
     pub id: OperationId,
     pub chat_id: ChatId,
     pub run_id: Option<RunId>,
+    pub agent: Option<OperationAgent>,
     pub tool: String,
     pub phase: OperationPhase,
     pub revision: i64,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OperationAgent {
+    pub id: AgentId,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
