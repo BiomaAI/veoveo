@@ -2,6 +2,22 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+The independent Task-input change at `8445882b` stages the browser edge in 12.349
+seconds with the Rust artifact action fully cached. It retains the previous
+browser-edge-only target selection, which avoids the feature-closure change seen
+in the preceding release. Export takes 1.844 seconds. The image evidence is
+`output/development/workspace-task-input.stage.json`; detailed phases are in
+`output/development/task-input-image.log`. This measures successful warm reuse;
+cross-selection compiler reuse remains unresolved.
+
+The expanded headed browser fixture passes in 37.6 seconds, and the local client
+build takes 4.1 seconds. New input decisions exposed two old hardcoded mutation
+counts in the fixture; updating them cost one failed run and a rerun. The source
+checkpoint contains six immutable receipts and about 13,500 added lines for a
+small client change. Broad frontend evidence roots also require refreshing unit
+and build receipts after fixture-only edits. These remain measurable sources of
+iteration churn, separate from image assembly.
+
 The four-line client recovery fix at `41f76fc7` publishes one browser-edge image in
 47.028 seconds. Narrowing the previous gateway/browser-edge target set to the browser
 edge rebuilds the contract, Apps extension and BFF crates for 31.74 seconds despite
