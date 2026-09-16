@@ -51,3 +51,12 @@ receipts, file transfers, named grants and terminal relays retain the existing d
 and transport invariants. CSRF and exact terminal Origin checks apply unchanged.
 The dedicated stock CLI pairing page remains a Console surface until its client
 bootstrap is adapted; this router does not add a Workspace CLI entry page.
+
+## App Hosting
+
+`apps.rs` composes the shared caller-scoped catalog, sandboxed frame, resource-read
+and resource-notification handlers with Workspace state. Tool invocation and Task
+get/update/cancel go through the gateway's durable Workspace operation journal;
+Workspace never uses the Console's in-memory App Task registry. Closed App DTOs
+include the exact origin URI. All mutations retain Workspace cookie authority and
+CSRF enforcement. Native responses deserialize through RMCP types at the edge.

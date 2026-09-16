@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 80] = [
+const MIGRATIONS: [Migration; 81] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -507,6 +507,12 @@ const MIGRATIONS: [Migration; 80] = [
         name: "workspace_operations",
         filename: "0079_workspace_operations.surql",
         sql: include_str!("../migrations/0079_workspace_operations.surql"),
+    },
+    Migration {
+        version: 80,
+        name: "workspace_app_operations",
+        filename: "0080_workspace_app_operations.surql",
+        sql: include_str!("../migrations/0080_workspace_app_operations.surql"),
     },
 ];
 

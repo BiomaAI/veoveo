@@ -149,3 +149,6 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         assert_eq!(domain.calls.load(Ordering::SeqCst), 4, "two task admissions and one explicit two-round operation");
     }).await.expect("bounded native Workspace Tasks acceptance");
 }
+
+#[path = "app_tests.rs"]
+mod apps;

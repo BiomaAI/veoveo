@@ -50,6 +50,9 @@
       ],
       "@xterm/addon-webgl": [
         "./node_modules/@xterm/addon-webgl"
+      ],
+      "@modelcontextprotocol/client": [
+        "./node_modules/@modelcontextprotocol/client"
       ]
     }
   },

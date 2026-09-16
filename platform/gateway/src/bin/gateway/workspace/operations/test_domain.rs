@@ -8,7 +8,7 @@ use rmcp::{
     transport::streamable_http_server::StreamableHttpService,
 };
 use serde_json::json;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskId, TaskInputRequest, TaskOwner, TaskRuntime,
 };
@@ -18,6 +18,7 @@ pub(crate) struct Domain {
     pub runtime: TaskRuntime,
     pub owner: TaskOwner,
     pub calls: Arc<AtomicUsize>,
+    pub app_visible: Arc<AtomicBool>,
 }
 impl ServerHandler for Domain {
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
@@ -27,6 +28,7 @@ impl ServerHandler for Domain {
         ServerInfo::new(
             ServerCapabilities::builder()
                 .enable_tools()
+                .enable_resources()
                 .enable_tasks()
                 .build(),
         )
@@ -36,11 +38,40 @@ impl ServerHandler for Domain {
         _: Option<PaginatedRequestParams>,
         _: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
-        Ok(ListToolsResult::with_all_items(vec![Tool::new(
-            "fixture_task",
-            "Create an explicit durable Task fixture",
-            serde_json::from_value::<JsonObject>(json!({"type":"object","properties":{}})).unwrap(),
-        )]))
+        Ok(ListToolsResult::with_all_items(vec![
+            veoveo_mcp_apps_extension::link_tool_to_app(
+                Tool::new(
+                    "fixture__task",
+                    "Native App Task fixture",
+                    serde_json::from_value::<JsonObject>(json!({"type":"object","properties":{}}))
+                        .unwrap(),
+                ),
+                "ui://fixture/task.html",
+                &[veoveo_mcp_apps_extension::UiVisibility::App],
+            ),
+            Tool::new(
+                "fixture_task",
+                "Create an explicit durable Task fixture",
+                serde_json::from_value::<JsonObject>(json!({"type":"object","properties":{}}))
+                    .unwrap(),
+            ),
+        ]))
+    }
+    async fn list_resources(
+        &self,
+        _: Option<PaginatedRequestParams>,
+        _: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        Ok(ListResourcesResult::with_all_items(
+            if self.app_visible.load(Ordering::SeqCst) {
+                vec![veoveo_mcp_apps_extension::app_resource(
+                    "ui://fixture/task.html",
+                    "Task fixture",
+                )]
+            } else {
+                vec![]
+            },
+        ))
     }
     async fn call_tool(
         &self,
@@ -54,7 +85,7 @@ impl ServerHandler for Domain {
                 .is_some_and(|capabilities| capabilities.supports_tasks()),
             "native invocation must carry the negotiated Tasks capability"
         );
-        assert_eq!(request.name, "fixture_task");
+        assert!(["fixture_task", "fixture__task"].contains(&request.name.as_ref()));
         self.calls.fetch_add(1, Ordering::SeqCst);
         if request
             .arguments
@@ -187,6 +218,7 @@ impl Fixture {
             runtime: TaskRuntime::new(store, "workspace-fixture", "fixture-worker"),
             owner,
             calls: Arc::new(AtomicUsize::new(0)),
+            app_visible: Arc::new(AtomicBool::new(true)),
         };
         let source = domain.clone();
         let service = StreamableHttpService::new(

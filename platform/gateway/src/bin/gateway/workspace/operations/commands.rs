@@ -23,6 +23,7 @@ pub(super) async fn start(
             caller,
             WorkspaceOperationId::from_uuid(request.id.0),
             WorkspaceOperationIntent {
+                app_uri: None,
                 chat: WorkspaceChatId::from_uuid(chat),
                 run: None,
                 profile: profile.to_string(),
@@ -245,6 +246,14 @@ async fn dispatch(
             Ok(value) => value,
             Err(_) => return Outcome::Failed,
         };
+        if let Some(uri) = &operation.app_uri
+            && apps::authorize(&client, uri, &operation.tool)
+                .await
+                .is_err()
+        {
+            client.close().await;
+            return Outcome::Failed;
+        }
         // Explicit once: the SDK must not drive hidden MRTR rounds or retry mutations.
         let response = client.peer().call_tool_once(params).await;
         client.close().await;

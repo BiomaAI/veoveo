@@ -16,6 +16,7 @@ pub struct WorkspaceOperation {
     pub chat: RecordId,
     pub run: Option<RecordId>,
     pub profile: String,
+    pub app_uri: Option<String>,
     pub tool: String,
     pub arguments: String,
     pub phase: WorkspaceOperationPhase,
@@ -52,6 +53,7 @@ pub struct WorkspaceOperationIntent {
     pub chat: WorkspaceChatId,
     pub run: Option<(WorkspaceRunId, Uuid)>,
     pub profile: String,
+    pub app_uri: Option<String>,
     pub tool: String,
     pub arguments: String,
 }

@@ -35,7 +35,8 @@ export function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
 }
 
 export type InputResponses = Record<string, unknown>;
-export type InputRequests = Record<string, JsonRpcRequest>;
+// Native deferred input requests carry method/params, without an RPC id.
+export type InputRequests = Record<string, Pick<JsonRpcRequest, "method" | "params">>;
 
 export interface InputRequiredResult extends Result {
   resultType: "input_required";

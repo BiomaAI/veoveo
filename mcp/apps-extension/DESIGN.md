@@ -261,3 +261,18 @@ console view, console nav entry, BFF proxy route, and server router. The
 apps contract replaces all four with discovery. The generic gateway server
 admin proxy remains for platform infrastructure, but domain servers must not
 grow new REST surfaces behind it.
+
+## Shared Host Admission
+
+`admission.rs` resolves an App-local tool alias from the current caller-visible
+resource and tool catalogs. Linked tools must declare App visibility for that
+exact view. Imported aliases must name the exact resource and a currently visible
+target in gateway-projected dependency metadata. Untrusted frame metadata never
+enters this resolver. Console and Workspace use the same helper; their operation
+retention differs. Workspace persists origin-bound Task references in its private
+operation journal and rechecks admission during dispatch and App recovery.
+
+`apps/console/web/src/apps/resourceTransport.ts` owns the reusable App resource
+subscription bridge. Each host supplies fixed browser routes and authenticated
+transport functions. Workspace's client design declares its supported subset of
+Console extensions rather than implying full Console host parity.

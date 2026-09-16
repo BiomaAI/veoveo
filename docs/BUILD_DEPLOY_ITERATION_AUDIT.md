@@ -2,6 +2,24 @@
 
 ## Workspace Delivery Observations — September 15, 2026
 
+
+The App checkpoint reuses the private operation journal and the existing iframe
+resource transport. Native HTTP/Task-runtime acceptance passes restart, exact App
+origin, input and cancellation checks. The headed RTX 4090 fixture passes in
+31.262 seconds. Two failed reload assertions came from toggling a lazily loaded
+Activity panel before it mounted; direct navigation to its supported recovery URL
+removes that test race. The immutable failed attempt remains in the evidence history.
+
+Recorder commands for subsecond Node tests take about 15–16 seconds, while the
+same recorder plus frontend builds take 19–21 seconds. Graph and receipt overhead
+now dominates warm client tests. The required checks remain scoped; shared manifest
+storage and cheaper source-graph discovery are still the appropriate next changes.
+The existing server-owned workbench polls native Task status every 500 ms and stops
+after 120 seconds. Workspace Activity uses Task notifications and reads no faster
+than five seconds while work is active. Move the workbench onto that longer-lived
+observation policy in a separately qualified shared-App update; provider completion
+must remain webhook-owned.
+
 Workspace implementation reuses the installed platform. The initial gateway and
 browser-edge images were published from `1ec7bc5c` in 288.410 seconds. Compilation
 occupied 264.412 seconds, with a new shared Cargo feature graph. Console assets
@@ -72,6 +90,16 @@ Workspace's seven cases and the 30.2-second headed Task/upload fixture pass.
 The existing chart, gateway, Computers service and retained host remain reusable.
 The Console evidence catalog still includes installation configuration broadly,
 which invalidates its receipts on a digest-lock update despite unchanged assets.
+
+Release 161 converges with 8.885 seconds in source fetch, 12.916 seconds in
+desired-state apply, 0.423 seconds in rollout and 0.401 seconds in readiness.
+Public upload acceptance stores and restores one 63-byte file and verifies the
+downloaded bytes. Computer validation exposes an ownership contract issue rather
+than a transport failure: the retained owner digest includes the MCP profile, while
+the owner's quota spans profiles. An empty Workspace collection therefore consumes
+the same quota as the person's Console Computers. Changing that identity requires
+preserving accepted operation, grant and encrypted-output bindings; replacing the
+caller profile or copying a Console credential is not an acceptable correction.
 
 The new model chart fixture renders and validates both agent configuration and
 credential boundaries in 0.2 seconds. Its first test lint caught a redundant Rust

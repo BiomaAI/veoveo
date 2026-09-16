@@ -591,3 +591,42 @@ async fn task_answers_and_cancellation_use_cookie_authority_and_closed_request_s
         StatusCode::BAD_REQUEST
     );
 }
+
+#[tokio::test]
+async fn app_tasks_use_workspace_cookie_profile_and_csrf_without_forwarding_browser_auth() {
+    let upstream = Router::new().route(
+        "/workspace-api/workspace/app-tasks/cancel",
+        post(
+            |headers: HeaderMap,
+             Json(body): Json<veoveo_mcp_contract::workspace::AppTaskRequest>| async move {
+                assert_eq!(headers["authorization"], "Bearer cookie-access");
+                assert_eq!(body.app_uri, "ui://fixture/task.html");
+                assert_eq!(body.task_id, "opaque-app-task");
+                Json(rmcp::model::TaskAckResult::new())
+            },
+        ),
+    );
+    let edge = Edge::new(upstream).await;
+    let body = r#"{"appUri":"ui://fixture/task.html","taskId":"opaque-app-task"}"#;
+    let path = "/workspace/api/app-tasks/cancel";
+    assert_eq!(
+        edge.request("POST", path, false, true, body).await.status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        edge.request("POST", path, true, false, body).await.status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        edge.request("POST", path, true, true, body).await.status(),
+        StatusCode::OK
+    );
+    let forged =
+        r#"{"appUri":"ui://fixture/task.html","taskId":"opaque-app-task","profile":"admin"}"#;
+    assert_eq!(
+        edge.request("POST", path, true, true, forged)
+            .await
+            .status(),
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+}

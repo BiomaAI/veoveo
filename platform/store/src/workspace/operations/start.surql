@@ -2,6 +2,7 @@ LET $old = SELECT * FROM ONLY $command.operation;
 IF $old != NONE {
     IF !fn::workspace_operation_owner($authority, $command.operation) { THROW 'workspace_not_found'; };
     IF $old.chat != $command.chat OR $old.run != $command.run OR $old.profile != $command.profile
+        OR $old.app_uri != $command.app_uri
         OR $old.tool != $command.tool OR $old.arguments != $command.arguments { THROW 'workspace_conflict'; };
 } ELSE {
     IF !fn::workspace_member($authority, $command.chat) { THROW 'workspace_not_found'; };
@@ -24,7 +25,7 @@ IF $old != NONE {
     UPDATE ONLY $command.chat SET updated_at = time::now();
     CREATE ONLY $command.operation SET tenant = $authority.tenant, work_context = $authority.work_context,
         owner = $authority.principal, chat = $command.chat, run = $command.run,
-        profile = $command.profile, tool = $command.tool, arguments = $command.arguments,
+        profile = $command.profile, app_uri = $command.app_uri, tool = $command.tool, arguments = $command.arguments,
         phase = 'dispatching', fence = $command.fence, dispatch_until = time::now() + 90s;
 };
 RETURN SELECT * FROM ONLY $command.operation;

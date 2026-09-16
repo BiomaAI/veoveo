@@ -22,6 +22,12 @@ the chat head with membership changes. A stopped run cannot admit another effect
 Eight unexpired dispatches per person and chat are admitted at a time; the gateway
 also bounds process-wide work.
 
+An App invocation additionally binds its exact `ui://` origin. That origin is part
+of idempotency and cannot be changed by replay. App recovery looks up the recorded
+native Task through the current tenant, Work Context, initiator, profile and App
+URI. A different view cannot claim a human/model receipt or another view's Task.
+The normal private activity list includes App work from this same journal.
+
 The dispatch wait expires after 90 seconds. Reads then present an unconfirmed
 outcome, without making a provider query, asserting failure or replaying a mutation.
 An authoritative late response can still settle the original fenced receipt.
@@ -61,3 +67,8 @@ Database-backed acceptance races independent store clients, restores accepted
 Task references, rejects cross-person access, fences stale input revisions and
 retains late acceptance across policy revocation. Protocol execution and installed
 client acceptance belong to the gateway and Workspace delivery checks.
+
+Additive migration `0080` adds an optional App origin and a bounded lookup index.
+Existing receipts retain an absent origin and remain readable by their initiator.
+Older binaries ignore the added field; reverting a binary does not delete receipts.
+The gateway and App client enforce that persisted origin on native Task access.

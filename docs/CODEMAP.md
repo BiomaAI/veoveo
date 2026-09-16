@@ -196,12 +196,12 @@ Hub, administration, and GPU policy.
 | [`platform/store/src/workspace/runs/`](../platform/store/src/workspace/runs/DESIGN.md) | per-chat agent admission, bounded concurrent runs, fixed context, execution fences, cancellation and interrupted-worker recovery |
 | [`platform/store/src/workspace/operations/`](../platform/store/src/workspace/operations/DESIGN.md) | private MCP operation receipts, at-most-once dispatch claims, durable Task references, bounded MRTR continuation fences and ambiguous-outcome recovery |
 | [`platform/gateway/src/bin/gateway/workspace/runs/`](../platform/gateway/src/bin/gateway/workspace/runs/DESIGN.md) | configured per-chat model execution through Rig, current human capability intersection, bounded streaming, private native Task dispatch and independent cancellation |
-| [`platform/gateway/src/bin/gateway/workspace/operations/`](../platform/gateway/src/bin/gateway/workspace/operations/DESIGN.md) | human-scoped native MCP dispatch, durable Task recovery, current input forms, explicit continuation, cancellation and bounded Task subscriptions |
-| `mcp/contract/src/workspace.rs` | typed Workspace chat, membership, invitation, message, agent, run and private MCP operation/Task HTTP projections |
+| [`platform/gateway/src/bin/gateway/workspace/operations/`](../platform/gateway/src/bin/gateway/workspace/operations/DESIGN.md) | human-scoped native MCP dispatch, durable Task recovery, current input forms, explicit continuation, cancellation and bounded Task subscriptions; `apps.rs` binds native App calls and Task recovery to exact persisted origin |
+| `mcp/contract/src/workspace.rs` | typed Workspace chat, membership, invitation, message, agent, run and private MCP operation/Task HTTP projections; `workspace/apps.rs` owns native App bridge envelopes |
 | [`platform/gateway/src/bin/gateway/workspace/`](../platform/gateway/src/bin/gateway/workspace/DESIGN.md) | direct-human Work Context admission, bounded chat/history/invitation routes and membership-authorized durable-head event streams |
 | [`apps/console/web/src/computers/`](../apps/console/web/src/computers/DESIGN.md) | native collection, retained lifecycle request recovery, bounded live invalidations, lazy hardware terminal and replay/lease state machine; installed acceptance remains in progress |
 | `apps/console/web/src/generated/`, `generatedContracts.ts` | generated Computer/Console schemas and TypeScript models plus qualified pinned-Zod runtime validation |
-| [`apps/workspace/`](../apps/workspace/DESIGN.md) | independent productivity client: shared chats, owner controls, invitation inbox, assistant-ui renderer, concurrent agents and durable private Tasks; `ResourceResult.tsx` projects governed Artifact actions, `Uploads.tsx` and `Computers.tsx` compose shared native capabilities with Workspace authority; release 160 is installed and further capability integration remains active |
+| [`apps/workspace/`](../apps/workspace/DESIGN.md) | independent productivity client: shared chats, owner controls, invitation inbox, assistant-ui renderer, concurrent agents and durable private Tasks; `Apps.tsx`, `appBridge.ts` and `appApi.ts` host sandboxed Apps with persisted native Tasks; `ResourceResult.tsx` projects governed Artifact actions, `Uploads.tsx` and `Computers.tsx` compose shared native capabilities with Workspace authority; release 161 is installed and further capability integration remains active |
 | `apps/console/bff/src/computers/` | native Computer HTTP/WebSocket edge, Console cookie/CSRF and Origin admission, ticket endpoint projection and shared relay; native page and installed acceptance remain in progress |
 | `apps/console/bff/src/mcp_client/resources.rs` | shared App/native resource subscriptions, exact acknowledgment, bounded capacity, cancellation cleanup and explicit source-loss retirement |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection and access inventory/revocation schemas, and terminal controls shared by native Console and MCP projections |
@@ -331,7 +331,8 @@ MCP Apps (SEP-1865 / ext-apps "2026-01-26") support: pinned protocol
 constants (`io.modelcontextprotocol/ui`, `text/html;profile=mcp-app`), typed
 `_meta.ui` shapes, server helpers (capability declaration, `ui://` app
 resources, tool links), and host helpers (capability declaration, app
-detection, and visibility checks).
+detection, and visibility checks). `admission.rs` owns exact caller-visible linked
+and imported tool resolution for Console and durable Workspace App invocation.
 `asset.rs` owns bounded immutable startup snapshots of packaged App HTML. Map and
 Stream declare their image asset inputs separately from Rust compiler sources.
 The Console owns the generic reactive-resource
@@ -1020,7 +1021,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/input-request BFF projections; browser credentials and database authority never enter an MCP App |
 | `artifact_upload.rs` | shared Console/Workspace cookie and CSRF-protected upload proxy; the selected browser application fixes the authenticated profile |
 | `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
-| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: auth-scoped final-profile client pool, public gateway authority preservation, reactive failure-isolated app catalog, standalone descriptors, sandboxed frame serving, declared agent-message targets, allowlisted tool calls, explicit resource-read settlement, configured listener/subscription admission, bounded token-replacement cancellation, and one multiplexed resource-wake stream per App |
+| `apps.rs`, `mcp_client.rs`, `workspace/apps.rs` | MCP Apps host backend: auth-scoped final-profile client pool, public gateway authority preservation, reactive failure-isolated app catalog, standalone descriptors, sandboxed frame serving, declared agent-message targets, allowlisted tool calls, explicit resource-read settlement, configured listener/subscription admission, bounded token-replacement cancellation, and one multiplexed resource-wake stream per App |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, exact profile binding, redacted provider credentials, and the authenticated no-store Rerun map projection |
 | `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |
 
@@ -1046,7 +1047,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
 | `theme.ts`, `ThemeProvider.tsx` | persisted Console theme registry, semantic palette selection, and MCP App light/dark host context |
-| `apps/` | MCP Apps host: one exported opaque-origin sandbox policy, shared iframe component, stable postMessage bridge, closed internal navigation, declared agent messages, explicit resource-read adapter, and fetch-backed multiplexed SSE wake decoder |
+| `apps/` | MCP Apps host: one exported opaque-origin sandbox policy, shared iframe component, stable postMessage bridge, closed internal navigation, declared agent messages, explicit resource-read adapter, and fetch-backed multiplexed SSE wake decoder; `resourceTransport.ts` shares fixed-host resource subscriptions with Workspace |
 | `auth.ts` | one-way authentication transition shared by every 401 handler |
 | `api.ts` | ordered same-origin BFF calls and CSRF rotation |
 | `types.ts` | TypeScript snapshot and mutation response shapes |

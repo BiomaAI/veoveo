@@ -7,3 +7,4 @@ edition.workspace = true
 rmcp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+veoveo-mcp-contract = { path = "../contract", default-features = false }

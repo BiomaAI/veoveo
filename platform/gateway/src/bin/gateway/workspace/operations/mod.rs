@@ -1,3 +1,4 @@
+mod apps;
 mod commands;
 mod events;
 mod inputs;
@@ -137,6 +138,7 @@ impl OperationState {
 
 pub(crate) fn router(state: OperationState) -> Router {
     Router::new()
+        .merge(apps::router())
         .route("/workspace-api/{profile}/capabilities", get(capabilities))
         .route("/workspace-api/{profile}/operations", get(list))
         .route(

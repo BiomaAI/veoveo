@@ -8,6 +8,8 @@ use uuid::Uuid;
 use crate::{PrincipalId, TenantId, WorkContextId};
 mod operations;
 pub use operations::*;
+mod apps;
+pub use apps::*;
 
 macro_rules! id {
     ($name:ident) => {
@@ -263,6 +265,11 @@ struct WorkspaceSchema {
     start_operation: StartOperation,
     answer_operation: AnswerOperation,
     capability: Capability,
+    start_app_operation: StartAppOperation,
+    app_operation: AppOperationView,
+    app_origin: AppOrigin,
+    app_task: AppTaskRequest,
+    update_app_task: UpdateAppTask,
 }
 
 pub fn schema_bundle() -> schemars::Schema {

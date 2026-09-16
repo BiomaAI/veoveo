@@ -12,6 +12,41 @@ fn digest(request: &InputRequest) -> Result<String, StatusCode> {
     )))
 }
 
+/// Apps answer the native elicitation envelope; validation still uses the exact
+/// outstanding server request and the ordinary Workspace input admission path.
+pub(super) fn native_answers(
+    requests: &InputRequests,
+    responses: InputResponses,
+) -> Result<Vec<wire::InputAnswer>, StatusCode> {
+    if responses.len() > 32 {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    responses
+        .into_iter()
+        .map(|(id, value)| {
+            let request = requests.get(&id).ok_or(StatusCode::CONFLICT)?;
+            let response: ElicitResult =
+                serde_json::from_value(value).map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+            Ok(wire::InputAnswer {
+                digest: digest(request)?,
+                id,
+                decision: match response.action {
+                    ElicitationAction::Accept => wire::InputDecision::Accept,
+                    ElicitationAction::Decline => wire::InputDecision::Decline,
+                    ElicitationAction::Cancel => wire::InputDecision::Cancel,
+                    _ => return Err(StatusCode::NOT_IMPLEMENTED),
+                },
+                content: response
+                    .content
+                    .map(|value| {
+                        serde_json::from_value(value).map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)
+                    })
+                    .transpose()?,
+            })
+        })
+        .collect()
+}
+
 pub(super) fn project(requests: &InputRequests) -> Result<Vec<wire::OperationInput>, StatusCode> {
     if requests.len() > 32 {
         return Err(StatusCode::BAD_GATEWAY);
