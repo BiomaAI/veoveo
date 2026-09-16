@@ -43,8 +43,9 @@ settings conflict. Membership changes still serialize with messages on the chat 
 
 Human chat membership, invitations, immutable text messages and event replay are
 implemented. Per-chat agent admission and durable execution records are owned by
-[`runs/DESIGN.md`](runs/DESIGN.md). Gateway/model execution and installed acceptance
-remain part of the Workspace delivery goal.
+[`runs/DESIGN.md`](runs/DESIGN.md). Gateway/model execution is implemented. Its
+installed qualification and the remaining acceptance gates are tracked in the
+Workspace plan.
 
 Private MCP dispatch receipts, Task references and continuation fences are owned
 by [`operations/DESIGN.md`](operations/DESIGN.md). They preserve accepted operation

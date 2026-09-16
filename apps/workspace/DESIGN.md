@@ -74,8 +74,10 @@ Reload restores receipts and Task references without submitting work. The gatewa
 connects admitted agent tools to those same receipts. Activity identifies agent
 requests for the initiating person and links back to the originating chat. Agent
 admission discloses the configured capability scope before sharing history. The gateway
-has native protocol/runtime acceptance; capability views and installed acceptance
-remain required implementation work.
+has native protocol/runtime acceptance. Installed qualification covers real model
+responses, native Task completion and cancellation, Apps, governed uploads and
+retained Computer terminals. Public acceptance and the remaining second-person and
+native Task-input gates are recorded in the Workspace plan.
 
 Each native Task input request has its own form and decision. An unsupported form
 can be declined while other requests remain answerable. Unchanged requests keep

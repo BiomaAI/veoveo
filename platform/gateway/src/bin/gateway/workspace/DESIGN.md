@@ -52,5 +52,8 @@ is invalid. Clients advance catch-up through the last actual message until the
 page is exhausted. Invitation inbox summaries disclose only the named invitee's
 chat title, inviter name and invitation metadata before acceptance.
 
-Domain and browser-edge stream tests pass. Installed authentication, real agent
-execution and public acceptance remain delivery work.
+Domain and browser-edge stream tests pass. Installed acceptance also qualifies
+Workspace authentication, real concurrent agents, independent cancellation, stream
+reconnection and worker-loss recovery. The current release evidence and remaining
+second-person and native Task-input gates are tracked in
+[`WORKSPACE_PLAN.md`](../../../../../../docs/WORKSPACE_PLAN.md).
