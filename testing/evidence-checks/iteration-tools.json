@@ -7,6 +7,36 @@
         "test",
         "-p",
         "veoveo-xtask",
+        "commands::image::",
+        "--",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "docker-bake.hcl",
+          "tools/image-build",
+          "apps/console/bff",
+          "configs",
+          "deploy",
+          "extensions",
+          "testing",
+          "examples/bioma"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-xtask",
         "commands::test_report::",
         "--",
         "--nocapture"

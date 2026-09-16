@@ -14,6 +14,10 @@ variable "RUST_TRIXIE_IMAGE" {
   default = "docker.io/library/rust:1.97.1-slim-trixie@sha256:5c6f46a6e4472ab1ca7ba7d494e6677f2f219ebc02f32025d3986f057635ec9c"
 }
 
+variable "RUST_TRIXIE_BROWSER_IMAGE" {
+  default = "docker.io/library/rust:1.98.1-slim-trixie@sha256:ce84a5edd80c5f91e05c5533b1e53eb1da54028f33734dc06aa6b49fa190462d"
+}
+
 variable "RUST_BOOKWORM_IMAGE" {
   default = "docker.io/library/rust:1.97.1-slim-bookworm@sha256:99e09cb2284e2ddbb73a995deee3e91783fd04d177602ccf6eab326d778ee777"
 }
@@ -177,6 +181,17 @@ target "rust-bookworm-artifacts" {
     VEOVEO_AUXILIARY       = ""
     VEOVEO_CARGO_CACHE_ID  = "veoveo-cargo-rust-bookworm-v1"
     VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-bookworm-v1-linux-amd64-release"
+  }
+}
+
+// Browser compilation has one stable package selection, even when a release
+// also selects backend images. UI-only assembly can reuse this exact artifact.
+target "rust-trixie-browser-artifacts" {
+  inherits = ["rust-trixie-artifacts"]
+  args = {
+    RUST_IMAGE            = RUST_TRIXIE_BROWSER_IMAGE
+    VEOVEO_CARGO_CACHE_ID  = "veoveo-cargo-rust-trixie-browser-v1"
+    VEOVEO_TARGET_CACHE_ID = "veoveo-target-direct-rust-trixie-browser-v1-linux-amd64-release"
   }
 }
 
@@ -344,14 +359,17 @@ target "recording-mcp" {
 }
 
 target "console-bff" {
-  inherits   = ["_rust-trixie-runtime"]
+  inherits   = ["base"]
   dockerfile = "apps/console/bff/Dockerfile"
   tags       = [image_ref("console-bff")]
+  contexts = {
+    veoveo-rust-artifacts = "target:rust-trixie-browser-artifacts"
+  }
   labels = {
     "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-console-bff"
     "io.veoveo.build.binaries"  = "console-bff"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
+    "io.veoveo.build.family"    = "rust-trixie-browser-v1"
     "io.veoveo.build.auxiliary" = ""
   }
 }

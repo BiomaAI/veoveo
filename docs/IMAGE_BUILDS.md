@@ -369,15 +369,20 @@ rejects an index without both SPDX SBOM and SLSA provenance statements.
 
 ## Rust Builder Families
 
-The trixie, bookworm, and bookworm control families each execute one Cargo action for the selected
-production binaries in that family. Moving between selections can change Cargo’s
+Each shared family executes one Cargo action for the selected production binaries
+in that family. Moving between selections can change Cargo’s
 unified feature graph; the plan records the exact selected package and binary set. Runtime Dockerfiles consume the resulting scratch artifact target through the
 `veoveo-rust-artifacts` named context, while Bake exports only the selected runtime
 images.
 
+The browser family always selects only `veoveo-console-bff`. Building it alongside
+gateway or other backend images therefore preserves its compiler inputs and feature
+graph. Workspace and Console asset-only edits reuse the same Rust artifact.
+
 | Family | Contract |
 |---|---|
 | `rust-trixie-v1` | shared Rust 1.97.1 trixie builder |
+| `rust-trixie-browser-v1` | Rust 1.98.1 Trixie browser edge; stable package selection for Console and Workspace asset iteration |
 | `rust-bookworm-v1` | shared Rust 1.97.1 bookworm builder |
 | `rust-bookworm-control-v1` | shared Rust 1.98.1 Bookworm control builder for Stream and Reason; DeepStream compiles Stream's C++ runner separately, while Reason packages its Python runner outside Cargo |
 | `rust-sumo-bullseye-v1` | standalone SUMO-compatible bullseye ABI |

@@ -6,6 +6,7 @@
 |---|---|
 | Cargo metadata v1 | locked Linux amd64 graph, all features for conservative input discovery, normal and build edges |
 | Rust 1.98.1 | Bookworm control compiler, Linux amd64 GNU ABI; separate Cargo selection from analytics consumers |
+| Rust 1.98.1 | dedicated Trixie browser compiler, Linux amd64 GNU ABI; one browser-edge package selection across runtime target sets |
 | Docker Buildx Bake | typed target selection and generated context overrides |
 | BuildKit source mounts | disposable writable compiler inputs for freshness synchronization, read-only native inputs, persistent locked Cargo caches |
 | Docker BuildKit Syft scanner 1.12.0 | digest-pinned release generator; Syft 1.51.0 emits SPDX SBOM attestations |
@@ -162,6 +163,18 @@ Shared scratch artifact targets keep their own cacheable compilation action. Run
 assembly consumes them through the `veoveo-rust-artifacts` named context. A web-only
 Console edit changes frontend assembly while preserving the BFF compilation inputs.
 Changing an embedded asset in a shared Rust crate invalidates its consumers.
+
+The browser edge uses `rust-trixie-browser-v1`, whose sole production package is
+`veoveo-console-bff`. Selecting gateway or other platform images in the same command
+does not widen that package's Cargo feature graph or source closure. This preserves
+the browser compiler action when an iteration changes from a platform build to a
+Console or Workspace asset-only build. The family uses the existing artifact recipe
+and its own target cache. Its official Rust 1.98.1 Trixie image is pinned by digest;
+the [Rust release catalog](https://blog.rust-lang.org/releases/) and
+[official image catalog](https://github.com/docker-library/official-images/blob/master/library/rust)
+were checked on September 16, 2026. The planner regression compares the complete
+browser family and resolved compiler arguments for standalone and platform-core
+selection. The compiler boundary does not add a runtime process or image.
 
 Exact source revision and dirty status remain in the plan and command receipt.
 Different source revisions may share compilation output when their admitted compiler
