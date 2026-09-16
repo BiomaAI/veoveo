@@ -7,6 +7,8 @@ mod progress;
 mod prompts;
 mod resources;
 mod subscriptions;
+#[cfg(test)]
+pub(crate) mod task_ownership_tests;
 mod tasks;
 mod tools;
 mod upstream;
@@ -215,7 +217,8 @@ fn invocation_authorization_fingerprint(
     // `authenticated_at` records when this HTTP request re-verified the bearer
     // token. It changes on every Streamable HTTP request even though the token
     // and its effective authorization are unchanged, so it is excluded from
-    // the durable task-route authority binding.
+    // the invocation cache keys and retained admission/retry evidence. Durable
+    // Task access uses actor/provenance ownership plus current policy instead.
     let mut stable_actor = actor.clone();
     stable_actor.authenticated_at = None;
     Ok(Sha256::digest(
@@ -347,7 +350,7 @@ mod tests {
 
     use super::*;
 
-    fn principal() -> Principal {
+    pub(super) fn principal() -> Principal {
         Principal {
             id: PrincipalId::new("issuer#subject").unwrap(),
             kind: PrincipalKind::User,
@@ -364,7 +367,7 @@ mod tests {
         }
     }
 
-    fn authority() -> InvocationAuthority {
+    pub(super) fn authority() -> InvocationAuthority {
         InvocationAuthority {
             work_context: WorkContextId::new("mission").unwrap(),
             tenant: TenantId::new("tenant").unwrap(),

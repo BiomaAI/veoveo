@@ -462,6 +462,10 @@ impl GatewayMcp {
                 source_task_id,
                 source_task,
                 authority_digest,
+                ownership: crate::state::GatewayTaskOwnership::from_invocation(
+                    &subject.actor,
+                    &subject.authority,
+                ),
                 ttl_ms: created.task.ttl_ms,
             })
             .await

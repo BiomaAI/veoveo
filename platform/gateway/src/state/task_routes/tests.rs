@@ -1,20 +1,21 @@
 use super::*;
-#[path = "../../../../../testing/fixtures/store.rs"]
-mod fixture;
+use crate::test_store as fixture;
 
 fn draft() -> GatewayTaskRouteDraft {
+    let subject = crate::mcp::task_ownership_tests::subject();
     GatewayTaskRouteDraft {
-        tenant_key: "task-route-fixture".into(),
-        owner_key: "https://tasks.test#agent".into(),
-        owner_issuer: "https://tasks.test".into(),
-        owner_subject: "agent".into(),
-        owner_kind: PrincipalKind::Service,
-        work_context: "operations".into(),
+        tenant_key: subject.authority.tenant.to_string(),
+        owner_key: subject.actor.id.to_string(),
+        owner_issuer: subject.actor.issuer.to_string(),
+        owner_subject: subject.actor.subject.to_string(),
+        owner_kind: PrincipalKind::User,
+        work_context: subject.authority.work_context.to_string(),
         profile: "admin".into(),
         server: "computers".into(),
         source_task_id: "opaque-provider-task/one".into(),
         source_task: None,
         authority_digest: "a".repeat(64),
+        ownership: GatewayTaskOwnership::from_invocation(&subject.actor, &subject.authority),
         ttl_ms: Some(60_000),
     }
 }

@@ -11,6 +11,9 @@ use super::GatewayState;
 
 const DEFAULT_TASK_ROUTE_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
 
+mod ownership;
+pub(crate) use ownership::GatewayTaskOwnership;
+
 #[cfg(test)]
 #[path = "task_routes/tests.rs"]
 mod tests;
@@ -28,6 +31,7 @@ pub(crate) struct GatewayTaskRouteDraft {
     pub source_task_id: String,
     pub source_task: Option<TaskId>,
     pub authority_digest: String,
+    pub ownership: GatewayTaskOwnership,
     pub ttl_ms: Option<u64>,
 }
 
@@ -42,6 +46,7 @@ pub(crate) struct GatewayTaskRouteRecord {
     pub source_task_id: String,
     pub source_task: Option<RecordId>,
     pub authority_digest: String,
+    pub ownership: Option<GatewayTaskOwnership>,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
 }
@@ -56,6 +61,7 @@ struct GatewayTaskRouteContent {
     source_task_id: String,
     source_task: Option<RecordId>,
     authority_digest: String,
+    ownership: GatewayTaskOwnership,
     created_at: DateTime<Utc>,
     expires_at: DateTime<Utc>,
 }
@@ -100,6 +106,7 @@ impl GatewayState {
             source_task_id: draft.source_task_id,
             source_task: draft.source_task.map(|task| task.record_id()),
             authority_digest: draft.authority_digest,
+            ownership: draft.ownership,
             created_at: now,
             expires_at: now.checked_add_signed(ttl).ok_or_else(|| {
                 StoreError::InvalidGatewayTaskRoute {
@@ -194,6 +201,10 @@ fn reusable_route(
         || route.source_task_id != expected.source_task_id
         || route.source_task != expected.source_task
         || route.authority_digest != expected.authority_digest
+        || route
+            .ownership
+            .as_ref()
+            .is_some_and(|owner| owner != &expected.ownership)
         || route.expires_at <= Utc::now()
     {
         return Err(StoreError::InvalidGatewayTaskRoute {
