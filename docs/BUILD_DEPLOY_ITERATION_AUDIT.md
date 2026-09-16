@@ -1,5 +1,32 @@
 # Build And Deployment Iteration Audit
 
+## Workspace Delivery Closure — September 16, 2026
+
+The final acceptance pass keeps release 176's images and chart unchanged. Two
+headed public browser tabs under the owner account qualify concurrent message
+commits, event delivery, stable reload identities and owner settings. Both temporary
+chats are archived. Existing Tasks, the View capture, the retained upload and the
+Computer terminal pass recovery/read checks. The terminal renews its lease and
+preserves the retained file checksum. The administrative Console also renders and
+returns authenticated session/snapshot JSON. Evidence is under
+`output/workspace-public/final-*`.
+
+The user made distinct-person and production Task-input acceptance follow-ups
+nonblocking. The final plan records their exact limits. This closes delivery without
+creating a production fixture or adding a domain approval flow solely for a test.
+These final checks start no model responses or tool Tasks.
+
+The deployment-lock edit invalidated three broad evidence scopes despite leaving
+Rust and generated client sources unchanged. Refreshing generated types, Clippy
+and formatting takes 1.035, 0.812 and 0.790 seconds of command time respectively;
+recorder startup/publication still costs more than those warm checks. Updating the
+owning component designs also invalidates gateway and frontend evidence because
+those collectors include component documentation. Those affected checks are
+refreshed for the final report. Keep this as a scope-precision follow-up: documentation
+that does not affect a build or served resource should not invalidate build evidence.
+The final documentation and report ship in one push, with no new image stage or
+rollout and no intermediate documentation-only CI run.
+
 ## Workspace Task Attribution — September 16, 2026
 
 Source `47903afb` adds typed agent attribution to private operation receipts and

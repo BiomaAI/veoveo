@@ -106,8 +106,9 @@ controls in headed hardware Chrome. These checks do not establish installed
 acceptance. Agent capability adapters have a separate real model-to-native-Task
 fixture. Installed public acceptance qualifies native Task completion, cancellation
 and recovery, governed Artifact preview, App invocation and inline capture images.
-A native Task input round remains an installed acceptance gate: current production
-domains do not issue input requests. The current release evidence is tracked in
+A production Task input round remains a nonblocking installed follow-up under the
+user’s September 16 delivery decision: current domains do not issue input requests.
+Local native input qualification and installed outcomes remain distinct. Evidence is tracked in
 [`WORKSPACE_PLAN.md`](../../../../../../../docs/WORKSPACE_PLAN.md).
 
 ## Native App Adapter
