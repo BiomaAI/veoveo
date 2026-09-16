@@ -1,10 +1,10 @@
-import type { AgentActivity, ChatSnapshot, Message, ReplyContext, ReplyTarget, RunState, RunFailure } from "./generated/workspace.ts";
+import type { AgentActivity, ChatAttachment, ChatSnapshot, Message, ReplyContext, ReplyTarget, RunState, RunFailure } from "./generated/workspace.ts";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 // Per-message presentation retains identity even when several people or agents
 // write consecutively. It never determines authorization or run admission.
 export type PresentedMessage = {
-  id: string; text: string; authorId: string; authorName: string;
+  id: string; text: string; attachments: ChatAttachment[]; authorId: string; authorName: string;
   kind: "human" | "agent"; createdAt: string; mine: boolean;
   target: ReplyTarget; replyTo?: ReplyTarget | null; replyContext?: ReplyContext | null;
   run?: { id: string; state: RunState; failure?: RunFailure | null; canCancel?: boolean };
@@ -27,7 +27,7 @@ export function present(snapshot: ChatSnapshot, personId: string, activity?: Age
   const humans = snapshot.messages.map(message => {
     const member = members.get(message.author);
     return { id: `message:${message.id}`, target: { kind: "message" as const, id: message.id }, text: message.text, authorId: message.author,
-      replyTo: message.replyTo, replyContext: message.replyContext,
+      attachments: message.attachments, replyTo: message.replyTo, replyContext: message.replyContext,
       authorName: member?.person.displayName ?? "Former participant", kind: "human" as const,
       createdAt: message.createdAt, mine: member?.person.id === personId };
   });
@@ -36,7 +36,7 @@ export function present(snapshot: ChatSnapshot, personId: string, activity?: Age
     bySequence.set(`response:${run.id}`, run.sequence);
     const agent = activity?.agents.find(agent => agent.id === run.agent);
     return { id: `response:${run.id}`, target: { kind: "response" as const, id: run.id }, replyTo: { kind: "message" as const, id: run.trigger }, text: run.text, authorId: run.agent, authorName: agent?.name ?? "Agent",
-      kind: "agent" as const, createdAt: run.createdAt, mine: false,
+      attachments: [], kind: "agent" as const, createdAt: run.createdAt, mine: false,
       run: { id: run.id, state: run.state, failure: run.failure, canCancel: run.initiator === personId || snapshot.chat.owner === personId } };
   });
   return [...humans, ...agents].sort((a, b) => (bySequence.get(a.id) ?? 0) - (bySequence.get(b.id) ?? 0));

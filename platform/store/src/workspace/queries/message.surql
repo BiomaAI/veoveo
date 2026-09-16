@@ -5,6 +5,7 @@ LET $existing = SELECT * FROM ONLY $command.message;
 IF $existing != NONE {
     IF $existing.chat != $command.chat { THROW 'workspace_not_found'; };
     IF $existing.author != $command.member OR $existing.text != $command.text
+        OR ($existing.attachments ?? []) != $command.attachments
         OR $existing.reply_to != $command.reply_to
         OR ($existing.addressed_agents ?? []) != $command.addressed_agents {
         THROW 'workspace_conflict';
@@ -45,7 +46,8 @@ IF $existing != NONE {
     CREATE ONLY type::record('workspace_event', [$command.chat, $sequence]) SET
         chat = $command.chat, sequence = $sequence, kind = 'message', target = $command.message;
     CREATE ONLY $command.message SET chat = $command.chat, author = $command.member,
-        text = $command.text, reply_to = $command.reply_to, reply_context = $quote, sequence = $sequence,
+        text = $command.text, attachments = $command.attachments,
+        reply_to = $command.reply_to, reply_context = $quote, sequence = $sequence,
         addressed_agents = $command.addressed_agents, response_agents = $targets;
     FOR $target IN $targets {
         LET $agent = SELECT * FROM ONLY $target;

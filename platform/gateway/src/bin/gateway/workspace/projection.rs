@@ -29,6 +29,7 @@ pub(super) fn message(value: stored::WorkspaceMessage) -> Result<wire::Message, 
         id: wire::MessageId(uuid(&value.id)?),
         author: wire::MemberId(uuid(&value.author)?),
         text: value.text,
+        attachments: attachments(value.attachments.unwrap_or_default())?,
         reply_to: value.reply_to.as_ref().map(reply_target).transpose()?,
         reply_context: value.reply_context.map(|context| wire::ReplyContext {
             author_name: context.author_name,
@@ -39,6 +40,21 @@ pub(super) fn message(value: stored::WorkspaceMessage) -> Result<wire::Message, 
         response_agents: agent_ids(value.response_agents.unwrap_or_default())?,
         created_at: value.created_at,
     })
+}
+
+pub(super) fn attachments(
+    values: Vec<stored::WorkspaceAttachment>,
+) -> Result<Vec<wire::ChatAttachment>, StatusCode> {
+    values
+        .into_iter()
+        .map(|value| {
+            Ok(wire::ChatAttachment::Artifact {
+                id: veoveo_mcp_contract::ArtifactId::parse(value.artifact.to_string())
+                    .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?,
+                name: value.name,
+            })
+        })
+        .collect()
 }
 
 pub(super) fn reply_target(value: &RecordId) -> Result<wire::ReplyTarget, StatusCode> {

@@ -132,6 +132,10 @@
       ],
       "type": "object"
     },
+    "ArtifactId": {
+      "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+      "type": "string"
+    },
     "Capability": {
       "additionalProperties": false,
       "properties": {
@@ -238,6 +242,32 @@
         "active"
       ],
       "type": "object"
+    },
+    "ChatAttachment": {
+      "description": "Human-published references and labels. Neither the reference nor chat membership grants reads.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/ArtifactId"
+            },
+            "kind": {
+              "const": "artifact",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "name"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "ChatSettings": {
       "additionalProperties": false,
@@ -506,6 +536,12 @@
           },
           "type": "array"
         },
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/ChatAttachment"
+          },
+          "type": "array"
+        },
         "author": {
           "format": "uuid",
           "type": "string"
@@ -557,6 +593,7 @@
         "id",
         "author",
         "text",
+        "attachments",
         "addressedAgents",
         "responseAgents",
         "sequence",
@@ -963,6 +1000,12 @@
           },
           "type": "array"
         },
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/ChatAttachment"
+          },
+          "type": "array"
+        },
         "id": {
           "format": "uuid",
           "type": "string"
@@ -984,6 +1027,7 @@
       "required": [
         "id",
         "text",
+        "attachments",
         "addressedAgents"
       ],
       "type": "object"

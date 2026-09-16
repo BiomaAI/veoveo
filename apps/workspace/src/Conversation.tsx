@@ -6,13 +6,15 @@ import { api, ApiError, type ConversationSnapshot } from "./api.ts";
 import { addressedAgents, responseAgents } from "./participation.ts";
 import { initials } from "./identity.ts";
 import { present, quote, toThreadMessage, type PresentedMessage } from "./conversation.ts";
-import type { ReplyContext, SendMessage } from "./generated/workspace.ts";
+import type { ChatAttachment, ReplyContext, SendMessage } from "./generated/workspace.ts";
+import type { QueueState } from "../../console/web/src/uploads/queue.ts";
+import { AttachmentComposer, MessageAttachments } from "./Attachments.tsx";
 
 const RunActions = createContext<(id: string) => void>(() => {});
 const ReplyActions = createContext<{ messages: PresentedMessage[]; disabled: boolean; select: (message: PresentedMessage) => void }>({ messages: [], disabled: true, select: () => {} });
 
 function ReplyQuote({ context }: { context: ReplyContext }) {
-  return <blockquote className="reply-quote"><strong>Reply to {context.authorName}</strong><span>{context.text || "Response without text"}</span></blockquote>;
+  return <blockquote className="reply-quote"><strong>Reply to {context.authorName}</strong><span>{context.text || "Message without text"}</span></blockquote>;
 }
 
 function ChatMessage() {
@@ -33,6 +35,7 @@ function ChatMessage() {
         onClick={() => replies.select(source)}><Reply size={13}/> Reply</button>}</div>
       {context && <ReplyQuote context={context}/>}
       <div className="message-text"><MessagePrimitive.Parts /></div>
+      {source && <MessageAttachments attachments={source.attachments}/>}
       {agent && <div className="run-status" role="status">
         <span>{meta.runState === "queued" ? "Starting…" : meta.runState === "running" ? "Responding…" : meta.runState === "interrupted" ? "Response interrupted. Send a new request to try again." : meta.runState === "cancelled" ? "Response stopped" : meta.runState === "failed" ? meta.runFailure === "capacity" ? "Your message was sent. This agent could not start because response capacity is full." : "The response could not be completed." : ""}</span>
         {(meta.runState === "running" || meta.runState === "queued") && meta.canCancel === true && typeof meta.runId === "string" && <button className="stop-response" aria-label={`Stop ${name}'s response`} onClick={() => cancel(meta.runId as string)}><Square size={11}/> Stop response</button>}
@@ -41,9 +44,10 @@ function ChatMessage() {
   </MessagePrimitive.Root>;
 }
 
-export function Conversation({ snapshot, personId, canContribute, onChanged, onOlder, hasOlder, loadingOlder }: {
+export function Conversation({ snapshot, personId, canContribute, onChanged, onOlder, hasOlder, loadingOlder, uploads, onUpload }: {
   snapshot: ConversationSnapshot; personId: string; canContribute: boolean; onChanged: () => Promise<void>;
   onOlder: () => void; hasOlder: boolean; loadingOlder: boolean;
+  uploads: QueueState; onUpload: () => void;
 }) {
   const source = useMemo(() => present(snapshot, personId, snapshot.activity), [snapshot, personId]);
   const converted = useExternalMessageConverter({ callback: toThreadMessage, messages: source, isRunning: false, joinStrategy: "none" });
@@ -55,6 +59,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
   const [error, setError] = useState<string>();
   const [selected, setSelected] = useState<string[]>([]);
   const [reply, setReply] = useState<PresentedMessage>();
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const composer = useRef<HTMLTextAreaElement>(null);
   const activeAgents = snapshot.activity.agents.filter(agent => agent.active);
   const attempt = useRef<SendMessage | undefined>(undefined);
@@ -66,26 +71,26 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
     catch (error) { setError(error instanceof Error ? error.message : "Could not stop this response."); }
   }, [snapshot.chat.id, onChanged]);
   const send = useCallback(async () => {
-    if (pending || !draft.trim() || snapshot.chat.archived || !canContribute) return;
+    if (pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute) return;
     const text = draft.trim();
     if (new TextEncoder().encode(text).length > 32768) { setError("Keep the message under 32 KB."); return; }
     if (attempt.current && attempt.current.text !== text) {
       setError("Retry the original message first to confirm whether it was sent."); return;
     }
     if (selectionError && !attempt.current) { setError(selectionError); return; }
-    const request = attempt.current ?? { id: crypto.randomUUID(), text, replyTo: reply?.target ?? null, addressedAgents: addressed };
+    const request = attempt.current ?? { id: crypto.randomUUID(), text, attachments, replyTo: reply?.target ?? null, addressedAgents: addressed };
     attempt.current = request;
     setPending(true); setError(undefined);
     try {
       await api.send(snapshot.chat.id, request);
-      attempt.current = undefined; setDraft(""); setReply(undefined);
+      attempt.current = undefined; setDraft(""); setReply(undefined); setAttachments([]);
       await onChanged();
     } catch (error) {
       if (error instanceof ApiError && [400, 401, 403, 404, 409, 422].includes(error.status)) attempt.current = undefined;
       setError(error instanceof Error ? error.message : "The message could not be confirmed.");
     }
     finally { setPending(false); }
-  }, [pending, draft, reply, snapshot.chat, canContribute, onChanged, addressed, selectionError]);
+  }, [pending, draft, reply, attachments, snapshot.chat, canContribute, onChanged, addressed, selectionError]);
   const selectReply = (message: PresentedMessage) => {
     if (pending || attempt.current || snapshot.chat.archived || !canContribute) return;
     setReply(message);
@@ -115,6 +120,8 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
           ? `Will respond: ${responders.map(id => activeAgents.find(agent => agent.id === id)?.name ?? "Agent").join(", ")}.`
           : "No agent response requested.")} Begin with @Name or select an agent above.</p>}
         {error && <p role="alert" className="error">{error} {attempt.current && "Your text is kept here; retry uses the same message ID."}</p>}
+        <AttachmentComposer value={attachments} onChange={setAttachments} uploads={uploads} onUpload={onUpload}
+          disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}/>
         {reply && <div className="composer-reply" role="region" aria-label="Reply context"><ReplyQuote context={{ authorName: reply.authorName, text: [...reply.text].slice(0, 500).join("") }}/>
           <button className="icon-button" aria-label="Remove reply" disabled={pending || !!attempt.current} onClick={() => { setReply(undefined); composer.current?.focus(); }}><X size={16}/></button></div>}
         <form className="composer" onSubmit={event => { event.preventDefault(); void send(); }}>
@@ -124,7 +131,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); }
             }} />
           <div className="composer-footer"><span><CornerDownLeft size={12}/> Enter to send · Shift + Enter for a new line</span>
-            <button className="send" type="submit" disabled={pending || !draft.trim() || snapshot.chat.archived || !canContribute || (!!selectionError && !attempt.current)} aria-label={attempt.current ? "Retry message" : "Send message"}><ArrowUp size={19}/></button>
+            <button className="send" type="submit" disabled={pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute || (!!selectionError && !attempt.current)} aria-label={attempt.current ? "Retry message" : "Send message"}><ArrowUp size={19}/></button>
           </div>
         </form>
         <p className="composer-note">Everyone in this chat can read its shared history.</p>

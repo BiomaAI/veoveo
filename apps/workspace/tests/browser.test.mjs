@@ -42,8 +42,8 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const members = [{ id: crypto.randomUUID(), person: alice, active: true }, { id: crypto.randomUUID(), person: bob, active: true }];
     const chat = { id: crypto.randomUUID(), title: "Launch planning", owner: alice.id, archived: false, membersCanInvite: false, participation: { mode: "on_request", agents: [] }, sequence: 3, revision: 0, updatedAt: new Date().toISOString() };
     const messages = [
-      { id: crypto.randomUUID(), author: members[0].id, text: "Let's bring the launch plan together here.", replyTo: null, addressedAgents: [], responseAgents: [], sequence: 2, createdAt: new Date().toISOString() },
-      { id: crypto.randomUUID(), author: members[1].id, text: "I'll review the schedule and share the next steps.", replyTo: null, addressedAgents: [], responseAgents: [], sequence: 3, createdAt: new Date().toISOString() },
+      { id: crypto.randomUUID(), author: members[0].id, text: "Let's bring the launch plan together here.", replyTo: null, attachments: [], addressedAgents: [], responseAgents: [], sequence: 2, createdAt: new Date().toISOString() },
+      { id: crypto.randomUUID(), author: members[1].id, text: "I'll review the schedule and share the next steps.", replyTo: null, attachments: [], addressedAgents: [], responseAgents: [], sequence: 3, createdAt: new Date().toISOString() },
     ];
     const agents = ["Writer", "Reviewer"].map(name => ({ id: crypto.randomUUID(), definition: name.toLowerCase(), name, provider: "Explicit browser fixture", model: "No model execution", active: true }));
     const runs = [];
@@ -120,9 +120,12 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
           return respond(upload);
         }
         if (path.pathname === `/workspace/api/artifacts/${artifact}/preview`) {
-          if (!fileAllowed) return route.fulfill({ status: 403 });
+          if (!fileAllowed || index !== 0) return route.fulfill({ status: 403 });
           const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
           return route.fulfill({ status: 200, contentType: "image/png", headers: { "content-length": String(png.length) }, body: request.method() === "HEAD" ? "" : png });
+        }
+        if (path.pathname === "/workspace/api/artifacts/01a0a75d-3458-78f3-ac54-91f1cab1fea3/preview") {
+          return route.fulfill(index === 0 ? { status: 200, contentType: "text/plain", headers: { "content-length": "25" }, body: "" } : { status: 403 });
         }
         if (path.pathname === "/workspace/api/apps") return respond(appCatalog);
         if (path.pathname === "/workspace/api/apps/events") return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: catalog\ndata: ${JSON.stringify(appCatalog)}\n\n` });
@@ -208,7 +211,8 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
               runStarts.push({ agent, trigger: body.id });
               runs.push({ agent, trigger: body.id, id: crypto.randomUUID(), initiator: person.id, state: "running", text: agent === agents[0].id ? "I am drafting the launch notes." : "I am reviewing the schedule.", failure: null, sequence: ++chat.sequence, updatedSequence: chat.sequence, createdAt: new Date().toISOString() });
             }
-          } else { assert.equal(message.text, body.text); assert.deepEqual(message.replyTo, body.replyTo); assert.deepEqual(message.addressedAgents, body.addressedAgents); }
+          } else { assert.equal(message.text, body.text); assert.deepEqual(message.replyTo, body.replyTo);
+            assert.deepEqual(message.attachments, body.attachments); assert.deepEqual(message.addressedAgents, body.addressedAgents); }
           if (uncertain) { uncertain = false; return route.abort("failed"); }
           return respond(message);
         }
@@ -452,6 +456,52 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     assert.deepEqual({ sends: sends.length, runs: runs.length }, afterReply, "reply recovery cannot send or dispatch again");
     await owner.bringToFront(); await hardware(owner);
     await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-replies-local.png", import.meta.url)) });
+    assert.deepEqual(errors, []);
+
+    // Explicit attachment publication never grants file access to another member.
+    await owner.getByRole("button", { name: "Attach files", exact: true }).click();
+    await owner.getByRole("region", { name: "Completed uploads", exact: true }).getByRole("button", { name: "workspace-acceptance.txt", exact: true }).click();
+    await owner.getByRole("button", { name: "Attach files", exact: true }).click();
+    await owner.getByRole("textbox", { name: "Artifact resource link", exact: true }).fill("javascript:alert(1)");
+    await owner.getByRole("textbox", { name: "Name shown in chat", exact: true }).fill("Shared image <script>");
+    await owner.getByRole("button", { name: "Add file link", exact: true }).click();
+    await owner.getByText("Use an Artifact resource link, such as artifact:// followed by its file ID.", { exact: true }).waitFor();
+    await owner.getByRole("textbox", { name: "Artifact resource link", exact: true }).fill(`artifact://${artifact}`);
+    await owner.getByRole("button", { name: "Add file link", exact: true }).click();
+    assert.equal(await owner.getByRole("list", { name: "Files to send", exact: true }).getByRole("listitem").count(), 2);
+    assert.equal(await owner.getByRole("textbox", { name: "Message", exact: true }).inputValue(), "");
+    uncertain = true;
+    await owner.getByRole("button", { name: "Send message", exact: true }).click();
+    await owner.getByRole("button", { name: "Retry message", exact: true }).waitFor();
+    assert.equal(await owner.getByRole("button", { name: "Attach files", exact: true }).isDisabled(), true);
+    assert.equal(await owner.getByRole("button", { name: "Remove attachment workspace-acceptance.txt", exact: true }).isDisabled(), true);
+    const attached = messages.at(-1);
+    assert.equal(attached.text, "");
+    assert.deepEqual(attached.attachments.map(file => file.kind), ["artifact", "artifact"]);
+    await owner.getByRole("button", { name: "Retry message", exact: true }).click();
+    await owner.getByRole("list", { name: "Files to send", exact: true }).waitFor({ state: "detached" });
+    assert.deepEqual(sends.slice(-2), [attached.id, attached.id]);
+    const ownFiles = owner.locator(`[data-message-id="message:${attached.id}"]`).getByRole("region", { name: "Attachments", exact: true });
+    const imageFile = ownFiles.locator(".task-resource").filter({ hasText: "Shared image <script>" });
+    await imageFile.getByRole("button", { name: "Preview", exact: true }).click();
+    await imageFile.locator("img").waitFor();
+    await owner.waitForFunction(() => [...document.querySelectorAll('.message-attachments img')].some(image => image.complete && image.naturalWidth > 0));
+    const ownUpload = ownFiles.locator(".task-resource").filter({ hasText: "workspace-acceptance.txt" });
+    await ownUpload.getByRole("button", { name: "Preview", exact: true }).click();
+    await ownUpload.getByText("This file is available to download. Inline preview supports raster images up to 20 MiB.", { exact: true }).waitFor();
+    assert.equal(await ownUpload.getByRole("link", { name: "Download", exact: true }).getAttribute("href"), "/workspace/api/artifacts/01a0a75d-3458-78f3-ac54-91f1cab1fea3/download");
+    await member.reload();
+    const theirFiles = member.locator(`[data-message-id="message:${attached.id}"]`).getByRole("region", { name: "Attachments", exact: true });
+    await theirFiles.locator(".task-resource").filter({ hasText: "Shared image <script>" }).getByRole("button", { name: "Preview", exact: true }).click();
+    await theirFiles.getByText("This file is unavailable with your current access. A chat or Task link does not grant file access.", { exact: true }).waitFor();
+    assert.equal(await theirFiles.locator("img").count(), 0);
+    const afterFiles = { sends: sends.length, runs: runs.length, uploads: uploadAdmissions };
+    await owner.reload();
+    await owner.locator(`[data-message-id="message:${attached.id}"] .message-attachments`).getByText("Shared image <script>", { exact: true }).waitFor();
+    assert.deepEqual({ sends: sends.length, runs: runs.length, uploads: uploadAdmissions }, afterFiles);
+    assert.deepEqual(messages.at(-1).attachments, attached.attachments);
+    await owner.bringToFront(); await hardware(owner);
+    await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-attachments-local.png", import.meta.url)) });
     assert.deepEqual(errors, []);
 
   } finally {

@@ -948,3 +948,16 @@ p {
 .reply-quote span { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; white-space:pre-wrap; overflow-wrap:anywhere; }
 .composer-reply { display:flex; align-items:flex-start; gap:8px; }
 .composer-reply .reply-quote { flex:1; }
+
+.message-attachments { max-width: 38rem; margin-top: .75rem; }
+.message-attachments .task-resource { margin: .5rem 0; overflow-wrap: anywhere; }
+.attachment-composer { margin: .5rem 0; }
+.attach-files { font-size: .8rem; padding: .4rem .65rem; }
+.attachment-composer ul { display: flex; gap: .5rem; flex-wrap: wrap; list-style: none; padding: 0; margin: .5rem 0; }
+.attachment-composer li { display: flex; align-items: center; gap: .4rem; max-width: 100%; border: 1px solid var(--line); border-radius: .6rem; padding: .25rem .4rem; }
+.attachment-composer li span { overflow-wrap: anywhere; min-width: 0; }
+.attachment-picker { max-height: 85vh; overflow-y: auto; }
+.attachment-picker h3 { font-size: .9rem; margin-top: 1.2rem; }
+.attachment-picker form { display: grid; gap: .75rem; }
+.attachment-choices { display: flex; flex-direction: column; gap: .4rem; max-height: 12rem; overflow-y: auto; }
+.attachment-choices button { overflow-wrap: anywhere; text-align: left; }

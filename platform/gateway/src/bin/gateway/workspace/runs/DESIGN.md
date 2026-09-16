@@ -121,3 +121,13 @@ request retains its reply reference and quote even when older history is truncat
 These values remain untrusted shared-chat data. Private Task outputs do not enter
 this path. The real HTTP model fixture verifies the request quote and excludes the
 other chat's text. The persistence design owns migration and coordinated rollout.
+
+## Attachment Context
+
+Model turns include the human-published typed Artifact references and their labels.
+The request retains them under the existing prompt bound. Provider instructions
+identify references as untrusted chat data and prohibit claiming that a reference
+contains file contents or grants reads. Neither the prompt assembler nor message
+admission fetches private files. Tool results continue to follow the private
+operation boundary above. The HTTP provider fixture checks reference projection
+alongside quoted reply context and the existing other-chat exclusion.
