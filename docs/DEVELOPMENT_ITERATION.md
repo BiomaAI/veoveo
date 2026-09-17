@@ -341,6 +341,60 @@ RTX 4090 replay with the Bioma configuration. Reason Rust edits stage in 32.6 s;
 Python runner edits stage in 11.1 s without executing Cargo. Each edit replaces only
 its executable layer.
 
+### September 17 Reactive Delivery Observations
+
+The RMCP 3.4.0 upgrade crosses the gateway, BFF and hosted MCP servers. Its
+qualification passed a workspace check in 152 seconds and workspace Clippy in
+43.85 seconds. The headed Workspace fixture took 44.36 seconds on its final run;
+an earlier run took 47.3 seconds. Repeating that fixture without a relevant input
+change adds avoidable latency.
+
+Nineteen immutable receipts in implementation commit `8b5e14d8` added 250,372
+lines. Several commands still select the broad 2,531-file input manifest. Add
+reviewed scoped descriptors for the gateway test command and BFF Clippy, then
+measure receipt bytes and serialization time. Preserve historical evidence while
+reducing repeated manifests through a separately versioned receipt format.
+
+The image graph uses four independently cached Rust families: Bookworm and Trixie
+on 1.97.1, plus the browser and control families on 1.98.1. The control compiler
+installs 1.98.1 over its pinned 1.98.0 base image. Shared dependency updates compile
+across those caches. Evaluate consolidation within compatible system-library and
+feature boundaries using matched source edits and binary qualification; changing
+only a cache identifier cannot safely merge incompatible artifacts.
+The four compiler invocations took 7m 15s, 25m 47s, 28m 55s and 29m 21s while
+sharing the twelve-CPU builder. These overlapping durations are not additive.
+The next comparison should retain the selected package set and Cargo feature graph
+as well as the source edit. The affected planner currently treats a lockfile change
+as affecting every workspace image; operator selection still distinguishes active
+MCP consumers from unrelated runtime services.
+
+The trace shows large runtime-parent transfers starting after compilation, at
+18:28 UTC, although parent metadata was resolved near the beginning of the build.
+Active layers included 9.66 GB and 4.63 GB downloads. Qualify prefetching the exact
+selected runtime parents during compilation, with a bounded disk budget, to avoid
+putting this network work after the compiler on the critical path. Preserve these
+parents in the durable worker cache and compare an unchanged rebuild before claiming
+a steady-state cost.
+
+Requesting deployment-smoke help after the SDK change rebuilt its focused harness
+in 44.55 seconds. Its artifact is reusable for rollout. Read an unchanged command's
+source or reuse the built binary when only discovering arguments.
+
+The first 15-image stage took 36m 57.907s. GitOps convergence after publication
+took 59.067s, including the schema bootstrap and readiness checks. Installed
+verification then exposed a cold-catalog admission defect, which required a
+gateway correction and another image stage.
+
+That correction selected the same nine-package Trixie family and identical Cargo
+cache identities, yet rebuilt third-party dependencies. BuildKit reported a new
+target cache mount created at 19:07 UTC; the previous target mount was absent.
+The worker requests 22% free space, or about 376 GiB on this host, while only
+232 GiB remained available. Cache eviction under that policy is the leading
+explanation, although the daemon log did not retain an explicit eviction record.
+Qualify retention against the host's actual storage budget before measuring a
+warm rebuild. A stable cache key cannot preserve an evicted mount. Do not enlarge
+the cache without checking room for the cluster, registry and build peak.
+
 ### Deferred Or Separately Owned Work
 
 | Boundary | Disposition |
