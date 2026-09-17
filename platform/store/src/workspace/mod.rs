@@ -6,6 +6,8 @@ pub use participation::*;
 mod operations;
 pub use operations::*;
 mod people;
+mod personal;
+pub use personal::*;
 mod records;
 mod runs;
 pub use runs::*;

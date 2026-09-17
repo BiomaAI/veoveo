@@ -88,6 +88,33 @@ export type ResultImageMime = "image/png" | "image/jpeg" | "image/webp";
  */
 export type TaskState = "working" | "input_required" | "completed" | "failed" | "cancelled";
 /**
+ * Actor-private observation. No Task payload or shared-chat content is included.
+ *
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "PersonalEvent".
+ */
+export type PersonalEvent =
+  | {
+      invitations: number;
+      kind: "inventory";
+      limited: boolean;
+      operations: PersonalOperation[];
+    }
+  | {
+      kind: "task";
+      operation: string;
+      state: TaskState;
+      updatedAt: string;
+    }
+  | {
+      kind: "availability";
+      liveTasks: boolean;
+    }
+  | {
+      kind: "task_unavailable";
+      operation: string;
+    };
+/**
  * Human-published references and labels. Neither the reference nor chat membership grants reads.
  *
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -144,6 +171,7 @@ export interface WorkspaceSchema {
   invite_person: InvitePerson;
   operation: OperationView;
   operation_page: OperationPage;
+  personal_event: PersonalEvent;
   send_message: SendMessage;
   settings: ChatSettings;
   snapshot: ChatSnapshot;
@@ -449,6 +477,15 @@ export interface TaskView {
 export interface OperationPage {
   items: OperationSummary[];
   next?: string | null;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "PersonalOperation".
+ */
+export interface PersonalOperation {
+  id: string;
+  phase: OperationPhase;
+  revision: number;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema

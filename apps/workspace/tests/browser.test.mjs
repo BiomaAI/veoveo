@@ -158,6 +158,14 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
           return respond(path.pathname.endsWith("/get") ? { ...nativeAppTask, resultType: "complete" } : { resultType: "complete" });
         }
         if (appOperation && path.pathname === `/workspace/api/operations/${appOperation.id}`) return respond({ operation: appOperation, task: { id: nativeAppTask.taskId, state: nativeAppTask.status, message: "App Task continues independently.", createdAt: nativeAppTask.createdAt, updatedAt: nativeAppTask.lastUpdatedAt, ttlMs: 300000, pollIntervalMs: 5000 }, inputs: [], result: null });
+        if (path.pathname === "/workspace/api/events") {
+          const owned = index === 0 && resultAllowed ? [...(appOperation ? [appOperation] : []), operation] : [];
+          const events = [{ kind: "inventory", operations: owned.map(({ id, phase, revision }) => ({ id, phase, revision })), invitations: 0, limited: false }];
+          for (const item of owned) if (item.phase === "task") events.push({ kind: "task", operation: item.id,
+            state: item.id === operation.id ? task.state : nativeAppTask.status, updatedAt: task.updatedAt });
+          events.push({ kind: "availability", liveTasks: true });
+          return route.fulfill({ contentType: "text/event-stream", body: "retry: 1000\n" + events.map(event => `event: personal\ndata: ${JSON.stringify(event)}\n\n`).join("") });
+        }
         if (path.pathname.endsWith("/session")) return respond({ person, principalId: `fixture#${person.id}`, tenantId: "test", tenantName: "Shared work", workContext: "default", workContextTitle: "Product team", canContribute: true });
         if (path.pathname.endsWith("/operations")) return respond({ items: index === 0 ? [...(appOperation ? [appOperation] : []), operation] : [], next: null });
         if (path.pathname.includes(`/operations/${operation.id}`)) {
@@ -343,7 +351,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByText("Cancelled", { exact: true }).waitFor();
     await member.getByRole("button", { name: "Activity", exact: true }).click();
     await member.getByText("No activity yet", { exact: true }).waitFor();
-    await owner.getByRole("button", { name: "My activity", exact: true }).click();
+    await owner.getByRole("button", { name: /^My activity/ }).click();
     await owner.getByText("Cancelled", { exact: true }).waitFor();
     await owner.locator(".task-origin").filter({ hasText: "Writer · Requested for you" }).waitFor();
     await owner.reload();

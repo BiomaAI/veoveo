@@ -481,6 +481,51 @@ async fn chat_stream_uses_cookie_authority_and_rejects_query_credentials() {
 }
 
 #[tokio::test]
+async fn personal_stream_uses_cookie_authority_and_rejects_query_credentials() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let count = calls.clone();
+    let upstream = Router::new().route(
+        "/workspace-api/workspace/events",
+        get(move |headers: HeaderMap| {
+            count.fetch_add(1, Ordering::SeqCst);
+            async move {
+                assert_eq!(headers["authorization"], "Bearer cookie-access");
+                assert!(headers.get("cookie").is_none());
+                assert_ne!(headers["host"], "untrusted.invalid");
+                (
+                    [("content-type", "text/event-stream")],
+                    "event: change\nid: 8\ndata: {\"sequence\":8}\n\n",
+                )
+            }
+        }),
+    );
+    let edge = Edge::new(upstream).await;
+    let path = "/workspace/api/events".to_owned();
+    assert_eq!(
+        edge.request("GET", &path, false, false, "").await.status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        edge.request("GET", &format!("{path}?token=forged"), true, false, "")
+            .await
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let response = edge.request("GET", &path, true, false, "").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[api::CSRF_HEADER], "csrf");
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let bytes = to_bytes(response.into_body(), 1024).await.unwrap();
+    assert!(
+        std::str::from_utf8(&bytes)
+            .unwrap()
+            .contains("\"sequence\":8")
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn agent_run_admission_keeps_cookie_identity_and_rejects_browser_model_configuration() {
     let chat = uuid::Uuid::now_v7();
     let agent = uuid::Uuid::now_v7();
@@ -495,7 +540,7 @@ async fn agent_run_admission_keeps_cookie_identity_and_rejects_browser_model_con
             observed.fetch_add(1, Ordering::SeqCst);
             assert_eq!(headers["authorization"], "Bearer cookie-access");
             assert_eq!(body, serde_json::json!({"agent":agent,"trigger":trigger}));
-            Json(serde_json::json!({"id":run,"agent":agent,"initiator":initiator,"trigger":trigger,"state":"queued","text":"","failure":null,"sequence":4,"updatedSequence":4,"createdAt":"2026-09-15T12:00:00Z"}))
+            Json(serde_json::json!({"id":run,"agent":agent,"initiator":initiator,"trigger":trigger,"state":"queued","feedback":{"phase":"preparing","operations":0},"text":"","failure":null,"sequence":4,"updatedSequence":4,"createdAt":"2026-09-15T12:00:00Z"}))
         }
     }));
     let edge = Edge::new(upstream).await;

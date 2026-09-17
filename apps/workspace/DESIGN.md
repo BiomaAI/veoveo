@@ -21,6 +21,18 @@ from the upstream registry, runs the client-owned browser acceptance fixture.
 
 ## Product And State
 
+`usePersonalEvents.ts` owns one personal feed across chat, Apps and Computer
+navigation. Invitations refresh when committed changes arrive. My activity shows
+input attention and new completed, failed or cancelled work without opening its
+chat. Replayed completion baselines do not create new alerts. The client retains
+only typed observation metadata in memory and resets it with person or Work Context.
+
+Inventory reads reconcile after connection loss and visibility recovery. A healthy
+feed replaces the ten-second inventory poll. Visible Task details retain their
+native reconciliation interval, and only items outside the personal watch acquire
+another subscription. Repeated Task timestamps coalesce without another detail
+read. When the recent window is full, Activity explains how to follow older work.
+
 The application serves `/workspace/` independently of the administrative Console.
 Its source and asset bundle are separate; both applications share the existing Rust
 browser-edge deployment. The complete accepted product and delivery gates are in

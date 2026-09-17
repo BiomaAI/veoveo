@@ -306,6 +306,41 @@ pub struct StartRun {
     pub trigger: MessageId,
 }
 
+/// Actor-private observation. No Task payload or shared-chat content is included.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum PersonalEvent {
+    Inventory {
+        operations: Vec<PersonalOperation>,
+        invitations: u16,
+        limited: bool,
+    },
+    Task {
+        operation: OperationId,
+        state: TaskState,
+        updated_at: String,
+    },
+    Availability {
+        live_tasks: bool,
+    },
+    TaskUnavailable {
+        operation: OperationId,
+    },
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PersonalOperation {
+    pub id: OperationId,
+    pub phase: OperationPhase,
+    pub revision: i64,
+}
+
 #[derive(JsonSchema)]
 #[allow(dead_code)]
 struct WorkspaceSchema {
@@ -319,6 +354,7 @@ struct WorkspaceSchema {
     decide_invitation: DecideInvitation,
     settings: ChatSettings,
     wake: ChatWake,
+    personal_event: PersonalEvent,
     agent_definition: AgentDefinition,
     activity: AgentActivity,
     add_agent: AddAgent,

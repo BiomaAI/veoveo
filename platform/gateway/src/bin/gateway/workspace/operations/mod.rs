@@ -3,6 +3,7 @@ mod commands;
 mod events;
 mod inputs;
 mod native;
+mod personal;
 mod projection;
 #[cfg(test)]
 pub(super) mod test_domain;
@@ -40,6 +41,7 @@ pub(crate) struct OperationState {
     limits: Arc<Semaphore>,
     watches: Arc<super::limits::Limits>,
     stop: CancellationToken,
+    personal: personal::PersonalHub,
 }
 
 /// Credentials remain in memory and always represent the initiating human.
@@ -93,6 +95,7 @@ impl OperationState {
         public_base: &str,
     ) -> anyhow::Result<Self> {
         Ok(Self {
+            personal: personal::PersonalHub::new(store.clone(), stop.clone()),
             workspace: WorkspaceState { store },
             gateway,
             catalog,
@@ -138,6 +141,7 @@ impl OperationState {
 
 pub(crate) fn router(state: OperationState) -> Router {
     Router::new()
+        .route("/workspace-api/{profile}/events", get(personal::events))
         .merge(apps::router())
         .route("/workspace-api/{profile}/capabilities", get(capabilities))
         .route("/workspace-api/{profile}/operations", get(list))

@@ -164,3 +164,6 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
 
 #[path = "app_tests.rs"]
 mod apps;
+
+#[path = "personal_tests.rs"]
+mod personal;
