@@ -394,6 +394,14 @@ explanation, although the daemon log did not retain an explicit eviction record.
 Qualify retention against the host's actual storage budget before measuring a
 warm rebuild. A stable cache key cannot preserve an evicted mount. Do not enlarge
 the cache without checking room for the cluster, registry and build peak.
+The correction stage took 13m 56.610s, including 12m 57s in Cargo. It is a
+cache-loss measurement, not a warm iteration result. Only the gateway digest was
+selected for deployment. The build selected the whole Trixie family to preserve
+its Cargo feature graph, which also packaged eight unchanged runtime targets.
+Separating compiler-family selection from runtime-image selection would avoid
+that packaging work without changing dependency features.
+The gateway-only GitOps update converged in 24.601s. Publication and rollout
+were small compared with the avoidable rebuild.
 
 ### Deferred Or Separately Owned Work
 

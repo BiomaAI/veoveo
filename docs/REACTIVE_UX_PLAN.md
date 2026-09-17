@@ -1,7 +1,8 @@
 # Reactive Execution And Client Feedback
 
-Status: approved for implementation on 2026-09-17. The delivery target is Veoveo on
-`veoveo.bioma.ai`, using the Bioma installation configuration.
+Status: implemented, deployed and verified on 2026-09-17. Veoveo runs on
+`veoveo.bioma.ai`, using the Bioma installation configuration. Remaining performance
+experiments and the cold-catalog presentation issue are recorded below.
 
 ## Standards And Protocols
 
@@ -13,8 +14,8 @@ Status: approved for implementation on 2026-09-17. The delivery target is Veoveo
 | Server-sent events | Authorized browser invalidations and typed execution presentation; independent of MCP protocol sessions |
 | Veoveo Workspace contracts | Rust-owned DTOs, generated client types, actor-private operations and owner-controlled shared chat |
 | SurrealDB LIVE and durable outbox | Committed changes wake readers; bounded authoritative reads recover lost delivery |
-| RMCP | Upgrade the maintained `3.1.4` fork to stable `3.4.0`, retaining Task subscription support and qualified shutdown behavior |
-| Rig | Retain the qualified `0.42.0` fork and update its exact RMCP dependency; unreleased upstream architecture changes are outside this delivery |
+| RMCP | Maintained stable `3.4.0` fork, retaining Task subscription support and qualified shutdown behavior; exact revision recorded below |
+| Rig | Qualified `0.42.0` fork with the updated exact RMCP dependency; unreleased upstream architecture changes are outside this delivery |
 
 ## Outcome
 
@@ -130,7 +131,7 @@ that patch. Rig `0.42.0` remains the latest stable release verified on September
   Measured and indeterminate progress, private Task inputs, cancellation, reload,
   reconnect and revoked access passed. Client build took 2.1 seconds after TypeScript.
 
-## Remaining Performance Experiments
+## Installed Acceptance
 
 Installed acceptance found a cold-catalog race after the first rollout. Expired
 entries started background discovery while returning an empty successful snapshot;
@@ -139,6 +140,47 @@ shares one 500 ms settlement budget across parallel discoveries. Required tool
 surfaces must also be complete before Workspace submits a model request. The new
 regressions cover expiry, a hung optional source, failed discovery, and required
 versus unrelated server degradation.
+
+The first deployment selected 15 image digests from source `8b5e14d8`. The gateway
+correction uses source `c45780b4`, deployed by `69fc1072`, with runtime digest
+`sha256:ea7b01ba1398fb48b22d3b27da366b7f57ebba77735360fdc9f590228d5bbad6`.
+Both gateway replicas are ready. The deployed revision's
+[GitHub evidence workflow](https://github.com/BiomaAI/veoveo/actions/runs/35264473836)
+passed. Focused correction checks passed 91 library tests and 59 gateway binary
+tests, with one unrelated ignored test, plus Clippy and formatting.
+
+The installed headed browser retained NVIDIA RTX 4090 WebGL. A fresh Console
+reload recovered 15 App entries through catalog events. Its initial bounded
+snapshot can be partial while discovery settles. Workspace displayed preparation,
+response and the private-operation count before the final agent response.
+Run `1c8d58cd-b7e9-5ce2-a1cd-ce0c723e4d79` admitted exactly one Time operation,
+`21fce3d7-09b3-55fb-8fc7-590117a14e62`. Its private Activity displayed a completed
+resolution of `2026-09-19T12:00:00Z`. The shared response carried the receipt notice
+without disclosing the private result.
+
+Two native timeline Tasks completed and retained their results across the gateway
+restart. Their operation IDs are `07644413-2873-4dbb-9938-fc80475bf70d` and
+`307341b4-db32-4dc6-8e37-75389debb175`. A second browser tab outside the chat received
+activity badge updates without navigation. More than two minutes of idle observation
+after the agent completed created no additional runs or operations; the personal
+feed continued reconnecting with live Task subscriptions. Measured progress, input,
+cancellation, invitation authority and revocation use the recorded real-store and
+headed browser fixtures rather than requiring another human at deployment time.
+
+The Computer host kept its original pod UID and zero restarts. The suspended UAV
+simulation remained at zero replicas. Image staging took 36m 57.907s for the SDK
+delivery and 13m 56.610s for the correction after cache loss. GitOps convergence
+took 59.067s and 24.601s respectively. Detailed costs and improvement candidates
+are in [Development Iteration](DEVELOPMENT_ITERATION.md#september-17-reactive-delivery-observations).
+
+## Remaining Performance Experiments
+
+Cold federated discovery can exceed the 500 ms settlement budget, particularly
+for resource surfaces. The App feed converges, but transient missing surfaces still
+use the `upstream_unavailable` presentation and can briefly label a healthy source
+unavailable. Separate pending discovery from confirmed failure and measure
+authorization/discovery cost before increasing the response budget. Required agent
+tool surfaces fail admission when incomplete, preventing a tool-free model request.
 
 Load tests with thousands of Tasks and many concurrent people remain separate from
 functional acceptance. Measure database query work and event rates before changing
@@ -151,4 +193,4 @@ Cargo qualification avoids lock contention. Native resource-family checks took 8
 seconds, and the isolated new subscription tests took 2.6 seconds after compilation.
 The broad gateway test command is not yet classified for scoped receipt reuse,
 causing a 2,531-file fingerprint. Add reviewed descriptors for this command and BFF
-Clippy in the build follow-up. Record image solve and GitOps timings after rollout.
+Clippy in the build follow-up. Image solve and GitOps timings are recorded above.
