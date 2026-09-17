@@ -49,6 +49,7 @@ change lands:
 | Document | Planned change |
 |---|---|
 | [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md) | delivered shared-chat productivity client: owner-controlled membership, isolated agent context, concurrent runs, governed capabilities, acceptance evidence and pending installed follow-ups |
+| [`REACTIVE_UX_PLAN.md`](REACTIVE_UX_PLAN.md) | approved catalog and subscription reliability, agent execution feedback, personal event feed, RMCP upgrade, bounded observation and installed acceptance |
 | [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | core Computers delivery sequence: platform domain and Computers MCP worker, native Console/CLI, scoped agent execution, retained storage, provider recovery, capacity policy, standard packaging, Bioma deployment and measured acceptance |
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
