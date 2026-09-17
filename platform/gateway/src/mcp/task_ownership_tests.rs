@@ -51,7 +51,7 @@ pub(crate) fn subject() -> AuthenticatedSubject {
     }
 }
 
-fn gateway(state: GatewayState, plane: GatewayControlPlane) -> GatewayMcp {
+pub(super) fn gateway(state: GatewayState, plane: GatewayControlPlane) -> GatewayMcp {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let key = base64::engine::general_purpose::STANDARD
         .decode("MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl")

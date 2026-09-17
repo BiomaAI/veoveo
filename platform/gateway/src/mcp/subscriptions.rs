@@ -13,6 +13,9 @@ use crate::mcp_support::{mcp_internal, upstream_error};
 
 use super::{GatewayMcp, tools::project_detailed_task_resource_uris};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Default)]
 struct UpstreamSubscriptionRoute {
     filter: SubscriptionFilter,
@@ -230,7 +233,7 @@ impl GatewayMcp {
                                 &server,
                                 task_routes.get(&server),
                                 &mut notification,
-                            )?;
+                            ).await?;
                             context.sink().send(notification).await.map_err(|error| {
                                 mcp_internal(format!("failed to forward subscription notification: {error}"))
                             })?;
@@ -323,7 +326,7 @@ impl GatewayMcp {
         })
     }
 
-    fn project_subscription_notification(
+    async fn project_subscription_notification(
         &self,
         server: &ServerSlug,
         task_routes: Option<&BTreeMap<String, String>>,
@@ -334,6 +337,14 @@ impl GatewayMcp {
             .server(server)
             .ok_or_else(|| mcp_internal(format!("unknown subscription server `{server}`")))?;
         match notification {
+            // Subscription notifications are not delivered to ClientHandler.
+            // Invalidate before waking a client that will immediately list again.
+            ServerNotification::ResourceListChangedNotification(_) => {
+                self.discovery.invalidate_resource_surfaces(server).await;
+            }
+            ServerNotification::ToolListChangedNotification(_) => {
+                self.discovery.invalidate_tools(server).await;
+            }
             ServerNotification::ResourceUpdatedNotification(update) => {
                 update.params.uri = self
                     .project_upstream_resource(server, &update.params.uri)?

@@ -22,7 +22,9 @@ before opening a listener. If registration is cancelled while awaiting its reply
 drop guard releases the exact pending identity. The upstream SDK independently cancels
 its pending wire request. Partial acknowledgments fail admission and return capacity.
 
-Unexpected source completion invalidates this cached client's resource observers.
+Unexpected resource or catalog source completion invalidates this cached client's
+observers. A catalog listener requires acknowledgment of its complete requested filter.
+Catalog SSE feeds close on source loss, and reads reject the stale catalog immediately.
 Loss is monotonic for that client. Existing downstream feeds close, and a subsequent
 pool acquisition replaces the client even when its OAuth token remains valid. Ordinary
 unsubscribe does not invalidate other observers. Auth-token replacement and shutdown

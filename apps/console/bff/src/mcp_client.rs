@@ -188,13 +188,18 @@ impl AuthScopedMcpClient {
         }
         let mut listener = self
             .service
-            .listen(filter)
+            .listen(filter.clone())
             .await
             .context("opening Console MCP App catalog listener")?;
+        if listener.acknowledged() != &filter {
+            let _ = tokio::time::timeout(Duration::from_secs(2), listener.cancel()).await;
+            anyhow::bail!("MCP App catalog listener did not acknowledge the required filter");
+        }
         let (cancel_tx, mut cancel_rx) = oneshot::channel();
         let (stopped_tx, stopped_rx) = oneshot::channel();
         let catalog_revision = self.catalog_revision.clone();
         let catalog_updates = self.catalog_updates.clone();
+        let source_current = self.resource_sources_current.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -208,7 +213,10 @@ impl AuthScopedMcpClient {
                             publish_catalog_change(&catalog_revision, &catalog_updates);
                         }
                         Ok(Some(_)) => {}
-                        Ok(None) | Err(_) => break,
+                        Ok(None) | Err(_) => {
+                            source_current.send_replace(false);
+                            break;
+                        }
                     }
                 }
             }
@@ -222,6 +230,9 @@ impl AuthScopedMcpClient {
     }
 
     pub(crate) async fn app_catalog(&self) -> Result<Arc<McpAppCatalog>, rmcp::ServiceError> {
+        if !self.resources_current() {
+            return Err(rmcp::ServiceError::TransportClosed);
+        }
         let revision = self.catalog_revision.load(Ordering::Acquire);
         let mut cached = self.app_catalog.lock().await;
         if let Some(cached) = cached.as_ref()
@@ -568,8 +579,8 @@ mod tests {
         (session, server)
     }
 
-    async fn subscription_test_pool(
-        handler: SubscriptionMcp,
+    async fn subscription_test_pool<S: ServerHandler + Clone + Send + Sync + 'static>(
+        handler: S,
         capacity: ResourceCapacity,
     ) -> (
         AuthScopedMcpClientPool,
@@ -584,12 +595,11 @@ mod tests {
         let address = listener
             .local_addr()
             .expect("subscription test MCP address");
-        let service: StreamableHttpService<SubscriptionMcp, NeverSessionManager> =
-            StreamableHttpService::new(
-                move || Ok(handler.clone()),
-                veoveo_mcp_contract::stateless_session_manager(),
-                veoveo_mcp_contract::canonical_streamable_http_server_config(),
-            );
+        let service: StreamableHttpService<S, NeverSessionManager> = StreamableHttpService::new(
+            move || Ok(handler.clone()),
+            veoveo_mcp_contract::stateless_session_manager(),
+            veoveo_mcp_contract::canonical_streamable_http_server_config(),
+        );
         let server = tokio::spawn(async move {
             axum::serve(listener, Router::new().nest_service("/mcp/admin", service))
                 .await
@@ -619,6 +629,161 @@ mod tests {
         })
         .await
         .expect("expected upstream subscription calls");
+    }
+
+    #[derive(Clone, Default)]
+    struct CatalogMcp {
+        version: Arc<AtomicUsize>,
+        change: Arc<Notify>,
+        end: Arc<Notify>,
+        partial: bool,
+    }
+
+    impl ServerHandler for CatalogMcp {
+        fn get_info(&self) -> ServerInfo {
+            ServerInfo::new(
+                ServerCapabilities::builder()
+                    .enable_resources()
+                    .enable_resources_list_changed()
+                    .enable_tools()
+                    .enable_tool_list_changed()
+                    .build(),
+            )
+        }
+
+        fn accepted_subscription_filter(
+            &self,
+            requested: &SubscriptionFilter,
+        ) -> Option<SubscriptionFilter> {
+            Some(if self.partial {
+                SubscriptionFilter::builder()
+                    .resources_list_changed()
+                    .build()
+            } else {
+                requested.clone()
+            })
+        }
+
+        async fn list_resources(
+            &self,
+            _: Option<PaginatedRequestParams>,
+            _: rmcp::service::RequestContext<rmcp::RoleServer>,
+        ) -> Result<rmcp::model::ListResourcesResult, McpError> {
+            Ok(rmcp::model::ListResourcesResult {
+                resources: vec![Resource::new(
+                    format!("ui://test/{}", self.version.load(Ordering::SeqCst)),
+                    "catalog",
+                )],
+                ttl_ms: Some(60_000),
+                cache_scope: Some(rmcp::model::CacheScope::Private),
+                ..Default::default()
+            })
+        }
+
+        async fn list_tools(
+            &self,
+            _: Option<PaginatedRequestParams>,
+            _: rmcp::service::RequestContext<rmcp::RoleServer>,
+        ) -> Result<rmcp::model::ListToolsResult, McpError> {
+            Ok(Default::default())
+        }
+
+        async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+            loop {
+                tokio::select! {
+                    _ = context.cancelled() => return Ok(()),
+                    _ = self.end.notified() => return Ok(()),
+                    _ = self.change.notified() => context.sink().notify_resource_list_changed().await.map_err(|error| McpError::internal_error(error.to_string(), None))?,
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn catalog_changes_refresh_contents_and_source_loss_replaces_client() {
+        let handler = CatalogMcp::default();
+        let (pool, config, client, server) =
+            subscription_test_pool(handler.clone(), ResourceCapacity::default()).await;
+        assert_eq!(
+            client.app_catalog().await.unwrap().resources()[0].uri,
+            "ui://test/0"
+        );
+        let mut changes = client.catalog_updates();
+        handler.version.store(1, Ordering::SeqCst);
+        handler.change.notify_one();
+        tokio::time::timeout(Duration::from_secs(2), changes.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            client.app_catalog().await.unwrap().resources()[0].uri,
+            "ui://test/1"
+        );
+
+        handler.end.notify_one();
+        tokio::time::timeout(Duration::from_secs(2), client.resource_source_lost())
+            .await
+            .unwrap();
+        assert!(
+            client.app_catalog().await.is_err(),
+            "a dead source cannot return a cached catalog"
+        );
+        let replacement = pool
+            .client(
+                &config,
+                "subscription-test-access-token",
+                Utc::now().timestamp() + 60,
+                "subscription-test-auth-scope",
+            )
+            .await
+            .unwrap();
+        assert!(!Arc::ptr_eq(&client, &replacement));
+        let mut changes = replacement.catalog_updates();
+        handler.version.store(2, Ordering::SeqCst);
+        handler.change.notify_one();
+        tokio::time::timeout(Duration::from_secs(2), changes.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            replacement.app_catalog().await.unwrap().resources()[0].uri,
+            "ui://test/2"
+        );
+        replacement.shutdown().await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn catalog_rejects_partial_filter_acknowledgment() {
+        let handler = CatalogMcp {
+            partial: true,
+            ..Default::default()
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let service = StreamableHttpService::new(
+            move || Ok(handler.clone()),
+            veoveo_mcp_contract::stateless_session_manager(),
+            veoveo_mcp_contract::canonical_streamable_http_server_config(),
+        );
+        let server = tokio::spawn(async move {
+            axum::serve(listener, Router::new().nest_service("/mcp/admin", service))
+                .await
+                .unwrap();
+        });
+        let config = Config::for_test(Url::parse(&format!("http://{address}")).unwrap());
+        let pool = AuthScopedMcpClientPool::new(&OutboundTrust::default()).unwrap();
+        assert!(
+            pool.client(
+                &config,
+                "test-token",
+                Utc::now().timestamp() + 60,
+                "test-scope"
+            )
+            .await
+            .is_err()
+        );
+        server.abort();
     }
 
     async fn wait_for_unsubscribe_calls(probe: &SubscriptionProbe, expected: usize) {
