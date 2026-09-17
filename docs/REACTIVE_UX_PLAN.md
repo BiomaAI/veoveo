@@ -100,3 +100,47 @@ that patch. Rig `0.42.0` remains the latest stable release verified on September
   scoped reuse, which produces an unnecessarily broad receipt; narrow that
   descriptor in the build follow-up. Avoid concurrent Cargo qualification commands
   because package locks serialize them.
+
+- Run feedback now records preparation, response and tool execution, including the
+  count of admitted private operations. Shared chat carries no tool content.
+  Native request progress binds the SDK-assigned token, coalesces four writes per
+  second, and clears at settlement or continuation. A real HTTP fixture verifies
+  measured progress before the receipt. Store tests cover stale fences and regression.
+- The personal feed shares two projected database LIVE sources and coalesces client
+  invalidation. Exact native Tasks retain current owner authority across replicas.
+  Real-store tests cover invitations, disabled principals, private results and
+  reconnect without tool replay. The client shows attention outside the open chat.
+- Stable [RMCP 3.4.0](https://github.com/modelcontextprotocol/rust-sdk/releases/tag/rmcp-v3.4.0)
+  is published in the maintained fork at `8728fef3d3f18b5f95afb801d6f28064bda94b9a`.
+  [Rig 0.42.0](https://github.com/0xPlaygrounds/rig/releases/tag/rig-v0.42.0)
+  uses that dependency at `6a92dacd7802d9105f106344a8e85a8a19ec88b2`.
+  Qualification retains exact Task filters and covers transport concurrency,
+  cancellation, protocol headers, disconnect and 48 Rig RMCP tests.
+- Public Task subscriptions authorize first, select exact baseline records and
+  replay only selected aggregates in bounded pages. Runtime clones share a projected
+  wake source. Two real-store listeners receive another replica's completion and
+  reconnect to current state while excluding an unrelated malformed Task envelope.
+- Time and Recording now share database resource invalidations across replicas.
+  Broadcast overflow requests reconciliation instead of losing changes silently.
+  Idle resource sources emit no periodic synthetic changes; this preserves event
+  driven agent execution. Media already projects committed provider outbox events,
+  and Artifact and Computers retain their domain-specific authorized durable feeds.
+- The headed client fixture passed in 47.3 seconds using NVIDIA RTX 4090 WebGL.
+  WebGPU exposed a software fallback, which was not used as hardware evidence.
+  Measured and indeterminate progress, private Task inputs, cancellation, reload,
+  reconnect and revoked access passed. Client build took 2.1 seconds after TypeScript.
+
+## Remaining Performance Experiments
+
+Load tests with thousands of Tasks and many concurrent people remain separate from
+functional acceptance. Measure database query work and event rates before changing
+subscription caps or retention. Resource recovery currently uses source reconnection
+and client reads; a retained per-domain resource cursor would support replay through
+silent notification loss without emitting synthetic changes while idle.
+
+Build observations: the SDK change invalidates many Rust dependents; sequential
+Cargo qualification avoids lock contention. Native resource-family checks took 80
+seconds, and the isolated new subscription tests took 2.6 seconds after compilation.
+The broad gateway test command is not yet classified for scoped receipt reuse,
+causing a 2,531-file fingerprint. Add reviewed descriptors for this command and BFF
+Clippy in the build follow-up. Record image solve and GitOps timings after rollout.

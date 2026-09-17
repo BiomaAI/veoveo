@@ -267,3 +267,8 @@ rejection, two attachments without text, acknowledgement loss with exact retry,
 owner preview, another member's denied preview, escaped labels and reload without
 another send or upload. Real database tests own immutable list admission and
 membership revocation. Installed acceptance is recorded in the Workspace plan.
+
+Operation progress uses the server's measured units. A positive usable total sets
+the progress bar's accessible range; absent or inconsistent totals leave it
+indeterminate. The client never estimates a percentage from time spent waiting.
+Request settlement clears this bar's measurement before native Task presentation.

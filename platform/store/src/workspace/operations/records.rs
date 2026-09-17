@@ -22,6 +22,7 @@ pub struct WorkspaceOperation {
     pub tool: String,
     pub arguments: String,
     pub phase: WorkspaceOperationPhase,
+    pub progress: Option<WorkspaceOperationProgress>,
     pub fence: Uuid,
     pub revision: i64,
     pub round: i64,
@@ -30,6 +31,27 @@ pub struct WorkspaceOperation {
     pub response: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Request-scoped progress, independent of durable Task completion.
+#[derive(Clone, Debug, PartialEq, SurrealValue)]
+pub struct WorkspaceOperationProgress {
+    pub completed: f64,
+    pub total: Option<f64>,
+    pub message: Option<String>,
+}
+impl WorkspaceOperationProgress {
+    pub fn valid(&self) -> bool {
+        self.completed.is_finite()
+            && self.completed >= 0.0
+            && self
+                .total
+                .is_none_or(|total| total.is_finite() && total >= 0.0)
+            && self
+                .message
+                .as_ref()
+                .is_none_or(|message| message.len() <= 2000 && !message.contains('\0'))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, SurrealValue)]

@@ -26,7 +26,7 @@ use rmcp::{
         CompleteResult, ErrorData as McpError, GetPromptRequestParams, GetTaskParams,
         GetTaskResult, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
         ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
-        ServerInfo, SubscriptionFilter, UpdateTaskParams,
+        ServerConfig, SubscriptionFilter, UpdateTaskParams,
     },
     service::{
         Peer, RequestContext, RoleClient, RoleServer, RunningService, ServiceError,
@@ -229,7 +229,7 @@ fn invocation_authorization_fingerprint(
 }
 
 impl ServerHandler for GatewayMcp {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         self.handle_get_info()
     }
 

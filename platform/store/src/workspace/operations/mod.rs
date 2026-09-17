@@ -1,4 +1,5 @@
 //! Human-owned dispatch receipts, native MCP Task references and MRTR fences.
+mod progress;
 mod records;
 pub use records::*;
 

@@ -7,8 +7,8 @@ use veoveo_mcp_contract::{GatewayControlPlane, PrincipalId};
 struct EndingCatalog(std::sync::Arc<tokio::sync::Notify>);
 
 impl rmcp::ServerHandler for EndingCatalog {
-    fn get_info(&self) -> rmcp::model::ServerInfo {
-        rmcp::model::ServerInfo::new(
+    fn get_info(&self) -> rmcp::model::ServerConfig {
+        rmcp::model::ServerConfig::new(
             rmcp::model::ServerCapabilities::builder()
                 .enable_resources()
                 .enable_resources_list_changed()

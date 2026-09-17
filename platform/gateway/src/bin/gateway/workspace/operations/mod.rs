@@ -4,6 +4,7 @@ mod events;
 mod inputs;
 mod native;
 mod personal;
+mod progress;
 mod projection;
 #[cfg(test)]
 pub(super) mod test_domain;

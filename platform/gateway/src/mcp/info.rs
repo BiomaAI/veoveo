@@ -1,5 +1,5 @@
 use rmcp::model::{
-    ExtensionCapabilities, Implementation, JsonObject, ServerCapabilities, ServerInfo,
+    ExtensionCapabilities, Implementation, JsonObject, ServerCapabilities, ServerConfig,
 };
 use veoveo_mcp_contract::{DiscoveryFailureMode, McpSurfaceCapabilities, ServerSlug};
 
@@ -31,7 +31,7 @@ impl GatewayMcp {
         }
     }
 
-    pub(super) fn handle_get_info(&self) -> ServerInfo {
+    pub(super) fn handle_get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::default();
         let catalog = self.catalog.current();
         for (_, server) in catalog.profile_servers(&self.profile_id) {
@@ -70,7 +70,7 @@ impl GatewayMcp {
             );
         }
 
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = capabilities;
         info.server_info = Implementation::new("veoveo", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(

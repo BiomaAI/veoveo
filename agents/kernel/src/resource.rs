@@ -651,7 +651,7 @@ mod tests {
         model::{
             CacheScope, ErrorData, Implementation, ListToolsResult, PaginatedRequestParams,
             ProtocolVersion, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
-            ResourceContents, ServerCapabilities, ServerInfo,
+            ResourceContents, ServerCapabilities, ServerConfig,
         },
         service::RequestContext,
     };
@@ -848,8 +848,8 @@ mod tests {
     struct CorrectableResourceServer;
 
     impl ServerHandler for CorrectableResourceServer {
-        fn get_info(&self) -> ServerInfo {
-            ServerInfo::new(
+        fn get_info(&self) -> ServerConfig {
+            ServerConfig::new(
                 ServerCapabilities::builder()
                     .enable_tools()
                     .enable_resources()

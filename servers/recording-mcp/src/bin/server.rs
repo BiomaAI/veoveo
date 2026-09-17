@@ -22,7 +22,7 @@ use rmcp::{
         GetPromptRequestParams, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
         ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -176,7 +176,7 @@ impl ServerHandler for RecordingMcp {
         veoveo_mcp_contract::final_protocol_versions()
     }
 
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
@@ -186,7 +186,7 @@ impl ServerHandler for RecordingMcp {
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
@@ -1081,6 +1081,23 @@ async fn main() -> anyhow::Result<()> {
             store,
         )?,
         subscribers: SubscriptionHub::new(),
+    });
+    let resource_state = state.clone();
+    let _resource_observer = tokio::spawn(async move {
+        use futures::StreamExt;
+        use veoveo_platform_store::PlatformTable::*;
+        let mut changes = resource_state
+            .recordings
+            .platform_store()
+            .resource_changes(vec![
+                RecordingDataset,
+                Recording,
+                RecordingLayer,
+                RecordingBlueprint,
+            ]);
+        while changes.next().await.is_some() {
+            resource_state.subscribers.notify_resources_changed().await;
+        }
     });
     let cancellation = CancellationToken::new();
     let mut allowed_hosts: BTreeSet<String> = args.allowed_hosts.into_iter().collect();

@@ -154,3 +154,19 @@ The real HTTP/Task-runtime fixture qualifies origin denial, current App revocati
 restart without replay, input validation, cancellation acknowledgement, terminal
 confirmation and fenced multi-round continuation. The browser fixture separately
 qualifies the sandbox channel and recovery in Activity; it is not installed proof.
+
+## Request Progress
+
+Each dispatch observes the exact progress token assigned by RMCP. A single early
+observation closes the race between notification delivery and request-handle
+creation. Finite, nonnegative measurements must increase. Messages are bounded to
+2,000 bytes. A coalescing channel writes at most four observations per second;
+the active dispatch fence and database deadline guard each transaction. Settlement
+and explicit continuation clear this request-scoped observation. Native Tasks keep
+their own status and input lifecycle.
+
+The private operation projection carries measured units and an optional total. The
+client displays a numeric bar only when the total is positive and contains the
+measurement. Otherwise its indicator remains indeterminate. Shared chat receives
+only the run phase and operation count. Model reasoning and private tool messages
+are never shared through this feedback path.

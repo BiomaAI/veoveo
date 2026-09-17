@@ -7,7 +7,7 @@ use axum::{Router, routing::get};
 use clap::{Parser, Subcommand};
 use rmcp::{
     ClientHandler, ClientLifecycleMode, ClientServiceExt,
-    model::{ClientCapabilities, ClientInfo, Implementation, ProtocolVersion},
+    model::{ClientCapabilities, ClientConfig, Implementation, ProtocolVersion},
     service::{Peer, RoleClient},
     transport::{
         StreamableHttpClientTransport, TokioChildProcess,
@@ -57,8 +57,8 @@ enum Connector {
 struct LegacyClient;
 
 impl ClientHandler for LegacyClient {
-    fn get_info(&self) -> ClientInfo {
-        ClientInfo::new(
+    fn get_info(&self) -> ClientConfig {
+        ClientConfig::new(
             ClientCapabilities::default(),
             Implementation::new("veoveo-legacy-bridge", env!("CARGO_PKG_VERSION")),
         )

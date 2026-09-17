@@ -14,7 +14,7 @@ use rmcp::{
         ContentBlock, GetPromptRequestParams, GetPromptResponse, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         Prompt, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Reference,
-        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
+        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig,
         SubscriptionFilter,
     },
     service::{RequestContext, SubscriptionContext},
@@ -291,8 +291,8 @@ impl ServerHandler for ArtifactMcp {
         veoveo_mcp_contract::final_protocol_versions()
     }
 
-    fn get_info(&self) -> ServerInfo {
-        let mut info = ServerInfo::default();
+    fn get_info(&self) -> ServerConfig {
+        let mut info = ServerConfig::default();
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()

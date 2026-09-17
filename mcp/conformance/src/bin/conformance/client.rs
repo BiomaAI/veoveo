@@ -23,8 +23,8 @@ impl CliHandler {
 }
 
 impl ClientHandler for CliHandler {
-    fn get_info(&self) -> ClientInfo {
-        ClientInfo::new(
+    fn get_info(&self) -> ClientConfig {
+        ClientConfig::new(
             self.capabilities(),
             Implementation::new("veoveo-conformance", env!("CARGO_PKG_VERSION")),
         )

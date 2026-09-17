@@ -164,3 +164,10 @@ acceptance must run in a headed browser after the harness proves hardware WebGPU
 WebGL. It rejects SwiftShader, llvmpipe, software adapters, and software rasterizer
 warnings. The operator interacts with the embedded Rerun viewer and visually inspects the
 captured image before the result qualifies.
+
+## Replica Resource Observation
+
+Each replica opens one shared group of projected Store LIVE queries for datasets, recordings, layers and Blueprints.
+Committed changes invalidate only each listener's accepted resource identities and
+requested catalog. Writes coalesce over 100 milliseconds. Source reconnection invalidates readers after a delivery gap; reads retain normal
+current authority. Idle sources emit no periodic resource-change notifications. This observes durable state and cannot dispatch work.

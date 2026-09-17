@@ -167,3 +167,58 @@ mod apps;
 
 #[path = "personal_tests.rs"]
 mod personal;
+
+#[tokio::test]
+async fn request_progress_arrives_before_tool_receipt_and_ends_with_it() {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let db = crate::test_store::TestDb::new().await;
+        super::super::tests::setup(&db.a).await;
+        let subject = alice();
+        let fixture = super::test_domain::Fixture::start(db.a.clone(), &subject).await;
+        fixture.domain.hold_dispatch.store(true, Ordering::SeqCst);
+        let state = new_state(db.a.clone(), fixture.port);
+        let authority = state
+            .authority(&subject, &GatewayProfileId::new("operator").unwrap())
+            .await
+            .unwrap();
+        let chat = WorkspaceChatId::new();
+        db.a.create_workspace_chat(&authority, chat, "Measured work")
+            .await
+            .unwrap();
+        let app = new_app(state);
+        let id = Uuid::now_v7();
+        assert_eq!(
+            request(
+                &app,
+                "POST",
+                &format!("/chats/{}/operations", chat.as_uuid()),
+                json!({"id":id,"tool":"fixture_task","arguments":{}})
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+        loop {
+            let (status, value) =
+                request(&app, "GET", &format!("/operations/{id}"), Value::Null).await;
+            assert_eq!(status, StatusCode::OK);
+            let view: wire::OperationView = serde_json::from_value(value).unwrap();
+            if let Some(progress) = view.progress {
+                assert_eq!(view.operation.phase, wire::OperationPhase::Dispatching);
+                assert_eq!(progress.completed, 4.0);
+                assert_eq!(progress.total, Some(10.0));
+                assert_eq!(progress.message.as_deref(), Some("Measured fixture work"));
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        fixture.domain.release_dispatch.notify_one();
+        let view = detail(&app, id).await;
+        assert!(view.progress.is_none());
+        assert!(view.task.is_some());
+        assert_eq!(fixture.domain.calls.load(Ordering::SeqCst), 1);
+    })
+    .await
+    .unwrap();
+}

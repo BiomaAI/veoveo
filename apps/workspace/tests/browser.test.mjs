@@ -59,6 +59,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     const operationPosts = [];
     const artifact = "01a0a75d-3458-78f3-ac54-91f1cab1fea1";
     let result = null;
+    let progress = null;
     let fileAllowed = false;
     let resultAllowed = true;
     let uncertain = true;
@@ -204,7 +205,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
             if (path.pathname.endsWith("/cancel")) { task.message = "Cancellation requested."; }
             return route.fulfill({ status: 204 });
           }
-          return respond({ operation, task: operation.phase === "task" ? task : null, inputs, result });
+          return respond({ operation, progress, task: operation.phase === "task" ? task : null, inputs, result });
         }
         if (path.pathname.endsWith("/events")) return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: change\ndata: {"sequence":${chat.sequence}}\n\n` });
         if (path.pathname.endsWith("/activity")) return respond({ agents, runs });
@@ -358,6 +359,17 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByText("Cancelled", { exact: true }).waitFor();
     await owner.locator(".task-origin").filter({ hasText: "Writer · Requested for you" }).waitFor();
     assert.equal(operationPosts.length, 5);
+    operation.phase = "dispatching"; operation.revision++;
+    progress = { completed: 4, total: 10, message: "Measured fixture work" };
+    inputs = [];
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByText("Measured fixture work", { exact: true }).waitFor();
+    assert.equal(await owner.getByRole("progressbar", { name: "Operation progress" }).getAttribute("aria-valuenow"), "4");
+    progress = { completed: 5, total: null, message: "Working without a known total" };
+    await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
+    await owner.getByText("Working without a known total", { exact: true }).waitFor();
+    assert.equal(await owner.getByRole("progressbar", { name: "Operation progress" }).getAttribute("aria-valuenow"), null);
+    progress = null;
     operation.phase = "input_required"; operation.revision++;
     inputs = [
       { id: "sync-name", digest: "e".repeat(64), kind: "form", message: "Name this plan.", schema: { type: "object", properties: { name: { type: "string", title: "Plan name" } }, required: ["name"] }, url: null },

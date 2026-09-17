@@ -406,6 +406,7 @@ export interface InvitePerson {
 export interface OperationView {
   inputs: OperationInput[];
   operation: OperationSummary;
+  progress?: OperationProgress | null;
   result?: OperationResult | null;
   task?: TaskView | null;
 }
@@ -423,6 +424,15 @@ export interface OperationInput {
   message: string;
   schema?: unknown;
   url?: string | null;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "OperationProgress".
+ */
+export interface OperationProgress {
+  completed: number;
+  message?: string | null;
+  total?: number | null;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema

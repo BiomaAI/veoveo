@@ -25,7 +25,7 @@ use rmcp::{
         CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams, ContentBlock,
         GetTaskParams, GetTaskResult, ListResourceTemplatesResult, ListResourcesResult,
         ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
+        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig,
         SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
@@ -212,7 +212,7 @@ impl ServerHandler for TimeseriesMcp {
         veoveo_mcp_contract::final_protocol_versions()
     }
 
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
@@ -222,7 +222,7 @@ impl ServerHandler for TimeseriesMcp {
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
         );
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = caps;
         info.server_info =
             rmcp::model::Implementation::new("timeseries", env!("CARGO_PKG_VERSION"));

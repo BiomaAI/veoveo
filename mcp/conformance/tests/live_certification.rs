@@ -6,7 +6,7 @@ use rmcp::{
     model::{
         Implementation, JsonObject, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Resource,
-        ResourceContents, ServerCapabilities, ServerInfo, Tool,
+        ResourceContents, ServerCapabilities, ServerConfig, Tool,
     },
     service::RequestContext,
     transport::streamable_http_server::StreamableHttpService,
@@ -37,8 +37,8 @@ static FIXTURE_DECLARATION: LazyLock<ContractDeclaration> =
 struct DomainFixture;
 
 impl ServerHandler for DomainFixture {
-    fn get_info(&self) -> ServerInfo {
-        let mut info = ServerInfo::default();
+    fn get_info(&self) -> ServerConfig {
+        let mut info = ServerConfig::default();
         info.capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()

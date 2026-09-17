@@ -2,7 +2,7 @@ use std::{fmt::Display, future::Future, time::Duration};
 
 use rmcp::{
     ClientHandler,
-    model::{ClientInfo, Implementation},
+    model::{ClientConfig, Implementation},
     service::{NotificationContext, Peer, RoleClient, RoleServer},
 };
 use veoveo_mcp_contract::{GatewayProfileId, PrincipalId, ServerSlug};
@@ -52,8 +52,8 @@ impl GatewayUpstreamHandler {
 }
 
 impl ClientHandler for GatewayUpstreamHandler {
-    fn get_info(&self) -> ClientInfo {
-        let mut info = ClientInfo::default();
+    fn get_info(&self) -> ClientConfig {
+        let mut info = ClientConfig::default();
         info.client_info = Implementation::new("veoveo-internal", env!("CARGO_PKG_VERSION"));
         if self.tasks {
             info.capabilities = rmcp::model::ClientCapabilities::builder()

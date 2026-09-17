@@ -3,7 +3,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header::AUTHORIZATION};
 use rmcp::{
     ClientHandler, ClientLifecycleMode, ClientServiceExt,
     model::{
-        ClientCapabilities, ClientInfo, ElicitationCapability, Implementation, ProtocolVersion,
+        ClientCapabilities, ClientConfig, ElicitationCapability, Implementation, ProtocolVersion,
     },
     service::{Peer, RoleClient, RunningService},
     transport::{
@@ -41,6 +41,15 @@ impl NativeTransport {
         profile: &GatewayProfileId,
         bearer: &SecretString,
     ) -> Result<NativeClient, StatusCode> {
+        self.connect_with_progress(profile, bearer, None).await
+    }
+
+    pub async fn connect_with_progress(
+        &self,
+        profile: &GatewayProfileId,
+        bearer: &SecretString,
+        progress: Option<super::progress::RequestProgress>,
+    ) -> Result<NativeClient, StatusCode> {
         let transport = StreamableHttpClientTransport::<reqwest::Client>::with_client(
             self.http.clone(),
             StreamableHttpClientTransportConfig::with_uri(format!("{}/mcp/{profile}", self.base))
@@ -49,7 +58,7 @@ impl NativeTransport {
         );
         tokio::time::timeout(
             Duration::from_secs(8),
-            Handler.serve_with_lifecycle(
+            Handler { progress }.serve_with_lifecycle(
                 transport,
                 ClientLifecycleMode::Discover {
                     preferred_versions: vec![ProtocolVersion::V_2026_07_28],
@@ -82,9 +91,20 @@ pub(super) fn bearer(headers: &HeaderMap) -> Result<SecretString, StatusCode> {
 }
 
 #[derive(Clone)]
-struct Handler;
+struct Handler {
+    progress: Option<super::progress::RequestProgress>,
+}
 impl ClientHandler for Handler {
-    fn get_info(&self) -> ClientInfo {
+    async fn on_progress(
+        &self,
+        params: rmcp::model::ProgressNotificationParam,
+        _: rmcp::service::NotificationContext<RoleClient>,
+    ) {
+        if let Some(progress) = &self.progress {
+            progress.observe(params);
+        }
+    }
+    fn get_info(&self) -> ClientConfig {
         let mut capabilities = ClientCapabilities::default();
         capabilities
             .extensions
@@ -101,7 +121,7 @@ impl ClientHandler for Handler {
             .extensions
             .get_or_insert_default()
             .insert(key, value);
-        ClientInfo::new(
+        ClientConfig::new(
             capabilities,
             Implementation::new("veoveo-workspace", env!("CARGO_PKG_VERSION")),
         )

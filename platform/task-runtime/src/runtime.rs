@@ -1,3 +1,5 @@
+mod subscriptions;
+
 use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -109,6 +111,7 @@ pub struct TaskRuntime {
     worker_id: String,
     workers: Arc<Mutex<HashMap<TaskId, Worker>>>,
     changed: watch::Sender<u64>,
+    subscription_wake: Arc<subscriptions::SharedWake>,
 }
 
 impl TaskRuntime {
@@ -139,6 +142,7 @@ impl TaskRuntime {
             worker_id: worker_id.into(),
             workers: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
+            subscription_wake: Default::default(),
         }
     }
 
@@ -1263,7 +1267,9 @@ struct TaskEventPayload {
     snapshot: TaskSnapshot,
 }
 
-fn task_snapshot_from_event(event: &OutboxEventRecord) -> Result<TaskSnapshot, TaskError> {
+pub(super) fn task_snapshot_from_event(
+    event: &OutboxEventRecord,
+) -> Result<TaskSnapshot, TaskError> {
     if event.schema_version != EVENT_SCHEMA_VERSION {
         return Err(TaskError::InvalidRecord(format!(
             "task outbox event {} has schema version {}, expected {}",

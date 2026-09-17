@@ -221,7 +221,12 @@ pub async fn subscribe_durable_tasks(
     owner: TaskOwner,
     task_ids: Vec<String>,
 ) -> Result<DurableTaskSubscription, McpError> {
-    let updates = runtime.live_updates().await.map_err(task_error)?;
+    if task_ids.len() > 256 {
+        return Err(McpError::invalid_params(
+            "at most 256 Task IDs per subscription",
+            None,
+        ));
+    }
     let mut accepted = Vec::new();
     for task_id in task_ids {
         if authorized_snapshot(runtime, &owner, &task_id).await.is_ok() {
@@ -229,6 +234,10 @@ pub async fn subscribe_durable_tasks(
         }
     }
     let accepted_set: BTreeSet<_> = accepted.iter().cloned().collect();
+    let updates = runtime
+        .live_updates_for(&accepted)
+        .await
+        .map_err(task_error)?;
     let runtime = runtime.clone();
     let stream = updates.filter_map(move |update| {
         let accepted = accepted_set.clone();
@@ -296,9 +305,7 @@ pub async fn listen_durable_subscriptions<S: DurableTaskService>(
                 context.sink().notify_task_status(update?).await.map_err(subscription_send_error)?;
             }
             uri = veoveo_mcp_contract::receive_resource_update(&mut resource_updates) => {
-                if accepted.resource_subscriptions.as_ref().is_some_and(|uris| uris.contains(&uri)) {
-                    context.sink().notify_resource_updated(uri).await.map_err(subscription_send_error)?;
-                }
+                veoveo_mcp_contract::send_resource_update(&context, uri).await?;
             }
             () = veoveo_mcp_contract::receive_resource_list_change(&mut hub_list_changes), if accepted.resources_list_changed == Some(true) => {
                 context.sink().notify_resource_list_changed().await.map_err(subscription_send_error)?;

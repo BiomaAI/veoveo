@@ -10,7 +10,7 @@ use rmcp::{
         CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock, GetTaskParams,
         GetTaskResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
         PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
         Tool, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
@@ -222,7 +222,7 @@ impl ServerHandler for ViewMcp {
         veoveo_mcp_contract::final_protocol_versions()
     }
 
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
@@ -235,7 +235,7 @@ impl ServerHandler for ViewMcp {
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
         );
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("view", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(

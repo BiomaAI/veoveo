@@ -38,6 +38,15 @@ pub(super) fn summary(value: &WorkspaceOperation) -> Result<wire::OperationSumma
 pub(super) fn stored(value: &WorkspaceOperation) -> Result<wire::OperationView, StatusCode> {
     let mut view = wire::OperationView {
         operation: summary(value)?,
+        progress: value
+            .progress
+            .as_ref()
+            .filter(|_| value.phase == Phase::Dispatching)
+            .map(|progress| wire::OperationProgress {
+                completed: progress.completed,
+                total: progress.total,
+                message: progress.message.clone(),
+            }),
         task: None,
         inputs: vec![],
         result: None,

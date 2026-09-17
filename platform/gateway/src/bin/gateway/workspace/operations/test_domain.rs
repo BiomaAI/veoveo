@@ -26,8 +26,8 @@ impl ServerHandler for Domain {
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
         std::borrow::Cow::Owned(vec![ProtocolVersion::V_2026_07_28])
     }
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
@@ -89,6 +89,17 @@ impl ServerHandler for Domain {
         );
         assert!(["fixture_task", "fixture__task"].contains(&request.name.as_ref()));
         self.calls.fetch_add(1, Ordering::SeqCst);
+        if let Some(token) = context.meta.get_progress_token() {
+            context
+                .peer
+                .notify_progress(
+                    ProgressNotificationParam::new(token, 4.0)
+                        .with_total(10.0)
+                        .with_message("Measured fixture work"),
+                )
+                .await
+                .unwrap();
+        }
         if self.hold_dispatch.load(Ordering::SeqCst) {
             self.release_dispatch.notified().await;
         }

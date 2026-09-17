@@ -427,11 +427,11 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
 async fn sdk(
     server: &Server,
     bearer: String,
-) -> rmcp::service::RunningService<rmcp::RoleClient, rmcp::model::ClientInfo> {
+) -> rmcp::service::RunningService<rmcp::RoleClient, rmcp::model::ClientConfig> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     use rmcp::{
         ClientServiceExt,
-        model::ClientInfo,
+        model::ClientConfig,
         transport::{
             StreamableHttpClientTransport,
             streamable_http_client::StreamableHttpClientTransportConfig,
@@ -448,7 +448,7 @@ async fn sdk(
     );
     tokio::time::timeout(
         Duration::from_secs(5),
-        ClientInfo::new(
+        ClientConfig::new(
             ClientCapabilities::builder().enable_tasks().build(),
             Implementation::new("computers-subscription-fixture", "1"),
         )

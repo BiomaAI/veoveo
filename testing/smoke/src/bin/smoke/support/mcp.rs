@@ -3,8 +3,8 @@ use super::*;
 pub(crate) struct SmokeMcpHandler;
 
 impl ClientHandler for SmokeMcpHandler {
-    fn get_info(&self) -> ClientInfo {
-        ClientInfo::new(
+    fn get_info(&self) -> ClientConfig {
+        ClientConfig::new(
             ClientCapabilities::builder().enable_tasks().build(),
             Implementation::new("veoveo-smoke", env!("CARGO_PKG_VERSION")),
         )

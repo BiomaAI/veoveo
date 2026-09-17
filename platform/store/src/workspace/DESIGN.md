@@ -140,3 +140,9 @@ messages, and reload cached clients. Mixed versions reject unsupported request
 shapes. An older reader that drops attachment presentation is not a supported
 Workspace rollback; recovery rolls forward or coordinates the entire client/server
 cut. There is no destructive data conversion or new backup requirement.
+
+Migration 0087 adds optional request progress to operation receipts. Progress writes
+use the dispatch fence, deadline, increasing measurement and a transaction. A late
+observation cannot rewrite a settled receipt or a later continuation. Only the
+private operation read exposes its message. Personal inventory wakes carry identity
+and revision, allowing an authorized client to refetch the changed detail.

@@ -236,18 +236,6 @@ fn main() -> Result<()> {
     runtime.block_on(run(config, args))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::install_rustls_provider;
-
-    #[test]
-    fn installs_crypto_before_building_the_gateway_http_client() {
-        install_rustls_provider();
-        assert!(rustls::crypto::CryptoProvider::get_default().is_some());
-        reqwest::Client::builder().build().unwrap();
-    }
-}
-
 async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
     let flush_interval = config.flush_interval();
     let counters_interval = Duration::from_secs(args.counters_interval_s.max(1));
@@ -412,5 +400,17 @@ async fn wait_for_shutdown() {
     #[cfg(not(unix))]
     {
         let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::install_rustls_provider;
+
+    #[test]
+    fn installs_crypto_before_building_the_gateway_http_client() {
+        install_rustls_provider();
+        assert!(rustls::crypto::CryptoProvider::get_default().is_some());
+        reqwest::Client::builder().build().unwrap();
     }
 }

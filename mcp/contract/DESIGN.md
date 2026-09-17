@@ -441,3 +441,15 @@ rules:
 The installation manifest owns allowed and required exposure policy. Discover
 and list methods own runtime observations. Readiness intersects and compares
 those two surfaces without copying observations into the contract resource.
+
+### Resource source recovery
+
+`SubscriptionHub` carries either an exact changed URI or a reconciliation signal.
+A listener projects reconciliation only onto its accepted resource identities.
+Broadcast lag requests reconciliation instead of silently discarding the gap.
+Resource-list lag likewise emits an invalidation. These notifications contain no
+resource content and never grant read authority. Time and Recording share projected
+Store LIVE sources across their local listeners. Source reconnection invalidates
+accepted identities after a delivery gap. Idle sources do not emit timer-generated
+resource changes: declared resource subscriptions can wake an agent. Client-side
+catalog reconciliation reads authoritative state without invoking a model.
