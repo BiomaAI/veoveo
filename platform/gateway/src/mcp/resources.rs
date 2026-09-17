@@ -66,8 +66,7 @@ impl GatewayMcp {
         let catalog_generation = snapshot.generation();
         let authorization_fingerprint =
             invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
-        let mut resources = Vec::new();
-        let mut failures = Vec::new();
+        let mut keys = Vec::new();
         for server_slug in profile_server_list {
             let key = DiscoveryCacheKey {
                 catalog_generation,
@@ -75,15 +74,14 @@ impl GatewayMcp {
                 authorization_fingerprint,
                 server: server_slug.clone(),
             };
-            if let Some(mut cached) = self.discovery.resources(&key).await {
-                resources.append(&mut cached);
+            keys.push(key.clone());
+            if self
+                .discovery
+                .contains(GatewayDiscoverySurface::Resources, &key)
+                .await
+            {
                 continue;
             }
-            failures.push(GatewayDiscoveryFailure {
-                server: server_slug.clone(),
-                surface: GatewayDiscoverySurface::Resources,
-                code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
-            });
             let Some(fetch) = self
                 .discovery
                 .begin(GatewayDiscoverySurface::Resources, key.clone())
@@ -123,6 +121,22 @@ impl GatewayMcp {
                     }
                 }
             });
+        }
+        self.discovery
+            .settle(GatewayDiscoverySurface::Resources, &keys)
+            .await;
+        let mut resources = Vec::new();
+        let mut failures = Vec::new();
+        for key in keys {
+            if let Some(mut cached) = self.discovery.resources(&key).await {
+                resources.append(&mut cached);
+            } else {
+                failures.push(GatewayDiscoveryFailure {
+                    server: key.server,
+                    surface: GatewayDiscoverySurface::Resources,
+                    code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                });
+            }
         }
         Ok((resources, GatewayDiscoveryDegradation::new(failures)))
     }
@@ -223,8 +237,7 @@ impl GatewayMcp {
         let catalog_generation = snapshot.generation();
         let authorization_fingerprint =
             invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
-        let mut templates = Vec::new();
-        let mut failures = Vec::new();
+        let mut keys = Vec::new();
         for server_slug in self.profile_servers() {
             let key = DiscoveryCacheKey {
                 catalog_generation,
@@ -232,15 +245,14 @@ impl GatewayMcp {
                 authorization_fingerprint,
                 server: server_slug.clone(),
             };
-            if let Some(mut cached) = self.discovery.resource_templates(&key).await {
-                templates.append(&mut cached);
+            keys.push(key.clone());
+            if self
+                .discovery
+                .contains(GatewayDiscoverySurface::ResourceTemplates, &key)
+                .await
+            {
                 continue;
             }
-            failures.push(GatewayDiscoveryFailure {
-                server: server_slug.clone(),
-                surface: GatewayDiscoverySurface::ResourceTemplates,
-                code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
-            });
             let Some(fetch) = self
                 .discovery
                 .begin(GatewayDiscoverySurface::ResourceTemplates, key.clone())
@@ -281,6 +293,22 @@ impl GatewayMcp {
                     }
                 }
             });
+        }
+        self.discovery
+            .settle(GatewayDiscoverySurface::ResourceTemplates, &keys)
+            .await;
+        let mut templates = Vec::new();
+        let mut failures = Vec::new();
+        for key in keys {
+            if let Some(mut cached) = self.discovery.resource_templates(&key).await {
+                templates.append(&mut cached);
+            } else {
+                failures.push(GatewayDiscoveryFailure {
+                    server: key.server,
+                    surface: GatewayDiscoverySurface::ResourceTemplates,
+                    code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                });
+            }
         }
         Ok((templates, GatewayDiscoveryDegradation::new(failures)))
     }

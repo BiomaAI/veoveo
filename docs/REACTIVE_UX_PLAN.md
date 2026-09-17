@@ -132,6 +132,14 @@ that patch. Rig `0.42.0` remains the latest stable release verified on September
 
 ## Remaining Performance Experiments
 
+Installed acceptance found a cold-catalog race after the first rollout. Expired
+entries started background discovery while returning an empty successful snapshot;
+model preparation could consequently omit every configured tool. The gateway now
+shares one 500 ms settlement budget across parallel discoveries. Required tool
+surfaces must also be complete before Workspace submits a model request. The new
+regressions cover expiry, a hung optional source, failed discovery, and required
+versus unrelated server degradation.
+
 Load tests with thousands of Tasks and many concurrent people remain separate from
 functional acceptance. Measure database query work and event rates before changing
 subscription caps or retention. Resource recovery currently uses source reconnection

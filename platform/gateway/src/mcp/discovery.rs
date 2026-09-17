@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, time::Duration};
 
 use rmcp::model::{Resource, ResourceTemplate, Tool};
 use tokio::{
-    sync::{Mutex, broadcast},
+    sync::{Mutex, Notify, broadcast},
     time::Instant,
 };
 use uuid::Uuid;
@@ -14,6 +14,7 @@ use veoveo_mcp_contract::{
 pub(super) const MAX_CONCURRENT_DISCOVERY: usize = 8;
 const MAX_CACHE_ENTRIES_PER_SURFACE: usize = 4_096;
 const DISCOVERY_CHANGE_BUFFER: usize = 256;
+const DISCOVERY_SETTLE_BUDGET: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct DiscoveryCacheKey {
@@ -74,6 +75,20 @@ impl<T> Default for SurfaceCache<T> {
     }
 }
 impl<T: Clone> SurfaceCache<T> {
+    async fn contains(&self, key: &DiscoveryCacheKey) -> bool {
+        self.0
+            .lock()
+            .await
+            .entries
+            .get(key)
+            .is_some_and(|entry| entry.expires > Instant::now())
+    }
+
+    async fn pending(&self, keys: &[DiscoveryCacheKey]) -> bool {
+        let state = self.0.lock().await;
+        keys.iter().any(|key| state.in_flight.contains_key(key))
+    }
+
     async fn get(&self, key: &DiscoveryCacheKey) -> Option<Vec<T>> {
         let mut state = self.0.lock().await;
         if state
@@ -147,6 +162,7 @@ pub(super) struct CatalogDiscoveryCache {
     resource_templates: SurfaceCache<ResourceTemplate>,
     tools: SurfaceCache<Tool>,
     changes: broadcast::Sender<DiscoveryChange>,
+    settled: Notify,
 }
 impl Default for CatalogDiscoveryCache {
     fn default() -> Self {
@@ -155,10 +171,53 @@ impl Default for CatalogDiscoveryCache {
             resource_templates: Default::default(),
             tools: Default::default(),
             changes: broadcast::channel(DISCOVERY_CHANGE_BUFFER).0,
+            settled: Notify::new(),
         }
     }
 }
 impl CatalogDiscoveryCache {
+    pub(super) async fn contains(
+        &self,
+        surface: GatewayDiscoverySurface,
+        key: &DiscoveryCacheKey,
+    ) -> bool {
+        match surface {
+            GatewayDiscoverySurface::Resources => self.resources.contains(key).await,
+            GatewayDiscoverySurface::ResourceTemplates => {
+                self.resource_templates.contains(key).await
+            }
+            GatewayDiscoverySurface::Tools => self.tools.contains(key).await,
+        }
+    }
+
+    /// Give parallel discovery one shared, bounded opportunity to produce a
+    /// useful first snapshot. A slow optional server cannot extend this budget.
+    pub(super) async fn settle(
+        &self,
+        surface: GatewayDiscoverySurface,
+        keys: &[DiscoveryCacheKey],
+    ) {
+        let _ = tokio::time::timeout(DISCOVERY_SETTLE_BUDGET, async {
+            loop {
+                let changed = self.settled.notified();
+                tokio::pin!(changed);
+                changed.as_mut().enable();
+                let pending = match surface {
+                    GatewayDiscoverySurface::Resources => self.resources.pending(keys).await,
+                    GatewayDiscoverySurface::ResourceTemplates => {
+                        self.resource_templates.pending(keys).await
+                    }
+                    GatewayDiscoverySurface::Tools => self.tools.pending(keys).await,
+                };
+                if !pending {
+                    return;
+                }
+                changed.await;
+            }
+        })
+        .await;
+    }
+
     pub(super) fn subscribe(&self) -> broadcast::Receiver<DiscoveryChange> {
         self.changes.subscribe()
     }
@@ -188,6 +247,7 @@ impl CatalogDiscoveryCache {
             }
             GatewayDiscoverySurface::Tools => self.tools.finish(&fetch, None).await,
         };
+        self.settled.notify_waiters();
     }
     pub(super) async fn resources(&self, key: &DiscoveryCacheKey) -> Option<Vec<Resource>> {
         self.resources.get(key).await
@@ -207,6 +267,7 @@ impl CatalogDiscoveryCache {
     pub(super) async fn store_tools(&self, fetch: Option<DiscoveryFetch>, tools: Vec<Tool>) {
         if let Some(fetch) = fetch {
             self.tools.finish(&fetch, Some(tools)).await;
+            self.settled.notify_waiters();
         }
     }
     pub(super) async fn finish_resources(&self, fetch: DiscoveryFetch, items: Vec<Resource>) {
@@ -229,6 +290,7 @@ impl CatalogDiscoveryCache {
         }
     }
     fn publish(&self, surface: GatewayDiscoverySurface, fetch: DiscoveryFetch) {
+        self.settled.notify_waiters();
         let _ = self.changes.send(DiscoveryChange {
             surface,
             key: fetch.key,
@@ -237,9 +299,11 @@ impl CatalogDiscoveryCache {
     pub(super) async fn invalidate_resource_surfaces(&self, server: &ServerSlug) {
         self.resources.invalidate(server).await;
         self.resource_templates.invalidate(server).await;
+        self.settled.notify_waiters();
     }
     pub(super) async fn invalidate_tools(&self, server: &ServerSlug) {
         self.tools.invalidate(server).await;
+        self.settled.notify_waiters();
     }
 }
 
@@ -284,6 +348,85 @@ mod tests {
             .begin(GatewayDiscoverySurface::Resources, key)
             .await
             .unwrap()
+    }
+
+    #[tokio::test]
+    async fn cold_and_expired_catalogs_settle_before_the_first_snapshot() {
+        let cache = std::sync::Arc::new(CatalogDiscoveryCache::default());
+        let cache_key = key(1, "ready");
+        for version in 0..2 {
+            if let Some(entry) = cache.resources.0.lock().await.entries.get_mut(&cache_key) {
+                entry.expires = Instant::now();
+            }
+            assert!(
+                !cache
+                    .contains(GatewayDiscoverySurface::Resources, &cache_key)
+                    .await
+            );
+            let fetch = begin(&cache, cache_key.clone()).await;
+            let writer = cache.clone();
+            let work = tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                writer
+                    .finish_resources(
+                        fetch,
+                        vec![Resource::new(format!("ready://{version}"), "ready")],
+                    )
+                    .await;
+            });
+            tokio::time::timeout(
+                Duration::from_millis(250),
+                cache.settle(
+                    GatewayDiscoverySurface::Resources,
+                    std::slice::from_ref(&cache_key),
+                ),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                cache.resources(&cache_key).await.unwrap()[0].uri,
+                format!("ready://{version}")
+            );
+            work.await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn settlement_shares_one_deadline_and_failed_sources_release_waiters() {
+        let cache = std::sync::Arc::new(CatalogDiscoveryCache::default());
+        let failed = key(1, "failed");
+        let fetch = begin(&cache, failed.clone()).await;
+        let writer = cache.clone();
+        let work = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            writer
+                .finish_failure(GatewayDiscoverySurface::Resources, fetch)
+                .await;
+        });
+        tokio::time::timeout(
+            Duration::from_millis(250),
+            cache.settle(GatewayDiscoverySurface::Resources, &[failed]),
+        )
+        .await
+        .unwrap();
+        work.await.unwrap();
+
+        let keys = (0..8)
+            .map(|i| key(1, &format!("slow-{i}")))
+            .collect::<Vec<_>>();
+        for key in &keys {
+            begin(&cache, key.clone()).await;
+        }
+        tokio::time::timeout(
+            Duration::from_secs(2),
+            cache.settle(GatewayDiscoverySurface::Resources, &keys),
+        )
+        .await
+        .unwrap();
+        assert!(
+            cache.resources.pending(&keys).await,
+            "the bounded response does not cancel independent discovery"
+        );
     }
 
     #[tokio::test]

@@ -162,8 +162,8 @@ impl GatewayMcp {
         })
     }
 
-    /// Return cached tools immediately for an isolation-mode profile and launch
-    /// one independent discovery operation for every missing server.
+    /// Share independent discovery and a bounded initial-settlement window.
+    /// A slow optional server cannot hold the complete federated response.
     pub(super) async fn available_tools(
         &self,
         context: RequestContext<RoleServer>,
@@ -174,8 +174,7 @@ impl GatewayMcp {
         let catalog_generation = snapshot.generation();
         let authorization_fingerprint =
             invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
-        let mut tools = Vec::new();
-        let mut failures = Vec::new();
+        let mut keys = Vec::new();
         for server_slug in self.profile_servers() {
             let key = DiscoveryCacheKey {
                 catalog_generation,
@@ -183,15 +182,14 @@ impl GatewayMcp {
                 authorization_fingerprint,
                 server: server_slug.clone(),
             };
-            if let Some(mut cached) = self.discovery.tools(&key).await {
-                tools.append(&mut cached);
+            keys.push(key.clone());
+            if self
+                .discovery
+                .contains(GatewayDiscoverySurface::Tools, &key)
+                .await
+            {
                 continue;
             }
-            failures.push(GatewayDiscoveryFailure {
-                server: server_slug.clone(),
-                surface: GatewayDiscoverySurface::Tools,
-                code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
-            });
             let Some(fetch) = self
                 .discovery
                 .begin(GatewayDiscoverySurface::Tools, key.clone())
@@ -224,6 +222,22 @@ impl GatewayMcp {
                     }
                 }
             });
+        }
+        self.discovery
+            .settle(GatewayDiscoverySurface::Tools, &keys)
+            .await;
+        let mut tools = Vec::new();
+        let mut failures = Vec::new();
+        for key in keys {
+            if let Some(mut cached) = self.discovery.tools(&key).await {
+                tools.append(&mut cached);
+            } else {
+                failures.push(GatewayDiscoveryFailure {
+                    server: key.server,
+                    surface: GatewayDiscoverySurface::Tools,
+                    code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                });
+            }
         }
         Ok((tools, GatewayDiscoveryDegradation::new(failures)))
     }

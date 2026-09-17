@@ -78,6 +78,40 @@ async fn detail(app: &Router, id: Uuid) -> wire::OperationView {
 }
 
 #[tokio::test]
+async fn model_capability_admission_checks_only_required_discovery_surfaces() {
+    let db = crate::test_store::TestDb::new().await;
+    super::super::tests::setup(&db.a).await;
+    let subject = alice();
+    let fixture = super::test_domain::Fixture::start(db.a.clone(), &subject).await;
+    let state = new_state(db.a.clone(), fixture.port);
+    let caller = Caller {
+        profile: GatewayProfileId::new("operator").unwrap(),
+        subject,
+        bearer: "explicit-workspace-fixture".to_owned().into(),
+    };
+    let required = [GatewayToolName::new("fixture__task").unwrap()];
+    *fixture.domain.degraded_server.lock().unwrap() =
+        Some(veoveo_mcp_contract::ServerSlug::new("fixture").unwrap());
+    assert_eq!(
+        state.capabilities(&caller, &required).await.unwrap_err(),
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    *fixture.domain.degraded_server.lock().unwrap() =
+        Some(veoveo_mcp_contract::ServerSlug::new("unrelated").unwrap());
+    assert_eq!(
+        state.capabilities(&caller, &required).await.unwrap().len(),
+        2
+    );
+    *fixture.domain.degraded_server.lock().unwrap() = None;
+    assert_eq!(
+        state.capabilities(&caller, &required).await.unwrap().len(),
+        2
+    );
+    assert_eq!(fixture.domain.calls.load(Ordering::SeqCst), 0);
+    state.stop.cancel();
+}
+
+#[tokio::test]
 async fn native_tasks_survive_restart_require_current_input_and_confirm_cancellation() {
     tokio::time::timeout(Duration::from_secs(45), async {
         let _ = rustls::crypto::ring::default_provider().install_default();

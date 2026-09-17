@@ -21,6 +21,7 @@ pub(crate) struct Domain {
     pub app_visible: Arc<AtomicBool>,
     pub hold_dispatch: Arc<AtomicBool>,
     pub release_dispatch: Arc<tokio::sync::Notify>,
+    pub degraded_server: Arc<std::sync::Mutex<Option<veoveo_mcp_contract::ServerSlug>>>,
 }
 impl ServerHandler for Domain {
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
@@ -40,7 +41,7 @@ impl ServerHandler for Domain {
         _: Option<PaginatedRequestParams>,
         _: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
-        Ok(ListToolsResult::with_all_items(vec![
+        let mut result = ListToolsResult::with_all_items(vec![
             veoveo_mcp_apps_extension::link_tool_to_app(
                 Tool::new(
                     "fixture__task",
@@ -57,7 +58,18 @@ impl ServerHandler for Domain {
                 serde_json::from_value::<JsonObject>(json!({"type":"object","properties":{}}))
                     .unwrap(),
             ),
-        ]))
+        ]);
+        if let Some(server) = self.degraded_server.lock().unwrap().clone() {
+            result.meta = veoveo_mcp_contract::GatewayDiscoveryDegradation::new([
+                veoveo_mcp_contract::GatewayDiscoveryFailure {
+                    server,
+                    surface: veoveo_mcp_contract::GatewayDiscoverySurface::Tools,
+                    code: veoveo_mcp_contract::GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                },
+            ])
+            .into_meta();
+        }
+        Ok(result)
     }
     async fn list_resources(
         &self,
@@ -237,6 +249,7 @@ impl Fixture {
             app_visible: Arc::new(AtomicBool::new(true)),
             hold_dispatch: Arc::new(AtomicBool::new(false)),
             release_dispatch: Arc::new(tokio::sync::Notify::new()),
+            degraded_server: Arc::new(std::sync::Mutex::new(None)),
         };
         let source = domain.clone();
         let service = StreamableHttpService::new(
