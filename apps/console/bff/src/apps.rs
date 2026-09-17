@@ -400,6 +400,7 @@ pub(crate) async fn app_catalog_events(
             } else {
                 let update = tokio::select! {
                     _ = &mut deadline => return None,
+                    _ = client.resource_source_lost() => return None,
                     update = receiver.recv() => update,
                 };
                 match update {
