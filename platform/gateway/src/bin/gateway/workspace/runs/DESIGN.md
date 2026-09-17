@@ -47,6 +47,12 @@ authority without invoking a model. Task progress, completion and input requests
 update private Activity without starting another model response. Tool receipts may
 advance the already requested response within its existing call budget.
 
+Preparation reads native discovery degradation before constructing the model's
+tool set. An incomplete surface for a configured tool's server stops preparation;
+an unrelated server's outage remains isolated. A complete, policy-filtered catalog
+can legitimately omit a tool. Cache warm-up cannot silently turn an agent with
+configured capabilities into a text-only model request.
+
 A model call receives a bounded JSON history with stable author IDs and names. Its
 triggering human request remains explicit. Older history can be dropped to fit the
 64 KiB prompt bound, and the prompt marks that truncation. The trigger itself is never

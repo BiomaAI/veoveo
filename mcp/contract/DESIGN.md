@@ -238,9 +238,13 @@ isolation-mode profile additionally declares gateway-owned resource and tool
 list changes because its authorized federated catalog grows as independent
 discoveries complete.
 
-Federated resource discovery and isolation-mode tool discovery never wait for
-an uncached hosted server. The gateway returns the authorized per-server cache
-entries already available and attaches a typed
+Federated resource discovery and isolation-mode tool discovery start missing
+servers independently. A list call gives these shared operations one 500 ms
+settlement window across all selected servers, then returns the authorized
+per-server cache entries available at that point. Warm complete catalogs return
+immediately. This bounded window prevents routine cache expiry from producing an
+empty first snapshot while keeping slow optional servers isolated. The response
+attaches a typed
 `veoveo.io/gateway-discovery-degradation` result metadata document naming only
 the missing server, surface, and bounded failure code. Each missing server starts
 one background discovery for the exact catalog generation and invocation
@@ -255,6 +259,11 @@ exposed server is reachable, which prevents an autonomous client from retaining
 a silently incomplete toolset. Upstream `listChanged` notifications invalidate
 successful per-server entries and wake callers without polling. Direct resource
 reads and tool calls remain fail closed.
+
+Workspace model preparation checks the degradation metadata for the servers of
+its configured tools. An incomplete required surface stops preparation before a
+model request; an unrelated unavailable server does not. Policy-filtered absence
+in a complete surface remains authoritative.
 
 Request-scoped subscription delivery invalidates the matching discovery cache before
 forwarding its list-change notification. RMCP routes these notifications separately

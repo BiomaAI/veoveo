@@ -55,9 +55,15 @@ pub(super) async fn for_run(
     });
     let capabilities = state
         .operations
-        .capabilities(caller)
+        .capabilities(caller, &definition.tools)
         .await
-        .map_err(|_| WorkspaceRunFailure::PermissionChanged)?;
+        .map_err(|status| {
+            if matches!(status.as_u16(), 401 | 403 | 404) {
+                WorkspaceRunFailure::PermissionChanged
+            } else {
+                WorkspaceRunFailure::ModelUnavailable
+            }
+        })?;
     let admitted: Vec<_> = capabilities
         .into_iter()
         .filter(|tool| {
