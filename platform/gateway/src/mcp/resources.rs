@@ -84,13 +84,13 @@ impl GatewayMcp {
                 surface: GatewayDiscoverySurface::Resources,
                 code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
             });
-            if !self
+            let Some(fetch) = self
                 .discovery
                 .begin(GatewayDiscoverySurface::Resources, key.clone())
                 .await
-            {
+            else {
                 continue;
-            }
+            };
             let gateway = self.clone();
             let catalog = catalog.clone();
             let profile_servers = profile_servers.clone();
@@ -108,12 +108,12 @@ impl GatewayMcp {
                     .await;
                 match result {
                     Ok(discovered) => {
-                        gateway.discovery.finish_resources(key, discovered).await;
+                        gateway.discovery.finish_resources(fetch, discovered).await;
                     }
                     Err(error) => {
                         gateway
                             .discovery
-                            .finish_failure(GatewayDiscoverySurface::Resources, &key)
+                            .finish_failure(GatewayDiscoverySurface::Resources, fetch)
                             .await;
                         tracing::warn!(
                             server = %server_slug,
@@ -241,13 +241,13 @@ impl GatewayMcp {
                 surface: GatewayDiscoverySurface::ResourceTemplates,
                 code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
             });
-            if !self
+            let Some(fetch) = self
                 .discovery
                 .begin(GatewayDiscoverySurface::ResourceTemplates, key.clone())
                 .await
-            {
+            else {
                 continue;
-            }
+            };
             let gateway = self.clone();
             let catalog = catalog.clone();
             let context = context.clone();
@@ -265,13 +265,13 @@ impl GatewayMcp {
                     Ok(discovered) => {
                         gateway
                             .discovery
-                            .finish_resource_templates(key, discovered)
+                            .finish_resource_templates(fetch, discovered)
                             .await;
                     }
                     Err(error) => {
                         gateway
                             .discovery
-                            .finish_failure(GatewayDiscoverySurface::ResourceTemplates, &key)
+                            .finish_failure(GatewayDiscoverySurface::ResourceTemplates, fetch)
                             .await;
                         tracing::warn!(
                             server = %server_slug,

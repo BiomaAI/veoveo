@@ -78,6 +78,7 @@ impl GatewayMcp {
                 if let Some(tools) = self.discovery.tools(&key).await {
                     return (server_slug, Ok::<_, McpError>(tools));
                 }
+                let fetch = self.discovery.start_tools(key.clone()).await;
                 let result = async {
                     let manifest = catalog.server(&server_slug).ok_or_else(|| {
                         mcp_internal(format!("unknown profile server `{server_slug}`"))
@@ -123,10 +124,19 @@ impl GatewayMcp {
                         tool.name = Cow::Owned(gateway_name.to_string());
                         tools.push(tool);
                     }
-                    self.discovery.store_tools(key, tools.clone()).await;
+                    self.discovery
+                        .store_tools(fetch.clone(), tools.clone())
+                        .await;
                     Ok(tools)
                 }
                 .await;
+                if result.is_err()
+                    && let Some(fetch) = fetch
+                {
+                    self.discovery
+                        .finish_failure(GatewayDiscoverySurface::Tools, fetch)
+                        .await;
+                }
                 (server_slug, result)
             }
         }))
@@ -182,13 +192,13 @@ impl GatewayMcp {
                 surface: GatewayDiscoverySurface::Tools,
                 code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
             });
-            if !self
+            let Some(fetch) = self
                 .discovery
                 .begin(GatewayDiscoverySurface::Tools, key.clone())
                 .await
-            {
+            else {
                 continue;
-            }
+            };
             let gateway = self.clone();
             let catalog = catalog.clone();
             let context = context.clone();
@@ -199,12 +209,12 @@ impl GatewayMcp {
                     .await;
                 match result {
                     Ok(discovered) => {
-                        gateway.discovery.finish_tools(key, discovered).await;
+                        gateway.discovery.finish_tools(fetch, discovered).await;
                     }
                     Err(error) => {
                         gateway
                             .discovery
-                            .finish_failure(GatewayDiscoverySurface::Tools, &key)
+                            .finish_failure(GatewayDiscoverySurface::Tools, fetch)
                             .await;
                         tracing::warn!(
                             server = %server_slug,

@@ -259,6 +259,10 @@ reads and tool calls remain fail closed.
 Request-scoped subscription delivery invalidates the matching discovery cache before
 forwarding its list-change notification. RMCP routes these notifications separately
 from ordinary client callbacks; both delivery paths enforce the same invalidation.
+Discovery fetches carry an exact claim. Invalidation retires both cached data and
+pending claims, preventing late results from reinstalling old contents or settling a
+replacement fetch. Cache entries expire on use within the public five-second catalog
+freshness bound. A missed notification cannot leave a successful entry permanent.
 
 ## Schemas And Types
 

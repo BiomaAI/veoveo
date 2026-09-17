@@ -1,7 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{collections::BTreeMap, time::Duration};
 
 use rmcp::model::{Resource, ResourceTemplate, Tool};
-use tokio::sync::{Mutex, broadcast};
+use tokio::{
+    sync::{Mutex, broadcast},
+    time::Instant,
+};
+use uuid::Uuid;
 use veoveo_mcp_contract::{
     GatewayDiscoveryDegradation, GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
     GatewayDiscoverySurface, PrincipalId, ServerSlug,
@@ -38,138 +42,204 @@ impl DiscoveryChange {
     }
 }
 
-#[derive(Debug)]
-pub(super) struct CatalogDiscoveryCache {
-    resources: Mutex<BTreeMap<DiscoveryCacheKey, Vec<Resource>>>,
-    resource_templates: Mutex<BTreeMap<DiscoveryCacheKey, Vec<ResourceTemplate>>>,
-    tools: Mutex<BTreeMap<DiscoveryCacheKey, Vec<Tool>>>,
-    in_flight: Mutex<BTreeSet<(GatewayDiscoverySurface, DiscoveryCacheKey)>>,
-    changes: broadcast::Sender<DiscoveryChange>,
+/// A discovery response may publish only while its exact request is current.
+#[derive(Debug, Clone)]
+pub(super) struct DiscoveryFetch {
+    key: DiscoveryCacheKey,
+    request: Uuid,
 }
 
-impl Default for CatalogDiscoveryCache {
+#[derive(Debug)]
+struct CachedItems<T> {
+    items: Vec<T>,
+    expires: Instant,
+}
+
+#[derive(Debug)]
+struct SurfaceState<T> {
+    generation: u64,
+    entries: BTreeMap<DiscoveryCacheKey, CachedItems<T>>,
+    in_flight: BTreeMap<DiscoveryCacheKey, Uuid>,
+}
+
+#[derive(Debug)]
+struct SurfaceCache<T>(Mutex<SurfaceState<T>>);
+impl<T> Default for SurfaceCache<T> {
     fn default() -> Self {
-        let (changes, _) = broadcast::channel(DISCOVERY_CHANGE_BUFFER);
-        Self {
-            resources: Mutex::new(BTreeMap::new()),
-            resource_templates: Mutex::new(BTreeMap::new()),
-            tools: Mutex::new(BTreeMap::new()),
-            in_flight: Mutex::new(BTreeSet::new()),
-            changes,
+        Self(Mutex::new(SurfaceState {
+            generation: 0,
+            entries: BTreeMap::new(),
+            in_flight: BTreeMap::new(),
+        }))
+    }
+}
+impl<T: Clone> SurfaceCache<T> {
+    async fn get(&self, key: &DiscoveryCacheKey) -> Option<Vec<T>> {
+        let mut state = self.0.lock().await;
+        if state
+            .entries
+            .get(key)
+            .is_some_and(|entry| entry.expires <= Instant::now())
+        {
+            state.entries.remove(key);
         }
+        state.entries.get(key).map(|entry| entry.items.clone())
+    }
+
+    async fn begin(&self, key: DiscoveryCacheKey, coalesce: bool) -> Option<DiscoveryFetch> {
+        let mut state = self.0.lock().await;
+        if key.catalog_generation < state.generation {
+            return None;
+        }
+        if key.catalog_generation > state.generation {
+            state.entries.clear();
+            state.in_flight.clear();
+            state.generation = key.catalog_generation;
+        }
+        if (coalesce && state.in_flight.contains_key(&key))
+            || state.in_flight.len() >= MAX_CACHE_ENTRIES_PER_SURFACE
+        {
+            return None;
+        }
+        let request = Uuid::now_v7();
+        state.in_flight.insert(key.clone(), request);
+        Some(DiscoveryFetch { key, request })
+    }
+
+    async fn finish(&self, fetch: &DiscoveryFetch, items: Option<Vec<T>>) -> bool {
+        let mut state = self.0.lock().await;
+        if state.in_flight.get(&fetch.key) != Some(&fetch.request) {
+            return false;
+        }
+        state.in_flight.remove(&fetch.key);
+        if let Some(items) = items {
+            if state.entries.len() >= MAX_CACHE_ENTRIES_PER_SURFACE
+                && !state.entries.contains_key(&fetch.key)
+            {
+                state.entries.pop_first();
+            }
+            state.entries.insert(
+                fetch.key.clone(),
+                CachedItems {
+                    items,
+                    expires: Instant::now()
+                        + Duration::from_millis(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+                },
+            );
+            true
+        } else {
+            false
+        }
+    }
+
+    async fn invalidate(&self, server: &ServerSlug) {
+        let mut state = self.0.lock().await;
+        state.entries.retain(|key, _| &key.server != server);
+        // A response captured before this event must not repopulate the cache,
+        // even if a replacement request has already started for the same key.
+        state.in_flight.retain(|key, _| &key.server != server);
     }
 }
 
+#[derive(Debug)]
+pub(super) struct CatalogDiscoveryCache {
+    resources: SurfaceCache<Resource>,
+    resource_templates: SurfaceCache<ResourceTemplate>,
+    tools: SurfaceCache<Tool>,
+    changes: broadcast::Sender<DiscoveryChange>,
+}
+impl Default for CatalogDiscoveryCache {
+    fn default() -> Self {
+        Self {
+            resources: Default::default(),
+            resource_templates: Default::default(),
+            tools: Default::default(),
+            changes: broadcast::channel(DISCOVERY_CHANGE_BUFFER).0,
+        }
+    }
+}
 impl CatalogDiscoveryCache {
     pub(super) fn subscribe(&self) -> broadcast::Receiver<DiscoveryChange> {
         self.changes.subscribe()
     }
 
-    /// Claim one missing per-server discovery operation. The claim is shared by every
-    /// stateless handler for this profile, so repeated list calls never multiply a hung
-    /// upstream request.
     pub(super) async fn begin(
         &self,
         surface: GatewayDiscoverySurface,
         key: DiscoveryCacheKey,
-    ) -> bool {
-        let mut in_flight = self.in_flight.lock().await;
-        in_flight.retain(|(_, candidate)| candidate.catalog_generation == key.catalog_generation);
-        if in_flight.len() >= MAX_CACHE_ENTRIES_PER_SURFACE {
-            return false;
+    ) -> Option<DiscoveryFetch> {
+        match surface {
+            GatewayDiscoverySurface::Resources => self.resources.begin(key, true).await,
+            GatewayDiscoverySurface::ResourceTemplates => {
+                self.resource_templates.begin(key, true).await
+            }
+            GatewayDiscoverySurface::Tools => self.tools.begin(key, true).await,
         }
-        in_flight.insert((surface, key))
     }
-
     pub(super) async fn finish_failure(
         &self,
         surface: GatewayDiscoverySurface,
-        key: &DiscoveryCacheKey,
+        fetch: DiscoveryFetch,
     ) {
-        self.in_flight.lock().await.remove(&(surface, key.clone()));
+        match surface {
+            GatewayDiscoverySurface::Resources => self.resources.finish(&fetch, None).await,
+            GatewayDiscoverySurface::ResourceTemplates => {
+                self.resource_templates.finish(&fetch, None).await
+            }
+            GatewayDiscoverySurface::Tools => self.tools.finish(&fetch, None).await,
+        };
     }
-
     pub(super) async fn resources(&self, key: &DiscoveryCacheKey) -> Option<Vec<Resource>> {
-        self.resources.lock().await.get(key).cloned()
+        self.resources.get(key).await
     }
-
-    pub(super) async fn finish_resources(&self, key: DiscoveryCacheKey, resources: Vec<Resource>) {
-        self.finish_completed(
-            GatewayDiscoverySurface::Resources,
-            &self.resources,
-            key,
-            resources,
-        )
-        .await;
-    }
-
     pub(super) async fn resource_templates(
         &self,
         key: &DiscoveryCacheKey,
     ) -> Option<Vec<ResourceTemplate>> {
-        self.resource_templates.lock().await.get(key).cloned()
+        self.resource_templates.get(key).await
     }
-
+    pub(super) async fn tools(&self, key: &DiscoveryCacheKey) -> Option<Vec<Tool>> {
+        self.tools.get(key).await
+    }
+    pub(super) async fn start_tools(&self, key: DiscoveryCacheKey) -> Option<DiscoveryFetch> {
+        self.tools.begin(key, false).await
+    }
+    pub(super) async fn store_tools(&self, fetch: Option<DiscoveryFetch>, tools: Vec<Tool>) {
+        if let Some(fetch) = fetch {
+            self.tools.finish(&fetch, Some(tools)).await;
+        }
+    }
+    pub(super) async fn finish_resources(&self, fetch: DiscoveryFetch, items: Vec<Resource>) {
+        if self.resources.finish(&fetch, Some(items)).await {
+            self.publish(GatewayDiscoverySurface::Resources, fetch);
+        }
+    }
     pub(super) async fn finish_resource_templates(
         &self,
-        key: DiscoveryCacheKey,
-        templates: Vec<ResourceTemplate>,
+        fetch: DiscoveryFetch,
+        items: Vec<ResourceTemplate>,
     ) {
-        self.finish_completed(
-            GatewayDiscoverySurface::ResourceTemplates,
-            &self.resource_templates,
-            key,
-            templates,
-        )
-        .await;
-    }
-
-    pub(super) async fn tools(&self, key: &DiscoveryCacheKey) -> Option<Vec<Tool>> {
-        self.tools.lock().await.get(key).cloned()
-    }
-
-    pub(super) async fn store_tools(&self, key: DiscoveryCacheKey, tools: Vec<Tool>) {
-        store(&self.tools, key, tools).await;
-    }
-
-    pub(super) async fn finish_tools(&self, key: DiscoveryCacheKey, tools: Vec<Tool>) {
-        self.finish_completed(GatewayDiscoverySurface::Tools, &self.tools, key, tools)
-            .await;
-    }
-
-    pub(super) async fn invalidate_resource_surfaces(&self, server: &ServerSlug) {
-        self.resources
-            .lock()
-            .await
-            .retain(|key, _| &key.server != server);
-        self.resource_templates
-            .lock()
-            .await
-            .retain(|key, _| &key.server != server);
-    }
-
-    pub(super) async fn invalidate_tools(&self, server: &ServerSlug) {
-        self.tools
-            .lock()
-            .await
-            .retain(|key, _| &key.server != server);
-    }
-
-    async fn finish_completed<T: Clone>(
-        &self,
-        surface: GatewayDiscoverySurface,
-        cache: &Mutex<BTreeMap<DiscoveryCacheKey, Vec<T>>>,
-        key: DiscoveryCacheKey,
-        value: Vec<T>,
-    ) {
-        let mut in_flight = self.in_flight.lock().await;
-        if !in_flight.contains(&(surface, key.clone())) {
-            return;
+        if self.resource_templates.finish(&fetch, Some(items)).await {
+            self.publish(GatewayDiscoverySurface::ResourceTemplates, fetch);
         }
-        store(cache, key.clone(), value).await;
-        in_flight.remove(&(surface, key.clone()));
-        drop(in_flight);
-        let _ = self.changes.send(DiscoveryChange { surface, key });
+    }
+    pub(super) async fn finish_tools(&self, fetch: DiscoveryFetch, items: Vec<Tool>) {
+        if self.tools.finish(&fetch, Some(items)).await {
+            self.publish(GatewayDiscoverySurface::Tools, fetch);
+        }
+    }
+    fn publish(&self, surface: GatewayDiscoverySurface, fetch: DiscoveryFetch) {
+        let _ = self.changes.send(DiscoveryChange {
+            surface,
+            key: fetch.key,
+        });
+    }
+    pub(super) async fn invalidate_resource_surfaces(&self, server: &ServerSlug) {
+        self.resources.invalidate(server).await;
+        self.resource_templates.invalidate(server).await;
+    }
+    pub(super) async fn invalidate_tools(&self, server: &ServerSlug) {
+        self.tools.invalidate(server).await;
     }
 }
 
@@ -196,19 +266,6 @@ pub(super) fn isolate_discovery_failures<T, E>(
     (values, GatewayDiscoveryDegradation::new(failures), errors)
 }
 
-async fn store<T: Clone>(
-    cache: &Mutex<BTreeMap<DiscoveryCacheKey, Vec<T>>>,
-    key: DiscoveryCacheKey,
-    value: Vec<T>,
-) {
-    let mut cache = cache.lock().await;
-    cache.retain(|candidate, _| candidate.catalog_generation == key.catalog_generation);
-    if cache.len() >= MAX_CACHE_ENTRIES_PER_SURFACE && !cache.contains_key(&key) {
-        cache.pop_first();
-    }
-    cache.insert(key, value);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,100 +279,136 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn a_new_catalog_generation_evicts_old_discovery() {
-        let cache = CatalogDiscoveryCache::default();
-        let first = key(1, "one");
-        assert!(
-            cache
-                .begin(GatewayDiscoverySurface::Resources, first.clone())
-                .await
-        );
-        cache.finish_resources(first, Vec::new()).await;
-        let second = key(2, "two");
-        assert!(
-            cache
-                .begin(GatewayDiscoverySurface::Resources, second.clone())
-                .await
-        );
-        cache.finish_resources(second, Vec::new()).await;
-        assert!(cache.resources(&key(1, "one")).await.is_none());
-        assert!(cache.resources(&key(2, "two")).await.is_some());
+    async fn begin(cache: &CatalogDiscoveryCache, key: DiscoveryCacheKey) -> DiscoveryFetch {
+        cache
+            .begin(GatewayDiscoverySurface::Resources, key)
+            .await
+            .unwrap()
     }
 
     #[tokio::test]
-    async fn list_change_invalidation_is_scoped_to_one_server() {
+    async fn discovery_is_coalesced_and_catalog_generation_is_monotonic() {
         let cache = CatalogDiscoveryCache::default();
-        for server in ["one", "two"] {
-            let key = key(1, server);
-            assert!(
-                cache
-                    .begin(GatewayDiscoverySurface::Resources, key.clone())
-                    .await
-            );
-            cache.finish_resources(key, Vec::new()).await;
-        }
+        let stale = begin(&cache, key(1, "one")).await;
+        assert!(
+            cache
+                .begin(GatewayDiscoverySurface::Resources, key(1, "one"))
+                .await
+                .is_none()
+        );
+        let current = begin(&cache, key(2, "two")).await;
+        cache
+            .finish_resources(stale, vec![Resource::new("one://old", "old")])
+            .await;
+        assert!(cache.resources(&key(1, "one")).await.is_none());
+        assert!(
+            cache
+                .begin(GatewayDiscoverySurface::Resources, key(1, "one"))
+                .await
+                .is_none()
+        );
+        cache
+            .finish_resources(current, vec![Resource::new("two://current", "current")])
+            .await;
+        assert_eq!(
+            cache.resources(&key(2, "two")).await.unwrap()[0].uri,
+            "two://current"
+        );
+    }
+
+    #[tokio::test]
+    async fn invalidated_in_flight_response_cannot_replace_new_contents_or_finish_new_request() {
+        let cache = CatalogDiscoveryCache::default();
+        let stale = begin(&cache, key(1, "one")).await;
+        let other = begin(&cache, key(1, "two")).await;
+        cache
+            .finish_resources(other, vec![Resource::new("two://kept", "kept")])
+            .await;
         cache
             .invalidate_resource_surfaces(&ServerSlug::new("one").unwrap())
             .await;
+        let current = begin(&cache, key(1, "one")).await;
+        cache
+            .finish_resources(stale.clone(), vec![Resource::new("one://stale", "stale")])
+            .await;
+        cache
+            .finish_failure(GatewayDiscoverySurface::Resources, stale)
+            .await;
         assert!(cache.resources(&key(1, "one")).await.is_none());
         assert!(cache.resources(&key(1, "two")).await.is_some());
+        cache
+            .finish_resources(current, vec![Resource::new("one://new", "new")])
+            .await;
+        assert_eq!(
+            cache.resources(&key(1, "one")).await.unwrap()[0].uri,
+            "one://new"
+        );
+    }
+
+    #[tokio::test]
+    async fn synchronous_tool_discovery_is_fenced_against_notification_races() {
+        let cache = CatalogDiscoveryCache::default();
+        let stale = cache.start_tools(key(1, "one")).await;
+        cache
+            .invalidate_tools(&ServerSlug::new("one").unwrap())
+            .await;
+        let current = cache.start_tools(key(1, "one")).await;
+        cache
+            .store_tools(
+                stale,
+                vec![Tool::new("stale", "old", std::sync::Arc::default())],
+            )
+            .await;
+        assert!(cache.tools(&key(1, "one")).await.is_none());
+        cache
+            .store_tools(
+                current,
+                vec![Tool::new("current", "new", std::sync::Arc::default())],
+            )
+            .await;
+        assert_eq!(
+            cache.tools(&key(1, "one")).await.unwrap()[0].name,
+            "current"
+        );
+    }
+
+    #[tokio::test]
+    async fn expired_entries_require_fresh_discovery_after_missed_notifications() {
+        let cache = CatalogDiscoveryCache::default();
+        let fetch = begin(&cache, key(1, "one")).await;
+        cache
+            .finish_resources(fetch, vec![Resource::new("one://old", "old")])
+            .await;
+        // Set the actual deadline directly; no wall-clock delay in this unit test.
+        cache
+            .resources
+            .0
+            .lock()
+            .await
+            .entries
+            .get_mut(&key(1, "one"))
+            .unwrap()
+            .expires = Instant::now();
+        assert!(cache.resources(&key(1, "one")).await.is_none());
+        let fetch = begin(&cache, key(1, "one")).await;
+        cache
+            .finish_resources(fetch, vec![Resource::new("one://new", "new")])
+            .await;
+        assert_eq!(
+            cache.resources(&key(1, "one")).await.unwrap()[0].uri,
+            "one://new"
+        );
     }
 
     #[tokio::test]
     async fn one_server_completes_while_another_remains_in_flight() {
         let cache = CatalogDiscoveryCache::default();
-        let hung = key(1, "hung");
-        let healthy = key(1, "healthy");
+        let _hung = begin(&cache, key(1, "hung")).await;
+        let healthy = begin(&cache, key(1, "healthy")).await;
         let mut changes = cache.subscribe();
-
-        assert!(
-            cache
-                .begin(GatewayDiscoverySurface::Resources, hung.clone())
-                .await
-        );
-        assert!(
-            cache
-                .begin(GatewayDiscoverySurface::Resources, healthy.clone())
-                .await
-        );
-        assert!(
-            !cache
-                .begin(GatewayDiscoverySurface::Resources, hung.clone())
-                .await,
-            "a repeated list must not multiply an unresponsive request"
-        );
-
-        cache.finish_resources(healthy.clone(), Vec::new()).await;
-        let change = changes
-            .recv()
-            .await
-            .expect("healthy completion is published");
-        assert_eq!(change.surface, GatewayDiscoverySurface::Resources);
-        assert_eq!(change.key, healthy);
-        assert!(cache.resources(&hung).await.is_none());
-    }
-
-    #[tokio::test]
-    async fn stale_completion_cannot_repopulate_a_new_catalog_generation() {
-        let cache = CatalogDiscoveryCache::default();
-        let stale = key(1, "server");
-        assert!(
-            cache
-                .begin(GatewayDiscoverySurface::Resources, stale.clone())
-                .await
-        );
-        let current = key(2, "server");
-        assert!(
-            cache
-                .begin(GatewayDiscoverySurface::Resources, current.clone())
-                .await
-        );
-
-        cache.finish_resources(stale.clone(), Vec::new()).await;
-        assert!(cache.resources(&stale).await.is_none());
-        cache.finish_resources(current.clone(), Vec::new()).await;
-        assert!(cache.resources(&current).await.is_some());
+        cache.finish_resources(healthy, Vec::new()).await;
+        assert_eq!(changes.recv().await.unwrap().key, key(1, "healthy"));
+        assert!(cache.resources(&key(1, "hung")).await.is_none());
     }
 
     #[test]
