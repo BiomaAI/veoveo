@@ -700,6 +700,32 @@
       ],
       "type": "string"
     },
+    "OperationProgress": {
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "format": "double",
+          "type": "number"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "total": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "completed"
+      ],
+      "type": "object"
+    },
     "OperationResource": {
       "additionalProperties": false,
       "properties": {
@@ -826,6 +852,16 @@
         },
         "operation": {
           "$ref": "#/$defs/OperationSummary"
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperationProgress"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "result": {
           "anyOf": [

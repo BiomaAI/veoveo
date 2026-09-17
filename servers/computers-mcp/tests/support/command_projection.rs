@@ -52,7 +52,7 @@ impl Projection {
     pub async fn client(
         &self,
         bearer: String,
-    ) -> rmcp::service::RunningService<rmcp::RoleClient, ClientInfo> {
+    ) -> rmcp::service::RunningService<rmcp::RoleClient, ClientConfig> {
         let transport = StreamableHttpClientTransport::with_client(
             reqwest::Client::builder()
                 .no_proxy()
@@ -64,7 +64,7 @@ impl Projection {
         );
         tokio::time::timeout(
             Duration::from_secs(10),
-            ClientInfo::new(
+            ClientConfig::new(
                 ClientCapabilities::builder().enable_tasks().build(),
                 Implementation::new("native-computer-command", "1"),
             )

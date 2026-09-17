@@ -113,3 +113,20 @@ an execution restart. Other recovery profiles keep their existing transition rul
 future ends. It preserves Task progress, cancellation and retention. A stale receipt
 cannot release a renewed or successor lease. This avoids a full lease-expiry delay
 between bounded observations handled by different replicas.
+
+## Filtered Task Observation
+
+Native Task subscriptions admit at most 256 requested identities and authorize
+each before reading a baseline. The baseline selects those exact record IDs.
+Outbox replay filters those same aggregate identities and the hosted server, in
+pages of 256. Unrelated Tasks and their results are never materialized by this
+path. One projected LIVE source per runtime wakes all listeners; it carries only
+a sequence. Sources close after the last listener leaves. A new source wakes every
+reader after establishment, covering the baseline and reconnection races. Each
+listener retains its own durable cursor. Fifteen-second reconciliation covers a
+missed wake and never invokes a provider or model. General server-owned consumers
+retain the complete durable stream APIs.
+
+`tests/subscriptions.rs` owns a disposable real Store and separate connections. It
+qualifies concurrent listeners, cross-replica completion, reconnection, excluded
+unauthorized IDs and an unrelated malformed envelope that must not be decoded.

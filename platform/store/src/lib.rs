@@ -33,6 +33,7 @@ mod recording_blueprints;
 mod recording_catalog;
 mod recording_ingest;
 mod recordings;
+mod resource_changes;
 mod store;
 mod table;
 mod time;

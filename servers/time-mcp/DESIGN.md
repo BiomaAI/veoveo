@@ -478,3 +478,10 @@ archive traversal rejection.
 Platform-store tests cover URL, id, migration, and policy invariants. Gateway validation,
 Helm rendering and linting, the container build, and the shared SurrealDB integration
 harness exercise the deployment boundary.
+
+## Replica Resource Observation
+
+Each replica opens one shared group of projected Store LIVE queries for authority releases and activation, acquisitions, calendars, mission epochs, temporal events and clock policy.
+Committed changes invalidate only each listener's accepted resource identities and
+requested catalog. Writes coalesce over 100 milliseconds. Source reconnection invalidates readers after a delivery gap; reads retain normal
+current authority. Idle sources emit no periodic resource-change notifications. This observes durable state and cannot dispatch work.

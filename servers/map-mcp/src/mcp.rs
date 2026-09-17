@@ -14,7 +14,7 @@ use rmcp::{
         GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
         UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
@@ -849,7 +849,7 @@ impl ServerHandler for MapMcp {
         veoveo_mcp_contract::final_protocol_versions()
     }
 
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
@@ -863,7 +863,7 @@ impl ServerHandler for MapMcp {
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
         );
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(

@@ -43,7 +43,7 @@ impl ServerHandler for ComputersMcp {
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
         veoveo_mcp_contract::final_protocol_versions()
     }
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
@@ -55,7 +55,7 @@ impl ServerHandler for ComputersMcp {
             .extensions
             .get_or_insert_default()
             .insert(TASKS_EXTENSION_ID.into(), JsonObject::new());
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = capabilities;
         info.server_info = Implementation::new("computers", env!("CARGO_PKG_VERSION"));
         info.instructions = Some("Read computer://computers for your collection, availability and permitted actions. Lifecycle tools require the Tasks extension and a stable requestId. Disconnecting access leaves work running; Stop ends processes and preserves the home. Recovery Required keeps uncertain operations protected.".into());

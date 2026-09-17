@@ -16,7 +16,7 @@ use chrono::Utc;
 use rmcp::{
     ClientHandler, ClientLifecycleMode, ClientServiceExt,
     model::{
-        ClientCapabilities, ClientInfo, Implementation, PaginatedRequestParams, Resource,
+        ClientCapabilities, ClientConfig, Implementation, PaginatedRequestParams, Resource,
         ResourceUpdatedNotificationParam, ServerNotification, SubscriptionFilter, Tool,
     },
     service::{NotificationContext, RoleClient, RunningService},
@@ -59,7 +59,7 @@ impl ConsoleHostHandler {
 }
 
 impl ClientHandler for ConsoleHostHandler {
-    fn get_info(&self) -> ClientInfo {
+    fn get_info(&self) -> ClientConfig {
         let mut capabilities = ClientCapabilities::default();
         let (id, declaration) = veoveo_mcp_apps_extension::host_extension_capability();
         capabilities
@@ -71,7 +71,7 @@ impl ClientHandler for ConsoleHostHandler {
             .get_or_insert_default()
             .entry(rmcp::model::TASKS_EXTENSION_ID.to_owned())
             .or_default();
-        ClientInfo::new(
+        ClientConfig::new(
             capabilities,
             Implementation::new("veoveo-console", env!("CARGO_PKG_VERSION")),
         )
@@ -486,7 +486,7 @@ mod tests {
     use axum::Router;
     use rmcp::{
         ErrorData as McpError, ServerHandler,
-        model::{ServerCapabilities, ServerInfo, SubscriptionFilter},
+        model::{ServerCapabilities, ServerConfig, SubscriptionFilter},
         service::SubscriptionContext,
         transport::streamable_http_server::{
             StreamableHttpService, session::never::NeverSessionManager,
@@ -533,8 +533,8 @@ mod tests {
     }
 
     impl ServerHandler for SubscriptionMcp {
-        fn get_info(&self) -> ServerInfo {
-            ServerInfo::new(
+        fn get_info(&self) -> ServerConfig {
+            ServerConfig::new(
                 ServerCapabilities::builder()
                     .enable_resources()
                     .enable_resources_subscribe()
@@ -644,8 +644,8 @@ mod tests {
     }
 
     impl ServerHandler for CatalogMcp {
-        fn get_info(&self) -> ServerInfo {
-            ServerInfo::new(
+        fn get_info(&self) -> ServerConfig {
+            ServerConfig::new(
                 ServerCapabilities::builder()
                     .enable_resources()
                     .enable_resources_list_changed()
@@ -1044,8 +1044,8 @@ mod tests {
     struct PrivateCaMcp;
 
     impl ServerHandler for PrivateCaMcp {
-        fn get_info(&self) -> ServerInfo {
-            ServerInfo::new(
+        fn get_info(&self) -> ServerConfig {
+            ServerConfig::new(
                 ServerCapabilities::builder()
                     .enable_resources()
                     .enable_tools()

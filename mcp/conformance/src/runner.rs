@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow};
 use reqwest::header::HOST;
 use rmcp::{
     ClientHandler, ClientLifecycleMode, ClientServiceExt,
-    model::{ClientCapabilities, ClientInfo, Implementation, Tool},
+    model::{ClientCapabilities, ClientConfig, Implementation, Tool},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
@@ -21,8 +21,8 @@ use crate::{
 struct CertificationClient;
 
 impl ClientHandler for CertificationClient {
-    fn get_info(&self) -> ClientInfo {
-        ClientInfo::new(
+    fn get_info(&self) -> ClientConfig {
+        ClientConfig::new(
             ClientCapabilities::default(),
             Implementation::new("veoveo-mcp-conformance", env!("CARGO_PKG_VERSION")),
         )

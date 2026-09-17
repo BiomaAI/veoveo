@@ -4,7 +4,7 @@
 
 This component exposes typed Veoveo HTTP JSON routes for agent admission, response
 runs and cancellation. It uses the repository-qualified Rig revision
-`eefffb118579cd4b1a48f8d7cd9bd04354b57634` and its OpenAI-compatible Chat Completions
+`6a92dacd7802d9105f106344a8e85a8a19ec88b2` and its OpenAI-compatible Chat Completions
 stream adapter. This is an internal provider adapter, not an OpenAI Responses API
 implementation. Existing gateway OAuth, session-family revocation and Work Context
 contracts govern the initiating human. MCP `2026-07-28` tool calls and Tasks use the

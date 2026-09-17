@@ -186,8 +186,8 @@ pub use storage::{
     ComplianceMetadata,
 };
 pub use subscriptions::{
-    ResourceListObservers, SubscriptionHub, accepted_subscription_filter, listen_resources,
-    receive_resource_list_change, receive_resource_update,
+    ResourceListObservers, ResourceUpdate, SubscriptionHub, accepted_subscription_filter,
+    listen_resources, receive_resource_list_change, receive_resource_update, send_resource_update,
 };
 pub use tasks::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayTaskStatus, GatewayTaskStatusDocument,

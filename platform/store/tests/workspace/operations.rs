@@ -425,3 +425,74 @@ async fn input_rounds_claim_one_revision_and_stale_forms_cannot_advance_them() {
     .await
     .expect("bounded native MRTR fencing acceptance");
 }
+
+#[tokio::test]
+async fn progress_is_monotonic_and_cannot_cross_dispatch_fences_or_settlement() {
+    use veoveo_platform_store::workspace::WorkspaceOperationProgress;
+    let db = TestDb::new().await;
+    let alice = identity(&db.a, "alice").await;
+    context(&db.a, &alice, "operations").await;
+    let a = authority(&db.a, &alice, "operations").await;
+    let chat = WorkspaceChatId::new();
+    db.a.create_workspace_chat(&a, chat, "Measured progress")
+        .await
+        .unwrap();
+    let id = WorkspaceOperationId::new();
+    let op =
+        db.a.start_workspace_operation(&a, id, intent(chat))
+            .await
+            .unwrap()
+            .operation;
+    let measured = |completed| WorkspaceOperationProgress {
+        completed,
+        total: Some(10.0),
+        message: Some("Measured work".into()),
+    };
+    assert_eq!(
+        db.b.record_workspace_progress(id, Uuid::new_v4(), measured(1.0))
+            .await,
+        Err(WorkspaceError::Conflict)
+    );
+    db.a.record_workspace_progress(id, op.fence, measured(4.0))
+        .await
+        .unwrap();
+    db.b.record_workspace_progress(id, op.fence, measured(2.0))
+        .await
+        .unwrap();
+    assert_eq!(
+        db.b.workspace_operation(&a, id).await.unwrap().progress,
+        Some(measured(4.0))
+    );
+    let settled =
+        db.a.settle_workspace_operation(id, op.fence, Outcome::InputRequired("{}".into()))
+            .await
+            .unwrap();
+    assert!(settled.progress.is_none());
+    let resumed =
+        db.b.resume_workspace_operation(&a, id, settled.revision)
+            .await
+            .unwrap();
+    assert_eq!(
+        db.a.record_workspace_progress(id, op.fence, measured(5.0))
+            .await,
+        Err(WorkspaceError::Conflict)
+    );
+    db.b.record_workspace_progress(id, resumed.fence, measured(1.0))
+        .await
+        .unwrap();
+    db.a.settle_workspace_operation(id, resumed.fence, Outcome::Failed)
+        .await
+        .unwrap();
+    assert_eq!(
+        db.b.record_workspace_progress(id, resumed.fence, measured(6.0))
+            .await,
+        Err(WorkspaceError::Conflict)
+    );
+    assert!(
+        db.b.workspace_operation(&a, id)
+            .await
+            .unwrap()
+            .progress
+            .is_none()
+    );
+}

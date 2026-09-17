@@ -170,7 +170,16 @@ pub struct OperationResult {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationView {
     pub operation: OperationSummary,
+    pub progress: Option<OperationProgress>,
     pub task: Option<TaskView>,
     pub inputs: Vec<OperationInput>,
     pub result: Option<OperationResult>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OperationProgress {
+    pub completed: f64,
+    pub total: Option<f64>,
+    pub message: Option<String>,
 }

@@ -678,7 +678,7 @@ impl FakeHostedMcp {
 }
 
 impl ServerHandler for FakeHostedMcp {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
@@ -688,7 +688,7 @@ impl ServerHandler for FakeHostedMcp {
         if self.is_chart_fixture() {
             veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
         }
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = caps;
         info.server_info = Implementation::new(self.server.clone(), env!("CARGO_PKG_VERSION"));
         info.instructions = Some(format!(

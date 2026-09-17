@@ -12,7 +12,7 @@ use rmcp::{
         CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams, ContentBlock,
         GetTaskParams, GetTaskResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
-        ServerCapabilities, ServerInfo, SubscriptionFilter, UpdateTaskParams,
+        ServerCapabilities, ServerConfig, SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -336,8 +336,8 @@ impl ServerHandler for SumoMcp {
         veoveo_mcp_contract::final_protocol_versions()
     }
 
-    fn get_info(&self) -> ServerInfo {
-        let mut info = ServerInfo::default();
+    fn get_info(&self) -> ServerConfig {
+        let mut info = ServerConfig::default();
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()

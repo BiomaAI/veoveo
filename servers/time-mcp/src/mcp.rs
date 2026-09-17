@@ -10,7 +10,7 @@ use rmcp::{
         GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscriptionFilter,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
         UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
@@ -301,7 +301,7 @@ impl ServerHandler for TimeMcp {
         veoveo_mcp_contract::final_protocol_versions()
     }
 
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
@@ -315,7 +315,7 @@ impl ServerHandler for TimeMcp {
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
         );
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("time", env!("CARGO_PKG_VERSION"));
         info.instructions = Some("Authoritative time interpretation and operational scheduling for agents. Resolve civil, military, GNSS, Unix, TAI, and mission-relative expressions against versioned TZDB and leap-second releases. Invoke schedule expansion and timeline validation through the Task API. Carry TimeInstant authority bindings and uncertainty into Map and Optimization calls.".to_owned());

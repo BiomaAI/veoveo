@@ -4,7 +4,7 @@ use rmcp::{
     handler::server::ServerHandler,
     model::{
         CallToolRequestParams, CallToolResponse, ErrorData as McpError, ListToolsResult,
-        PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerInfo, ServerPeerInfo,
+        PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerConfig, ServerPeerInfo,
     },
     service::{Peer, RequestContext, RoleClient, RoleServer, ServiceError},
 };
@@ -17,19 +17,19 @@ use rmcp::{
 #[derive(Clone)]
 pub(crate) struct BridgeMcp {
     child: Peer<RoleClient>,
-    info: ServerInfo,
+    info: ServerConfig,
 }
 
 impl BridgeMcp {
-    pub(crate) fn new(child: Peer<RoleClient>, info: ServerInfo) -> Self {
+    pub(crate) fn new(child: Peer<RoleClient>, info: ServerConfig) -> Self {
         Self { child, info }
     }
 }
 
 /// Advertise a tools-only surface while preserving the child's identity and
 /// instructions, so clients see which server they are really talking to.
-pub(crate) fn bridge_server_info(child: &ServerPeerInfo) -> ServerInfo {
-    let mut info = ServerInfo::default();
+pub(crate) fn bridge_server_info(child: &ServerPeerInfo) -> ServerConfig {
+    let mut info = ServerConfig::default();
     info.capabilities = ServerCapabilities::builder().enable_tools().build();
     if let Some(server_info) = child.server_info.clone() {
         info.server_info = server_info;
@@ -50,7 +50,7 @@ impl ServerHandler for BridgeMcp {
         Cow::Borrowed(&[ProtocolVersion::V_2026_07_28])
     }
 
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         self.info.clone()
     }
 

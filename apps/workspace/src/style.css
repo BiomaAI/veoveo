@@ -963,3 +963,5 @@ p {
 .attachment-picker form { display: grid; gap: .75rem; }
 .attachment-choices { display: flex; flex-direction: column; gap: .4rem; max-height: 12rem; overflow-y: auto; }
 .attachment-choices button { overflow-wrap: anywhere; text-align: left; }
+
+.task-progress.measured span { animation:none; transition:width .2s ease; }

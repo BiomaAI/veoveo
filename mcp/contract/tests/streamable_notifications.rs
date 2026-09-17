@@ -1,7 +1,7 @@
 use axum::Router;
 use rmcp::{
     ServerHandler,
-    model::{ServerCapabilities, ServerInfo},
+    model::{ServerCapabilities, ServerConfig},
     transport::streamable_http_server::StreamableHttpService,
 };
 
@@ -15,8 +15,8 @@ impl ServerHandler for StatelessServer {
         std::borrow::Cow::Owned(vec![rmcp::model::ProtocolVersion::V_2026_07_28])
     }
 
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
     }
 }
 

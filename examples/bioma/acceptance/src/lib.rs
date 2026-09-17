@@ -75,7 +75,10 @@ mod tests {
         assert_eq!(workspace_secret["owner"]["kind"], "gateway");
         assert_eq!(workspace_secret["purpose"], "provider_api_key");
         assert_eq!(workspace_secret["source"], "env");
-        assert_eq!(workspace_secret["locator"], "VEOVEO_WORKSPACE_MODEL_API_KEY");
+        assert_eq!(
+            workspace_secret["locator"],
+            "VEOVEO_WORKSPACE_MODEL_API_KEY"
+        );
         let shared_secrets = secrets
             .iter()
             .filter(|secret| secret["id"] != "workspace_model_api_key")

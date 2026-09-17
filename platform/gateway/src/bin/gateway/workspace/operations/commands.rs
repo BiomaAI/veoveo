@@ -222,7 +222,12 @@ async fn dispatch(
         return;
     };
     let work = async {
-        let Ok(client) = state.native.connect(&caller.profile, &caller.bearer).await else {
+        let (progress, mut observations) = super::progress::RequestProgress::new();
+        let Ok(client) = state
+            .native
+            .connect_with_progress(&caller.profile, &caller.bearer, Some(progress.clone()))
+            .await
+        else {
             return Outcome::Failed;
         };
         let Ok(authority) = state.authority(&caller.subject, &caller.profile).await else {
@@ -255,7 +260,45 @@ async fn dispatch(
             return Outcome::Failed;
         }
         // Explicit once: the SDK must not drive hidden MRTR rounds or retry mutations.
-        let response = client.peer().call_tool_once(params).await;
+        let response = {
+            let request = async {
+                use rmcp::{
+                    model::{CallToolRequest, ClientRequest, ServerResult},
+                    service::PeerRequestOptions,
+                };
+                let handle = client
+                    .peer()
+                    .send_cancellable_request(
+                        ClientRequest::CallToolRequest(CallToolRequest::new(params)),
+                        PeerRequestOptions::no_options(),
+                    )
+                    .await?;
+                progress.bind(handle.progress_token.clone());
+                match handle.await_response().await? {
+                    ServerResult::CallToolResult(result) => Ok(CallToolResponse::Complete(result)),
+                    ServerResult::InputRequiredResult(result) => {
+                        Ok(CallToolResponse::InputRequired(result))
+                    }
+                    ServerResult::CreateTaskResult(result) => Ok(CallToolResponse::Task(result)),
+                    _ => Err(rmcp::ServiceError::UnexpectedResponse),
+                }
+            };
+            tokio::pin!(request);
+            let mut tick = tokio::time::interval(Duration::from_millis(250));
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    biased;
+                    result = &mut request => break result,
+                    _ = tick.tick() => {
+                        let value = if observations.has_changed().unwrap_or(false) { observations.borrow_and_update().clone() } else { None };
+                        if let Some(value) = value {
+                            let _ = tokio::time::timeout(Duration::from_secs(2), state.workspace.store.record_workspace_progress(WorkspaceOperationId::from_uuid(id), operation.fence, value)).await;
+                        }
+                    }
+                }
+            }
+        };
         client.close().await;
         match response {
             Ok(CallToolResponse::Complete(result)) => serde_json::to_string(&result)

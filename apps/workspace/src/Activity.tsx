@@ -6,7 +6,7 @@ import { TaskInput } from "./TaskInput.tsx";
 import { ResourceResult } from "./ResourceResult.tsx";
 import { ResultImages } from "./ResultImages.tsx";
 import { PersonalUpdates } from "./usePersonalEvents.ts";
-import type { Chat, InputAnswer, OperationSummary, OperationView } from "./generated/workspace.ts";
+import type { Chat, InputAnswer, OperationProgress, OperationSummary, OperationView } from "./generated/workspace.ts";
 
 function active(view?: OperationView): boolean {
   return !!view && (view.operation.phase === "dispatching" || view.task?.state === "working" || view.task?.state === "input_required");
@@ -106,7 +106,7 @@ function TaskCard({ operation, observed, chatTitle, showOrigin }: { operation: O
     {query.error ? <p className="error" role="alert">{query.error instanceof ApiError && [403, 404].includes(query.error.status) ? "This activity is no longer available with your access, or its retention period has ended." : "Current status is unavailable. The operation has not been restarted."}</p> : view && <>
       <div className="task-state" role="status">{label(view)}</div>
       {view.task?.message && <p>{view.task.message}</p>}
-      {active(view) && state !== "input_required" && <div className="task-progress" role="progressbar" aria-label="Task in progress"><span/></div>}
+      {active(view) && state !== "input_required" && <MeasuredProgress progress={view.progress}/> }
       {state === "unconfirmed" && <p>The connection ended before the outcome was recorded. This operation will not be submitted again automatically.</p>}
       {view.inputs.length > 0 && <TaskInput independent={!!view.task} inputs={view.inputs} busy={busy} onAnswer={answers => void answer(answers)} onError={setError}/>}
       {view.operation.phase === "input_required" && view.inputs.length === 0 && <button className="primary" disabled={busy} onClick={() => void answer([])}>Continue operation</button>}
@@ -119,4 +119,17 @@ function TaskCard({ operation, observed, chatTitle, showOrigin }: { operation: O
     </>}
     {error && <p className="error" role="alert">{error}</p>}
   </article>;
+}
+
+function MeasuredProgress({ progress }: { progress?: OperationProgress | null }) {
+  const total = progress?.total;
+  const measured = !!progress && typeof total === "number" && total > 0 && progress.completed <= total;
+  return <>
+    {progress?.message && <p>{progress.message}</p>}
+    <div className={`task-progress${measured ? " measured" : ""}`} role="progressbar" aria-label="Operation progress"
+      aria-valuemin={measured ? 0 : undefined} aria-valuemax={measured ? total : undefined} aria-valuenow={measured ? progress.completed : undefined}>
+      <span style={measured ? { width: `${100 * progress.completed / total}%` } : undefined}/>
+    </div>
+    {measured && <small>{progress.completed} of {total}</small>}
+  </>;
 }

@@ -14,6 +14,17 @@ profile to `rmcp` 3 and MCP `2026-07-28`.
 [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) now defines hosted-server
 contract revision 3 as the sole first-party protocol profile.
 
+## September 17 Dependency Checkpoint
+
+The reactive UX delivery pins stable RMCP 3.4.0 at maintained fork revision
+`8728fef3d3f18b5f95afb801d6f28064bda94b9a`. The fork retains exact Task-ID filters
+and qualified stream shutdown. Veoveo uses the canonical `ClientConfig` and
+`ServerConfig` names. Rig remains stable 0.42.0, with its matching RMCP pin at
+`6a92dacd7802d9105f106344a8e85a8a19ec88b2`. Upstream release checks on September 17
+found no newer stable Rig release. The SDK's subscription, HTTP concurrency,
+cancellation, disconnect, header and version tests passed; Rig's 48 RMCP tests
+passed. Installed qualification is tracked in [the reactive plan](REACTIVE_UX_PLAN.md).
+
 ## Standards And Protocols
 
 | Standard or protocol | Migration boundary |

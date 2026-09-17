@@ -18,7 +18,7 @@ use reqwest::{
 use rmcp::{
     ClientHandler, ClientLifecycleMode, ClientServiceExt,
     model::{
-        CallToolRequestParams, ClientCapabilities, ClientInfo, Implementation,
+        CallToolRequestParams, ClientCapabilities, ClientConfig, Implementation,
         ReadResourceRequestParams, ResourceContents,
     },
     service::RunningService,

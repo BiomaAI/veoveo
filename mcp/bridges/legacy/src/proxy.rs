@@ -7,7 +7,7 @@ use rmcp::{
         ErrorData as McpError, GetPromptRequestParams, GetPromptResponse, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         ProtocolVersion, ReadResourceRequestParams, ReadResourceResponse, ServerCapabilities,
-        ServerInfo, ServerPeerInfo,
+        ServerConfig, ServerPeerInfo,
     },
     service::{Peer, RequestContext, RoleClient, RoleServer, ServiceError},
 };
@@ -18,23 +18,23 @@ const PRIVATE_RESOURCE_TTL_MS: u64 = veoveo_mcp_contract::PRIVATE_RESOURCE_TTL_M
 #[derive(Clone)]
 pub(crate) struct LegacyProxy {
     legacy: Peer<RoleClient>,
-    info: ServerInfo,
+    info: ServerConfig,
 }
 
 impl LegacyProxy {
-    pub(crate) fn new(legacy: Peer<RoleClient>, info: ServerInfo) -> Self {
+    pub(crate) fn new(legacy: Peer<RoleClient>, info: ServerConfig) -> Self {
         Self { legacy, info }
     }
 }
 
-pub(crate) fn final_server_info(legacy: &ServerPeerInfo) -> ServerInfo {
+pub(crate) fn final_server_info(legacy: &ServerPeerInfo) -> ServerConfig {
     let observed = &legacy.capabilities;
     let mut capabilities = ServerCapabilities::default();
     capabilities.tools = observed.tools.as_ref().map(|_| Default::default());
     capabilities.resources = observed.resources.as_ref().map(|_| Default::default());
     capabilities.prompts = observed.prompts.as_ref().map(|_| Default::default());
     capabilities.completions = observed.completions.as_ref().map(|_| Default::default());
-    let mut info = ServerInfo::new(capabilities);
+    let mut info = ServerConfig::new(capabilities);
     info.server_info = legacy
         .server_info
         .clone()
@@ -88,7 +88,7 @@ impl ServerHandler for LegacyProxy {
         veoveo_mcp_contract::final_protocol_versions()
     }
 
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         self.info.clone()
     }
 

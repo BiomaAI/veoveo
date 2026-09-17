@@ -133,6 +133,27 @@ pub async fn run() -> Result<()> {
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts.iter().cloned());
     let allowed_hosts = Arc::new(allowed_hosts);
+    let resource_state = state.clone();
+    let _resource_observer = tokio::spawn(async move {
+        use futures::StreamExt;
+        use veoveo_platform_store::PlatformTable::*;
+        let mut changes = resource_state.tasks.platform_store().resource_changes(vec![
+            TimeSource,
+            TimeAuthorityRelease,
+            TimeActiveAuthority,
+            TimeAcquisition,
+            TimeCalendarVersion,
+            TimeMissionEpoch,
+            TimeTemporalEvent,
+            TimeClockPolicy,
+        ]);
+        while changes.next().await.is_some() {
+            resource_state
+                .subscriptions
+                .notify_resources_changed()
+                .await;
+        }
+    });
     let auth_state = InternalAuthState {
         verifier: verifier.clone(),
     };

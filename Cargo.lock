@@ -10862,9 +10862,9 @@ dependencies = [
 
 [[package]]
 name = "process-wrap"
-version = "9.1.0"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e842efad9119158434d193c6682e2ebee4b44d6ad801d7b349623b3f57cdf55"
+checksum = "0e3f4237d0e4741eb50bc5584db701f1299c85fa31ff0274dd6445e79dc42d12"
 dependencies = [
  "futures",
  "indexmap 2.14.0",
@@ -13168,7 +13168,7 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 [[package]]
 name = "rig"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
+source = "git+https://github.com/rozgo/rig.git?rev=6a92dacd7802d9105f106344a8e85a8a19ec88b2#6a92dacd7802d9105f106344a8e85a8a19ec88b2"
 dependencies = [
  "rig-agent",
  "rig-core",
@@ -13182,7 +13182,7 @@ dependencies = [
 [[package]]
 name = "rig-agent"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
+source = "git+https://github.com/rozgo/rig.git?rev=6a92dacd7802d9105f106344a8e85a8a19ec88b2#6a92dacd7802d9105f106344a8e85a8a19ec88b2"
 dependencies = [
  "async-stream",
  "chrono",
@@ -13205,7 +13205,7 @@ dependencies = [
 [[package]]
 name = "rig-core"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
+source = "git+https://github.com/rozgo/rig.git?rev=6a92dacd7802d9105f106344a8e85a8a19ec88b2#6a92dacd7802d9105f106344a8e85a8a19ec88b2"
 dependencies = [
  "as-any",
  "async-stream",
@@ -13239,7 +13239,7 @@ dependencies = [
 [[package]]
 name = "rig-derive"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
+source = "git+https://github.com/rozgo/rig.git?rev=6a92dacd7802d9105f106344a8e85a8a19ec88b2#6a92dacd7802d9105f106344a8e85a8a19ec88b2"
 dependencies = [
  "convert_case 0.11.0",
  "proc-macro-crate",
@@ -13251,7 +13251,7 @@ dependencies = [
 [[package]]
 name = "rig-fastembed"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
+source = "git+https://github.com/rozgo/rig.git?rev=6a92dacd7802d9105f106344a8e85a8a19ec88b2#6a92dacd7802d9105f106344a8e85a8a19ec88b2"
 dependencies = [
  "fastembed",
  "rig-core",
@@ -13264,7 +13264,7 @@ dependencies = [
 [[package]]
 name = "rig-helixdb"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
+source = "git+https://github.com/rozgo/rig.git?rev=6a92dacd7802d9105f106344a8e85a8a19ec88b2#6a92dacd7802d9105f106344a8e85a8a19ec88b2"
 dependencies = [
  "reqwest 0.13.4",
  "rig-core",
@@ -13276,7 +13276,7 @@ dependencies = [
 [[package]]
 name = "rig-lancedb"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
+source = "git+https://github.com/rozgo/rig.git?rev=6a92dacd7802d9105f106344a8e85a8a19ec88b2#6a92dacd7802d9105f106344a8e85a8a19ec88b2"
 dependencies = [
  "arrow-array",
  "futures",
@@ -13289,7 +13289,7 @@ dependencies = [
 [[package]]
 name = "rig-milvus"
 version = "0.42.0"
-source = "git+https://github.com/rozgo/rig.git?rev=eefffb118579cd4b1a48f8d7cd9bd04354b57634#eefffb118579cd4b1a48f8d7cd9bd04354b57634"
+source = "git+https://github.com/rozgo/rig.git?rev=6a92dacd7802d9105f106344a8e85a8a19ec88b2#6a92dacd7802d9105f106344a8e85a8a19ec88b2"
 dependencies = [
  "reqwest 0.13.4",
  "rig-core",
@@ -13373,8 +13373,8 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.1.4"
-source = "git+https://github.com/rozgo/rust-sdk?rev=bcbc5afc3ba93d40e5449f7217fa08842ca7dd63#bcbc5afc3ba93d40e5449f7217fa08842ca7dd63"
+version = "3.4.0"
+source = "git+https://github.com/rozgo/rust-sdk?rev=8728fef3d3f18b5f95afb801d6f28064bda94b9a#8728fef3d3f18b5f95afb801d6f28064bda94b9a"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -13406,8 +13406,8 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "3.1.4"
-source = "git+https://github.com/rozgo/rust-sdk?rev=bcbc5afc3ba93d40e5449f7217fa08842ca7dd63#bcbc5afc3ba93d40e5449f7217fa08842ca7dd63"
+version = "3.4.0"
+source = "git+https://github.com/rozgo/rust-sdk?rev=8728fef3d3f18b5f95afb801d6f28064bda94b9a#8728fef3d3f18b5f95afb801d6f28064bda94b9a"
 dependencies = [
  "darling 0.24.1",
  "proc-macro2",
@@ -17325,6 +17325,7 @@ dependencies = [
 name = "veoveo-platform-store"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "chrono",
  "futures",
  "hex",

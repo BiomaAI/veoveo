@@ -460,6 +460,7 @@ The only durable platform persistence layer.
 | `recordings.rs` | recording lifecycle and visibility |
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
+| `resource_changes.rs` | projected shared domain LIVE invalidations, coalescing and reconnect recovery; composed into Time and Recording resource hubs |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
 | `live_views.rs` | append-only audit records for authoritative simulation live-view products and ephemeral viewer authorizations |
 | `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
@@ -474,6 +475,11 @@ Computers admission and Task recovery reuse its isolated pinned database lifecyc
 ## Durable Tasks
 
 ### `platform/task-runtime`
+
+`runtime/subscriptions.rs` owns exact-ID Task baselines, filtered outbox replay and
+shared wake-source lifetime. Workspace `operations/progress.rs` binds measured
+request progress to the exact native request and dispatch fence.
+
 
 `src/provider_resume.rs` joins an explicitly authorized domain recovery request to
 the exact shared observation lease and cancellation epoch in one transaction.
