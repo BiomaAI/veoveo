@@ -9,6 +9,14 @@ application contract and must not expose database credentials or raw record IDs.
 
 ## Ownership
 
+`personal.rs` projects the latest 100 actor-owned operation receipts and pending
+invitations under the same current tenant, Work Context and principal checks. The
+projection omits arguments, results and continuation state. Two projected LIVE
+queries publish only the affected principal identity; the gateway shares them
+across browser watches and re-reads current state before publishing. Reconciliation
+recovers lost delivery. An expired dispatch lease projects an unconfirmed outcome
+without reissuing the operation. Native MCP continues to own Task state.
+
 The shared store owns chat records and atomic membership/message transitions.
 Gateway handlers own OAuth admission and current Work Context policy evaluation.
 The accepted product and remaining delivery gates are in

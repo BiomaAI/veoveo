@@ -239,6 +239,8 @@ p {
   justify-content:space-between;
   margin:27px 10px 9px;
 }
+
+.activity-notice { display: block; margin: 0 12px 8px; color: var(--muted); font-size: 12px; }
 .sidebar-section span {
   letter-spacing:0;
 }

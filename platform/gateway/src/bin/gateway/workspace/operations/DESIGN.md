@@ -7,8 +7,9 @@ RMCP pin. Discover negotiates the official SEP-2663 Tasks extension. Tool calls
 use the SDK's single-round API; SEP-2322 continuation state stays on the server.
 Task reads, updates and cancellation use `tasks/get`, `tasks/update` and
 `tasks/cancel`. Request-scoped `subscriptions/listen` carries Task-ID filters.
-The browser receives a separate generated HTTP JSON projection and contentless
-Server-Sent Events. It does not receive bearer credentials or request state.
+The browser receives a separate generated HTTP JSON projection, contentless Task
+detail invalidations and actor-private typed personal events. It does not receive
+bearer credentials or request state.
 Elicitation forms use the MCP primitive schema profile, validated with the
 repository's qualified JSON Schema implementation. Sampling and roots requests
 are not advertised or executed by this client.
@@ -72,6 +73,22 @@ cannot supply or replace request state. Native Task updates retain the Task
 runtime's lifetime-unique request keys and response deduplication.
 
 ## Subscriptions And Bounds
+
+`personal.rs` serves `/workspace-api/{profile}/events` independently of the open
+chat. A process shares two projected LIVE sources across people. Every source
+recovery wakes readers after subscription establishment; every emitted inventory
+comes from a fresh authorized bounded snapshot. Fifteen-second reconciliation
+recovers missed operation or invitation changes. Policy replacement, revocation
+or token expiry ends observation. A stream lasts at most 55 seconds.
+
+The personal watch reconciles up to 32 recent Task references through native
+`tasks/get`, with four concurrent reads. Unavailable or expired Tasks lose their
+observation individually. Only active, readable Tasks enter the exact acknowledged
+subscription. Reconnection obtains a new baseline without submitting work. Private
+events contain an operation identity, closed state and timestamp; they exclude
+Task payloads, input prompts, results and progress messages. The inventory says
+when its recent-activity window is limited. Older visible items retain their own
+bounded native watch and detail reconciliation.
 
 A tab watches at most 32 owned operation references through one native Task
 subscription. Its accepted filter must exactly match the requested Task IDs.

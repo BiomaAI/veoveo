@@ -545,3 +545,6 @@ mod replies;
 
 #[path = "workspace/attachments.rs"]
 mod attachments;
+
+#[path = "workspace/personal.rs"]
+mod personal;

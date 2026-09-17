@@ -74,14 +74,7 @@ pub(super) fn task(
     let mut view = stored(value)?;
     view.task = Some(wire::TaskView {
         id: task.task.task_id,
-        state: match task.task.status {
-            TaskStatus::Working => wire::TaskState::Working,
-            TaskStatus::InputRequired => wire::TaskState::InputRequired,
-            TaskStatus::Completed => wire::TaskState::Completed,
-            TaskStatus::Failed => wire::TaskState::Failed,
-            TaskStatus::Cancelled => wire::TaskState::Cancelled,
-            _ => return Err(StatusCode::BAD_GATEWAY),
-        },
+        state: task_state(task.task.status)?,
         message: task.task.status_message,
         created_at: task.task.created_at,
         updated_at: task.task.last_updated_at,
@@ -101,6 +94,17 @@ pub(super) fn task(
         _ => {}
     }
     Ok(view)
+}
+
+pub(super) fn task_state(state: TaskStatus) -> Result<wire::TaskState, StatusCode> {
+    match state {
+        TaskStatus::Working => Ok(wire::TaskState::Working),
+        TaskStatus::InputRequired => Ok(wire::TaskState::InputRequired),
+        TaskStatus::Completed => Ok(wire::TaskState::Completed),
+        TaskStatus::Failed => Ok(wire::TaskState::Failed),
+        TaskStatus::Cancelled => Ok(wire::TaskState::Cancelled),
+        _ => Err(StatusCode::BAD_GATEWAY),
+    }
 }
 
 fn result(result: CallToolResult) -> wire::OperationResult {

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity as ActivityIcon, Check, CircleAlert, Clock3, LockKeyhole, RefreshCw, Square, X } from "lucide-react";
 import { api, ApiError } from "./api.ts";
 import { TaskInput } from "./TaskInput.tsx";
 import { ResourceResult } from "./ResourceResult.tsx";
 import { ResultImages } from "./ResultImages.tsx";
+import { PersonalUpdates } from "./usePersonalEvents.ts";
 import type { Chat, InputAnswer, OperationSummary, OperationView } from "./generated/workspace.ts";
 
 function active(view?: OperationView): boolean {
@@ -31,6 +32,7 @@ function label(view: OperationView): string {
 
 export function Activity({ chat, close, chats }: { chat?: string; close?: () => void; chats?: Chat[] }) {
   const client = useQueryClient();
+  const personal = useContext(PersonalUpdates);
   const [visible, setVisible] = useState(10);
   const [activeIds, setActiveIds] = useState<Set<string>>(() => new Set());
   const observed = useCallback((id: string, isActive: boolean) => setActiveIds(current => {
@@ -39,9 +41,9 @@ export function Activity({ chat, close, chats }: { chat?: string; close?: () => 
   }), []);
   const query = useInfiniteQuery({ queryKey: ["operations", chat], initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) => api.operations(chat, pageParam, signal), getNextPageParam: page => page.next ?? undefined,
-    refetchInterval: 10_000, refetchIntervalInBackground: false });
+    refetchInterval: personal.connected ? false : 30_000, refetchIntervalInBackground: false });
   const items = useMemo(() => query.data?.pages.flatMap(page => page.items) ?? [], [query.data]);
-  const ids = items.slice(0, visible).filter(item => activeIds.has(item.id)).slice(0, 32).map(item => item.id).sort().join(",");
+  const ids = items.slice(0, visible).filter(item => activeIds.has(item.id) && !personal.watched.has(item.id)).slice(0, 32).map(item => item.id).sort().join(",");
   useEffect(() => {
     if (!ids) return;
     const source = new EventSource(`/workspace/api/operations/events?${new URLSearchParams({ ids })}`);
@@ -58,6 +60,8 @@ export function Activity({ chat, close, chats }: { chat?: string; close?: () => 
   return <section className={chat ? "task-panel" : "activity-page"} aria-label={chat ? "Your activity in this chat" : "My activity"}>
     <div className="details-heading"><h2><ActivityIcon size={18}/> {chat ? "Your activity" : "My activity"}</h2>{close && <button className="icon-button" aria-label="Close activity" onClick={close}><X size={18}/></button>}</div>
     <p className="activity-privacy"><LockKeyhole size={13}/> Task details and input requests are private to you.</p>
+    {!personal.connected && <p className="muted" role="status">Reconnecting live activity updates…</p>}
+    {personal.limited && <p className="muted">Live notifications cover recent activity. Open an older item to follow its current status.</p>}
     {query.isPending && <p role="status">Loading your activity…</p>}
     {query.error && <p className="error" role="alert">{query.error.message}<button onClick={() => void query.refetch()}>Refresh activity</button></p>}
     {query.data && !items.length && <div className="empty-card"><ActivityIcon size={24}/><h3>No activity yet</h3><p>Tasks from your tools, Apps and agents will appear here. You can return to them after leaving a chat.</p></div>}

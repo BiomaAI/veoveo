@@ -18,6 +18,14 @@ use uuid::Uuid;
 #[serde(deny_unknown_fields)]
 pub(super) struct EmptyQuery {}
 
+pub(super) async fn personal(
+    State(state): State<AppState>,
+    Query(_): Query<EmptyQuery>,
+    headers: HeaderMap,
+) -> Response {
+    forward(&state, &headers, "/events").await
+}
+
 pub(super) async fn events(
     State(state): State<AppState>,
     Path(chat): Path<Uuid>,

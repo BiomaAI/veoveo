@@ -37,6 +37,7 @@ pub(crate) fn router() -> Router<AppState> {
             get(api::preview_artifact),
         )
         .route("/workspace/api/session", get(session))
+        .route("/workspace/api/events", get(events::personal))
         .route("/workspace/api/chats", get(chats).post(create))
         .route("/workspace/api/chats/{chat}", get(snapshot).put(settings))
         .route("/workspace/api/chats/{chat}/messages", post(send))

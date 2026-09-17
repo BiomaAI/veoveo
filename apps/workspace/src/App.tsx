@@ -5,6 +5,7 @@ import { api, ApiError, loginPath, logout } from "./api.ts";
 import { initials } from "./identity.ts";
 import { useConversation } from "./useConversation.ts";
 import { useUploads } from "./useUploads.ts";
+import { PersonalUpdates, usePersonalEvents } from "./usePersonalEvents.ts";
 import type { QueueState } from "../../console/web/src/uploads/queue.ts";
 import type { Invitation, WorkspaceBootstrap } from "./generated/workspace.ts";
 
@@ -26,10 +27,10 @@ export default function App() {
   }, [client]);
   if (expired) return <main className="entry"><div className="wordmark">veoveo<span>Workspace</span></div><h1>Sign in to your workspace.</h1><a className="primary" href={loginPath()}>Sign in <ArrowRight size={17}/></a></main>;
   if (session.isPending) return <main className="entry"><div className="wordmark">veoveo<span>Workspace</span></div><p role="status">Opening your workspace…</p></main>;
-  if (!session.data) return <main className="entry"><div className="wordmark">veoveo<span>Workspace</span></div><h1>Good work happens together.</h1><p>Your people, agents, and tools. One place to move work forward.</p>
+  if (!session.data || (session.error instanceof ApiError && [401, 403, 404].includes(session.error.status))) return <main className="entry"><div className="wordmark">veoveo<span>Workspace</span></div><h1>Good work happens together.</h1><p>Your people, agents, and tools. One place to move work forward.</p>
     {session.error instanceof ApiError && session.error.status === 401 ? <a className="primary" href={loginPath()}>Sign in <ArrowRight size={17}/></a> : <><p className="error" role="alert">{session.error?.message}</p><button onClick={() => void session.refetch()}>Try again</button></>}
   </main>;
-  return <Workspace session={session.data}/>;
+  return <Workspace key={`${session.data.person.id}:${session.data.workContext}`} session={session.data}/>;
 }
 
 function selectedChat(): string | undefined {
@@ -44,6 +45,7 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
   const [newChat, setNewChat] = useState(false);
   const [inbox, setInbox] = useState(false);
   const [activity, setActivity] = useState(() => new URLSearchParams(location.search).get("view") === "activity");
+  const personal = usePersonalEvents(activity);
   const [computers, setComputers] = useState(() => new URLSearchParams(location.search).get("view") === "computers");
   const [mobileNav, setMobileNav] = useState(false);
   const [title, setTitle] = useState("");
@@ -75,12 +77,13 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
     catch (error) { setError(error instanceof Error ? error.message : "Could not update the invitation."); }
     finally { setBusy(false); }
   }
-  return <div className={`workspace ${mobileNav ? "show-nav" : ""}`}>
+  return <PersonalUpdates.Provider value={personal}><div className={`workspace ${mobileNav ? "show-nav" : ""}`}>
     <aside className="sidebar"><button className="wordmark" onClick={() => select()}>veoveo<span>Workspace</span></button>
       <div className="context-label">{session.tenantName}<span>{session.workContextTitle}</span></div>
       <button className="new-chat" disabled={!session.canContribute} onClick={() => { setNewChat(true); setError(undefined); }}><Plus size={17}/> New chat</button>
       <button className={`nav-item ${inbox ? "active" : ""}`} onClick={() => { setInbox(true); setComputers(false); setActivity(false); setMobileNav(false); void invitations.refetch(); }}><Bell size={16}/> Invitations {!!invitations.data?.length && <span className="count">{invitations.data.length}</span>}</button>
-      <button className={`nav-item ${activity ? "active" : ""}`} onClick={() => { setActivity(true); setComputers(false); setInbox(false); setMobileNav(false); history.pushState(null, "", "/workspace/?view=activity"); }}><ActivityIcon size={16}/> My activity</button>
+      <button className={`nav-item ${activity ? "active" : ""}`} title={personal.attention ? `${personal.attention} operations need your input` : "Your private activity"} onClick={() => { setActivity(true); setComputers(false); setInbox(false); setMobileNav(false); history.pushState(null, "", "/workspace/?view=activity"); }}><ActivityIcon size={16}/> My activity {!!(personal.attention + personal.unread) && <span className="count">{personal.attention + personal.unread}</span>}</button>
+      {(personal.attention > 0 || personal.unread > 0) && <small className="activity-notice" role="status">{personal.attention ? `${personal.attention} ${personal.attention === 1 ? "operation needs" : "operations need"} your input` : `${personal.unread} new activity ${personal.unread === 1 ? "update" : "updates"}`}</small>}
       <button className={`nav-item ${computers ? "active" : ""}`} onClick={() => { setComputers(true); setActivity(false); setInbox(false); setMobileNav(false); history.pushState(null, "", "/workspace/?view=computers"); }}><Monitor size={16}/> Computers</button>
       <button className="nav-item" onClick={() => setUploadsOpen(true)}><Upload size={16}/> Uploads {!!uploads.state.entries.length && <span className="count">{uploads.state.entries.length}</span>}</button>
       <div className="sidebar-section">YOUR CHATS <span>{chats.data?.length ?? 0}</span></div>
@@ -101,7 +104,7 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
     </main>
     {newChat && <dialog className="modal-backdrop" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setNewChat(false)}><form className="modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title" onSubmit={event => { event.preventDefault(); void create(); }}><div className="details-heading"><h2 id="new-chat-title">Start a chat</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setNewChat(false)}><X size={18}/></button></div><p>Give this conversation a name. You'll be its owner and can invite people from your workspace.</p><label>Chat name<input autoFocus value={title} maxLength={200} readOnly={busy || !!createId.current} onChange={event => setTitle(event.target.value)} placeholder="e.g. Planning our next release"/></label>{error && <p className="error" role="alert">{error}</p>}<button type="submit" className="primary" disabled={busy || !title.trim()}>{busy ? "Creating…" : createId.current ? "Retry creation" : "Create chat"}<ArrowRight size={16}/></button></form></dialog>}
     {uploadsOpen && <Suspense fallback={null}><Uploads queue={uploads.queue} state={uploads.state} close={() => setUploadsOpen(false)}/></Suspense>}
-  </div>;
+  </div></PersonalUpdates.Provider>;
 }
 
 function Room({ chat, session, changed, uploads, onUpload }: { chat: string; session: WorkspaceBootstrap; changed: () => void; uploads: QueueState; onUpload: () => void }) {
