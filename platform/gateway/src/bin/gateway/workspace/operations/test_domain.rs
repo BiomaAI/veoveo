@@ -19,6 +19,8 @@ pub(crate) struct Domain {
     pub owner: TaskOwner,
     pub calls: Arc<AtomicUsize>,
     pub app_visible: Arc<AtomicBool>,
+    pub hold_dispatch: Arc<AtomicBool>,
+    pub release_dispatch: Arc<tokio::sync::Notify>,
 }
 impl ServerHandler for Domain {
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
@@ -87,6 +89,9 @@ impl ServerHandler for Domain {
         );
         assert!(["fixture_task", "fixture__task"].contains(&request.name.as_ref()));
         self.calls.fetch_add(1, Ordering::SeqCst);
+        if self.hold_dispatch.load(Ordering::SeqCst) {
+            self.release_dispatch.notified().await;
+        }
         if request
             .arguments
             .as_ref()
@@ -219,6 +224,8 @@ impl Fixture {
             owner,
             calls: Arc::new(AtomicUsize::new(0)),
             app_visible: Arc::new(AtomicBool::new(true)),
+            hold_dispatch: Arc::new(AtomicBool::new(false)),
+            release_dispatch: Arc::new(tokio::sync::Notify::new()),
         };
         let source = domain.clone();
         let service = StreamableHttpService::new(

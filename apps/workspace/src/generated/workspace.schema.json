@@ -994,6 +994,9 @@
             }
           ]
         },
+        "feedback": {
+          "$ref": "#/$defs/RunFeedback"
+        },
         "id": {
           "format": "uuid",
           "type": "string"
@@ -1026,6 +1029,7 @@
         "initiator",
         "trigger",
         "state",
+        "feedback",
         "text",
         "sequence",
         "updatedSequence",
@@ -1041,6 +1045,33 @@
         "output_limit",
         "deadline",
         "worker_lost"
+      ],
+      "type": "string"
+    },
+    "RunFeedback": {
+      "additionalProperties": false,
+      "properties": {
+        "operations": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "phase": {
+          "$ref": "#/$defs/RunPhase"
+        }
+      },
+      "required": [
+        "phase",
+        "operations"
+      ],
+      "type": "object"
+    },
+    "RunPhase": {
+      "enum": [
+        "preparing",
+        "responding",
+        "calling_tools"
       ],
       "type": "string"
     },

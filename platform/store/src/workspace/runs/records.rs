@@ -63,6 +63,26 @@ pub enum WorkspaceRunFailure {
     WorkerLost,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
+#[serde(rename_all = "snake_case")]
+#[surreal(untagged)]
+pub enum WorkspaceRunPhase {
+    #[default]
+    #[surreal(value = "preparing")]
+    Preparing,
+    #[surreal(value = "responding")]
+    Responding,
+    #[surreal(value = "calling_tools")]
+    CallingTools,
+}
+
+/// Shared execution facts contain no capability names, arguments or results.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
+pub struct WorkspaceRunFeedback {
+    pub phase: WorkspaceRunPhase,
+    pub operations: u8,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct WorkspaceRun {
     pub id: RecordId,
@@ -75,6 +95,7 @@ pub struct WorkspaceRun {
     pub sequence: i64,
     pub updated_sequence: i64,
     pub state: WorkspaceRunState,
+    pub feedback: WorkspaceRunFeedback,
     pub text: String,
     pub failure: Option<WorkspaceRunFailure>,
     pub fence: Option<Uuid>,
@@ -91,6 +112,7 @@ pub struct WorkspaceRunUpdate {
     pub fence: Uuid,
     pub text: String,
     pub state: WorkspaceRunState,
+    pub feedback: WorkspaceRunFeedback,
     pub failure: Option<WorkspaceRunFailure>,
 }
 

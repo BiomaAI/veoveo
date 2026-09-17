@@ -34,7 +34,11 @@ for reconciliation; it never manufactures a fresh ID and repeats execution.
 
 The assistant-ui adapter preserves human and agent metadata with
 `joinStrategy: "none"`. Runs and their controls belong to individual messages;
-streaming must not disable the whole room's composer. Veoveo owns participation,
+streaming must not disable the whole room's composer. Typed run feedback shows
+preparation, response generation and actual capability invocation before final
+text. A receipt count points to the initiating person's private Activity without
+publishing private capability names or results. Terminal state overrides active
+feedback; no progress percentage is invented. Veoveo owns participation,
 invitation, attachment access and Task presentation. The qualification fixture has
 two humans and two agents, concurrent outputs and a browser reconnect.
 

@@ -56,12 +56,13 @@ pub(super) async fn execute(
         return;
     }
     let mut output = String::new();
+    let feedback = super::feedback::Feedback::default();
     let remaining = (run.deadline - Utc::now()).to_std().unwrap_or_default();
     let outcome = tokio::select! {
         biased;
         _ = state.stop.cancelled() => return,
         _ = tokio::time::sleep(remaining) => Err(WorkspaceRunFailure::Deadline),
-        result = stream(&state, &caller, &definition, &run, fence, &mut output) => result,
+        result = stream(&state, &caller, &definition, &run, fence, &mut output, &feedback) => result,
     };
     // A terminal transition can only publish with still-current authority and
     // the exact claim. Otherwise the durable lease is reconciled as interrupted.
@@ -94,6 +95,7 @@ pub(super) async fn execute(
                 fence,
                 text: output,
                 state: status,
+                feedback: feedback.snapshot(),
                 failure,
             },
         )
@@ -107,6 +109,7 @@ async fn stream(
     run: &WorkspaceRun,
     fence: Uuid,
     output: &mut String,
+    feedback: &super::feedback::Feedback,
 ) -> Result<(), WorkspaceRunFailure> {
     let profile = &caller.profile;
     let subject = &caller.subject;
@@ -140,10 +143,13 @@ async fn stream(
         state,
         caller,
         definition,
-        chat,
-        id,
-        fence,
+        super::tools::RunClaim {
+            chat,
+            run: id,
+            fence,
+        },
         permission_changed.clone(),
+        feedback.clone(),
     )
     .await?;
     let instructions = format!(
@@ -160,18 +166,27 @@ async fn stream(
         .max_tokens(u64::from(definition.model.max_output_tokens))
         .build();
     let mut stream = agent.stream_prompt(prompt).await;
-    let mut tick = tokio::time::interval(Duration::from_secs(1));
+    feedback.responding();
+    let mut tick = tokio::time::interval(Duration::from_millis(250));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut published = (0, feedback.snapshot());
+    let mut last_publish = tokio::time::Instant::now() - Duration::from_secs(1);
     loop {
         tokio::select! {
             biased;
             _ = permission_changed.cancelled() => return Err(Failure::PermissionChanged),
             _ = tick.tick() => {
+                let current = (output.len(), feedback.snapshot());
+                if current == published && last_publish.elapsed() < Duration::from_secs(1) { continue; }
                 if !Arc::ptr_eq(&catalog, &state.catalog.current()) { return Err(Failure::PermissionChanged); }
                 let authority = authority::admit_live(&state.workspace, &state.gateway, &catalog, profile, subject).await.map_err(|_| Failure::PermissionChanged)?;
                 state.workspace.store.update_workspace_run(&authority, chat, id, WorkspaceRunUpdate {
                     fence, text: output.clone(), state: WorkspaceRunState::Running, failure: None,
+                    feedback: current.1,
                 }).await.map_err(|_| Failure::PermissionChanged)?;
+                published = current;
+                last_publish = tokio::time::Instant::now();
+                tick.reset();
             }
             item = stream.next() => match item {
                 Some(Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(text)))) => {

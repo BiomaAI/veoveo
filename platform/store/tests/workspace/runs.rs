@@ -36,8 +36,81 @@ pub(super) fn update(fence: Uuid, text: &str, state: WorkspaceRunState) -> Works
         fence,
         text: text.into(),
         state,
+        feedback: Default::default(),
         failure: None,
     }
+}
+
+#[tokio::test]
+async fn feedback_is_fenced_monotonic_and_wakes_without_text() {
+    use veoveo_platform_store::workspace::{WorkspaceRunFeedback, WorkspaceRunPhase};
+    let db = TestDb::new().await;
+    let alice = identity(&db.a, "alice").await;
+    context(&db.a, &alice, "feedback").await;
+    let actor = authority(&db.a, &alice, "feedback").await;
+    let chat = WorkspaceChatId::new();
+    db.a.create_workspace_chat(&actor, chat, "Feedback")
+        .await
+        .unwrap();
+    let agent =
+        db.a.add_workspace_agent(&actor, chat, admission("writer"))
+            .await
+            .unwrap();
+    let trigger = WorkspaceMessageId::new();
+    let deadline = Utc::now() + TimeDelta::seconds(120);
+    db.a.send_workspace_turn(
+        &actor,
+        chat,
+        veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            id: trigger,
+            text: "Run".into(),
+            reply_to: None,
+            attachments: vec![],
+            addressed_agents: vec![],
+            deadline,
+        },
+    )
+    .await
+    .unwrap();
+    let run =
+        db.a.start_workspace_run(&actor, chat, agent_id(&agent.id), trigger, DIGEST, deadline)
+            .await
+            .unwrap();
+    let fence = Uuid::now_v7();
+    let claimed =
+        db.a.claim_workspace_run(&actor, chat, run_id(&run), fence)
+            .await
+            .unwrap();
+    let mut change = update(fence, "", WorkspaceRunState::Running);
+    change.feedback = WorkspaceRunFeedback {
+        phase: WorkspaceRunPhase::CallingTools,
+        operations: 1,
+    };
+    let changed =
+        db.a.update_workspace_run(&actor, chat, run_id(&run), change.clone())
+            .await
+            .unwrap();
+    assert!(changed.updated_sequence > claimed.updated_sequence);
+    let heartbeat =
+        db.b.update_workspace_run(&actor, chat, run_id(&run), change.clone())
+            .await
+            .unwrap();
+    assert_eq!(changed.updated_sequence, heartbeat.updated_sequence);
+    change.feedback.operations = 0;
+    assert_eq!(
+        db.b.update_workspace_run(&actor, chat, run_id(&run), change.clone())
+            .await,
+        Err(WorkspaceError::Conflict)
+    );
+    change.feedback.operations = 1;
+    db.b.cancel_workspace_run(&actor, chat, run_id(&run))
+        .await
+        .unwrap();
+    assert_eq!(
+        db.a.update_workspace_run(&actor, chat, run_id(&run), change)
+            .await,
+        Err(WorkspaceError::Conflict)
+    );
 }
 
 #[tokio::test]

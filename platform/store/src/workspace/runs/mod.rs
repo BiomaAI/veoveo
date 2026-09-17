@@ -185,7 +185,8 @@ impl PlatformStore {
         run: WorkspaceRunId,
         update: WorkspaceRunUpdate,
     ) -> Result<WorkspaceRun> {
-        if update.text.len() > 32768 || update.text.contains('\0') {
+        if update.text.len() > 32768 || update.text.contains('\0') || update.feedback.operations > 8
+        {
             return Err(WorkspaceError::Invalid("agent output"));
         }
         if !matches!(

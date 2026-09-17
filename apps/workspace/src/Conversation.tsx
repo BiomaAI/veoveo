@@ -37,7 +37,8 @@ function ChatMessage() {
       <div className="message-text"><MessagePrimitive.Parts /></div>
       {source && <MessageAttachments attachments={source.attachments}/>}
       {agent && <div className="run-status" role="status">
-        <span>{meta.runState === "queued" ? "Starting…" : meta.runState === "running" ? "Responding…" : meta.runState === "interrupted" ? "Response interrupted. Send a new request to try again." : meta.runState === "cancelled" ? "Response stopped" : meta.runState === "failed" ? meta.runFailure === "capacity" ? "Your message was sent. This agent could not start because response capacity is full." : "The response could not be completed." : ""}</span>
+        <span>{meta.runState === "queued" ? "Starting…" : meta.runState === "running" ? meta.runPhase === "calling_tools" ? "Using capabilities…" : meta.runPhase === "preparing" ? "Preparing response…" : "Responding…" : meta.runState === "interrupted" ? "Response interrupted. Send a new request to try again." : meta.runState === "cancelled" ? "Response stopped" : meta.runState === "failed" ? meta.runFailure === "capacity" ? "Your message was sent. This agent could not start because response capacity is full." : "The response could not be completed." : ""}</span>
+        {typeof meta.runOperations === "number" && meta.runOperations > 0 && <span>{meta.runOperations} {meta.runOperations === 1 ? "operation" : "operations"} in the initiator’s private Activity</span>}
         {(meta.runState === "running" || meta.runState === "queued") && meta.canCancel === true && typeof meta.runId === "string" && <button className="stop-response" aria-label={`Stop ${name}'s response`} onClick={() => cancel(meta.runId as string)}><Square size={11}/> Stop response</button>}
       </div>}
     </div>
