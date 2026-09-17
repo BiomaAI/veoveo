@@ -226,7 +226,7 @@ impl GatewayMcp {
                 }
                 update = notifications.next(), if !notifications.is_empty() => {
                     let Some(update) = update else { continue; };
-                    let (server, required, update) = update;
+                    let (server, _required, update) = update;
                     match update {
                         Ok(mut notification) => {
                             self.project_subscription_notification(
@@ -238,9 +238,11 @@ impl GatewayMcp {
                                 mcp_internal(format!("failed to forward subscription notification: {error}"))
                             })?;
                         }
-                        Err(error) if required => return Err(upstream_error(error)),
                         Err(error) => {
-                            tracing::warn!(%error, "isolated upstream subscription stream failure");
+                            // An established listener that loses its source cannot
+                            // keep claiming a live catalog. Reconnect re-admits all
+                            // filters; initially unavailable servers remain isolated.
+                            return Err(upstream_error(error));
                         }
                     }
                 }
@@ -386,7 +388,10 @@ fn routed_notifications(
         loop {
             match subscription.next().await {
                 Ok(Some(notification)) => yield (server.clone(), required, Ok(notification)),
-                Ok(None) => break,
+                Ok(None) => {
+                    yield (server.clone(), required, Err(ServiceError::TransportClosed));
+                    break;
+                }
                 Err(error) => {
                     yield (server.clone(), required, Err(error));
                     break;

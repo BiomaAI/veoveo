@@ -25,6 +25,11 @@ its pending wire request. Partial acknowledgments fail admission and return capa
 Unexpected resource or catalog source completion invalidates this cached client's
 observers. A catalog listener requires acknowledgment of its complete requested filter.
 Catalog SSE feeds close on source loss, and reads reject the stale catalog immediately.
+Successful App snapshots expire within the gateway's five-second catalog freshness
+bound. The catalog feed reconciles native discovery every thirty seconds to recover
+missed notifications or a read served by another gateway replica. Unchanged snapshots
+produce only an SSE comment. Ten-second transport keepalives preserve an idle feed.
+This bounded read does not invoke a model or query a provider job.
 Loss is monotonic for that client. Existing downstream feeds close, and a subsequent
 pool acquisition replaces the client even when its OAuth token remains valid. Ordinary
 unsubscribe does not invalidate other observers. Auth-token replacement and shutdown

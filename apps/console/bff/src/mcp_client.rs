@@ -131,6 +131,7 @@ impl McpAppCatalog {
 
 struct CachedMcpAppCatalog {
     revision: u64,
+    expires: tokio::time::Instant,
     catalog: Arc<McpAppCatalog>,
 }
 
@@ -237,6 +238,7 @@ impl AuthScopedMcpClient {
         let mut cached = self.app_catalog.lock().await;
         if let Some(cached) = cached.as_ref()
             && cached.revision == revision
+            && cached.expires > tokio::time::Instant::now()
             && cached.catalog.degradation.is_empty()
         {
             return Ok(cached.catalog.clone());
@@ -255,6 +257,8 @@ impl AuthScopedMcpClient {
         });
         *cached = Some(CachedMcpAppCatalog {
             revision,
+            expires: tokio::time::Instant::now()
+                + Duration::from_millis(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
             catalog: catalog.clone(),
         });
         Ok(catalog)
@@ -720,6 +724,16 @@ mod tests {
             "ui://test/1"
         );
 
+        // A quiet source or a different gateway replica may miss an event.
+        // Expiry must stop our successful snapshot from hiding a fresh list.
+        handler.version.store(2, Ordering::SeqCst);
+        client.app_catalog.lock().await.as_mut().unwrap().expires = tokio::time::Instant::now();
+        client.service.clear_response_cache().await;
+        assert_eq!(
+            client.app_catalog().await.unwrap().resources()[0].uri,
+            "ui://test/2"
+        );
+
         handler.end.notify_one();
         tokio::time::timeout(Duration::from_secs(2), client.resource_source_lost())
             .await
@@ -739,7 +753,7 @@ mod tests {
             .unwrap();
         assert!(!Arc::ptr_eq(&client, &replacement));
         let mut changes = replacement.catalog_updates();
-        handler.version.store(2, Ordering::SeqCst);
+        handler.version.store(3, Ordering::SeqCst);
         handler.change.notify_one();
         tokio::time::timeout(Duration::from_secs(2), changes.recv())
             .await
@@ -747,7 +761,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             replacement.app_catalog().await.unwrap().resources()[0].uri,
-            "ui://test/2"
+            "ui://test/3"
         );
         replacement.shutdown().await;
         server.abort();

@@ -86,3 +86,17 @@ that patch. Rig `0.42.0` remains the latest stable release verified on September
 - Goal created; main synchronized at `634c9cf0`. The working tree was clean.
 - Initial disk check: 279 GiB available on the workspace filesystem. No cleanup or
   unrelated workload restart was required.
+- Catalog changes now invalidate the gateway's authoritative cache. In-flight
+  discovery uses exact claims, preventing a late response from restoring an
+  invalidated entry. Five-second cache expiry and a 30-second client reconciliation
+  recover missed notifications without invoking models or querying providers.
+- Ended native catalog subscriptions retire the browser-edge MCP client and end
+  its event feed. Reconnection creates a fresh authorized client. The real RMCP
+  fixtures qualify EOF, partial acknowledgements, changed contents and cache expiry.
+- The catalog checkpoint passed 89 gateway library tests and 99 BFF tests. Gateway
+  and BFF Clippy passed. Warm gateway tests took under two seconds; BFF compilation
+  took eleven seconds and its tests took under one second. Clippy took about 26
+  seconds per package. The recorder does not yet admit the BFF Clippy command for
+  scoped reuse, which produces an unnecessarily broad receipt; narrow that
+  descriptor in the build follow-up. Avoid concurrent Cargo qualification commands
+  because package locks serialize them.
