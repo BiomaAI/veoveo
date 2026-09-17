@@ -12,6 +12,11 @@ export type RunFailure =
   | "deadline"
   | "worker_lost";
 /**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "RunPhase".
+ */
+export type RunPhase = "preparing" | "responding" | "calling_tools";
+/**
  * Installation-local human identity; never an email address or bearer credential.
  *
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -176,6 +181,7 @@ export interface Run {
   agent: string;
   createdAt: string;
   failure?: RunFailure | null;
+  feedback: RunFeedback;
   id: string;
   initiator: PersonId;
   sequence: number;
@@ -183,6 +189,14 @@ export interface Run {
   text: string;
   trigger: string;
   updatedSequence: number;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "RunFeedback".
+ */
+export interface RunFeedback {
+  operations: number;
+  phase: RunPhase;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema

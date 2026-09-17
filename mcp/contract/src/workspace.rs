@@ -255,6 +255,21 @@ pub enum RunFailure {
     WorkerLost,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RunPhase {
+    Preparing,
+    Responding,
+    CallingTools,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RunFeedback {
+    pub phase: RunPhase,
+    pub operations: u8,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Run {
@@ -263,6 +278,7 @@ pub struct Run {
     pub initiator: PersonId,
     pub trigger: MessageId,
     pub state: RunState,
+    pub feedback: RunFeedback,
     pub text: String,
     pub failure: Option<RunFailure>,
     pub sequence: i64,

@@ -35,6 +35,13 @@ must retain the already-published prefix. Heartbeats extend a 20-second lease wi
 creating visible events when content is unchanged. The absolute deadline cannot
 exceed three minutes at admission and is also checked independently of the lease.
 
+Migration `0086` adds canonical typed feedback before the updated gateway reads it.
+Its phase records preparation, response generation or tool execution; its bounded
+operation count can only increase under the live execution fence. A changed phase
+commits a chat event even before any text exists. An unchanged heartbeat creates no
+event. Terminal run state controls presentation and overrides the last active phase.
+These fields contain no private tool name, input, result or continuation data.
+
 The initiator or chat owner may cancel. Cancellation clears the fence; a late worker
 cannot publish. Existing output remains attributed to the agent. Changes commit with
 contentless events in the same transaction. Human message sending does not depend on

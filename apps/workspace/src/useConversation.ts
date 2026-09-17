@@ -41,7 +41,15 @@ export function useConversation(chat: string, changed: () => void) {
             after = page.messages[page.messages.length - 1].sequence;
           }
         }
-        setError(undefined); changedRef.current();
+        setError(undefined);
+        const latest = current.current;
+        // Streaming text/phase changes do not refetch the entire chat inventory.
+        // Refresh it for metadata, new turns or a run's terminal transition.
+        if (!previous || previous.chat.revision !== latest?.chat.revision
+          || previous.messages.at(-1)?.id !== latest?.messages.at(-1)?.id
+          || previous.activity.runs.map(run => `${run.id}:${run.state}`).join() !== latest?.activity.runs.map(run => `${run.id}:${run.state}`).join()) {
+          changedRef.current();
+        }
       } while (rerun.current && !signal.aborted);
     })().catch((error: unknown) => {
       if (signal.aborted) return;

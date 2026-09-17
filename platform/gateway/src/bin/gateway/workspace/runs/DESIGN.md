@@ -53,7 +53,13 @@ triggering human request remains explicit. Older history can be dropped to fit t
 silently truncated. Model output has a 32 KiB bound. Rig's total call budget is four,
 which includes retries and continuations. Content telemetry is disabled explicitly.
 
-The worker batches cumulative text into at most one store publication per second.
+The worker batches changing text and typed execution feedback into at most four
+store publications per second. Unchanged work retains a one-second authority check
+and heartbeat without producing a visible event. Shared feedback distinguishes
+preparation, response generation and actual tool bodies in flight. A model's tool
+proposal does not establish execution. Concurrent tool bodies retain that phase
+until the last settles; completed receipts count distinct private operations.
+Names, arguments, private results and model reasoning are absent from feedback.
 Each publication rechecks OAuth session and JWT revocation, current Work Context
 membership and the store's run fence. Claim heartbeat, cancellation and output use
 the same transaction boundary. The run ends within two minutes or token expiry.

@@ -14,7 +14,7 @@ pub(super) fn agent(value: stored::WorkspaceAgent) -> Result<wire::ChatAgent, St
     })
 }
 pub(super) fn run(value: stored::WorkspaceRun) -> Result<wire::Run, StatusCode> {
-    use stored::{WorkspaceRunFailure as F, WorkspaceRunState as S};
+    use stored::{WorkspaceRunFailure as F, WorkspaceRunPhase as P, WorkspaceRunState as S};
     Ok(wire::Run {
         id: wire::RunId(uuid(&value.id)?),
         agent: wire::AgentId(uuid(&value.agent)?),
@@ -29,6 +29,14 @@ pub(super) fn run(value: stored::WorkspaceRun) -> Result<wire::Run, StatusCode> 
             S::Failed => wire::RunState::Failed,
         },
         text: value.text,
+        feedback: wire::RunFeedback {
+            phase: match value.feedback.phase {
+                P::Preparing => wire::RunPhase::Preparing,
+                P::Responding => wire::RunPhase::Responding,
+                P::CallingTools => wire::RunPhase::CallingTools,
+            },
+            operations: value.feedback.operations,
+        },
         failure: value.failure.map(|value| match value {
             F::Capacity => wire::RunFailure::Capacity,
             F::ModelUnavailable => wire::RunFailure::ModelUnavailable,

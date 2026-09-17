@@ -227,7 +227,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
             message = { ...body, replyContext, responseAgents: targets, author: members[index].id, sequence: ++chat.sequence, createdAt: new Date().toISOString() }; messages.push(message);
             for (const agent of targets) {
               runStarts.push({ agent, trigger: body.id });
-              runs.push({ agent, trigger: body.id, id: crypto.randomUUID(), initiator: person.id, state: "running", text: agent === agents[0].id ? "I am drafting the launch notes." : "I am reviewing the schedule.", failure: null, sequence: ++chat.sequence, updatedSequence: chat.sequence, createdAt: new Date().toISOString() });
+              runs.push({ agent, trigger: body.id, id: crypto.randomUUID(), initiator: person.id, state: "running", feedback: { phase: "responding", operations: 0 }, text: agent === agents[0].id ? "I am drafting the launch notes." : "I am reviewing the schedule.", failure: null, sequence: ++chat.sequence, updatedSequence: chat.sequence, createdAt: new Date().toISOString() });
             }
           } else { assert.equal(message.text, body.text); assert.deepEqual(message.replyTo, body.replyTo);
             assert.deepEqual(message.attachments, body.attachments); assert.deepEqual(message.addressedAgents, body.addressedAgents); }

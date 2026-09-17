@@ -76,6 +76,7 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
         subject.access_token.session_family = None;
         let domain =
             super::super::operations::test_domain::Fixture::start(db.a.clone(), &subject).await;
+        domain.domain.hold_dispatch.store(true, Ordering::SeqCst);
         let provider = Provider::default();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let origin = format!("http://{}", listener.local_addr().unwrap());
@@ -167,6 +168,7 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
                 tests::request(&app, &format!("/chats/{chat}/runs"), start.clone()).await;
             assert_eq!(status, StatusCode::OK);
             let id = Uuid::parse_str(run["id"].as_str().unwrap()).unwrap();
+            let mut observed_tool_activity = false;
             loop {
                 let runs = db.b.workspace_runs(&actor, chat).await.unwrap();
                 let current = runs
@@ -181,7 +183,24 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
                     "{current:?}"
                 );
                 if name == "duplicate" && current.state == WorkspaceRunState::Completed {
+                    assert!(
+                        observed_tool_activity,
+                        "tool execution must be visible before final text"
+                    );
+                    assert_eq!(
+                        current.feedback.operations, 1,
+                        "duplicate calls count one operation"
+                    );
                     break;
+                }
+                if name == "duplicate"
+                    && current.feedback.phase
+                        == veoveo_platform_store::workspace::WorkspaceRunPhase::CallingTools
+                {
+                    assert!(current.text.is_empty());
+                    observed_tool_activity = true;
+                    domain.domain.hold_dispatch.store(false, Ordering::SeqCst);
+                    domain.domain.release_dispatch.notify_one();
                 }
                 if name == "cancel" && !current.text.is_empty() {
                     assert_eq!(

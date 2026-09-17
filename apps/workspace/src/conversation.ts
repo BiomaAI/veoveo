@@ -1,4 +1,4 @@
-import type { AgentActivity, ChatAttachment, ChatSnapshot, Message, ReplyContext, ReplyTarget, RunState, RunFailure } from "./generated/workspace.ts";
+import type { AgentActivity, ChatAttachment, ChatSnapshot, Message, ReplyContext, ReplyTarget, RunState, RunFailure, RunFeedback } from "./generated/workspace.ts";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 // Per-message presentation retains identity even when several people or agents
@@ -7,7 +7,7 @@ export type PresentedMessage = {
   id: string; text: string; attachments: ChatAttachment[]; authorId: string; authorName: string;
   kind: "human" | "agent"; createdAt: string; mine: boolean;
   target: ReplyTarget; replyTo?: ReplyTarget | null; replyContext?: ReplyContext | null;
-  run?: { id: string; state: RunState; failure?: RunFailure | null; canCancel?: boolean };
+  run?: { id: string; state: RunState; feedback: RunFeedback; failure?: RunFailure | null; canCancel?: boolean };
 };
 export function toThreadMessage(message: PresentedMessage): ThreadMessageLike & { convertConfig: { joinStrategy: "none" } } {
   return {
@@ -19,7 +19,7 @@ export function toThreadMessage(message: PresentedMessage): ThreadMessageLike & 
     ...(message.kind === "agent" ? { status: (message.run?.state === "running" || message.run?.state === "queued")
       ? { type: "running" as const } : { type: "complete" as const, reason: "stop" as const } } : {}),
     metadata: { custom: { authorId: message.authorId, authorName: message.authorName,
-      mine: message.mine, kind: message.kind, runId: message.run?.id, runState: message.run?.state, runFailure: message.run?.failure, canCancel: message.run?.canCancel } },
+      mine: message.mine, kind: message.kind, runId: message.run?.id, runState: message.run?.state, runPhase: message.run?.feedback.phase, runOperations: message.run?.feedback.operations, runFailure: message.run?.failure, canCancel: message.run?.canCancel } },
   };
 }
 export function present(snapshot: ChatSnapshot, personId: string, activity?: AgentActivity): PresentedMessage[] {
@@ -37,7 +37,7 @@ export function present(snapshot: ChatSnapshot, personId: string, activity?: Age
     const agent = activity?.agents.find(agent => agent.id === run.agent);
     return { id: `response:${run.id}`, target: { kind: "response" as const, id: run.id }, replyTo: { kind: "message" as const, id: run.trigger }, text: run.text, authorId: run.agent, authorName: agent?.name ?? "Agent",
       attachments: [], kind: "agent" as const, createdAt: run.createdAt, mine: false,
-      run: { id: run.id, state: run.state, failure: run.failure, canCancel: run.initiator === personId || snapshot.chat.owner === personId } };
+      run: { id: run.id, state: run.state, feedback: run.feedback, failure: run.failure, canCancel: run.initiator === personId || snapshot.chat.owner === personId } };
   });
   return [...humans, ...agents].sort((a, b) => (bySequence.get(a.id) ?? 0) - (bySequence.get(b.id) ?? 0));
 }
