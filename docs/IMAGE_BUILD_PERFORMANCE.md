@@ -1,5 +1,11 @@
 # Image Build Performance
 
+This is a measurement record. Each result applies to its named revision, cache state
+and hardware. Use [Image Builds](IMAGE_BUILDS.md) for current commands and
+[Development Iteration](DEVELOPMENT_ITERATION.md) for the active workflow and later
+observations. Historical warm timings do not establish that a present builder still
+retains those caches.
+
 ## Standards And Protocols
 
 | Boundary | Measurement profile |

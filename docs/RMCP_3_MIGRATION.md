@@ -1,10 +1,11 @@
 # rmcp 3 And MCP 2026-07-28 Migration And Implementation Report
 
-Status: the source migration and post-migration agent repair are implemented. Source
-acceptance and the hardware-GPU agent pilot passed. Operator rollout verification
-remains.
+Status: migration implemented and deployed. Source acceptance and the hardware-GPU
+agent pilot passed; September 17 installed acceptance also covers the current RMCP
+upgrade. The [reactive delivery record](REACTIVE_UX_PLAN.md#installed-acceptance)
+records the deployed revisions, browser checks and remaining performance work.
 
-Revalidated: 2026-08-17 against Veoveo `ff794154` plus the Phase 1 implementation,
+Historical migration baseline: 2026-08-17 against Veoveo `ff794154` plus the Phase 1 implementation,
 the complete official MCP `2026-07-28` changelog, Rig `1c59bf04`, and `rmcp` `3.1.2`
 with the task-status subscription fix at `b7a5ad0f`.
 
@@ -23,11 +24,24 @@ and qualified stream shutdown. Veoveo uses the canonical `ClientConfig` and
 `6a92dacd7802d9105f106344a8e85a8a19ec88b2`. Upstream release checks on September 17
 found no newer stable Rig release. The SDK's subscription, HTTP concurrency,
 cancellation, disconnect, header and version tests passed; Rig's 48 RMCP tests
-passed. Installed qualification is tracked in [the reactive plan](REACTIVE_UX_PLAN.md).
+passed. Installed qualification passed and is recorded in
+[the reactive plan](REACTIVE_UX_PLAN.md).
+
+The current reproducible pins are owned by [`Cargo.toml`](../Cargo.toml):
+
+```toml
+rig = { git = "https://github.com/rozgo/rig.git", rev = "6a92dacd7802d9105f106344a8e85a8a19ec88b2", features = ["rmcp"] }
+rmcp = { version = "=3.4.0", git = "https://github.com/rozgo/rust-sdk", rev = "8728fef3d3f18b5f95afb801d6f28064bda94b9a" }
+```
+
+The sections below preserve the August migration's design, original pins and test
+evidence. Those older SDK recipes are historical, not dependency selections for new
+work. Current behavior is governed by the [MCP contract](../mcp/contract/DESIGN.md)
+and owning component designs.
 
 ## Standards And Protocols
 
-| Standard or protocol | Migration boundary |
+| Standard or protocol | Historical migration boundary (August 17) |
 |---|---|
 | Model Context Protocol `2026-07-28` | sole target protocol version for hosted servers, the gateway, first-party clients, SDKs, templates, bridges, and conformance |
 | JSON-RPC 2.0 | request, response, notification, error, and identifier envelope carried by MCP |

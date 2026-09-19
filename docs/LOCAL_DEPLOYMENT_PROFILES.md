@@ -5,6 +5,18 @@ showcases. They select Docker Bake groups, a local k3d cluster, existing
 installation-owned Secrets, and local Helm charts. Enterprise installations use the OCI and GitOps contract in
 [Enterprise deployment](ENTERPRISE_DEPLOYMENT.md).
 
+## Standards And Protocols
+
+| Boundary | Supported profile |
+|---|---|
+| `veoveo.io/deployment/v7` | Repository-owned disposable installation profiles and locks; defined by the [deployment contract](../deploy/contract/DESIGN.md) |
+| OCI images and registries | Exact runtime digests, separate host push and cluster pull addresses, explicit development-registry transport |
+| Docker Buildx Bake and BuildKit | Source-local image selection and publication under the [image-build contract](IMAGE_BUILDS.md) |
+| k3d, Kubernetes and Helm | Local cluster lifecycle and declarative component installation through the [deployment runtime](../deploy/runtime/DESIGN.md) |
+| NVIDIA DRA and GPU APIs | Explicit hardware resource admission and the [GPU placement contract](GPU_PLACEMENT.md); no software-rendering acceptance |
+
+## Profile Ownership
+
 The current complete profile is the SUMO development environment:
 
 | Concern | Canonical owner |

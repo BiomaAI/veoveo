@@ -1,5 +1,24 @@
 # Build And Deployment Iteration Audit
 
+Status: dated investigation and delivery evidence. Each observation applies to the
+revision, hardware and installation it names. Older commands, dependency pins and
+open-work statements are preserved as history.
+
+Use [Development Iteration](DEVELOPMENT_ITERATION.md) for the current workflow and
+active follow-ups, and [Image Builds](IMAGE_BUILDS.md) for the build contract. The
+[September 17 reactive delivery observations](DEVELOPMENT_ITERATION.md#september-17-reactive-delivery-observations)
+record the later SDK rebuild, cache loss and rollout costs.
+
+## Reading This Audit
+
+| Evidence | Start here |
+|---|---|
+| Workspace delivery | [September 16 closure](#workspace-delivery-closure--september-16-2026), [stable browser compilation](#stable-browser-compilation--september-16-2026) |
+| Earlier platform rollout | [Delivery record](#delivery-record), [activation evidence](#live-activation-evidence) |
+| Original investigation | [Finding](#finding), [scope and evidence](#scope-and-evidence) |
+| Architectural experiments | [Core changes](#core-build-and-deployment-changes), [measurements](#implementation-measurements) |
+| Current measured costs | [September 17 observations](DEVELOPMENT_ITERATION.md#september-17-reactive-delivery-observations) |
+
 ## Workspace Delivery Closure — September 16, 2026
 
 The final acceptance pass keeps release 176's images and chart unchanged. Two

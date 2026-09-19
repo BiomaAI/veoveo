@@ -15,7 +15,7 @@ under the caller's access rules. File bytes stay outside MCP messages.
 
 ## Standards And Protocols
 
-| Boundary | Proposed supported profile |
+| Boundary | Supported profile |
 |---|---|
 | HTTP, RFC 9110 | JSON admission/completion, streamed raw-body part PUT, authenticated status GET, cancellation DELETE, and explicit status codes |
 | Existing gateway OAuth profile | Registered human/machine clients, bearer tokens, exact profile protected-resource binding, and existing `private_key_jwt` client credentials |
@@ -35,27 +35,28 @@ exposes provider upload IDs and part receipts suitable for durable sessions. It
 accepts a materialized `PutPayload` per part, which bounds memory by part size but
 does not provide a streaming request-body API. Preserve that distinction in performance
 claims. Verify authoritative upstream releases and exact pins when a dependency is
-introduced or touched. Select a maintained incremental browser hash implementation
-at implementation time if existing dependencies do not provide one.
+introduced or touched. The browser's bounded hashing worker is owned by
+[`apps/console/web/src/uploads/`](../apps/console/web/src/uploads/DESIGN.md).
 
-## Current Implementation And Required Changes
+## Current Implementation
 
-| Existing code | Reusable behavior or required change |
+| Owner | Implemented behavior |
 |---|---|
-| `platform/artifacts/service/src/http.rs` | Internal puts have a 256 MiB ceiling; replace the fixed total-file ceiling with upload policy and independent per-request bounds |
-| `platform/artifacts/service/src/service.rs` | Trusted ownership and committed occurrence retry checks exist; add durable multipart sessions, reservations, finalization, and recovery |
-| `platform/artifacts/service/src/store.rs` | Streaming reads and multipart-backed writes exist; expose durable multipart operations through focused modules |
-| `platform/store/src/artifacts.rs` | Blob identity is tenant plus whole-file SHA-256; replace mutable blob UPSERT behavior with conflict-safe immutable reuse when upload object keys differ |
-| `platform/gateway/src/bin/gateway/recording_layer_publication.rs` | Reuse authenticated streaming proxy mechanics while retaining recording-specific authorization in its route |
-| `platform/gateway/src/bin/gateway/auth.rs` and `runtime.rs` | Profile bearer authentication and `/artifacts/{profile}/...` profile extraction already exist |
-| `apps/console/web/src/views/Artifacts.tsx` | Existing searchable artifact table; add the upload action and form here |
-| `platform/gateway/src/bin/gateway/admin/console/{mod,stream}.rs` | Snapshot and live projection substitute zero when a blob length is absent; resolve referenced blob metadata so completed uploads retain exact displayed sizes |
-| `apps/console/bff/src/api.rs` | Session/CSRF and streamed download patterns exist; add upload behavior in a separate module |
-| `sdk/python/src/veoveo_mcp/artifacts.py` | URI resolution exists but materializes the object; add streaming download/file materialization for large consumers |
+| `platform/artifacts/service/src/http/uploads.rs` and `uploads/` | Policy admission, streamed part requests, durable finalization and restart recovery |
+| `platform/artifacts/service/src/store/multipart.rs` and `store/s3_multipart.rs` | Durable multipart storage and authoritative reconciliation of retained upload state |
+| `platform/store/src/artifact_uploads/` | Upload identities, reservations, part receipts, leases and publication transactions |
+| `platform/store/src/artifacts.rs` and `artifacts/` | Tenant-scoped immutable blob reuse and governed occurrence publication |
+| `platform/gateway/src/bin/gateway/artifact_upload.rs` | Authenticated public `/artifacts/{profile}/...` upload projection |
+| `apps/console/bff/src/artifact_upload.rs` | Same-origin browser upload proxy with session and CSRF authority |
+| `apps/console/web/src/uploads/` | Persistent upload queue, bounded hashing worker, progress, cancellation and recovery UI shared with Workspace |
+| `sdk/python/src/veoveo_mcp/artifacts.py` | Bounded streaming reads and file materialization with length and digest validation |
 
-There is no general public or Console upload route at this baseline. In-memory
-multipart writers cannot resume across processes. Explicit writer aborts do not
-establish recovery after process death or storage success followed by database failure.
+The small internal put route retains its independent request limit. Public multipart
+uploads use the admitted layout and installation upload policy; that small-route limit
+is not a total-file limit. The owning current contracts are the
+[Artifact service design](../platform/artifacts/service/DESIGN.md) and
+[browser upload design](../apps/console/web/src/uploads/DESIGN.md). Later sections
+retain the first-release requirements and their dated qualification evidence.
 
 ## First-Release Scope And Size Policy
 

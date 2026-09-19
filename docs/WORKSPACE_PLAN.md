@@ -1,8 +1,11 @@
 # Veoveo Workspace Plan
 
 Status: first web release implemented and deployed on September 16, 2026.
-Release 176 is usable at `https://veoveo.bioma.ai/workspace/`. The user accepted
-the two installed follow-ups below as nonblocking on September 16.
+Release 176 established the installed checkpoint at
+`https://veoveo.bioma.ai/workspace/`. September 17 added the
+[reactive UX delivery](REACTIVE_UX_PLAN.md): typed execution feedback, measured
+progress, personal Task/invitation events and subscription recovery. The user accepted
+the two original installed follow-ups below as nonblocking on September 16.
 
 ## Standards And Protocols
 

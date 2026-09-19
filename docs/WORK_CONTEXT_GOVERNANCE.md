@@ -14,6 +14,18 @@ internal assertion. Hosted services consume that assertion and persist its
 typed authority with durable work; callers do not supply ownership or
 provenance fields.
 
+## Standards And Protocols
+
+| Boundary | Supported profile |
+|---|---|
+| OAuth/OIDC and signed JWT assertions | Authenticated caller identity and short-lived internal authority under the [gateway contract](TECH_DESIGN.md#standards-and-protocols) |
+| MCP `2026-07-28` | Profile-bound invocation through the [hosted-server contract](../mcp/contract/DESIGN.md) |
+| Veoveo Work Context and invocation authority | Repository-owned typed control-plane configuration, provenance, ownership, grants and output policy; public input does not supply trusted authority |
+| SurrealDB records and transactional outbox | Durable membership, access decisions, outputs and change observation through the [platform store](TECH_DESIGN.md#durable-platform-store) |
+
+The shared [policy design](../platform/policy/DESIGN.md) defines current decision
+evaluation.
+
 ## Control-plane model
 
 Every installation declares its Work Contexts in the gateway control plane:
