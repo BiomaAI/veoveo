@@ -664,3 +664,15 @@ The [Console development runbook](../apps/console/web/README.md) defines the loo
 Vite, BFF, and gateway ports and the required authentication origin. Use this loop for
 presentation edits before staging an immutable image. Vite proxies API and OAuth
 requests to the running local services while React refresh updates frontend modules.
+
+## Agent Management Iteration — September 19, 2026
+
+The registry foundation uses the existing Cargo target and pinned disposable SurrealDB
+fixture. Focused store compilation took 6–16 seconds in the initial edit loop and the
+five registry tests ran in approximately two seconds. These observations cover this
+warm local cache, not release builds or installed agent creation.
+
+| Inefficiency | Observed cost | Correction |
+|---|---|---|
+| The host SurrealDB CLI is 3.2.1 while the repository qualifies 3.2.4 | A host-only parse pass could not establish the deployed syntax boundary | Validate SQL using the already cached pinned fixture image. |
+| The latest published `@surrealdb/surql-fmt` is prerelease `0.1.0-beta.2` and corrupts typed function signatures, nested branches, closure expressions and field-based LIMIT clauses | One migration-failure cycle and one empty-catalog failure after partial repair | Reject this formatter's output, restore reviewed SQL, and validate with the actual database parser and behavioral tests before accepting formatting. |

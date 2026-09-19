@@ -11,7 +11,7 @@ installation, its services and agents. Computers is a core platform capability.
 |---|---|
 | Understand the product | [Repository overview](../README.md), [architecture decisions](ARCHITECTURE_DECISIONS.md), [technical design](TECH_DESIGN.md) |
 | Work on shared chat and agent feedback | [Workspace client](../apps/workspace/DESIGN.md), [Workspace delivery](WORKSPACE_PLAN.md), [reactive UX delivery](REACTIVE_UX_PLAN.md) |
-| Add agent creation and management | [Proposed agent-management plan](AGENT_MANAGEMENT_PLAN.md): API/Console authoring, delegated Workspace creation and managed UAV-style agents |
+| Add agent creation and management | [Agent-management plan](AGENT_MANAGEMENT_PLAN.md): API/Console authoring, delegated Workspace creation and managed UAV-style agents |
 | Work on Computers | [Domain design](../platform/computers/DESIGN.md), [delivery and qualification](COMPUTERS_PLAN.md) |
 | Install and operate Veoveo | [Enterprise deployment](ENTERPRISE_DEPLOYMENT.md), [Helm installation](../deploy/helm/veoveo/README.md), [offline delivery](../deploy/offline/README.md) |
 | Iterate on code and deploy a change | [Development iteration](DEVELOPMENT_ITERATION.md), [image builds](IMAGE_BUILDS.md), [local deployment profiles](LOCAL_DEPLOYMENT_PROFILES.md) |
@@ -47,7 +47,7 @@ limits.
 
 | Record | State |
 |---|---|
-| [Agent management](AGENT_MANAGEMENT_PLAN.md) | Proposed September 19; registry, authoring and managed provisioning are not implemented. |
+| [Agent management](AGENT_MANAGEMENT_PLAN.md) | Accepted September 19; registry implementation started. API/UI, managed provisioning and installed acceptance remain outstanding. |
 | [Workspace](WORKSPACE_PLAN.md) | First web release deployed September 16; later reactive behavior is recorded separately below. Distinct-person and production Task-input follow-ups remain documented. |
 | [Reactive UX](REACTIVE_UX_PLAN.md) | Deployed and verified September 17. Cold-catalog status presentation and large-scale performance experiments remain. |
 | [Computers](COMPUTERS_PLAN.md) | Core capability deployed with the Bioma configuration; browser, stock CLI, retained files and named agent authority have installed evidence. Clean/offline release closure and broader performance qualification remain separate gates. |

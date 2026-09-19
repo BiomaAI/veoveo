@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": ["cargo", "test", "-p", "veoveo-platform-store", "--lib", "--test", "agent_management", "--test", "workspace", "--test", "identity_sync", "--test", "current_authority"],
+      "inputs": {
+        "kind": "cargo",
+        "packages": ["veoveo-platform-store"],
+        "roots": ["testing/fixtures"]
+      },
+      "toolchains": ["rust"]
+    }
+  ]
+}

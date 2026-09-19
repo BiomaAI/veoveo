@@ -52,7 +52,7 @@ authoritative until each planned change lands:
 
 | Document | Delivery and remaining work |
 |---|---|
-| [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | proposed API and Console agent authoring, governed revisioned catalog, delegated Workspace creation, managed kernel provisioning and UAV migration; implementation has not started |
+| [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | active API and Console agent-authoring implementation: governed revisioned catalog, delegated Workspace creation, managed kernel provisioning and UAV migration; API/UI and installed acceptance remain outstanding |
 | [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md) | delivered shared-chat productivity client: owner-controlled membership, isolated agent context, concurrent runs, governed capabilities, acceptance evidence and pending installed follow-ups |
 | [`REACTIVE_UX_PLAN.md`](REACTIVE_UX_PLAN.md) | delivered catalog recovery, agent feedback, personal event feed, RMCP 3.4.0 and shared subscriptions; installed acceptance and remaining cold-catalog/performance work |
 | [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | deployed core Computers capability: native Console/CLI, named agent authority, retained storage, provider recovery and Bioma acceptance; separate clean/offline and broader qualification gates |
@@ -1001,6 +1001,11 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `control.rs` | database-authenticated, exact-context external operator messages and input-request decisions with UUIDv7 idempotency, durable wakes, actor attribution, and a domain-neutral conversation projection over wakes and episodes |
 | `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, race-safe durable input-request terminal waits, and atomic terminal-delivery consumption with first-party Task retention release |
+
+The [agent catalog store](../platform/store/src/agent_management/DESIGN.md) owns
+definition authoring, immutable executable revisions, mutation replay and publication
+audience fencing. It is separate from episode scheduling. The management API and
+managed-instance controller are tracked in the active agent-management plan.
 
 ### `agents/kernel`
 
