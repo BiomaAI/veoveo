@@ -1,9 +1,9 @@
 # Agent Creation And Management Plan
 
-Status: proposed September 19, 2026, following the request for API and Console agent
-creation. This document specifies future behavior. Implementation and deployment
-have not started. Current component contracts remain authoritative until their
-replacement lands.
+Status: accepted and implementation started September 19, 2026. This is the active
+delivery goal. Registry persistence is the first implementation checkpoint; API, UI,
+managed provisioning and installed acceptance remain outstanding. Current component
+contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols
 

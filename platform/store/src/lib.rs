@@ -5,6 +5,7 @@
 //! used to coordinate those services.
 
 mod administration;
+pub mod agent_management;
 mod artifact_access_requests;
 mod artifact_reads;
 mod artifact_uploads;
