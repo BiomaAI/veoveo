@@ -42,8 +42,9 @@ configured for this development origin. Vite leaves redirects and cookie policy 
 ## Verification And Publication
 
 Computers is a native Console workspace. Its [design](src/computers/DESIGN.md) describes
-lifecycle recovery, terminal input, authority deadlines and the remaining installed
-qualification. Session bootstrap opens Computers and permitted Apps without loading
+lifecycle recovery, terminal input and authority deadlines. Installed evidence and
+remaining release gates are in the [Computers plan](../../../docs/COMPUTERS_PLAN.md).
+Session bootstrap opens Computers and permitted Apps without loading
 administrator inventory. Terminal assets load as a separate chunk.
 
 After changing the shared Rust wire types, run `cargo xtask release client-types`.
@@ -65,3 +66,12 @@ Publish accepted changes with `cargo xtask image stage --target console-bff` and
 installation's registry arguments. The Cargo-derived image source boundary reuses the
 compiled BFF when only frontend files change. Follow the
 [iteration runbook](../../../docs/DEVELOPMENT_ITERATION.md) for staging and GitOps rollout.
+
+## Workspace
+
+The daily productivity client has its own source and build in
+[`apps/workspace`](../../workspace/DESIGN.md). It shares this Rust browser edge and
+selected governed UI components, while retaining a separate browser API, OAuth client
+and asset entrypoint. The local Console Vite proxy above does not configure Workspace.
+Use Workspace's package scripts and [client design](../../workspace/DESIGN.md) for its
+checks rather than assuming a Console build verifies both applications.

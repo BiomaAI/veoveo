@@ -38,8 +38,8 @@ cargo xtask test-report show
 ```
 
 The exact command and checked-in owner declaration select the input boundary.
-`testing/evidence-checks/` initially admits the recorder, image-source helper,
-xtask lint/format, Console checks and generated client-type verification. Cargo
+[`testing/evidence-checks/`](../testing/evidence-checks/) is the current catalog of
+admitted commands, including repository tooling, gateway, BFF and client checks. Cargo
 closures include transitive local development and build dependencies, workspace
 manifests, the complete lockfile and declared external fixtures. Console checks also
 include the Rust schema generator and its dependencies. A command name is display

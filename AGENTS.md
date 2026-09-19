@@ -15,7 +15,8 @@ Repository-wide architecture stays under `docs/`.
 
 The active tree is wider than `servers/` and `docs/`: `platform/` holds the
 gateway and runtimes, `agents/` the kernel and durable runtime, `mcp/` shared
-contracts and bridges, `apps/console` the Console, `extensions/` external
+contracts and bridges, `apps/console` the Console and shared browser edge,
+`apps/workspace` the productivity client, `extensions/` external
 extension contracts, `examples/bioma` the enterprise GitOps reference,
 `showcase/` the simulator workloads, `testing/` conformance and smoke,
 `sdk/` and `templates/` the Python surface, `tools/` xtask and screenshots,
@@ -223,9 +224,11 @@ only when they remove concrete complexity from our tests.
 
 Evidence reuse must follow each check's actual inputs and execution environment. Shared
 contract or toolchain changes broaden that dependency closure. Unknown dependencies
-require conservative rechecking. The current local report still uses a repository-wide
-digest; continue its documented workflow until scoped evidence is implemented under
-[`docs/CONTINUOUS_INTEGRATION.md`](docs/CONTINUOUS_INTEGRATION.md).
+require conservative rechecking. The current v3 report indexes immutable v1 receipts.
+Owner-reviewed descriptors select scoped inputs and qualified environments; unclassified
+commands retain a repository-wide input boundary and are unqualified for reuse. Follow
+[`docs/CONTINUOUS_INTEGRATION.md`](docs/CONTINUOUS_INTEGRATION.md) for the implemented
+recorder and the remaining installed/release coverage work.
 
 ## Naming
 
