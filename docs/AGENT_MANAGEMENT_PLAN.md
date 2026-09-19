@@ -1,8 +1,9 @@
 # Agent Creation And Management Plan
 
 Status: accepted and implementation started September 19, 2026. This is the active
-delivery goal. Registry persistence is the first implementation checkpoint; API, UI,
-managed provisioning and installed acceptance remain outstanding. Current component
+delivery goal. Registry persistence and the authoring API/client layer are implemented
+checkpoints. Registry-backed execution, managed provisioning and installed acceptance
+remain outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols

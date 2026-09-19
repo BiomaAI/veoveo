@@ -61,6 +61,17 @@ pub(super) async fn authorize_admin_target_request(
 ) -> std::result::Result<(Arc<GatewayCatalog>, GatewayProfile, AuthenticatedSubject), Box<Response>>
 {
     let catalog = current_catalog(&state.catalog);
+    authorize_gateway_action(&state.gateway_state, catalog, profile_id, subject, request).await
+}
+
+pub(super) async fn authorize_gateway_action(
+    gateway: &GatewayState,
+    catalog: Arc<GatewayCatalog>,
+    profile_id: &GatewayProfileId,
+    subject: AuthenticatedSubject,
+    request: AdminAuthorizationRequest<'_>,
+) -> std::result::Result<(Arc<GatewayCatalog>, GatewayProfile, AuthenticatedSubject), Box<Response>>
+{
     let Some(profile) = catalog.profile(profile_id).cloned() else {
         return Err(Box::new(StatusCode::NOT_FOUND.into_response()));
     };
@@ -76,7 +87,7 @@ pub(super) async fn authorize_admin_target_request(
         trace_id: &trace_id,
     });
     if let Err(err) = record_admin_audit(
-        &state.gateway_state,
+        gateway,
         &profile,
         &subject,
         AdminAuditRecord {
@@ -143,6 +154,7 @@ impl AdminOperationStatus {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum AdminOperationFailure {
+    AgentManagement,
     AgentConversation,
     AgentInputRequest,
     AgentMessage,
@@ -170,6 +182,7 @@ pub(super) enum AdminOperationFailure {
 impl AdminOperationFailure {
     fn as_str(self) -> &'static str {
         match self {
+            Self::AgentManagement => "agent_management",
             Self::AgentConversation => "agent_conversation",
             Self::AgentInputRequest => "agent_input_request",
             Self::AgentMessage => "agent_message",
@@ -237,6 +250,16 @@ pub(super) async fn record_admin_target_operation_audit(
     target: PolicyTarget,
     record: AdminOperationAuditRecord<'_>,
 ) -> anyhow::Result<()> {
+    record_gateway_operation_audit(&state.gateway_state, profile, subject, target, record).await
+}
+
+pub(super) async fn record_gateway_operation_audit(
+    gateway: &GatewayState,
+    profile: &GatewayProfile,
+    subject: &AuthenticatedSubject,
+    target: PolicyTarget,
+    record: AdminOperationAuditRecord<'_>,
+) -> anyhow::Result<()> {
     let mut metadata = record.metadata;
     metadata.insert(
         "operation_status".to_string(),
@@ -264,7 +287,7 @@ pub(super) async fn record_admin_target_operation_audit(
         trace_id,
     };
     record_admin_audit(
-        &state.gateway_state,
+        gateway,
         profile,
         subject,
         AdminAuditRecord {

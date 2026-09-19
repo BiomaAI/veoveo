@@ -63,3 +63,8 @@ crate validates the non-admin client, native Tasks surface and resource registra
 Helm smoke validates the rendered installation and complete configuration digest.
 These tests do not establish deployed sign-in; public browser acceptance remains
 part of the Workspace delivery gate.
+
+The [shared agent authoring edge](src/agent_management/DESIGN.md) mounts typed
+management routes in both application routers. Each route keeps that application's
+fixed gateway profile and session authority. It preserves publication findings and
+streams bounded catalog invalidations without conveying model credentials.

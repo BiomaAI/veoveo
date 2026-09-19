@@ -4,6 +4,8 @@ use std::{
 
 #[path = "gateway/admin.rs"]
 mod admin;
+#[path = "gateway/agent_management/mod.rs"]
+mod agent_management;
 #[path = "gateway/artifact_download.rs"]
 mod artifact_download;
 #[path = "gateway/artifact_upload.rs"]
@@ -36,6 +38,8 @@ mod recording_playback;
 mod runtime;
 #[path = "gateway/server.rs"]
 mod server;
+#[path = "gateway/stream_limits.rs"]
+mod stream_limits;
 #[cfg(test)]
 #[path = "../../../../testing/fixtures/store.rs"]
 mod test_store;

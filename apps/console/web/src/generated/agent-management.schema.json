@@ -1,0 +1,825 @@
+{
+  "$defs": {
+    "AgentDefinitionId": {
+      "type": "string"
+    },
+    "AgentModelId": {
+      "type": "string"
+    },
+    "AgentTemplateId": {
+      "type": "string"
+    },
+    "Authoring": {
+      "additionalProperties": false,
+      "properties": {
+        "definitionLimit": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelChoice"
+          },
+          "type": "array"
+        },
+        "permissions": {
+          "$ref": "#/$defs/AuthoringPermissions"
+        },
+        "workContext": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "workContext",
+        "permissions",
+        "models",
+        "definitionLimit"
+      ],
+      "type": "object"
+    },
+    "AuthoringPermissions": {
+      "additionalProperties": false,
+      "properties": {
+        "archive": {
+          "type": "boolean"
+        },
+        "control": {
+          "type": "boolean"
+        },
+        "create": {
+          "type": "boolean"
+        },
+        "deploy": {
+          "type": "boolean"
+        },
+        "edit": {
+          "type": "boolean"
+        },
+        "manageContext": {
+          "type": "boolean"
+        },
+        "publish": {
+          "type": "boolean"
+        },
+        "readContent": {
+          "type": "boolean"
+        },
+        "transfer": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "readContent",
+        "create",
+        "edit",
+        "publish",
+        "control",
+        "archive",
+        "transfer",
+        "deploy",
+        "manageContext"
+      ],
+      "type": "object"
+    },
+    "Budgets": {
+      "additionalProperties": false,
+      "properties": {
+        "deadlineSeconds": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxCompletionCalls": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxOutputTokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxToolCalls": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maxOutputTokens",
+        "maxCompletionCalls",
+        "maxToolCalls",
+        "deadlineSeconds"
+      ],
+      "type": "object"
+    },
+    "CapabilityChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "$ref": "#/$defs/GatewayToolName"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "title",
+        "description"
+      ],
+      "type": "object"
+    },
+    "CatalogWake": {
+      "additionalProperties": false,
+      "properties": {
+        "sequence": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sequence"
+      ],
+      "type": "object"
+    },
+    "Content": {
+      "additionalProperties": false,
+      "properties": {
+        "budgets": {
+          "$ref": "#/$defs/Budgets"
+        },
+        "execution": {
+          "$ref": "#/$defs/Execution"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelReference"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/GatewayToolName"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "model",
+        "instructions",
+        "tools",
+        "budgets",
+        "execution"
+      ],
+      "type": "object"
+    },
+    "CreateDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/AgentDefinitionId"
+        },
+        "name": {
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/DefinitionSource"
+        }
+      },
+      "required": [
+        "requestId",
+        "id",
+        "name",
+        "description",
+        "source"
+      ],
+      "type": "object"
+    },
+    "Definition": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/WorkContextId"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "draftDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/AgentDefinitionId"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owner": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "publishedDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/DefinitionStatus"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "workContext": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "owner",
+        "workContext",
+        "revision",
+        "status",
+        "disabled",
+        "draftDigest",
+        "audience",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "DefinitionPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/Definition"
+          },
+          "type": "array"
+        },
+        "next": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentDefinitionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "DefinitionSource": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/Content"
+            },
+            "kind": {
+              "const": "blank",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "content"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/AgentDefinitionId"
+            },
+            "digest": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "kind": {
+              "const": "duplicate",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "definition",
+            "digest"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DefinitionStatus": {
+      "enum": [
+        "enabled",
+        "disabled",
+        "archived"
+      ],
+      "type": "string"
+    },
+    "Draft": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/Content"
+        },
+        "definition": {
+          "$ref": "#/$defs/AgentDefinitionId"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "definition",
+        "revision",
+        "content"
+      ],
+      "type": "object"
+    },
+    "Execution": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "chat",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "managed",
+              "type": "string"
+            },
+            "parameters": {
+              "additionalProperties": {
+                "$ref": "#/$defs/TemplateParameter"
+              },
+              "type": "object"
+            },
+            "resourceSubscriptions": {
+              "items": {
+                "$ref": "#/$defs/ResourceUri"
+              },
+              "type": "array"
+            },
+            "template": {
+              "$ref": "#/$defs/AgentTemplateId"
+            },
+            "templateRevision": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "template",
+            "templateRevision",
+            "parameters",
+            "resourceSubscriptions"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/FindingCode"
+        },
+        "field": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "field",
+        "message"
+      ],
+      "type": "object"
+    },
+    "FindingCode": {
+      "enum": [
+        "invalid_content",
+        "model_unavailable",
+        "model_changed",
+        "capability_unavailable",
+        "capacity_exceeded",
+        "template_unavailable",
+        "audience_forbidden"
+      ],
+      "type": "string"
+    },
+    "GatewayToolName": {
+      "description": "Gateway-scoped tool name after server namespace projection.",
+      "type": "string"
+    },
+    "MetadataChange": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "presentation",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "description"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "transfer",
+              "type": "string"
+            },
+            "owner": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "owner"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ModelChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "$ref": "#/$defs/Budgets"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "reference": {
+          "$ref": "#/$defs/ModelReference"
+        }
+      },
+      "required": [
+        "reference",
+        "name",
+        "provider",
+        "model",
+        "limits"
+      ],
+      "type": "object"
+    },
+    "ModelReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/AgentModelId"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "PublishDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/WorkContextId"
+          },
+          "type": "array"
+        },
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "expectedRevision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "expectedRevision",
+        "digest",
+        "audience"
+      ],
+      "type": "object"
+    },
+    "PublishedRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/Content"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "createdBy": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "definition": {
+          "$ref": "#/$defs/AgentDefinitionId"
+        },
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "definition",
+        "digest",
+        "content",
+        "createdBy",
+        "createdAt"
+      ],
+      "type": "object"
+    },
+    "ResourceUri": {
+      "type": "string"
+    },
+    "RevisionPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/PublishedRevision"
+          },
+          "type": "array"
+        },
+        "next": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "RevisionRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    "SaveDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/Content"
+        },
+        "expectedRevision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "expectedRevision",
+        "content"
+      ],
+      "type": "object"
+    },
+    "TemplateParameter": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "format": "int64",
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "UpdateMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "change": {
+          "$ref": "#/$defs/MetadataChange"
+        },
+        "expectedRevision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "expectedRevision",
+        "change"
+      ],
+      "type": "object"
+    },
+    "ValidateDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/WorkContextId"
+          },
+          "type": "array"
+        },
+        "expectedRevision": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "audience"
+      ],
+      "type": "object"
+    },
+    "Validation": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "digest",
+        "findings"
+      ],
+      "type": "object"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "authoring": {
+      "$ref": "#/$defs/Authoring"
+    },
+    "capability": {
+      "$ref": "#/$defs/CapabilityChoice"
+    },
+    "create": {
+      "$ref": "#/$defs/CreateDefinition"
+    },
+    "definition": {
+      "$ref": "#/$defs/Definition"
+    },
+    "draft": {
+      "$ref": "#/$defs/Draft"
+    },
+    "metadata": {
+      "$ref": "#/$defs/UpdateMetadata"
+    },
+    "page": {
+      "$ref": "#/$defs/DefinitionPage"
+    },
+    "publish": {
+      "$ref": "#/$defs/PublishDefinition"
+    },
+    "revision": {
+      "$ref": "#/$defs/RevisionRequest"
+    },
+    "revisions": {
+      "$ref": "#/$defs/RevisionPage"
+    },
+    "save": {
+      "$ref": "#/$defs/SaveDraft"
+    },
+    "validate": {
+      "$ref": "#/$defs/ValidateDefinition"
+    },
+    "validation": {
+      "$ref": "#/$defs/Validation"
+    },
+    "wake": {
+      "$ref": "#/$defs/CatalogWake"
+    }
+  },
+  "required": [
+    "definition",
+    "page",
+    "draft",
+    "revisions",
+    "create",
+    "save",
+    "metadata",
+    "publish",
+    "revision",
+    "validate",
+    "validation",
+    "authoring",
+    "capability",
+    "wake"
+  ],
+  "title": "AgentManagementSchema",
+  "type": "object"
+}

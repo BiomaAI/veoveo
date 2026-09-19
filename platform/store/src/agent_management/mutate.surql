@@ -54,5 +54,7 @@ CREATE ONLY $command.receipt SET tenant = $authority.tenant, work_context = $aut
     actor = $authority.principal, request_id = $command.request_id, fingerprint = $command.fingerprint, result = $result;
 CREATE outbox_event SET tenant = $authority.tenant, aggregate_type = 'agent_definition', aggregate_id = $command.key,
     event_type = string::concat('agent_definition.', $mutation.kind), schema_version = 1,
-    payload = { key: $command.key, revision: $result.revision, work_context: $authority.work_context, actor: $authority.principal, request_id: $command.request_id };
+    payload = { key: $command.key, revision: $result.revision, work_context: $authority.work_context,
+        affected_contexts: array::distinct(array::concat([$authority.work_context], $result.audience, $definition.audience ?? [])),
+        actor: $authority.principal, request_id: $command.request_id };
 RETURN $result;

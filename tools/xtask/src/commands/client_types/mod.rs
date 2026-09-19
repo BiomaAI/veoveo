@@ -11,6 +11,11 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
     let web = repository.root().join("apps/console/web");
     let schemas = [
         (
+            "agent-management",
+            "apps/console/web/src/generated",
+            serde_json::to_value(veoveo_mcp_contract::agent_management::schema_bundle())?,
+        ),
+        (
             "computers",
             "apps/console/web/src/generated",
             serde_json::to_value(veoveo_computers_contract::schema_bundle())?,
@@ -77,7 +82,7 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         }
     }
     println!(
-        "Canonical Console, Computers and Workspace client types {}",
+        "Canonical client types {}",
         if check { "verified" } else { "generated" }
     );
     Ok(())

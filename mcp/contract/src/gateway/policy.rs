@@ -84,6 +84,17 @@ pub enum GatewayAction {
     AgentsRead,
     AgentsMessage,
     AgentsInputRequestAnswer,
+    AgentDefinitionsRead,
+    AgentDefinitionsReadContent,
+    AgentDefinitionsCreate,
+    AgentDefinitionsEdit,
+    AgentDefinitionsPublish,
+    AgentDefinitionsUse,
+    AgentDefinitionsControl,
+    AgentDefinitionsArchive,
+    AgentDefinitionsTransfer,
+    AgentInstancesDeploy,
+    AgentInstancesControl,
     AdminRead,
     AdminWrite,
     RecordingStreamOpen,
@@ -116,6 +127,17 @@ impl GatewayAction {
             | Self::AgentsRead
             | Self::AgentsMessage
             | Self::AgentsInputRequestAnswer
+            | Self::AgentDefinitionsRead
+            | Self::AgentDefinitionsReadContent
+            | Self::AgentDefinitionsCreate
+            | Self::AgentDefinitionsEdit
+            | Self::AgentDefinitionsPublish
+            | Self::AgentDefinitionsUse
+            | Self::AgentDefinitionsControl
+            | Self::AgentDefinitionsArchive
+            | Self::AgentDefinitionsTransfer
+            | Self::AgentInstancesDeploy
+            | Self::AgentInstancesControl
             | Self::AdminRead
             | Self::AdminWrite
             | Self::RecordingStreamOpen
@@ -138,10 +160,23 @@ impl GatewayAction {
         )
     }
 
-    pub fn is_agent_control(self) -> bool {
+    pub fn is_agent_action(self) -> bool {
         matches!(
             self,
-            Self::AgentsRead | Self::AgentsMessage | Self::AgentsInputRequestAnswer
+            Self::AgentsRead
+                | Self::AgentsMessage
+                | Self::AgentsInputRequestAnswer
+                | Self::AgentDefinitionsRead
+                | Self::AgentDefinitionsReadContent
+                | Self::AgentDefinitionsCreate
+                | Self::AgentDefinitionsEdit
+                | Self::AgentDefinitionsPublish
+                | Self::AgentDefinitionsUse
+                | Self::AgentDefinitionsControl
+                | Self::AgentDefinitionsArchive
+                | Self::AgentDefinitionsTransfer
+                | Self::AgentInstancesDeploy
+                | Self::AgentInstancesControl
         )
     }
 }

@@ -2175,3 +2175,32 @@ fn app_resource_dependencies_bind_exact_apps_to_registered_resource_families() {
         GatewayControlPlaneError::InvalidAppResourceDependency { .. }
     ));
 }
+
+#[test]
+fn agent_management_actions_are_explicit_gateway_permissions() {
+    for action in [
+        GatewayAction::AgentDefinitionsRead,
+        GatewayAction::AgentDefinitionsReadContent,
+        GatewayAction::AgentDefinitionsCreate,
+        GatewayAction::AgentDefinitionsEdit,
+        GatewayAction::AgentDefinitionsPublish,
+        GatewayAction::AgentDefinitionsUse,
+        GatewayAction::AgentDefinitionsControl,
+        GatewayAction::AgentDefinitionsArchive,
+        GatewayAction::AgentDefinitionsTransfer,
+        GatewayAction::AgentInstancesDeploy,
+        GatewayAction::AgentInstancesControl,
+    ] {
+        let mut config = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
+        let rule = &mut config.policies[0].rules[0];
+        rule.actions = BTreeSet::from([action]);
+        rule.servers.clear();
+        rule.tools.clear();
+        config.validate().unwrap();
+        config.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::new("media").unwrap()]);
+        assert!(
+            config.validate().is_err(),
+            "{action:?} cannot inherit server-scoped authority"
+        );
+    }
+}

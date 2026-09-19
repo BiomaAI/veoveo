@@ -9,6 +9,7 @@
 pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.io/hosted-mcp/v3";
 
 pub mod access;
+pub mod agent_management;
 pub mod agents;
 #[cfg(feature = "analytics")]
 pub mod analytics;

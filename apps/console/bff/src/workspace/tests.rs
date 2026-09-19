@@ -79,6 +79,9 @@ impl Edge {
             computers: crate::computers::Transport::new(&Default::default()).unwrap(),
         };
         let app = super::router()
+            .merge(crate::agent_management::router(
+                crate::browser::BrowserApp::Workspace,
+            ))
             .merge(crate::artifact_upload::router(
                 crate::browser::BrowserApp::Workspace,
             ))
@@ -674,4 +677,74 @@ async fn app_tasks_use_workspace_cookie_profile_and_csrf_without_forwarding_brow
             .status(),
         StatusCode::UNPROCESSABLE_ENTITY
     );
+}
+
+#[tokio::test]
+async fn agent_authoring_keeps_cookie_csrf_profile_and_typed_validation() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let upstream =
+        Router::new().route(
+            "/admin/workspace/agent-definitions/researcher/publish",
+            post(
+                move |headers: HeaderMap,
+                      Json(body): Json<
+                    veoveo_mcp_contract::agent_management::PublishDefinition,
+                >| {
+                    let observed = observed.clone();
+                    async move {
+                        observed.fetch_add(1, Ordering::SeqCst);
+                        assert_eq!(headers["authorization"], "Bearer cookie-access");
+                        assert_ne!(headers["host"], "untrusted.invalid");
+                        (
+                            StatusCode::UNPROCESSABLE_ENTITY,
+                            Json(veoveo_mcp_contract::agent_management::Validation {
+                                revision: body.expected_revision,
+                                digest: body.digest,
+                                findings: vec![veoveo_mcp_contract::agent_management::Finding {
+                    code: veoveo_mcp_contract::agent_management::FindingCode::ModelChanged,
+                    field: "model".into(), message: "Select the approved model revision.".into(),
+                }],
+                            }),
+                        )
+                    }
+                },
+            ),
+        );
+    let edge = Edge::new(upstream).await;
+    let path = "/workspace/api/agent-definitions/researcher/publish";
+    let body = json!({"requestId":uuid::Uuid::now_v7(),"expectedRevision":2,"digest":format!("sha256:{}", "a".repeat(64)),"audience":["operations"]}).to_string();
+    assert_eq!(
+        edge.request("POST", path, false, false, &body)
+            .await
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        edge.request("POST", path, true, false, &body)
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let response = edge.request("POST", path, true, true, &body).await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+    let validation: veoveo_mcp_contract::agent_management::Validation =
+        serde_json::from_slice(&bytes).unwrap();
+    assert!(matches!(
+        validation.findings[0].code,
+        veoveo_mcp_contract::agent_management::FindingCode::ModelChanged
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let mut forged: serde_json::Value = serde_json::from_str(&body).unwrap();
+    forged["tenant"] = json!("forged");
+    assert_eq!(
+        edge.request("POST", path, true, true, &forged.to_string())
+            .await
+            .status(),
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }

@@ -2,7 +2,7 @@
 //! authorized durable head. Database reconciliation never queries a provider.
 use std::{convert::Infallible, sync::Arc, time::Duration};
 
-use super::limits::Limits;
+use crate::stream_limits::Limits;
 use axum::{
     Router,
     extract::{Extension, Path, State},

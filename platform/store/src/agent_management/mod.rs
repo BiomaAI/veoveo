@@ -53,6 +53,13 @@ pub fn agent_definition_record(tenant: &RecordId, key: &str) -> Result<RecordId>
 }
 
 impl PlatformStore {
+    /// Authorized invalidation head, scoped to contexts affected by a committed mutation.
+    pub async fn agent_catalog_head(&self, authority: &AgentCatalogAuthority) -> Result<i64> {
+        self.agent_query(authority, false,
+            "RETURN array::first(SELECT VALUE sequence FROM outbox_event WHERE tenant = $authority.tenant AND aggregate_type = 'agent_definition' AND $authority.work_context IN payload.affected_contexts ORDER BY sequence DESC LIMIT 1) ?? 0;"
+        ).await
+    }
+
     pub async fn mutate_agent_definition(
         &self,
         authority: &AgentCatalogAuthority,
@@ -61,48 +68,37 @@ impl PlatformStore {
         expected_revision: Option<i64>,
         mutation: AgentDefinitionMutation,
     ) -> Result<AgentDefinition> {
-        validation::key(key)?;
-        validation::mutation(&mutation)?;
-        if request_id.get_version_num() != 7
-            || expected_revision.is_some_and(|r| r < 1)
-            || !(1..=10_000).contains(&authority.definition_limit)
-        {
-            return Err(AgentManagementError::Invalid("request"));
-        }
-        if matches!(mutation, AgentDefinitionMutation::Create { .. }) != expected_revision.is_none()
-        {
-            return Err(AgentManagementError::Invalid("expected revision"));
-        }
-        let fingerprint = validation::hash(&(key, expected_revision, &mutation))?;
-        let content_digest = match &mutation {
-            AgentDefinitionMutation::Create { content, .. }
-            | AgentDefinitionMutation::Draft { content } => Some(content.digest()?),
-            _ => None,
-        };
-        let receipt_id = Uuid::new_v5(
-            &request_id,
-            format!(
-                "{}:{}",
-                authority.tenant.to_sql(),
-                authority.principal.to_sql()
-            )
-            .as_bytes(),
-        );
-        let command = MutationCommand {
-            definition: agent_definition_record(&authority.tenant, key)?,
-            receipt: RecordId::new(
-                "agent_definition_receipt",
-                surrealdb::types::Uuid::from(receipt_id),
-            ),
-            request_id,
-            fingerprint,
-            key: key.to_owned(),
-            expected_revision,
-            content_digest,
-            mutation,
-        };
+        let command = mutation_command(authority, key, request_id, expected_revision, mutation)?;
         self.agent_query(authority, command, include_str!("mutate.surql"))
             .await
+    }
+
+    /// Read an authorized receipt before repeating expensive external validation.
+    pub async fn replay_agent_definition(
+        &self,
+        authority: &AgentCatalogAuthority,
+        key: &str,
+        request_id: Uuid,
+        expected_revision: Option<i64>,
+        mutation: AgentDefinitionMutation,
+    ) -> Result<Option<AgentDefinition>> {
+        let command = mutation_command(authority, key, request_id, expected_revision, mutation)?;
+        self.agent_query(authority, command,
+            "IF $authority.membership = 'viewer' { THROW 'agent_forbidden'; }; LET $definition = SELECT * FROM ONLY $command.definition; IF $definition != NONE AND !fn::agent_definition_editor($authority, $definition) { THROW 'agent_not_found'; }; LET $receipt = SELECT * FROM ONLY $command.receipt; IF $receipt = NONE { RETURN NONE; }; IF $receipt.fingerprint != $command.fingerprint OR $receipt.work_context != $authority.work_context { THROW 'agent_conflict'; }; RETURN $receipt.result;"
+        ).await
+    }
+
+    /// Private content access also works for disabled and archived definitions.
+    pub async fn agent_authored_revision(
+        &self,
+        authority: &AgentCatalogAuthority,
+        key: &str,
+        digest: &str,
+    ) -> Result<AgentRevision> {
+        validation::digest(digest)?;
+        self.agent_query(authority, RevisionQuery { definition: agent_definition_record(&authority.tenant, key)?, digest: digest.to_owned() },
+            "LET $definition = SELECT * FROM ONLY $command.definition; IF !fn::agent_definition_editor($authority, $definition) { THROW 'agent_not_found'; }; LET $revision = array::first(SELECT * FROM agent_definition_revision WHERE definition = $definition.id AND digest = $command.digest LIMIT 1); IF $revision = NONE { THROW 'agent_not_found'; }; RETURN $revision;"
+        ).await
     }
 
     /// Private authoring access, constrained to the current home context and owner.
@@ -160,9 +156,23 @@ impl PlatformStore {
         &self,
         authority: &AgentCatalogAuthority,
         key: &str,
+        after: Option<&str>,
+        limit: u32,
     ) -> Result<Vec<AgentRevision>> {
-        self.agent_query(authority, agent_definition_record(&authority.tenant, key)?,
-            "LET $definition = SELECT * FROM ONLY $command; IF !fn::agent_definition_editor($authority, $definition) { THROW 'agent_not_found'; }; RETURN SELECT * FROM agent_definition_revision WHERE definition = $command ORDER BY created_at DESC LIMIT 100;"
+        if !(1..=100).contains(&limit) {
+            return Err(AgentManagementError::Invalid("page"));
+        }
+        if let Some(digest) = after {
+            validation::digest(digest)?;
+        }
+        #[derive(Clone, SurrealValue)]
+        struct History {
+            definition: RecordId,
+            after: Option<String>,
+            limit: u32,
+        }
+        self.agent_query(authority, History { definition: agent_definition_record(&authority.tenant, key)?, after: after.map(str::to_owned), limit },
+            "LET $definition = SELECT * FROM ONLY $command.definition; IF !fn::agent_definition_editor($authority, $definition) { THROW 'agent_not_found'; }; LET $cursor = array::first(SELECT * FROM agent_definition_revision WHERE definition = $definition.id AND digest = $command.after LIMIT 1); IF $command.after != NONE AND $cursor = NONE { THROW 'agent_not_found'; }; RETURN SELECT * FROM agent_definition_revision WHERE definition = $definition.id AND ($cursor = NONE OR created_at < $cursor.created_at OR (created_at = $cursor.created_at AND digest < $cursor.digest)) ORDER BY created_at DESC, digest DESC LIMIT $command.limit;"
         ).await
     }
 
@@ -201,6 +211,62 @@ impl PlatformStore {
         }
         Err(AgentManagementError::Unavailable)
     }
+}
+
+fn mutation_command(
+    authority: &AgentCatalogAuthority,
+    key: &str,
+    request_id: Uuid,
+    expected_revision: Option<i64>,
+    mutation: AgentDefinitionMutation,
+) -> Result<MutationCommand> {
+    validation::key(key)?;
+    validation::mutation(&mutation)?;
+    if request_id.get_version_num() != 7
+        || expected_revision.is_some_and(|r| r < 1)
+        || !(1..=10_000).contains(&authority.definition_limit)
+    {
+        return Err(AgentManagementError::Invalid("request"));
+    }
+    if matches!(mutation, AgentDefinitionMutation::Create { .. }) != expected_revision.is_none() {
+        return Err(AgentManagementError::Invalid("expected revision"));
+    }
+    // Context digests are current admission evidence, not client mutation input.
+    // Policy refresh must not change the identity of an otherwise identical retry.
+    let mut canonical = mutation.clone();
+    if let AgentDefinitionMutation::Publish { audience, .. } = &mut canonical {
+        for target in audience {
+            target.context_digest.clear();
+        }
+    }
+    let fingerprint = validation::hash(&(key, expected_revision, &canonical))?;
+    let content_digest = match &mutation {
+        AgentDefinitionMutation::Create { content, .. }
+        | AgentDefinitionMutation::Draft { content } => Some(content.digest()?),
+        _ => None,
+    };
+    let receipt_id = Uuid::new_v5(
+        &request_id,
+        format!(
+            "{}:{}",
+            authority.tenant.to_sql(),
+            authority.principal.to_sql()
+        )
+        .as_bytes(),
+    );
+    Ok(MutationCommand {
+        definition: agent_definition_record(&authority.tenant, key)?,
+        receipt: RecordId::new(
+            "agent_definition_receipt",
+            surrealdb::types::Uuid::from(receipt_id),
+        ),
+        request_id,
+        fingerprint,
+        key: key.to_owned(),
+        expected_revision,
+        content_digest,
+        mutation,
+    })
 }
 
 fn page(after: Option<&str>, limit: u32) -> Result<Page> {

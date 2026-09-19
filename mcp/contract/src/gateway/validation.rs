@@ -697,7 +697,7 @@ fn validate_policy_rule_actions(
     server_scope: &[&ServerManifest],
 ) -> Result<(), GatewayControlPlaneError> {
     for action in &rule.actions {
-        if action.is_agent_control() {
+        if action.is_agent_action() {
             if !rule.protected_resources.is_empty()
                 || !rule.servers.is_empty()
                 || !rule.tools.is_empty()
@@ -779,7 +779,18 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         }
         GatewayAction::AgentsRead
         | GatewayAction::AgentsMessage
-        | GatewayAction::AgentsInputRequestAnswer => false,
+        | GatewayAction::AgentsInputRequestAnswer
+        | GatewayAction::AgentDefinitionsRead
+        | GatewayAction::AgentDefinitionsReadContent
+        | GatewayAction::AgentDefinitionsCreate
+        | GatewayAction::AgentDefinitionsEdit
+        | GatewayAction::AgentDefinitionsPublish
+        | GatewayAction::AgentDefinitionsUse
+        | GatewayAction::AgentDefinitionsControl
+        | GatewayAction::AgentDefinitionsArchive
+        | GatewayAction::AgentDefinitionsTransfer
+        | GatewayAction::AgentInstancesDeploy
+        | GatewayAction::AgentInstancesControl => false,
         GatewayAction::AdminRead | GatewayAction::AdminWrite => true,
         GatewayAction::RecordingStreamOpen
         | GatewayAction::RecordingStreamStatus
