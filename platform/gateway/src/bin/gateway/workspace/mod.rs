@@ -1,11 +1,10 @@
 mod authority;
 pub(crate) mod events;
-mod limits;
 pub(crate) mod operations;
 mod projection;
 pub(crate) mod runs;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use axum::{
     Json, Router,

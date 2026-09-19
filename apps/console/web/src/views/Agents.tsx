@@ -1,3 +1,4 @@
+import { AgentManager } from "../agent-management/AgentManager";
 import { useCallback, useEffect, useState } from "react";
 import { Bot, Check, RefreshCw, Send, X } from "lucide-react";
 import {
@@ -298,7 +299,8 @@ function AgentCard({
 export function AgentsView({ snapshot }: { snapshot: InstallationSnapshot }) {
   return (
     <section className="panel full-panel">
-      <SectionHeader title="Agents" count={snapshot.agents.length} />
+      <AgentManager app="console" />
+      <SectionHeader title="Running agents" count={snapshot.agents.length} />
       <p className="panel-intro">Agents stay addressable while idle, reasoning, waiting, or processing prior work. A new message does not stop the work already in flight.</p>
       {snapshot.agents.length === 0 ? (
         <EmptyState>No agents are registered in this Work Context.</EmptyState>

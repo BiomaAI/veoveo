@@ -1,0 +1,34 @@
+.agent-management { color: inherit; padding: 24px; }
+.agent-management p, .am-modal p { line-height: 1.55; }
+.am-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:22px; }
+.am-heading h2 { margin:0 0 8px; font-size:20px; }
+.am-heading p { margin:0; opacity:.8; }
+.am-layout { display:grid; grid-template-columns:minmax(190px,260px) minmax(0,1fr); gap:26px; }
+.am-list { display:flex; flex-direction:column; gap:8px; }
+.am-list > button { text-align:left; display:flex; flex-direction:column; align-items:flex-start; gap:7px; padding:14px; }
+.am-list > button[aria-pressed=true] { outline:2px solid currentColor; outline-offset:-2px; }
+.am-list small, .am-list span, .am-check small { opacity:.75; font-size:12px; }
+.am-editor { min-width:0; }
+.am-editor > section, .am-publication { border-top:1px solid var(--border,#d4d4d4); margin-top:24px; padding-top:20px; }
+.am-content, .am-modal fieldset { border:0; margin:0; padding:0; display:grid; gap:16px; min-width:0; }
+.agent-management label, .am-modal label { display:flex; flex-direction:column; gap:7px; font-size:13px; font-weight:500; }
+.agent-management input:not([type=checkbox]), .agent-management textarea, .agent-management select, .am-modal input, .am-modal textarea { width:100%; box-sizing:border-box; border:1px solid var(--border,#bcbcbc); padding:10px; border-radius:5px; font:inherit; color:inherit; background:transparent; }
+.agent-management textarea, .am-modal textarea { resize:vertical; }
+.agent-management button, .am-modal button { cursor:pointer; border:1px solid var(--border,#bcbcbc); color:inherit; background:transparent; padding:9px 13px; border-radius:5px; font:inherit; }
+.agent-management button:disabled, .am-modal button:disabled { opacity:.45; cursor:default; }
+.agent-management .am-primary, .am-modal .am-primary { background:var(--text-strong,#262626); color:var(--canvas,#fff); }
+.am-budgets { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.am-tools { max-height:240px; overflow:auto; margin:12px 0; display:grid; gap:8px; }
+.agent-management .am-check { display:flex; flex-direction:row; align-items:center; gap:10px; padding:8px 0; }
+.am-check span { display:flex; flex-direction:column; gap:3px; }
+.am-actions { display:flex; flex-wrap:wrap; gap:9px; margin:16px 0; }
+.am-review, .am-warning { border:1px solid var(--border,#bcbcbc); border-radius:6px; padding:14px; margin:14px 0; }
+.am-error { color:var(--danger,#c24738); }
+.am-history { padding-left:22px; }
+.am-history li { margin:14px 0; }
+.am-history pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; padding:12px; border:1px solid var(--border,#ccc); }
+.am-empty { padding:26px 20px; max-width:540px; }
+.am-modal { color:var(--text,#262626); background:var(--canvas,#fff); border:1px solid var(--border,#bbb); border-radius:10px; width:min(500px,calc(100vw - 32px)); max-height:90vh; overflow:auto; padding:24px; }
+.am-modal::backdrop { background:#0008; }
+.am-modal h2 { margin-top:0; }
+@media (max-width:800px) { .am-layout { grid-template-columns:1fr; } .am-list { max-height:220px; overflow:auto; } .am-heading { flex-direction:column; } .agent-management { padding:16px; } }

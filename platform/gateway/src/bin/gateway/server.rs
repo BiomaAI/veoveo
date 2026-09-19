@@ -286,6 +286,19 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         port,
         deployment.base_url(),
     )?;
+    let agent_management = crate::agent_management::AgentManagementState {
+        gateway: gateway_state.clone(),
+        catalog: catalog.clone(),
+        models: Arc::new(crate::agent_management::models::from_env(
+            &catalog.current(),
+        )?),
+        operations: workspace_operations.clone(),
+        stop: ct.child_token(),
+        definition_limit: 1_000,
+    };
+    router = router.merge(crate::agent_management::router(agent_management).layer(
+        middleware::from_fn_with_state(auth_state.clone(), authenticate_mcp),
+    ));
     router = router.merge(
         crate::workspace::router(crate::workspace::WorkspaceState {
             store: control_store.platform_store().clone(),

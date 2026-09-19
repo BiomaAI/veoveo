@@ -43,7 +43,7 @@ pub(crate) struct OperationState {
     catalog: GatewayCatalogHandle,
     native: native::NativeTransport,
     limits: Arc<Semaphore>,
-    watches: Arc<super::limits::Limits>,
+    watches: Arc<crate::stream_limits::Limits>,
     stop: CancellationToken,
     personal: personal::PersonalHub,
 }
@@ -77,6 +77,16 @@ impl OperationState {
         required: &[GatewayToolName],
     ) -> Result<Vec<rmcp::model::Tool>, StatusCode> {
         self.authority(&caller.subject, &caller.profile).await?;
+        self.authoring_capabilities(caller, required).await
+    }
+
+    /// The management caller supplies current action/context admission. Native
+    /// discovery independently authenticates this caller's bearer and profile.
+    pub(crate) async fn authoring_capabilities(
+        &self,
+        caller: &Caller,
+        required: &[GatewayToolName],
+    ) -> Result<Vec<rmcp::model::Tool>, StatusCode> {
         let client = self.native.connect(&caller.profile, &caller.bearer).await?;
         let result = catalog_tools(&client, Some(required)).await;
         client.close().await;
@@ -106,7 +116,7 @@ impl OperationState {
             catalog,
             native: native::NativeTransport::new(port, public_base)?,
             limits: Arc::new(Semaphore::new(16)),
-            watches: super::limits::Limits::new(64),
+            watches: crate::stream_limits::Limits::new(64),
             stop,
         })
     }

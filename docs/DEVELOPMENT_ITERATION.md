@@ -676,3 +676,9 @@ warm local cache, not release builds or installed agent creation.
 |---|---|---|
 | The host SurrealDB CLI is 3.2.1 while the repository qualifies 3.2.4 | A host-only parse pass could not establish the deployed syntax boundary | Validate SQL using the already cached pinned fixture image. |
 | The latest published `@surrealdb/surql-fmt` is prerelease `0.1.0-beta.2` and corrupts typed function signatures, nested branches, closure expressions and field-based LIMIT clauses | One migration-failure cycle and one empty-catalog failure after partial repair | Reject this formatter's output, restore reviewed SQL, and validate with the actual database parser and behavioral tests before accepting formatting. |
+
+The gateway API checks reused the debug target. A first gateway test link took about
+41 seconds; later gateway-only edits took 12 seconds. Editing the store during a gateway
+compile caused another transitive rebuild of store, task runtime and agent runtime.
+Complete a dependency-layer edit before starting its downstream test compile, then use
+the running interval for documentation or independent frontend work.

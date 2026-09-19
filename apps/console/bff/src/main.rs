@@ -1,3 +1,4 @@
+mod agent_management;
 mod api;
 mod app_host;
 mod apps;
@@ -104,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
         ..state.clone()
     };
     let workspace_router = workspace::router()
+        .merge(agent_management::router(browser::BrowserApp::Workspace))
         .merge(artifact_upload::router(browser::BrowserApp::Workspace))
         .merge(computers::control_router(browser::BrowserApp::Workspace))
         .route("/workspace/auth/login", get(oauth::login))
@@ -116,6 +118,7 @@ async fn main() -> anyhow::Result<()> {
         ));
 
     let router = Router::new()
+        .merge(agent_management::router(browser::BrowserApp::Console))
         .route("/", get(|| async { Redirect::permanent("/console/") }))
         .route("/healthz", get(|| async { "ok" }))
         .route("/auth/login", get(oauth::login))

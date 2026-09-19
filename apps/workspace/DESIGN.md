@@ -271,3 +271,11 @@ Operation progress uses the server's measured units. A positive usable total set
 the progress bar's accessible range; absent or inconsistent totals leave it
 indeterminate. The client never estimates a percentage from time spent waiting.
 Request settlement clears this bar's measurement before native Task presentation.
+
+## Agent Authoring
+
+The Agents view reuses the [shared editor](../console/web/src/agent-management/DESIGN.md)
+through Workspace's own browser edge. Explicit authoring permissions govern creation,
+private content and publication. Draft changes do not alter published executable
+revisions. Registry-backed chat admission and explicit participant updates remain
+part of the active agent-management delivery goal until their runtime checkpoint lands.

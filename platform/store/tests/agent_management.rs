@@ -226,7 +226,7 @@ async fn publication_pins_content_and_catalog_never_discloses_instructions() {
         Err(AgentManagementError::NotFound)
     );
     assert_eq!(
-        db.a.agent_revision_history(&a, "researcher")
+        db.a.agent_revision_history(&a, "researcher", None, 100)
             .await
             .unwrap()
             .len(),

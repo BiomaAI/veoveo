@@ -1,3 +1,4 @@
+//! Shared browser-stream capacity, with independent per-principal reservations.
 use parking_lot::Mutex;
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};

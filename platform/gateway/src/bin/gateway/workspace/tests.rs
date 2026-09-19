@@ -18,7 +18,7 @@ use veoveo_platform_store::{
     deterministic_work_context_id,
 };
 
-pub(super) fn subject(name: &str) -> AuthenticatedSubject {
+pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
     let principal = Principal {
         id: PrincipalId::new(format!("https://workspace.test#{name}")).unwrap(),
         kind: PrincipalKind::User,
@@ -68,7 +68,7 @@ pub(super) fn subject(name: &str) -> AuthenticatedSubject {
     }
 }
 
-pub(super) async fn setup(store: &PlatformStore) {
+pub(crate) async fn setup(store: &PlatformStore) {
     for name in ["Alice", "Bob", "Eve"] {
         let actor = subject(name);
         store

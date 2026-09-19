@@ -67,6 +67,10 @@ Component designs live beside the code whose contract they specify:
 
 | Document | Domain |
 |---|---|
+| [`apps/console/web/src/agent-management/DESIGN.md`](../apps/console/web/src/agent-management/DESIGN.md) | shared Console/Workspace agent editor, draft publication, approved connection selection and request recovery |
+| [`apps/console/bff/src/agent_management/DESIGN.md`](../apps/console/bff/src/agent_management/DESIGN.md) | fixed-profile authoring HTTP and SSE projection with separate browser session authority |
+| [`platform/gateway/src/bin/gateway/agent_management/DESIGN.md`](../platform/gateway/src/bin/gateway/agent_management/DESIGN.md) | governed definition API, approved model admission, current policy and catalog events |
+| [`mcp/contract/src/agent_management/DESIGN.md`](../mcp/contract/src/agent_management/DESIGN.md) | canonical authoring DTOs and generated browser schema |
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client, shared-chat presentation, private activity, reactive observation and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | core retained Computers domain, lifecycle, current authority, named grants, files and maintenance |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
@@ -1004,8 +1008,12 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 The [agent catalog store](../platform/store/src/agent_management/DESIGN.md) owns
 definition authoring, immutable executable revisions, mutation replay and publication
-audience fencing. It is separate from episode scheduling. The management API and
-managed-instance controller are tracked in the active agent-management plan.
+audience fencing. It is separate from episode scheduling. The
+[management gateway](../platform/gateway/src/bin/gateway/agent_management/DESIGN.md)
+owns current authoring policy, approved model connections, publication validation and
+catalog invalidation. Its [HTTP contract](../mcp/contract/src/agent_management/DESIGN.md)
+generates shared browser types. Client/runtime wiring and the managed-instance
+controller remain tracked in the active agent-management plan.
 
 ### `agents/kernel`
 
