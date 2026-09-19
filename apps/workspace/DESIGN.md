@@ -11,10 +11,9 @@ the Rust platform owns that boundary. Embedded capability views retain MCP Apps
 `2026-01-26` and Veoveo's declared App extensions.
 
 React, TypeScript and Vite retain the repository's qualified frontend pins.
-assistant-ui `0.15.20` is the first presentation candidate, verified against the
+assistant-ui `0.15.20` is the qualified chat presentation component, verified against the
 [upstream package registry](https://www.npmjs.com/package/@assistant-ui/react).
-It must pass the multi-participant qualification before being accepted as the chat
-renderer. Its runtime cannot own chat authorization, persistence or agent execution.
+Its runtime does not own chat authorization, persistence or agent execution.
 The adapter qualification passes with two human and two agent authors, concurrent
 agent statuses, subsequent human messages and replay. Playwright `1.63.0`, verified
 from the upstream registry, runs the client-owned browser acceptance fixture.

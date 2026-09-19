@@ -54,21 +54,17 @@ feeds the Console without entering discovery for failure-isolating profiles.
 
 The canonical schema profile is normative in
 [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md#schemas-and-types): one
-JSON Schema 2020-12 document per tool input with an object root, no references,
-and immediate types, preserving the full typed contract while keeping argument
-shapes visible to clients that inspect a property without resolving schema
-references.
+JSON Schema 2020-12 document per tool input with an object root. Same-document
+references and composition are supported. External references are rejected, and
+depth, node, reference, branch and serialized-size limits bound validation work.
 
-Rust servers import `tool` from `veoveo_mcp_contract`. The macro selects the shared
-Schemars generator for every `Parameters<T>` handler and supplies the closed empty-object
-schema for handlers without arguments. Tagged Rust enums declare their object or string
-type on the domain type itself. Python servers pass each Pydantic request model through
-`veoveo_mcp.schema.mcp_input_schema` before publishing it.
+Rust servers use the ordinary RMCP/Schemars generation path. Python servers use
+the SDK/Pydantic path and `veoveo_mcp.schema.mcp_input_schema`. Domain types own
+their schema; the gateway does not flatten references or rewrite the schema vocabulary.
 
-Recursive tool arguments are outside this profile because a finite self-contained
-schema cannot express unbounded recursion without references. Domain contracts model
-bounded collections explicitly. Servers deserialize the structured value described by
-the schema; the gateway does not rewrite schemas or convert JSON-encoded strings.
+Unbounded recursive arguments are outside the supported profile. Domain contracts
+model bounded collections explicitly. Servers deserialize the structured value
+described by the schema rather than accepting JSON-encoded argument strings.
 
 The MCP conformance client's `info` command validates every advertised tool schema
 against its declared dialect and enforces this client-facing shape.
@@ -89,16 +85,20 @@ compatibility helper clutter.
 
 The gateway declares tool, prompt, and resource list-change support independently. Each
 claim follows the exact upstream capability and no generic notification switch exists.
-Servers and the gateway await delivery through the owning session in protocol order.
-A two-second delivery bound prevents an unresponsive client from holding the handler
-indefinitely without detaching work after its session ends. A new authenticated session
-always receives the current policy-filtered catalog.
+Request-scoped subscription streams acknowledge their exact admitted filters.
+Catalog notifications invalidate the corresponding discovery cache before forwarding.
+In-flight fetch claims prevent an older response from restoring invalidated contents.
+Cache expiry and bounded client reconciliation recover missed notifications without
+invoking a model. A cold federated read has one bounded settlement window and reports
+any remaining incomplete surfaces explicitly.
 
-Every logical MCP endpoint has one active process. Helm renders the gateway, hosted MCP
-servers, and local stdio bridges with one replica and `Recreate`. Stdio exists only
-between the bridge and the child whose lifecycle it owns. Legacy HTTP+SSE and network
-stdio are not registration choices. Independently stateless services, including the
-Console BFF and artifact byte service, retain their own replica configuration.
+The gateway and ordinary hosted endpoints support load-balanced replicas under the
+[deployment identity contract](../mcp/contract/DESIGN.md#deployment-identity).
+Helm selects replicas per component; the gateway, browser edge and Computers worker
+have independent replica settings. Exclusive storage, provider or GPU ownership can
+require a singleton, such as the private Computer host. Protocol-session locality
+does not require a singleton. The isolated stdio bridge owns its child process;
+network stdio is not a registration choice.
 
 Client hosts may retain their own per-user tool permissions after OAuth grants change.
 Those permissions are outside gateway authority: reconnecting authentication refreshes
@@ -112,7 +112,7 @@ tool call independently of the host's selection.
 
 ```text
 edge
-  +-- console-bff -> gateway admin and artifact download routes
+  +-- console-bff -> Console and Workspace browser APIs, assets and event feeds
   +-- mcp-gateway -> hosted MCP servers
   +-- artifact-service -> public share redemption only
   +-- media-mcp -> signed provider webhooks and curated provider input files
@@ -120,6 +120,8 @@ edge
 mcp-gateway
   +-- external OAuth/OIDC and gateway authorization server
   +-- profile catalog, policy, protocol projection, audit
+  +-- Workspace chat, agent-run and private-operation authority
+  +-- Computers projection -> Computers worker -> private Computer host
   +-- short-lived internal identity issuer
   +-- SurrealDB control/runtime state
 
@@ -151,6 +153,26 @@ recording-forwarder
 Binary entrypoints parse configuration, initialize dependencies, assemble routers, and
 delegate behavior to focused modules. Shared crates own platform vocabulary; domain
 tool schemas stay in the server that owns them.
+
+### Human Clients And Computers
+
+Console administers the installation at `/console/`. Workspace serves daily
+productivity at `/workspace/`, with owner-controlled human and agent participation
+in each chat. Both use the Rust browser edge with separate OAuth clients and encrypted
+cookies. Rust owns persistence, authorization, agent execution and MCP transport.
+The [Workspace client design](../apps/workspace/DESIGN.md) owns presentation.
+
+Shared run feedback exposes execution phase and the count of admitted operations.
+Tool arguments, input requests and results remain in the initiator's private Activity.
+The personal event feed updates operation inventory, invitations and Task attention
+across navigation. Reconnect reads authoritative state and never resubmits work.
+Measured progress requires a real tool observation; otherwise progress is indeterminate.
+
+Computers is a core capability with retained identity and files, browser and stock CLI
+attachment, and scoped agent execution. The [domain](../platform/computers/DESIGN.md)
+owns authority and durable intent; the [worker](../servers/computers-mcp/DESIGN.md)
+owns provider calls and Task projection. The gateway has no provider dependency.
+Capacity and the qualified provider/storage profile are installation choices.
 
 ## Hosted Server Administration
 
@@ -248,19 +270,22 @@ Each durable operation declares one recovery class:
   lease and continue from persisted request/capability state.
 - `WebhookWait`: an external provider job was durably submitted and now waits for its
   signed callback.
+- `ProviderWait`: an operation retains its fence while its qualified provider adapter
+  observes an authoritative outcome. Observation leases cannot enter ordinary execution
+  claims or authorize replay of an uncertain mutation.
 - `InterruptedIndeterminate`: execution may have caused a mutation. Recovery marks the
   task failed and never repeats the operation.
 
-Long-running servers use this same runtime: media, timeseries, optimization, frames, map,
-Time, DuckDB, and SUMO. There is no server-local in-memory task registry and no alternate
-task URI.
+Long-running servers, including Media, Time and Computers, use this same runtime.
+There is no server-local in-memory task registry and no alternate task URI.
 
 ## Provider Completion
 
 This section describes the implemented Media profile. The broader accepted provider
 policy is in [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md#ce-01-provider-completion-follows-qualified-semantics).
-Computers watch/reconciliation recovery and any new persisted recovery class remain
-implementation work; this policy change does not add a status API to Media.
+Computers has its own implemented provider-observation profile and `ProviderWait`
+recovery class, described in the [runtime design](../platform/runtimes/computers/DESIGN.md).
+That profile does not add a status API to Media.
 
 The media server keeps client/server async and provider/server async separate:
 
@@ -272,7 +297,7 @@ The media server keeps client/server async and provider/server async separate:
 5. The server durably records the unique event, redeems the preissued artifact
    capability, stores usage, commits the terminal task result, and emits outbox events.
 
-The one active media MCP process receives callbacks. Duplicate signed events are
+The Media callback handler receives signed events. Duplicate signed events are
 idempotent, and restart recovery replays durable unprocessed events. Provider CDN URLs
 and opaque payloads are not returned to clients. Missing webhook delivery is an
 operational failure; no timeout path queries provider status.

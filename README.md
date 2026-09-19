@@ -615,6 +615,11 @@ Docker is required for SurrealDB-backed tests and deployment work. Native Map
 builds also need a C/C++ toolchain, CMake, pkg-config, SQLite development files,
 and PROJ's build dependencies.
 
+Select checks for the changed component using the
+[iteration runbook](docs/DEVELOPMENT_ITERATION.md). The commands below are a catalog,
+not a mandatory sequence for every edit; record the relevant checks through
+`cargo xtask test-report run` before committing build-input changes.
+
 ```bash
 cargo fmt --all
 cargo xtask enforce rust

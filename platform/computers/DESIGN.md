@@ -9,7 +9,7 @@
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
 | Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels |
-| Veoveo file-transfer journal | Migrations 0073–0075; private request, one-shot dispatch, bounded original-run containment and exact result settlement under a shared `computer.file_transfer` Task lease; native worker lives in `servers/computers-mcp`; public activation remains pending |
+| Veoveo file-transfer journal | Migrations 0073–0075; private request, one-shot dispatch, bounded original-run containment and exact result settlement under a shared `computer.file_transfer` Task lease; native worker and public admission live in `servers/computers-mcp` |
 | Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
 | Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
@@ -21,8 +21,10 @@
 | Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
 
 The domain owns retained Computer identity. Provider transport belongs to
-`platform/runtimes/computers`. Native Console and MCP will project these commands
-through a single Computers worker service. No provider dependency enters the gateway.
+`platform/runtimes/computers`. Native Console and MCP project these commands
+through the Computers worker service. No provider dependency enters the gateway.
+Installed journey evidence and remaining release gates are recorded in the
+[Computers plan](../../docs/COMPUTERS_PLAN.md#current-implementation-checkpoint).
 
 ## Admission And Ownership
 
@@ -139,8 +141,8 @@ remains available to interrupt work. Stop admission preserves the file slot, whi
 the file worker may release only after definitive completion or confirmed containment.
 Migration 0073 widens the slot's record target to the two explicit work tables. Existing
 command workers continue to select only their table; lifecycle readers see the same
-slot. Public file admission remains disabled until the updated worker and facades are
-deployed together. Migration 0074 adds private dispatch, continuation and settlement.
+slot. File admission requires the compatible worker and facades to be deployed
+together. Migration 0074 adds private dispatch, continuation and settlement.
 Only the original dispatch receipt can accept a verified native file result. A worker
 that loses that receipt may contain the saved run, but cannot repeat the transfer.
 Current action policy and named-grant limits remain mandatory after admission;
@@ -168,16 +170,17 @@ Isolated SurrealDB cases qualify both owner and delegated authority, contested
 one-shot dispatch, sign-in-family independence, current policy reductions, known
 import/export results, helper rejection, cancellation, original-run containment,
 replacement refusal and bounded recovery. The fixture supplies private native
-receipts and Artifact issuance records. The service now composes this journal with actual Artifact redemption and native
-byte movement. Public file controls and production startup remain delivery work.
+receipts and Artifact issuance records. The service composes this journal with actual
+Artifact redemption and native byte movement. Public file controls and supervised
+startup use that same path; installed import/export evidence is recorded in the plan.
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated
 domain settlement. The native worker lives in `servers/computers-mcp`. The browser terminal and stock CLI project durable renewable grants through the
 installed service. Named automation grants now have a durable ledger and current
-authority checks. Their public command and grant projection shares this domain. Remaining work includes
-deletion with storage acknowledgement, execution and Artifact movement in
-`docs/COMPUTERS_PLAN.md`. Domain tests alone do not establish installed acceptance.
+authority checks. Their public command and grant projection shares this domain.
+The plan distinguishes domain fixtures, native provider qualification and installed
+journeys. Domain tests alone do not establish installed acceptance.
 
 ## Verification
 
@@ -220,7 +223,7 @@ session identity from a Task owner.
 The accepted record is evidence for one operation. Its source token may expire
 while the worker completes or reconciles accepted work. Dispatch reads current action
 policy through the shared evaluator. Browser grants have separate current grant and
-family checks, described below. Their transport composition remains implementation work.
+family checks, described below, enforced by the service's browser and CLI transports.
 
 No supported installed Computers records precede this migration. Pre-profile
 candidate journals with missing context cannot admit new work or infer authority;
@@ -228,7 +231,7 @@ they require explicit operator handling with their existing resource fence intac
 The deployed profile must update all readers and writers before admitting Computers.
 
 The dispatch worker repairs pending Task links and projects a terminal Task after
-domain settlement. Physical home fencing remains in progress.
+domain settlement. The retained allocator owns physical home fencing.
 Journal methods never call the provider.
 
 ## Dispatch And Observation
@@ -504,7 +507,8 @@ cannot read the new field. The backfill copies original dispatch time and preser
 deadlines, charged reads and dispatch evidence. Keep this schema and compatible workers
 during template rollback. The isolated migration test reconstructs a pre-0071 step and
 proves exact preservation after the migration. The service and Console now expose
-this command; native resumption qualification remains separate delivery work.
+this command. Native maintenance and installed recovery evidence retain their own
+scope in the worker design and Computers plan.
 
 Capture settlement creates its encrypted checkpoint in the same transaction as the
 step receipt. The worker must reopen and validate that checkpoint before retirement.
@@ -519,8 +523,9 @@ do not prove physical retirement, storage transfer or provider policy loading.
 
 Task projection and retention-pin acknowledgement are repairable through bounded
 worker discovery. The provider worker composes these transitions in
-`servers/computers-mcp`. Operator recovery, executable worker wiring, public update
-projection and installed template qualification remain implementation work.
+`servers/computers-mcp`. Its supervised worker and public update/recovery projection
+use the same journal. Installed template qualification is recorded per admitted
+transition in the Computers plan; it does not qualify arbitrary template pairs.
 
 ## Computer Confidentiality
 
@@ -570,7 +575,7 @@ A bounded key ring writes with one active key and retains up to four keys for re
 Exact request comparisons use the original envelope's key after rotation. A missing
 key or damaged envelope fails closed and cannot create a fresh dispatch. Key removal
 requires draining or re-encrypting all work and backups that need it. Automatic
-re-encryption and Secret mounting remain integration work;
+re-encryption remains follow-up work. Helm mounts the installation key-ring Secret;
 the codec itself does not authorize a command or establish installed key rotation.
 
 The implementation uses the existing RustCrypto dependencies. The authoritative
@@ -611,7 +616,8 @@ holds the authenticated envelope until its execution lifecycle permits disposal.
 
 Migration 0061 introduces queued admission. Migration 0062 adds the guarded dispatch
 transition and evidence. The native command worker composes dispatch, output
-Artifacts and settlement; its production wiring and public projection remain delivery work. Apply the migration before updating lifecycle admission,
+Artifacts and settlement behind the public service projection. Apply the migration
+before updating lifecycle admission,
 and upgrade all workers that can Start before enabling command admission. Rollback
 must drain and settle execution slots before an older lifecycle worker returns;
 removing a slot without termination evidence is forbidden.
