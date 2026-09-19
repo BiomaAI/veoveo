@@ -1,13 +1,15 @@
 # Veoveo reference architecture
 
 This directory is the isolated Veoveo UAF 1.3 and SysML 1.6 reference
-architecture. It contains no client-specific mission data and is not integrated
-into the whitepaper or a white-label publication.
+architecture publication snapshot. It contains no client-specific mission data and
+is not integrated into the whitepaper or a white-label publication.
 
-The architecture covers every buildable first-party component and every
-external runtime that participates in the stated platform architecture. The
-component catalog includes all 42 Rust workspace packages, the React console,
-the Python SDK and hosted-server template, internal Python and C++ executors,
+The package records the components inventoried at its publication baseline.
+It is not regenerated from the current checkout: Workspace, Computers and later
+ownership changes must be read through the current [code map](../CODEMAP.md) and
+[technical design](../TECH_DESIGN.md). The published catalog includes 42 Rust
+workspace packages, the React console, the Python SDK and hosted-server template,
+internal Python and C++ executors,
 deployment and verification components, and required or optional external
 runtimes.
 

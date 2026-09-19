@@ -4,8 +4,8 @@ Status: canonical multi-cycle implementation plan and delivery record. The `001`
 cycle is closed. Nine requests are delivered, three unfinished themes have one explicit
 successor in the `014`–`023` cycle, and private build inputs closed without implementation
 because no approved need opened that optional track. The `014`–`023` cycle is active.
-Request `016` has completed implementation and awaits disposable-development activation
-and headed hardware-GPU acceptance. Other phases retain their own start gates. Existing
+Request `016` completed implementation, disposable-development activation and headed
+hardware-GPU acceptance on August 27. Other phases retain their own start gates. Existing
 component designs remain normative until each current phase lands and deletes the surface
 it replaces.
 
@@ -27,7 +27,7 @@ Together those two tables form this plan's standards register.
 | Requests | Review input | State | Canonical disposition |
 |---|---|---|---|
 | `001`–`013` | `veoveo-platform-improvements-2026-08-14` | closed on 2026-08-26 | nine delivered, `003` partially delivered and superseded by `023`, `009` superseded by `022`, `010` superseded by `021`, and `013` closed without implementation |
-| `014`–`023` | `veoveo-platform-improvements-2026-08-26` | active; `016` implementation complete, activation pending | current hard-cut implementation plan |
+| `014`–`023` | `veoveo-platform-improvements-2026-08-26` | active; `016` implemented and accepted August 27 | current implementation plan with phase-specific delivery records |
 
 No work remains under an old request identifier after it moves to a current successor. Future
 evidence and implementation update the current cycle only. Historical commits and acceptance
@@ -1838,11 +1838,11 @@ both cutover choices.
 
 ### Phase 3: Host-Mediated Streaming Artifact Upload
 
-The first-release public HTTP upload and Console Artifacts form are specified in
-[`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md). That handoff requires multi-GB
-resumable multipart uploads and Console browser acceptance. Direct API and Console
-uploads proceed independently of exact MCP App resolution. This phase retains the
-embedded App host-picker integration and consumes the shared ingestion foundation.
+The first-release public HTTP upload and Console queue were deployed and verified
+on September 9; [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) records the
+resumed 10 GiB browser acceptance and Python streaming. Direct API and Console
+uploads are independent of exact MCP App resolution. This phase still owns the
+embedded App host-picker integration and consumes that delivered ingestion foundation.
 
 This phase implements `APP-UPLOAD-017` after exact App authority exists.
 

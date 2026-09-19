@@ -6,6 +6,14 @@
 > [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md),
 > [`TECH_DESIGN.md`](TECH_DESIGN.md), and the owning component designs.
 
+## Standards And Protocols
+
+The exploration assumes Veoveo's existing MCP `2026-07-28` profile, official Tasks
+and request-scoped subscriptions. [Work Context authority](WORK_CONTEXT_GOVERNANCE.md)
+and governed Artifact identities remain the security and evidence boundaries.
+Candidate strategy, trajectory and evaluation records below are proposed internal
+models; this document introduces no wire format, storage schema or learning service.
+
 ## Purpose
 
 Veoveo profiles assemble MCP servers into a coherent surface, while gateway policy and

@@ -4,6 +4,15 @@ Map MCP is the authority for Veoveo geography, routes, layers, publications,
 compositions, and spatial products. Other MCP servers may use that capability
 without owning a second copy of Map data.
 
+## Standards And Protocols
+
+| Boundary | Supported profile |
+|---|---|
+| MCP `2026-07-28` | Authorized tools, resource reads and request-scoped subscriptions under the [server contract](../mcp/contract/DESIGN.md) |
+| MCP Apps `2026-01-26` | Server-owned `ui://` resources and the sandboxed host bridge |
+| Veoveo App resource dependencies | Repository-owned declarations for exact source server, URI prefix, scope and read operations; defined by the [Apps contract](../mcp/apps-extension/DESIGN.md) |
+| `map://` resources | Map-owned geographic identity, provenance and revision semantics; individual data formats are specified by the [Map design](../servers/map-mcp/DESIGN.md) |
+
 ## Choose the integration surface
 
 Use Map MCP tools and resources when the server needs geographic facts or a

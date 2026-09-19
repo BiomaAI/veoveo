@@ -2,9 +2,11 @@
 
 Status: accepted policy direction on 2026-09-09 following the user's request to
 renegotiate contracts for ecosystem usefulness, Computers, UX, performance, and
-security. This change updates contribution rules and architecture decisions.
-Runtime work in the delivery table remains planned. A documented permission does
-not advertise an unimplemented or unqualified capability.
+security. The decisions govern contribution rules and architecture boundaries.
+Provider observation, retained Computers, renewable access and scoped source evidence
+now have implementation checkpoints below. Complete release closure and additional
+profiles retain their own gates. A documented permission does not advertise an
+unimplemented or unqualified capability.
 
 ## Standards And Protocols
 
@@ -16,7 +18,7 @@ not advertise an unimplemented or unqualified capability.
 | WebSocket, RFC 6455; SSH | Terminal and CLI attachment transports; Veoveo lease, replay, and revocation controls are repository-owned extensions |
 | gRPC and Protocol Buffers | Internal OpenShell adapter protocol pinned with the selected provider artifacts; a watch alone is not a durable delivery guarantee |
 | OpenShell `0.0.116` | Reviewed handoff baseline, including explicitly recorded provider patches; broader compatibility remains unqualified |
-| JSON Schema `2020-12` | Generated controlled-domain contracts and planned language-neutral test receipts |
+| JSON Schema `2020-12` | Generated controlled-domain contracts and versioned test receipt/index schemas |
 | `veoveo.io/test-receipt/v1` and `veoveo.io/local-test-report/v3` | Immutable local attempts and per-check source validity; installed adapters and full release closure composition remain work |
 | OCI, Helm, Git content identities | Existing exact artifact publication and installation-owned deployment boundaries |
 | NVIDIA GPU APIs, WebGPU, WebGL | Hardware workload and headed visual evidence remain required; headless behavior checks have a separate evidence class |
@@ -310,9 +312,10 @@ Durable browser, CLI and named automation grants now have installed public
 observations. Agent execution publishes governed output Artifacts and rejects a
 revoked grant or a different Computer. The current checkpoint in
 [COMPUTERS_PLAN.md](COMPUTERS_PLAN.md) records those observations and their limits.
-General Artifact handoff, agent lifecycle permissions and complete release
-qualification remain work. Store-backed fixtures exercise competing replicas and
-unchanged existing profiles.
+Governed Artifact import/export and named Start/Stop authority also have installed
+acceptance in that checkpoint. Clean/offline release closure, broader provider
+qualification and full installed-evidence composition remain work. Store-backed
+fixtures exercise competing replicas and unchanged existing profiles.
 
 The shared evaluator now lives in `platform/policy`. Gateway policy calls delegate to
 that implementation, while background services can validate a revision without importing

@@ -1,36 +1,37 @@
 # Computers Core Capability Plan
 
-Status: revised on 2026-09-09 under the user's authorization to renegotiate the
-contracts for Veoveo and Computers. Core product status and the policy decisions in
-[Contract Evolution](CONTRACT_EVOLUTION.md) are accepted. This document defines the
-implementation sequence and release gates; it does not claim runtime delivery or
-production deployment. Implementation was authorized and set as the active goal on
-2026-09-09. Computers is a Veoveo capability. Bioma supplies one
-installation configuration and the public acceptance destination. The current
-checkpoint below supersedes historical statements of unfinished integration in the
-dated delivery observations; the release gates themselves remain in force.
+Status: the selected Computers profile is implemented and deployed in Veoveo with
+the Bioma configuration. The September 11 checkpoint below records browser and stock
+CLI continuity, retained files, named agent execution and lifecycle authority. Clean
+and offline installation closure, broader provider profiles and comparative performance
+qualification remain separate gates.
+
+Computers is a core Veoveo capability. [Contract Evolution](CONTRACT_EVOLUTION.md)
+records the accepted policy decisions. This plan retains the sequence authorized on
+September 9 and its dated implementation observations. The current checkpoint
+supersedes older statements of unfinished integration. Remaining release gates retain
+their scope, and Bioma supplies the reference installation configuration.
 
 ## Standards And Protocols
 
-| Boundary | Planned supported profile |
+| Boundary | Implemented profile and qualification scope |
 |---|---|
 | Veoveo identity and Work Context | Canonical tenants, principals, direct/delegated/automated invocation, action policy, session families, and bounded grants |
 | MCP `2026-07-28`, contract revision 3 | Governed Computer resources, task-augmented lifecycle/execution tools, and subscriptions under the [server contract](../mcp/contract/DESIGN.md) |
 | HTTP, RFC 9110; JSON Schema `2020-12` | Native Console projection over the same domain, generated Rust/TypeScript contracts, bounded payloads and typed errors |
-| Shared Tasks and transactional outbox | Durable admission, operation identity, leases, cancellation, result publication, and recovery; provider observation extension remains to be implemented |
+| Shared Tasks and transactional outbox | Durable admission, operation identity, leases, cancellation, result publication and `provider_wait` observation recovery |
 | OpenShell gRPC/Protocol Buffers over mTLS | Internal provider adapter with a qualified watch and authoritative reconciliation profile; no required webhook translation |
-| OpenShell `0.0.116` | Reviewed stock CLI baseline and handoff provider patch graph; pin exact selected artifacts after qualification |
+| OpenShell `0.0.116` | Qualified stock CLI and maintained provider patch graph; exact artifacts belong to the [runtime design](../platform/runtimes/computers/DESIGN.md) |
 | WebSocket, RFC 6455; SSH | Browser binary terminal and stock CLI transport; terminal-v2 controls and ReplayComplete metadata are repository-owned extensions |
 | OAuth security, RFC 9700; native apps, RFC 8252 | Scoped renewal and pairing design requirements; custom stock-CLI pairing does not imply standardized device-flow support |
-| Retained storage | Reviewed `veoveo.io/computer-storage/v1` adapter candidate; actual volume/quota/fencing mechanism is selected and qualified before adoption |
+| Retained storage | Qualified private `veoveo.io/computer-storage/v1` adapter; journal/ext4 storage and physical writer fencing are owned by the [storage design](../platform/computers/storage/DESIGN.md) |
 | Artifact HTTP and `artifact://` resources | Existing governed file transfer and immutable publication; no terminal bytes or unbounded file bodies in MCP |
 | OCI, Helm and installation-owned GitOps | Exact runtime artifacts and topology inputs; development deployment v7 remains confined to disposable environments |
 | Behavioral and visual acceptance | Headless nonvisual checks permitted; final visual proof uses headed hardware WebGPU or WebGL; GPU workloads keep their mandatory acceleration |
 
-The handoff contains additional OpenShell gateway and supervisor fixes. Check current
-upstream support when selecting the initial profile, prefer qualified upstream fixes,
-and record exact patched artifacts when needed. An unrelated consumer edit retains
-its qualified pins. No dependency or image pin is introduced by this planning change.
+The selected provider incorporates qualified gateway and supervisor fixes from the
+handoff. The runtime design records the maintained patches and their qualification
+boundary. Broader provider compatibility requires a separate qualified upgrade.
 
 ## Current Implementation Checkpoint
 
@@ -207,18 +208,18 @@ background work hold execution leases; lack of keyboard input alone does not pro
 idleness. Stopped Computers reserve storage. Quota reductions affect new admission and
 explicit maintenance, with no silent eviction of existing homes.
 
-## Proposed Component Ownership
+## Component Ownership
 
-These are planned paths. Add component DESIGN.md and AGENTS.md files with implementation
-and update CODEMAP. Generate public types before exposing routes.
+These components own the implemented profile. Their adjacent designs define the
+current contracts; [CODEMAP](CODEMAP.md) indexes the finer module boundaries.
 
-| Owner | Planned responsibility |
+| Owner | Responsibility |
 |---|---|
 | `platform/computers/contract/` | Shared typed Computer, authority, operation, execution, terminal and grant vocabulary plus schema export; justified by multiple Rust/Console consumers |
 | `platform/computers/` | Domain commands, policy application, admission, retained state and shared Task/store transactions |
 | `servers/computers-mcp/` | Thin MCP projection and one deployable Computers worker/relay process; domain behavior delegates to the platform modules |
 | `platform/runtimes/computers/` | OpenShell clients, supported provider profile, observation/recovery, terminal and volume adapters |
-| Provider-host storage boundary | Privileged allocation and physical writer exclusion; reuse a qualified volume/provider mechanism before introducing a custom service |
+| `platform/computers/storage/` and `platform/computers/host/` | Privileged retained allocation, physical writer exclusion and private host process composition |
 | Existing gateway | Canonical catalog/action policy and existing governed MCP/admin routing; no provider SDK or host-volume credentials |
 | Console BFF | Session/CSRF handling and bounded browser/CLI edge relay through narrow internal grants |
 | `apps/console/web/src/computers/` | Native Computers page, generated client, controller, terminal state and grant/recovery UX |
@@ -233,14 +234,17 @@ Follow the complete domain-relevant MCP
 contract, including discovery, resources, Tasks, subscriptions and well-known docs.
 Terminal traffic uses its dedicated bounded transport.
 
-Use one Computers deployable for worker execution and the MCP projection initially.
-This keeps provider compilation and lifecycle restart independent of gateway/BFF
-rollouts. A separate storage helper is justified only by required host privileges or
-volume ownership. Do not add another controller or event journal merely to mirror a
-module boundary. Replica loss may interrupt an attachment, but cannot stop or duplicate
-provider execution through lost in-memory ownership.
+The Computers service combines worker execution and MCP projection. Its private host
+owns the provider and privileged storage helper. This keeps provider compilation and
+lifecycle restart independent of gateway/BFF rollouts. Replica loss may interrupt an
+attachment, but cannot stop or duplicate provider execution through lost in-memory
+ownership.
 
 ## Delivery Sequence
+
+The original sequence below records the accepted implementation and exit criteria.
+Its imperative wording does not reopen completed work. Use the current checkpoint
+and release acceptance record to determine which gates still need qualification.
 
 ### 0. Establish Contracts And Fast Feedback
 
@@ -254,10 +258,11 @@ Use existing Rust fixture ownership through a narrow launcher when needed. Nativ
 framework commands may run through the current test-report wrapper before new xtask
 routing is implemented. Do not make rewriting existing smokes a prerequisite.
 
-Scoped source evidence now uses immutable v3 receipts with owner-declared Cargo and
-Console closures. The recorder and coverage verifier qualify concurrent publication,
-retained failures and input/configuration invalidation. Installed adapters and complete
-release-lock coverage composition remain work under Continuous Integration. Record
+Scoped source evidence now uses immutable v1 receipts indexed by a v3 report, with
+owner-declared Cargo and Console closures. The recorder and coverage verifier qualify
+concurrent publication, retained failures and input/configuration invalidation.
+Installed adapters and complete release-lock coverage composition remain work under
+Continuous Integration. Record
 build inputs and cache churn throughout delivery.
 
 Exit: approved target contracts are recorded, the dependency/gap inventory has owners,
@@ -483,6 +488,11 @@ indefinite blockers for a usable, secure selected profile. Extend the source-con
 [iteration audit](BUILD_DEPLOY_ITERATION_AUDIT.md) with costs and unresolved experiments.
 
 ## Release Acceptance Matrix
+
+This section preserves successive implementation checkpoints. Later paragraphs can
+close integration gaps described earlier. Use the
+[current checkpoint](#current-implementation-checkpoint) for installed journeys;
+the remaining release gates keep their own qualification scope.
 
 The native stock CLI probe now passes across provider SSH admission-token expiry.
 The exact `0.0.116` client retains its shell and exchanges data after the configured
