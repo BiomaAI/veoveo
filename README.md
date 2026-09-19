@@ -29,6 +29,7 @@ What an engagement leaves behind is not a subscription. It is the factory.
 [Connectors](#enterprise-connectors) ·
 [Deployment](#deploy-your-installation) ·
 [Software factory](#a-software-factory) ·
+[Documentation](docs/README.md) ·
 [Technical design](docs/TECH_DESIGN.md) ·
 [Screenshot gallery](docs/screenshots/GALLERY.md)
 
@@ -169,6 +170,18 @@ extensions, and retain the same identity and policy boundary throughout.
 | Governed evidence | Work Context ownership, invocation provenance, immutable artifact identities, policy decisions, grants, release state, and revocable sharing. |
 | Open protocol surfaces | Profiles scoped by policy over tools, resources and templates, prompts, completions, durable tasks, subscriptions, notifications, structured content, and URI identities. |
 | Enterprise operation | OIDC/OAuth identity, Kubernetes scheduling and scaling, Helm packages, OCI delivery, GitOps reconciliation, audit export, and an offline installation path. |
+
+### Workspace and Console
+
+Workspace is the daily productivity client at `/workspace/`. Chat owners invite
+people and agents into shared conversations. Each agent response streams separately,
+while private Activity presents capability results, Task progress, input requests
+and cancellation. Computers and governed files are available through the same
+platform authority. See the [Workspace design](apps/workspace/DESIGN.md).
+
+Console is the administration client at `/console/`. It manages the installation's
+apps, services, agents and access. Both clients share the Rust browser edge; neither
+receives gateway credentials in browser JavaScript.
 
 ### Operations stay connected to the work
 
@@ -640,6 +653,7 @@ planned dedicated GPU CI architecture are described in
 |---|---|
 | [`agents/`](agents/) | Kernel and durable runtime for autonomous agents. |
 | [`apps/console/`](apps/console/) | Console BFF and React operations interface. |
+| [`apps/workspace/`](apps/workspace/) | Shared-chat productivity client with human and agent participants, private Activity and MCP Apps. |
 | [`mcp/`](mcp/) | Shared MCP contracts, task and app extensions, and bridges. |
 | [`platform/`](platform/) | Gateway, persistence, task, artifact, recording, and query runtimes. |
 | [`servers/`](servers/) | Hosted MCP servers and their domain designs. |
@@ -655,7 +669,8 @@ planned dedicated GPU CI architecture are described in
 | [`tools/screenshots/`](tools/screenshots/) | Repeatable authenticated Console, MCP App, and Rerun captures. |
 | [`docs/`](docs/) | Architecture, governance, deployment, recording, and harness documentation. |
 
-Start with the [`code map`](docs/CODEMAP.md) for ownership and call paths, the
+Start with the [documentation guide](docs/README.md) for tasks and delivery status,
+the [`code map`](docs/CODEMAP.md) for ownership and call paths, the
 [`reference architecture`](docs/architecture/README.md) for system views, or
 the [`complete screenshot gallery`](docs/screenshots/GALLERY.md) for the visual
 catalog and reproduction guide.
