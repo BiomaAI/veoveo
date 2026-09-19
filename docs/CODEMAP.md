@@ -4,6 +4,9 @@ This map identifies ownership boundaries and the shortest path to the code behin
 behavior. Current ownership entries describe implemented code; implementation-plan
 entries explicitly identify future components and contract transitions.
 
+For task-oriented reading paths and delivery status, start with the
+[documentation guide](README.md). This map is the detailed ownership reference.
+
 ## Documentation Index
 
 General documents define repository-wide contracts and direct readers to the owning
@@ -12,6 +15,7 @@ component:
 | Document | Purpose |
 |---|---|
 | [`README.md`](../README.md) | installation entrypoint, development commands, and repository overview |
+| [`docs/README.md`](README.md) | task-oriented documentation entrypoint, document authority, delivered work and remaining qualification |
 | [`AGENTS.md`](../AGENTS.md) | mandatory contribution and implementation rules |
 | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
 | [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) | accepted ecosystem and Computers contract decisions: qualified provider recovery, capacity and authority, renewable access, appropriate test tooling, scoped evidence, version transitions, deployment boundaries, and transfer-profile gates; includes remaining implementation work |
@@ -42,29 +46,35 @@ authorize implementation:
 | [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
 | [`ARTIFACT_PREVIEW_AND_APP_HANDOFF.md`](ARTIFACT_PREVIEW_AND_APP_HANDOFF.md) | artifact catalog, preview dispatch, producer and external-App registration paths, governed App handoff constraints, handler models, and open design questions |
 
-Implementation plans describe future changes. A plan's status line records whether
-its execution is approved. Existing contracts remain authoritative until each planned
-change lands:
+Plans preserve design intent and delivery evidence. Read the status and current
+checkpoint before an older implementation sequence. Existing contracts remain
+authoritative until each planned change lands:
 
-| Document | Planned change |
+| Document | Delivery and remaining work |
 |---|---|
 | [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md) | delivered shared-chat productivity client: owner-controlled membership, isolated agent context, concurrent runs, governed capabilities, acceptance evidence and pending installed follow-ups |
-| [`REACTIVE_UX_PLAN.md`](REACTIVE_UX_PLAN.md) | approved catalog and subscription reliability, agent execution feedback, personal event feed, RMCP upgrade, bounded observation and installed acceptance |
-| [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | core Computers delivery sequence: platform domain and Computers MCP worker, native Console/CLI, scoped agent execution, retained storage, provider recovery, capacity policy, standard packaging, Bioma deployment and measured acceptance |
+| [`REACTIVE_UX_PLAN.md`](REACTIVE_UX_PLAN.md) | delivered catalog recovery, agent feedback, personal event feed, RMCP 3.4.0 and shared subscriptions; installed acceptance and remaining cold-catalog/performance work |
+| [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | deployed core Computers capability: native Console/CLI, named agent authority, retained storage, provider recovery and Bioma acceptance; separate clean/offline and broader qualification gates |
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 | [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | canonical multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work from `001`–`013`; current exact App authority, governed upload, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work from `014`–`023` |
 | [`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) | focused implementation plan for request `016`: durable recording datasets, immutable Artifact-backed Rerun layers, governed virtual catalogs, bounded Arrow projection, disk safety, activation, and acceptance |
-| [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) | active implementation of multi-GB resumable HTTP uploads and Console Artifacts upload form, bounded multipart transfer, Work Context authorization, durable receipts, and Python streaming consumption |
-| [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | hosted weather domain server, hosted tabular prediction server over governed tables, and adoption of the MCP skills extension as a contract crate with profile-scoped projection |
+| [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) | delivered resumable HTTP uploads, persistent browser queue, durable receipts and Python streaming; 10 GiB installed acceptance with larger-capacity measurements pending |
+| [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction over governed tables and the MCP skills extension |
 
-MCP designs live with the crate whose public contract they specify:
+Component designs live beside the code whose contract they specify:
 
 | Document | Domain |
 |---|---|
+| [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client, shared-chat presentation, private activity, reactive observation and client acceptance |
+| [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | core retained Computers domain, lifecycle, current authority, named grants, files and maintenance |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
+| [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | governed artifact discovery, access, publication and App surface |
+| [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
+| [`servers/media-mcp/DESIGN.md`](../servers/media-mcp/DESIGN.md) | provider-neutral media generation and durable webhook completion |
+| [`servers/recording-mcp/DESIGN.md`](../servers/recording-mcp/DESIGN.md) | governed recording catalog, queries and the Recording Explorer App |
 | [`platform/policy/DESIGN.md`](../platform/policy/DESIGN.md) | shared gateway/worker policy decisions, indexed revision boundary and caller-owned current authority |
 | [`platform/computers/storage/DESIGN.md`](../platform/computers/storage/DESIGN.md) | retained-home journal/ext4 backend, private worker mTLS service and Docker plugin; native shared-mount restart and durable physical writer handoff |
 | [`platform/computers/host/DESIGN.md`](../platform/computers/host/DESIGN.md) | private compute-container composition, owned daemon/provider/storage process order, retained local state and installation trust |
