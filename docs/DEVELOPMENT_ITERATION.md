@@ -869,3 +869,10 @@ with actual log and trace delivery. This uses the existing exact Reqwest 0.13.5 
 verified against its [upstream release](https://github.com/seanmonstar/reqwest/releases/tag/v0.13.5).
 Bioma currently configures service names but no OTLP export endpoint; this defect did
 not interrupt its managed pilot execution.
+
+The UAV MCP image for `b47bace9` staged in 220.9 seconds, of which 208.4 seconds
+were compilation. The standalone target rebuilt dependencies including SurrealDB;
+export and push together took about two seconds. Chart publication completed in
+under a second. This rollout reuses the simulator and pilot kernel images. Shared
+telemetry's fix reaches other deployed binaries when their owning release rebuilds
+them; the locally qualified kernel is not a claim that every installed image changed.
