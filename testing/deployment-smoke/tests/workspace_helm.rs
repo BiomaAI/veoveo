@@ -42,8 +42,14 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
         serde_yaml_ng::from_str(include_str!("../../../examples/bioma/values.yaml"))?;
     let workspace = source["gateway"]["agents"].clone();
     let expected = &workspace["models"];
-    ensure!(expected.as_array().context("configured agents")?.len() == 1);
-    let values = json!({"gateway":{"agents":workspace}, "consoleBff":{"workspace":source["consoleBff"]["workspace"]}});
+    ensure!(
+        expected
+            .as_array()
+            .context("configured agents")?
+            .iter()
+            .any(|model| model["id"] == "daily-assistant")
+    );
+    let values = json!({"gateway":{"agents":workspace}, "agentManager":source["agentManager"], "consoleBff":{"workspace":source["consoleBff"]["workspace"]}});
     let rendered = objects(render(&values)?)?;
     let gateway = environment(&rendered, "mcp-gateway")?;
     let config = gateway
@@ -91,6 +97,10 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
     let catalog = veoveo_mcp_gateway::GatewayCatalog::from_control_plane(serde_json::from_value(
         registered.clone(),
     )?)?;
+    veoveo_mcp_gateway::managed_agents::ManagedTemplateCatalog::from_json(
+        &source["gateway"]["agents"]["templates"].to_string(),
+        &catalog,
+    )?;
     let profile = registered["profiles"]
         .as_array()
         .context("profiles")?

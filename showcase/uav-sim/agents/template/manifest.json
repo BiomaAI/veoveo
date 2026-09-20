@@ -1,0 +1,84 @@
+{
+  "agent": {
+    "tenant": "${VEOVEO_AGENT_TENANT}",
+    "id": "${VEOVEO_AGENT_ID}",
+    "display_name": "${VEOVEO_AGENT_NAME}"
+  },
+  "model": {
+    "base_url": "${VEOVEO_AGENT_MODEL_URL}",
+    "api_key_env": "VEOVEO_MANAGED_MODEL_KEY",
+    "model": "${VEOVEO_AGENT_MODEL_ID}",
+    "temperature": 0.1,
+    "max_output_tokens": 4096
+  },
+  "gateway": {
+    "url": "${VEOVEO_GATEWAY_URL}",
+    "transport_url": "${VEOVEO_GATEWAY_TRANSPORT_URL}",
+    "profile": "${VEOVEO_AGENT_PROFILE}",
+    "client_id": "${VEOVEO_AGENT_CLIENT_ID}",
+    "work_context": "${VEOVEO_AGENT_WORK_CONTEXT}",
+    "audience": "${VEOVEO_GATEWAY_AUDIENCE}",
+    "resource": "${VEOVEO_GATEWAY_RESOURCE}",
+    "scopes": [
+      "map:dataset:read",
+      "map:route",
+      "operator:use",
+      "time:read",
+      "uav-sim:control"
+    ],
+    "private_key_env": "VEOVEO_MANAGED_PRIVATE_KEY",
+    "private_key_kid": "${VEOVEO_AGENT_KEY_ID}"
+  },
+  "episode": {
+    "max_turns": 16,
+    "request_timeout_s": 300,
+    "task_deadline_s": 900
+  },
+  "memory": {
+    "memory_write_tables": [
+      "mission_intents",
+      "resource_bookmarks"
+    ]
+  },
+  "context": {
+    "max_context_tokens": 24000,
+    "sections": [
+      {
+        "name": "Requested assignment; the current domain grant determines authority",
+        "priority": 0,
+        "sql": "SELECT '${VEOVEO_PARAM_SESSION}' AS requested_session, '${VEOVEO_PARAM_VEHICLE}' AS requested_vehicle"
+      },
+      {
+        "name": "Open mission intents",
+        "priority": 1,
+        "sql": "SELECT mission_key, operator_request, state, map_route_uri, map_route_digest_sha256, uav_plan_uri, updated_at FROM mission_intents WHERE state NOT IN ('completed', 'cancelled', 'failed') ORDER BY updated_at DESC LIMIT 12"
+      },
+      {
+        "name": "Canonical resources",
+        "priority": 2,
+        "sql": "SELECT name, uri, revision, digest_sha256, updated_at FROM resource_bookmarks ORDER BY name LIMIT 20"
+      },
+      {
+        "name": "Recent episodes",
+        "priority": 3,
+        "sql": "SELECT seq, summary FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 8"
+      }
+    ]
+  },
+  "budgets": {
+    "per_episode": {
+      "max_completion_calls": 32,
+      "max_tool_calls": 24
+    },
+    "hourly_max_episodes": 120
+  },
+  "schedule": {
+    "heartbeat_interval_s": 300,
+    "min_wake_interval_s": 2,
+    "wake_coalesce_window_ms": 250,
+    "input_grace_s": 30
+  },
+  "resource_subscriptions": [],
+  "migrations_dir": "migrations",
+  "preamble": "Execute the admitted managed-agent revision under current gateway and domain authority."
+}

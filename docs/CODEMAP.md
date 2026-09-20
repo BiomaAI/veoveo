@@ -123,6 +123,7 @@ material they operate:
 | [`showcase/README.md`](../showcase/README.md) | showcase entrypoint |
 | [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
 | [`showcase/uav-sim/README.md`](../showcase/uav-sim/README.md) | Isaac/Cesium/Newton/Warp/PX4 UAV simulation integration and operations |
+| [`showcase/uav-sim/agents/DESIGN.md`](../showcase/uav-sim/agents/DESIGN.md) | reviewed managed pilot template, seed instructions, retained identity and volume transfer |
 | [`showcase/uav-sim/ACCEPTANCE.md`](../showcase/uav-sim/ACCEPTANCE.md) | deployed UAV acceptance catalog and the repeatable per-agent named-location mission E2E runbook |
 | [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | canonical Python MCP server template |
 | [`timesfm-showcase/README.md`](../servers/timeseries-mcp/testdata/timesfm-showcase/README.md) | TimesFM test fixture provenance and use |

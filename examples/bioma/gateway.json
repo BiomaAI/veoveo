@@ -5582,6 +5582,51 @@
           "metadata": {}
         },
         {
+          "id": "allow_managed_uav_pilot_vehicle_control",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "usage_read"
+          ],
+          "profiles": [
+            "agent"
+          ],
+          "servers": [
+            "uav-sim"
+          ],
+          "tools": [
+            "get_simulation_state",
+            "list_active_vehicle_control_grants",
+            "prepare_vehicle_mission",
+            "arm_vehicle",
+            "takeoff_vehicle",
+            "land_vehicle",
+            "execute_vehicle_mission_plan"
+          ],
+          "resource_schemes": [
+            "uav-sim"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "uav-sim:control"
+          ],
+          "metadata": {},
+          "roles": [
+            "uav-pilot"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ]
+        },
+        {
           "id": "allow_admin_service_recording_use",
           "effect": "allow",
           "actions": [
