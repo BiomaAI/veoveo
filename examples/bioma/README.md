@@ -59,6 +59,19 @@ resource exposure, including private Computers and the separate recording publis
 
 ## Ownership and layout
 
+Managed kernels run in the separate `veoveo-agents` namespace. The installation
+copies the database-scoped runtime and approved model Secrets into that namespace;
+the manager receives no credentials from the browser. `gateway.agents.templates`
+binds the reviewed [UAV template](../../showcase/uav-sim/agents/DESIGN.md), its exact
+immutable ConfigMap and kernel image. The manager's API and model egress entries
+are installation addresses. Model entries pin the current IPv4 answers for
+`api.cloudflare.com`; a destination change requires a reviewed configuration update.
+
+The initial managed installation keeps the four existing pilot registrations while
+qualifying new instance creation. Their explicit transfer removes those static
+registrations and per-pilot Helm workloads. This checkpoint does not establish
+that the retained pilots have been migrated.
+
 The repository separates the local platform fixture from application desired state:
 
 ~~~text

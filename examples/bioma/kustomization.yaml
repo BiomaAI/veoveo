@@ -32,6 +32,12 @@ configMapGenerator:
       - operator-client-jwks.json
       - admin-client-jwks.json
       - uav-pilot-jwks.json
+  - name: bioma-gateway-control-plane
+    namespace: veoveo-agents
+    options:
+      disableNameSuffixHash: true
+    files:
+      - gateway.json
   - name: uav-sim-world-binding
     namespace: veoveo
     options:

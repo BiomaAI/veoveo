@@ -1,23 +1,21 @@
 global:
   production: true
   publicBaseUrl: https://veoveo.bioma.ai
-
 artifactService:
   allowedAudiences:
-    - computers
-    - artifact
-    - media
-    - timeseries
-    - optimization
-    - duckdb
-    - frames
-    - map
-    - recording
-    - stream
-    - reason
-    - datasheet
-    - uav-sim
-
+  - computers
+  - artifact
+  - media
+  - timeseries
+  - optimization
+  - duckdb
+  - frames
+  - map
+  - recording
+  - stream
+  - reason
+  - datasheet
+  - uav-sim
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
   agents:
@@ -26,9 +24,9 @@ gateway:
       name: Daily assistant model
       provider: Cloudflare Workers AI
       tenant: bioma
-      work_contexts:
+      work_contexts: &id001
       - operations
-      required_scopes:
+      required_scopes: &id002
       - operator:use
       base_url: https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1
       model: '@cf/moonshotai/kimi-k2.6'
@@ -38,66 +36,154 @@ gateway:
         maxCompletionCalls: 4
         maxToolCalls: 8
         deadlineSeconds: 120
+    - id: pilot-model
+      name: Pilot reasoning model
+      provider: Cloudflare Workers AI
+      tenant: bioma
+      work_contexts: *id001
+      required_scopes: *id002
+      base_url: https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1
+      model: '@cf/moonshotai/kimi-k2.6'
+      api_key: agent_model_api_key
+      limits:
+        maxOutputTokens: 4096
+        maxCompletionCalls: 16
+        maxToolCalls: 24
+        deadlineSeconds: 600
     modelSecrets:
       VEOVEO_AGENT_MODEL_API_KEY:
         existingSecret: veoveo-workspace-models
         key: api-key
-  controlPlaneRevision: f36bb7e02858ec6ac6865ed1deb57606264526e608656465bb73c844e8e41815
-
+    templates:
+    - id: uav-pilot
+      name: Governed UAV pilot
+      tenant: bioma
+      work_contexts:
+      - operations
+      required_deployer_scopes:
+      - operator:use
+      profile: agent
+      scopes:
+      - map:dataset:read
+      - map:route
+      - operator:use
+      - time:read
+      - uav-sim:control
+      roles:
+      - uav-pilot
+      membership: contributor
+      models:
+      - pilot-model
+      tools:
+      - map__inspect_location
+      - map__inspect_position
+      - map__list_active_dataset_releases
+      - map__prepare_route_handoff
+      - map__query_source_features
+      - map__route
+      - map__search_locations
+      - map__validate_route
+      - time__assess_clock
+      - time__convert_time
+      - time__resolve_time
+      - uav-sim__arm_vehicle
+      - uav-sim__execute_vehicle_mission_plan
+      - uav-sim__get_simulation_state
+      - uav-sim__land_vehicle
+      - uav-sim__list_active_vehicle_control_grants
+      - uav-sim__prepare_vehicle_mission
+      - uav-sim__takeoff_vehicle
+      resource_subscriptions:
+      - uav-sim://control-grants
+      - uav-sim://mission-plans
+      - uav-sim://session/uav-showcase/vehicle/uav-1
+      - uav-sim://session/uav-showcase/vehicle/uav-2
+      - uav-sim://session/uav-showcase/vehicle/uav-3
+      - uav-sim://session/uav-showcase/vehicle/uav-4
+      parameters:
+        session:
+          label: Simulation session
+          shape:
+            kind: choice
+            values:
+            - uav-showcase
+          environment_variable: VEOVEO_PARAM_SESSION
+        vehicle:
+          label: Requested vehicle (requires a separate control grant)
+          shape:
+            kind: choice
+            values:
+            - uav-1
+            - uav-2
+            - uav-3
+            - uav-4
+          environment_variable: VEOVEO_PARAM_VEHICLE
+      workload:
+        namespace: veoveo-agents
+        config_map: uav-pilot-6bbd1508694f
+        config_digest: sha256:6bbd1508694f2b0fdd280a0e2ac8570c90f48fd7a3e15f175fe68432dab4d7dc
+        image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:1ff1e9ac352d96beebc42b449c30fce8c510da400eacca8b291cbed337fa0d79
+        database_secret: veoveo-surreal-runtime
+        storage_class: local-path
+        storage_gib: 2
+        cpu_millis: 1000
+        memory_mib: 1024
+        model_secrets:
+        - reference: agent_model_api_key
+          secret: veoveo-workspace-models
+          key: api-key
+  controlPlaneRevision: 8def95a27efa5d4e13ecfc22cdc49cf17fd854b00db57e115a5902be748370c5
 consoleBff:
   workspace:
     oauthScopes:
-      - artifact:upload
-      - map:dataset:read
-      - map:feature:publish
-      - map:feature:read
-      - map:feature:write
-      - map:raster:derive
-      - map:restriction:publish
-      - map:restriction:withdraw
-      - map:route
-      - map:route_matrix
-      - map:spatial:derive
-      - operator:use
-      - time:event:write
-      - time:read
-      - time:schedule
-      - time:timeline
-      - uav-sim:stream
-      - view:capture
-      - view:read
-      - view:write
-  replicas: 2
-  oauthResource: https://veoveo.bioma.ai/mcp/admin
-  mcpTransportUrl: http://mcp-gateway:8788/mcp/admin
-  oauthScopes:
     - artifact:upload
-    - operator:use
-    - admin:manage
-    - uav-sim:admin
-    - uav-sim:stream
-    - map:admin
     - map:dataset:read
-    - map:feature:admin
     - map:feature:publish
     - map:feature:read
     - map:feature:write
     - map:raster:derive
+    - map:restriction:publish
+    - map:restriction:withdraw
+    - map:route
+    - map:route_matrix
     - map:spatial:derive
+    - operator:use
+    - time:event:write
     - time:read
+    - time:schedule
+    - time:timeline
+    - uav-sim:stream
+    - view:capture
     - view:read
     - view:write
-    - view:capture
-
+  replicas: 2
+  oauthResource: https://veoveo.bioma.ai/mcp/admin
+  mcpTransportUrl: http://mcp-gateway:8788/mcp/admin
+  oauthScopes:
+  - artifact:upload
+  - operator:use
+  - admin:manage
+  - uav-sim:admin
+  - uav-sim:stream
+  - map:admin
+  - map:dataset:read
+  - map:feature:admin
+  - map:feature:publish
+  - map:feature:read
+  - map:feature:write
+  - map:raster:derive
+  - map:spatial:derive
+  - time:read
+  - view:read
+  - view:write
+  - view:capture
 clusterInspection:
   enabled: true
-
 ingress:
   className: traefik
   host: veoveo.bioma.ai
   tls:
     enabled: false
-
 computerCapacity: openshell-docker
 computers:
   replicas: 2
@@ -112,5 +198,26 @@ computers:
       size: 100Gi
       storageClass: local-path
     registryEgress:
-      - cidr: 172.18.0.3/32
-        port: 5000
+    - cidr: 172.18.0.3/32
+      port: 5000
+agentManager:
+  namespace: veoveo-agents
+  existingControlPlaneConfigMap: bioma-gateway-control-plane
+  kubernetesApiEgress:
+  - cidr: 10.43.0.1/32
+    port: 443
+  - cidr: 172.18.0.2/32
+    port: 6443
+  modelEgress:
+  - cidr: 104.19.192.174/32
+    port: 443
+  - cidr: 104.19.192.175/32
+    port: 443
+  - cidr: 104.19.192.176/32
+    port: 443
+  - cidr: 104.19.192.177/32
+    port: 443
+  - cidr: 104.19.192.29/32
+    port: 443
+  - cidr: 104.19.193.29/32
+    port: 443
