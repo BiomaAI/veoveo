@@ -134,3 +134,51 @@ fn changed_templates_unapproved_tools_and_mutable_configuration_are_rejected() {
     config.templates[0].workload.config_digest = wire::runtime_config_revision(&config_map.data);
     assert!(resources::configuration_items(&config_map, &config.templates[0]).is_err());
 }
+
+#[test]
+fn deployment_readback_accepts_kubernetes_default_volume_fields() {
+    let (config, snapshot, config_map) = fixture();
+    let template = &config.templates[0];
+    let items = resources::configuration_items(&config_map, template).unwrap();
+    let deployment =
+        resources::deployment(&config, &snapshot, template, &config.models[0], items).unwrap();
+    let mut body = serde_json::to_value(deployment).unwrap();
+    for mount in body["spec"]["template"]["spec"]["containers"][0]["volumeMounts"]
+        .as_array_mut()
+        .unwrap()
+    {
+        if mount["readOnly"] == false {
+            mount.as_object_mut().unwrap().remove("readOnly");
+        }
+    }
+    let decoded: Deployment = serde_json::from_value(body).unwrap();
+    assert!(decoded.spec.template.spec.containers[0].volume_mounts[0].read_only);
+    assert!(!decoded.spec.template.spec.containers[0].volume_mounts[1].read_only);
+}
+
+#[test]
+fn credential_encoding_matches_the_kernel_pkcs1_signing_boundary() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    use rsa::{RsaPrivateKey, pkcs1::EncodeRsaPrivateKey, traits::PublicKeyParts};
+    let private = RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 2048).unwrap();
+    let secret = Secret {
+        api_version: "v1".into(),
+        kind: "Secret".into(),
+        metadata: Metadata::default(),
+        immutable: true,
+        secret_type: "Opaque".into(),
+        data: std::collections::BTreeMap::from([
+            (
+                "private-key-der-b64".into(),
+                STANDARD.encode(STANDARD.encode(private.to_pkcs1_der().unwrap().as_bytes())),
+            ),
+            ("kid".into(), STANDARD.encode("managed-key")),
+        ]),
+    };
+    let public = credentials::public_key(&secret).unwrap();
+    assert_eq!(public.kid, "managed-key");
+    assert_eq!(
+        public.n,
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(private.n().to_bytes_be())
+    );
+}
