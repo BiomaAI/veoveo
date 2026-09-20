@@ -772,3 +772,30 @@ A later Helm schema check rebuilt a previously cached host feature combination a
 took 110 seconds; its assertions still took 0.23 seconds. Cache cleanup exchanged
 that one-time rebuild cost for deployment headroom, without deleting registry
 artifacts, the managed compiler cache or any production volume.
+
+The first installed manager release (`c2170b83`, Helm revision 181) exposed two
+integration gaps: Kubernetes omitted default-false `volumeMount.readOnly` during
+readback, and the generated PKCS#8 key did not match the kernel's PKCS#1 signing
+boundary. The admission fixture had only checked request success. It now decodes
+the actual API response through the manager's resource type, and credential checks
+cover the canonical kernel encoding. The failed instance retained its volume and
+public identity; repair changes the encoding of the same key without rotating it.
+
+Restoring the already-published UAV simulator required a cold 17.57 GB image pull.
+Kubernetes reported 424.3 seconds for pull and extraction, followed by about 52
+seconds of simulator startup. Host free space fell from 424 GiB to 370 GiB while
+restoring the runtime. This is installed cache recovery cost, not a simulator rebuild
+or the cost of creating each managed agent. Keep recently required GPU images
+available within the release reserve and budget their uncompressed size.
+
+The gateway configuration rollout also produced transient Console timeouts despite
+ready Pods. Authoring recovered and the browser completed managed draft creation and
+publication. A deployment retry retained its request UUID and admitted one operation.
+Readiness alone does not establish browser acceptance; retain the public-route check
+after each rollout. The exact source of the transient latency remains to be measured.
+
+The manager's standalone clippy command was outside the reusable check catalog and
+snapshotted documentation too. Editing this iteration log during that command
+invalidated its otherwise passing 73-second compile. The frozen-input retry reuses
+the compiler output. Do not overlap any repository edits with an unqualified
+recorder command; a future catalog entry should bound this package's actual inputs.

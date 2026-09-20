@@ -6,7 +6,7 @@ use base64::{
 };
 use rsa::{
     RsaPrivateKey,
-    pkcs8::{DecodePrivateKey, EncodePrivateKey},
+    pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey},
     traits::PublicKeyParts,
 };
 use std::collections::BTreeMap;
@@ -42,7 +42,7 @@ pub async fn ensure_credentials(
         );
         let data = tokio::task::spawn_blocking(|| -> Result<BTreeMap<String, String>> {
             let private = RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 2048)?;
-            let der = private.to_pkcs8_der()?;
+            let der = private.to_pkcs1_der()?;
             Ok(BTreeMap::from([
                 (
                     PRIVATE_KEY.into(),
@@ -84,7 +84,7 @@ pub fn public_key(secret: &Secret) -> Result<ManagedAgentPublicKey> {
     )?;
     let der = STANDARD.decode(encoded)?;
     let private =
-        RsaPrivateKey::from_pkcs8_der(&der).context("invalid private credential encoding")?;
+        RsaPrivateKey::from_pkcs1_der(&der).context("invalid private credential encoding")?;
     ensure!(
         private.n().bits() >= 2048,
         "private credential is too small"

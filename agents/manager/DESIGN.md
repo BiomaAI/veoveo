@@ -15,7 +15,7 @@ with CEL. These are selected Kubernetes APIs, not a general Kubernetes client.
 SurrealDB transactions, lifecycle claims and managed generations are internal
 Veoveo contracts. The exact published template and model connection use the shared
 management contract's SHA-256 revision profile. Private-key credentials use RSA
-2048-bit PKCS#8 DER, RS256 assertions and public JWK parameters. RSA 0.9.10 was
+2048-bit PKCS#1 DER (RFC 8017, the kernel signing boundary), RS256 assertions and public JWK parameters. RSA 0.9.10 was
 verified as the latest stable release on September 19, 2026. HTTPS uses workspace
 reqwest 0.13.5, verified against its upstream release catalog on the same date.
 

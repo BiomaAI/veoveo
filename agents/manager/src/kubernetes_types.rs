@@ -226,6 +226,8 @@ pub struct Exec {
 pub struct VolumeMount {
     pub name: String,
     pub mount_path: String,
+    // Kubernetes omits this field when its default is false.
+    #[serde(default)]
     pub read_only: bool,
 }
 

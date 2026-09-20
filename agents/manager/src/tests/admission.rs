@@ -206,12 +206,22 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
     let request = |body: &Value, actor: &str| {
         command(
             "kubectl",
-            &["create", "--dry-run=server", "--as", actor, "-f", "-"],
+            &[
+                "create",
+                "--dry-run=server",
+                "--as",
+                actor,
+                "-f",
+                "-",
+                "-o",
+                "json",
+            ],
             Some(body),
         )
     };
     let admitted = request(&deployment, &actor)?;
-    success(admitted)?;
+    let admitted: Deployment = serde_json::from_slice(&success(admitted)?)?;
+    anyhow::ensure!(!admitted.spec.template.spec.containers[0].volume_mounts[1].read_only);
     let mut rejected = deployment.clone();
     rejected["spec"]["template"]["spec"]["containers"][0]["image"] =
         json!("unapproved.invalid/image:latest");
