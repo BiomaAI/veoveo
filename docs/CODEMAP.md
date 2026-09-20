@@ -52,7 +52,7 @@ authoritative until each planned change lands:
 
 | Document | Delivery and remaining work |
 |---|---|
-| [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | active API and Console agent-authoring implementation: deployed revisioned catalog, delegated Workspace creation and explicit chat adoption; installed real-model and immediate MCP acceptance; deployed managed lifecycle with four retained UAV pilots adopted and Ready; per-pilot Helm removal and remaining domain/Task qualification in progress |
+| [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | active API and Console agent-authoring implementation: deployed revisioned catalog, delegated Workspace creation and explicit chat adoption; installed real-model and immediate MCP acceptance; deployed managed lifecycle with four retained UAV pilots adopted and Ready; per-pilot Helm removal and grant-based App discovery deployed; idle credential renewal and remaining domain/Task qualification in progress |
 | [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md) | delivered shared-chat productivity client: owner-controlled membership, isolated agent context, concurrent runs, governed capabilities, acceptance evidence and pending installed follow-ups |
 | [`REACTIVE_UX_PLAN.md`](REACTIVE_UX_PLAN.md) | delivered catalog recovery, agent feedback, personal event feed, RMCP 3.4.0 and shared subscriptions; installed acceptance and remaining cold-catalog/performance work |
 | [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | deployed core Computers capability: native Console/CLI, named agent authority, retained storage, provider recovery and Bioma acceptance; separate clean/offline and broader qualification gates |

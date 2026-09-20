@@ -876,3 +876,19 @@ export and push together took about two seconds. Chart publication completed in
 under a second. This rollout reuses the simulator and pilot kernel images. Shared
 telemetry's fix reaches other deployed binaries when their owning release rebuilds
 them; the locally qualified kernel is not a claim that every installed image changed.
+
+The retained-volume transition temporarily froze the root Kustomization and disabled
+UAV upgrade remediation. An automatic rollback to the previous chart would recreate
+superseded pilot workloads. The first new upgrade applied the intended resources but
+its health check was cancelled by an overlapping explicit reconciliation request.
+One reset completed Helm release 101. Normal remediation and root reconciliation were
+then restored. When a desired-state edit has already triggered an upgrade, observe
+that operation before requesting another reconciliation. The simulator Pod stayed
+unchanged. The final passive convergence check took about one second; that measures
+an already completed rollout, not the full activation duration.
+
+Long-idle managed pilots also exposed subscription retries with expired credentials.
+Request preflight refreshes active sessions, but the idle scheduler skips that work.
+This remains a correctness fix for agent management, with a required zero-model-call
+renewal check. The browser catalog's initial missing Apps recovered through SSE;
+credential renewal and cold discovery must be diagnosed independently.

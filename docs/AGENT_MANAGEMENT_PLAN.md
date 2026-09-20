@@ -8,11 +8,12 @@ The lifecycle manager and effective OAuth registration are deployed. A newly aut
 managed pilot has completed a real model request, retained its identity and storage
 through pause/resume and manager restart, and made zero additional model calls during
 a fourteen-minute idle observation. The four retained UAV pilots now run under managed lifecycle ownership with their
-original runtime IDs, principals, signing keys and physical memory volumes. Removal
-of the suspended per-pilot Helm packaging is implemented locally, with current-grant
-App discovery and native pilot Task/memory/telemetry qualification. Its rollout and
-the remaining installed domain/Task acceptance are outstanding. Current component
-contracts remain authoritative until their replacement lands.
+original runtime IDs, principals, signing keys and physical memory volumes. The per-pilot
+Helm resources are removed, reconciliation is restored, and current-grant App discovery
+is deployed. Native pilot Task/memory/telemetry qualification passes. Installed checks
+identified an idle credential-renewal defect; its correction and the remaining installed
+domain/Task acceptance are outstanding. Current component contracts remain authoritative
+until their replacement lands.
 
 ## Standards And Protocols
 
@@ -486,3 +487,30 @@ clients, and service token issuance still requires the current effective registr
 All 32 control-plane checks and the Bioma/Helm checks passed. The gateway and manager
 built together in 90.3 seconds, with 79.8 seconds of shared compilation. Activation
 reused the kernel and simulator images.
+
+
+### Installed Packaging Checkpoint — September 20, 2026
+
+GitOps revision `bc911f57` installs UAV MCP image
+`01453120f24bbd482f9b73506c27ef699321186fcd081c80594ebb20af2392af` from source
+`b47bace9` and chart digest
+`54c779b8864dda84639700fd5c949f845bbad027894746e8fef25302a84d35dd`. Helm release
+101 is Ready. Both the root Kustomization and UAV release reconcile normally.
+The four superseded pilot Deployments are gone; all five managed instances remain
+Ready. The simulator retained Pod UID `ae13626f-71ae-405b-9e10-b9485127cc01` across
+the upgrade. Native GitOps convergence passed and GitHub Build `35495550352` passed.
+
+The live Console catalog recovered through its SSE catalog events and advertised
+the four retained pilots as UAV message targets. The ungranted acceptance pilot was
+absent. This used headed Chrome with NVIDIA RTX 4090 WebGL; its SwiftShader WebGPU
+adapter did not qualify as hardware. Initial catalog reads were incomplete while
+discovery recovered. The Workspace browser session had expired and requires normal
+sign-in renewal before further Workspace acceptance.
+
+Long-idle qualification exposed an unresolved kernel issue: request preflight renews
+credentials during active work, but the idle scheduler does not renew the MCP
+connection. The retained pilots eventually retry subscriptions with expired tokens.
+This is network churn, not evidence of model calls. Renew credentials during existing
+scheduler maintenance without admitting an episode, qualify repeated renewal before
+the first operator message, and deploy the corrected kernel through managed lifecycle
+ownership. Ready workload status alone does not prove subscription health.
