@@ -1024,6 +1024,9 @@ chat-binding conversion; startup never overwrites authored definitions. Its [HTT
 generates shared browser types. Client/runtime wiring and the managed-instance
 controller remain tracked in the active agent-management plan.
 
+The [durable runtime design](../agents/runtime/DESIGN.md) defines scheduler leases,
+atomic managed episode admission, terminal stop semantics and Task result retention.
+
 ### `agents/kernel`
 
 | File | Responsibility |

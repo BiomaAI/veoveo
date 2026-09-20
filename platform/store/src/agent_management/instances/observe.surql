@@ -13,9 +13,13 @@ IF $phase != 'failed' AND $phase != $previous AND !(
 IF ($phase = 'paused' AND $instance.desired != 'paused')
     OR ($phase = 'archived' AND $instance.desired != 'archived')
     OR ($phase IN ['workload', 'ready'] AND $instance.desired != 'running') { THROW 'agent_conflict'; };
-IF $phase IN ['workload', 'paused', 'archived'] AND $phase != $previous {
+IF $phase IN ['workload', 'archived'] AND $phase != $previous {
     LET $runtime = array::first(SELECT * FROM agent WHERE tenant = $instance.tenant AND agent_key = $instance.key LIMIT 1);
     IF $runtime != NONE AND $runtime.lease_expires_at > time::now() { THROW 'agent_conflict'; };
+};
+IF $phase = 'paused' {
+    LET $runtime = array::first(SELECT * FROM agent WHERE tenant = $instance.tenant AND agent_key = $instance.key LIMIT 1);
+    IF $runtime != NONE AND $runtime.last_episode.state = 'running' { THROW 'agent_conflict'; };
 };
 IF $phase IN ['workload', 'ready'] {
     IF !fn::managed_agent_enabled($instance.id) OR $instance.public_key = NONE { THROW 'agent_forbidden'; };

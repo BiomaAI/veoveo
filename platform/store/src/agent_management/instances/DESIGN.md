@@ -57,3 +57,9 @@ Mutation receipts can be recovered before repeating external configuration valid
 Replay still checks the current actor and Work Context and rejects a changed payload.
 Management event heads include only instance changes visible to the current owner or
 context manager. Definition and lifecycle invalidations share the existing browser stream.
+
+Managed episode admission writes the instance in the same transaction as the runtime
+episode. Stop advances the dispatch epoch and atomically terminates its active episode
+and consumed wakes. A late completion preserves the stopped result. Pause may retain
+a kernel lease for Task observation once the active episode is terminal; activating a
+new workload generation or archiving still requires the old lease to end.

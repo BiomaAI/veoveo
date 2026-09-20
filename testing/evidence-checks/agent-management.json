@@ -150,6 +150,63 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-agent-runtime",
+        "--lib",
+        "--test",
+        "surreal_integration",
+        "--",
+        "--test-threads=2"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-agent-runtime"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs/gateway.smoke.json"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-agent-runtime",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-agent-runtime",
+          "veoveo-platform-store",
+          "veoveo-mcp-gateway"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs/gateway.smoke.json"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

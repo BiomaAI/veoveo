@@ -1104,6 +1104,7 @@ mod tests {
             manifest: OpenObject::default(),
             memory_database: "supervisor.duckdb".to_owned(),
             last_episode: None,
+            managed_ready: None,
             next_episode_sequence: 1,
             lease_owner: Some("runner-instance".to_owned()),
             lease_expires_at: Some(lease_expires_at),
