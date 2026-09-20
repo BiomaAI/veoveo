@@ -4,6 +4,58 @@ use crate::ManagedRuntimeBinding;
 use veoveo_platform_store::agent_management::instances::ManagedKernelReady;
 
 impl AgentRuntime {
+    /// Observe a live episode fence. Notifications reduce stop latency; the
+    /// bounded reread recovers a missed edge without any model/provider query.
+    pub async fn wait_for_managed_dispatch_revocation(
+        &self,
+        binding: &veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding,
+    ) -> Result<()> {
+        let mut live = self
+            .store
+            .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
+            .await?;
+        let mut recovery = tokio::time::interval(Duration::from_secs(5));
+        recovery.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            if !self
+                .store
+                .managed_agent_dispatch(binding.instance.clone(), binding.generation, binding.epoch)
+                .await
+                .map_err(|_| AgentRuntimeError::InvalidField {
+                    field: "managed dispatch",
+                    reason: "current authority is unavailable".into(),
+                })?
+            {
+                return Ok(());
+            }
+            loop {
+                tokio::select! {
+                    _ = recovery.tick() => break,
+                    event = live.next() => match event {
+                        Some(Ok(event)) if matches!(event.data.aggregate_type.as_str(), "managed_agent" | "agent_definition" | "principal" | "work_context") => break,
+                        Some(Ok(_)) => {},
+                        Some(Err(error)) => return Err(AgentRuntimeError::Database(error)),
+                        None => return Err(AgentRuntimeError::LeaseLost),
+                    }
+                }
+            }
+        }
+    }
+
+    pub async fn managed_scheduler_mode(&self) -> Result<crate::ManagedSchedulerMode> {
+        let Some(binding) = &self.managed else {
+            return Ok(crate::ManagedSchedulerMode::Running);
+        };
+        let mut response = self.store.client().query(
+            "LET $instance = SELECT * FROM ONLY $id; RETURN IF !fn::managed_agent_enabled($id) OR $instance.active_generation != $generation { 'retire' } ELSE IF $instance.desired = 'paused' { 'paused' } ELSE IF $instance.generation != $generation { 'retire' } ELSE { 'running' };"
+        ).bind(("id", binding.instance.clone())).bind(("generation", binding.generation)).await?.check()?;
+        let mode: Option<crate::ManagedSchedulerMode> = response.take(1)?;
+        mode.ok_or(AgentRuntimeError::InvalidField {
+            field: "managed scheduler mode",
+            reason: "missing current state".into(),
+        })
+    }
+
     pub fn with_managed_binding(mut self, binding: ManagedRuntimeBinding) -> Result<Self> {
         if binding.instance.table.as_str() != "managed_agent" || binding.generation < 1 {
             return Err(AgentRuntimeError::InvalidField {

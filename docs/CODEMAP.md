@@ -1029,6 +1029,9 @@ atomic managed episode admission, terminal stop semantics and Task result retent
 
 ### `agents/kernel`
 
+The [kernel design](../agents/kernel/DESIGN.md) owns managed publication overlays,
+current dispatch preflights and bounded execution.
+
 | File | Responsibility |
 |---|---|
 | `manifest.rs` | agent, model, profile, tool, budget, and bounded MCP resource-subscription configuration models |

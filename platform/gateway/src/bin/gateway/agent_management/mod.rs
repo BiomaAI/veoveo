@@ -1,6 +1,7 @@
 //! Authoring and publication compose existing policy, store and native discovery.
 pub(crate) mod authority;
 mod commands;
+mod dispatch;
 mod events;
 pub(crate) mod execution;
 pub(crate) mod import;
@@ -140,6 +141,10 @@ pub(crate) fn router(state: AgentManagementState) -> Router {
         .route(
             "/admin/{profile}/agent-capabilities",
             get(validation::capabilities),
+        )
+        .route(
+            "/admin/{profile}/agent-runtime/dispatch",
+            post(dispatch::check),
         )
         .merge(instances::router())
         .merge(events::router(state.clone()))

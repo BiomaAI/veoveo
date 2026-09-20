@@ -9,7 +9,7 @@ use rig::{
         DeferredExecutionPolicy, DeferredToolResolver, DeferredToolResolverRegistry, ToolContext,
     },
 };
-use veoveo_agent_runtime::{AgentRuntime, EpisodeCompletion};
+use veoveo_agent_runtime::{AgentRuntime, EpisodeCompletion, EpisodeHandle};
 use veoveo_platform_store::{AgentEpisodeId, AgentEpisodeState, WakeId};
 use veoveo_task_runtime::TASK_RETENTION_PIN_META_KEY;
 
@@ -34,6 +34,7 @@ pub struct EpisodeDriver {
     memory: MemoryStore,
     rrd: Arc<RrdRecorder>,
     resource_read_limits: ResourceReadLimits,
+    managed_deadline: Option<std::time::Duration>,
 }
 
 #[derive(Debug)]
@@ -60,7 +61,13 @@ impl EpisodeDriver {
             memory,
             rrd,
             resource_read_limits,
+            managed_deadline: None,
         }
+    }
+
+    pub fn with_managed_deadline(mut self, deadline: Option<std::time::Duration>) -> Self {
+        self.managed_deadline = deadline;
+        self
     }
 
     pub async fn run_episode(
@@ -76,6 +83,9 @@ impl EpisodeDriver {
             .context("refreshing the gateway connection")?;
 
         let episode = self.runtime.start_episode(wake_note).await?;
+        let deadline = self
+            .managed_deadline
+            .map(|limit| tokio::time::Instant::now() + limit);
         self.memory.start_episode_projection(
             episode.episode_id.as_uuid(),
             episode.sequence,
@@ -118,7 +128,7 @@ impl EpisodeDriver {
         deferred_policy.timeout = self.manifest.task_deadline();
         deferred_policy.working_poll_interval = std::time::Duration::from_millis(250);
         deferred_policy.max_state_reads = 10_000;
-        let response = self
+        let run = self
             .agent
             .runner(prompt)
             .tool_context(tool_context)
@@ -130,10 +140,53 @@ impl EpisodeDriver {
             ))
             .deferred_execution_policy(deferred_policy)
             .add_hook(recorder)
-            .add_hook(BudgetHook::new(self.manifest.budgets.per_episode.clone()))
+            .add_hook(
+                BudgetHook::new(self.manifest.budgets.per_episode.clone())
+                    .with_managed_dispatch(connection.clone(), episode.managed.clone()),
+            )
             .max_turns(self.manifest.episode.max_turns)
-            .run()
-            .await;
+            .run();
+        let bounded = async {
+            if let Some(deadline) = deadline {
+                tokio::time::timeout_at(deadline, run)
+                    .await
+                    .unwrap_or_else(|_| {
+                        Err(rig::completion::PromptError::PromptCancelled {
+                            chat_history: vec![],
+                            reason: format!("{BUDGET_TERMINATED_PREFIX}: episode deadline reached"),
+                        })
+                    })
+            } else {
+                run.await
+            }
+        };
+        let mut response = if let Some(binding) = &episode.managed {
+            tokio::select! {
+                result = bounded => result,
+                revoked = self.runtime.wait_for_managed_dispatch_revocation(binding) => {
+                    Err(rig::completion::PromptError::PromptCancelled {
+                        chat_history: vec![],
+                        reason: revoked.map_or_else(|error| error.to_string(), |_| "Managed dispatch authority was revoked.".into()),
+                    })
+                }
+            }
+        } else {
+            bounded.await
+        };
+        if response.is_ok()
+            && let Some(binding) = &episode.managed
+            && let Err(error) = connection.managed_dispatch(binding).await
+        {
+            response = Err(rig::completion::PromptError::PromptCancelled {
+                chat_history: vec![],
+                reason: error.to_string(),
+            });
+        }
+        if self.runtime.episode_record(episode.episode_id).await?.state
+            == AgentEpisodeState::Stopped
+        {
+            return self.finish_stopped(&episode, wake_ids).await;
+        }
 
         let tool_calls = tool_calls.load(std::sync::atomic::Ordering::Relaxed);
         match response {
@@ -195,6 +248,11 @@ impl EpisodeDriver {
                         wake_ids,
                     )
                     .await?;
+                if self.runtime.episode_record(episode.episode_id).await?.state
+                    == AgentEpisodeState::Stopped
+                {
+                    return self.finish_stopped(&episode, wake_ids).await;
+                }
                 self.memory.finish_episode_projection(
                     episode.episode_id.as_uuid(),
                     EpisodeOutcome::Completed,
@@ -285,6 +343,49 @@ impl EpisodeDriver {
                 Err(error).context("running the episode")
             }
         }
+    }
+
+    async fn finish_stopped(
+        &self,
+        episode: &EpisodeHandle,
+        wakes: &[WakeId],
+    ) -> Result<EpisodeReport> {
+        let reason = "Stopped by an authorized operator.";
+        self.runtime
+            .complete_episode(
+                episode.episode_id,
+                EpisodeCompletion {
+                    state: AgentEpisodeState::Stopped,
+                    final_output: reason.into(),
+                    summary: None,
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    completion_calls: 0,
+                    tool_calls: 0,
+                    error: None,
+                },
+                wakes,
+            )
+            .await?;
+        // DuckDB is an analytical projection with a deliberately smaller outcome
+        // vocabulary. The canonical runtime episode records `stopped` explicitly.
+        self.memory.finish_episode_projection(
+            episode.episode_id.as_uuid(),
+            EpisodeOutcome::Error,
+            reason,
+            0,
+            0,
+            0,
+            0,
+            Some(reason),
+        )?;
+        self.finish_rrd(reason.into());
+        Ok(EpisodeReport {
+            episode_id: episode.episode_id,
+            seq: episode.sequence,
+            output: reason.into(),
+            detached_tasks: 0,
+        })
     }
 
     fn finish_rrd(&self, text: String) {

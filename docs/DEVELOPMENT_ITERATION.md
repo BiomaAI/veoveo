@@ -733,3 +733,13 @@ This avoids a second long-lived stream per editor. Its headed fixture completed 
 about four seconds before screenshot capture was added. Console's bundle took 2.6
 seconds and Workspace's warm bundle took under one second. Runtime lifecycle acceptance
 remains separate from these explicit HTTP fixture results.
+
+Managed runtime qualification now always runs its database tests against the pinned
+fixture; the old environment gate could report passing tests without exercising a
+database. Seven integration scenarios took seven seconds. Scoped store checks took
+30 seconds including compilation, and the Console build took eight seconds.
+One formatting evidence attempt was invalidated by new files created during the
+recorder's input snapshot; rerunning on frozen inputs passed. Keep broad format
+evidence separate from overlapping implementation work. Kernel checks introduced a
+different combined dependency feature set and rebuilt SurrealDB/Rerun metadata and
+test artifacts. This is local qualification cost, not an image build per agent.

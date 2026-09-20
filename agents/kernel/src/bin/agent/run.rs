@@ -6,6 +6,7 @@ use veoveo_agent_kernel::{
     connection::{ConnectionEpoch, GatewayConnection, KernelHandlers},
     episode::EpisodeDriver,
     llm,
+    managed::ManagedKernel,
     manifest::AgentManifest,
     memory::MemoryStore,
     resource::{ResourceReadLimits, ResourceReadTool},
@@ -16,7 +17,7 @@ use veoveo_agent_kernel::{
 };
 use veoveo_agent_runtime::{
     AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_AGENT_LEASE, DEFAULT_CLAIM_LEASE,
-    WakeAckReason, json_object,
+    ManagedSchedulerMode, WakeAckReason, json_object,
 };
 use veoveo_platform_store::{
     AgentInputRequestId, AgentTaskId, PlatformStore, StoreConfig, StoreCredentials, WakeKind,
@@ -28,7 +29,8 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     if args.surreal_auth_level != "database" {
         bail!("agent requires VEOVEO_SURREAL_AUTH_LEVEL=database");
     }
-    let seed_manifest = AgentManifest::load(&args.manifest)?;
+    let _ = std::fs::remove_file("/tmp/veoveo-managed-ready");
+    let mut seed_manifest = AgentManifest::load(&args.manifest)?;
     let store_config = StoreConfig::builder(
         &args.surreal_endpoint,
         &args.surreal_namespace,
@@ -37,6 +39,7 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     )
     .build()?;
     let store = PlatformStore::connect(store_config).await?;
+    let managed = ManagedKernel::load(&store, &mut seed_manifest).await?;
     let authority = store
         .automated_authority_for_oauth_client(
             &seed_manifest.agent.tenant,
@@ -65,6 +68,11 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
         AgentInstanceId::new(),
     )
     .await?;
+    let runtime = if let Some(managed) = &managed {
+        runtime.with_managed_binding(managed.binding.clone())?
+    } else {
+        runtime
+    };
     let manifest: AgentManifest = serde_json::from_value(serde_json::Value::Object(
         runtime
             .active_manifest()
@@ -141,7 +149,12 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
         memory.clone(),
         rrd,
         resource_read_limits,
-    );
+    )
+    .with_managed_deadline(managed.as_ref().map(|managed| managed.deadline));
+    if let Some(managed) = &managed {
+        runtime.managed_ready(managed.pod_uid).await?;
+        std::fs::write("/tmp/veoveo-managed-ready", managed.pod_uid.to_string())?;
+    }
 
     if let Some(prompt) = args.prompt {
         driver
@@ -185,13 +198,15 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
         });
     }
 
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
     loop {
         let batch = {
             let next_batch = receiver.next_batch();
             tokio::pin!(next_batch);
             loop {
                 tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {
+                    _ = &mut shutdown => {
                         for (_, watcher) in watchers.drain() {
                             watcher.abort();
                         }
@@ -207,6 +222,13 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
                         }
                     }
                     _ = task_scan.tick() => {
+                        if runtime.managed_scheduler_mode().await? == ManagedSchedulerMode::Retire {
+                            for (_, watcher) in watchers.drain() { watcher.abort(); }
+                            let _ = std::fs::remove_file("/tmp/veoveo-managed-ready");
+                            runtime.release_lease().await?;
+                            tracing::info!("managed generation drained; relinquishing workload");
+                            return Ok(());
+                        }
                         arm_available_tasks(
                             &runtime,
                             &bus,
@@ -262,6 +284,18 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
         }
         arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers, input_grace).await?;
     }
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("install SIGTERM handler");
+        tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+    }
+    #[cfg(not(unix))]
+    let _ = tokio::signal::ctrl_c().await;
 }
 
 fn spawn_heartbeat(bus: WakeBus, interval_s: u64) {

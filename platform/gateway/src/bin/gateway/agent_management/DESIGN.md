@@ -96,3 +96,10 @@ revision adoption. Owners retain stop, pause and archive controls when installat
 configuration is removed. Public projection batches definition/revision metadata and
 never returns authored instructions or deployment credentials. Shared event heads
 include the current owner's instance changes and context-managed instances.
+
+The kernel posts its retained generation and epoch to
+`/admin/{profile}/agent-runtime/dispatch` before model and tool dispatch. The
+authenticated route admits only the current managed service registration and exact
+model revision under current connection limits. It performs no model call. Human
+authoring authority cannot substitute for an instance credential. An older episode
+cannot obtain a new epoch by refreshing its access token.
