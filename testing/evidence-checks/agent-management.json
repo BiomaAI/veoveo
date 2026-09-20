@@ -676,6 +676,58 @@
       "toolchains": [
         "node"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-platform-store",
+        "--test",
+        "surreal_integration",
+        "changefeed",
+        "--",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store",
+          "veoveo-mcp-gateway"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

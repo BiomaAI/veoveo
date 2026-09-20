@@ -1,20 +1,19 @@
 # Agent Creation And Management Plan
 
-Status: accepted and implementation started September 19, 2026. This is the active
-delivery goal. Registry persistence and the authoring API/client layer are implemented
-checkpoints. Registry-backed chat execution and explicit revision adoption are deployed
-and have installed browser/model evidence. Managed lifecycle admission, kernel fences and namespace policy are qualified locally.
-The lifecycle manager and effective OAuth registration are deployed. A newly authored
-managed pilot has completed a real model request, retained its identity and storage
-through pause/resume and manager restart, and made zero additional model calls during
-a fourteen-minute idle observation. The four retained UAV pilots now run under managed lifecycle ownership with their
-original runtime IDs, principals, signing keys and physical memory volumes. The per-pilot
-Helm resources are removed, reconciliation is restored, and current-grant App discovery
-is deployed. Native pilot Task/memory/telemetry qualification passes. Installed checks
-identified an idle credential-renewal defect. Its correction passes native scheduler
-and GPU pilot Task checks; deployment and the remaining installed domain/Task
-acceptance are outstanding. Current component contracts remain authoritative
-until their replacement lands.
+Status: active delivery goal, accepted September 19, 2026. Authoring, publication,
+registry-backed chat execution and explicit revision adoption are deployed at
+`veoveo.bioma.ai`. Five managed instances run the current kernel. The four migrated
+UAV pilots retain their original runtime IDs, principals, signing keys and physical
+memory volumes. Per-pilot Helm ownership is removed and normal reconciliation is active.
+
+Installed acceptance covers real model execution, pause/resume, manager replacement,
+explicit image adoption and idle credential renewal without model calls. Publication
+now waits for native capability-list notifications when required servers are still
+settling. Qualification found a Console lease projection defect; its database replay
+correction is being deployed. Required remaining acceptance covers an authorized
+mission by the newly authored pilot, wrong-vehicle denial, named Computer authority,
+and a real installed MCP Task through navigation and worker replacement. The goal
+remains open until those checks and final lifecycle acceptance are recorded.
 
 ## Standards And Protocols
 
@@ -548,3 +547,36 @@ Normal Workspace sign-in restored the expired browser session without another pe
 The headed RTX 4090 browser renders the definitions and managed inventory; authenticated
 session and Apps endpoints return HTTP 200. This does not replace installed Task or
 credential-renewal qualification.
+
+
+### Managed Upgrade And Idle Acceptance — September 20, 2026
+
+All five managed instances explicitly adopted kernel digest `93027de5dd82` through
+publication and the lifecycle API. The original pilots reached generation 5 and the
+acceptance instance reached generation 8. Publication alone did not change an
+instance. Native installed verification confirmed the retained identities, keys and
+physical memory volumes after adoption.
+
+Foreground retirement exposed a Kubernetes policy gap: garbage collection could not
+remove the foreground finalizer from a Deployment whose image had been retired.
+Chart `0.1.0-agents.30861d76` permits that finalization only when the deleting
+Deployment's spec, ownership, labels and annotations remain unchanged. The native
+admission fixture now exercises the manager's actual foreground deletion path and
+rejects executable or ownership changes during cleanup. All retired workloads then
+cleared without manual finalizer removal.
+
+The acceptance pilot was observed from `08:27:14Z` through `08:37:48Z`, with a
+headed RTX 4090 browser reconnect at `08:27:46Z`. Both configured five-minute
+heartbeat periods elapsed. Credentials rotated at `08:34:48Z`. The episode ledger
+remained at one earlier completion, with unchanged token counts and no new episode.
+Its runtime lease remained current. This qualifies the deployed idle-renewal fix.
+
+Gateway image `a4c26371ad04` adds native notification-based settlement of required
+capabilities. The installed full UAV definition passed its first publication review
+in 2.486 seconds with no findings. This is one measured review, not a p95 result.
+
+The Console's runtime cards exposed a separate changefeed pagination defect while
+those kernels remained healthy. The store tests now include unrelated database
+traffic ahead of agent writes and a multi-table transaction cut by a page boundary.
+The shared replay correction and its installed browser observation are tracked as
+part of this goal; an instance being Ready alone does not establish accurate UI state.
