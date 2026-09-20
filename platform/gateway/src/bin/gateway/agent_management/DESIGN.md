@@ -29,8 +29,8 @@ model revision and the caller's current MCP tool discovery.
 Every publication audience context receives its own current membership check. Context
 custodians/owners with the requested action may manage definitions owned by another
 principal. Ordinary authors may manage only their own definitions in their home context.
-The pending browser integration must use each application's own cookie, CSRF and
-profile boundary; Console credentials must never satisfy a Workspace request.
+The shared browser editor uses each application's own cookie, CSRF and profile
+boundary. Console credentials cannot satisfy a Workspace request.
 
 ## Modules
 
@@ -56,3 +56,27 @@ Enable revalidates the retained published model and capability selection. Model
 connection revisions bind destinations, model names, Secret references and ceilings;
 renaming a connection or changing its visibility does not rewrite executable identity.
 Current model visibility is still checked independently.
+
+## Installation Import
+
+`gateway agent-catalog-import` is an explicit root-authorized migration command. It
+requires `--control-plane`, `--source`, `--owner` and `--recovery`; approved connections
+use the same `VEOVEO_AGENT_MODELS` document as gateway startup. The owner must already
+exist as an enabled principal in the source tenant. This command publishes only the
+installation-reviewed seed. Every subsequent execution applies normal model, human
+and capability authority. Ordinary authoring uses the authenticated management API.
+
+Drain or cancel current chat runs, stop every gateway writer, then install the schema
+and updated control-plane bundle before import. The command refuses active runs and
+conflicting existing definitions. Existing prompts are never overwritten. A private
+mode-0600 recovery file is synced before binding conversion. Only listed source digests
+can become the reviewed immutable revision; unknown historical configuration fails the
+import. The transaction preserves IDs, presentation, membership and history and emits
+chat events. Retries use the same recovery file and verify its source fingerprint.
+
+Before reopening the gateway, `--restore` applies the inverse conversion from that
+file. A real database test round-trips the recovery document, replays both directions
+and rejects concurrent edits. Retained catalog records are not deleted on restoration.
+After management mutations begin, use forward repair; deploying the former environment
+catalog over newly authored records is unsupported. Keep recovery files outside Git.
+This procedure adds no scheduled backup or runtime compatibility path.

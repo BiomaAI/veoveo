@@ -13,25 +13,23 @@
 
 ## Workspace Models
 
-Workspace models execute in the gateway. `gateway.workspace.agents` supplies its
-closed installation definitions, serialized into `VEOVEO_WORKSPACE_AGENTS`. Each
-definition binds an exact provider endpoint, model, registered secret reference,
-tenant, Work Context allowlist and tool allowlist. The gateway validates these
-against its activated catalog before serving. Empty definitions enable human
-collaboration without an agent. Values never contain provider credentials.
+Chat models execute in the gateway. `gateway.agents.models` supplies approved model
+connections through `VEOVEO_AGENT_MODELS`. Connections bind provider destinations,
+registered secret references, tenant/context access, required scopes and execution
+ceilings. The gateway validates them against its activated catalog before serving.
+Definitions and immutable executable revisions live in the platform store.
 
-`gateway.workspace.modelSecrets` maps names beginning `VEOVEO_WORKSPACE_MODEL_`
-to exact keys in installation-owned Kubernetes Secrets. These references enter
-only the gateway container. They cannot replace its signing, database or session
-variables. Agent-definition changes alter the Pod template and require new chat
-admission because the definition digest changes. The separate browser-edge
-`consoleBff.workspace` settings continue to select Workspace's own OAuth client,
-resource and requested scopes. They provide no administrator permission.
+`gateway.agents.modelSecrets` maps names beginning `VEOVEO_AGENT_MODEL_` to exact keys
+in installation-owned Kubernetes Secrets. Only the gateway receives those keys.
+Routine definition edits and publication change no Pod template. Installation model
+changes still require a gateway rollout and explicit revision adoption when executable
+connection settings change. `consoleBff.workspace` retains the separate browser edge's
+OAuth client, resource and requested scopes.
 
 The model configuration is qualified by `cargo test -p veoveo-deployment-smoke
 --test workspace_helm`, which requires Helm and GNU timeout. It checks the real
 rendered environments and rejects inline keys, reserved variables and out-of-bounds
-definitions. Provider execution and public browser acceptance remain separate checks.
+model ceilings. Provider execution and public browser acceptance remain separate checks.
 
 ## Computers Control
 

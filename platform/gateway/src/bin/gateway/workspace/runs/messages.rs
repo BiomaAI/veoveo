@@ -54,7 +54,7 @@ pub(super) async fn send(
                 deadline: subject
                     .access_token
                     .expires_at
-                    .min(Utc::now() + TimeDelta::seconds(120)),
+                    .min(Utc::now() + TimeDelta::seconds(900)),
             },
         )
         .await
@@ -89,17 +89,22 @@ pub(super) async fn send(
             .into_iter()
             .filter(|run| run.state == WorkspaceRunState::Queued)
         {
-            let definition = agents
+            let definition = match agents
                 .iter()
                 .find(|agent| agent.id == run.agent && agent.active)
-                .and_then(|agent| {
-                    state.definitions.iter().find(|definition| {
-                        definition.id == agent.definition
-                            && definition.permits(&caller.subject)
-                            && definition.digest() == run.definition_digest
-                    })
-                })
-                .cloned();
+            {
+                Some(agent) => state
+                    .agents
+                    .resolve(
+                        &caller.profile,
+                        &caller.subject,
+                        &agent.definition,
+                        Some(&run.definition_digest),
+                    )
+                    .await
+                    .ok(),
+                None => None,
+            };
             let permit = state.limits.clone().try_acquire_owned();
             let failure = match (definition, permit) {
                 (Some(definition), Ok(permit)) => {

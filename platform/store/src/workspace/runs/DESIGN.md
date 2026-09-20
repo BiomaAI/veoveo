@@ -30,10 +30,10 @@ must apply its own prompt byte/token budget before dispatch.
 
 Only one worker can move a queued run to running. Claim assigns a fresh execution
 fence. Every publication checks that fence, current human/context/chat admission,
-active agent membership, configuration digest, deadline and lease. Cumulative text
+active agent membership, the run's immutable registry revision, deadline and lease. Cumulative text
 must retain the already-published prefix. Heartbeats extend a 20-second lease without
 creating visible events when content is unchanged. The absolute deadline cannot
-exceed three minutes at admission and is also checked independently of the lease.
+exceed 900 seconds at admission and is also checked independently of the lease.
 
 Migration `0086` adds canonical typed feedback before the updated gateway reads it.
 Its phase records preparation, response generation or tool execution; its bounded
@@ -71,3 +71,18 @@ Real database fixtures exercise two humans and two agents, racing worker claims,
 immutable context, concurrent capacity, cumulative output ordering, independent
 cancellation, lost workers, removed people/agents and request replay. They simulate
 no production model and make no claim about deployed agent execution.
+
+## Registry Revision Adoption
+
+Migration `0089` adds registry admission and UUIDv7 mutation receipts. Add requires
+the current enabled published revision. Updating an existing participant is a separate
+owner-controlled compare-and-swap operation. A retained revision may be selected for
+recovery when current policy admits it. Receipt fingerprints bind the chat, definition,
+revision and precondition, independent of mutable display names.
+
+Run claim, publication, reconciliation and private-operation dispatch check the
+original run revision. Changing the participant revision does not rewrite work in
+progress. Disable and publication-audience removal close retained execution too.
+The registry's explicit installation import preserves participant identity, metadata
+and history while converting only reviewed source digests. Its export and exact
+restore run with gateway writers stopped; neither path performs model work.

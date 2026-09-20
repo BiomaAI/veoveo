@@ -3,7 +3,7 @@ use super::{Parameters, forward};
 use crate::AppState;
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, Method},
     response::Response,
     routing::{delete, get, post},
@@ -17,19 +17,32 @@ pub(super) fn router() -> Router<AppState> {
         .route("/workspace/api/chats/{chat}/activity", get(activity))
         .route("/workspace/api/chats/{chat}/agents", post(add))
         .route("/workspace/api/chats/{chat}/agents/{agent}", delete(remove))
+        .route(
+            "/workspace/api/chats/{chat}/agents/{agent}/revision",
+            get(preview_revision).post(adopt_revision),
+        )
         .route("/workspace/api/chats/{chat}/runs", post(start))
         .route(
             "/workspace/api/chats/{chat}/runs/{run}/cancel",
             post(cancel),
         )
 }
-async fn catalog(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    forward::<(), Vec<wire::AgentDefinition>>(
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct CatalogPage {
+    pub after: Option<veoveo_mcp_contract::agent_management::AgentDefinitionId>,
+}
+async fn catalog(
+    State(state): State<AppState>,
+    Query(page): Query<CatalogPage>,
+    headers: HeaderMap,
+) -> Response {
+    forward::<(), wire::AgentCatalogPage>(
         &state,
         &headers,
         Method::GET,
         "/agents",
-        Parameters::None,
+        Parameters::AgentCatalog(page),
         None,
     )
     .await
@@ -108,6 +121,44 @@ async fn cancel(
         &format!("/chats/{chat}/runs/{run}/cancel"),
         Parameters::None,
         None,
+    )
+    .await
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RevisionTarget {
+    revision: Option<veoveo_mcp_contract::Sha256Digest>,
+}
+async fn preview_revision(
+    State(state): State<AppState>,
+    Path((chat, agent)): Path<(Uuid, Uuid)>,
+    Query(target): Query<RevisionTarget>,
+    headers: HeaderMap,
+) -> Response {
+    forward::<(), wire::AgentRevisionPreview>(
+        &state,
+        &headers,
+        Method::GET,
+        &format!("/chats/{chat}/agents/{agent}/revision"),
+        Parameters::AgentRevision(target.revision),
+        None,
+    )
+    .await
+}
+async fn adopt_revision(
+    State(state): State<AppState>,
+    Path((chat, agent)): Path<(Uuid, Uuid)>,
+    headers: HeaderMap,
+    Json(request): Json<wire::UpdateChatAgent>,
+) -> Response {
+    forward::<_, wire::ChatAgent>(
+        &state,
+        &headers,
+        Method::POST,
+        &format!("/chats/{chat}/agents/{agent}/revision"),
+        Parameters::None,
+        Some(&request),
     )
     .await
 }

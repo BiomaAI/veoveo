@@ -13,20 +13,24 @@ its Tasks retain separate identities and lifecycles.
 
 ## Configuration And Disclosure
 
-`VEOVEO_WORKSPACE_AGENTS` contains a bounded JSON array of typed definitions. Each
-record names its installation-local identity, display name, description, provider,
-tenant, admitted Work Contexts, instructions, an exact tool allowlist and model configuration. Model settings
-contain an HTTP(S) base URL, model name, registered `provider_api_key` secret reference
-and output-token budget. Embedded URL credentials, unknown contexts, unregistered
-secrets, duplicate identities and unbounded budgets fail startup validation.
+Published definitions come from the durable agent registry. `VEOVEO_AGENT_MODELS`
+contains installation-approved connections and budget ceilings. Only installation
+operators select provider destinations and credential references. The authoring API
+changes instructions, capability selections and publication audiences without a
+restart. An empty published catalog permits human collaboration.
 
-The model key is resolved through the existing gateway secret resolver immediately
-before dispatch. No key, endpoint, system instructions or execution fence enters a
-browser response. A human owner sees provider/model and capability disclosure before admitting the
-agent. Existing agent membership records bind the complete definition digest.
-Configuration changes require new admission before another run uses that definition.
-The default empty catalog permits human collaboration but provides no model fixture.
-The Workspace plan records installed model and Task qualification separately from local fixtures.
+The model key is resolved immediately before dispatch. Browsers receive provider,
+model, exact capabilities and the admitted immutable revision. They never receive
+provider destinations or credentials. A chat owner's update preview compares model,
+capabilities and limits. It includes instructions only with current private-content
+authority; other owners see the instruction digest change and publisher attribution.
+
+Admission takes a client UUIDv7 and the current published revision. A participant's
+revision changes only through the owner-controlled revision route with an expected
+revision. Receipt replay cannot reactivate a subsequently removed participant. An
+in-flight run keeps its original revision across participant updates. Current disable,
+model admission, audience and human authority still fence dispatch and output.
+Archived definitions remain usable by retained participants; they leave new admission.
 
 ## Execution
 
@@ -56,8 +60,7 @@ configured capabilities into a text-only model request.
 A model call receives a bounded JSON history with stable author IDs and names. Its
 triggering human request remains explicit. Older history can be dropped to fit the
 64 KiB prompt bound, and the prompt marks that truncation. The trigger itself is never
-silently truncated. Model output has a 32 KiB bound. Rig's total call budget is four,
-which includes retries and continuations. Content telemetry is disabled explicitly.
+silently truncated. Model output has a 32 KiB bound. The revision's model-call budget includes retries and continuations. Content telemetry is disabled explicitly.
 
 The worker batches changing text and typed execution feedback into at most four
 store publications per second. Unchanged work retains a one-second authority check
@@ -68,7 +71,8 @@ until the last settles; completed receipts count distinct private operations.
 Names, arguments, private results and model reasoning are absent from feedback.
 Each publication rechecks OAuth session and JWT revocation, current Work Context
 membership and the store's run fence. Claim heartbeat, cancellation and output use
-the same transaction boundary. The run ends within two minutes or token expiry.
+the same transaction boundary. The run ends at the earlier of its revision deadline and token expiry. The installation
+ceiling is 900 seconds; queued intent admission cannot extend the revision deadline.
 Shutdown drops the provider stream; durable lease recovery later marks interruption.
 A browser disconnect does not cancel work and cannot resubmit the model on reconnect.
 
@@ -81,7 +85,8 @@ once per run. Arguments are bounded and validated before operation admission.
 Every invocation carries the initiating human's bearer in memory. No service
 credential or caller-supplied destination participates in execution.
 
-Eight distinct tool operations fit in one response. A UUID derived from the run,
+The revision bounds distinct tool operations per response, within the approved model
+connection ceiling. A UUID derived from the run,
 tool name and canonical arguments makes an identical repeated request return the
 same private receipt. A new human message can intentionally request another action.
 Admission checks the live run fence and current chat authority. The dispatch worker

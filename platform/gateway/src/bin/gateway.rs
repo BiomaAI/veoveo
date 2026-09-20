@@ -135,6 +135,8 @@ impl FromStr for RedactedSecret {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Import a reviewed agent catalog and retained chat bindings with all gateways stopped.
+    AgentCatalogImport(agent_management::import::Arguments),
     /// Validate typed gateway control data and exit.
     Validate {
         /// JSON control plane file.
@@ -303,6 +305,7 @@ async fn main() -> anyhow::Result<()> {
         init_server_telemetry("veoveo-mcp-gateway", "info,veoveo_mcp_gateway=debug")?;
 
     match Args::parse().command {
+        Command::AgentCatalogImport(args) => agent_management::import::run(args).await,
         Command::Validate { control_plane } => {
             let catalog = GatewayCatalog::load_json(&control_plane)?;
             println!(

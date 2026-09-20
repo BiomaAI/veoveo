@@ -3,7 +3,7 @@ LET $agent = SELECT * FROM ONLY $run.agent;
 LET $chat = SELECT * FROM ONLY $command.chat;
 IF !fn::workspace_member($authority, $command.chat) OR $run.chat != $command.chat { THROW 'workspace_not_found'; };
 IF $authority.membership = 'viewer' OR $run.initiator != $authority.principal { THROW 'workspace_forbidden'; };
-IF $chat.archived OR !$agent.active OR $agent.definition_digest != $run.definition_digest
+IF $chat.archived OR !$agent.active OR !fn::agent_chat_revision($authority.tenant, $authority.work_context, $agent.definition, $run.definition_digest, false)
     OR $run.state != 'queued' OR $run.lease_until <= time::now() OR $run.deadline <= time::now() {
     THROW 'workspace_conflict';
 };

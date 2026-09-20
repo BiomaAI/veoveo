@@ -682,3 +682,19 @@ The gateway API checks reused the debug target. A first gateway test link took a
 compile caused another transitive rebuild of store, task runtime and agent runtime.
 Complete a dependency-layer edit before starting its downstream test compile, then use
 the running interval for documentation or independent frontend work.
+
+Evidence publication is another measured source of churn. The immutable receipt tree
+was approximately 189 MB during the authoring checkpoint, and report publication and
+`show` took longer than several sub-second warm checks. Changing the check catalog or
+running evidence publishers concurrently forced additional recording and index recovery.
+Define the focused check scope first, iterate with ordinary native checks, then record
+stable results serially before committing. A future recorder optimization should reduce
+repeated parsing and hashing while preserving immutable receipt integrity.
+
+The chat-registry checkpoint reused the debug target for the model stream and native
+Task tests. Helm qualification still compiled an alternate dependency feature set
+(about 33 seconds) even after gateway tests were warm; record this as build-graph work
+for a later measured optimization. The Workspace bundle built in about three seconds.
+Headed browser acceptance took about 47 seconds, including the existing collaboration
+and Task flows plus lost-response revision adoption. Hardware evidence was NVIDIA
+WebGL; the exposed SwiftShader WebGPU adapter was rejected as hardware evidence.

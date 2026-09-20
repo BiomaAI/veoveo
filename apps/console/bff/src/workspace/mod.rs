@@ -58,6 +58,8 @@ enum Parameters {
     Page(Page),
     Search(String),
     Activity(operations::ActivityQuery),
+    AgentCatalog(runs::CatalogPage),
+    AgentRevision(Option<veoveo_mcp_contract::Sha256Digest>),
 }
 
 async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
@@ -80,6 +82,17 @@ async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
         let mut url = state.config.workspace_url(path);
         match parameters {
             Parameters::None => {}
+            Parameters::AgentRevision(revision) => {
+                if let Some(revision) = revision {
+                    url.query_pairs_mut()
+                        .append_pair("revision", revision.as_ref());
+                }
+            }
+            Parameters::AgentCatalog(page) => {
+                if let Some(after) = page.after {
+                    url.query_pairs_mut().append_pair("after", after.as_str());
+                }
+            }
             Parameters::Page(page) => {
                 if let Some(after) = page.after {
                     url.query_pairs_mut()

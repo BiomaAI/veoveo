@@ -53,7 +53,7 @@ impl ServerHandler for Domain {
                 &[veoveo_mcp_apps_extension::UiVisibility::App],
             ),
             Tool::new(
-                "fixture_task",
+                "fixture__task",
                 "Create an explicit durable Task fixture",
                 serde_json::from_value::<JsonObject>(json!({"type":"object","properties":{}}))
                     .unwrap(),
@@ -99,7 +99,7 @@ impl ServerHandler for Domain {
                 .is_some_and(|capabilities| capabilities.supports_tasks()),
             "native invocation must carry the negotiated Tasks capability"
         );
-        assert!(["fixture_task", "fixture__task"].contains(&request.name.as_ref()));
+        assert!(request.name.as_ref() == "fixture__task");
         self.calls.fetch_add(1, Ordering::SeqCst);
         if let Some(token) = context.meta.get_progress_token() {
             context

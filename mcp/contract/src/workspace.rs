@@ -219,7 +219,15 @@ pub struct AgentDefinition {
     pub description: String,
     pub provider: String,
     pub model: String,
+    pub revision: crate::Sha256Digest,
     pub tools: Vec<crate::GatewayToolName>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentCatalogPage {
+    pub items: Vec<AgentDefinition>,
+    pub next: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -230,6 +238,7 @@ pub struct ChatAgent {
     pub name: String,
     pub provider: String,
     pub model: String,
+    pub revision: crate::Sha256Digest,
     pub active: bool,
 }
 
@@ -296,7 +305,38 @@ pub struct AgentActivity {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AddAgent {
+    pub request_id: uuid::Uuid,
     pub definition: String,
+    pub revision: crate::Sha256Digest,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateChatAgent {
+    pub request_id: uuid::Uuid,
+    pub expected_revision: crate::Sha256Digest,
+    pub revision: crate::Sha256Digest,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentRevisionView {
+    pub revision: crate::Sha256Digest,
+    pub model: crate::agent_management::ModelReference,
+    pub tools: Vec<crate::GatewayToolName>,
+    pub budgets: crate::agent_management::Budgets,
+    pub instructions_digest: crate::Sha256Digest,
+    pub instructions: Option<String>,
+    pub published_by: PersonId,
+    pub published_by_name: String,
+    pub published_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentRevisionPreview {
+    pub current: AgentRevisionView,
+    pub target: AgentRevisionView,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -356,6 +396,9 @@ struct WorkspaceSchema {
     wake: ChatWake,
     personal_event: PersonalEvent,
     agent_definition: AgentDefinition,
+    agent_catalog: AgentCatalogPage,
+    agent_revision_preview: AgentRevisionPreview,
+    update_agent: UpdateChatAgent,
     activity: AgentActivity,
     add_agent: AddAgent,
     start_run: StartRun,

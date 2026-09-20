@@ -296,9 +296,11 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         stop: ct.child_token(),
         definition_limit: 1_000,
     };
-    router = router.merge(crate::agent_management::router(agent_management).layer(
-        middleware::from_fn_with_state(auth_state.clone(), authenticate_mcp),
-    ));
+    router = router.merge(
+        crate::agent_management::router(agent_management.clone()).layer(
+            middleware::from_fn_with_state(auth_state.clone(), authenticate_mcp),
+        ),
+    );
     router = router.merge(
         crate::workspace::router(crate::workspace::WorkspaceState {
             store: control_store.platform_store().clone(),
@@ -309,6 +311,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             catalog.clone(),
             ct.child_token(),
             workspace_operations.clone(),
+            agent_management,
         )?)
         .merge(crate::workspace::operations::router(workspace_operations))
         .merge(crate::workspace::events::router(

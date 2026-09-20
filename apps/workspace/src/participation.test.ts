@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { addressedAgents, responseAgents } from "./participation.ts";
 import type { ChatAgent } from "./generated/workspace.ts";
-const agents: ChatAgent[] = ["Writer", "Reviewer", "Research Lead"].map((name, i) => ({ id: `${i}`, name, definition: name, provider: "Fixture", model: "Fixture", active: true }));
+const agents: ChatAgent[] = ["Writer", "Reviewer", "Research Lead"].map((name, i) => ({ id: `${i}`, name, definition: name, provider: "Fixture", model: "Fixture", active: true, revision: `sha256:${"a".repeat(64)}` }));
 
 test("leading mentions address known agents while quoted and ordinary body text do not", () => {
   assert.deepEqual(addressedAgents("@Writer @Research Lead: Please discuss", ["0"], agents), ["0", "2"]);

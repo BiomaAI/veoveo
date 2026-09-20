@@ -61,14 +61,14 @@ async fn owner_policy_resolves_once_and_replay_preserves_original_targets_and_co
         .unwrap();
     let writer = agent_id(
         &db.a
-            .add_workspace_agent(&a, chat, admission("writer"))
+            .add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("writer"))
             .await
             .unwrap()
             .id,
     );
     let reviewer = agent_id(
         &db.a
-            .add_workspace_agent(&a, chat, admission("reviewer"))
+            .add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("reviewer"))
             .await
             .unwrap()
             .id,
@@ -166,7 +166,7 @@ async fn concurrent_replay_is_atomic_and_busy_agents_leave_human_messages_writab
         .unwrap();
     let writer = agent_id(
         &db.a
-            .add_workspace_agent(&a, chat, admission("writer"))
+            .add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("writer"))
             .await
             .unwrap()
             .id,
@@ -232,14 +232,14 @@ async fn only_owner_controls_current_chat_agents_and_removal_clears_policy() {
     join(&db.a, &a, &b, &bob, chat).await;
     let writer = agent_id(
         &db.a
-            .add_workspace_agent(&a, chat, admission("writer"))
+            .add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("writer"))
             .await
             .unwrap()
             .id,
     );
     let foreign = agent_id(
         &db.a
-            .add_workspace_agent(&a, other, admission("writer"))
+            .add_workspace_agent(&a, other, uuid::Uuid::now_v7(), admission("writer"))
             .await
             .unwrap()
             .id,

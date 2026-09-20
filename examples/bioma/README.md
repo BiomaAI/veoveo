@@ -39,9 +39,14 @@ kubectl --context k3d-veoveo-bioma -n veoveo create secret generic veoveo-worksp
 
 The token needs model inference permission for the account configured in the model
 URL. Do not put it in Helm values, Git or command-line literals. The gateway alone
-receives the selected key through `VEOVEO_WORKSPACE_MODEL_API_KEY`. The browser edge
+receives the selected key through `VEOVEO_AGENT_MODEL_API_KEY`. The browser edge
 uses the distinct Workspace OAuth client and requests operator use, Artifact upload
 and time-read scopes. Work Context and resource policies still govern every action.
+
+`gateway.agents.models` admits the model connection. `agents.json` is the explicit
+Assistant/Reviewer import source; gateway startup never reconciles it over Console
+edits. The [catalog import procedure](../../platform/gateway/src/bin/gateway/agent_management/DESIGN.md#installation-import)
+preserves existing chat participant IDs and records exact source digests.
 
 The client entry is `/workspace/`. Agent responses can dispatch admitted native MCP
 operations; Task input and results remain in the initiating person's private Activity.

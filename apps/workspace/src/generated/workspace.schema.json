@@ -5,10 +5,20 @@
       "properties": {
         "definition": {
           "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
         }
       },
       "required": [
-        "definition"
+        "requestId",
+        "definition",
+        "revision"
       ],
       "type": "object"
     },
@@ -34,6 +44,27 @@
       ],
       "type": "object"
     },
+    "AgentCatalogPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/AgentDefinition"
+          },
+          "type": "array"
+        },
+        "next": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
     "AgentDefinition": {
       "additionalProperties": false,
       "properties": {
@@ -52,6 +83,10 @@
         "provider": {
           "type": "string"
         },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
         "tools": {
           "items": {
             "$ref": "#/$defs/GatewayToolName"
@@ -65,7 +100,79 @@
         "description",
         "provider",
         "model",
+        "revision",
         "tools"
+      ],
+      "type": "object"
+    },
+    "AgentModelId": {
+      "type": "string"
+    },
+    "AgentRevisionPreview": {
+      "additionalProperties": false,
+      "properties": {
+        "current": {
+          "$ref": "#/$defs/AgentRevisionView"
+        },
+        "target": {
+          "$ref": "#/$defs/AgentRevisionView"
+        }
+      },
+      "required": [
+        "current",
+        "target"
+      ],
+      "type": "object"
+    },
+    "AgentRevisionView": {
+      "additionalProperties": false,
+      "properties": {
+        "budgets": {
+          "$ref": "#/$defs/Budgets"
+        },
+        "instructions": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "instructionsDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelReference"
+        },
+        "publishedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "publishedBy": {
+          "$ref": "#/$defs/PersonId"
+        },
+        "publishedByName": {
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/GatewayToolName"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "revision",
+        "model",
+        "tools",
+        "budgets",
+        "instructionsDigest",
+        "publishedBy",
+        "publishedByName",
+        "publishedAt"
       ],
       "type": "object"
     },
@@ -135,6 +242,38 @@
     "ArtifactId": {
       "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
       "type": "string"
+    },
+    "Budgets": {
+      "additionalProperties": false,
+      "properties": {
+        "deadlineSeconds": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxCompletionCalls": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxOutputTokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxToolCalls": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maxOutputTokens",
+        "maxCompletionCalls",
+        "maxToolCalls",
+        "deadlineSeconds"
+      ],
+      "type": "object"
     },
     "Capability": {
       "additionalProperties": false,
@@ -231,6 +370,10 @@
         },
         "provider": {
           "type": "string"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
         }
       },
       "required": [
@@ -239,6 +382,7 @@
         "name",
         "provider",
         "model",
+        "revision",
         "active"
       ],
       "type": "object"
@@ -598,6 +742,23 @@
         "responseAgents",
         "sequence",
         "createdAt"
+      ],
+      "type": "object"
+    },
+    "ModelReference": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/AgentModelId"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
       ],
       "type": "object"
     },
@@ -1445,6 +1606,29 @@
       ],
       "type": "object"
     },
+    "UpdateChatAgent": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "expectedRevision",
+        "revision"
+      ],
+      "type": "object"
+    },
     "WorkContextId": {
       "description": "Tenant-local boundary that governs related work and every output it produces.",
       "type": "string"
@@ -1494,8 +1678,14 @@
     "add_agent": {
       "$ref": "#/$defs/AddAgent"
     },
+    "agent_catalog": {
+      "$ref": "#/$defs/AgentCatalogPage"
+    },
     "agent_definition": {
       "$ref": "#/$defs/AgentDefinition"
+    },
+    "agent_revision_preview": {
+      "$ref": "#/$defs/AgentRevisionPreview"
     },
     "answer_operation": {
       "$ref": "#/$defs/AnswerOperation"
@@ -1557,6 +1747,9 @@
     "start_run": {
       "$ref": "#/$defs/StartRun"
     },
+    "update_agent": {
+      "$ref": "#/$defs/UpdateChatAgent"
+    },
     "update_app_task": {
       "$ref": "#/$defs/UpdateAppTask"
     },
@@ -1577,6 +1770,9 @@
     "wake",
     "personal_event",
     "agent_definition",
+    "agent_catalog",
+    "agent_revision_preview",
+    "update_agent",
     "activity",
     "add_agent",
     "start_run",

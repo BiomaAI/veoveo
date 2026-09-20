@@ -64,14 +64,20 @@ async fn stream(
     Path(profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Response {
-    let actor = match authority::admit(
-        &state.agents,
-        profile,
-        subject,
+    let Ok(profile_id) = veoveo_mcp_contract::GatewayProfileId::new(&profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let action = if authority::allowed(
+        &state.agents.catalog.current(),
+        &profile_id,
+        &subject,
         Action::AgentDefinitionsRead,
-    )
-    .await
-    {
+    ) {
+        Action::AgentDefinitionsRead
+    } else {
+        Action::AgentDefinitionsUse
+    };
+    let actor = match authority::admit(&state.agents, profile, subject, action).await {
         Ok(actor) => actor,
         Err(error) => return error.into_response(),
     };

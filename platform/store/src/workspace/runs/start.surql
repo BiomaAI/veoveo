@@ -9,7 +9,8 @@ IF $existing = NONE {
     IF $chat.archived OR !$agent.active OR $agent.definition_digest != $command.definition_digest {
         THROW 'workspace_conflict';
     };
-    IF $command.deadline <= time::now() OR $command.deadline > time::now() + 180s { THROW 'workspace_conflict'; };
+    IF !fn::agent_chat_revision($authority.tenant, $authority.work_context, $agent.definition, $agent.definition_digest, false) { THROW 'workspace_not_found'; };
+    IF $command.deadline <= time::now() OR $command.deadline > time::now() + 900s { THROW 'workspace_conflict'; };
     IF count(SELECT id FROM workspace_run WHERE chat = $command.chat AND state IN ['queued', 'running']
         AND lease_until > time::now()) >= 4 { THROW 'workspace_conflict'; };
     LET $head = UPDATE ONLY $command.chat SET sequence += 1, updated_at = time::now();

@@ -32,6 +32,28 @@ async fn context(store: &PlatformStore, identity: &PlatformIdentity, key: &str) 
          output_policy = { owner_kind: 'principal', owner_key: 'alice', initial_grants: [], data_labels: [] };"
     ).bind(("context", context.record_id())).bind(("tenant", identity.tenant_id.record_id()))
         .bind(("key", key.to_owned())).await.unwrap().check().unwrap();
+    // Explicit registry fixtures keep Workspace tests focused on chat transactions.
+    // Executable digests come from the same typed content, not synthetic revisions.
+    let content = runs::catalog_content();
+    let digest = content.digest().unwrap();
+    for key in ["writer", "reviewer", "helper", "researcher"] {
+        let definition = veoveo_platform_store::agent_management::agent_definition_record(
+            &identity.tenant_id.record_id(),
+            key,
+        )
+        .unwrap();
+        store.client().query("BEGIN TRANSACTION; LET $old = SELECT * FROM ONLY $definition;
+            IF $old = NONE { CREATE ONLY $definition SET tenant = $tenant, work_context = $context, owner = $owner,
+                key = $key, name = $key, description = 'Store fixture', revision = 1, status = 'enabled', disabled = false,
+                audience = [], draft = $content, draft_digest = $digest; };
+            LET $old_revision = SELECT * FROM ONLY $revision;
+            IF $old_revision = NONE { CREATE ONLY $revision SET definition = $definition, digest = $digest, content = $content, created_by = $owner; };
+            UPDATE ONLY $definition SET published = $revision, audience = array::union(audience, [$context]); COMMIT TRANSACTION;")
+            .bind(("revision", surrealdb::types::RecordId::new("agent_definition_revision", surrealdb::types::Uuid::from(uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, format!("{}:{digest}", definition.to_sql()).as_bytes())))))
+            .bind(("definition", definition)).bind(("tenant", identity.tenant_id.record_id())).bind(("context", context.record_id()))
+            .bind(("owner", identity.principal_id.record_id())).bind(("key", key.to_owned())).bind(("content", content.clone())).bind(("digest", digest.clone()))
+            .await.unwrap().check().unwrap();
+    }
     context
 }
 

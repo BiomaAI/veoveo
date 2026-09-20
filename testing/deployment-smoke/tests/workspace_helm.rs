@@ -40,20 +40,20 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
 -> Result<()> {
     let source: Value =
         serde_yaml_ng::from_str(include_str!("../../../examples/bioma/values.yaml"))?;
-    let workspace = source["gateway"]["workspace"].clone();
-    let expected = &workspace["agents"];
-    ensure!(expected.as_array().context("configured agents")?.len() == 2);
-    let values = json!({"gateway":{"workspace":workspace}, "consoleBff":{"workspace":source["consoleBff"]["workspace"]}});
+    let workspace = source["gateway"]["agents"].clone();
+    let expected = &workspace["models"];
+    ensure!(expected.as_array().context("configured agents")?.len() == 1);
+    let values = json!({"gateway":{"agents":workspace}, "consoleBff":{"workspace":source["consoleBff"]["workspace"]}});
     let rendered = objects(render(&values)?)?;
     let gateway = environment(&rendered, "mcp-gateway")?;
     let config = gateway
         .iter()
-        .find(|v| v["name"] == "VEOVEO_WORKSPACE_AGENTS")
+        .find(|v| v["name"] == "VEOVEO_AGENT_MODELS")
         .context("agent definitions")?;
     ensure!(serde_json::from_str::<Value>(config["value"].as_str().unwrap())? == *expected);
     let key = gateway
         .iter()
-        .find(|v| v["name"] == "VEOVEO_WORKSPACE_MODEL_API_KEY")
+        .find(|v| v["name"] == "VEOVEO_AGENT_MODEL_API_KEY")
         .context("model credential")?;
     ensure!(key.get("value").is_none());
     ensure!(
@@ -63,7 +63,7 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
     let edge = environment(&rendered, "console-bff")?;
     ensure!(
         edge.iter()
-            .all(|v| v["name"] != "VEOVEO_WORKSPACE_MODEL_API_KEY")
+            .all(|v| v["name"] != "VEOVEO_AGENT_MODEL_API_KEY")
     );
     ensure!(
         edge.iter()
@@ -122,7 +122,7 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
     ensure!(
         environment(&empty, "mcp-gateway")?
             .iter()
-            .any(|v| v["name"] == "VEOVEO_WORKSPACE_AGENTS" && v["value"] == "[]")
+            .any(|v| v["name"] == "VEOVEO_AGENT_MODELS" && v["value"] == "[]")
     );
     Ok(())
 }
@@ -131,23 +131,25 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
 fn workspace_chart_rejects_ambient_credentials_and_unbounded_model_settings() -> Result<()> {
     let source: Value =
         serde_yaml_ng::from_str(include_str!("../../../examples/bioma/values.yaml"))?;
-    for field in ["credential", "environment", "budget", "tools"] {
-        let mut workspace = source["gateway"]["workspace"].clone();
+    for field in ["credential", "environment", "budget", "contexts"] {
+        let mut workspace = source["gateway"]["agents"].clone();
         match field {
             "credential" => {
-                workspace["modelSecrets"]["VEOVEO_WORKSPACE_MODEL_API_KEY"]["value"] =
+                workspace["modelSecrets"]["VEOVEO_AGENT_MODEL_API_KEY"]["value"] =
                     json!("forbidden-inline-fixture")
             }
             "environment" => {
                 workspace["modelSecrets"]["VEOVEO_INTERNAL_SIGNING_KEY_ID"] =
                     json!({"existingSecret":"wrong","key":"wrong"})
             }
-            "budget" => workspace["agents"][0]["model"]["max_output_tokens"] = json!(8193),
-            "tools" => workspace["agents"][0]["tools"] = json!(["media__run", "media__run"]),
+            "budget" => workspace["models"][0]["limits"]["maxOutputTokens"] = json!(8193),
+            "contexts" => {
+                workspace["models"][0]["work_contexts"] = json!(["operations", "operations"])
+            }
             _ => unreachable!(),
         }
         ensure!(
-            !render(&json!({"gateway":{"workspace":workspace}}))?
+            !render(&json!({"gateway":{"agents":workspace}}))?
                 .status
                 .success(),
             "invalid {field} was admitted"

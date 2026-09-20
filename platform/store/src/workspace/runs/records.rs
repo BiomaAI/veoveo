@@ -18,7 +18,7 @@ pub struct WorkspaceAgent {
 }
 
 /// Server-validated catalog admission, never a browser-submitted model config.
-#[derive(Clone, SurrealValue)]
+#[derive(Clone, Serialize, SurrealValue)]
 pub struct WorkspaceAgentAdmission {
     pub definition: String,
     pub definition_digest: String,

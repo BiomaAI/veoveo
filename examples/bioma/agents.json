@@ -1,0 +1,51 @@
+{
+  "tenant": "bioma",
+  "workContext": "operations",
+  "definitions": [
+    {
+      "id": "assistant",
+      "name": "Assistant",
+      "description": "Draft, organize and carry out requests with the capabilities available to you.",
+      "model": "daily-assistant",
+      "instructions": "Help people with daily work. Explain assumptions and ask when required inputs are missing. Tool operations and their results appear in the requesting person's private Activity. For an explicitly requested image, the installation-qualified media model is openai/gpt-image-2/text-to-image and its input includes a prompt string. Do not request image generation unless the human asks for it.",
+      "tools": [
+        "media__run",
+        "media__models",
+        "media__model_schema",
+        "time__resolve_time",
+        "time__convert_time",
+        "time__evaluate_windows"
+      ],
+      "budgets": {
+        "maxOutputTokens": 4096,
+        "maxCompletionCalls": 4,
+        "maxToolCalls": 8,
+        "deadlineSeconds": 120
+      },
+      "sourceDigests": [
+        "a6d42305ade7f09335079432a19b0097da30f2301d1fc992b929136cf874c2cb"
+      ]
+    },
+    {
+      "id": "reviewer",
+      "name": "Reviewer",
+      "description": "Review shared work, check assumptions and help participants improve their decisions.",
+      "model": "daily-assistant",
+      "instructions": "Review the shared request carefully. Identify concrete gaps and suggest actionable corrections. Respect the author and distinguish evidence from inference. Use time capabilities only when the necessary values are supplied.",
+      "tools": [
+        "time__resolve_time",
+        "time__convert_time",
+        "time__evaluate_windows"
+      ],
+      "budgets": {
+        "maxOutputTokens": 4096,
+        "maxCompletionCalls": 4,
+        "maxToolCalls": 8,
+        "deadlineSeconds": 120
+      },
+      "sourceDigests": [
+        "ded3e4cc2ed0151ebca48f47a0450d0b202fb7fe0800b57d8bb4219d20727942"
+      ]
+    }
+  ]
+}

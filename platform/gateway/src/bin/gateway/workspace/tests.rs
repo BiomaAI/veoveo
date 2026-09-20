@@ -30,7 +30,9 @@ pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
             .collect(),
         roles: Default::default(),
         group_roles: Default::default(),
-        scopes: Default::default(),
+        scopes: [ScopeName::new("operator:use").unwrap()]
+            .into_iter()
+            .collect(),
         data_labels: Default::default(),
         assurances: Default::default(),
         authenticated_at: None,
@@ -53,7 +55,7 @@ pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
         invocation_mode: InvocationMode::Direct,
         initiator: Some(principal.id.clone()),
         delegation_id: None,
-        scopes: Default::default(),
+        scopes: principal.scopes.clone(),
         jwt_id: Some(JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap()),
         issued_at: now,
         not_before: None,

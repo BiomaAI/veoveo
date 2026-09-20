@@ -406,7 +406,7 @@
             "controlPlaneKey",
             "controlPlaneRevision",
             "refreshDeliveryWindowSeconds",
-            "workspace"
+            "agents"
           ],
           "properties": {
             "existingControlPlaneConfigMap": {
@@ -427,15 +427,42 @@
               "minimum": 1,
               "maximum": 30
             },
-            "workspace": {
+            "agents": {
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "agents",
+                "models",
                 "modelSecrets"
               ],
               "properties": {
-                "agents": {
+                "modelSecrets": {
+                  "type": "object",
+                  "maxProperties": 16,
+                  "additionalProperties": false,
+                  "patternProperties": {
+                    "^VEOVEO_AGENT_MODEL_[A-Z0-9_]+$": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "existingSecret",
+                        "key"
+                      ],
+                      "properties": {
+                        "existingSecret": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 253
+                        },
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 253
+                        }
+                      }
+                    }
+                  }
+                },
+                "models": {
                   "type": "array",
                   "maxItems": 64,
                   "items": {
@@ -444,13 +471,14 @@
                     "required": [
                       "id",
                       "name",
-                      "description",
                       "provider",
                       "tenant",
                       "work_contexts",
-                      "instructions",
-                      "tools",
-                      "model"
+                      "base_url",
+                      "model",
+                      "api_key",
+                      "required_scopes",
+                      "limits"
                     ],
                     "properties": {
                       "id": {
@@ -463,11 +491,6 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 200
-                      },
-                      "description": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 2000
                       },
                       "provider": {
                         "type": "string",
@@ -490,79 +513,62 @@
                           "maxLength": 128
                         }
                       },
-                      "instructions": {
+                      "base_url": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 16384
+                        "maxLength": 2048,
+                        "pattern": "^https?://"
                       },
-                      "tools": {
+                      "model": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "api_key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "required_scopes": {
                         "type": "array",
                         "maxItems": 64,
                         "uniqueItems": true,
                         "items": {
                           "type": "string",
                           "minLength": 1,
-                          "maxLength": 256
+                          "maxLength": 128
                         }
                       },
-                      "model": {
+                      "limits": {
                         "type": "object",
                         "additionalProperties": false,
                         "required": [
-                          "base_url",
-                          "name",
-                          "api_key",
-                          "max_output_tokens"
+                          "maxOutputTokens",
+                          "maxCompletionCalls",
+                          "maxToolCalls",
+                          "deadlineSeconds"
                         ],
                         "properties": {
-                          "base_url": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 2048,
-                            "pattern": "^https?://"
-                          },
-                          "name": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 256
-                          },
-                          "api_key": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 128
-                          },
-                          "max_output_tokens": {
+                          "maxOutputTokens": {
                             "type": "integer",
                             "minimum": 1,
                             "maximum": 8192
+                          },
+                          "maxCompletionCalls": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 32
+                          },
+                          "maxToolCalls": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 64
+                          },
+                          "deadlineSeconds": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 900
                           }
-                        }
-                      }
-                    }
-                  }
-                },
-                "modelSecrets": {
-                  "type": "object",
-                  "maxProperties": 16,
-                  "additionalProperties": false,
-                  "patternProperties": {
-                    "^VEOVEO_WORKSPACE_MODEL_[A-Z0-9_]+$": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "existingSecret",
-                        "key"
-                      ],
-                      "properties": {
-                        "existingSecret": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 253
-                        },
-                        "key": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 253
                         }
                       }
                     }

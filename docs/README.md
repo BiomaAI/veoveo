@@ -47,7 +47,7 @@ limits.
 
 | Record | State |
 |---|---|
-| [Agent management](AGENT_MANAGEMENT_PLAN.md) | Accepted September 19; registry implementation started. API/UI, managed provisioning and installed acceptance remain outstanding. |
+| [Agent management](AGENT_MANAGEMENT_PLAN.md) | Accepted September 19; registry and authoring API/UI checkpoints implemented. Registry-backed execution, managed provisioning and installed acceptance remain in progress. |
 | [Workspace](WORKSPACE_PLAN.md) | First web release deployed September 16; later reactive behavior is recorded separately below. Distinct-person and production Task-input follow-ups remain documented. |
 | [Reactive UX](REACTIVE_UX_PLAN.md) | Deployed and verified September 17. Cold-catalog status presentation and large-scale performance experiments remain. |
 | [Computers](COMPUTERS_PLAN.md) | Core capability deployed with the Bioma configuration; browser, stock CLI, retained files and named agent authority have installed evidence. Clean/offline release closure and broader performance qualification remain separate gates. |
