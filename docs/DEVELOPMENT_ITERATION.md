@@ -913,3 +913,27 @@ but managed revision adoption refuses a changed template revision. That restrict
 prevents shipping a kernel patch to retained instances through the current API. Add
 an explicit, validated image-adoption path that retains existing identity and memory;
 do not introduce a second workload owner or bypass the template pin.
+
+### Managed image-adoption qualification — September 20, 2026
+
+Image adoption now uses the existing revision and controller lifecycle. Its test
+selection combines the gateway binary and agent-management database tests in one
+Cargo invocation. It passed 69 gateway tests and 14 database tests. A first compile
+failed on a test fixture's identifier constructor; the corrected check took 55.5
+seconds. Controller checks passed, including a five-second Kubernetes fixture that
+revokes executable admission while retaining permission to delete the owned workload.
+Rust lint took 32.6 seconds. The headed GPU browser regression took 5.3 seconds;
+Console build and lint took 6.7 and 7.1 seconds respectively.
+
+The source change also required requalifying kernel behavior against the updated store
+and shared contract. Scheduler and GPU pilot compilation took 58.41 and 77 seconds
+for their distinct dependency feature sets. Both checks passed. The installed baseline
+confirms all four retained runtime identities, signing keys and physical memory volumes
+before the upgrade. The simulator still has Pod UID
+`ae13626f-71ae-405b-9e10-b9485127cc01`.
+
+The initial preflight requested 293 GiB of free reserve plus 5 GiB growth, exceeding
+the 292 GiB then available. The scoped four-image budget now allows 20 GiB growth and
+retains 256 GiB free; it passes with no Kubernetes DiskPressure. This is an explicit
+build budget, not disk exhaustion or a cache purge. Publication selects gateway,
+kernel, manager and browser edge, and leaves the simulator image untouched.

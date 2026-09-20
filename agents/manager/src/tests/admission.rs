@@ -1,6 +1,8 @@
 //! Native Kubernetes admission qualification. It creates only a temporary
-//! namespace, service accounts, RBAC and policies; workload requests use dry-run.
+//! namespace, service accounts, RBAC and policies. One zero-replica Deployment
+//! qualifies retirement; executable workload requests use dry-run.
 use super::*;
+use crate::kubernetes::GENERATION;
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
@@ -353,6 +355,85 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
         !request(&extra_key, &actor)?.status.success(),
         "extra secret material was admitted"
     );
+    // A replaced installation template must not prevent retiring its old image.
+    // Keep zero replicas throughout: no fixture kernel or memory writer starts.
+    let mut stopped = deployment.clone();
+    stopped["spec"]["replicas"] = json!(0);
+    let created = success(command(
+        "kubectl",
+        &["create", "--as", &actor, "-f", "-", "-o", "json"],
+        Some(&stopped),
+    )?)?;
+    let stopped: Value = serde_json::from_slice(&created)?;
+    installation.objects.push(stopped.clone());
+    let policy_name = format!("{namespace}-managed-deployments");
+    let mut retired: Value = serde_json::from_slice(&success(command(
+        "kubectl",
+        &[
+            "get",
+            "validatingadmissionpolicy",
+            &policy_name,
+            "-o",
+            "json",
+        ],
+        None,
+    )?)?)?;
+    retired["spec"]["validations"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "expression":"false", "message":"Fixture retires all executable images."
+        }));
+    success(command("kubectl", &["replace", "-f", "-"], Some(&retired))?)?;
+    let retired_deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        let mut attempt: Value = serde_json::from_slice(&success(command(
+            "kubectl",
+            &[
+                "get",
+                "deployment",
+                &snapshot.instance.resources.workload,
+                "--namespace",
+                &namespace,
+                "-o",
+                "json",
+            ],
+            None,
+        )?)?)?;
+        attempt["metadata"]["annotations"][GENERATION] = json!("3");
+        let output = command(
+            "kubectl",
+            &["replace", "--dry-run=server", "--as", &actor, "-f", "-"],
+            Some(&attempt),
+        )?;
+        if !output.status.success() {
+            anyhow::ensure!(
+                String::from_utf8_lossy(&output.stderr)
+                    .contains("Fixture retires all executable images"),
+                "unexpected retirement denial: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            break;
+        }
+        anyhow::ensure!(
+            Instant::now() < retired_deadline,
+            "retired policy did not converge"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    success(command(
+        "kubectl",
+        &[
+            "delete",
+            "--as",
+            &actor,
+            "--wait=true",
+            "--timeout=15s",
+            "-f",
+            "-",
+        ],
+        Some(&stopped),
+    )?)?;
     installation.cleanup()?;
     Ok(())
 }

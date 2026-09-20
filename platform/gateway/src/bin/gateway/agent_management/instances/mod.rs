@@ -158,17 +158,19 @@ async fn update(
     Json(request): Json<wire::UpdateInstance>,
 ) -> Result<(StatusCode, Json<wire::LifecycleOperation>), Fault> {
     let actor = authority::admit(&state, profile, subject, Action::AgentInstancesControl).await?;
-    let mutation = match request.change {
-        wire::InstanceChange::State { desired } => ManagedAgentMutation::State {
-            desired: projection::desired(desired),
-        },
-        wire::InstanceChange::Revision { revision } => ManagedAgentMutation::Revision {
-            digest: revision.hex().to_owned(),
-        },
-        wire::InstanceChange::Stop => ManagedAgentMutation::Stop,
-        wire::InstanceChange::Retry => ManagedAgentMutation::Retry,
-    };
     let result = async {
+        let instance = state.store().managed_agent(&actor.authority, &id).await?;
+        let mut mutation = match request.change {
+            wire::InstanceChange::State { desired } => ManagedAgentMutation::State {
+                desired: projection::desired(desired),
+            },
+            wire::InstanceChange::Revision { revision } => ManagedAgentMutation::Revision {
+                digest: revision.hex().to_owned(),
+                image: instance.resources.image.clone(),
+            },
+            wire::InstanceChange::Stop => ManagedAgentMutation::Stop,
+            wire::InstanceChange::Retry => ManagedAgentMutation::Retry,
+        };
         if let Some(receipt) = state
             .store()
             .replay_managed_agent(
@@ -197,16 +199,28 @@ async fn update(
             ) {
                 return Err(Fault::status(StatusCode::FORBIDDEN));
             }
-            let instance = state.store().managed_agent(&actor.authority, &id).await?;
-            let projected = projection::instances(&state, &actor, vec![instance])
+            let projected = projection::instances(&state, &actor, vec![instance.clone()])
                 .await?
                 .pop()
                 .ok_or_else(Fault::unavailable)?;
             let digest = match &mutation {
-                ManagedAgentMutation::Revision { digest } => digest.as_str(),
+                ManagedAgentMutation::Revision { digest, .. } => digest.as_str(),
                 _ => projected.requested_revision.hex(),
             };
-            admission::template(&state, &actor, projected.definition.as_str(), digest).await?;
+            let template =
+                admission::template(&state, &actor, projected.definition.as_str(), digest).await?;
+            if let ManagedAgentMutation::Revision { image, .. } = &mut mutation {
+                let previous = state
+                    .store()
+                    .agent_revision(
+                        &actor.authority,
+                        projected.definition.as_str(),
+                        projected.requested_revision.hex(),
+                    )
+                    .await?;
+                *image =
+                    admission::revision_image(&previous, &instance.resources.image, &template)?;
+            }
         }
         authority::live_session(&state, &actor.profile, &actor.subject).await?;
         Ok(state

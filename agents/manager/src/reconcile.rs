@@ -67,7 +67,7 @@ impl Manager {
             }
             let execution = self.config.execution(&snapshot);
             if !snapshot.enabled || execution.is_err() {
-                self.scale_down(claim, instance).await?;
+                self.retire_workload(claim, instance).await?;
                 if !self.drained(&snapshot).await? {
                     return Ok(());
                 }
@@ -135,7 +135,7 @@ impl Manager {
                     self.observe(claim, ManagedAgentPhase::Draining).await?;
                 }
                 ManagedAgentPhase::Draining => {
-                    self.scale_down(claim, instance).await?;
+                    self.retire_workload(claim, instance).await?;
                     if !self.drained(&snapshot).await? {
                         return Ok(());
                     }
@@ -143,7 +143,7 @@ impl Manager {
                 }
                 ManagedAgentPhase::Workload => {
                     if (Utc::now() - instance.updated_at).num_seconds() > 600 {
-                        self.scale_down(claim, instance).await?;
+                        self.retire_workload(claim, instance).await?;
                         anyhow::bail!(
                             "kernel was not ready within 10 minutes; inspect scheduling, image availability, template and credentials, then retry"
                         );
@@ -221,34 +221,25 @@ impl Manager {
         Ok(())
     }
 
-    async fn scale_down(
+    async fn retire_workload(
         &self,
         claim: &ManagedAgentClaim,
         instance: &ManagedAgentInstance,
     ) -> Result<()> {
-        if let Some(mut deployment) = self
+        if let Some(deployment) = self
             .kube
             .get::<Deployment>(Resource::Deployments, &instance.resources.workload)
             .await?
         {
             owned(&deployment.metadata, &instance.resources.workload)?;
             owned_generation(&deployment.metadata, instance.generation)?;
-            if deployment.spec.replicas > 0
-                || deployment.metadata.annotations.get(GENERATION)
-                    != Some(&instance.generation.to_string())
-            {
-                deployment.spec.replicas = 0;
-                deployment
-                    .metadata
-                    .annotations
-                    .insert(GENERATION.into(), instance.generation.to_string());
+            if deployment.metadata.deletion_timestamp.is_none() {
+                // Retired images may no longer pass current CREATE/UPDATE admission.
+                // Foreground deletion only removes this owned workload; its signing
+                // Secret and retained memory remain independent resources.
                 self.store.renew_managed_agent_claim(claim).await?;
                 self.kube
-                    .replace::<_, Deployment>(
-                        Resource::Deployments,
-                        &instance.resources.workload,
-                        &deployment,
-                    )
+                    .delete(Resource::Deployments, &deployment.metadata)
                     .await?;
             }
         }
@@ -256,6 +247,14 @@ impl Manager {
     }
 
     async fn drained(&self, snapshot: &ManagedAgentReconciliation) -> Result<bool> {
+        if self
+            .kube
+            .get::<Deployment>(Resource::Deployments, &snapshot.instance.resources.workload)
+            .await?
+            .is_some()
+        {
+            return Ok(false);
+        }
         Ok(!snapshot.runtime.as_ref().is_some_and(|runtime| {
             runtime
                 .lease_expires_at
@@ -307,7 +306,7 @@ impl Manager {
         let instance = &snapshot.instance;
         if instance.observed == ManagedAgentPhase::Paused {
             if !snapshot.enabled {
-                self.scale_down(claim, instance).await?;
+                self.retire_workload(claim, instance).await?;
             }
             return Ok(());
         }
@@ -331,7 +330,7 @@ impl Manager {
             }
             return Ok(());
         }
-        self.scale_down(claim, instance).await?;
+        self.retire_workload(claim, instance).await?;
         if !self.drained(snapshot).await? {
             return Ok(());
         }

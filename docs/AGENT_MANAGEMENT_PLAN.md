@@ -534,6 +534,16 @@ Keep installation validation and controller generation fencing; direct Deploymen
 image edits would bypass that ownership. Coordinate template replacement with the
 pilot drain, publication and adoption before resuming work.
 
+The image-adoption path now passes gateway and real-store qualification. It proves
+that the approved template differs only by its image, then records that image with
+the explicitly requested revision. It rejects changed storage, configuration,
+membership and target parameters. A native Kubernetes fixture proves retirement
+remains available after executable admission is revoked. The manager uses foreground
+deletion and waits for the old Deployment, Pods and lease before activation; retained
+keys and memory are independent resources. The headed browser regression confirms
+that accepting the updated template preserves parameters and resource subscriptions.
+These changes await image publication and installed upgrade acceptance.
+
 Normal Workspace sign-in restored the expired browser session without another person.
 The headed RTX 4090 browser renders the definitions and managed inventory; authenticated
 session and Apps endpoints return HTTP 200. This does not replace installed Task or

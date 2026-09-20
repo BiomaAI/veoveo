@@ -443,7 +443,7 @@ async fn resumed_pilots_retain_runtime_identity_and_memory() -> Result<()> {
     let root = directory()?;
     let entries: Vec<PilotAdoption> =
         serde_json::from_reader(File::open(root.join("adoption-plan.json"))?)?;
-    ownership::verify(&entries, &root)?;
+    let template = ownership::verify_installed(&entries, &root)?;
     let store = installed().await?;
     for entry in entries {
         let current: ManagedAgentInstance = store
@@ -465,14 +465,32 @@ async fn resumed_pilots_retain_runtime_identity_and_memory() -> Result<()> {
             current.desired == ManagedAgentDesired::Running
                 && current.observed == ManagedAgentPhase::Ready
                 && current.generation >= 2
-                && current.active_generation == current.generation,
+                && current.active_generation == current.generation
+                && current.active_revision.as_ref() == Some(&current.requested_revision),
             "pilot {} has not converged",
             current.key
         );
+        let revision: AgentRevision = store
+            .client()
+            .select(current.requested_revision.clone())
+            .await?
+            .context("current pilot revision missing")?;
+        let AgentExecution::Managed {
+            template_revision, ..
+        } = revision.content.execution
+        else {
+            anyhow::bail!("pilot revision is not managed");
+        };
+        ensure!(
+            runtime_template_revision(&template).hex() == template_revision,
+            "pilot template is not currently approved"
+        );
+        let mut retained_resources = entry.instance.resources.clone();
+        retained_resources.image = template.workload.image.clone();
         ensure!(
             current.principal == entry.instance.principal
                 && current.identity == entry.instance.identity
-                && current.resources == entry.instance.resources
+                && current.resources == retained_resources
                 && current.public_key == entry.instance.public_key
                 && runtime.agent_key == entry.runtime.agent_key
                 && runtime.tenant == entry.runtime.tenant

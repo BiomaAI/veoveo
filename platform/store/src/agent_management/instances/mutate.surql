@@ -46,9 +46,10 @@ IF $mutation.kind = 'provision' {
         LET $old = SELECT * FROM ONLY $instance.requested_revision;
         IF $revision = NONE OR $revision.content.execution.kind != 'managed'
             OR $revision.content.execution.template != $old.content.execution.template
-            OR $revision.content.execution.template_revision != $old.content.execution.template_revision
             OR $revision.content.execution.parameters != $old.content.execution.parameters { THROW 'agent_conflict'; };
-        UPDATE ONLY $command.instance SET requested_revision = $revision.id;
+        IF $revision.content.execution.template_revision = $old.content.execution.template_revision
+            AND $mutation.image != $instance.resources.image { THROW 'agent_conflict'; };
+        UPDATE ONLY $command.instance SET requested_revision = $revision.id, resources.image = $mutation.image;
     } ELSE IF $mutation.kind = 'stop' {
         UPDATE ONLY $command.instance SET dispatch_epoch += 1;
         LET $runtime = array::first(SELECT * FROM agent WHERE tenant = $instance.tenant AND agent_key = $instance.key LIMIT 1);

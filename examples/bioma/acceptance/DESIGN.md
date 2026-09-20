@@ -43,6 +43,13 @@ Adopt the pilots paused. Remove the four static OAuth registrations and per-pilo
 Helm resources, then resume through the normal management API. The manager now owns
 each instance's workload; Helm installs the reviewed template and simulator.
 
+Transfer checks require the old release to remain suspended with its pilot Deployments
+drained. Installed checks instead require reconciliation to be active and the old
+Deployments absent. Both compare retained physical volumes and signing keys with the
+frozen migration evidence. The installed check permits the currently approved kernel
+image, verifies the template digest and keeps every other resource and identity binding
+equal to the original plan.
+
 Before new managed writes, coordinated recovery may restore the frozen configuration
 and records. After resume, use forward repair that preserves new work. The retained
 exports do not authorize overwriting subsequent edits, grants or memory.

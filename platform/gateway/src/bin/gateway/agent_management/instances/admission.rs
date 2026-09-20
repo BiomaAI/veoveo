@@ -194,3 +194,25 @@ pub(super) async fn provision(
         )
         .await?)
 }
+
+/// Qualify an image-only installation update without retaining another template
+/// catalog or weakening the immutable executable revision. The prior digest binds
+/// every configuration, storage and authority field that must remain unchanged.
+pub(super) fn revision_image(
+    previous: &domain::AgentRevision,
+    current_image: &str,
+    approved: &wire::RuntimeTemplate,
+) -> Result<String, Fault> {
+    let domain::AgentExecution::Managed {
+        template_revision, ..
+    } = &previous.content.execution
+    else {
+        return Err(Fault::status(StatusCode::CONFLICT));
+    };
+    let mut retained = approved.clone();
+    retained.workload.image = current_image.to_owned();
+    if runtime_template_revision(&retained).hex() != template_revision {
+        return Err(Fault::status(StatusCode::CONFLICT));
+    }
+    Ok(approved.workload.image.clone())
+}

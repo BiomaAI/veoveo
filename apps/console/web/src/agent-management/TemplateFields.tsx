@@ -17,7 +17,7 @@ export function TemplateFields({ templates, value, change }: { templates: Templa
     change({ ...value, execution: templateExecution(selected), tools: value.tools.filter(t => selected.tools.includes(t)) });
   }}>{!template && <option value={execution.template}>Unavailable template: {execution.template}</option>}{templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
     {template && <>
-      {template.revision !== execution.templateRevision && <p className="am-warning">This template changed. <button type="button" onClick={() => change({ ...value, execution: templateExecution(template) })}>Use the approved template</button></p>}
+      {template.revision !== execution.templateRevision && <p className="am-warning">This template changed. <button type="button" onClick={() => change({ ...value, execution: { ...execution, templateRevision: template.revision } })}>Use the approved template</button></p>}
       <p>Template parameters belong to each published revision. Changing parameters requires a new instance to preserve existing memory safely.</p>
       {template.parameters.map(p => <label key={p.name}>{p.label}{p.shape.kind === "choice" ? <select value={String(execution.parameters[p.name] ?? "")} onChange={e => change({ ...value, execution: { ...execution, parameters: { ...execution.parameters, [p.name]: e.target.value } } })}>{p.shape.values.map(v => <option key={v}>{v}</option>)}</select>
         : p.shape.kind === "boolean" ? <input type="checkbox" checked={execution.parameters[p.name] === true} onChange={e => change({ ...value, execution: { ...execution, parameters: { ...execution.parameters, [p.name]: e.target.checked } } })}/>

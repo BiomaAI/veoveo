@@ -49,6 +49,12 @@ operation even after configuration changes. Shared per-context capacity includes
 archived instances and their retained storage. Installation limits are
 `VEOVEO_AGENT_INSTANCE_LIMIT` and `VEOVEO_AGENT_STORAGE_LIMIT_GIB`.
 
+Revision adoption can select an approved template revision whose only changed
+installation field is the kernel image. The gateway proves that boundary against the
+prior immutable template digest. The public request remains a revision selection;
+it cannot supply an image or change retained storage, service authority or parameters.
+The existing generation drain activates the new image and revision together.
+
 The existing contentless agent event stream includes authorized lifecycle changes.
 Durable event heads recover missed hints; observation does not call a model or query
 a provider's job status. Public projections omit deployment Secret and image details.

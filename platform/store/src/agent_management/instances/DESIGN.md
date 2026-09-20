@@ -55,6 +55,12 @@ managed registrations and recheck this record for already-issued tokens.
 
 Mutation receipts can be recovered before repeating external configuration validation.
 Replay still checks the current actor and Work Context and rejects a changed payload.
+Revision adoption accepts the gateway's admitted immutable image alongside the public
+revision digest. The transaction updates that image and requested revision together;
+template identity, parameter bindings and every retained resource name stay fixed.
+An image change requires a changed template revision. The derived image is excluded
+from the public-request fingerprint, so replay returns the original operation after
+installation configuration changes. Image and storage fields remain server-owned.
 Management event heads include only instance changes visible to the current owner or
 context manager. Definition and lifecycle invalidations share the existing browser stream.
 
