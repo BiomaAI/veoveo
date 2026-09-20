@@ -422,6 +422,34 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-bioma-acceptance",
+        "--test",
+        "pilot_cutover",
+        "resumed_pilots_retain_runtime_identity_and_memory",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-bioma-acceptance"
+        ],
+        "roots": [
+          "examples/bioma",
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

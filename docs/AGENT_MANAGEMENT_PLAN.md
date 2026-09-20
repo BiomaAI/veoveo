@@ -7,9 +7,10 @@ and have installed browser/model evidence. Managed lifecycle admission, kernel f
 The lifecycle manager and effective OAuth registration are deployed. A newly authored
 managed pilot has completed a real model request, retained its identity and storage
 through pause/resume and manager restart, and made zero additional model calls during
-a fourteen-minute idle observation. The four retained UAV pilots are paused for the
-qualified ownership transfer; their migration and remaining domain/Task acceptance
-are outstanding. Current component
+a fourteen-minute idle observation. The four retained UAV pilots now run under managed lifecycle ownership with their
+original runtime IDs, principals, signing keys and physical memory volumes. Removal
+of the suspended per-pilot Helm packaging and remaining domain/Task acceptance are
+outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols
@@ -463,8 +464,11 @@ without changing their runtime identities, principals or grants. It rejects stal
 source records, a still-leased writer and takeover of a later managed generation;
 failed adoption leaves no partial lifecycle or capacity records. The live pilots were adopted paused with their original signing keys and physical
 volumes. The installed native check confirmed the transfer and unchanged runtime
-records, principals and vehicle grants. Static registration and Helm ownership
-cutover precede their managed resume.
+records, principals and vehicle grants. GitOps commit `9dfcd384` removed static pilot registration and activated the corrected
+gateway and manager images from `4295b164`. All four pilots resumed through Console
+at generation 2 and acknowledged Ready with the same runtime IDs. Their memory
+startup applied zero new migrations. The old pilot Deployments remain at zero
+replicas under the suspended UAV Helm release until its per-pilot packaging is removed.
 
 Iteration findings: the final gateway fix took about 104 seconds to stage, including
 95 seconds of compilation; GitOps source/root convergence took 11/25 seconds. A prior
@@ -472,3 +476,12 @@ cold simulator pull took 424 seconds and dominated that rollout. Unregistered te
 commands also caused avoidable evidence churn: their repository-wide snapshot included
 hydrated LFS assets, while GitHub had pointers. Component-scoped registered commands
 produce the intended evidence without expanding the workflow's checkout.
+
+
+The managed-only profile cutover exposed another static-registration assumption in
+control-plane validation. A client-credentials profile can now exist before its first
+managed client is admitted. Browser authorization still requires its configured
+clients, and service token issuance still requires the current effective registration.
+All 32 control-plane checks and the Bioma/Helm checks passed. The gateway and manager
+built together in 90.3 seconds, with 79.8 seconds of shared compilation. Activation
+reused the kernel and simulator images.
