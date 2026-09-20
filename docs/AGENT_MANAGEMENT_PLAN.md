@@ -9,8 +9,9 @@ managed pilot has completed a real model request, retained its identity and stor
 through pause/resume and manager restart, and made zero additional model calls during
 a fourteen-minute idle observation. The four retained UAV pilots now run under managed lifecycle ownership with their
 original runtime IDs, principals, signing keys and physical memory volumes. Removal
-of the suspended per-pilot Helm packaging and remaining domain/Task acceptance are
-outstanding. Current component
+of the suspended per-pilot Helm packaging is implemented locally, with current-grant
+App discovery and native pilot Task/memory/telemetry qualification. Its rollout and
+the remaining installed domain/Task acceptance are outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols
@@ -53,7 +54,7 @@ generic implementation.
 | Workspace definitions | Durable registry with approved installation model connections | Durable editable catalog with publication and current authorization |
 | Chat participants | Owner adds a definition through [Workspace routes](../platform/gateway/src/bin/gateway/workspace/runs/mod.rs); admission retains its digest | Bind an explicit published revision and disclose updates |
 | Durable agents | [Kernel startup](../agents/kernel/src/bin/agent/run.rs) loads a manifest and registers the runtime record | Admit managed instances before startup and provision their resources |
-| UAV packaging | [Helm](../showcase/uav-sim/deploy/helm/templates/agent-deployments.yaml) supplies isolated processes, identities and storage | Install a reviewed template; create individual pilots through the API |
+| UAV packaging | [Helm](../showcase/uav-sim/deploy/helm/DESIGN.md) installs the simulator and reviewed pilot template | Individual pilots use the management API and lifecycle manager |
 | Console | [Agents view](../apps/console/web/src/views/Agents.tsx) observes state, sends messages and answers input requests | Author definitions, inspect authority and manage instances |
 
 The chat worker and durable kernel have different context and lifetime requirements.

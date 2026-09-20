@@ -450,6 +450,102 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-uav-sim-mcp"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-uav-sim-mcp"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-uav-sim-mcp",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-uav-sim-mcp"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-platform-store",
+        "--lib"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store"
+        ],
+        "roots": [
+          "testing/fixtures"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "agent-pilot"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask",
+          "veoveo-smoke",
+          "veoveo-mcp-conformance",
+          "veoveo-frames-mcp",
+          "veoveo-optimization-mcp",
+          "veoveo-mcp-gateway",
+          "veoveo-artifact-service",
+          "veoveo-agent-kernel"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs",
+          "showcase/uav-sim/deploy/helm/files/agent-template"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

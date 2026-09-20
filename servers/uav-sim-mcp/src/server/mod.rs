@@ -1,5 +1,6 @@
 //! Hosted server implementation.
 mod admin;
+mod agent_targets;
 mod auth;
 mod config;
 mod control_authority;

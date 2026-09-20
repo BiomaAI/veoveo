@@ -947,8 +947,9 @@ Every affected `.spec.template.spec` remained identical. The changing field was
 
 The owning platform templates are `domain-services.yaml`, `gateway.yaml`,
 `recording.yaml`, `stream.yaml`, and `reason.yaml` under `deploy/helm/veoveo/templates`.
-The UAV templates are `deployment.yaml` and `agent-deployments.yaml` under
-`showcase/uav-sim/deploy/helm/templates`.
+The audit covered the UAV runtime and the former per-pilot templates. The current
+[UAV chart](../showcase/uav-sim/deploy/helm/DESIGN.md) owns the simulator and MCP
+companion; the managed lifecycle now owns pilot workloads.
 A Pod-template metadata change triggers a Deployment rollout.
 [Kubernetes defines this rollout boundary](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#updating-a-deployment).
 

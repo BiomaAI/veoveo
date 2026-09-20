@@ -627,11 +627,11 @@ pub(crate) async fn agent_kernel_scheduler(
 
 /// The Pilot mission: the full agent loop over real frame conversion and planning.
 ///
-/// One operator objective drives the whole choreography — record a target
-/// (memory_write), convert the target (frames__convert_frame, inline),
-/// dispatch a selection MILP (optimization__solve_milp, task-required), then record the
-/// waypoint when the plan lands and declare the mission planned. The pilot's
-/// real domain migrations from configs/agents/pilot are applied verbatim.
+/// One scripted objective records a mission intent, converts a position with
+/// Frames and dispatches a selection MILP through an official MCP Task. Its
+/// completion records a resource bookmark. This qualifies memory and Task
+/// orchestration, not UAV flight admission. The pilot's
+/// real domain migrations from showcase/uav-sim/deploy/helm/files/agent-template are applied verbatim.
 pub(crate) async fn agent_pilot_mission(
     conformance: &Path,
     frames: &Path,
@@ -760,10 +760,11 @@ pub(crate) async fn agent_pilot_mission(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, 3).await?;
 
     // The pilot's real domain migrations, applied verbatim.
-    let migrations_dir = fs::canonicalize("configs/agents/pilot/migrations")?;
+    let migrations_dir =
+        fs::canonicalize("showcase/uav-sim/deploy/helm/files/agent-template/migrations")?;
     let manifest_path = tmpdir.join("pilot-manifest.json");
     fs::write(
         &manifest_path,
@@ -791,13 +792,13 @@ pub(crate) async fn agent_pilot_mission(
             "episode": { "max_turns": 8, "task_deadline_s": 120 },
             "schedule": { "heartbeat_interval_s": 30, "wake_coalesce_window_ms": 100 },
             "memory": {
-                "memory_write_tables": ["targets", "missions", "waypoints", "constraints", "beliefs"]
+                "memory_write_tables": ["mission_intents", "resource_bookmarks"]
             },
             "context": {
                 "sections": [{
-                    "name": "Active targets",
+                    "name": "Open mission intents",
                     "priority": 1,
-                    "sql": "SELECT target_id, name, lat, lon FROM targets WHERE status = 'active' ORDER BY priority DESC LIMIT 20"
+                    "sql": "SELECT mission_key, operator_request, state FROM mission_intents WHERE state = 'received' ORDER BY updated_at DESC LIMIT 20"
                 }]
             },
             "migrations_dir": migrations_dir,
@@ -834,7 +835,7 @@ pub(crate) async fn agent_pilot_mission(
         agent_env,
         &agent_log,
     )?;
-    wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 2, 240).await?;
+    wait_for_task_result_episode(&agent_log).await?;
     wait_for_log_occurrences(&agent_log, "gateway connection rotated", 3, 120).await?;
     agent_child.stop();
 
@@ -857,12 +858,14 @@ pub(crate) async fn agent_pilot_mission(
 
     {
         let ledger = duckdb::Connection::open(agent_data_dir.join("memory.duckdb"))?;
-        let targets: i64 =
-            ledger.query_row("SELECT COUNT(*) FROM targets", [], |row| row.get(0))?;
-        let waypoints: i64 =
-            ledger.query_row("SELECT COUNT(*) FROM waypoints", [], |row| row.get(0))?;
-        if targets != 1 || waypoints != 1 {
-            bail!("pilot memory had {targets} targets / {waypoints} waypoints, expected 1/1");
+        let intents: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM mission_intents", [], |row| row.get(0))?;
+        let bookmarks: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM resource_bookmarks", [], |row| {
+                row.get(0)
+            })?;
+        if intents != 1 || bookmarks != 1 {
+            bail!("pilot memory had {intents} intents / {bookmarks} bookmarks, expected 1/1");
         }
         let planned: i64 = ledger.query_row(
             "SELECT COUNT(*) FROM agent_memory.episode_log WHERE final_output LIKE '%MISSION PLANNED%'",
@@ -969,13 +972,13 @@ pub(crate) async fn agent_pilot_mission(
     contains(&replay, "\"applied\":2")?;
     {
         let replayed = duckdb::Connection::open(agent_data_dir.join("memory.replayed.duckdb"))?;
-        let (targets, waypoints): (i64, i64) = replayed.query_row(
-            "SELECT (SELECT COUNT(*) FROM targets), (SELECT COUNT(*) FROM waypoints)",
+        let (intents, bookmarks): (i64, i64) = replayed.query_row(
+            "SELECT (SELECT COUNT(*) FROM mission_intents), (SELECT COUNT(*) FROM resource_bookmarks)",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
-        if targets != 1 || waypoints != 1 {
-            bail!("replay rebuilt {targets} targets / {waypoints} waypoints, expected 1/1");
+        if intents != 1 || bookmarks != 1 {
+            bail!("replay rebuilt {intents} intents / {bookmarks} bookmarks, expected 1/1");
         }
     }
 
@@ -1287,6 +1290,42 @@ pub(crate) async fn agent_sleep_wake(
         if live { "live model" } else { "scripted model" }
     );
     Ok(())
+}
+
+/// A resource notification may finish an episode before the Task result arrives.
+/// Wait for completion of the episode that actually consumed the result.
+async fn wait_for_task_result_episode(file: &Path) -> Result<()> {
+    #[derive(serde::Deserialize)]
+    struct Event {
+        message: String,
+        episode_id: Option<uuid::Uuid>,
+        wake_note: Option<String>,
+    }
+    for _ in 0..240 {
+        let mut result_episodes = std::collections::HashSet::new();
+        let contents = fs::read_to_string(file).unwrap_or_default();
+        for event in contents
+            .lines()
+            .filter_map(|line| serde_json::from_str::<Event>(line).ok())
+        {
+            let Some(id) = event.episode_id else {
+                continue;
+            };
+            if event.message == "episode started"
+                && event
+                    .wake_note
+                    .as_deref()
+                    .is_some_and(|note| note.split('+').any(|kind| kind == "task_result"))
+            {
+                result_episodes.insert(id);
+            }
+            if event.message == "episode completed" && result_episodes.contains(&id) {
+                return Ok(());
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    bail!("no completed Task-result episode in {}", file.display())
 }
 
 /// Poll a child's log file until it contains `needle`.

@@ -17,5 +17,4 @@ pub(super) struct AppState {
     pub(super) live_views: Arc<LiveViewService>,
     pub(super) live_view_audit: Arc<LiveViewAudit>,
     pub(super) live_view_connect_origin: String,
-    pub(super) agent_message_targets: Vec<String>,
 }

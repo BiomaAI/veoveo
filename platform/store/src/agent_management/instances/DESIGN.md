@@ -63,3 +63,13 @@ episode. Stop advances the dispatch epoch and atomically terminates its active e
 and consumed wakes. A late completion preserves the stopped result. Pause may retain
 a kernel lease for Task observation once the active episode is terminal; activating a
 new workload generation or archiving still requires the old lease to end.
+
+
+## Domain Discovery Notifications
+
+Domain App catalogs may observe managed lifecycle and definition changes through the
+store's closed `ResourceChangeTable` native LIVE sources. The watcher projects record
+identities into an invalidation signal and re-establishes discovery after reconnect.
+Registry tables retain their existing durable outbox; a LIVE subscription does not
+require another persisted database changefeed. Current domain grants and managed
+registration remain authoritative on every catalog read and operation.

@@ -291,6 +291,12 @@ identities and may be presented under the producing domain's canonical scheme.
 
 ## Runtime Boundary
 
+Shared telemetry exports OTLP/HTTP protobuf logs and traces only when an endpoint
+is configured. Its batch processors use OS threads, so the HTTP exporter selects
+the blocking client explicitly. Cargo feature unification must not switch that
+client to one requiring an ambient Tokio reactor. Standard per-signal and global
+OTLP timeouts remain in milliseconds, with the upstream ten-second default.
+
 A hosted server owns its domain models and declared schemas and consumes the
 shared mechanics of `veoveo_mcp_contract` rather than reimplementing them:
 task records and the task runtime, webhook waiters, resource subscriptions,

@@ -1024,9 +1024,16 @@ impl ServerHandler for UavSimMcp {
             }));
         }
         if identity_has_scope(&identity, "uav-sim:stream") {
+            let targets = super::agent_targets::targets(
+                self.state.tasks.platform_store(),
+                &identity,
+                &state.session_id,
+            )
+            .await
+            .map_err(internal)?;
             resources.push(live_app_resource(
                 &self.state.live_view_connect_origin,
-                &self.state.agent_message_targets,
+                &targets,
             ));
             let live_session_id: LiveSessionId =
                 state.session_id.as_str().parse().map_err(invalid)?;
@@ -1602,16 +1609,6 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         "public live-stream URL must have an HTTP(S) origin"
     );
     let subscribers = Arc::new(SubscriptionHub::new());
-    let agent_message_targets = if args.agent_message_targets.is_empty() {
-        Vec::new()
-    } else {
-        let resource = veoveo_mcp_apps_extension::with_agent_message_targets(
-            veoveo_mcp_apps_extension::app_resource(uris::LIVE_APP_URI, "uav-sim-live-app"),
-            args.agent_message_targets.iter().cloned(),
-        )
-        .ok_or_else(|| anyhow::anyhow!("UAV_SIM_AGENT_MESSAGE_TARGETS is invalid"))?;
-        veoveo_mcp_apps_extension::resource_agent_message_targets(&resource)
-    };
     let runtime_event_listener = (args.adapter == AdapterKind::Http).then(|| {
         super::runtime_events::RuntimeEventListener::new(
             runtime_session_id,
@@ -1627,7 +1624,6 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         live_views: live_views.clone(),
         live_view_audit,
         live_view_connect_origin,
-        agent_message_targets,
     });
     for snapshot in recovery.resumable {
         resume_queued_operation(state.clone(), snapshot)
@@ -1636,6 +1632,11 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     }
 
     let shutdown = CancellationToken::new();
+    let target_observer = tokio::spawn(super::agent_targets::observe(
+        state.tasks.platform_store().clone(),
+        subscribers.clone(),
+        shutdown.child_token(),
+    ));
     let runtime_event_task = runtime_event_listener
         .map(|listener| tokio::spawn(listener.run(subscribers.clone(), shutdown.child_token())));
     let verifier = GatewayInternalTokenVerifier::new(
@@ -1728,6 +1729,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     if !live_stream_task.is_finished() {
         live_stream_task.await??;
     }
+    target_observer.await?;
     if let Some(task) = runtime_event_task {
         task.await?;
     }

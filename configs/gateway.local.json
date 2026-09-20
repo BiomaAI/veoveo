@@ -5365,7 +5365,7 @@
           "metadata": {}
         },
         {
-          "id": "allow_uav_pilot_vehicle_control",
+          "id": "allow_managed_uav_pilot_vehicle_control",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -5397,17 +5397,17 @@
           "resource_schemes": [
             "uav-sim"
           ],
-          "principal_ids": [
-            "https://veoveo.example/oauth#uav-1-pilot",
-            "https://veoveo.example/oauth#uav-2-pilot",
-            "https://veoveo.example/oauth#uav-3-pilot",
-            "https://veoveo.example/oauth#uav-4-pilot"
-          ],
           "required_scopes": [
             "operator:use",
             "uav-sim:control"
           ],
-          "metadata": {}
+          "metadata": {},
+          "roles": [
+            "uav-pilot"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ]
         },
         {
           "id": "allow_admin_service_recording_use",
@@ -5634,11 +5634,7 @@
             "recording-producer",
             "operator-local-public",
             "operator-hosted-public",
-            "operator-service",
-            "uav-1-pilot",
-            "uav-2-pilot",
-            "uav-3-pilot",
-            "uav-4-pilot"
+            "operator-service"
           ]
         },
         {
@@ -5959,134 +5955,6 @@
       "jwks": {
         "source": "remote",
         "jwks_uri": "https://services.enterprise.example/.well-known/veoveo-service-jwks.json"
-      },
-      "tenant": "enterprise"
-    },
-    {
-      "id": "uav-1-pilot",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "UAV 1 Pilot",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
-        "https://veoveo.example/mcp/agent"
-      ],
-      "grant_types": [
-        "client_credentials"
-      ],
-      "auth_methods": [
-        "private_key_jwt"
-      ],
-      "allowed_scopes": [
-        "operator:use",
-        "uav-sim:control",
-        "map:dataset:read",
-        "map:route",
-        "time:read"
-      ],
-      "metadata": {
-        "client_boundary": "agent"
-      },
-      "jwks": {
-        "source": "file",
-        "path": "examples/bioma/uav-pilot-jwks.json"
-      },
-      "tenant": "enterprise"
-    },
-    {
-      "id": "uav-2-pilot",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "UAV 2 Pilot",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
-        "https://veoveo.example/mcp/agent"
-      ],
-      "grant_types": [
-        "client_credentials"
-      ],
-      "auth_methods": [
-        "private_key_jwt"
-      ],
-      "allowed_scopes": [
-        "operator:use",
-        "uav-sim:control",
-        "map:dataset:read",
-        "map:route",
-        "time:read"
-      ],
-      "metadata": {
-        "client_boundary": "agent"
-      },
-      "jwks": {
-        "source": "file",
-        "path": "examples/bioma/uav-pilot-jwks.json"
-      },
-      "tenant": "enterprise"
-    },
-    {
-      "id": "uav-3-pilot",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "UAV 3 Pilot",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
-        "https://veoveo.example/mcp/agent"
-      ],
-      "grant_types": [
-        "client_credentials"
-      ],
-      "auth_methods": [
-        "private_key_jwt"
-      ],
-      "allowed_scopes": [
-        "operator:use",
-        "uav-sim:control",
-        "map:dataset:read",
-        "map:route",
-        "time:read"
-      ],
-      "metadata": {
-        "client_boundary": "agent"
-      },
-      "jwks": {
-        "source": "file",
-        "path": "examples/bioma/uav-pilot-jwks.json"
-      },
-      "tenant": "enterprise"
-    },
-    {
-      "id": "uav-4-pilot",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "UAV 4 Pilot",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
-        "https://veoveo.example/mcp/agent"
-      ],
-      "grant_types": [
-        "client_credentials"
-      ],
-      "auth_methods": [
-        "private_key_jwt"
-      ],
-      "allowed_scopes": [
-        "operator:use",
-        "uav-sim:control",
-        "map:dataset:read",
-        "map:route",
-        "time:read"
-      ],
-      "metadata": {
-        "client_boundary": "agent"
-      },
-      "jwks": {
-        "source": "file",
-        "path": "examples/bioma/uav-pilot-jwks.json"
       },
       "tenant": "enterprise"
     },

@@ -845,3 +845,27 @@ closure where practical. Avoid concurrent Cargo commands against the same target
 folder, since they serialize on its lock. Exact command registration also matters:
 component-scoped evidence avoids the unrelated hydrated-LFS differences observed in
 repository-wide fallback receipts.
+
+The UAV packaging cutover's first native pilot smoke compiled its broad dependency
+closure in 246 seconds. Warm fixture edits then compiled in 8–18 seconds. The smoke
+crate still brings Recording, Stream and SUMO code into this focused agent scenario;
+reducing that compile boundary is a follow-up performance opportunity. Its default
+local cuOpt image was absent, so qualification explicitly selected the installed
+executor digest `14e54f2e0d4192ee1c7dec908b867f766c800e60c3673e76d686219f36065f45`.
+Image availability belongs in a prerequisite check before that cold compile.
+
+The old smoke fixture also referenced a deleted memory schema and an obsolete Task
+wake phrase. Its script mistook an operator request retained in memory for a new
+instruction. Qualification now uses the packaged schema, matches only the current
+wake for initial dispatch, waits for completion of the Task-result episode, and
+asserts one accepted Task. These fixture repairs preserve the duplicate-dispatch
+assertion rather than relaxing it.
+
+The final telemetry assertion exposed a runtime bug: OTLP's unified feature graph
+selected an async HTTP client for OS-thread batch processors. Both export threads
+panicked without a Tokio reactor. Shared telemetry now selects the blocking client
+explicitly and preserves standard export timeouts. The native GPU pilot smoke passed
+with actual log and trace delivery. This uses the existing exact Reqwest 0.13.5 pin,
+verified against its [upstream release](https://github.com/seanmonstar/reqwest/releases/tag/v0.13.5).
+Bioma currently configures service names but no OTLP export endpoint; this defect did
+not interrupt its managed pilot execution.

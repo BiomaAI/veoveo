@@ -138,13 +138,13 @@ pub(super) async fn cmd_otlp_http_sink(
 /// smoke tests. The script is keyed off conversation shape, so it is
 /// deterministic across retries.
 ///
-/// Boot episode (no `Background task update` in the messages):
+/// Boot episode (no `Authoritative background-task continuation:` in the messages):
 /// 1. `memory_query` over the kernel ledger;
 /// 2. `media__run` (webhook-delayed task, guaranteed to outlive the episode
 ///    and detach);
 /// 3. announce waiting, stop.
 ///
-/// Wake episode (a message contains `Background task update`):
+/// Wake episode (a message contains `Authoritative background-task continuation:`):
 /// 1. `memory_write` recording the outcome;
 /// 2. `timeline_query` over the decision log;
 /// 3. final answer, stop.
@@ -175,7 +175,7 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
     };
     let has_task_update = messages
         .iter()
-        .any(|message| text_of(message).contains("Background task update"));
+        .any(|message| text_of(message).contains("Authoritative background-task continuation:"));
     let has_heartbeat = messages
         .iter()
         .any(|message| text_of(message).contains("Scheduled heartbeat"));
@@ -187,29 +187,37 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
         .filter(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
         .count();
 
-    let has_pilot_ask = messages
+    let has_pilot_context = messages
         .iter()
         .any(|message| text_of(message).contains("Add target alpha"));
+    // The stored operator request remains in SQL-backed context on later wakes.
+    // Only the current wake can ask the script to dispatch a new mission.
+    let has_pilot_ask = messages.iter().any(|message| {
+        let text = text_of(message);
+        text.split_once("## Wake\n\n")
+            .and_then(|(_, body)| body.split("\n\n## ").next())
+            .is_some_and(|wake| wake.contains("Add target alpha"))
+    });
     let has_optimization_update = messages.iter().any(|message| {
         let text = text_of(message);
-        text.contains("Background task update") && text.contains("optimization__solve_milp")
+        text.contains("Authoritative background-task continuation:")
+            && text.contains("optimization__solve_milp")
     });
 
     if has_heartbeat && !has_task_update && !has_episode_count_ask && !has_pilot_ask {
         return AxumJson(fake_llm_stop_response(&request, "IDLE."));
     }
-    // The pilot mission script: record the target, measure the leg, dispatch
-    // a selection MILP as a task; on the solution result, record the waypoint.
+    // The pilot memory script records an intent and dispatches a selection MILP.
+    // The completed task adds a resource bookmark using the current pilot schema.
     if has_optimization_update {
         let choice = match assistant_turns {
             0 => fake_llm_tool_call_choice(
                 "memory_write",
                 json!({
                     "op": "insert",
-                    "table": "waypoints",
+                    "table": "resource_bookmarks",
                     "row": {
-                        "waypoint_id": "wp-1", "mission_id": "m-1", "seq": 1,
-                        "lat": 37.8044, "lon": -122.2712, "source_task_id": "optimization-plan"
+                        "name": "alpha-selection", "uri": "optimization://solutions"
                     }
                 }),
             ),
@@ -217,16 +225,20 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
         };
         return AxumJson(fake_llm_response(&request, choice));
     }
+    if has_pilot_context && !has_pilot_ask {
+        return AxumJson(fake_llm_stop_response(&request, "AWAITING OPTIMIZATION."));
+    }
     if has_pilot_ask && !has_task_update {
         let choice = match assistant_turns {
             0 => fake_llm_tool_call_choice(
                 "memory_write",
                 json!({
                     "op": "insert",
-                    "table": "targets",
+                    "table": "mission_intents",
                     "row": {
-                        "target_id": "alpha", "name": "Alpha", "kind": "poi",
-                        "lat": 37.7749, "lon": -122.4194, "priority": 1, "status": "active"
+                        "mission_key": "alpha",
+                        "operator_request": "Add target alpha at 37.7749,-122.4194 and plan the visit.",
+                        "state": "received"
                     }
                 }),
             ),

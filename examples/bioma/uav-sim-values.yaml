@@ -8,10 +8,9 @@ platform:
   adapterSecret: veoveo-uav-sim-adapter
   recordingTenantKey: bioma
 
-agents:
+agentTemplate:
   enabled: true
-  tenant: bioma
-  gatewayUrl: https://veoveo.bioma.ai
+  namespace: veoveo-agents
 
 recording:
   mapProvider: openStreetMap

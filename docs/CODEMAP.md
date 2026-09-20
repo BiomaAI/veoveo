@@ -404,7 +404,7 @@ schema merely because the server is first-party.
 | `subscriptions.rs` | request-scoped resource and list-change event hub for final `subscriptions/listen` streams |
 | `protocol.rs` | sole final MCP revision, shared cache lifetimes, and bounded W3C trace metadata validation |
 | `transport.rs` | canonical stateless Streamable HTTP configuration, no-session adapter, and whole-response 8 MiB final JSON budget enforcement |
-| `telemetry.rs` | tracing/log initialization and guards |
+| `telemetry.rs` | tracing/log initialization and guards; explicit blocking OTLP/HTTP clients for OS-thread batch export |
 
 ### `mcp/composer`
 
@@ -658,7 +658,9 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | durable audit projection for camera, product, authorization, denial, expiry, and revocation events |
 | `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready HTTP stream ingestion, immutable binding reapplication trigger, and subscribed live-camera notification |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained authoritative-camera selection and multi-view live App |
-| `showcase/uav-sim/agents/` | reviewed parameterized pilot manifest and durable memory schema; geographic work data remains outside agent memory |
+| [`showcase/uav-sim/agents/`](../showcase/uav-sim/agents/DESIGN.md) | managed pilot seed instructions and domain memory ownership; geographic work data remains outside agent memory |
+| [`showcase/uav-sim/deploy/helm/`](../showcase/uav-sim/deploy/helm/DESIGN.md) | simulator packaging and canonical managed pilot manifest/memory schema under `files/agent-template`; no per-pilot workloads or credentials |
+| `servers/uav-sim-mcp/src/server/agent_targets.rs` | bounded App message-target discovery from managed identity and active vehicle grants, with shared database catalog invalidation |
 | `showcase/uav-sim/map/` | Map-owned named-place and operational air-network source fixture for the showcase |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the canonical Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, authoritative logical cameras, shared camera-owned RTX/NVENC products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/fleet_runtime.py` | 30 Hz CUDA fleet authority, direct Newton Experimental tensor-state writes, and ordered 60 Hz PX4 HIL publication without MuJoCo-Warp stepping |

@@ -249,12 +249,9 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
         *media = frames;
         servers.push(optimization);
     }
-    for profile_id in ["operator", "admin"] {
-        let profiles = control_plane_array_mut(&mut control_plane, "profiles")?;
-        let profile = profiles
-            .iter_mut()
-            .find(|profile| profile.get("id").and_then(Value::as_str) == Some(profile_id))
-            .ok_or_else(|| anyhow!("control plane has no `{profile_id}` profile"))?;
+    // Every base profile must reference the replacement fixture servers.
+    // Only the operator/admin policy below admits this scenario's tool calls.
+    for profile in control_plane_array_mut(&mut control_plane, "profiles")? {
         profile["servers"] = serde_json::json!([
             pilot_profile_exposure(
                 "frames",
