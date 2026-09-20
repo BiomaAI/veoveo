@@ -103,6 +103,14 @@ capped at 64 KiB, stored response envelopes at 1 MiB, and the existing browser e
 bounds forwarded JSON at 4 MiB. Tool discovery stops after 16 pages or 512 tools.
 Resource links retain canonical URIs; they do not become direct storage URLs.
 
+Required-capability admission opens a native tool-list subscription before reading an
+isolated catalog. When a required server is still unavailable, admission waits for its
+list-change notification and reads a fresh bounded catalog. This settlement has an
+eight-second deadline and never dispatches a tool or model call. Missing notifications,
+closed streams and unresolved capabilities fail admission. Optional unavailable servers
+cannot block publication of an unrelated capability. Ordinary inventory reads retain
+their partial-catalog behavior.
+
 The result projection also preserves inline PNG, JPEG and WebP MCP image blocks.
 It admits at most eight images and 1 MiB of encoded image data per result, validates
 standard base64, and reports the count of omitted image blocks. Unsupported media

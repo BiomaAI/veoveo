@@ -1,5 +1,7 @@
 mod apps;
+mod catalog;
 mod commands;
+use catalog::tools;
 mod events;
 mod inputs;
 mod native;
@@ -18,7 +20,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header::CACHE_CONTROL},
     routing::{get, post},
 };
-use rmcp::model::{GetTaskParams, PaginatedRequestParams};
+use rmcp::model::GetTaskParams;
 use secrecy::SecretString;
 use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
@@ -26,10 +28,7 @@ use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 use tower_http::set_header::SetResponseHeaderLayer;
 use uuid::Uuid;
-use veoveo_mcp_contract::{
-    GatewayDiscoveryDegradation, GatewayDiscoverySurface, GatewayProfileId, GatewayToolName,
-    workspace as wire,
-};
+use veoveo_mcp_contract::{GatewayProfileId, GatewayToolName, workspace as wire};
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
 use veoveo_platform_store::{
     PlatformStore, WorkspaceChatId, WorkspaceOperationId,
@@ -88,7 +87,7 @@ impl OperationState {
         required: &[GatewayToolName],
     ) -> Result<Vec<rmcp::model::Tool>, StatusCode> {
         let client = self.native.connect(&caller.profile, &caller.bearer).await?;
-        let result = catalog_tools(&client, Some(required)).await;
+        let result = catalog::required_tools(&client, required).await;
         client.close().await;
         result
     }
@@ -187,52 +186,6 @@ pub(crate) fn router(state: OperationState) -> Router {
 
 fn profile(value: String) -> Result<GatewayProfileId, StatusCode> {
     GatewayProfileId::new(value).map_err(|_| StatusCode::NOT_FOUND)
-}
-
-async fn tools(client: &native::NativeClient) -> Result<Vec<rmcp::model::Tool>, StatusCode> {
-    catalog_tools(client, None).await
-}
-
-async fn catalog_tools(
-    client: &native::NativeClient,
-    required: Option<&[GatewayToolName]>,
-) -> Result<Vec<rmcp::model::Tool>, StatusCode> {
-    let mut result = vec![];
-    let mut cursor = None;
-    for _ in 0..16 {
-        let page = tokio::time::timeout(
-            Duration::from_secs(8),
-            client.peer().list_tools(
-                cursor.map(|cursor| PaginatedRequestParams::default().with_cursor(Some(cursor))),
-            ),
-        )
-        .await
-        .map_err(|_| StatusCode::GATEWAY_TIMEOUT)?
-        .map_err(mcp_error)?;
-        let degradation = GatewayDiscoveryDegradation::from_meta(page.meta.as_ref())
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
-        if required.is_some_and(|required| {
-            degradation.failures.iter().any(|failure| {
-                failure.surface == GatewayDiscoverySurface::Tools
-                    && required.iter().any(|tool| {
-                        tool.as_str()
-                            .split_once("__")
-                            .is_none_or(|(server, _)| server == failure.server.as_str())
-                    })
-            })
-        }) {
-            return Err(StatusCode::SERVICE_UNAVAILABLE);
-        }
-        result.extend(page.tools);
-        if result.len() > 512 {
-            return Err(StatusCode::BAD_GATEWAY);
-        }
-        cursor = page.next_cursor;
-        if cursor.is_none() {
-            return Ok(result);
-        }
-    }
-    Err(StatusCode::BAD_GATEWAY)
 }
 
 async fn capabilities(
