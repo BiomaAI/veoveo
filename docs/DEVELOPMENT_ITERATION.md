@@ -892,3 +892,24 @@ Request preflight refreshes active sessions, but the idle scheduler skips that w
 This remains a correctness fix for agent management, with a required zero-model-call
 renewal check. The browser catalog's initial missing Apps recovered through SSE;
 credential renewal and cold discovery must be diagnosed independently.
+
+### Idle kernel renewal qualification — September 20, 2026
+
+The scheduler correction uses the existing maintenance tick. The first scheduler smoke
+rebuilt the Media-based dependency feature set, including shared SurrealDB and Rerun
+crates; Cargo's compilation window was 183 seconds. The pilot scenario's first compile
+took 14.18 seconds. After the test-only correction, compilation took 19.17 seconds for
+the scheduler and 10.99 seconds for the pilot. Keep feature-set changes separate from
+source-edit cost when comparing iteration times.
+
+The pilot's first run completed its Task continuation but failed an assertion against
+Rig's tool-replacement warning. The pinned adapter emits that warning during a valid
+generation-fenced listChanged refresh as well as generic replacement. The smoke now
+uses its dispatch, single-Task, consumed-result, memory and notification checks as
+evidence. The final scheduler and GPU pilot checks both pass. No SDK upgrade was needed.
+
+Deployment is not yet complete. The approved template includes an immutable image,
+but managed revision adoption refuses a changed template revision. That restriction
+prevents shipping a kernel patch to retained instances through the current API. Add
+an explicit, validated image-adoption path that retains existing identity and memory;
+do not introduce a second workload owner or bypass the template pin.

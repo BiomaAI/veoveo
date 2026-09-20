@@ -29,6 +29,12 @@ The process publishes managed readiness after its gateway connection and tools a
 installed. It relinquishes its scheduler lease before a generation handoff. The
 lease remains the sole writer boundary for retained memory and episode execution.
 
+The existing scheduler maintenance tick checks credential age while idle. At the
+configured refresh fraction it mints a replacement connection, restores resource
+listeners and publishes the new epoch to Task watchers. This maintenance admits no
+episode and makes no model call. Each attempt is bounded to six seconds; failed
+renewal leaves request dispatch subject to the same fail-closed preflight.
+
 Active episodes observe their durable dispatch fence through outbox LIVE events.
 A five-second recovery read covers missed events. Stop drops the active runner
 without cancelling an already accepted domain Task. A whole-episode deadline also

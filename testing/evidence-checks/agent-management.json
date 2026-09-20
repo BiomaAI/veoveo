@@ -546,6 +546,33 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "agent-kernel-scheduler"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask",
+          "veoveo-smoke",
+          "veoveo-mcp-conformance",
+          "veoveo-media-mcp",
+          "veoveo-mcp-gateway",
+          "veoveo-artifact-service",
+          "veoveo-agent-kernel"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

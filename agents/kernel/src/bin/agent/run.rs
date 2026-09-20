@@ -229,6 +229,16 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
                             tracing::info!("managed generation drained; relinquishing workload");
                             return Ok(());
                         }
+                        // Keep subscription credentials fresh even when no wake admits an
+                        // episode. Request preflights share the same serialized rotation.
+                        match tokio::time::timeout(
+                            Duration::from_secs(6),
+                            connection.ensure_fresh(),
+                        ).await {
+                            Ok(Ok(())) => {},
+                            Ok(Err(error)) => tracing::warn!(%error, "idle gateway refresh failed"),
+                            Err(_) => tracing::warn!("idle gateway refresh timed out"),
+                        }
                         arm_available_tasks(
                             &runtime,
                             &bus,

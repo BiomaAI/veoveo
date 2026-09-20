@@ -11,8 +11,9 @@ a fourteen-minute idle observation. The four retained UAV pilots now run under m
 original runtime IDs, principals, signing keys and physical memory volumes. The per-pilot
 Helm resources are removed, reconciliation is restored, and current-grant App discovery
 is deployed. Native pilot Task/memory/telemetry qualification passes. Installed checks
-identified an idle credential-renewal defect; its correction and the remaining installed
-domain/Task acceptance are outstanding. Current component contracts remain authoritative
+identified an idle credential-renewal defect. Its correction passes native scheduler
+and GPU pilot Task checks; deployment and the remaining installed domain/Task
+acceptance are outstanding. Current component contracts remain authoritative
 until their replacement lands.
 
 ## Standards And Protocols
@@ -507,10 +508,33 @@ adapter did not qualify as hardware. Initial catalog reads were incomplete while
 discovery recovered. The Workspace browser session had expired and requires normal
 sign-in renewal before further Workspace acceptance.
 
-Long-idle qualification exposed an unresolved kernel issue: request preflight renews
+Long-idle qualification exposed a kernel issue: request preflight renews
 credentials during active work, but the idle scheduler does not renew the MCP
 connection. The retained pilots eventually retry subscriptions with expired tokens.
 This is network churn, not evidence of model calls. Renew credentials during existing
 scheduler maintenance without admitting an episode, qualify repeated renewal before
 the first operator message, and deploy the corrected kernel through managed lifecycle
 ownership. Ready workload status alone does not prove subscription health.
+
+### Idle Renewal Qualification — September 20, 2026
+
+The kernel now checks credential freshness during its existing scheduler maintenance
+tick, with a six-second bound on each attempt. Native scheduler qualification observes
+three connection epochs before the first operator message and no model episode during
+that interval. Both subsequent operator requests complete. The GPU pilot smoke also
+passes with exactly one optimization Task, consumed completion, durable resource wake,
+memory replay and OTLP delivery across rotations. These checks qualify local source;
+the installed kernel still uses image `1ff1e9ac` and retains the idle defect.
+
+Installed image upgrades expose a separate admission gap. The template revision hashes
+the image, but instance revision adoption currently rejects any changed template
+revision and keeps the original admitted image. Complete explicit adoption of a
+currently approved image while preserving identity, parameters and retained memory.
+Keep installation validation and controller generation fencing; direct Deployment
+image edits would bypass that ownership. Coordinate template replacement with the
+pilot drain, publication and adoption before resuming work.
+
+Normal Workspace sign-in restored the expired browser session without another person.
+The headed RTX 4090 browser renders the definitions and managed inventory; authenticated
+session and Apps endpoints return HTTP 200. This does not replace installed Task or
+credential-renewal qualification.
