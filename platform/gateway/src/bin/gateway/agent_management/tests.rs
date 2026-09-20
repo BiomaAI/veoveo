@@ -137,7 +137,10 @@ fn model_revision_changes_only_when_execution_configuration_changes() {
     changed.name = "Renamed".into();
     changed.work_contexts.clear();
     assert_eq!(changed.revision(), original);
-    assert!(!changed.permits(&fixture_subject("Alice"), &"shared".parse().unwrap()));
+    assert!(!changed.permits(
+        &fixture_subject("Alice").principal,
+        &"shared".parse().unwrap()
+    ));
     changed.model = "another-model".into();
     assert_ne!(changed.revision(), original);
     let public = serde_json::to_value(model.public()).unwrap().to_string();

@@ -3,6 +3,9 @@ mod ids;
 pub use ids::*;
 mod instances;
 pub use instances::*;
+mod installation;
+pub use installation::*;
+mod template_validation;
 mod templates;
 pub use templates::*;
 

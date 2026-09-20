@@ -286,7 +286,12 @@ async fn authoring(
         models: state
             .models
             .iter()
-            .filter(|m| m.permits(&actor.subject, &actor.subject.authority.work_context))
+            .filter(|m| {
+                m.permits(
+                    &actor.subject.principal,
+                    &actor.subject.authority.work_context,
+                )
+            })
             .map(models::ModelConnection::public)
             .collect(),
         permissions: wire::AuthoringPermissions {
