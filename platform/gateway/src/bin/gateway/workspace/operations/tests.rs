@@ -113,6 +113,15 @@ async fn model_capability_admission_checks_only_required_discovery_surfaces() {
 
 #[tokio::test]
 async fn required_capabilities_recover_on_native_catalog_notifications_without_dispatch() {
+    reactive_catalog_admission(vec![GatewayToolName::new("fixture__task").unwrap()]).await;
+}
+
+#[tokio::test]
+async fn authoring_picker_waits_for_complete_native_catalog_without_dispatch() {
+    reactive_catalog_admission(vec![]).await;
+}
+
+async fn reactive_catalog_admission(required: Vec<GatewayToolName>) {
     tokio::time::timeout(Duration::from_secs(15), async {
         let db = crate::test_store::TestDb::new().await;
         super::super::tests::setup(&db.a).await;
@@ -132,11 +141,7 @@ async fn required_capabilities_recover_on_native_catalog_notifications_without_d
         };
         let pending = tokio::spawn({
             let state = state.clone();
-            async move {
-                state
-                    .capabilities(&caller, &[GatewayToolName::new("fixture__task").unwrap()])
-                    .await
-            }
+            async move { state.authoring_capabilities(&caller, &required).await }
         });
         fixture.domain.catalog_requested.notified().await;
         tokio::time::sleep(Duration::from_millis(100)).await;
