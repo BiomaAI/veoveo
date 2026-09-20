@@ -39,6 +39,8 @@ Revision changes delete the owned prior Deployment with foreground propagation a
 UID/resource-version preconditions. The controller waits for the Deployment, Pods and
 runtime lease to disappear before activating the new generation. This retirement
 remains available when an obsolete image can no longer pass executable admission.
+The installation policy admits finalizer updates on an already deleting Deployment
+only while its specification and ownership metadata remain unchanged.
 Signing Secrets and memory claims have independent ownership and survive the drain.
 Pause keeps an existing kernel
 available for Task observation once its active episode is terminal. Archive revokes

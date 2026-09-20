@@ -2,7 +2,7 @@
 //! namespace, service accounts, RBAC and policies. One zero-replica Deployment
 //! qualifies retirement; executable workload requests use dry-run.
 use super::*;
-use crate::kubernetes::GENERATION;
+use crate::kubernetes::{GENERATION, OWNER_LABEL};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
@@ -359,6 +359,7 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
     // Keep zero replicas throughout: no fixture kernel or memory writer starts.
     let mut stopped = deployment.clone();
     stopped["spec"]["replicas"] = json!(0);
+    stopped["metadata"]["finalizers"] = json!(["veoveo.ai/admission-fixture"]);
     let created = success(command(
         "kubectl",
         &["create", "--as", &actor, "-f", "-", "-o", "json"],
@@ -427,12 +428,74 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
             "delete",
             "--as",
             &actor,
-            "--wait=true",
-            "--timeout=15s",
+            "--cascade=foreground",
+            "--wait=false",
             "-f",
             "-",
         ],
         Some(&stopped),
+    )?)?;
+    let mut finalizing: Value = serde_json::from_slice(&success(command(
+        "kubectl",
+        &[
+            "get",
+            "deployment",
+            &snapshot.instance.resources.workload,
+            "--namespace",
+            &namespace,
+            "-o",
+            "json",
+        ],
+        None,
+    )?)?)?;
+    anyhow::ensure!(finalizing["metadata"]["deletionTimestamp"].is_string());
+    let mut changed_spec = finalizing.clone();
+    changed_spec["spec"]["replicas"] = json!(1);
+    let rejected = command(
+        "kubectl",
+        &["replace", "--dry-run=server", "--as", &actor, "-f", "-"],
+        Some(&changed_spec),
+    )?;
+    anyhow::ensure!(
+        !rejected.status.success()
+            && String::from_utf8_lossy(&rejected.stderr)
+                .contains("Fixture retires all executable images"),
+        "retirement did not reject the specification change through admission"
+    );
+    let mut changed_owner = finalizing.clone();
+    changed_owner["metadata"]["labels"][OWNER_LABEL] =
+        json!("agent-ffffffffffffffffffffffffffffffff");
+    let rejected = command(
+        "kubectl",
+        &["replace", "--dry-run=server", "--as", &actor, "-f", "-"],
+        Some(&changed_owner),
+    )?;
+    anyhow::ensure!(
+        !rejected.status.success()
+            && String::from_utf8_lossy(&rejected.stderr).contains("denied request"),
+        "retirement did not reject the ownership change through admission"
+    );
+    finalizing["metadata"]["finalizers"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|value| value != "veoveo.ai/admission-fixture");
+    success(command(
+        "kubectl",
+        &["replace", "--as", &actor, "-f", "-"],
+        Some(&finalizing),
+    )?)?;
+    success(command(
+        "kubectl",
+        &[
+            "wait",
+            "--for=delete",
+            "deployment",
+            &snapshot.instance.resources.workload,
+            "--namespace",
+            &namespace,
+            "--timeout=15s",
+        ],
+        None,
     )?)?;
     installation.cleanup()?;
     Ok(())
