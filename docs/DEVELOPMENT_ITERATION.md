@@ -982,3 +982,26 @@ the recorder published its receipt produced a transient unindexed-receipt failur
 A separate activation receipt was initially left untracked and required an immediate
 follow-up commit; commit the indexed receipt and report together. Disk remained above
 280 GiB free, with no cache purge or DiskPressure. The simulator Pod did not change.
+
+
+The Console replay gateway image staged in 86.383 seconds. Passive activation took
+87.457 seconds, including 58.413 seconds awaiting source fetch. Its live lease check
+passed across 25 events without reloading. The follow-on full-picker regression passed
+71 gateway tests. Initial test selection for changefeed and combined lint was not in
+the owner catalog; those receipts could not qualify. Exact declarations and a source
+freeze made the repeated checks take 5.3, 4.5 and 0.6 seconds. Failed and unqualified
+attempts remain in receipt history. Whole-repository fallback manifests generated
+large receipts for these small edits, which is another reason to register checks first.
+
+The new policy-action enum also required refreshing Computers, the other runtime
+reader of the full current gateway control plane. Its old image returned unavailable
+while Kubernetes health stayed green. Source-delta release planning must account for
+persisted-contract readers as well as the component whose code changed.
+
+Selecting gateway plus Computers changed the build's Cargo feature closure again.
+The combined image stage took 330.581 seconds, with a 314.271-second compile window.
+The native Computer domain check compiled for 112 seconds; its separate service check
+compiled for 172 seconds. Both passed. A stable dependency feature closure per Rust
+image family is a concrete follow-up: changing target selection repeatedly rebuilt
+Reqwest, SurrealDB and other shared crates during this goal. Do not count those cold
+feature transitions as the warm source-edit baseline.
