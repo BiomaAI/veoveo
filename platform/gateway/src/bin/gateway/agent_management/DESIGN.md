@@ -97,6 +97,19 @@ configuration is removed. Public projection batches definition/revision metadata
 never returns authored instructions or deployment credentials. Shared event heads
 include the current owner's instance changes and context-managed instances.
 
+An explicit revision adoption may change the installation-approved kernel image.
+The gateway substitutes the instance's current image into the newly approved template
+and requires its digest to equal the previously requested template revision. This
+proves that storage, configuration, credential bindings and authority remain identical.
+The store preserves template identity and parameters, and records the admitted image
+with the requested revision. The existing controller drains the old writer before
+activating the new generation. Publishing alone never updates a workload.
+
+Replacing the installation's sole approved template requires a coordinated pilot pause,
+configuration rollout, publication and adoption, then resume. Old template credentials
+fail closed after replacement. Changes beyond the image require separate migration
+qualification; this path does not reinterpret retained memory or expand permissions.
+
 The kernel posts its retained generation, epoch, scheduler lease owner and fence to
 `/admin/{profile}/agent-runtime/dispatch` before model and tool dispatch. The
 authenticated route admits only the current managed service registration and exact

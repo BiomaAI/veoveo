@@ -58,7 +58,7 @@ test("managed authoring reviews authority, recovers lost creation and observes l
       }
       if (path === `agent-definitions/${definition?.id}`) return respond(definition);
       if (path.endsWith("/draft")) {
-        if (body) { content = body.content; definition.revision++; definition.draftDigest = digest("d"); return respond(definition); }
+        if (body) { content = body.content; definition.revision++; definition.draftDigest = digest(definition.publishedDigest ? "f" : "d"); return respond(definition); }
         return respond({ definition: definition.id, revision: definition.revision, content });
       }
       if (path.endsWith("/revisions")) return respond({ items: history, next: null });
@@ -104,9 +104,18 @@ test("managed authoring reviews authority, recovers lost creation and observes l
     await page.getByRole("textbox", { name: "Instructions", exact: true }).fill("Keep ${PRIVATE_KEY} literal in these authored instructions.");
     await page.getByRole("button", { name: "Load capabilities", exact: true }).click();
     await page.getByRole("checkbox", { name: /Resolve time/ }).check();
+    await page.getByRole("checkbox", { name: "fixture://changes", exact: true }).check();
     assert.equal(await page.getByText("Unadmitted tool", { exact: true }).count(), 0);
     const checkbox = await page.getByRole("checkbox", { name: /Resolve time/ }).boundingBox(); assert.ok(checkbox.width <= 20);
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await page.getByRole("button", { name: "Review publication", exact: true }).click();
+    await page.getByRole("button", { name: "Publish this revision", exact: true }).click();
+    template.revision = digest("f"); notify();
+    await page.getByRole("button", { name: "Use the approved template", exact: true }).click();
+    assert.equal(await page.getByRole("textbox", { name: "Session", exact: true }).inputValue(), "flight-one", "template patch must retain the existing target");
+    assert.ok(await page.getByRole("checkbox", { name: "fixture://changes", exact: true }).isChecked(), "template patch must retain resource subscriptions");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    assert.equal(content.execution.templateRevision, template.revision);
     await page.getByRole("button", { name: "Review publication", exact: true }).click();
     await page.getByRole("button", { name: "Publish this revision", exact: true }).click();
     await page.getByRole("button", { name: "Deploy instance", exact: true }).click();

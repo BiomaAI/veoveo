@@ -46,20 +46,30 @@ pub(super) fn mutation(mutation: &ManagedAgentMutation, limits: ManagedAgentLimi
                     return Err(AgentManagementError::Invalid("resource identity"));
                 }
             }
-            let (_, digest) = resources
-                .image
-                .rsplit_once("@sha256:")
-                .ok_or(AgentManagementError::Invalid("image digest"))?;
-            super::super::validation::digest(digest)?;
-            if resources.image.len() > 512
-                || resources.image.contains(char::is_whitespace)
-                || !(1..=1024).contains(&resources.storage_gib)
-            {
+            image(&resources.image)?;
+            if !(1..=1024).contains(&resources.storage_gib) {
                 return Err(AgentManagementError::Invalid("storage or image"));
             }
         }
-        ManagedAgentMutation::Revision { digest } => super::super::validation::digest(digest)?,
+        ManagedAgentMutation::Revision {
+            digest,
+            image: admitted,
+        } => {
+            super::super::validation::digest(digest)?;
+            image(admitted)?;
+        }
         _ => {}
+    }
+    Ok(())
+}
+
+fn image(value: &str) -> Result<()> {
+    let (repository, digest) = value
+        .rsplit_once("@sha256:")
+        .ok_or(AgentManagementError::Invalid("image digest"))?;
+    super::super::validation::digest(digest)?;
+    if repository.is_empty() || value.len() > 512 || value.contains(char::is_whitespace) {
+        return Err(AgentManagementError::Invalid("image"));
     }
     Ok(())
 }

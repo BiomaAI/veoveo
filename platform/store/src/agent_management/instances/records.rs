@@ -174,7 +174,13 @@ pub enum ManagedAgentMutation {
     #[surreal(rename = "state")]
     State { desired: ManagedAgentDesired },
     #[surreal(rename = "revision")]
-    Revision { digest: String },
+    Revision {
+        digest: String,
+        /// Installation-derived admission, never a public request field. Replay
+        /// fingerprints the requested revision, not mutable installation state.
+        #[serde(skip_serializing)]
+        image: String,
+    },
     #[surreal(rename = "stop")]
     Stop,
     #[surreal(rename = "retry")]

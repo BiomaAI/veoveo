@@ -14,6 +14,173 @@ async fn published(app: &Router) -> Value {
     definition
 }
 
+async fn publish_current_template(app: &Router, session: &str) -> Value {
+    let (_, choices) = request(app, "GET", "agent-templates", Value::Null).await;
+    let (_, definition) = request(app, "GET", "agent-definitions/worker", Value::Null).await;
+    let (_, draft) = request(app, "GET", "agent-definitions/worker/draft", Value::Null).await;
+    let mut content = draft["content"].clone();
+    content["execution"]["templateRevision"] = choices[0]["revision"].clone();
+    content["execution"]["parameters"]["session"] = json!(session);
+    let (status, saved) = request(app, "PUT", "agent-definitions/worker/draft", json!({"requestId":uuid::Uuid::now_v7(),"expectedRevision":definition["revision"],"content":content})).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    let (status, published) = request(app, "POST", "agent-definitions/worker/publish", json!({"requestId":uuid::Uuid::now_v7(),"expectedRevision":saved["revision"],"digest":saved["draftDigest"],"audience":["shared"]})).await;
+    assert_eq!(status, StatusCode::OK, "{published}");
+    published
+}
+
+#[tokio::test]
+async fn approved_image_adoption_preserves_bindings_and_replays_after_template_removal() {
+    use veoveo_mcp_gateway::managed_agents::ManagedTemplateCatalog;
+    let db = crate::test_store::TestDb::new().await;
+    crate::workspace::tests::setup(&db.a).await;
+    let mut state = managed_state(&db.a);
+    let _stop = state.stop.clone().drop_guard();
+    let alice = app(&state, fixture_subject("Alice"));
+    let definition = published(&alice).await;
+    let (status, _) = request(&alice, "POST", "agent-instances", json!({"requestId":uuid::Uuid::now_v7(),"id":"worker-one","name":"Worker","definition":"worker","revision":definition["publishedDigest"]})).await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let actor = authority::admit(
+        &state,
+        "operator".into(),
+        fixture_subject("Alice"),
+        Action::AgentDefinitionsRead,
+    )
+    .await
+    .unwrap();
+    let before =
+        db.a.managed_agent(&actor.authority, "worker-one")
+            .await
+            .unwrap();
+    let original = state
+        .gateway
+        .managed_templates()
+        .get(&wire::AgentTemplateId::new("bounded").unwrap())
+        .unwrap()
+        .clone();
+    let new_image = format!("registry.test/kernel@sha256:{}", "c".repeat(64));
+    let install = |state: &mut AgentManagementState, template: wire::RuntimeTemplate| {
+        state.gateway = state.gateway.clone().with_managed_templates(
+            ManagedTemplateCatalog::from_json(
+                &serde_json::to_string(&vec![template]).unwrap(),
+                &state.catalog.current(),
+            )
+            .unwrap(),
+        );
+        app(state, fixture_subject("Alice"))
+    };
+    let change = |revision: &Value| json!({"requestId":uuid::Uuid::now_v7(),"expectedGeneration":1,"change":{"kind":"revision","revision":revision["publishedDigest"]}});
+
+    // A new approved template cannot silently reinterpret retained storage or
+    // configuration. Each candidate still passes ordinary publication validation.
+    for field in ["storage", "config", "authority"] {
+        let mut template = original.clone();
+        template.workload.image = new_image.clone();
+        match field {
+            "storage" => template.workload.storage_gib += 1,
+            "config" => {
+                template.workload.config_digest =
+                    veoveo_mcp_contract::Sha256Digest::from_hex("d".repeat(64)).unwrap()
+            }
+            "authority" => {
+                template.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Viewer
+            }
+            _ => unreachable!(),
+        }
+        let revised = install(&mut state, template);
+        let candidate = publish_current_template(&revised, "session-one").await;
+        assert_eq!(
+            request(
+                &revised,
+                "PATCH",
+                "agent-instances/worker-one",
+                change(&candidate)
+            )
+            .await
+            .0,
+            StatusCode::CONFLICT,
+            "{field}"
+        );
+        assert_eq!(
+            db.a.managed_agent(&actor.authority, "worker-one")
+                .await
+                .unwrap()
+                .resources,
+            before.resources
+        );
+    }
+
+    let mut approved = original;
+    approved.workload.image = new_image.clone();
+    let upgraded = install(&mut state, approved);
+    let different_target = publish_current_template(&upgraded, "session-two").await;
+    assert_eq!(
+        request(
+            &upgraded,
+            "PATCH",
+            "agent-instances/worker-one",
+            change(&different_target)
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    let candidate = publish_current_template(&upgraded, "session-one").await;
+    assert_eq!(
+        db.a.managed_agent(&actor.authority, "worker-one")
+            .await
+            .unwrap()
+            .requested_revision,
+        before.requested_revision,
+        "publication does not upgrade an instance"
+    );
+    let body = change(&candidate);
+    let (status, operation) = request(
+        &upgraded,
+        "PATCH",
+        "agent-instances/worker-one",
+        body.clone(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{operation}");
+    assert_eq!(operation["generation"], 2);
+    let after =
+        db.a.managed_agent(&actor.authority, "worker-one")
+            .await
+            .unwrap();
+    assert_eq!(after.identity, before.identity);
+    assert_eq!(after.principal, before.principal);
+    assert_eq!(after.public_key, before.public_key);
+    assert_eq!(after.active_revision, before.active_revision);
+    let mut resources = before.resources;
+    resources.image = new_image;
+    assert_eq!(after.resources, resources);
+
+    state.gateway = state
+        .gateway
+        .clone()
+        .with_managed_templates(Default::default());
+    let removed = app(&state, fixture_subject("Alice"));
+    assert_eq!(
+        request(
+            &removed,
+            "PATCH",
+            "agent-instances/worker-one",
+            body.clone()
+        )
+        .await
+        .1,
+        operation
+    );
+    let mut different = body;
+    different["change"]["revision"] = definition["publishedDigest"].clone();
+    assert_eq!(
+        request(&removed, "PATCH", "agent-instances/worker-one", different)
+            .await
+            .0,
+        StatusCode::CONFLICT
+    );
+}
+
 #[tokio::test]
 async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control() {
     let db = crate::test_store::TestDb::new().await;

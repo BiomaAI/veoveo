@@ -35,8 +35,12 @@ Closed template parameters become fixed environment bindings. Model credentials
 remain installation Secret references, while authored instructions are loaded
 from the registry by the kernel.
 
-Revision changes scale the prior Deployment down and wait for its Pods and runtime
-lease to end before activating the new generation. Pause keeps an existing kernel
+Revision changes delete the owned prior Deployment with foreground propagation and
+UID/resource-version preconditions. The controller waits for the Deployment, Pods and
+runtime lease to disappear before activating the new generation. This retirement
+remains available when an obsolete image can no longer pass executable admission.
+Signing Secrets and memory claims have independent ownership and survive the drain.
+Pause keeps an existing kernel
 available for Task observation once its active episode is terminal. Archive revokes
 dispatch, stops the owned workload and retains its PVC. Memory is never recreated
 or force-deleted during recovery.
@@ -67,6 +71,7 @@ The explicit ignored Rust test `installed_admission` creates a temporary namespa
 service accounts, RBAC and admission policies in the selected Kubernetes context.
 It requires empty policy type-check warnings, admits resources from the actual
 workload composer, rejects privilege and credential changes, and removes its fixture.
-Workloads use server dry-run. This is admission evidence, not installed reconciliation,
+Executable workloads use server dry-run. One zero-replica Deployment qualifies deletion
+after the fixture revokes executable admission. This is admission evidence, not installed reconciliation,
 network enforcement or model execution evidence. YAML parsing uses serde_yaml_ng
 0.10.0, verified as its latest stable release on September 19, 2026.

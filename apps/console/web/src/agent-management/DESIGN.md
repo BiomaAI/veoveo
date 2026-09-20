@@ -28,6 +28,12 @@ respect the template ceiling. Publication retains its separate review step. Depl
 a published definition presents its automated scopes, roles, context membership and
 retained storage before creating an instance.
 
+Adopting a new revision of the same approved runtime template preserves the draft's
+parameters, selected tools and resource subscriptions. Publication validates those
+choices against the current template. An image patch must not reset a pilot's vehicle
+or remove its notifications. Selecting a different template starts a new parameter
+selection, as shown by the editor.
+
 The instance list shows desired and observed state together with accepted and active
 generations. It shares the definition view's SSE connection. Lifecycle operations use
 stable request identities, and uncertain responses lock the form until retry recovers

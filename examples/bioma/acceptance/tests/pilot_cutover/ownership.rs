@@ -3,6 +3,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, fs::File, path::Path, process::Command};
 use veoveo_bioma_acceptance::pilot_cutover::PilotAdoption;
+use veoveo_mcp_contract::agent_management::RuntimeTemplate;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +33,7 @@ struct Resource<S> {
 }
 #[derive(Deserialize)]
 struct Release {
+    #[serde(default)]
     suspend: bool,
 }
 #[derive(Deserialize)]
@@ -118,12 +120,61 @@ fn get<T: DeserializeOwned>(namespace: &str, kind: &str, name: &str) -> Result<T
     Ok(serde_json::from_slice(&output.stdout)?)
 }
 
+#[derive(Clone, Copy)]
+enum Stage {
+    Transfer,
+    Installed,
+}
+#[derive(Deserialize)]
+struct DeploymentList {
+    items: Vec<NamedObject>,
+}
+#[derive(Deserialize)]
+struct NamedObject {
+    metadata: Metadata,
+}
+#[derive(Deserialize)]
+struct ConfigMap {
+    data: BTreeMap<String, String>,
+}
+#[derive(Deserialize)]
+struct ManagerConfig {
+    templates: Vec<RuntimeTemplate>,
+}
+
 pub fn verify(entries: &[PilotAdoption], root: &Path) -> Result<()> {
+    verify_resources(entries, root, Stage::Transfer)
+}
+
+pub fn verify_installed(entries: &[PilotAdoption], root: &Path) -> Result<RuntimeTemplate> {
+    verify_resources(entries, root, Stage::Installed)?;
+    let config: ConfigMap = get("veoveo-agents", "configmap", "veoveo-agent-manager")?;
+    let manager: ManagerConfig = serde_json::from_str(
+        config
+            .data
+            .get("manager.json")
+            .context("manager configuration missing")?,
+    )?;
+    manager
+        .templates
+        .into_iter()
+        .find(|template| template.id.as_str() == "uav-pilot")
+        .context("approved pilot template missing")
+}
+
+fn verify_resources(entries: &[PilotAdoption], root: &Path, stage: Stage) -> Result<()> {
     let release: Resource<Release> = get("flux-system", "helmrelease", "uav-sim")?;
-    ensure!(
-        release.spec.suspend,
-        "old Helm reconciliation must remain suspended"
-    );
+    match stage {
+        Stage::Transfer => ensure!(
+            release.spec.suspend,
+            "old Helm reconciliation must remain suspended"
+        ),
+        Stage::Installed => ensure!(
+            !release.spec.suspend,
+            "installed Helm reconciliation must be active"
+        ),
+    }
+    let deployments: DeploymentList = get("veoveo", "deployments", "")?;
     let manifest: Manifest =
         serde_json::from_reader(File::open(root.join("archive-manifest.json"))?)?;
     ensure!(
@@ -140,8 +191,19 @@ pub fn verify(entries: &[PilotAdoption], root: &Path) -> Result<()> {
             volume.agent == entry.instance.key,
             "archive ordering differs from adoption plan"
         );
-        let old: Resource<Deployment> = get("veoveo", "deployment", &volume.agent)?;
-        ensure!(old.spec.replicas == 0, "old pilot has desired replicas");
+        match stage {
+            Stage::Transfer => {
+                let old: Resource<Deployment> = get("veoveo", "deployment", &volume.agent)?;
+                ensure!(old.spec.replicas == 0, "old pilot has desired replicas");
+            }
+            Stage::Installed => ensure!(
+                deployments
+                    .items
+                    .iter()
+                    .all(|item| item.metadata.name != volume.agent),
+                "superseded pilot Deployment still exists"
+            ),
+        }
         ensure!(
             pods.items
                 .iter()

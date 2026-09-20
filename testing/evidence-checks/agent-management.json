@@ -279,7 +279,8 @@
           "veoveo-agent-manager"
         ],
         "roots": [
-          "testing/fixtures"
+          "testing/fixtures",
+          "deploy/helm/veoveo"
         ]
       },
       "toolchains": [
@@ -572,6 +573,108 @@
       },
       "toolchains": [
         "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway",
+        "--test",
+        "agent_management"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store",
+          "veoveo-mcp-gateway"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-agent-manager",
+        "installed_admission",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-agent-manager"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "deploy/helm/veoveo"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-agent-manager",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store",
+          "veoveo-mcp-gateway",
+          "veoveo-agent-manager"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs",
+          "deploy/helm/veoveo"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "node",
+        "--test",
+        "apps/workspace/tests/agent-management.test.mjs"
+      ],
+      "inputs": {
+        "kind": "console",
+        "roots": [
+          "apps/workspace",
+          "apps/console/web/src"
+        ]
+      },
+      "toolchains": [
+        "node"
       ]
     }
   ]

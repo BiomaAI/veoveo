@@ -1015,7 +1015,8 @@ owns admitted provisioning intent, retained capacity, durable service registrati
 and controller generation fences.
 [`instances/`](../platform/gateway/src/bin/gateway/agent_management/instances/) in
 the management gateway owns template-derived admission, lifecycle operations and
-public projections. The lifecycle controller remains in progress.
+public projections and image-only template adoption proved against the prior immutable
+template digest. The lifecycle controller drains retained writers before activation.
 
 The [agent catalog store](../platform/store/src/agent_management/DESIGN.md) owns
 definition authoring, immutable executable revisions, mutation replay and publication

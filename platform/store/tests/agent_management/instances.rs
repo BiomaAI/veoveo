@@ -89,6 +89,14 @@ async fn revision_update_retains_identity_and_waits_for_runtime_lease() {
     );
     let mut changed = definition.draft.clone();
     changed.instructions = "Changed instructions".into();
+    let AgentExecution::Managed {
+        template_revision, ..
+    } = &mut changed.execution
+    else {
+        panic!("managed fixture");
+    };
+    *template_revision = "c".repeat(64);
+    let image = format!("registry.test/kernel@sha256:{}", "d".repeat(64));
     let draft =
         db.a.mutate_agent_definition(
             &a,
@@ -116,6 +124,7 @@ async fn revision_update_retains_identity_and_waits_for_runtime_lease() {
             Some(1),
             ManagedAgentMutation::Revision {
                 digest: published.draft_digest,
+                image: image.clone(),
             },
             LIMITS,
         )
@@ -155,7 +164,9 @@ async fn revision_update_retains_identity_and_waits_for_runtime_lease() {
         .unwrap();
     let updated = db.a.managed_agent(&a, "one").await.unwrap();
     assert_eq!(updated.principal, first.principal);
-    assert_eq!(updated.resources, first.resources);
+    let mut expected_resources = first.resources;
+    expected_resources.image = image;
+    assert_eq!(updated.resources, expected_resources);
     assert_eq!(updated.public_key, first.public_key);
     assert_eq!(updated.active_revision, Some(updated.requested_revision));
     assert!(
