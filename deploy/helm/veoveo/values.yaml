@@ -107,6 +107,7 @@ gateway:
   agents:
     # Approved connections; definitions are authored through the management API.
     models: []
+    templates: []
     # Environment name -> installation-owned Secret reference.
     modelSecrets: {}
   resources:
@@ -116,6 +117,25 @@ gateway:
     limits:
       cpu: "1"
       memory: 1Gi
+
+agentManager:
+  namespace: veoveo-agents
+  image:
+    repository: veoveo/agent-manager
+    tag: 0.1.0
+    digest: ""
+  # These public configuration and credential references exist in the managed namespace.
+  existingControlPlaneConfigMap: ""
+  databaseExistingSecret: veoveo-surreal-runtime
+  kubernetesApiEgress: []
+  modelEgress: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 artifactService:
   image:

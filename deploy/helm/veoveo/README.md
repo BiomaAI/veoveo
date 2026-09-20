@@ -355,3 +355,23 @@ Configured Computers command execution requires `computers` in
 that entry. Artifact policy still checks the forwarded caller and Work Context; the
 audience entry alone grants no file access. Upgrade command readers and workers with
 migration 0067 and the matching service v2 configuration before admitting commands.
+
+### Managed agent installation
+
+Select `agent-runtime-support` and install approved `gateway.agents.templates`.
+Individual agent definitions and instances are then created through the management
+API or Console. No agent creation changes Helm values or builds an image.
+
+`agentManager.namespace` isolates kernels and their credentials. Supply its public
+control-plane ConfigMap, database Secret, immutable template ConfigMaps and approved
+model Secrets before starting the controller. Image pull credentials must also exist
+in that namespace when the registry requires them. Configure exact API and model
+CIDRs/ports through `kubernetesApiEgress` and `modelEgress`. Managed namespace policy
+is enforced even when the main installation disables its general NetworkPolicy.
+
+The [chart design](DESIGN.md#managed-kernels) describes the admission and retained
+storage boundary. The native admission check creates and cleans a temporary fixture:
+
+```sh
+cargo test -p veoveo-agent-manager installed_admission -- --ignored --nocapture
+```

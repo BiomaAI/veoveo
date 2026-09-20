@@ -7,8 +7,9 @@ and have installed browser/model evidence. Managed lifecycle persistence has loc
 qualification. Reviewed templates and effective managed OAuth registration are implemented
 locally. Managed lifecycle admission and its shared client controls are locally qualified;
 kernel integration and atomic episode fences are locally qualified. The lifecycle manager now has locally qualified fixed workload composition,
-credential correlation, retained storage and recovery claims. Namespace admission,
-installed reconciliation and UAV migration remain outstanding. Current component
+credential correlation, retained storage and recovery claims. Namespace admission is qualified against the Kubernetes API in an isolated fixture.
+The chart and image closure are implemented; installed reconciliation and UAV
+migration remain outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols

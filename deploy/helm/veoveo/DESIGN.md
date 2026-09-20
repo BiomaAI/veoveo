@@ -6,6 +6,8 @@
 |---|---|
 | Helm v2 chart format and JSON Schema draft-07 | Closed installation values, rendered Kubernetes resources and immutable image references |
 | Kubernetes apps/v1 and core/v1 | Deployments, Services, ConfigMaps and references to installation-owned Secrets |
+| Kubernetes admissionregistration.k8s.io/v1 and CEL | Fail-closed managed kernel and controller resource validation; requires Kubernetes 1.30 or newer |
+| Kubernetes networking.k8s.io/v1 | Namespace-isolated managed ingress/egress and fixed destination admission |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
 | `veoveo.io/computers-service/v3` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
 | `veoveo.io/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
@@ -140,3 +142,40 @@ Configured service v3 capacity includes an explicit file-qualified default templ
 The Computers worker and its JSON ConfigMap must be upgraded together. Existing retained
 Computer IDs and homes are preserved; their template transitions are installation-owned
 and require the ordinary explicit environment-update operation.
+
+## Managed Kernels
+
+`gateway.agents.templates` is the shared approved template catalog. A nonempty
+catalog requires `agent-runtime-support`. The chart starts one lifecycle manager in
+`agentManager.namespace`, which must differ from the main installation namespace.
+The gateway receives template configuration and no Kubernetes write credential.
+
+The installation owner supplies the manager namespace with an identical public
+gateway ConfigMap, database-scoped credentials, approved model credentials, immutable
+template ConfigMaps and any private-registry pull credentials. Values hold references.
+The manager's public configuration includes the same model and template objects sent
+to the gateway. Templates refer to digest-pinned kernel images. Their data digest is
+checked against the immutable ConfigMap before creating a workload.
+
+A dedicated Role permits Deployment and owned credential reconciliation, PVC creation
+and native Pod watching. It grants no PVC deletion, Pod creation, exec, Secret listing,
+RBAC mutation or writes in the main namespace. Admission policies also constrain the
+controller's resource names and immutable credentials, and enforce the actual Pod
+image, entrypoint, service account, security context, resources, storage and Secret
+references. The manager cannot replace its own privileged Deployment. Kernel service
+accounts have no API token or RoleBinding. The namespace enforces Restricted Pod
+Security at the qualified Kubernetes v1.36 profile.
+
+NetworkPolicy always isolates the managed namespace, independently of the main
+chart's optional network policy switch. Kernels may reach the gateway, store, DNS
+and explicit `agentManager.modelEgress` destinations. Only the manager receives
+`kubernetesApiEgress`. These destination entries use installation-approved CIDRs and
+ports, including the actual API endpoint after service translation where required by
+the CNI. Standard NetworkPolicy has no DNS-name matching. Operators must admit the
+model service's exact destination ranges; broad private-network entries would weaken
+this boundary. Private MCP workers receive no direct managed-kernel ingress rule.
+
+Namespace retention protects archived memory during chart removal. PVCs have no
+Deployment owner reference and the manager never deletes them. Cross-namespace
+adoption of an existing PVC requires a storage-owner transfer of the same PV; an
+ordinary instance retry cannot replace missing retained memory.

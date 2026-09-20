@@ -1,3 +1,5 @@
+mod admission;
+
 use super::*;
 use kubernetes_types::*;
 use serde_json::json;

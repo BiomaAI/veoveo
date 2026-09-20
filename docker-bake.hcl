@@ -52,6 +52,8 @@ function "registry_cache_export" {
 
 group "platform-core" {
   targets = [
+    "agent-kernel",
+    "agent-manager",
     "computers-mcp",
     "computer-storage",
     "computer-host",
@@ -68,6 +70,8 @@ group "platform-core" {
 
 group "platform-full" {
   targets = [
+    "agent-kernel",
+    "agent-manager",
     "computers-mcp",
     "computer-storage",
     "computer-host",
@@ -505,6 +509,19 @@ target "gateway-composer" {
     "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-gateway-composer"
     "io.veoveo.build.binaries"  = "gateway-compose"
+    "io.veoveo.build.family"    = "rust-trixie-v1"
+    "io.veoveo.build.auxiliary" = ""
+  }
+}
+
+target "agent-manager" {
+  inherits   = ["_rust-trixie-runtime"]
+  dockerfile = "agents/manager/Dockerfile"
+  tags       = [image_ref("agent-manager")]
+  labels = {
+    "io.veoveo.build.mode"      = "rust-shared"
+    "io.veoveo.build.package"   = "veoveo-agent-manager"
+    "io.veoveo.build.binaries"  = "agent-manager"
     "io.veoveo.build.family"    = "rust-trixie-v1"
     "io.veoveo.build.auxiliary" = ""
   }

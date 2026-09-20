@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deploy-contract"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-deploy-contract"
+        ],
+        "roots": [
+          "deploy/helm/veoveo",
+          "deploy/offline/images.lock.json",
+          "docker-bake.hcl"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-agent-manager",
+        "-p",
+        "veoveo-deploy-contract",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-agent-manager",
+          "veoveo-deploy-contract"
+        ],
+        "roots": [
+          "deploy/helm/veoveo"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "xtask",
+        "image",
+        "plan",
+        "--target",
+        "agent-manager"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask",
+          "veoveo-agent-manager"
+        ],
+        "roots": [
+          "docker-bake.hcl",
+          "tools/image-build",
+          "deploy/offline/images.lock.json"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}

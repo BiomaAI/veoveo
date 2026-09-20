@@ -1,6 +1,8 @@
 # Managed Agent Lifecycle Manager
 
-Status: implementation in progress; installation qualification is pending.
+Status: controller composition and store recovery are qualified locally. Namespace
+admission has native Kubernetes fixture coverage; installed lifecycle qualification
+and UAV adoption are pending.
 
 ## Standards And Protocols
 
@@ -53,3 +55,18 @@ resource permissions. Admission policy also constrains kernel images, service
 accounts, security context, volume and Secret references, resource limits and
 network placement. Kernel Pods do not receive a Kubernetes API token. Private
 credentials never enter lifecycle responses, audit payloads or diagnostic logs.
+
+## Packaging And Qualification
+
+The `agent-manager` Bake target uses Dockerfile frontend 1.27.0 and the September 19,
+2026 Debian Trixie slim digest, verified against their authoritative image registries.
+The runtime contains the manager binary and CA certificates. It has no DuckDB or
+browser dependency. `agent-runtime-support` owns both manager and kernel images.
+
+The explicit ignored Rust test `installed_admission` creates a temporary namespace,
+service accounts, RBAC and admission policies in the selected Kubernetes context.
+It requires empty policy type-check warnings, admits resources from the actual
+workload composer, rejects privilege and credential changes, and removes its fixture.
+Workloads use server dry-run. This is admission evidence, not installed reconciliation,
+network enforcement or model execution evidence. YAML parsing uses serde_yaml_ng
+0.10.0, verified as its latest stable release on September 19, 2026.

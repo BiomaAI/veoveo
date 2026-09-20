@@ -1,0 +1,144 @@
+{{- if and (include "veoveo.componentEnabled" (list . "agent-runtime-support")) .Values.gateway.agents.templates }}
+{{- $manager := .Values.agentManager }}
+{{- $namespace := required "agentManager.namespace is required" $manager.namespace }}
+{{- if eq $namespace .Release.Namespace }}{{ fail "agentManager.namespace must be separate from the installation namespace" }}{{ end }}
+{{- if not (semverCompare ">=1.30.0-0" .Capabilities.KubeVersion.Version) }}{{ fail "managed agents require Kubernetes ValidatingAdmissionPolicy v1 (1.30+)" }}{{ end }}
+{{- range .Values.gateway.agents.templates }}
+{{- if ne .workload.namespace $namespace }}{{ fail "all runtime templates must use agentManager.namespace" }}{{ end }}
+{{- if not (regexMatch "@sha256:[a-f0-9]{64}$" .workload.image) }}{{ fail "managed kernel images require immutable digests" }}{{ end }}
+{{- end }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36
+    veoveo.ai/agent-installation: {{ .Values.global.installationId | quote }}
+  annotations:
+    helm.sh/resource-policy: keep
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: veoveo-agent-manager
+  namespace: {{ $namespace }}
+automountServiceAccountToken: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: veoveo-agent-kernel
+  namespace: {{ $namespace }}
+automountServiceAccountToken: false
+imagePullSecrets: {{ .Values.global.imagePullSecrets | toJson }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: veoveo-agent-manager
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, create, update, delete]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, create, update, delete]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, create]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: veoveo-agent-manager
+  namespace: {{ $namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: veoveo-agent-manager
+    namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: veoveo-agent-manager
+---
+{{- $config := dict "namespace" $namespace "gateway_url" (printf "%s/" (trimSuffix "/" .Values.global.publicBaseUrl)) "gateway_transport_url" (printf "http://mcp-gateway.%s.svc:8788/" .Release.Namespace) "store_endpoint" (printf "ws://surrealdb.%s.svc:8000" .Release.Namespace) "store_namespace" .Values.surrealdb.namespace "store_database" .Values.surrealdb.database "templates" .Values.gateway.agents.templates "models" .Values.gateway.agents.models }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: veoveo-agent-manager
+  namespace: {{ $namespace }}
+data:
+  manager.json: {{ $config | toJson | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: veoveo-agent-manager
+  namespace: {{ $namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: agent-manager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: agent-manager
+      annotations:
+        checksum/config: {{ $config | toJson | sha256sum }}
+        checksum/control-plane: {{ include "veoveo.controlPlaneRevision" . | quote }}
+    spec:
+      serviceAccountName: veoveo-agent-manager
+      automountServiceAccountToken: true
+      imagePullSecrets: {{ .Values.global.imagePullSecrets | toJson }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: manager
+          image: {{ include "veoveo.ownedImage" (list . $manager.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          env:
+            - name: RUST_LOG
+              value: info
+            - name: VEOVEO_AGENT_MANAGER_CONFIG
+              value: /etc/veoveo/manager/manager.json
+            - name: VEOVEO_GATEWAY_CONFIG
+              value: /etc/veoveo/gateway/{{ .Values.gateway.controlPlaneKey }}
+            - name: VEOVEO_SURREAL_AUTH_LEVEL
+              value: database
+            - name: VEOVEO_SURREAL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $manager.databaseExistingSecret | quote }}
+                  key: username
+            - name: VEOVEO_SURREAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $manager.databaseExistingSecret | quote }}
+                  key: password
+          resources: {{ $manager.resources | toJson }}
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: manager
+              mountPath: /etc/veoveo/manager
+              readOnly: true
+            - name: gateway
+              mountPath: /etc/veoveo/gateway
+              readOnly: true
+      volumes:
+        - name: manager
+          configMap:
+            name: veoveo-agent-manager
+        - name: gateway
+          configMap:
+            name: {{ required "agentManager.existingControlPlaneConfigMap is required" $manager.existingControlPlaneConfigMap }}
+{{- end }}

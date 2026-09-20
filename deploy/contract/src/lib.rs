@@ -1768,7 +1768,7 @@ impl PlatformComponent {
             Self::ArtifactService => &["artifact-service"],
             Self::RecordingDataPlane => &["recording-hub", "recording-forwarder"],
             Self::SimulationRuntimeSupport => &["simulation-runtime"],
-            Self::AgentRuntimeSupport => &["agent-kernel"],
+            Self::AgentRuntimeSupport => &["agent-kernel", "agent-manager"],
             Self::Console => &["console-bff"],
             Self::PlatformStore | Self::ObjectStore | Self::Telemetry | Self::Ingress => &[],
         }
@@ -2773,7 +2773,11 @@ mod tests {
         .expect("valid external agent runtime selection");
         assert_eq!(
             selection.required_images(),
-            BTreeSet::from(["agent-kernel".to_owned(), "mcp-gateway".to_owned()])
+            BTreeSet::from([
+                "agent-kernel".to_owned(),
+                "agent-manager".to_owned(),
+                "mcp-gateway".to_owned()
+            ])
         );
     }
 
