@@ -301,7 +301,7 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
         let choice = if assistant_turns == 0 {
             fake_llm_tool_call_choice(
                 "memory_query",
-                json!({ "sql": "SELECT COUNT(*) AS episodes FROM kernel.episodes" }),
+                json!({ "sql": "SELECT COUNT(*) AS episodes FROM agent_memory.episode_log" }),
             )
         } else {
             return AxumJson(fake_llm_stop_response(&request, "EPISODES COUNTED."));
@@ -332,7 +332,7 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
         }),
         (false, 0) => fake_llm_tool_call_choice(
             "memory_query",
-            json!({ "sql": "SELECT COUNT(*) AS episodes FROM kernel.episodes" }),
+            json!({ "sql": "SELECT COUNT(*) AS episodes FROM agent_memory.episode_log" }),
         ),
         (false, 1) => fake_llm_tool_call_choice(
             "media__run",

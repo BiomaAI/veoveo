@@ -382,7 +382,7 @@ pub(crate) async fn agent_kernel_scheduler(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, 3).await?;
 
     let write_manifest = |name: &str, extra: serde_json::Value| -> Result<std::path::PathBuf> {
         let mut manifest = serde_json::json!({
@@ -508,6 +508,12 @@ pub(crate) async fn agent_kernel_scheduler(
     )
     .await?;
 
+    // Credentials and listeners must renew before any model work is requested.
+    wait_for_log_occurrences(&agent_log, "gateway connection rotated", 3, 30).await?;
+    if fs::read_to_string(&agent_log)?.contains("\"message\":\"episode started\"") {
+        bail!("idle credential renewal unexpectedly started a model episode");
+    }
+
     let control_store = veoveo_platform_store::PlatformStore::connect(
         veoveo_platform_store::StoreConfig::builder(
             &platform_store.endpoint,
@@ -559,18 +565,15 @@ pub(crate) async fn agent_kernel_scheduler(
         bail!("second operator control returned the wrong durable wake id");
     }
 
-    // Two operator episodes force two make-before-break replacements after the initial session.
+    // Operator requests still complete after idle make-before-break replacements.
     wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 2, 120).await?;
     wait_for_log_occurrences(&agent_log, "gateway connection rotated", 3, 120).await?;
     agent_child.stop();
     let agent_output = fs::read_to_string(&agent_log)?;
-    for forbidden in [
-        "replacing an existing tool registration",
-        "Failed to send query results to channel",
-    ] {
-        if agent_output.contains(forbidden) {
-            bail!("scheduler rotation soak emitted `{forbidden}`");
-        }
+    // Rig also logs replacement during a valid, generation-fenced listChanged
+    // refresh. Successful dispatch and durable results qualify rotation below.
+    if agent_output.contains("Failed to send query results to channel") {
+        bail!("scheduler rotation soak lost a query response channel");
     }
     let gateway_output = fs::read_to_string(&gateway_log)?;
     if gateway_output.contains("failed to send pending response during drain") {
@@ -843,13 +846,10 @@ pub(crate) async fn agent_pilot_mission(
     if agent_output.matches("gateway connection rotated").count() < 3 {
         bail!("pilot smoke did not rotate its short-lived gateway connection");
     }
-    for forbidden in [
-        "replacing an existing tool registration",
-        "Failed to send query results to channel",
-    ] {
-        if agent_output.contains(forbidden) {
-            bail!("pilot credential-rotation soak emitted `{forbidden}`");
-        }
+    // Rig also logs replacement during a valid, generation-fenced listChanged
+    // refresh. Successful dispatch and durable results qualify rotation below.
+    if agent_output.contains("Failed to send query results to channel") {
+        bail!("pilot credential-rotation soak lost a query response channel");
     }
     let gateway_output = fs::read_to_string(&gateway_log)?;
     if gateway_output.contains("failed to send pending response during drain") {
