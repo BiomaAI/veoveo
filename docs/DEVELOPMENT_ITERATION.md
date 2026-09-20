@@ -820,3 +820,6 @@ because its repository-wide receipts included hydrated LFS images while checkout
 LFS pointers. The exact byte comparison remains correct. Re-record the affected
 registered component check, whose declared inputs exclude unrelated documentation
 images; do not widen checkout or weaken evidence hashing merely to make this pass.
+
+The token-routing repair staged only `mcp-gateway` in 104.5 seconds, with a 94.6-second
+compile window. It reused the browser edge, kernel, manager and simulator images.
