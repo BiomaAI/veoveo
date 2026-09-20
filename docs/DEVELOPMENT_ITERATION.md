@@ -707,3 +707,16 @@ must not be added together. The chart publisher waited on the shared source chec
 lock until image publication released it. A later improvement can shorten that lock
 lifetime after creating an immutable build context, with a concurrency qualification.
 The kernel and simulator images were unchanged by this chat release.
+
+Installed Workspace authoring then saved, validated and published a definition without
+an image build or rollout. The observed requests took 95 ms, 128 ms and 487 ms. Browser
+automation initially waited on labels whose text included populated textarea content;
+role-based accessible-name selectors removed those false timeout failures. These were
+test-selector delays, not application latency. The authoring list also refreshed after
+both explicit mutation completion and catalog SSE; this redundant metadata read is a
+small follow-up opportunity. Neither observation establishes a latency percentile.
+
+The managed persistence checkpoint compiled in 9–14 seconds and its six database
+scenarios ran in under five seconds. It reused the same store target and disposable
+fixture; no image release is needed until the controller and kernel integration close
+the managed execution path.

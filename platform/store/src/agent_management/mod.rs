@@ -1,6 +1,7 @@
 //! Governed agent authoring. HTTP authorization is caller-owned; the store fences
 //! identity/context changes and commits revisions, replay receipts and events together.
 mod import;
+pub mod instances;
 mod records;
 mod validation;
 pub use import::{AgentChatImport, AgentChatImportDirection, AgentChatImportMapping};
