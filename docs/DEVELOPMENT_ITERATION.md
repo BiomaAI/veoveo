@@ -698,3 +698,12 @@ for a later measured optimization. The Workspace bundle built in about three sec
 Headed browser acceptance took about 47 seconds, including the existing collaboration
 and Task flows plus lost-response revision adoption. Hardware evidence was NVIDIA
 WebGL; the exposed SwiftShader WebGPU adapter was rejected as hardware evidence.
+
+The first agent-management image release selected only `mcp-gateway` and
+`console-bff` at `fff2744c`. Publication took 382.5 seconds. The independent Rust
+families reported 204 seconds for the browser edge and 363 seconds for the gateway;
+several common dependencies compiled in both. BuildKit's phase windows overlap and
+must not be added together. The chart publisher waited on the shared source checkout
+lock until image publication released it. A later improvement can shorten that lock
+lifetime after creating an immutable build context, with a concurrency qualification.
+The kernel and simulator images were unchanged by this chat release.
