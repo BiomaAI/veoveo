@@ -226,8 +226,10 @@ export interface AgentManagementSchema {
  */
 export interface Authoring {
   definitionLimit: number;
+  instanceLimit: number;
   models: ModelChoice[];
   permissions: AuthoringPermissions;
+  storageLimitGib: number;
   workContext: WorkContextId;
 }
 /**
@@ -269,6 +271,7 @@ export interface AuthoringPermissions {
   create: boolean;
   deploy: boolean;
   edit: boolean;
+  instanceControl: boolean;
   manageContext: boolean;
   publish: boolean;
   readContent: boolean;

@@ -248,6 +248,7 @@ pub struct AuthoringPermissions {
     pub archive: bool,
     pub transfer: bool,
     pub deploy: bool,
+    pub instance_control: bool,
     pub manage_context: bool,
 }
 
@@ -258,6 +259,8 @@ pub struct Authoring {
     pub permissions: AuthoringPermissions,
     pub models: Vec<ModelChoice>,
     pub definition_limit: u32,
+    pub instance_limit: u32,
+    pub storage_limit_gib: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]

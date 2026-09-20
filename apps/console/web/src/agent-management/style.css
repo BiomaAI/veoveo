@@ -32,3 +32,11 @@
 .am-modal::backdrop { background:#0008; }
 .am-modal h2 { margin-top:0; }
 @media (max-width:800px) { .am-layout { grid-template-columns:1fr; } .am-list { max-height:220px; overflow:auto; } .am-heading { flex-direction:column; } .agent-management { padding:16px; } }
+
+.agent-management input[type=checkbox], .am-modal input[type=checkbox] { width:16px; height:16px; flex:0 0 16px; margin:0; padding:0; }
+.am-modal select { width:100%; box-sizing:border-box; padding:10px; border:1px solid var(--border,#bcbcbc); border-radius:5px; color:inherit; background:transparent; font:inherit; }
+.am-authority dl, .am-instance dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:8px 18px; }
+.am-authority dd, .am-instance dd { margin:0; overflow-wrap:anywhere; }
+.am-parameters { display:grid; gap:14px; }
+.am-instances { margin-top:32px; padding-top:22px; border-top:1px solid var(--border,#bcbcbc); }
+.am-instance { border:1px solid var(--border,#bcbcbc); border-radius:6px; padding:16px; margin:14px 0; }

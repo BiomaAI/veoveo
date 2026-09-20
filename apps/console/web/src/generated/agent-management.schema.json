@@ -20,6 +20,11 @@
           "minimum": 0,
           "type": "integer"
         },
+        "instanceLimit": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "models": {
           "items": {
             "$ref": "#/$defs/ModelChoice"
@@ -29,6 +34,11 @@
         "permissions": {
           "$ref": "#/$defs/AuthoringPermissions"
         },
+        "storageLimitGib": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "workContext": {
           "$ref": "#/$defs/WorkContextId"
         }
@@ -37,7 +47,9 @@
         "workContext",
         "permissions",
         "models",
-        "definitionLimit"
+        "definitionLimit",
+        "instanceLimit",
+        "storageLimitGib"
       ],
       "type": "object"
     },
@@ -57,6 +69,9 @@
           "type": "boolean"
         },
         "edit": {
+          "type": "boolean"
+        },
+        "instanceControl": {
           "type": "boolean"
         },
         "manageContext": {
@@ -81,6 +96,7 @@
         "archive",
         "transfer",
         "deploy",
+        "instanceControl",
         "manageContext"
       ],
       "type": "object"

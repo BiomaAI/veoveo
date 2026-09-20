@@ -19,3 +19,24 @@ History displays immutable published content. Disable and archive explain their
 separate effects before confirmation. Current permissions govern every action.
 Observation does not invoke a model. The shared module is bundled independently
 into each client, so it does not share session state between browser applications.
+
+## Managed Agents
+
+Creation selects Chat assistant or an admitted Managed agent template. Closed parameter
+forms expose reviewed values; instructions stay literal. Model and capability choices
+respect the template ceiling. Publication retains its separate review step. Deploying
+a published definition presents its automated scopes, roles, context membership and
+retained storage before creating an instance.
+
+The instance list shows desired and observed state together with accepted and active
+generations. It shares the definition view's SSE connection. Lifecycle operations use
+stable request identities, and uncertain responses lock the form until retry recovers
+the admitted outcome. Stop explains the separate cancellation contract for accepted
+Tasks and external operations. Archive retains memory and storage quota.
+
+Revision updates require review of the selected retained publication. Private instruction
+history uses existing content permission. Resume and update controls require deploy
+authority; instance control has its own disclosed permission. Reactive permission changes
+remove controls without invoking a model. The headed browser fixture exercises these
+flows with hardware graphics and explicit HTTP fixtures; it does not claim installed
+workload or model execution.

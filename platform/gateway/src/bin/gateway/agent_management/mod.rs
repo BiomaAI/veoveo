@@ -281,6 +281,8 @@ async fn authoring(
     Ok(Json(wire::Authoring {
         work_context: actor.subject.authority.work_context.clone(),
         definition_limit: state.definition_limit,
+        instance_limit: state.instance_limits.instances,
+        storage_limit_gib: state.instance_limits.storage_gib,
         models: state
             .models
             .iter()
@@ -296,6 +298,7 @@ async fn authoring(
             archive: allowed(Action::AgentDefinitionsArchive),
             transfer: allowed(Action::AgentDefinitionsTransfer),
             deploy: allowed(Action::AgentInstancesDeploy),
+            instance_control: allowed(Action::AgentInstancesControl),
             manage_context: actor.authority.manage_context,
         },
     }))

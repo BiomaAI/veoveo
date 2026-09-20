@@ -1,9 +1,9 @@
 import { z } from "zod";
 import schema from "../generated/agent-management.schema.json" with { type: "json" };
-import type { Authoring, CapabilityChoice, Definition, DefinitionPage, Draft, RevisionPage, Validation, CreateDefinition, SaveDraft, UpdateMetadata, PublishDefinition, RevisionRequest, ValidateDefinition } from "../generated/agent-management";
+import type { Authoring, CapabilityChoice, Definition, DefinitionPage, Draft, RevisionPage, Validation, CreateDefinition, SaveDraft, UpdateMetadata, PublishDefinition, RevisionRequest, ValidateDefinition, TemplateChoice, InstancePage, ManagedInstance, LifecycleOperation, ProvisionInstance, UpdateInstance } from "../generated/agent-management";
 import { browserSession } from "../csrf.ts";
 
-interface Responses { Authoring: Authoring; CapabilityChoice: CapabilityChoice; Definition: Definition; DefinitionPage: DefinitionPage; Draft: Draft; RevisionPage: RevisionPage; Validation: Validation }
+interface Responses { Authoring: Authoring; CapabilityChoice: CapabilityChoice; Definition: Definition; DefinitionPage: DefinitionPage; Draft: Draft; RevisionPage: RevisionPage; Validation: Validation; TemplateChoice: TemplateChoice; InstancePage: InstancePage; ManagedInstance: ManagedInstance; LifecycleOperation: LifecycleOperation }
 const validators = new Map<keyof Responses, z.ZodType>();
 function parse<K extends keyof Responses>(kind: K, value: unknown): Responses[K] {
   let validator = validators.get(kind);
@@ -60,6 +60,16 @@ export class AgentApi {
     if (!Array.isArray(values)) throw new Error("The capability list could not be verified.");
     return values.map(v => parse("CapabilityChoice", v));
   };
+  templates = async () => {
+    const values = await this.request("agent-templates");
+    if (!Array.isArray(values)) throw new Error("The runtime templates could not be verified.");
+    return values.map(v => parse("TemplateChoice", v));
+  };
+  instances = async (after?: string) => parse("InstancePage", await this.request(`agent-instances?limit=50${after ? `&after=${encodeURIComponent(after)}` : ""}`));
+  instance = async (id: string) => parse("ManagedInstance", await this.request(`agent-instances/${encodeURIComponent(id)}`));
+  operation = async (id: string) => parse("LifecycleOperation", await this.request(`agent-operations/${encodeURIComponent(id)}`));
+  provision = async (body: ProvisionInstance) => parse("LifecycleOperation", await this.request("agent-instances", "POST", body));
+  updateInstance = async (id: string, body: UpdateInstance) => parse("LifecycleOperation", await this.request(`agent-instances/${encodeURIComponent(id)}`, "PATCH", body));
   create = async (body: CreateDefinition) => parse("Definition", await this.request("agent-definitions", "POST", body));
   save = async (id: string, body: SaveDraft) => parse("Definition", await this.request(`agent-definitions/${encodeURIComponent(id)}/draft`, "PUT", body));
   metadata = async (id: string, body: UpdateMetadata) => parse("Definition", await this.request(`agent-definitions/${encodeURIComponent(id)}`, "PATCH", body));
