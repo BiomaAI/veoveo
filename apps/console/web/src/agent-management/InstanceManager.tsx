@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { uuidV7 } from "../agentControl";
-import type { Authoring, InstanceChange, LifecycleOperation, ManagedInstance, PublishedRevision, UpdateInstance } from "../generated/agent-management";
+import type { Authoring, Definition, InstanceChange, LifecycleOperation, ManagedInstance, PublishedRevision, UpdateInstance } from "../generated/agent-management";
 import { AgentApi, AgentApiError } from "./api";
 
-export function InstanceManager({ api, authoring, refreshVersion }: { api: AgentApi; authoring: Authoring; refreshVersion: number }) {
+export function InstanceManager({ api, authoring, definitions, refreshVersion }: { api: AgentApi; authoring: Authoring; definitions: readonly Definition[]; refreshVersion: number }) {
   const [items, setItems] = useState<ManagedInstance[]>([]);
   const [next, setNext] = useState<string | null>();
   const [error, setError] = useState<string>();
@@ -28,12 +28,12 @@ export function InstanceManager({ api, authoring, refreshVersion }: { api: Agent
     <p>Context capacity: {authoring.instanceLimit} retained instances and {authoring.storageLimitGib} GiB. Archived storage remains counted.</p>
     {error && <p className="am-error" role="alert">{error}</p>}
     {!items.length && !error && <p>No managed instances in this Work Context. Publish a managed definition, then deploy an instance from its detail view.</p>}
-    {items.map(instance => <InstanceCard key={instance.id} api={api} value={instance} authoring={authoring} changed={() => void refresh()}/>)}
+    {items.map(instance => <InstanceCard key={instance.id} api={api} value={instance} authoring={authoring} publishedRevision={definitions.find(d => d.id === instance.definition)?.publishedDigest} changed={() => void refresh()}/>)}
     {next && <button onClick={() => void api.instances(next).then(page => { setItems(values => [...values, ...page.items.filter(v => !values.some(item => item.id === v.id))]); setNext(page.next); }).catch(e => setError(String(e.message ?? e)))}>Load more instances</button>}
   </section>;
 }
 
-function InstanceCard({ api, value, authoring, changed }: { api: AgentApi; value: ManagedInstance; authoring: Authoring; changed: () => void }) {
+function InstanceCard({ api, value, authoring, publishedRevision, changed }: { api: AgentApi; value: ManagedInstance; authoring: Authoring; publishedRevision?: string | null; changed: () => void }) {
   const [operation, setOperation] = useState<LifecycleOperation>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -42,6 +42,7 @@ function InstanceCard({ api, value, authoring, changed }: { api: AgentApi; value
   const [history, setHistory] = useState<PublishedRevision[]>();
   const [older, setOlder] = useState<string | null>();
   const [revision, setRevision] = useState("");
+  const [reviewOpen, setReviewOpen] = useState(false);
   const canControl = authoring.permissions.instanceControl && value.desired !== "archived";
   const disabled = busy || !!pending;
   useEffect(() => {
@@ -49,6 +50,18 @@ function InstanceCard({ api, value, authoring, changed }: { api: AgentApi; value
     void api.operation(value.operation).then(v => { if (current) setOperation(v); }).catch(e => { if (current) setError(String(e.message ?? e)); });
     return () => { current = false; };
   }, [api, value.operation, value.updatedAt]);
+  useEffect(() => {
+    if (!reviewOpen || !authoring.permissions.readContent) return;
+    let current = true;
+    void api.revisions(value.definition).then(page => {
+      if (!current) return;
+      setHistory(items => [...page.items, ...(items ?? []).filter(item => !page.items.some(v => v.digest === item.digest))]);
+      setOlder(page.next);
+      // Publication refreshes choices without changing the revision under review.
+      setRevision(selected => selected || page.items[0]?.digest || "");
+    }).catch(e => { if (current) setError(String(e.message ?? e)); });
+    return () => { current = false; };
+  }, [api, value.definition, publishedRevision, reviewOpen, authoring.permissions.readContent]);
   async function submit(change?: InstanceChange) {
     const request = pending ?? { requestId: uuidV7(), expectedGeneration: value.generation, change: change! };
     setPending(request); setBusy(true); setError(undefined);
@@ -81,7 +94,7 @@ function InstanceCard({ api, value, authoring, changed }: { api: AgentApi; value
       {value.observed === "failed" && authoring.permissions.deploy && <button disabled={disabled} onClick={() => void submit({ kind: "retry" })}>Retry provisioning</button>}
     </div>}
     {confirm && <div className="am-review"><p>{confirm === "stop" ? "Stop further model and tool dispatch for the current run? Accepted Tasks and external operations retain their own cancellation controls." : "Archive this instance? Execution and credentials will close. Its memory, storage and audit history remain retained."}</p><button disabled={disabled} onClick={() => void submit(confirm === "stop" ? { kind: "stop" } : { kind: "state", desired: "archived" })}>Confirm {confirm}</button><button disabled={disabled} onClick={() => setConfirm(undefined)}>Cancel</button></div>}
-    {canControl && authoring.permissions.deploy && authoring.permissions.readContent && <details onToggle={event => { if (event.currentTarget.open && !history) void revisions(); }}><summary>Review a revision update</summary><p>The current episode drains before switching. Identity, retained memory and accepted Tasks stay with this instance.</p>
+    {canControl && authoring.permissions.deploy && authoring.permissions.readContent && <details onToggle={event => setReviewOpen(event.currentTarget.open)}><summary>Review a revision update</summary><p>The current episode drains before switching. Identity, retained memory and accepted Tasks stay with this instance.</p>
       {history && <><label>Published revision<select disabled={disabled} value={revision} onChange={e => setRevision(e.target.value)}>{history.map(h => <option key={h.digest} value={h.digest}>{h.digest.slice(7, 19)} · {new Date(h.createdAt).toLocaleString()}{h.digest === value.requestedRevision ? " · Current request" : ""}</option>)}</select></label>
         {proposed && <div className="am-review"><p>Published by {proposed.createdBy}.</p><p>{fields ? `Changed: ${fields.join(", ") || "nothing"}.` : "Load the current revision to compare the complete changes before applying an update."}</p><p>Model: {proposed.content.model.id}. Tools: {proposed.content.tools.join(", ") || "None"}.</p><p>Limits: {proposed.content.budgets.maxCompletionCalls} model calls, {proposed.content.budgets.maxToolCalls} tool calls, {proposed.content.budgets.maxOutputTokens} output tokens, {proposed.content.budgets.deadlineSeconds} seconds.</p><details><summary>Proposed instructions</summary><pre>{proposed.content.instructions}</pre></details></div>}
         {older && <button onClick={() => void revisions(older)}>Load older revisions</button>}

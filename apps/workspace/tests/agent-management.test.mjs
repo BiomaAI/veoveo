@@ -143,6 +143,15 @@ test("managed authoring reviews authority, recovers lost creation and observes l
     history.unshift({ ...history[0], digest: digest("e"), content: { ...content, instructions: "Updated reviewed instructions." } });
     await card.getByText("Review a revision update", { exact: true }).click();
     await card.getByText("Changed: instructions.", { exact: true }).waitFor();
+    // An open review receives a later publication without adopting it or changing
+    // the operator's selection. The same contentless event refreshes both views.
+    history.unshift({ ...history[0], digest: digest("9"), content: { ...content, instructions: "Newly published instructions." } });
+    definition.publishedDigest = digest("9"); definition.revision++; notify();
+    const revisions = card.getByRole("combobox", { name: "Published revision", exact: true });
+    await revisions.locator(`option[value="${digest("9")}"]`).waitFor({ state: "attached" });
+    assert.equal(await revisions.inputValue(), digest("e"), "publication preserves the reviewed selection");
+    assert.equal(instance.requestedRevision, digest("f"), "publication does not adopt a revision");
+    await revisions.selectOption(digest("9"));
     await card.getByRole("button", { name: "Apply reviewed revision", exact: true }).click();
     await page.waitForFunction(() => document.body.textContent.includes("1 active / 4 requested"));
     await card.getByRole("button", { name: "Stop current run", exact: true }).click();

@@ -41,7 +41,9 @@ the admitted outcome. Stop explains the separate cancellation contract for accep
 Tasks and external operations. Archive retains memory and storage quota.
 
 Revision updates require review of the selected retained publication. Private instruction
-history uses existing content permission. Resume and update controls require deploy
+history uses existing content permission. Publication notifications refresh an open
+revision selector while preserving its selected revision. Reopening review refreshes
+its history as well; adoption remains an explicit action. Resume and update controls require deploy
 authority; instance control has its own disclosed permission. Reactive permission changes
 remove controls without invoking a model. The headed browser fixture exercises these
 flows with hardware graphics and explicit HTTP fixtures; it does not claim installed
