@@ -66,10 +66,10 @@ struct PodClaim {
 struct Pv {
     persistent_volume_reclaim_policy: String,
     claim_ref: Metadata,
-    host_path: HostPath,
+    local: LocalPath,
 }
 #[derive(Deserialize)]
-struct HostPath {
+struct LocalPath {
     path: String,
 }
 #[derive(Deserialize)]
@@ -170,7 +170,7 @@ pub fn verify(entries: &[PilotAdoption], root: &Path) -> Result<()> {
                 && pv.spec.claim_ref.name == resources.volume_claim
                 && pv.spec.claim_ref.namespace.as_deref() == Some(&resources.namespace)
                 && pv.spec.claim_ref.uid == claim.metadata.uid
-                && pv.spec.host_path.path == volume.source_path,
+                && pv.spec.local.path == volume.source_path,
             "retained volume ownership differs for {}",
             volume.agent
         );
