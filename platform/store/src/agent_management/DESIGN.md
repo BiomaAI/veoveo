@@ -1,8 +1,8 @@
 # Agent Catalog Persistence
 
-Status: registry foundation under implementation. Gateway authoring routes and the
-registry-backed Workspace executor are subsequent work in the
-[agent management plan](../../../../docs/AGENT_MANAGEMENT_PLAN.md).
+Status: registry, gateway authoring and revision-aware Workspace execution are deployed.
+The [managed lifecycle module](instances/DESIGN.md) adds transactional instance
+admission and controller fencing; its external provisioning integration is in progress.
 
 ## Standards And Protocols
 

@@ -1,6 +1,8 @@
 //! Real database checks for publication, authority fencing and concurrent authoring.
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
+#[path = "agent_management/instances.rs"]
+mod instances;
 
 use fixture::TestDb;
 use uuid::Uuid;

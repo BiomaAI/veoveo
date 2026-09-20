@@ -2,8 +2,9 @@
 
 Status: accepted and implementation started September 19, 2026. This is the active
 delivery goal. Registry persistence and the authoring API/client layer are implemented
-checkpoints. Registry-backed execution and explicit chat revision adoption now have
-local qualification. Managed provisioning and installed acceptance remain outstanding. Current component
+checkpoints. Registry-backed chat execution and explicit revision adoption are deployed
+and have installed browser/model evidence. Managed lifecycle persistence has local
+qualification; its controller, identity integration and UAV migration remain outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols
@@ -395,3 +396,39 @@ language, arbitrary uploaded runtime code, a new scheduler for timed model wakeu
 automatic inter-agent conversations, another secrets system or a new backup service.
 Native MCP Tasks remain first-class work with their own authority and lifetime.
 Changing their private-to-shared result contract requires a separate design.
+
+## Installed Chat Checkpoint — September 19, 2026
+
+Helm release 179 runs the gateway and browser edge from `fff2744c` images, admitted
+by GitOps commit `de41ad49`. Both components have two ready replicas. The coordinated
+import retained Assistant, Reviewer and all nine existing chat participant bindings.
+GitHub's Build workflow passed for the deployment commit.
+
+An authenticated headed Chrome session at `veoveo.bioma.ai` used NVIDIA RTX 4090
+WebGL. Its exposed WebGPU adapter was SwiftShader and was excluded from hardware
+evidence. Through Workspace, the operator created `iteration-check-20260919`, edited
+instructions and capability selection, validated and published it. Three real model
+responses in chat `dc2b70ec-723e-4b95-bc84-d5aacd0ad219` established revision retention:
+the first answer used the published instructions; a second still used them after a
+new publication; the third used the new instructions after explicit owner adoption.
+
+The adopted revision is
+`sha256:d3baec770b18437c542c5d8d202e35c7d1f427d26eefea5e588a92959f40af21`.
+The agent dispatched `time__resolve_time` for `2026-09-20T09:00:00-06:00`.
+Operation `50ff4753-c413-541f-aa4e-1441f9ee43ca` completed with
+`2026-09-20T15:00:00Z` in private Activity. This was an immediate MCP result;
+it is not evidence for a new native Task lifecycle. The chat disclosed the private
+operation without copying its result into shared history.
+
+The same UI duplicated the published configuration into an unpublished draft and
+archived that copy. Disabling the original removed it from the admission catalog;
+enabling restored it. The acceptance definition and chat remain available for further
+qualification. These checks used the operator's actual account, not a second human.
+Console's Agents view independently loaded the same authored definition and its
+published instruction body under the operator's Console session.
+
+Single observed save, validation and publication requests took 95 ms, 128 ms and
+487 ms respectively. They are samples, not percentile claims. Broad load measurement,
+the newly authored agent's native Task recovery and the managed lifecycle acceptance
+remain outstanding. No image build or gateway rollout occurred for these authoring
+or publication operations.
