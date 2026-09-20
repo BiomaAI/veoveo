@@ -805,3 +805,18 @@ The corrected manager-only image published in 220.4 seconds; compilation consume
 recompiled shared HTTP and SurrealDB dependencies. The changed dependency feature
 combination is a likely cache-reuse cost and should be measured before changing the
 builder's compilation groups. Only the manager image was published.
+
+The first installed token request found a routing gap that resolver-only tests had
+missed: `/oauth/token` still selected a resource through the static client catalog.
+The endpoint now resolves effective registration first, and the HTTP regression
+covers durable registration, implicit resource selection, denied resource selection
+and definition revocation. All 68 active gateway binary tests passed in 4.1 seconds.
+The focused Clippy invocation compiled another dependency feature combination and
+took 75 seconds; use the registered check commands to keep cache and evidence scope
+consistent across iterations.
+
+GitHub rejected the manager-repair checkpoint's otherwise passing observations
+because its repository-wide receipts included hydrated LFS images while checkout had
+LFS pointers. The exact byte comparison remains correct. Re-record the affected
+registered component check, whose declared inputs exclude unrelated documentation
+images; do not widen checkout or weaken evidence hashing merely to make this pass.

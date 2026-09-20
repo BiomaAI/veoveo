@@ -362,3 +362,157 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
             .is_none()
     );
 }
+
+#[tokio::test]
+async fn managed_token_http_route_resolves_durable_clients_before_resource_routing() {
+    use axum::{
+        body::{Body, to_bytes},
+        http::Request,
+        routing::post,
+    };
+    use parking_lot::RwLock;
+    use std::num::NonZeroU32;
+    use tower::ServiceExt;
+    use veoveo_mcp_gateway::{GatewayRefreshDeliveryWindow, RefreshTokenDeliveryCipher};
+    use veoveo_platform_store::agent_management::instances::*;
+
+    let db = crate::test_store::TestDb::new().await;
+    crate::workspace::tests::setup(&db.a).await;
+    let state = managed_state(&db.a);
+    let _stop = state.stop.clone().drop_guard();
+    let human = fixture_subject("Alice");
+    let alice = app(&state, human.clone());
+    let definition = published(&alice).await;
+    let (status, _) = request(&alice, "POST", "agent-instances", json!({"requestId":uuid::Uuid::now_v7(),"id":"worker-one","name":"Worker","definition":"worker","revision":definition["publishedDigest"]})).await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let actor = authority::admit(
+        &state,
+        "operator".into(),
+        human,
+        Action::AgentDefinitionsRead,
+    )
+    .await
+    .unwrap();
+    let instance =
+        db.a.managed_agent(&actor.authority, "worker-one")
+            .await
+            .unwrap();
+    let owner = uuid::Uuid::now_v7();
+    let claim =
+        db.a.claim_managed_agent_operation(instance.operation, owner)
+            .await
+            .unwrap()
+            .unwrap()
+            .claim(owner)
+            .unwrap();
+    db.a.observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
+        .await
+        .unwrap();
+    db.a.register_managed_agent_key(
+        &claim,
+        ManagedAgentPublicKey {
+            kid: "test".into(),
+            n: "public-modulus".into(),
+            e: "AQAB".into(),
+        },
+    )
+    .await
+    .unwrap();
+    for phase in [
+        ManagedAgentPhase::Storage,
+        ManagedAgentPhase::Draining,
+        ManagedAgentPhase::Workload,
+    ] {
+        db.a.observe_managed_agent(&claim, phase, None)
+            .await
+            .unwrap();
+    }
+    let catalog = state.catalog.current();
+    assert!(
+        catalog
+            .oauth_client(&instance.identity.client_id.parse().unwrap())
+            .is_none()
+    );
+    let app_state = crate::runtime::AppState {
+        catalog: state.catalog.clone(),
+        gateway_state: state.gateway.clone(),
+        http: Arc::new(RwLock::new(reqwest::Client::new())),
+        public_base_url: "https://veoveo.example".into(),
+        refresh_delivery_cipher: RefreshTokenDeliveryCipher::new(&[42; 32]).unwrap(),
+        refresh_delivery_window: GatewayRefreshDeliveryWindow::from_seconds(
+            NonZeroU32::new(10).unwrap(),
+        )
+        .unwrap(),
+    };
+    let tokens = Router::new()
+        .route("/oauth/token", post(crate::oauth::token_endpoint))
+        .with_state(app_state);
+    // Both explicit and implicit resource routing must reach assertion validation.
+    // The fixture deliberately has no private key: issuance is installed acceptance.
+    for resource in [
+        Some(instance.identity.resource.as_str()),
+        None,
+        Some("https://veoveo.example/mcp/admin"),
+    ] {
+        let mut form = url::form_urlencoded::Serializer::new(String::new());
+        form.append_pair("grant_type", "client_credentials")
+            .append_pair("client_id", &instance.identity.client_id);
+        if let Some(resource) = resource {
+            form.append_pair("resource", resource);
+        }
+        let response = tokens
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/oauth/token")
+                    .header("content-type", "application/x-www-form-urlencoded")
+                    .body(Body::from(form.finish()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), 65536).await.unwrap()).unwrap();
+        assert_eq!(body["error"], "invalid_client");
+        assert_eq!(
+            body["error_description"],
+            if resource.is_some_and(|r| r.ends_with("/admin")) {
+                "client is not registered for this protected resource"
+            } else {
+                "client authentication failed"
+            }
+        );
+    }
+    let (status, _) = request(
+        &alice,
+        "POST",
+        "agent-definitions/worker/disable",
+        json!({"requestId":uuid::Uuid::now_v7(),"expectedRevision":definition["revision"]}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let mut form = url::form_urlencoded::Serializer::new(String::new());
+    form.append_pair("grant_type", "client_credentials")
+        .append_pair("client_id", &instance.identity.client_id)
+        .append_pair("resource", &instance.identity.resource);
+    let response = tokens
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/oauth/token")
+                .header("content-type", "application/x-www-form-urlencoded")
+                .body(Body::from(form.finish()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let body: Value =
+        serde_json::from_slice(&to_bytes(response.into_body(), 65536).await.unwrap()).unwrap();
+    assert_eq!(
+        body["error_description"],
+        "client is not registered for this protected resource"
+    );
+}
