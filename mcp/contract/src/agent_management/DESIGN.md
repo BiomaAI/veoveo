@@ -52,3 +52,19 @@ archived instances and their retained storage. Installation limits are
 The existing contentless agent event stream includes authorized lifecycle changes.
 Durable event heads recover missed hints; observation does not call a model or query
 a provider's job status. Public projections omit deployment Secret and image details.
+
+## Shared Installation Configuration
+
+`installation.rs` owns approved model connections and executable digests. Gateway and
+lifecycle manager consume this contract, so the manager does not need to link the entire
+gateway to reproduce model or template admission. Model digests retain the existing
+serialized tuple; names and visibility remain outside executable identity. Template
+validation uses the typed control-plane catalog and restricts integer parameters to
+the browser's exact integer range.
+
+Immutable ConfigMap content is a sorted string map serialized as compact UTF-8 JSON.
+Its SHA-256 is part of the template revision. This repository profile does not claim
+RFC 8785 canonicalization for arbitrary JSON. The shared hashing implementation uses
+workspace pins [`sha2` 0.11.0](https://docs.rs/crate/sha2/0.11.0) and
+[`hex` 0.4.3](https://docs.rs/crate/hex/0.4.3), verified against upstream stable releases
+on September 19, 2026.

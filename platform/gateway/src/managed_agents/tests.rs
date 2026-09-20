@@ -53,26 +53,17 @@ fn template_parameters_and_public_choices_cannot_select_credentials_or_code() {
     changed.workload.config_digest =
         veoveo_mcp_contract::Sha256Digest::from_hex("c".repeat(64)).unwrap();
     assert_ne!(runtime_template_revision(&changed), original_revision);
-    assert!(ManagedTemplateCatalog::parameters(
-        &template,
-        &BTreeMap::from([(
-            "vehicle".into(),
-            wire::TemplateParameter::Text("uav-5".into())
-        )])
-    ));
+    assert!(template.accepts_parameters(&BTreeMap::from([(
+        "vehicle".into(),
+        wire::TemplateParameter::Text("uav-5".into())
+    )])));
     for value in ["${PRIVATE_KEY}", "../memory", "a;cmd", ""] {
-        assert!(!ManagedTemplateCatalog::parameters(
-            &template,
-            &BTreeMap::from([(
-                "vehicle".into(),
-                wire::TemplateParameter::Text(value.into())
-            )])
-        ));
+        assert!(!template.accepts_parameters(&BTreeMap::from([(
+            "vehicle".into(),
+            wire::TemplateParameter::Text(value.into())
+        )])));
     }
-    assert!(!ManagedTemplateCatalog::parameters(
-        &template,
-        &BTreeMap::new()
-    ));
+    assert!(!template.accepts_parameters(&BTreeMap::new()));
     let mut principal = principal("managed-one");
     let context = WorkContextId::new("operations").unwrap();
     let public = serde_json::to_string(&admitted.choices(&principal, &context)).unwrap();

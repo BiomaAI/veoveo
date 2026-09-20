@@ -1,6 +1,6 @@
 use axum::http::StatusCode;
 use veoveo_mcp_contract::{WorkContextMembershipLevel, agent_management as wire};
-use veoveo_mcp_gateway::managed_agents::{ManagedTemplateCatalog, runtime_template_revision};
+use veoveo_mcp_gateway::managed_agents::runtime_template_revision;
 use veoveo_platform_store::agent_management::{self as domain, instances::*};
 
 use super::super::{AgentManagementState, Fault, authority::Admission, projection};
@@ -51,12 +51,11 @@ pub(super) async fn template(
         .managed_templates()
         .get(template)
         .filter(|t| {
-            ManagedTemplateCatalog::permits(
-                t,
+            t.permits(
                 &actor.subject.principal,
                 &actor.subject.authority.work_context,
             ) && runtime_template_revision(t) == *template_revision
-                && ManagedTemplateCatalog::parameters(t, parameters)
+                && t.accepts_parameters(parameters)
                 && t.models.contains(&content.model.id)
                 && content.tools.iter().all(|tool| t.tools.contains(tool))
                 && resource_subscriptions
@@ -70,7 +69,10 @@ pub(super) async fn template(
         .find(|m| {
             m.id == content.model.id
                 && m.revision() == content.model.revision
-                && m.permits(&actor.subject, &actor.subject.authority.work_context)
+                && m.permits(
+                    &actor.subject.principal,
+                    &actor.subject.authority.work_context,
+                )
                 && m.required_scopes.is_subset(&template.scopes)
                 && m.admits(&content.budgets)
         })

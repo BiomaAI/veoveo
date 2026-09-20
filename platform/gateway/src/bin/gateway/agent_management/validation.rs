@@ -69,7 +69,11 @@ pub(super) async fn check(
         ),
     }
     match state.models.iter().find(|m| {
-        m.id == content.model.id && m.permits(&actor.subject, &actor.subject.authority.work_context)
+        m.id == content.model.id
+            && m.permits(
+                &actor.subject.principal,
+                &actor.subject.authority.work_context,
+            )
     }) {
         None => finding(
             wire::FindingCode::ModelUnavailable,
@@ -91,7 +95,10 @@ pub(super) async fn check(
                     "The requested budgets exceed this model's approved limits.",
                 );
             }
-            if audience.iter().any(|c| !model.permits(&actor.subject, c)) {
+            if audience
+                .iter()
+                .any(|c| !model.permits(&actor.subject.principal, c))
+            {
                 finding(
                     wire::FindingCode::ModelUnavailable,
                     "audience",
@@ -107,12 +114,9 @@ pub(super) async fn check(
         resource_subscriptions,
     } = &content.execution
     {
-        use veoveo_mcp_gateway::managed_agents::{
-            ManagedTemplateCatalog, runtime_template_revision,
-        };
+        use veoveo_mcp_gateway::managed_agents::runtime_template_revision;
         match state.gateway.managed_templates().get(template).filter(|t| {
-            ManagedTemplateCatalog::permits(
-                t,
+            t.permits(
                 &actor.subject.principal,
                 &actor.subject.authority.work_context,
             ) && runtime_template_revision(t) == *template_revision
@@ -123,7 +127,7 @@ pub(super) async fn check(
                 "Select a currently approved runtime template in this Work Context.",
             ),
             Some(template) => {
-                if !ManagedTemplateCatalog::parameters(template, parameters) {
+                if !template.accepts_parameters(parameters) {
                     finding(
                         wire::FindingCode::InvalidContent,
                         "execution.parameters",
@@ -154,16 +158,17 @@ pub(super) async fn check(
                     );
                 }
                 if let Some(model) = state.models.iter().find(|m| m.id == content.model.id)
-                    && !template
-                        .workload
-                        .model_secrets
-                        .iter()
-                        .any(|binding| binding.reference == model.api_key)
+                    && (!model.required_scopes.is_subset(&template.scopes)
+                        || !template
+                            .workload
+                            .model_secrets
+                            .iter()
+                            .any(|binding| binding.reference == model.api_key))
                 {
                     finding(
                         wire::FindingCode::ModelUnavailable,
                         "model",
-                        "The runtime template has no approved credential binding for this model.",
+                        "The runtime template lacks the approved model credential or required service scopes.",
                     );
                 }
             }

@@ -78,7 +78,7 @@ impl AgentManagementState {
             .find(|model| {
                 model.id == content.model.id
                     && model.revision() == content.model.revision
-                    && model.permits(subject, &subject.authority.work_context)
+                    && model.permits(&subject.principal, &subject.authority.work_context)
                     && model.admits(&content.budgets)
             })
             .ok_or(StatusCode::FORBIDDEN)?
@@ -163,7 +163,7 @@ impl AgentManagementState {
             let Some(model) = self.models.iter().find(|m| {
                 m.id.as_str() == entry.model.id
                     && m.revision().hex() == entry.model.revision
-                    && m.permits(subject, &subject.authority.work_context)
+                    && m.permits(&subject.principal, &subject.authority.work_context)
             }) else {
                 continue;
             };
