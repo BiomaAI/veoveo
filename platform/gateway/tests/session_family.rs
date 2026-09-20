@@ -51,6 +51,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
             .await
             .unwrap();
         let token = AccessTokenSubject {
+            managed_agent: None,
             issuer: TokenIssuer::new("https://veoveo.example").unwrap(),
             subject: principal.subject.clone(),
             oauth_client_id: client.clone(),

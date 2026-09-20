@@ -281,6 +281,8 @@ impl From<&Principal> for PrincipalAuditAttributes {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct AccessTokenSubject {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub managed_agent: Option<crate::agent_management::ManagedAgentToken>,
     pub issuer: TokenIssuer,
     pub subject: TokenSubject,
     pub oauth_client_id: OAuthClientId,

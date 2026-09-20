@@ -572,7 +572,11 @@ async fn authenticate(
         )
         .await);
     };
-    let subject = match catalog.resolve_authenticated_subject(verified) {
+    let subject = match state
+        .gateway_state
+        .resolve_authenticated_subject(&catalog, verified)
+        .await
+    {
         Ok(subject) => subject,
         Err(_) => {
             return Err(record_denial(

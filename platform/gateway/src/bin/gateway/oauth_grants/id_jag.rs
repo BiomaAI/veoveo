@@ -476,6 +476,7 @@ pub(crate) async fn token_endpoint_id_jag(
         None,
         None,
         AccessTokenInvocation {
+            managed_agent: None,
             session_family: None,
             work_context,
             provenance: InvocationProvenance::Delegated {

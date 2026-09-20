@@ -8,6 +8,7 @@
 | JWT, RFC 7519 | Signed access tokens with the installation's qualified asymmetric algorithms; issuer, audience and time validation |
 | RFC 7009 / RFC 9700 | Refresh-family revocation and rotation; current family checks also deny bound access tokens |
 | Veoveo `session_family` claim | Repository-owned optional UUIDv7 refresh-family identity; it is signed metadata, not a bearer credential or standardized device authorization |
+| Veoveo `managed_agent` claim | Repository-owned instance, generation and dispatch-epoch binding for managed service tokens; current registration and template authority are checked independently |
 | Veoveo internal `request_context` | Verified source principal and token metadata carried into a signed upstream assertion; the source token bounds that assertion's lifetime |
 | SurrealDB 3.2.4 | Shared refresh family, replay, JWT revocation and audit records; no process-local positive revocation cache |
 

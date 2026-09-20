@@ -89,13 +89,18 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         offline_mode,
         retention,
     } = config;
+    let initial_catalog =
+        load_initial_catalog(&control_store, expected_control_plane_sha256.as_deref()).await?;
     let gateway_state =
-        veoveo_mcp_gateway::GatewayState::new(control_store.platform_store().clone());
+        veoveo_mcp_gateway::GatewayState::new(control_store.platform_store().clone())
+            .with_managed_templates(
+                veoveo_mcp_gateway::managed_agents::ManagedTemplateCatalog::from_env(
+                    &initial_catalog,
+                )?,
+            );
     let agent_control = AgentControl::new(control_store.platform_store().clone())?;
     spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
     spawn_refresh_delivery_gc_loop(gateway_state.clone());
-    let initial_catalog =
-        load_initial_catalog(&control_store, expected_control_plane_sha256.as_deref()).await?;
     let catalog = GatewayCatalogHandle::new(initial_catalog.clone());
     let internal_signing_key_der = BASE64_STANDARD
         .decode(internal_signing_key_der_b64.expose_secret().trim())

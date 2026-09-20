@@ -4,7 +4,8 @@ Status: accepted and implementation started September 19, 2026. This is the acti
 delivery goal. Registry persistence and the authoring API/client layer are implemented
 checkpoints. Registry-backed chat execution and explicit revision adoption are deployed
 and have installed browser/model evidence. Managed lifecycle persistence has local
-qualification; its controller, identity integration and UAV migration remain outstanding. Current component
+qualification. Reviewed templates and effective managed OAuth registration are implemented
+locally; provisioning, kernel integration and UAV migration remain outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols

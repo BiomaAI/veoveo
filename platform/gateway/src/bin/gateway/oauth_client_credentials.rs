@@ -86,7 +86,39 @@ pub(super) async fn token_endpoint_client_credentials(
             );
         }
     };
-    let Some(client) = catalog.oauth_client(&client_id) else {
+    let effective = match state
+        .gateway_state
+        .effective_oauth_client(catalog, &client_id)
+        .await
+    {
+        Ok(client) => client,
+        Err(error) => {
+            tracing::warn!(%error, "effective OAuth registration unavailable");
+            if let Err(error) = record_token_auth_audit(
+                &state.gateway_state,
+                resource.audit_target(),
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::AuthStateUnavailable,
+                    started_at,
+                },
+            )
+            .await
+            {
+                return auth_audit_error_response(error);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_client",
+                "client authentication failed",
+            );
+        }
+    };
+    let Some(effective) = effective else {
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
             resource.audit_target(),
@@ -110,6 +142,7 @@ pub(super) async fn token_endpoint_client_credentials(
             "client authentication failed",
         );
     };
+    let client = &effective.registration;
     if &client.authorization_server != resource.authorization_server()
         || !client
             .allowed_resources
@@ -194,36 +227,11 @@ pub(super) async fn token_endpoint_client_credentials(
         );
     };
 
-    let Some(client_jwks_source) = client.jwks.as_ref() else {
-        tracing::error!(client = %client_id, "private-key JWT client is missing JWKS source");
-        if let Err(err) = record_token_auth_audit(
-            &state.gateway_state,
-            resource.audit_target(),
-            AuthAuditRecord {
-                authorization_server: Some(authorization_server),
-                client_id: Some(&client_id),
-                principal: None,
-                jwt_id: None,
-                outcome: AuthOutcome::Deny,
-                reason: AuthReasonCode::InvalidAuthConfig,
-                started_at,
-            },
-        )
-        .await
-        {
-            return auth_audit_error_response(err);
-        }
-        return oauth_error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "server_error",
-            "client authentication is not configured",
-        );
-    };
-    let http = current_http_client(&state.http);
-    let client_jwks = match load_jwks(&http, client_jwks_source).await {
-        Ok(jwks) => jwks,
-        Err(err) => {
-            tracing::warn!(client = %client_id, "failed to load OAuth client JWKS: {err}");
+    let client_jwks = if let Some(keys) = &effective.public_keys {
+        keys.clone()
+    } else {
+        let Some(client_jwks_source) = client.jwks.as_ref() else {
+            tracing::error!(client = %client_id, "private-key JWT client is missing JWKS source");
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
                 resource.audit_target(),
@@ -233,7 +241,7 @@ pub(super) async fn token_endpoint_client_credentials(
                     principal: None,
                     jwt_id: None,
                     outcome: AuthOutcome::Deny,
-                    reason: AuthReasonCode::AuthorizationServerUnavailable,
+                    reason: AuthReasonCode::InvalidAuthConfig,
                     started_at,
                 },
             )
@@ -242,10 +250,39 @@ pub(super) async fn token_endpoint_client_credentials(
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
-                StatusCode::UNAUTHORIZED,
-                "invalid_client",
-                "client authentication failed",
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "client authentication is not configured",
             );
+        };
+        let http = current_http_client(&state.http);
+        match load_jwks(&http, client_jwks_source).await {
+            Ok(jwks) => jwks,
+            Err(err) => {
+                tracing::warn!(client = %client_id, "failed to load OAuth client JWKS: {err}");
+                if let Err(err) = record_token_auth_audit(
+                    &state.gateway_state,
+                    resource.audit_target(),
+                    AuthAuditRecord {
+                        authorization_server: Some(authorization_server),
+                        client_id: Some(&client_id),
+                        principal: None,
+                        jwt_id: None,
+                        outcome: AuthOutcome::Deny,
+                        reason: AuthReasonCode::AuthorizationServerUnavailable,
+                        started_at,
+                    },
+                )
+                .await
+                {
+                    return auth_audit_error_response(err);
+                }
+                return oauth_error_response(
+                    StatusCode::UNAUTHORIZED,
+                    "invalid_client",
+                    "client authentication failed",
+                );
+            }
         }
     };
     let assertion_config = match ClientAssertionConfig::new(
@@ -427,7 +464,7 @@ pub(super) async fn token_endpoint_client_credentials(
             "client invocation authority is not configured",
         );
     };
-    let service_principal =
+    let mut service_principal =
         match client_credentials_principal(authorization_server, &client_id, tenant, &scopes) {
             Ok(principal) => principal,
             Err(err) => {
@@ -439,8 +476,15 @@ pub(super) async fn token_endpoint_client_credentials(
                 );
             }
         };
-    if let Err(err) = catalog.work_context_membership(&client_id, &work_context, &service_principal)
-    {
+    if let Err(error) = effective.apply_service_roles(&mut service_principal) {
+        tracing::warn!(%error, "managed service roles are unavailable");
+        return oauth_error_response(
+            StatusCode::FORBIDDEN,
+            "access_denied",
+            "client authority is unavailable",
+        );
+    }
+    if let Err(err) = effective.membership(catalog, &work_context, &service_principal) {
         tracing::warn!("rejected Work Context selection: {err}");
         return oauth_error_response(
             StatusCode::FORBIDDEN,
@@ -449,13 +493,26 @@ pub(super) async fn token_endpoint_client_credentials(
         );
     }
 
+    let binding = match effective.token_binding() {
+        Ok(binding) => binding,
+        Err(_) => {
+            return oauth_error_response(
+                StatusCode::FORBIDDEN,
+                "access_denied",
+                "client authority is unavailable",
+            );
+        }
+    };
     let token = match issue_client_credentials_access_token(
         catalog,
         authorization_server,
         resource.protected_resource(),
         &client_id,
         &service_principal,
-        work_context,
+        crate::tokens::ServiceTokenAuthority {
+            work_context,
+            managed_agent: binding,
+        },
         &scopes,
     )
     .await

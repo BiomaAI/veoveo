@@ -76,6 +76,38 @@ export type AgentTemplateId = string;
  */
 export type DefinitionStatus = "enabled" | "disabled" | "archived";
 /**
+ * Registered OAuth client id allowed to request gateway-profile tokens.
+ *
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "OAuthClientId".
+ */
+export type OAuthClientId = string;
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "InstanceDesired".
+ */
+export type InstanceDesired = "running" | "paused" | "archived";
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "AgentManagedInstanceId".
+ */
+export type AgentManagedInstanceId = string;
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "InstancePhase".
+ */
+export type InstancePhase =
+  | "queued"
+  | "credentials"
+  | "storage"
+  | "draining"
+  | "workload"
+  | "ready"
+  | "paused"
+  | "archived"
+  | "failed"
+  | "superseded";
+/**
  * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
  * via the `definition` "MetadataChange".
  */
@@ -88,6 +120,70 @@ export type MetadataChange =
   | {
       kind: "transfer";
       owner: string;
+    };
+/**
+ * A member's authority inside one Work Context.
+ *
+ * Ordering is intentional. It lets an enforcement point compare the current
+ * membership with the minimum level required by an operation.
+ *
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "WorkContextMembershipLevel".
+ */
+export type WorkContextMembershipLevel = "viewer" | "contributor" | "custodian" | "owner";
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "ParameterShape".
+ */
+export type ParameterShape =
+  | {
+      kind: "identifier";
+      maxLength: number;
+    }
+  | {
+      kind: "choice";
+      values: string[];
+    }
+  | {
+      kind: "integer";
+      maximum: number;
+      minimum: number;
+    }
+  | {
+      kind: "boolean";
+    };
+/**
+ * Identity-provider role identifier used by gateway policy.
+ *
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "RoleId".
+ */
+export type RoleId = string;
+/**
+ * OAuth/OIDC scope value. It must not contain whitespace or control characters.
+ *
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "ScopeName".
+ */
+export type ScopeName = string;
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "InstanceChange".
+ */
+export type InstanceChange =
+  | {
+      desired: InstanceDesired;
+      kind: "state";
+    }
+  | {
+      kind: "revision";
+      revision: string;
+    }
+  | {
+      kind: "stop";
+    }
+  | {
+      kind: "retry";
     };
 /**
  * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
@@ -108,12 +204,18 @@ export interface AgentManagementSchema {
   create: CreateDefinition;
   definition: Definition;
   draft: Draft;
+  instance: ManagedInstance;
+  instances: InstancePage;
+  lifecycle: LifecycleOperation;
   metadata: UpdateMetadata;
   page: DefinitionPage;
+  provision: ProvisionInstance;
   publish: PublishDefinition;
   revision: RevisionRequest;
   revisions: RevisionPage;
   save: SaveDraft;
+  template: TemplateChoice;
+  update_instance: UpdateInstance;
   validate: ValidateDefinition;
   validation: Validation;
   wake: CatalogWake;
@@ -232,6 +334,49 @@ export interface Draft {
 }
 /**
  * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "ManagedInstance".
+ */
+export interface ManagedInstance {
+  activeGeneration: number;
+  activeRevision?: string | null;
+  clientId: OAuthClientId;
+  definition: AgentDefinitionId;
+  desired: InstanceDesired;
+  generation: number;
+  id: AgentManagedInstanceId;
+  name: string;
+  observed: InstancePhase;
+  operation: string;
+  owner: string;
+  principal: string;
+  requestedRevision: string;
+  storageGib: number;
+  template: AgentTemplateId;
+  updatedAt: string;
+  workContext: WorkContextId;
+}
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "InstancePage".
+ */
+export interface InstancePage {
+  items: ManagedInstance[];
+  next?: AgentManagedInstanceId | null;
+}
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "LifecycleOperation".
+ */
+export interface LifecycleOperation {
+  generation: number;
+  id: string;
+  instance: AgentManagedInstanceId;
+  message?: string | null;
+  phase: InstancePhase;
+  updatedAt: string;
+}
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
  * via the `definition` "UpdateMetadata".
  */
 export interface UpdateMetadata {
@@ -246,6 +391,17 @@ export interface UpdateMetadata {
 export interface DefinitionPage {
   items: Definition[];
   next?: AgentDefinitionId | null;
+}
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "ProvisionInstance".
+ */
+export interface ProvisionInstance {
+  definition: AgentDefinitionId;
+  id: AgentManagedInstanceId;
+  name: string;
+  requestId: string;
+  revision: string;
 }
 /**
  * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
@@ -291,6 +447,41 @@ export interface PublishedRevision {
 export interface SaveDraft {
   content: Content;
   expectedRevision: number;
+  requestId: string;
+}
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "TemplateChoice".
+ */
+export interface TemplateChoice {
+  id: AgentTemplateId;
+  membership: WorkContextMembershipLevel;
+  models: AgentModelId[];
+  name: string;
+  parameters: ParameterChoice[];
+  resourceSubscriptions: ResourceUri[];
+  revision: string;
+  roles: RoleId[];
+  scopes: ScopeName[];
+  storageGib: number;
+  tools: GatewayToolName[];
+}
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "ParameterChoice".
+ */
+export interface ParameterChoice {
+  label: string;
+  name: string;
+  shape: ParameterShape;
+}
+/**
+ * This interface was referenced by `AgentManagementSchema`'s JSON-Schema
+ * via the `definition` "UpdateInstance".
+ */
+export interface UpdateInstance {
+  change: InstanceChange;
+  expectedGeneration: number;
   requestId: string;
 }
 /**

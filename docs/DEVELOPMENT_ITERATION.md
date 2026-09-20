@@ -720,3 +720,10 @@ The managed persistence checkpoint compiled in 9–14 seconds and its six databa
 scenarios ran in under five seconds. It reused the same store target and disposable
 fixture; no image release is needed until the controller and kernel integration close
 the managed execution path.
+The managed identity checkpoint reused the same targets. An incremental Rust compiler
+ICE accompanied an ordinary field-name error once; correcting the field and rerunning
+completed without clearing the shared Cargo cache. The combined gateway library and
+binary suite now records one scoped result, which avoids two evidence-publication
+passes for the same source inputs. New template validation binds immutable configuration
+content before resource creation, avoiding runtime surprises that would otherwise
+require a deployment repair.

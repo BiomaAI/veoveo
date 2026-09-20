@@ -7,6 +7,8 @@ use super::AuthError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct JwtClaims {
+    #[serde(default)]
+    pub(super) managed_agent: Option<veoveo_mcp_contract::agent_management::ManagedAgentToken>,
     pub(super) iss: String,
     pub(super) sub: String,
     pub(super) principal_id: String,

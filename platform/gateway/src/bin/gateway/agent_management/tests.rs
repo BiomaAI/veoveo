@@ -23,7 +23,7 @@ use tower::ServiceExt;
 use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId, ScopeName};
 use veoveo_mcp_gateway::GatewayCatalog;
 
-fn fixture_subject(name: &str) -> AuthenticatedSubject {
+pub(super) fn fixture_subject(name: &str) -> AuthenticatedSubject {
     let mut subject = crate::workspace::tests::subject(name);
     // Signature and browser family validation have dedicated gateway acceptance.
     subject.access_token.session_family = None;
@@ -60,7 +60,7 @@ pub(crate) fn fixture_catalog() -> GatewayCatalog {
     .unwrap()
 }
 
-fn fixture_model() -> models::ModelConnection {
+pub(super) fn fixture_model() -> models::ModelConnection {
     serde_json::from_value(json!({
         "id":"approved","name":"Approved model","provider":"Fixture", "tenant":"test",
         "work_contexts":["shared"],"base_url":"https://provider.test/v1", "model":"model",
@@ -68,7 +68,7 @@ fn fixture_model() -> models::ModelConnection {
     })).unwrap()
 }
 
-fn state(store: &PlatformStore) -> AgentManagementState {
+pub(super) fn state(store: &PlatformStore) -> AgentManagementState {
     let gateway = GatewayState::new(store.clone());
     let catalog = GatewayCatalogHandle::new(Arc::new(fixture_catalog()));
     let stop = CancellationToken::new();
@@ -90,11 +90,16 @@ fn state(store: &PlatformStore) -> AgentManagementState {
     }
 }
 
-fn app(state: &AgentManagementState, subject: AuthenticatedSubject) -> Router {
+pub(super) fn app(state: &AgentManagementState, subject: AuthenticatedSubject) -> Router {
     router(state.clone()).layer(Extension(subject))
 }
 
-async fn request(app: &Router, method: &str, path: &str, value: Value) -> (StatusCode, Value) {
+pub(super) async fn request(
+    app: &Router,
+    method: &str,
+    path: &str,
+    value: Value,
+) -> (StatusCode, Value) {
     let response = app
         .clone()
         .oneshot(

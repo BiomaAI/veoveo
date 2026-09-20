@@ -23,6 +23,7 @@ pub(crate) fn router(app: BrowserApp) -> Router<AppState> {
         Router::new()
             .route("/agent-authoring", get(authoring))
             .route("/agent-models", get(models))
+            .route("/agent-templates", get(templates))
             .route("/agent-capabilities", get(capabilities))
             .route("/agent-events", get(events))
             .route("/agent-definitions", get(list).post(create))
@@ -127,6 +128,7 @@ macro_rules! read_root {
 }
 read_root!(authoring, "agent-authoring", wire::Authoring);
 read_root!(models, "agent-models", Vec<wire::ModelChoice>);
+read_root!(templates, "agent-templates", Vec<wire::TemplateChoice>);
 read_root!(
     capabilities,
     "agent-capabilities",

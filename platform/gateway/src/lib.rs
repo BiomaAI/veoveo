@@ -1,6 +1,7 @@
 pub mod auth;
 mod catalog;
 mod control_store;
+pub mod managed_agents;
 pub mod mcp;
 mod mcp_support;
 mod metadata;

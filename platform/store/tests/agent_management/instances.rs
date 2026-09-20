@@ -13,6 +13,20 @@ async fn concurrent_instances_share_atomic_storage_and_instance_quota() {
     context(&db.a, &alice, "operations").await;
     let a = authority(&db.a, &alice, "operations").await;
     let definition = managed_definition(&db.a, &a).await;
+    assert_eq!(
+        db.a.mutate_agent_definition(
+            &a,
+            "pilot",
+            Uuid::now_v7(),
+            Some(definition.revision),
+            AgentDefinitionMutation::Draft {
+                content: content("A different execution mode")
+            }
+        )
+        .await,
+        Err(AgentManagementError::Conflict),
+        "execution mode belongs to the stable definition"
+    );
     let limits = ManagedAgentLimits {
         instances: 20,
         storage_gib: 2,

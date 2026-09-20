@@ -20,6 +20,7 @@ IF $mutation.kind = 'create' {
     IF $definition.revision != $command.expected_revision { THROW 'agent_conflict'; };
     IF $definition.status = 'archived' AND $mutation.kind NOT IN ['transfer', 'status'] { THROW 'agent_conflict'; };
     IF $mutation.kind = 'draft' {
+        IF $mutation.content.execution.kind != $definition.draft.execution.kind { THROW 'agent_conflict'; };
         UPDATE ONLY $command.definition SET draft = $mutation.content, draft_digest = $command.content_digest;
     } ELSE IF $mutation.kind = 'metadata' {
         UPDATE ONLY $command.definition SET name = $mutation.name, description = $mutation.description;

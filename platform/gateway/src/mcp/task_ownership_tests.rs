@@ -29,6 +29,7 @@ pub(crate) fn subject() -> AuthenticatedSubject {
     actor.data_labels.insert(DataLabelId::new("cui").unwrap());
     AuthenticatedSubject {
         access_token: AccessTokenSubject {
+            managed_agent: None,
             issuer: actor.issuer.clone(),
             subject: actor.subject.clone(),
             oauth_client_id: OAuthClientId::new("console").unwrap(),
