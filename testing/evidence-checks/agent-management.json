@@ -322,6 +322,62 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-bioma-acceptance",
+        "--test",
+        "pilot_cutover",
+        "prepare_and_rehearse_retained_pilot_adoption",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-bioma-acceptance"
+        ],
+        "roots": [
+          "examples/bioma",
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-bioma-acceptance",
+        "--test",
+        "pilot_cutover",
+        "apply_reviewed_retained_pilot_adoption",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-bioma-acceptance"
+        ],
+        "roots": [
+          "examples/bioma",
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

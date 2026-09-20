@@ -304,7 +304,7 @@ UAV live view, Recording Hub, administration and GPU behavior.
 | `examples/bioma/platform/flux/` | exact Flux controller fixture for the local Bioma cluster; it is installed before installation desired state and remains outside Veoveo runtime ownership |
 | `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and extension Helm releases, and installation-owned edge resources |
 | `examples/bioma/gateway.json` | the reference installation's complete control plane: 16-server MCP catalog, OAuth clients, policy rules, and routes |
-| `examples/bioma/acceptance/` | owner-local compiled composition checks over the Bioma desired state |
+| [`examples/bioma/acceptance/`](../examples/bioma/acceptance/DESIGN.md) | owner-local compiled composition checks and the explicit retained-pilot ownership migration; native record and volume recovery rehearsals |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |

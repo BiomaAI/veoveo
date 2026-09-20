@@ -3,13 +3,13 @@
 Status: accepted and implementation started September 19, 2026. This is the active
 delivery goal. Registry persistence and the authoring API/client layer are implemented
 checkpoints. Registry-backed chat execution and explicit revision adoption are deployed
-and have installed browser/model evidence. Managed lifecycle persistence has local
-qualification. Reviewed templates and effective managed OAuth registration are implemented
-locally. Managed lifecycle admission and its shared client controls are locally qualified;
-kernel integration and atomic episode fences are locally qualified. The lifecycle manager now has locally qualified fixed workload composition,
-credential correlation, retained storage and recovery claims. Namespace admission is qualified against the Kubernetes API in an isolated fixture.
-The chart and image closure are implemented; installed reconciliation and UAV
-migration remain outstanding. Current component
+and have installed browser/model evidence. Managed lifecycle admission, kernel fences and namespace policy are qualified locally.
+The lifecycle manager and effective OAuth registration are deployed. A newly authored
+managed pilot has completed a real model request, retained its identity and storage
+through pause/resume and manager restart, and made zero additional model calls during
+a fourteen-minute idle observation. The four retained UAV pilots are paused for the
+qualified ownership transfer; their migration and remaining domain/Task acceptance
+are outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols
@@ -438,3 +438,35 @@ Single observed save, validation and publication requests took 95 ms, 128 ms and
 the newly authored agent's native Task recovery and the managed lifecycle acceptance
 remain outstanding. No image build or gateway rollout occurred for these authoring
 or publication operations.
+
+## Installed Managed Checkpoint — September 20, 2026
+
+Helm release 183 has two ready gateway replicas, two browser-edge replicas and one
+manager. GitOps commit `8fd41d56` selects gateway source `d292ffc1` and manager source
+`9fefa751`. GitHub Build passed. Installed qualification exposed a token-route lookup
+that still required a static client registration; the deployed route now uses the
+same effective registration resolver as managed request authorization.
+
+`managed-acceptance-pilot` was created through the management API with no tool grants
+or subscriptions. Its first explicit message returned `MANAGED-PILOT-READY`, using
+one model completion. Pause/resume advanced its generation while preserving its
+principal, signing key and retained volume. Restarting the manager retained that
+state. Between 05:03:34 and 05:17:45 UTC, across two configured 300-second heartbeat
+periods, no additional episode or model call appeared. Workspace reconnected through
+headed NVIDIA-backed Chrome during acceptance. These are observed installed results,
+not broad latency or recovery percentile claims.
+
+The four existing pilot definitions are published against the reviewed template.
+All four memory archives restore with identical contents and metadata. A native
+isolated-database rehearsal restores 27 targeted records and adopts the pilots
+without changing their runtime identities, principals or grants. It rejects stale
+source records, a still-leased writer and takeover of a later managed generation;
+failed adoption leaves no partial lifecycle or capacity records. The live pilots
+remain paused until storage ownership and static registration cutover complete.
+
+Iteration findings: the final gateway fix took about 104 seconds to stage, including
+95 seconds of compilation; GitOps source/root convergence took 11/25 seconds. A prior
+cold simulator pull took 424 seconds and dominated that rollout. Unregistered test
+commands also caused avoidable evidence churn: their repository-wide snapshot included
+hydrated LFS assets, while GitHub had pointers. Component-scoped registered commands
+produce the intended evidence without expanding the workflow's checkout.
