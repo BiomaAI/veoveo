@@ -214,11 +214,12 @@ under `/admin/{profile}`; final DTOs and handlers belong in their owning compone
 | `POST /agent-definitions/{id}/enable` | Restore admission after current validation |
 | `POST /agent-definitions/{id}/archive` | Retire from new participant/instance admission and retain existing bindings |
 | `GET /agent-models`, `GET /agent-templates` | Discover choices admitted to the author |
-| `GET/POST /agents` | List governed managed instances or provision an instance |
-| `GET/PATCH /agents/{id}` | Inspect state or request a revision/desired-state change |
+| `GET/POST /agent-instances` | List governed managed instances or provision an instance |
+| `GET/PATCH /agent-instances/{id}` | Inspect state or request a revision/desired-state change |
 | `GET /agent-operations/{id}` | Observe a durable lifecycle operation |
 
-Existing `/agents/{id}/messages`, conversation and input-request routes remain the
+The managed inventory uses `/agent-instances` in both browser profiles because
+Workspace already uses `/agents` for the chat admission catalog. Existing `/agents/{id}/messages`, conversation and input-request routes remain the
 canonical control surface for durable agents. Workspace keeps its current participant
 routes and gains an explicit owner-controlled revision-update operation. Catalog
 projection reads published registry entries admitted to that caller and context.

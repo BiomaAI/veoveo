@@ -1,4 +1,6 @@
 //! Both clients use fixed-profile agent routes and their own cookie/CSRF authority.
+mod instances;
+
 use std::time::Duration;
 
 use crate::{AppState, api, browser::BrowserApp};
@@ -21,6 +23,7 @@ pub(crate) fn router(app: BrowserApp) -> Router<AppState> {
     Router::new().nest(
         app.api_root(),
         Router::new()
+            .merge(instances::router())
             .route("/agent-authoring", get(authoring))
             .route("/agent-models", get(models))
             .route("/agent-templates", get(templates))
@@ -88,7 +91,10 @@ async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
         }
         let upstream = request.send().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
         let status = upstream.status();
-        if status != StatusCode::OK && status != StatusCode::UNPROCESSABLE_ENTITY {
+        if !matches!(
+            status,
+            StatusCode::OK | StatusCode::ACCEPTED | StatusCode::UNPROCESSABLE_ENTITY
+        ) {
             return Err(if status.is_client_error() || status.is_server_error() {
                 status
             } else {
@@ -104,7 +110,7 @@ async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
             Ok((status, Json(value)).into_response())
         } else {
             let value: R = serde_json::from_slice(&bytes).map_err(|_| StatusCode::BAD_GATEWAY)?;
-            Ok(Json(value).into_response())
+            Ok((status, Json(value)).into_response())
         }
     })
     .await;

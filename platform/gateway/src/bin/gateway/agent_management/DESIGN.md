@@ -38,7 +38,9 @@ boundary. Console credentials cannot satisfy a Workspace request.
 Work Context state. `projection.rs` explicitly maps private store records into public
 DTOs. Mutation, validation and event handlers remain separate from existing durable
 agent messaging routes. Routine definition edits use the durable store and do not reload
-gateway configuration or start model execution.
+gateway configuration or start model execution. `instances/` owns managed admission, operation reads and
+public instance projections. Its templates derive every infrastructure and credential
+reference from reviewed configuration. The gateway has no Kubernetes write permission.
 
 ## Observation And Retry
 
@@ -80,3 +82,17 @@ and rejects concurrent edits. Retained catalog records are not deleted on restor
 After management mutations begin, use forward repair; deploying the former environment
 catalog over newly authored records is unsupported. Keep recovery files outside Git.
 This procedure adds no scheduled backup or runtime compatibility path.
+
+## Managed Intent
+
+`/agent-instances` admits creation and generation-preconditioned lifecycle changes.
+`/agent-operations/{id}` exposes the corresponding authorized operation. HTTP 202 means
+that the durable intent and capacity reservation committed; the lifecycle manager
+reports resource progress separately. Provisioning replay reconstructs the original
+resource plan, so configuration removal cannot orphan an uncertain create response.
+
+Current template and model permission are required for deployment, resume, retry and
+revision adoption. Owners retain stop, pause and archive controls when installation
+configuration is removed. Public projection batches definition/revision metadata and
+never returns authored instructions or deployment credentials. Shared event heads
+include the current owner's instance changes and context-managed instances.

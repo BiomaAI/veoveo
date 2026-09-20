@@ -300,6 +300,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         operations: workspace_operations.clone(),
         stop: ct.child_token(),
         definition_limit: 1_000,
+        instance_limits: crate::agent_management::instance_limits()?,
     };
     router = router.merge(
         crate::agent_management::router(agent_management.clone()).layer(

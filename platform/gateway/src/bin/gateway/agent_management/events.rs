@@ -43,7 +43,7 @@ pub(super) fn router(agents: AgentManagementState) -> Router<AgentManagementStat
                     tokio::select! {
                         _ = shared.agents.stop.cancelled() => return,
                         hint = source.next() => match hint {
-                            Some(Ok(hint)) if hint.data.aggregate_type == "agent_definition" => { let _ = shared.wakes.send(hint.data.tenant); },
+                            Some(Ok(hint)) if matches!(hint.data.aggregate_type.as_str(), "agent_definition" | "managed_agent") => { let _ = shared.wakes.send(hint.data.tenant); },
                             Some(Ok(_)) => {},
                             _ => break,
                         }
@@ -88,7 +88,7 @@ async fn stream(
     let first = match state
         .agents
         .store()
-        .agent_catalog_head(&actor.authority)
+        .agent_management_head(&actor.authority)
         .await
     {
         Ok(head) => head,
@@ -116,7 +116,7 @@ async fn stream(
             }
             if !Arc::ptr_eq(&actor.catalog, &state.agents.catalog.current()) { break; }
             if authority::live_session(&state.agents, &actor.profile, &actor.subject).await.is_err() { break; }
-            match state.agents.store().agent_catalog_head(&actor.authority).await {
+            match state.agents.store().agent_management_head(&actor.authority).await {
                 Ok(next) if next != head => { head = next; yield Ok(change(head)); },
                 Ok(_) => {},
                 Err(_) => { yield Ok(Event::default().event("expired").data("{}")); break; },

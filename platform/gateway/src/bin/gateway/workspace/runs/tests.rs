@@ -146,6 +146,8 @@ pub(super) async fn registry(
         operations: operations.clone(),
         stop: stop.clone(),
         definition_limit: 100,
+        instance_limits: crate::agent_management::instance_limits()
+            .expect("valid managed capacity"),
         models: Arc::new(definitions.iter().map(|d| d.model.clone()).collect()),
     };
     let mut subject = super::super::tests::subject("Alice");
@@ -424,6 +426,8 @@ pub(crate) fn empty_routes(store: &PlatformStore) -> Router {
         operations: operations.clone(),
         stop: stop.clone(),
         definition_limit: 100,
+        instance_limits: crate::agent_management::instance_limits()
+            .expect("valid managed capacity"),
     };
     routes(RunState {
         operations,

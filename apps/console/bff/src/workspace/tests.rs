@@ -748,3 +748,65 @@ async fn agent_authoring_keeps_cookie_csrf_profile_and_typed_validation() {
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn managed_provisioning_preserves_accepted_operation_and_rejects_browser_authority() {
+    use veoveo_mcp_contract::agent_management as wire;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let operation_id = uuid::Uuid::now_v7();
+    let upstream = Router::new().route(
+        "/admin/workspace/agent-instances",
+        post(
+            move |headers: HeaderMap, Json(body): Json<wire::ProvisionInstance>| {
+                let observed = observed.clone();
+                async move {
+                    observed.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(headers["authorization"], "Bearer cookie-access");
+                    (
+                        StatusCode::ACCEPTED,
+                        Json(wire::LifecycleOperation {
+                            id: operation_id,
+                            instance: body.id,
+                            generation: 1,
+                            phase: wire::InstancePhase::Queued,
+                            message: None,
+                            updated_at: chrono::Utc::now(),
+                        }),
+                    )
+                }
+            },
+        ),
+    );
+    let edge = Edge::new(upstream).await;
+    let path = "/workspace/api/agent-instances";
+    let body = json!({"requestId":uuid::Uuid::now_v7(),"id":"worker","name":"Worker","definition":"worker-definition","revision":format!("sha256:{}", "a".repeat(64))});
+    assert_eq!(
+        edge.request("POST", path, false, true, &body.to_string())
+            .await
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        edge.request("POST", path, true, false, &body.to_string())
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    let response = edge
+        .request("POST", path, true, true, &body.to_string())
+        .await;
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+    let operation: wire::LifecycleOperation = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(operation.id, operation_id);
+    let mut forged = body;
+    forged["image"] = json!("untrusted/image");
+    assert_eq!(
+        edge.request("POST", path, true, true, &forged.to_string())
+            .await
+            .status(),
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}

@@ -52,7 +52,8 @@ pub(crate) fn fixture_catalog() -> GatewayCatalog {
         "required_scopes":["operator:use"],
         "actions":["agent_definitions_read","agent_definitions_read_content","agent_definitions_create",
             "agent_definitions_edit","agent_definitions_publish","agent_definitions_use",
-            "agent_definitions_control","agent_definitions_archive","agent_definitions_transfer"]
+            "agent_definitions_control","agent_definitions_archive","agent_definitions_transfer",
+            "agent_instances_deploy","agent_instances_control"]
     }));
     GatewayCatalog::from_control_plane(
         serde_json::from_value::<GatewayControlPlane>(value).unwrap(),
@@ -87,6 +88,8 @@ pub(super) fn state(store: &PlatformStore) -> AgentManagementState {
         stop,
         models: Arc::new(vec![fixture_model()]),
         definition_limit: 10,
+        instance_limits: crate::agent_management::instance_limits()
+            .expect("valid managed capacity"),
     }
 }
 

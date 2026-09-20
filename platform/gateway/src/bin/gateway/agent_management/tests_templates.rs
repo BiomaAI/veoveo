@@ -7,24 +7,8 @@ use veoveo_mcp_gateway::managed_agents::ManagedTemplateCatalog;
 async fn managed_publication_requires_exact_template_parameters_and_credential_admission() {
     let db = crate::test_store::TestDb::new().await;
     crate::workspace::tests::setup(&db.a).await;
-    let mut state = state(&db.a);
+    let mut state = managed_state(&db.a);
     let _stop = state.stop.clone().drop_guard();
-    let template = json!({
-        "id":"bounded", "name":"Bounded worker", "tenant":"test", "work_contexts":["shared"],
-        "required_deployer_scopes":["operator:use"], "profile":"operator", "scopes":["operator:use"], "roles":[], "membership":"contributor",
-        "models":["approved"], "tools":[], "resource_subscriptions":[],
-        "parameters":{"session":{"label":"Session", "shape":{"kind":"identifier","maxLength":40}, "environment_variable":"VEOVEO_PARAM_SESSION"}},
-        "workload":{"namespace":"agents", "config_map":"bounded-template", "config_digest":format!("sha256:{}", "b".repeat(64)), "image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
-            "database_secret":"agent-store", "storage_class":"local-path", "storage_gib":2, "cpu_millis":500, "memory_mib":1024,
-            "model_secrets":[{"reference":"media_provider_api_key", "secret":"agent-model", "key":"api-key"}]}
-    });
-    state.gateway = state.gateway.clone().with_managed_templates(
-        ManagedTemplateCatalog::from_json(&json!([template]).to_string(), &state.catalog.current())
-            .unwrap(),
-    );
-    let mut model = fixture_model();
-    model.api_key = "media_provider_api_key".parse().unwrap();
-    state.models = Arc::new(vec![model]);
     let alice = app(&state, fixture_subject("Alice"));
     let (status, choices) = request(&alice, "GET", "agent-templates", Value::Null).await;
     assert_eq!(status, StatusCode::OK);
@@ -66,4 +50,25 @@ async fn managed_publication_requires_exact_template_parameters_and_credential_a
     )
     .await;
     assert_eq!(denied["findings"][0]["code"], "template_unavailable");
+}
+
+pub(super) fn managed_state(store: &PlatformStore) -> AgentManagementState {
+    let mut state = state(store);
+    let template = json!({
+        "id":"bounded", "name":"Bounded worker", "tenant":"test", "work_contexts":["shared"],
+        "required_deployer_scopes":["operator:use"], "profile":"operator", "scopes":["operator:use"], "roles":[], "membership":"contributor",
+        "models":["approved"], "tools":[], "resource_subscriptions":[],
+        "parameters":{"session":{"label":"Session", "shape":{"kind":"identifier","maxLength":40}, "environment_variable":"VEOVEO_PARAM_SESSION"}},
+        "workload":{"namespace":"agents", "config_map":"bounded-template", "config_digest":format!("sha256:{}", "b".repeat(64)), "image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
+            "database_secret":"agent-store", "storage_class":"local-path", "storage_gib":2, "cpu_millis":500, "memory_mib":1024,
+            "model_secrets":[{"reference":"media_provider_api_key", "secret":"agent-model", "key":"api-key"}]}
+    });
+    state.gateway = state.gateway.clone().with_managed_templates(
+        ManagedTemplateCatalog::from_json(&json!([template]).to_string(), &state.catalog.current())
+            .unwrap(),
+    );
+    let mut model = fixture_model();
+    model.api_key = "media_provider_api_key".parse().unwrap();
+    state.models = Arc::new(vec![model]);
+    state
 }

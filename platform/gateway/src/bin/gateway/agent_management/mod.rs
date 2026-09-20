@@ -4,10 +4,13 @@ mod commands;
 mod events;
 pub(crate) mod execution;
 pub(crate) mod import;
+mod instances;
 pub(crate) mod models;
 mod projection;
 #[cfg(test)]
 pub(crate) mod tests;
+#[cfg(test)]
+mod tests_instances;
 #[cfg(test)]
 mod tests_templates;
 mod validation;
@@ -37,6 +40,7 @@ pub(crate) struct AgentManagementState {
     pub operations: OperationState,
     pub stop: CancellationToken,
     pub definition_limit: u32,
+    pub instance_limits: domain::instances::ManagedAgentLimits,
 }
 
 impl AgentManagementState {
@@ -137,6 +141,7 @@ pub(crate) fn router(state: AgentManagementState) -> Router {
             "/admin/{profile}/agent-capabilities",
             get(validation::capabilities),
         )
+        .merge(instances::router())
         .merge(events::router(state.clone()))
         .layer(DefaultBodyLimit::max(80 * 1024))
         .layer(SetResponseHeaderLayer::overriding(
@@ -314,4 +319,8 @@ async fn template_choices(
         &actor.subject.principal,
         &actor.subject.authority.work_context,
     )))
+}
+
+pub(crate) fn instance_limits() -> anyhow::Result<domain::instances::ManagedAgentLimits> {
+    instances::limits()
 }
