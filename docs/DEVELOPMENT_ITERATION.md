@@ -937,3 +937,48 @@ the 292 GiB then available. The scoped four-image budget now allows 20 GiB growt
 retains 256 GiB free; it passes with no Kubernetes DiskPressure. This is an explicit
 build budget, not disk exhaustion or a cache purge. Publication selects gateway,
 kernel, manager and browser edge, and leaves the simulator image untouched.
+
+
+### Managed Upgrade Deployment And Reactive Acceptance — September 20, 2026
+
+The four-image stage for `2a678161` took 123.855 seconds. BuildKit observed a
+112.411-second compile window; browser compilation overlapped the Rust work.
+Export and push windows also overlap, so their durations must not be added to the
+command's elapsed time. Passive GitOps observation measured 66.119 seconds from
+publication through readiness, including 40.890 seconds for source fetch and
+24.164 seconds for desired-state application. An arriving values ConfigMap cancelled
+one Helm health check and triggered its automatic retry. No explicit overlapping
+reconciliation was requested.
+
+That infrastructure timing excludes the managed instances' upgrade. Their explicit
+revision adoption exposed foreground garbage collection denied by executable image
+policy. The first admission fixture used Kubernetes' default background deletion and
+therefore missed the manager's actual cleanup path. The corrected Rust fixture pins
+foreground deletion and rejects spec and ownership changes while allowing finalization.
+A chart-only publication took about 0.8 seconds. Existing instances then finished
+retirement and resumed with the same keys and volumes. This delay must remain visible
+when reporting end-to-end upgrade time.
+
+A browser navigation to the same hash route retained the old JavaScript bundle.
+Explicit reload loaded the deployed editor. The acceptance script caught changed
+subscriptions in an unpublished draft and restored them before publication. Future
+installed browser checks must confirm the loaded build before exercising new controls.
+
+Cold required-capability discovery previously needed repeated publication reviews.
+The gateway now waits on native tool-list notifications within a bounded admission
+request. Its gateway-only image stage took 88.988 seconds, including a 79.044-second
+observed compile window and a 140-millisecond push window. Changing the selected
+image set changes Cargo's feature closure; shared-crate rebuild time is not all
+attributable to the edited source.
+
+The long idle check also caught Console lease cards falling offline. Per-table
+changefeed scans could return an empty page behind unrelated database activity and
+never advance. One database replay cursor removes the thirteen repeated table scans
+and completes transaction tails before advancing. The native regression uses a
+one-entry page to exercise both starvation and split transactions.
+
+Keep report recording and `test-report show` sequential. Running the latter before
+the recorder published its receipt produced a transient unindexed-receipt failure.
+A separate activation receipt was initially left untracked and required an immediate
+follow-up commit; commit the indexed receipt and report together. Disk remained above
+280 GiB free, with no cache purge or DiskPressure. The simulator Pod did not change.

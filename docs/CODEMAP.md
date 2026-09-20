@@ -478,7 +478,7 @@ The only durable platform persistence layer.
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | projected shared domain LIVE invalidations, coalescing and reconnect recovery; composed into Time and Recording resource hubs |
-| `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
+| `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration and database-wide changefeed pages that complete transaction tails before cursor advancement |
 | `live_views.rs` | append-only audit records for authoritative simulation live-view products and ephemeral viewer authorizations |
 | `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
 | `store.rs` | connection and transaction helpers over domain records |
@@ -554,7 +554,7 @@ The runtime is the source of truth. RMCP owns the sole Tasks wire model.
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |
 | `admin/console/mod.rs` | console snapshot handler, trusted display-name projection for every principal with authenticated-identity precedence, branding, stream cursor bootstrap |
 | `admin/console/projection.rs` | tenant projection load and per-entity summary builders |
-| `admin/console/stream.rs` | live console SSE: LIVE wake hub, changefeed replay, tenant filtering, limits |
+| [`admin/console/DESIGN.md`](../platform/gateway/src/bin/gateway/admin/console/DESIGN.md), `stream.rs` | live Console SSE: LIVE wake hub, one database replay cursor, tenant filtering, limits and current agent leases |
 | `admin/console/health.rs` | background MCP server health prober and cache |
 | `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's contract-defined admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |

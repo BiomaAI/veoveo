@@ -5,7 +5,7 @@ use surrealdb::types::{RecordId, SurrealValue, Value};
 
 use crate::{PlatformStore, PlatformTable, StoreError};
 
-const MAX_CHANGEFEED_LIMIT: u32 = 10_000;
+const MAX_CHANGEFEED_LIMIT: u32 = 1_000;
 
 /// SurrealDB single-node versionstamps are `unix_millis << 16 | logical`.
 /// `SHOW CHANGES … SINCE d'<datetime>'` returns nothing on this deployment
@@ -67,6 +67,20 @@ pub enum ChangefeedEntry {
         original: Option<Value>,
     },
     Definition,
+}
+
+impl ChangefeedEntry {
+    /// The owning table for row mutations; schema entries have no row projection.
+    pub fn table(&self) -> Option<&str> {
+        match self {
+            Self::Upsert(row) => match row.get("id") {
+                Value::RecordId(record) => Some(record.table.as_str()),
+                _ => None,
+            },
+            Self::Delete { record, .. } => Some(record.table.as_str()),
+            Self::Definition => None,
+        }
+    }
 }
 
 pub fn decode_changefeed_entry(change: &Value) -> Result<ChangefeedEntry, StoreError> {
@@ -137,13 +151,52 @@ impl PlatformStore {
         Ok(ChangefeedCursor::from_instant(now.into_inner()))
     }
 
-    /// Replay committed changes for `table` after `cursor`.
+    /// Replay database-wide committed changes from an inclusive cursor.
     ///
-    /// Replay may redeliver the batch at the cursor itself; consumers must
-    /// treat deliveries as idempotent upserts.
+    /// SurrealDB 3.2.4 applies LIMIT to physical table entries before table
+    /// filtering and versionstamp grouping. A table-filtered page can therefore
+    /// be empty while newer rows exist. Database replay always exposes progress.
+    /// The last transaction is reread from its beginning at the maximum limit
+    /// so a page boundary cannot discard another table in the same transaction.
     pub async fn replay_changes(
         &self,
-        table: PlatformTable,
+        cursor: ChangefeedCursor,
+        limit: u32,
+    ) -> Result<Vec<ChangefeedBatch>, StoreError> {
+        let mut batches = self.changefeed_page(cursor, limit).await?;
+        if let Some(last) = batches.last_mut() {
+            let tail_cursor = ChangefeedCursor(last.versionstamp);
+            let tail = self
+                .changefeed_page(tail_cursor, MAX_CHANGEFEED_LIMIT)
+                .await?;
+            let complete = tail
+                .into_iter()
+                .next()
+                .filter(|batch| batch.versionstamp == last.versionstamp)
+                .ok_or(StoreError::InvalidChangefeedEntry {
+                    reason: "changefeed tail disappeared during replay",
+                })?;
+            let mut tables = std::collections::BTreeSet::new();
+            for change in &complete.changes {
+                let entry = decode_changefeed_entry(change)?;
+                if let Some(table) = entry.table() {
+                    tables.insert(table.to_owned());
+                } else if let Value::String(name) = change.get("define_table").get("name") {
+                    tables.insert(name.clone());
+                }
+            }
+            if tables.len() >= MAX_CHANGEFEED_LIMIT as usize {
+                return Err(StoreError::InvalidChangefeedEntry {
+                    reason: "changefeed transaction exceeds complete replay table bound",
+                });
+            }
+            *last = complete;
+        }
+        Ok(batches)
+    }
+
+    async fn changefeed_page(
+        &self,
         cursor: ChangefeedCursor,
         limit: u32,
     ) -> Result<Vec<ChangefeedBatch>, StoreError> {
@@ -153,8 +206,7 @@ impl PlatformStore {
             });
         }
         let statement = format!(
-            "SHOW CHANGES FOR TABLE {} SINCE {} LIMIT {};",
-            table.as_str(),
+            "SHOW CHANGES FOR DATABASE SINCE {} LIMIT {};",
             cursor.versionstamp(),
             limit
         );

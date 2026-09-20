@@ -483,7 +483,7 @@ fn group_events(mut events: Vec<OutEvent>) -> Vec<Event> {
 
 struct ConsoleStreamState {
     tenant: RecordId,
-    cursors: BTreeMap<usize, ChangefeedCursor>,
+    cursor: ChangefeedCursor,
     principal_names: BTreeMap<String, String>,
     artifacts: BTreeMap<String, ArtifactOccurrenceRecord>,
     blob_lengths: BTreeMap<String, i64>,
@@ -577,10 +577,7 @@ impl ConsoleStreamState {
         }
         Ok(Self {
             tenant: tenant.clone(),
-            cursors: STREAM_TABLES
-                .iter()
-                .map(|table| (table_rank(*table), cursor))
-                .collect(),
+            cursor,
             principal_names,
             artifacts,
             blob_lengths,
@@ -597,35 +594,39 @@ impl ConsoleStreamState {
 
     async fn drain(&mut self, store: &PlatformStore) -> anyhow::Result<Vec<OutEvent>> {
         let mut events = Vec::new();
-        for table in STREAM_TABLES {
-            let rank = table_rank(table);
-            loop {
-                let cursor = self.cursors[&rank];
-                let batches = store
-                    .replay_changes(table, cursor, REPLAY_PAGE_LIMIT)
-                    .await?;
-                let Some(last) = batches.last().map(|batch| batch.versionstamp) else {
-                    break;
-                };
-                let page_full = batches.len() == REPLAY_PAGE_LIMIT as usize;
-                for batch in &batches {
-                    for change in &batch.changes {
-                        let entry = decode_changefeed_entry(change)?;
-                        if table == PlatformTable::ArtifactOccurrence {
-                            self.resolve_referenced_blob(store, &entry).await?;
-                        }
-                        if let Some(event) = self.apply(table, rank, batch.versionstamp, entry)? {
-                            events.push(event);
-                        }
+        // Bound each round so sustained writes still yield feedback to clients.
+        for _ in 0..4 {
+            let batches = store.replay_changes(self.cursor, REPLAY_PAGE_LIMIT).await?;
+            let Some(last) = batches.last().map(|batch| batch.versionstamp) else {
+                break;
+            };
+            for batch in batches {
+                let mut entries = Vec::new();
+                for change in &batch.changes {
+                    let entry = decode_changefeed_entry(change)?;
+                    let Some(table) = STREAM_TABLES
+                        .iter()
+                        .copied()
+                        .find(|table| entry.table() == Some(table.as_str()))
+                    else {
+                        continue;
+                    };
+                    entries.push((table, entry));
+                }
+                entries.sort_by_key(|(table, _)| table_rank(*table));
+                for (table, entry) in entries {
+                    if table == PlatformTable::ArtifactOccurrence {
+                        self.resolve_referenced_blob(store, &entry).await?;
+                    }
+                    if let Some(event) =
+                        self.apply(table, table_rank(table), batch.versionstamp, entry)?
+                    {
+                        events.push(event);
                     }
                 }
-                let advanced =
-                    ChangefeedCursor::from_versionstamp(last.saturating_add(1)).unwrap_or(cursor);
-                self.cursors.insert(rank, advanced);
-                if !page_full {
-                    break;
-                }
             }
+            self.cursor =
+                ChangefeedCursor::from_versionstamp(last.saturating_add(1)).unwrap_or(self.cursor);
         }
         Ok(events)
     }

@@ -14,7 +14,7 @@ use veoveo_platform_store::{
     MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
     MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
     MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject,
-    OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey,
+    OutboxDraft, PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey,
     RecordingDatasetDraft, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
     RecordingLayerKind, RecordingLayerState, RecordingProjectionReceiptDraft,
     RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal,
@@ -24,6 +24,8 @@ use veoveo_platform_store::{
     deterministic_work_context_id, gateway_replay_record_id, migrations,
 };
 
+#[path = "surreal_integration/changefeed.rs"]
+mod changefeed;
 #[path = "surreal_integration/map_projection.rs"]
 mod map_projection;
 #[path = "surreal_integration/recording_ingest.rs"]
@@ -814,7 +816,7 @@ async fn applies_schema_to_surrealdb_3_2() {
     );
 
     let changes = store
-        .replay_changes(PlatformTable::OutboxEvent, ChangefeedCursor::initial(), 100)
+        .replay_changes(ChangefeedCursor::initial(), 100)
         .await
         .unwrap();
     assert!(!changes.is_empty());
@@ -1791,10 +1793,7 @@ async fn changefeed_replay_contract_is_pinned() {
         .unwrap();
     let db_after_writes_ms = db_now(&store).await;
 
-    let batches = store
-        .replay_changes(PlatformTable::Principal, anchor, 1000)
-        .await
-        .unwrap();
+    let batches = store.replay_changes(anchor, 1000).await.unwrap();
     assert!(
         !batches.is_empty(),
         "a clock-anchored cursor must surface the principal mutations"
@@ -1869,7 +1868,6 @@ async fn changefeed_replay_contract_is_pinned() {
     {
         let resumed = store
             .replay_changes(
-                PlatformTable::Principal,
                 ChangefeedCursor::from_versionstamp(resume_from).unwrap(),
                 1000,
             )
@@ -1885,12 +1883,15 @@ async fn changefeed_replay_contract_is_pinned() {
 
     // Versionstamps must be comparable across tables so multi-table replay
     // batches can be merge-sorted into one ordered stream.
-    let tenant_batches = store
-        .replay_changes(PlatformTable::Tenant, anchor, 1000)
-        .await
-        .unwrap();
+    let tenant_batches = store.replay_changes(anchor, 1000).await.unwrap();
     let tenant_max = tenant_batches
         .iter()
+        .filter(|batch| {
+            batch
+                .changes
+                .iter()
+                .any(|change| decode_changefeed_entry(change).unwrap().table() == Some("tenant"))
+        })
         .map(|batch| batch.versionstamp)
         .max()
         .expect("tenant creation must appear in its changefeed");
