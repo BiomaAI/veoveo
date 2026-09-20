@@ -22,19 +22,27 @@ pub(crate) struct Domain {
     pub hold_dispatch: Arc<AtomicBool>,
     pub release_dispatch: Arc<tokio::sync::Notify>,
     pub degraded_server: Arc<std::sync::Mutex<Option<veoveo_mcp_contract::ServerSlug>>>,
+    pub reactive_catalog: Arc<AtomicBool>,
+    pub catalog_reads: Arc<AtomicUsize>,
+    pub catalog_requested: Arc<tokio::sync::Notify>,
+    pub catalog_epoch: tokio::sync::watch::Sender<u64>,
 }
 impl ServerHandler for Domain {
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
         std::borrow::Cow::Owned(vec![ProtocolVersion::V_2026_07_28])
     }
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(
+        let mut config = ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
                 .enable_tasks()
                 .build(),
-        )
+        );
+        if self.reactive_catalog.load(Ordering::SeqCst) {
+            config.capabilities.tools.as_mut().unwrap().list_changed = Some(true);
+        }
+        config
     }
     async fn list_tools(
         &self,
@@ -69,6 +77,8 @@ impl ServerHandler for Domain {
             ])
             .into_meta();
         }
+        self.catalog_reads.fetch_add(1, Ordering::SeqCst);
+        self.catalog_requested.notify_one();
         Ok(result)
     }
     async fn list_resources(
@@ -200,6 +210,19 @@ impl ServerHandler for Domain {
         Some(requested.clone())
     }
     async fn listen(&self, context: SubscriptionContext) -> Result<(), ErrorData> {
+        if context.accepted().tools_list_changed == Some(true) {
+            let mut changes = self.catalog_epoch.subscribe();
+            loop {
+                tokio::select! {
+                    _ = context.cancelled() => return Ok(()),
+                    change = changes.changed() => {
+                        if change.is_err() { return Ok(()); }
+                        context.sink().notify_tool_list_changed().await
+                            .map_err(|_| ErrorData::internal_error("catalog stream ended", None))?;
+                    }
+                }
+            }
+        }
         let mut source = veoveo_task_runtime::subscribe_durable_tasks(
             &self.runtime,
             self.owner.clone(),
@@ -250,6 +273,10 @@ impl Fixture {
             hold_dispatch: Arc::new(AtomicBool::new(false)),
             release_dispatch: Arc::new(tokio::sync::Notify::new()),
             degraded_server: Arc::new(std::sync::Mutex::new(None)),
+            reactive_catalog: Arc::new(AtomicBool::new(false)),
+            catalog_reads: Arc::new(AtomicUsize::new(0)),
+            catalog_requested: Arc::new(tokio::sync::Notify::new()),
+            catalog_epoch: tokio::sync::watch::channel(0).0,
         };
         let source = domain.clone();
         let service = StreamableHttpService::new(

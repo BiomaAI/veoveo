@@ -112,6 +112,51 @@ async fn model_capability_admission_checks_only_required_discovery_surfaces() {
 }
 
 #[tokio::test]
+async fn required_capabilities_recover_on_native_catalog_notifications_without_dispatch() {
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let db = crate::test_store::TestDb::new().await;
+        super::super::tests::setup(&db.a).await;
+        let subject = alice();
+        let fixture = super::test_domain::Fixture::start(db.a.clone(), &subject).await;
+        fixture
+            .domain
+            .reactive_catalog
+            .store(true, Ordering::SeqCst);
+        *fixture.domain.degraded_server.lock().unwrap() =
+            Some(veoveo_mcp_contract::ServerSlug::new("fixture").unwrap());
+        let state = new_state(db.a.clone(), fixture.port);
+        let caller = Caller {
+            profile: GatewayProfileId::new("operator").unwrap(),
+            subject,
+            bearer: "explicit-workspace-fixture".to_owned().into(),
+        };
+        let pending = tokio::spawn({
+            let state = state.clone();
+            async move {
+                state
+                    .capabilities(&caller, &[GatewayToolName::new("fixture__task").unwrap()])
+                    .await
+            }
+        });
+        fixture.domain.catalog_requested.notified().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !pending.is_finished(),
+            "partial discovery must await its notification"
+        );
+        assert_eq!(fixture.domain.catalog_reads.load(Ordering::SeqCst), 1);
+        *fixture.domain.degraded_server.lock().unwrap() = None;
+        fixture.domain.catalog_epoch.send_replace(1);
+        assert_eq!(pending.await.unwrap().unwrap().len(), 2);
+        assert_eq!(fixture.domain.catalog_reads.load(Ordering::SeqCst), 2);
+        assert_eq!(fixture.domain.calls.load(Ordering::SeqCst), 0);
+        state.stop.cancel();
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
 async fn native_tasks_survive_restart_require_current_input_and_confirm_cancellation() {
     tokio::time::timeout(Duration::from_secs(45), async {
         let _ = rustls::crypto::ring::default_provider().install_default();

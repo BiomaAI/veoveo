@@ -1,8 +1,8 @@
 //! Native MCP Apps use the same durable human operation journal as chat tools.
 use super::*;
 use rmcp::model::{
-    CancelTaskParams, CreateTaskResult, GetTaskResult, InputRequiredResult, Resource,
-    TaskAckResult, TaskPayload, UpdateTaskParams,
+    CancelTaskParams, CreateTaskResult, GetTaskResult, InputRequiredResult, PaginatedRequestParams,
+    Resource, TaskAckResult, TaskPayload, UpdateTaskParams,
 };
 use veoveo_mcp_apps_extension::{app_allows_tool, is_app_resource, resolve_app_tool};
 use veoveo_platform_store::workspace::WorkspaceOperationIntent;
