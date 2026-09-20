@@ -1,6 +1,6 @@
 //! Bounded model streaming under the initiating human's current authority.
 use super::super::{authority, projection::uuid};
-use super::{Caller, RunState, config::Definition};
+use super::{Caller, ResolvedAgent, RunState};
 use axum::http::StatusCode;
 use chrono::Utc;
 use futures::StreamExt;
@@ -27,7 +27,7 @@ use veoveo_platform_store::{
 pub(super) async fn execute(
     state: RunState,
     caller: Caller,
-    definition: Definition,
+    definition: ResolvedAgent,
     run: WorkspaceRun,
     _permit: OwnedSemaphorePermit,
 ) {
@@ -57,7 +57,10 @@ pub(super) async fn execute(
     }
     let mut output = String::new();
     let feedback = super::feedback::Feedback::default();
-    let remaining = (run.deadline - Utc::now()).to_std().unwrap_or_default();
+    let deadline = run.deadline.min(
+        run.created_at + chrono::TimeDelta::seconds(i64::from(definition.budgets.deadline_seconds)),
+    );
+    let remaining = (deadline - Utc::now()).to_std().unwrap_or_default();
     let outcome = tokio::select! {
         biased;
         _ = state.stop.cancelled() => return,
@@ -105,7 +108,7 @@ pub(super) async fn execute(
 async fn stream(
     state: &RunState,
     caller: &Caller,
-    definition: &Definition,
+    definition: &ResolvedAgent,
     run: &WorkspaceRun,
     fence: Uuid,
     output: &mut String,
@@ -125,6 +128,16 @@ async fn stream(
         .workspace
         .store
         .workspace_run_context(&authority, chat, id)
+        .await
+        .map_err(|_| Failure::PermissionChanged)?;
+    state
+        .agents
+        .resolve(
+            profile,
+            subject,
+            &definition.id,
+            Some(&run.definition_digest),
+        )
         .await
         .map_err(|_| Failure::PermissionChanged)?;
     let prompt = prompt(context).map_err(|_| Failure::OutputLimit)?;
@@ -157,13 +170,13 @@ async fn stream(
         definition.instructions, definition.name
     );
     let agent = client
-        .agent(&definition.model.name)
+        .agent(&definition.model.model)
         .name(&definition.name)
         .preamble(&instructions)
         .record_content_telemetry(false)
-        .default_max_turns(4)
+        .default_max_turns(definition.budgets.max_completion_calls as usize)
         .dynamic_tools(tools)
-        .max_tokens(u64::from(definition.model.max_output_tokens))
+        .max_tokens(u64::from(definition.budgets.max_output_tokens))
         .build();
     let mut stream = agent.stream_prompt(prompt).await;
     feedback.responding();

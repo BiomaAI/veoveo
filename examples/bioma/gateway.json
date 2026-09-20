@@ -5831,6 +5831,92 @@
             "https://veoveo.bioma.ai/oauth#operator-service",
             "https://veoveo.bioma.ai/oauth#admin-service"
           ]
+        },
+        {
+          "id": "allow_admin_service_agent_management",
+          "effect": "allow",
+          "actions": [
+            "agent_definitions_read",
+            "agent_definitions_read_content",
+            "agent_definitions_create",
+            "agent_definitions_edit",
+            "agent_definitions_publish",
+            "agent_definitions_use",
+            "agent_definitions_control",
+            "agent_definitions_archive",
+            "agent_definitions_transfer",
+            "agent_instances_deploy",
+            "agent_instances_control"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_agent_management",
+          "effect": "allow",
+          "actions": [
+            "agent_definitions_read",
+            "agent_definitions_read_content",
+            "agent_definitions_create",
+            "agent_definitions_edit",
+            "agent_definitions_publish",
+            "agent_definitions_use",
+            "agent_definitions_control",
+            "agent_definitions_archive",
+            "agent_definitions_transfer"
+          ],
+          "profiles": [
+            "operator",
+            "workspace"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "operator"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_agent_management",
+          "effect": "allow",
+          "actions": [
+            "agent_definitions_read",
+            "agent_definitions_read_content",
+            "agent_definitions_create",
+            "agent_definitions_edit",
+            "agent_definitions_publish",
+            "agent_definitions_use",
+            "agent_definitions_control",
+            "agent_definitions_archive",
+            "agent_definitions_transfer",
+            "agent_instances_deploy",
+            "agent_instances_control"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
         }
       ],
       "metadata": {}
@@ -6571,10 +6657,10 @@
       "metadata": {}
     },
     {
-      "id": "workspace_model_api_key",
+      "id": "agent_model_api_key",
       "source": "env",
       "purpose": "provider_api_key",
-      "locator": "VEOVEO_WORKSPACE_MODEL_API_KEY",
+      "locator": "VEOVEO_AGENT_MODEL_API_KEY",
       "owner": {
         "kind": "gateway"
       },

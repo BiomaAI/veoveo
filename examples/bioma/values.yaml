@@ -20,50 +20,29 @@ artifactService:
 
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
-  workspace:
-    agents:
-    - provider: Cloudflare Workers AI
+  agents:
+    models:
+    - id: daily-assistant
+      name: Daily assistant model
+      provider: Cloudflare Workers AI
       tenant: bioma
-      work_contexts: &id001
+      work_contexts:
       - operations
-      model: &id002
-        base_url: https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1
-        name: '@cf/moonshotai/kimi-k2.6'
-        api_key: workspace_model_api_key
-        max_output_tokens: 4096
-      id: assistant
-      name: Assistant
-      description: Draft, organize and carry out requests with the capabilities available to you.
-      instructions: Help people with daily work. Explain assumptions and ask when required inputs are missing.
-        Tool operations and their results appear in the requesting person's private Activity. For an explicitly
-        requested image, the installation-qualified media model is openai/gpt-image-2/text-to-image and
-        its input includes a prompt string. Do not request image generation unless the human asks for it.
-      tools:
-      - media__run
-      - media__models
-      - media__model_schema
-      - time__resolve_time
-      - time__convert_time
-      - time__evaluate_windows
-    - provider: Cloudflare Workers AI
-      tenant: bioma
-      work_contexts: *id001
-      model: *id002
-      id: reviewer
-      name: Reviewer
-      description: Review shared work, check assumptions and help participants improve their decisions.
-      instructions: Review the shared request carefully. Identify concrete gaps and suggest actionable corrections.
-        Respect the author and distinguish evidence from inference. Use time capabilities only when the
-        necessary values are supplied.
-      tools:
-      - time__resolve_time
-      - time__convert_time
-      - time__evaluate_windows
+      required_scopes:
+      - operator:use
+      base_url: https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1
+      model: '@cf/moonshotai/kimi-k2.6'
+      api_key: agent_model_api_key
+      limits:
+        maxOutputTokens: 4096
+        maxCompletionCalls: 4
+        maxToolCalls: 8
+        deadlineSeconds: 120
     modelSecrets:
-      VEOVEO_WORKSPACE_MODEL_API_KEY:
+      VEOVEO_AGENT_MODEL_API_KEY:
         existingSecret: veoveo-workspace-models
         key: api-key
-  controlPlaneRevision: 1d778cf4f2feaa0b589d87cec26de87f5284bddf9e5b490379b8670f3cc6806c
+  controlPlaneRevision: f36bb7e02858ec6ac6865ed1deb57606264526e608656465bb73c844e8e41815
 
 consoleBff:
   workspace:

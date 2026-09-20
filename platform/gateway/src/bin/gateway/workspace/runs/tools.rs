@@ -1,5 +1,5 @@
 //! Model tools share the human operation journal; private results never enter a prompt.
-use super::{Caller, RunState, config::Definition};
+use super::{Caller, ResolvedAgent, RunState};
 use rig::tool::{DynamicTool, ToolExecutionError, ToolOutput};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -29,6 +29,7 @@ struct RunTools {
     catalog: Arc<GatewayCatalog>,
     claim: RunClaim,
     budget: Mutex<BTreeSet<Uuid>>,
+    definition: ResolvedAgent,
     permission_changed: CancellationToken,
     feedback: super::feedback::Feedback,
 }
@@ -36,7 +37,7 @@ struct RunTools {
 pub(super) async fn for_run(
     state: &RunState,
     caller: &Caller,
-    definition: &Definition,
+    definition: &ResolvedAgent,
     claim: RunClaim,
     permission_changed: CancellationToken,
     feedback: super::feedback::Feedback,
@@ -50,6 +51,7 @@ pub(super) async fn for_run(
         catalog: state.catalog.current(),
         claim,
         budget: Mutex::default(),
+        definition: definition.clone(),
         permission_changed,
         feedback,
     });
@@ -115,6 +117,23 @@ impl RunTools {
                 "Capability permission changed. No new operation was admitted.",
             ));
         }
+        if self
+            .state
+            .agents
+            .resolve(
+                &self.caller.profile,
+                &self.caller.subject,
+                &self.definition.id,
+                Some(&self.definition.revision),
+            )
+            .await
+            .is_err()
+        {
+            self.permission_changed.cancel();
+            return Err(ToolExecutionError::other(
+                "Agent admission changed. No new operation was admitted.",
+            ));
+        }
         if !arguments.is_object() || !validator.is_valid(&arguments) {
             return Err(ToolExecutionError::other(
                 "Arguments do not satisfy the capability schema.",
@@ -136,9 +155,11 @@ impl RunTools {
                 .budget
                 .lock()
                 .map_err(|_| ToolExecutionError::other("Operation budget is unavailable."))?;
-            if !budget.contains(&id) && budget.len() >= 8 {
+            if !budget.contains(&id)
+                && budget.len() >= self.definition.budgets.max_tool_calls as usize
+            {
                 return Err(ToolExecutionError::other(
-                    "This response has reached its eight-operation limit.",
+                    "This response has reached its operation limit.",
                 ));
             }
             budget.insert(id)

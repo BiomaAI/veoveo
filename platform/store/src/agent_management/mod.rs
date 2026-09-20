@@ -1,7 +1,9 @@
 //! Governed agent authoring. HTTP authorization is caller-owned; the store fences
 //! identity/context changes and commits revisions, replay receipts and events together.
+mod import;
 mod records;
 mod validation;
+pub use import::{AgentChatImport, AgentChatImportDirection, AgentChatImportMapping};
 pub use records::*;
 
 use std::time::Duration;
@@ -149,6 +151,27 @@ impl PlatformStore {
         validation::digest(digest)?;
         self.agent_query(authority, RevisionQuery { definition: agent_definition_record(&authority.tenant, key)?, digest: digest.to_owned() },
             "LET $definition = SELECT * FROM ONLY $command.definition; IF $definition = NONE OR $definition.tenant != $authority.tenant OR $definition.disabled OR $authority.work_context NOT IN $definition.audience { THROW 'agent_not_found'; }; LET $revision = array::first(SELECT * FROM agent_definition_revision WHERE definition = $definition.id AND digest = $command.digest LIMIT 1); IF $revision = NONE { THROW 'agent_not_found'; }; RETURN $revision;"
+        ).await
+    }
+
+    /// Latest published admission or an existing pinned revision. Only existing
+    /// bindings may retain archived definitions; disable always closes access.
+    pub async fn agent_executable(
+        &self,
+        authority: &AgentCatalogAuthority,
+        key: &str,
+        digest: Option<&str>,
+    ) -> Result<AgentExecutable> {
+        if let Some(digest) = digest {
+            validation::digest(digest)?;
+        }
+        #[derive(Clone, SurrealValue)]
+        struct Resolve {
+            definition: RecordId,
+            digest: Option<String>,
+        }
+        self.agent_query(authority, Resolve { definition: agent_definition_record(&authority.tenant, key)?, digest: digest.map(str::to_owned) },
+            "LET $definition = SELECT * FROM ONLY $command.definition; IF $definition = NONE OR $definition.tenant != $authority.tenant OR $definition.disabled OR $authority.work_context NOT IN $definition.audience OR ($command.digest = NONE AND $definition.status = 'archived') { THROW 'agent_not_found'; }; LET $revision = IF $command.digest = NONE { SELECT * FROM ONLY $definition.published } ELSE { array::first(SELECT * FROM agent_definition_revision WHERE definition = $definition.id AND digest = $command.digest LIMIT 1) }; IF $revision = NONE { THROW 'agent_not_found'; }; RETURN { key: $definition.key, name: $definition.name, description: $definition.description, revision: $revision, published_by_name: $revision.created_by.display_name ?? 'Agent author' };"
         ).await
     }
 

@@ -155,6 +155,16 @@ pub struct AgentRevision {
     pub created_at: DateTime<Utc>,
 }
 
+/// An executable snapshot for an admitted caller. Drafts never appear here.
+#[derive(Clone, Debug, PartialEq, SurrealValue)]
+pub struct AgentExecutable {
+    pub published_by_name: String,
+    pub key: String,
+    pub name: String,
+    pub description: String,
+    pub revision: AgentRevision,
+}
+
 /// Public catalog metadata. No instruction, template parameter or credential field.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct AgentCatalogEntry {

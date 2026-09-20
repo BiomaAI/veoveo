@@ -37,6 +37,11 @@ export type RunState = "queued" | "running" | "completed" | "cancelled" | "inter
 export type GatewayToolName = string;
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "AgentModelId".
+ */
+export type AgentModelId = string;
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
  * via the `definition` "InputDecision".
  */
 export type InputDecision = "accept" | "decline" | "cancel";
@@ -157,7 +162,9 @@ export type ParticipationMode = "on_request" | "default" | "automatic";
 export interface WorkspaceSchema {
   activity: AgentActivity;
   add_agent: AddAgent;
+  agent_catalog: AgentCatalogPage;
   agent_definition: AgentDefinition;
+  agent_revision_preview: AgentRevisionPreview;
   answer_operation: AnswerOperation;
   app_operation: AppOperationView;
   app_origin: AppOrigin;
@@ -178,6 +185,7 @@ export interface WorkspaceSchema {
   start_app_operation: StartAppOperation;
   start_operation: StartOperation;
   start_run: StartRun;
+  update_agent: UpdateChatAgent;
   update_app_task: UpdateAppTask;
   wake: ChatWake;
 }
@@ -200,6 +208,7 @@ export interface ChatAgent {
   model: string;
   name: string;
   provider: string;
+  revision: string;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -232,6 +241,16 @@ export interface RunFeedback {
  */
 export interface AddAgent {
   definition: string;
+  requestId: string;
+  revision: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "AgentCatalogPage".
+ */
+export interface AgentCatalogPage {
+  items: AgentDefinition[];
+  next?: string | null;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -243,7 +262,49 @@ export interface AgentDefinition {
   model: string;
   name: string;
   provider: string;
+  revision: string;
   tools: GatewayToolName[];
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "AgentRevisionPreview".
+ */
+export interface AgentRevisionPreview {
+  current: AgentRevisionView;
+  target: AgentRevisionView;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "AgentRevisionView".
+ */
+export interface AgentRevisionView {
+  budgets: Budgets;
+  instructions?: string | null;
+  instructionsDigest: string;
+  model: ModelReference;
+  publishedAt: string;
+  publishedBy: PersonId;
+  publishedByName: string;
+  revision: string;
+  tools: GatewayToolName[];
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "Budgets".
+ */
+export interface Budgets {
+  deadlineSeconds: number;
+  maxCompletionCalls: number;
+  maxOutputTokens: number;
+  maxToolCalls: number;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "ModelReference".
+ */
+export interface ModelReference {
+  id: AgentModelId;
+  revision: string;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
@@ -621,6 +682,15 @@ export interface StartOperation {
 export interface StartRun {
   agent: string;
   trigger: string;
+}
+/**
+ * This interface was referenced by `WorkspaceSchema`'s JSON-Schema
+ * via the `definition` "UpdateChatAgent".
+ */
+export interface UpdateChatAgent {
+  expectedRevision: string;
+  requestId: string;
+  revision: string;
 }
 /**
  * This interface was referenced by `WorkspaceSchema`'s JSON-Schema

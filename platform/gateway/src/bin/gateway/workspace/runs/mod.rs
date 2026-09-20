@@ -1,8 +1,10 @@
-mod config;
 mod feedback;
 mod keys;
 mod messages;
 mod projection;
+#[cfg(test)]
+mod revision_tests;
+mod revisions;
 #[cfg(test)]
 pub(super) mod tests;
 #[cfg(test)]
@@ -14,6 +16,7 @@ use super::{
     Api, WorkspaceState, authority, fault,
     operations::{Caller, OperationState},
 };
+use crate::agent_management::{AgentManagementState, execution::ResolvedAgent};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, State},
@@ -38,7 +41,7 @@ struct RunState {
     workspace: WorkspaceState,
     gateway: GatewayState,
     catalog: GatewayCatalogHandle,
-    definitions: Arc<Vec<config::Definition>>,
+    agents: AgentManagementState,
     limits: Arc<Semaphore>,
     stop: CancellationToken,
     http: reqwest::Client,
@@ -52,18 +55,18 @@ pub(crate) fn router(
     catalog: GatewayCatalogHandle,
     stop: CancellationToken,
     operations: OperationState,
+    agents: AgentManagementState,
 ) -> anyhow::Result<Router> {
-    let definitions = config::from_env(&catalog.current())?;
     let http = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(125))
+        .timeout(Duration::from_secs(905))
         .build()?;
     Ok(routes(RunState {
         workspace: WorkspaceState { store },
         gateway,
         catalog,
-        definitions: Arc::new(definitions),
+        agents,
         limits: Arc::new(Semaphore::new(16)),
         stop,
         http,
@@ -79,6 +82,10 @@ fn routes(state: RunState) -> Router {
         .route(
             "/workspace-api/{profile}/chats/{chat}/agents/{agent}",
             delete(remove),
+        )
+        .route(
+            "/workspace-api/{profile}/chats/{chat}/agents/{agent}/revision",
+            get(revisions::preview).post(revisions::adopt),
         )
         .route(
             "/workspace-api/{profile}/chats/{chat}/activity",
@@ -101,38 +108,50 @@ fn routes(state: RunState) -> Router {
         .with_state(state)
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CatalogPage {
+    after: Option<String>,
+}
 async fn catalog(
     State(state): State<RunState>,
+    Path(profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
-) -> Api<Vec<wire::AgentDefinition>> {
+    axum::extract::Query(page): axum::extract::Query<CatalogPage>,
+) -> Api<wire::AgentCatalogPage> {
     authority::admit(&state.workspace, &subject).await?;
+    let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     Ok(Json(
         state
-            .definitions
-            .iter()
-            .filter(|definition| definition.permits(&subject))
-            .map(config::Definition::public)
-            .collect(),
+            .agents
+            .executable_catalog(&profile, &subject, page.after.as_deref())
+            .await?,
     ))
 }
 async fn add(
     State(state): State<RunState>,
-    Path((_profile, chat)): Path<(String, Uuid)>,
+    Path((profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     Json(request): Json<wire::AddAgent>,
 ) -> Api<wire::ChatAgent> {
     let authority = authority::admit(&state.workspace, &subject).await?;
+    let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     let definition = state
-        .definitions
-        .iter()
-        .find(|d| d.id == request.definition && d.permits(&subject))
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .agents
+        .resolve(
+            &profile,
+            &subject,
+            &request.definition,
+            Some(request.revision.hex()),
+        )
+        .await?;
     let added = state
         .workspace
         .store
         .add_workspace_agent(
             &authority,
             WorkspaceChatId::from_uuid(chat),
+            request.request_id,
             definition.admission(),
         )
         .await
@@ -217,14 +236,14 @@ async fn start(
         .find(|value| value.id == agent.record_id() && value.active)
         .ok_or(StatusCode::NOT_FOUND)?;
     let definition = state
-        .definitions
-        .iter()
-        .find(|d| d.id == admitted.definition && d.permits(&subject))
-        .ok_or(StatusCode::NOT_FOUND)?
-        .clone();
-    if definition.digest() != admitted.definition_digest {
-        return Err(StatusCode::CONFLICT);
-    }
+        .agents
+        .resolve(
+            &profile,
+            &subject,
+            &admitted.definition,
+            Some(&admitted.definition_digest),
+        )
+        .await?;
     let permit = state
         .limits
         .clone()
@@ -233,7 +252,7 @@ async fn start(
     let deadline = subject
         .access_token
         .expires_at
-        .min(Utc::now() + TimeDelta::seconds(120));
+        .min(Utc::now() + TimeDelta::seconds(i64::from(definition.budgets.deadline_seconds)));
     let run = state
         .workspace
         .store
@@ -242,7 +261,7 @@ async fn start(
             chat,
             agent,
             WorkspaceMessageId::from_uuid(request.trigger.0),
-            &definition.digest(),
+            &definition.revision,
             deadline,
         )
         .await

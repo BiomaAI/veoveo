@@ -35,7 +35,7 @@ fn fixture_subject(name: &str) -> AuthenticatedSubject {
     subject
 }
 
-fn fixture_catalog() -> GatewayCatalog {
+pub(crate) fn fixture_catalog() -> GatewayCatalog {
     let mut value: Value =
         serde_json::from_str(include_str!("../../../../../../configs/gateway.smoke.json")).unwrap();
     value["tenants"]

@@ -36,7 +36,7 @@ async fn replies_bind_same_chat_terminal_authors_and_keep_a_bounded_immutable_qu
             .unwrap();
         join(&db.a, &a, &b, &bob, chat).await;
         let agent =
-            db.a.add_workspace_agent(&a, chat, admission("Reviewer"))
+            db.a.add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("Reviewer"))
                 .await
                 .unwrap();
         let original = WorkspaceMessageId::new();

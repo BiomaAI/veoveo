@@ -27,7 +27,7 @@ async fn completion(
     let model = body["model"].as_str().unwrap().to_owned();
     let call = provider.calls.fetch_add(1, Ordering::SeqCst);
     assert_eq!(body["tools"].as_array().unwrap().len(), 1);
-    assert_eq!(body["tools"][0]["function"]["name"], "fixture_task");
+    assert_eq!(body["tools"][0]["function"]["name"], "fixture__task");
     assert!(
         !body.to_string().contains("Choose a count for the fixture"),
         "private input prompts never enter shared model context"
@@ -48,7 +48,7 @@ async fn completion(
             provider.release_cancelled.notified().await;
         }
         if call < 2 || model == "cancel" {
-            yield Ok(chunk(&model, json!({"role":"assistant","tool_calls":[{"index":0,"id":format!("call-{call}"),"type":"function","function":{"name":"fixture_task","arguments":"{}"}}]}), Value::Null));
+            yield Ok(chunk(&model, json!({"role":"assistant","tool_calls":[{"index":0,"id":format!("call-{call}"),"type":"function","function":{"name":"fixture__task","arguments":"{}"}}]}), Value::Null));
             yield Ok(chunk(&model, json!({}), json!("tool_calls")));
         } else {
             yield Ok(chunk(&model, json!({"role":"assistant","content":"Follow this operation in your private Activity."}), Value::Null));
@@ -114,18 +114,19 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
         let definitions = ["duplicate", "cancel"].map(|id| {
             let mut definition = tests::definition(id, &origin);
             definition.tools = vec![
-                veoveo_mcp_contract::GatewayToolName::new("fixture_task").unwrap(),
-                veoveo_mcp_contract::GatewayToolName::new("unavailable_tool").unwrap(),
+                veoveo_mcp_contract::GatewayToolName::new("fixture__task").unwrap(),
+                veoveo_mcp_contract::GatewayToolName::new("fixture__unavailable").unwrap(),
             ];
             definition
         });
+        let agents = tests::registry(&db.a, &catalog, &operations, &stop, &definitions).await;
         let state = RunState {
             workspace: WorkspaceState {
                 store: db.a.clone(),
             },
             gateway,
             catalog,
-            definitions: Arc::new(definitions.to_vec()),
+            agents,
             limits: Arc::new(Semaphore::new(16)),
             stop,
             http: reqwest::Client::new(),

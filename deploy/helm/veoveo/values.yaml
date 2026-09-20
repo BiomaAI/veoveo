@@ -104,9 +104,9 @@ gateway:
   # Required when gateway is selected: SHA-256 of its complete mounted public bundle.
   controlPlaneRevision: ""
   refreshDeliveryWindowSeconds: 5
-  workspace:
-    # Installation-admitted definitions; no model credentials belong in values.
-    agents: []
+  agents:
+    # Approved connections; definitions are authored through the management API.
+    models: []
     # Environment name -> installation-owned Secret reference.
     modelSecrets: {}
   resources:

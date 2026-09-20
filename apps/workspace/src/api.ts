@@ -1,3 +1,4 @@
+import type { AgentCatalogPage, AgentRevisionPreview, UpdateChatAgent } from "./generated/workspace.ts";
 import { browserSession } from "../../console/web/src/csrf.ts";
 import { z } from "zod";
 import schema from "./generated/workspace.schema.json" with { type: "json" };
@@ -6,7 +7,7 @@ import type { OperationView, OperationPage, OperationSummary, AnswerOperation, S
 
 export type ConversationSnapshot = ChatSnapshot & { activity: AgentActivity };
 
-type Definitions = { PersonalEvent: PersonalEvent; AppOperationView: AppOperationView; OperationView: OperationView; OperationPage: OperationPage; OperationSummary: OperationSummary; Capability: Capability; AgentActivity: AgentActivity; AgentDefinition: AgentDefinition; ChatAgent: ChatAgent; Run: Run; Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
+type Definitions = { AgentCatalogPage: AgentCatalogPage; AgentRevisionPreview: AgentRevisionPreview; PersonalEvent: PersonalEvent; AppOperationView: AppOperationView; OperationView: OperationView; OperationPage: OperationPage; OperationSummary: OperationSummary; Capability: Capability; AgentActivity: AgentActivity; AgentDefinition: AgentDefinition; ChatAgent: ChatAgent; Run: Run; Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
   InvitationSummary: InvitationSummary; Message: Message; Person: Person; WorkspaceBootstrap: WorkspaceBootstrap };
 const validators = new Map<keyof Definitions, z.ZodType>();
 export function parse<K extends keyof Definitions>(kind: K, input: unknown): Definitions[K] {
@@ -65,8 +66,10 @@ export const api = {
     if (value.chat.id !== chat) throw new Error("The chat response could not be verified.");
     return { ...value, activity: parse("AgentActivity", await request(`/chats/${encodeURIComponent(chat)}/activity`, "GET", undefined, signal)) } satisfies ConversationSnapshot;
   },
-  agents: async (signal?: AbortSignal) => list("AgentDefinition", await request("/agents", "GET", undefined, signal)),
-  addAgent: async (chat: string, definition: string) => parse("ChatAgent", await request(`/chats/${chat}/agents`, "POST", { definition })),
+  agents: async (after?: string, signal?: AbortSignal) => parse("AgentCatalogPage", await request(`/agents${after ? `?after=${encodeURIComponent(after)}` : ""}`, "GET", undefined, signal)),
+  addAgent: async (chat: string, definition: string, revision: string, requestId: string) => parse("ChatAgent", await request(`/chats/${chat}/agents`, "POST", { definition, revision, requestId })),
+  agentRevision: async (chat: string, agent: string) => parse("AgentRevisionPreview", await request(`/chats/${chat}/agents/${agent}/revision`)),
+  updateAgent: async (chat: string, agent: string, body: UpdateChatAgent) => parse("ChatAgent", await request(`/chats/${chat}/agents/${agent}/revision`, "POST", body)),
   removeAgent: async (chat: string, agent: string) => parse("ChatAgent", await request(`/chats/${chat}/agents/${agent}`, "DELETE")),
   cancelRun: async (chat: string, run: string) => parse("Run", await request(`/chats/${chat}/runs/${run}/cancel`, "POST")),
   operations: async (chat?: string, before?: string, signal?: AbortSignal) => {

@@ -2,10 +2,12 @@
 pub(crate) mod authority;
 mod commands;
 mod events;
+pub(crate) mod execution;
+pub(crate) mod import;
 pub(crate) mod models;
 mod projection;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 mod validation;
 
 use std::sync::Arc;
@@ -48,6 +50,14 @@ pub(crate) enum Fault {
     Validation(wire::Validation),
 }
 impl Fault {
+    pub(crate) fn code(&self) -> StatusCode {
+        match self {
+            Self::Status(code) => *code,
+            Self::Response(response) => response.status(),
+            Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
+        }
+    }
+
     fn status(status: StatusCode) -> Self {
         Self::Status(status)
     }

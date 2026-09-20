@@ -8,7 +8,7 @@ FOR $run IN $active {
     LET $agent = SELECT * FROM ONLY $run.agent;
     LET $initiator = SELECT * FROM ONLY $run.initiator;
     LET $member = SELECT id FROM workspace_member WHERE chat = $command AND principal = $run.initiator AND active = true LIMIT 1;
-    LET $revoked = $chat.archived OR !$agent.active OR $agent.definition_digest != $run.definition_digest
+    LET $revoked = $chat.archived OR !$agent.active OR !fn::agent_chat_revision($authority.tenant, $authority.work_context, $agent.definition, $run.definition_digest, false)
         OR !$initiator.enabled OR count($member) = 0;
     IF $revoked OR $run.deadline <= time::now() OR $run.lease_until <= time::now() {
         LET $head = UPDATE ONLY $command SET sequence += 1, updated_at = time::now();

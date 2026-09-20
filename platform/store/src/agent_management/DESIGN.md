@@ -72,3 +72,16 @@ and rejected here: it rewrites typed function signatures and nested mutation exp
 into invalid syntax. Keep the reviewed SQL formatting until that incompatibility is
 resolved. Validation and execution use the repository-pinned SurrealDB image,
 independent of the host CLI version.
+
+## Chat Resolution And Installation Import
+
+`agent_executable` resolves an immutable publication under current context authority.
+A new admission selects the enabled published head. An existing pinned binding may
+retain an archived definition, while disable and audience removal deny both paths.
+Publisher display attribution is projected separately from private instructions.
+
+The focused `import` module supports an installation-authorized, offline source-digest
+conversion of retained chat bindings. It exports the exact typed records and fences
+apply/restore against any concurrent edit or active model run. Its authority input is
+trusted server state; no HTTP author can invoke this migration boundary. Normal
+startup does not import or reconcile definitions.

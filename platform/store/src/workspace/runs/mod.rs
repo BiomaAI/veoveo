@@ -1,5 +1,6 @@
 //! Per-chat agent admission and independently fenced execution records.
 mod records;
+mod revisions;
 pub use records::*;
 
 use chrono::{DateTime, Utc};
@@ -14,6 +15,8 @@ struct AgentCommand {
     chat: RecordId,
     agent: RecordId,
     admission: WorkspaceAgentAdmission,
+    receipt: RecordId,
+    fingerprint: String,
 }
 #[derive(Clone, SurrealValue)]
 struct Target {
@@ -48,6 +51,7 @@ impl PlatformStore {
         &self,
         authority: &WorkspaceAuthority,
         chat: WorkspaceChatId,
+        request_id: Uuid,
         admission: WorkspaceAgentAdmission,
     ) -> Result<WorkspaceAgent> {
         for (field, value, bound) in [
@@ -70,12 +74,16 @@ impl PlatformStore {
             &chat.as_uuid(),
             admission.definition.as_bytes(),
         ));
+        let (receipt, fingerprint) =
+            revisions::receipt(authority, chat, request_id, &admission, None)?;
         self.workspace_query(
             authority,
             AgentCommand {
                 chat: chat.record_id(),
                 agent: agent.record_id(),
                 admission,
+                receipt,
+                fingerprint,
             },
             include_str!("add.surql"),
         )

@@ -460,3 +460,330 @@ fn executable_input_rejects_unknown_secret_and_unbounded_fields() {
         managed
     );
 }
+
+#[tokio::test]
+async fn chat_adoption_is_explicit_replayable_and_preserves_running_revision_until_disable() {
+    use chrono::{TimeDelta, Utc};
+    use veoveo_platform_store::{
+        WorkspaceAgentId, WorkspaceChatId, WorkspaceMessageId, WorkspaceRunId,
+        workspace::{
+            WorkspaceAuthority, WorkspaceError, WorkspaceRunState, WorkspaceRunUpdate,
+            WorkspaceTurnRequest,
+        },
+    };
+    let db = TestDb::new().await;
+    let identity = identity(&db.a, "chat-registry", "alice").await;
+    context(&db.a, &identity, "shared").await;
+    let editor = authority(&db.a, &identity, "shared").await;
+    let actor = WorkspaceAuthority::new(
+        identity.tenant_id,
+        deterministic_work_context_id("chat-registry", "shared").unwrap(),
+        identity.principal_id,
+        editor.context_digest.clone(),
+        WorkContextMembershipLevel::Contributor,
+    );
+    let first = publish(&db.a, &editor, &create(&db.a, &editor, "researcher").await).await;
+    let admission = |digest: &str| veoveo_platform_store::workspace::WorkspaceAgentAdmission {
+        definition: "researcher".into(),
+        definition_digest: digest.into(),
+        display_name: "Researcher".into(),
+        provider: "Fixture".into(),
+        model: "Fixture".into(),
+    };
+    let chat = WorkspaceChatId::new();
+    db.a.create_workspace_chat(&actor, chat, "Explicit revisions")
+        .await
+        .unwrap();
+    let add_request = Uuid::now_v7();
+    let agent =
+        db.a.add_workspace_agent(&actor, chat, add_request, admission(&first.draft_digest))
+            .await
+            .unwrap();
+    let agent_id = match &agent.id.key {
+        surrealdb::types::RecordIdKey::Uuid(id) => WorkspaceAgentId::from_uuid(**id),
+        _ => panic!("agent UUID"),
+    };
+    let turn =
+        db.a.send_workspace_turn(
+            &actor,
+            chat,
+            WorkspaceTurnRequest {
+                id: WorkspaceMessageId::new(),
+                text: "Use the original version".into(),
+                attachments: vec![],
+                reply_to: None,
+                addressed_agents: vec![agent_id],
+                deadline: Utc::now() + TimeDelta::seconds(120),
+            },
+        )
+        .await
+        .unwrap();
+    let run = &turn.runs[0];
+    let run_id = match &run.id.key {
+        surrealdb::types::RecordIdKey::Uuid(id) => WorkspaceRunId::from_uuid(**id),
+        _ => panic!("run UUID"),
+    };
+    let fence = Uuid::now_v7();
+    db.a.claim_workspace_run(&actor, chat, run_id, fence)
+        .await
+        .unwrap();
+    let edited =
+        db.a.mutate_agent_definition(
+            &editor,
+            "researcher",
+            Uuid::now_v7(),
+            Some(first.revision),
+            AgentDefinitionMutation::Draft {
+                content: content("Second published instructions"),
+            },
+        )
+        .await
+        .unwrap();
+    let second = publish(&db.a, &editor, &edited).await;
+    assert_eq!(
+        db.a.workspace_agents(&actor, chat).await.unwrap()[0].definition_digest,
+        first.draft_digest
+    );
+    assert_eq!(
+        db.a.add_workspace_agent(
+            &actor,
+            chat,
+            Uuid::now_v7(),
+            admission(&second.draft_digest)
+        )
+        .await,
+        Err(WorkspaceError::Conflict)
+    );
+    let request = Uuid::now_v7();
+    let updated =
+        db.a.update_workspace_agent_revision(
+            &actor,
+            chat,
+            request,
+            &first.draft_digest,
+            admission(&second.draft_digest),
+        )
+        .await
+        .unwrap();
+    assert_eq!(updated.definition_digest, second.draft_digest);
+    assert_eq!(
+        db.b.update_workspace_agent_revision(
+            &actor,
+            chat,
+            request,
+            &first.draft_digest,
+            admission(&second.draft_digest)
+        )
+        .await
+        .unwrap(),
+        updated
+    );
+    assert_eq!(
+        db.a.update_workspace_agent_revision(
+            &actor,
+            chat,
+            request,
+            &first.draft_digest,
+            admission(&first.draft_digest)
+        )
+        .await,
+        Err(WorkspaceError::Conflict)
+    );
+    assert_eq!(
+        db.b.agent_executable(&editor, "researcher", Some(&run.definition_digest))
+            .await
+            .unwrap()
+            .revision
+            .content
+            .instructions,
+        "Private instructions v1"
+    );
+    db.a.update_workspace_run(
+        &actor,
+        chat,
+        run_id,
+        WorkspaceRunUpdate {
+            fence,
+            text: "Original revision remains active".into(),
+            state: WorkspaceRunState::Running,
+            feedback: Default::default(),
+            failure: None,
+        },
+    )
+    .await
+    .unwrap();
+    let archived =
+        db.a.mutate_agent_definition(
+            &editor,
+            "researcher",
+            Uuid::now_v7(),
+            Some(second.revision),
+            AgentDefinitionMutation::Status {
+                status: AgentDefinitionStatus::Archived,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(
+        db.a.agent_executable(&editor, "researcher", None)
+            .await
+            .is_err()
+    );
+    assert!(
+        db.a.agent_executable(&editor, "researcher", Some(&run.definition_digest))
+            .await
+            .is_ok()
+    );
+    db.a.mutate_agent_definition(
+        &editor,
+        "researcher",
+        Uuid::now_v7(),
+        Some(archived.revision),
+        AgentDefinitionMutation::Status {
+            status: AgentDefinitionStatus::Disabled,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.a.update_workspace_run(
+            &actor,
+            chat,
+            run_id,
+            WorkspaceRunUpdate {
+                fence,
+                text: "Original revision remains active but cannot publish".into(),
+                state: WorkspaceRunState::Completed,
+                feedback: Default::default(),
+                failure: None
+            }
+        )
+        .await,
+        Err(WorkspaceError::Conflict)
+    );
+    assert_eq!(
+        db.a.workspace_runs(&actor, chat).await.unwrap()[0].state,
+        WorkspaceRunState::Interrupted
+    );
+    db.a.remove_workspace_agent(&actor, chat, agent_id)
+        .await
+        .unwrap();
+    // A lost add response cannot reactivate a participant removed after that add.
+    assert_eq!(
+        db.a.add_workspace_agent(&actor, chat, add_request, admission(&first.draft_digest))
+            .await
+            .unwrap(),
+        agent
+    );
+    assert!(!db.a.workspace_agents(&actor, chat).await.unwrap()[0].active);
+}
+
+#[tokio::test]
+async fn offline_chat_import_preserves_identity_and_qualifies_exact_restore() {
+    use veoveo_platform_store::{
+        WorkspaceChatId,
+        workspace::{WorkspaceAgentAdmission, WorkspaceAuthority},
+    };
+    let db = TestDb::new().await;
+    let identity = identity(&db.a, "import-fixture", "installer").await;
+    context(&db.a, &identity, "shared").await;
+    let mut editor = authority(&db.a, &identity, "shared").await;
+    editor.manage_context = true;
+    let actor = WorkspaceAuthority::new(
+        identity.tenant_id,
+        deterministic_work_context_id("import-fixture", "shared").unwrap(),
+        identity.principal_id,
+        editor.context_digest.clone(),
+        WorkContextMembershipLevel::Contributor,
+    );
+    let definition = publish(&db.a, &editor, &create(&db.a, &editor, "researcher").await).await;
+    let chat = WorkspaceChatId::new();
+    db.a.create_workspace_chat(&actor, chat, "Retained chat")
+        .await
+        .unwrap();
+    let admitted =
+        db.a.add_workspace_agent(
+            &actor,
+            chat,
+            Uuid::now_v7(),
+            WorkspaceAgentAdmission {
+                definition: "researcher".into(),
+                definition_digest: definition.draft_digest.clone(),
+                display_name: "Retained name".into(),
+                provider: "Fixture".into(),
+                model: "Fixture".into(),
+            },
+        )
+        .await
+        .unwrap();
+    let source = "b".repeat(64);
+    db.a.client()
+        .query("UPDATE ONLY $id SET definition_digest = $digest;")
+        .bind(("id", admitted.id.clone()))
+        .bind(("digest", source.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let before = db.a.workspace_agents(&actor, chat).await.unwrap();
+    let mapping = AgentChatImportMapping {
+        key: "researcher".into(),
+        source_digests: vec![source],
+        target_digest: definition.draft_digest.clone(),
+    };
+    let plan =
+        db.a.plan_agent_chat_import(&editor, std::slice::from_ref(&mapping))
+            .await
+            .unwrap();
+    assert_eq!(plan.len(), 1);
+    assert_eq!(plan[0].before, before[0]);
+    // The protected recovery file round-trips the typed records exactly.
+    let exported = serde_json::to_vec(&plan).unwrap();
+    let recovered: Vec<AgentChatImport> = serde_json::from_slice(&exported).unwrap();
+    assert_eq!(plan, recovered);
+    for _ in 0..2 {
+        assert_eq!(
+            db.a.apply_agent_chat_import(&editor, &plan, AgentChatImportDirection::Apply)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.b.workspace_agents(&actor, chat).await.unwrap()[0],
+            admitted
+        );
+    }
+    assert!(
+        db.a.plan_agent_chat_import(&editor, &[mapping])
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    for _ in 0..2 {
+        assert_eq!(
+            db.b.apply_agent_chat_import(&editor, &recovered, AgentChatImportDirection::Restore)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(db.a.workspace_agents(&actor, chat).await.unwrap(), before);
+    }
+    db.a.client()
+        .query("UPDATE ONLY $id SET display_name = 'Concurrent edit';")
+        .bind(("id", admitted.id.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert_eq!(
+        db.a.apply_agent_chat_import(&editor, &plan, AgentChatImportDirection::Apply)
+            .await,
+        Err(AgentManagementError::Conflict)
+    );
+    editor.manage_context = false;
+    assert_eq!(
+        db.a.apply_agent_chat_import(&editor, &plan, AgentChatImportDirection::Apply)
+            .await,
+        Err(AgentManagementError::Forbidden)
+    );
+}

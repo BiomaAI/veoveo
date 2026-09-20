@@ -11,7 +11,7 @@ IF $command.run_fence != NONE {
     IF $run = NONE OR $run.chat != $operation.chat OR $run.initiator != $authority.principal
         OR $run.state != 'running' OR $run.fence != $command.run_fence
         OR $run.lease_until <= time::now() OR $run.deadline <= time::now()
-        OR !$agent.active OR $agent.definition_digest != $run.definition_digest { THROW 'workspace_conflict'; };
+        OR !$agent.active OR !fn::agent_chat_revision($authority.tenant, $authority.work_context, $agent.definition, $run.definition_digest, false) { THROW 'workspace_conflict'; };
 };
 UPDATE ONLY $operation.chat SET updated_at = time::now();
 RETURN true;

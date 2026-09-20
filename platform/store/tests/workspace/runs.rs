@@ -9,11 +9,31 @@ use veoveo_platform_store::{
     },
 };
 
-const DIGEST: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+static DIGEST: std::sync::LazyLock<String> =
+    std::sync::LazyLock::new(|| catalog_content().digest().unwrap());
+pub(super) fn catalog_content() -> veoveo_platform_store::agent_management::AgentContent {
+    use veoveo_platform_store::agent_management::*;
+    AgentContent {
+        model: AgentModelReference {
+            id: "fixture-model".into(),
+            revision: "a".repeat(64),
+        },
+        instructions: "Explicit store boundary fixture".into(),
+        tools: vec![],
+        budgets: AgentBudgets {
+            max_output_tokens: 128,
+            max_completion_calls: 4,
+            max_tool_calls: 8,
+            deadline_seconds: 120,
+        },
+        execution: AgentExecution::Chat,
+    }
+}
+
 pub(super) fn admission(name: &str) -> WorkspaceAgentAdmission {
     WorkspaceAgentAdmission {
-        definition: name.into(),
-        definition_digest: "a".repeat(64),
+        definition: name.to_lowercase(),
+        definition_digest: DIGEST.to_string(),
         display_name: name.into(),
         provider: "explicit-test-fixture".into(),
         model: "no-model-in-this-store-test".into(),
@@ -53,7 +73,7 @@ async fn feedback_is_fenced_monotonic_and_wakes_without_text() {
         .await
         .unwrap();
     let agent =
-        db.a.add_workspace_agent(&actor, chat, admission("writer"))
+        db.a.add_workspace_agent(&actor, chat, uuid::Uuid::now_v7(), admission("writer"))
             .await
             .unwrap();
     let trigger = WorkspaceMessageId::new();
@@ -73,9 +93,16 @@ async fn feedback_is_fenced_monotonic_and_wakes_without_text() {
     .await
     .unwrap();
     let run =
-        db.a.start_workspace_run(&actor, chat, agent_id(&agent.id), trigger, DIGEST, deadline)
-            .await
-            .unwrap();
+        db.a.start_workspace_run(
+            &actor,
+            chat,
+            agent_id(&agent.id),
+            trigger,
+            &DIGEST,
+            deadline,
+        )
+        .await
+        .unwrap();
     let fence = Uuid::now_v7();
     let claimed =
         db.a.claim_workspace_run(&actor, chat, run_id(&run), fence)
@@ -133,16 +160,16 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
         .unwrap();
     join(&db.a, &a, &b, &bob, chat).await;
     assert_eq!(
-        db.b.add_workspace_agent(&b, chat, admission("writer"))
+        db.b.add_workspace_agent(&b, chat, uuid::Uuid::now_v7(), admission("writer"))
             .await,
         Err(WorkspaceError::Forbidden)
     );
     let writer =
-        db.a.add_workspace_agent(&a, chat, admission("writer"))
+        db.a.add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("writer"))
             .await
             .unwrap();
     let reviewer =
-        db.a.add_workspace_agent(&a, chat, admission("reviewer"))
+        db.a.add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("reviewer"))
             .await
             .unwrap();
     let writer = agent_id(&writer.id);
@@ -178,20 +205,20 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
     .unwrap();
     let deadline = Utc::now() + TimeDelta::seconds(120);
     let (one, two) = tokio::join!(
-        db.a.start_workspace_run(&a, chat, writer, trigger, DIGEST, deadline),
-        db.b.start_workspace_run(&a, chat, reviewer, trigger, DIGEST, deadline),
+        db.a.start_workspace_run(&a, chat, writer, trigger, &DIGEST, deadline),
+        db.b.start_workspace_run(&a, chat, reviewer, trigger, &DIGEST, deadline),
     );
     let one = one.unwrap();
     let two = two.unwrap();
     assert_ne!(one.id, two.id);
     assert_ne!(one.sequence, two.sequence);
     let repeated =
-        db.b.start_workspace_run(&a, chat, writer, trigger, DIGEST, deadline)
+        db.b.start_workspace_run(&a, chat, writer, trigger, &DIGEST, deadline)
             .await
             .unwrap();
     assert_eq!(one, repeated);
     assert_eq!(
-        db.b.start_workspace_run(&b, chat, writer, trigger, DIGEST, deadline)
+        db.b.start_workspace_run(&b, chat, writer, trigger, &DIGEST, deadline)
             .await,
         Err(WorkspaceError::Forbidden)
     );
@@ -340,7 +367,7 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
             .any(|run| run.state == WorkspaceRunState::Completed && run.text == "Second complete")
     );
     assert_eq!(
-        db.a.start_workspace_run(&a, chat, writer, trigger, DIGEST, deadline)
+        db.a.start_workspace_run(&a, chat, writer, trigger, &DIGEST, deadline)
             .await
             .unwrap()
             .state,
@@ -362,7 +389,7 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
         .unwrap();
     join(&db.a, &a, &b, &bob, chat).await;
     let agent =
-        db.a.add_workspace_agent(&a, chat, admission("helper"))
+        db.a.add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("helper"))
             .await
             .unwrap();
     let agent = agent_id(&agent.id);
@@ -383,7 +410,7 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
     .unwrap();
     let deadline = Utc::now() + TimeDelta::seconds(120);
     let run =
-        db.b.start_workspace_run(&b, chat, agent, trigger, DIGEST, deadline)
+        db.b.start_workspace_run(&b, chat, agent, trigger, &DIGEST, deadline)
             .await
             .unwrap();
     let fence = Uuid::now_v7();
@@ -434,7 +461,7 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
     assert_eq!(restored[0].text, "Partial response");
     assert_eq!(restored[0].failure, Some(WorkspaceRunFailure::WorkerLost));
     assert_eq!(
-        db.b.start_workspace_run(&b, chat, agent, trigger, DIGEST, deadline)
+        db.b.start_workspace_run(&b, chat, agent, trigger, &DIGEST, deadline)
             .await
             .unwrap()
             .state,
@@ -456,7 +483,7 @@ async fn lost_workers_and_revoked_members_cannot_publish_or_restart_on_replay() 
     .await
     .unwrap();
     let run2 =
-        db.b.start_workspace_run(&b, chat, agent, trigger2, DIGEST, deadline)
+        db.b.start_workspace_run(&b, chat, agent, trigger2, &DIGEST, deadline)
             .await
             .unwrap();
     db.b.claim_workspace_run(&b, chat, run_id(&run2), fence)
@@ -494,7 +521,7 @@ async fn concurrent_admission_is_bounded_and_removing_an_agent_fences_all_its_ru
         .await
         .unwrap();
     let agent =
-        db.a.add_workspace_agent(&a, chat, admission("helper"))
+        db.a.add_workspace_agent(&a, chat, uuid::Uuid::now_v7(), admission("helper"))
             .await
             .unwrap();
     let agent = agent_id(&agent.id);
@@ -519,7 +546,7 @@ async fn concurrent_admission_is_bounded_and_removing_an_agent_fences_all_its_ru
     }
     let deadline = Utc::now() + TimeDelta::seconds(120);
     let runs = futures::future::join_all(triggers.iter().map(|trigger| {
-        db.a.start_workspace_run(&a, chat, agent, *trigger, DIGEST, deadline)
+        db.a.start_workspace_run(&a, chat, agent, *trigger, &DIGEST, deadline)
     }))
     .await;
     assert_eq!(runs.iter().filter(|r| r.is_ok()).count(), 4);

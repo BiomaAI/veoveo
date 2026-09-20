@@ -2,8 +2,8 @@
 
 Status: accepted and implementation started September 19, 2026. This is the active
 delivery goal. Registry persistence and the authoring API/client layer are implemented
-checkpoints. Registry-backed execution, managed provisioning and installed acceptance
-remain outstanding. Current component
+checkpoints. Registry-backed execution and explicit chat revision adoption now have
+local qualification. Managed provisioning and installed acceptance remain outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols
@@ -43,7 +43,7 @@ generic implementation.
 
 | Surface | Implemented today | Change needed |
 |---|---|---|
-| Workspace definitions | [`VEOVEO_WORKSPACE_AGENTS`](../platform/gateway/src/bin/gateway/workspace/runs/config.rs) loaded at gateway startup | Durable editable catalog with publication and current authorization |
+| Workspace definitions | Durable registry with approved installation model connections | Durable editable catalog with publication and current authorization |
 | Chat participants | Owner adds a definition through [Workspace routes](../platform/gateway/src/bin/gateway/workspace/runs/mod.rs); admission retains its digest | Bind an explicit published revision and disclose updates |
 | Durable agents | [Kernel startup](../agents/kernel/src/bin/agent/run.rs) loads a manifest and registers the runtime record | Admit managed instances before startup and provision their resources |
 | UAV packaging | [Helm](../showcase/uav-sim/deploy/helm/templates/agent-deployments.yaml) supplies isolated processes, identities and storage | Install a reviewed template; create individual pilots through the API |

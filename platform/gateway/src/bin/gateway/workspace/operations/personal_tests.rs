@@ -86,7 +86,7 @@ async fn personal_feeds_follow_native_tasks_on_two_replicas_without_private_payl
         let app = new_app(state.clone());
         let other_replica = new_app(replica.clone());
         let id = Uuid::now_v7();
-        assert_eq!(request(&app, "POST", &format!("/chats/{chat}/operations"), json!({"id":id,"tool":"fixture_task","arguments":{}})).await.0, StatusCode::OK);
+        assert_eq!(request(&app, "POST", &format!("/chats/{chat}/operations"), json!({"id":id,"tool":"fixture__task","arguments":{}})).await.0, StatusCode::OK);
         let task = detail(&app, id).await.task.unwrap();
         let mut first = Watch::open(&app).await;
         let mut second = Watch::open(&other_replica).await;
@@ -115,7 +115,7 @@ async fn personal_feeds_follow_native_tasks_on_two_replicas_without_private_payl
         }}).await.expect("revocation ends ongoing personal observation");
         assert_eq!(fixture.domain.calls.load(Ordering::SeqCst), 1, "observing, reconnecting and changing replicas never dispatches");
         let next = Uuid::now_v7();
-        assert_eq!(request(&app, "POST", &format!("/chats/{chat}/operations"), json!({"id":next,"tool":"fixture_task","arguments":{}})).await.0, StatusCode::OK);
+        assert_eq!(request(&app, "POST", &format!("/chats/{chat}/operations"), json!({"id":next,"tool":"fixture__task","arguments":{}})).await.0, StatusCode::OK);
         let created = |event: &wire::PersonalEvent| matches!(event, wire::PersonalEvent::Inventory { operations, .. } if operations.iter().any(|operation| operation.id.0 == next));
         restored.until(created).await;
         second.until(created).await;

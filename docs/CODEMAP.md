@@ -52,7 +52,7 @@ authoritative until each planned change lands:
 
 | Document | Delivery and remaining work |
 |---|---|
-| [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | active API and Console agent-authoring implementation: governed revisioned catalog, delegated Workspace creation, managed kernel provisioning and UAV migration; API/UI and installed acceptance remain outstanding |
+| [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | active API and Console agent-authoring implementation: governed revisioned catalog, delegated Workspace creation, managed kernel provisioning and UAV migration; authoring and revision-aware chat execution implemented; managed provisioning and installed acceptance remain outstanding |
 | [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md) | delivered shared-chat productivity client: owner-controlled membership, isolated agent context, concurrent runs, governed capabilities, acceptance evidence and pending installed follow-ups |
 | [`REACTIVE_UX_PLAN.md`](REACTIVE_UX_PLAN.md) | delivered catalog recovery, agent feedback, personal event feed, RMCP 3.4.0 and shared subscriptions; installed acceptance and remaining cold-catalog/performance work |
 | [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | deployed core Computers capability: native Console/CLI, named agent authority, retained storage, provider recovery and Bioma acceptance; separate clean/offline and broader qualification gates |
@@ -212,7 +212,7 @@ UAV live view, Recording Hub, administration and GPU behavior.
 | [`platform/store/src/workspace/runs/`](../platform/store/src/workspace/runs/DESIGN.md) | per-chat agent admission, atomic human-turn participation and same-chat typed replies in `workspace/participation.rs`, server-captured quotes qualified by `tests/workspace/replies.rs`, immutable typed Artifact references qualified by `tests/workspace/attachments.rs`, bounded concurrent runs, fixed context, execution fences, cancellation and interrupted-worker recovery |
 | `platform/store/src/workspace/personal.rs` and `platform/gateway/src/bin/gateway/workspace/operations/personal.rs` | bounded actor-private inventory, shared projected LIVE hints, exact native Task observation and current-authority SSE; `apps/workspace/src/usePersonalEvents.ts` owns global attention and query invalidation |
 | [`platform/store/src/workspace/operations/`](../platform/store/src/workspace/operations/DESIGN.md) | private MCP operation receipts, at-most-once dispatch claims, durable Task references, bounded MRTR continuation fences and ambiguous-outcome recovery |
-| [`platform/gateway/src/bin/gateway/workspace/runs/`](../platform/gateway/src/bin/gateway/workspace/runs/DESIGN.md) | `messages.rs` coordinates atomic human-message response intents; configured per-chat model execution through Rig, current human capability intersection, bounded streaming, private native Task dispatch and independent cancellation; `feedback.rs` observes actual tool bodies and projects shared execution facts through migration 0086 |
+| [`platform/gateway/src/bin/gateway/workspace/runs/`](../platform/gateway/src/bin/gateway/workspace/runs/DESIGN.md) | `messages.rs` coordinates atomic human-message response intents; registry-pinned per-chat model execution through Rig, current human capability intersection, bounded streaming, private native Task dispatch and independent cancellation; `feedback.rs` observes actual tool bodies and projects shared execution facts through migration 0086 |
 | [`platform/gateway/src/bin/gateway/workspace/operations/`](../platform/gateway/src/bin/gateway/workspace/operations/DESIGN.md) | human-scoped native MCP dispatch, durable Task recovery, current input forms, explicit continuation, cancellation and bounded Task subscriptions; `apps.rs` binds native App calls and Task recovery to exact persisted origin |
 | `mcp/contract/src/workspace.rs` | typed Workspace chat, membership, invitation, message, agent, run, personal event and private MCP operation/Task HTTP projections; `workspace/apps.rs` owns native App bridge envelopes |
 | [`platform/gateway/src/bin/gateway/workspace/`](../platform/gateway/src/bin/gateway/workspace/DESIGN.md) | direct-human Work Context admission, bounded chat/history/invitation routes and membership-authorized durable-head event streams |
@@ -1011,7 +1011,8 @@ definition authoring, immutable executable revisions, mutation replay and public
 audience fencing. It is separate from episode scheduling. The
 [management gateway](../platform/gateway/src/bin/gateway/agent_management/DESIGN.md)
 owns current authoring policy, approved model connections, publication validation and
-catalog invalidation. Its [HTTP contract](../mcp/contract/src/agent_management/DESIGN.md)
+catalog invalidation. `import.rs` owns the explicit offline installation seed and retained
+chat-binding conversion; startup never overwrites authored definitions. Its [HTTP contract](../mcp/contract/src/agent_management/DESIGN.md)
 generates shared browser types. Client/runtime wiring and the managed-instance
 controller remain tracked in the active agent-management plan.
 

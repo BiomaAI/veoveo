@@ -45,7 +45,11 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
       { id: crypto.randomUUID(), author: members[0].id, text: "Let's bring the launch plan together here.", replyTo: null, attachments: [], addressedAgents: [], responseAgents: [], sequence: 2, createdAt: new Date().toISOString() },
       { id: crypto.randomUUID(), author: members[1].id, text: "I'll review the schedule and share the next steps.", replyTo: null, attachments: [], addressedAgents: [], responseAgents: [], sequence: 3, createdAt: new Date().toISOString() },
     ];
-    const agents = ["Writer", "Reviewer"].map(name => ({ id: crypto.randomUUID(), definition: name.toLowerCase(), name, provider: "Explicit browser fixture", model: "No model execution", active: true }));
+    const agents = ["Writer", "Reviewer"].map(name => ({ id: crypto.randomUUID(), definition: name.toLowerCase(), name, provider: "Explicit browser fixture", model: "No model execution", revision: `sha256:${"a".repeat(64)}`, active: true }));
+    const publishedRevision = `sha256:${"b".repeat(64)}`;
+    const revisionUpdates = [];
+    let revisionReceipt;
+    let loseRevisionReply = true;
     const runs = [];
     const runStarts = [];
     const operation = { id: crypto.randomUUID(), chatId: chat.id, runId: null, agent: null, tool: "fixture_review", phase: "task", revision: 2, createdAt: new Date().toISOString() };
@@ -207,9 +211,25 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
           }
           return respond({ operation, progress, task: operation.phase === "task" ? task : null, inputs, result });
         }
-        if (path.pathname.endsWith("/events")) return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: change\ndata: {"sequence":${chat.sequence}}\n\n` });
+        if (path.pathname === `/workspace/api/chats/${chat.id}/agents/${agents[0].id}/revision`) {
+          assert.equal(index, 0, "only the owner sees revision management");
+          if (request.method() === "GET") {
+            const current = { revision: agents[0].revision, model: { id: "approved", revision: `sha256:${"c".repeat(64)}` }, tools: [], budgets: { maxOutputTokens: 4096, maxCompletionCalls: 4, maxToolCalls: 8, deadlineSeconds: 120 }, instructionsDigest: `sha256:${"d".repeat(64)}`, instructions: null, publishedBy: alice.id, publishedByName: "Alice Chen", publishedAt: new Date().toISOString() };
+            return respond({ current, target: { ...current, revision: publishedRevision, tools: ["time__resolve_time"], budgets: { ...current.budgets, maxCompletionCalls: 2 }, instructionsDigest: `sha256:${"e".repeat(64)}` } });
+          }
+          revisionUpdates.push(body);
+          if (!revisionReceipt) {
+            assert.equal(body.expectedRevision, agents[0].revision);
+            assert.equal(body.revision, publishedRevision);
+            agents[0].revision = publishedRevision;
+            revisionReceipt = { ...agents[0] }; chat.sequence++;
+          } else assert.deepEqual(body, revisionUpdates[0], "uncertain revision adoption retains one mutation identity");
+          if (loseRevisionReply) { loseRevisionReply = false; return route.abort("failed"); }
+          return respond(revisionReceipt);
+        }
+        if (path.pathname.endsWith("/events") || path.pathname.endsWith("/agent-events")) return route.fulfill({ contentType: "text/event-stream", body: `retry: 250\nevent: change\ndata: {"sequence":${chat.sequence}}\n\n` });
         if (path.pathname.endsWith("/activity")) return respond({ agents, runs });
-        if (path.pathname.endsWith("/agents")) return respond(agents.map(agent => ({ id: agent.definition, name: agent.name, description: "Explicit browser fixture", provider: agent.provider, model: agent.model, tools: [] })));
+        if (path.pathname.endsWith("/agents")) return respond({ items: agents.map(agent => ({ id: agent.definition, name: agent.name, description: "Explicit browser fixture", provider: agent.provider, model: agent.model, revision: agent.id === agents[0].id ? publishedRevision : agent.revision, tools: [] })), next: null });
         if (path.pathname.endsWith("/runs")) throw new Error("The browser must admit message and runs in one request");
         if (path.pathname.endsWith("/cancel")) {
           const run = runs.find(run => path.pathname.includes(run.id));
@@ -274,6 +294,15 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await member.locator(".message-text").getByText("A message with an uncertain response", { exact: true }).waitFor();
     await owner.getByRole("button", { name: "Participants", exact: true }).click();
     await owner.getByText("Owner controls", { exact: true }).waitFor();
+    await owner.getByRole("button", { name: "Review update for Writer", exact: true }).click();
+    await owner.getByText("time__resolve_time", { exact: true }).waitFor();
+    assert.equal(await owner.getByText("Read new instructions", { exact: true }).count(), 0, "private instructions remain undisclosed");
+    await owner.getByRole("button", { name: "Use this version", exact: true }).click();
+    await owner.getByRole("button", { name: "Retry update", exact: true }).click();
+    await owner.getByRole("heading", { name: "Update Writer", exact: true }).waitFor({ state: "hidden" });
+    assert.equal(revisionUpdates.length, 2);
+    assert.deepEqual(revisionUpdates[0], revisionUpdates[1]);
+
     await member.getByRole("button", { name: "Participants", exact: true }).click();
     assert.equal(await member.getByText("Owner controls", { exact: true }).count(), 0);
     await owner.getByRole("button", { name: "Stop Writer's response", exact: true }).waitFor();

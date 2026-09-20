@@ -35,7 +35,7 @@ IF $existing != NONE {
     } ELSE { $command.addressed_agents };
     IF array::len($targets) > 4 { THROW 'workspace_conflict'; };
     IF array::len($targets) > 0 AND ($command.deadline <= time::now()
-        OR $command.deadline > time::now() + 180s) { THROW 'workspace_conflict'; };
+        OR $command.deadline > time::now() + 900s) { THROW 'workspace_conflict'; };
     FOR $target IN $targets {
         LET $agent = SELECT * FROM ONLY $target;
         IF $agent.chat != $command.chat OR !$agent.active { THROW 'workspace_not_found'; };
@@ -54,12 +54,13 @@ IF $existing != NONE {
         LET $run = $command.candidates[WHERE agent = $target][0].run;
         LET $full = count(SELECT id FROM workspace_run WHERE chat = $command.chat
             AND state IN ['queued', 'running'] AND lease_until > time::now()) >= 4;
+        LET $admitted = fn::agent_chat_revision($authority.tenant, $authority.work_context, $agent.definition, $agent.definition_digest, false);
         LET $run_head = UPDATE ONLY $command.chat SET sequence += 1, updated_at = time::now();
         CREATE ONLY $run SET chat = $command.chat, agent = $target,
             definition_digest = $agent.definition_digest, initiator = $authority.principal,
             trigger = $command.message, context_sequence = $sequence, sequence = $run_head.sequence,
-            updated_sequence = $run_head.sequence, state = IF $full { 'failed' } ELSE { 'queued' },
-            failure = IF $full { 'capacity' } ELSE { NONE },
+            updated_sequence = $run_head.sequence, state = IF $full OR !$admitted { 'failed' } ELSE { 'queued' },
+            failure = IF !$admitted { 'permission_changed' } ELSE IF $full { 'capacity' } ELSE { NONE },
             lease_until = time::now() + 20s, deadline = $command.deadline;
         CREATE ONLY type::record('workspace_event', [$command.chat, $run_head.sequence]) SET
             chat = $command.chat, sequence = $run_head.sequence, kind = 'run', target = $run;

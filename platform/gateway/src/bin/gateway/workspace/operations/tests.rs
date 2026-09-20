@@ -128,7 +128,7 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         let app = new_app(state.clone());
         let id = Uuid::now_v7();
         let path = format!("/chats/{}/operations", chat.as_uuid());
-        let start = json!({"id":id,"tool":"fixture_task","arguments":{}});
+        let start = json!({"id":id,"tool":"fixture__task","arguments":{}});
         assert_eq!(request(&app, "POST", &path, start.clone()).await.0, StatusCode::OK);
         assert_eq!(request(&app, "POST", &path, start).await.0, StatusCode::OK);
         let accepted = detail(&app, id).await;
@@ -174,7 +174,7 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         assert_eq!(domain.calls.load(Ordering::SeqCst), 1, "reload never replays tools/call");
 
         let second = Uuid::now_v7();
-        assert_eq!(request(&app, "POST", &path, json!({"id":second,"tool":"fixture_task","arguments":{}})).await.0, StatusCode::OK);
+        assert_eq!(request(&app, "POST", &path, json!({"id":second,"tool":"fixture__task","arguments":{}})).await.0, StatusCode::OK);
         let waiting = detail(&app, second).await.task.unwrap();
         assert_eq!(request(&app, "POST", &format!("/operations/{second}/cancel"), Value::Null).await.0, StatusCode::NO_CONTENT);
         assert_eq!(detail(&app, second).await.task.unwrap().state, wire::TaskState::Working, "acknowledgement is not cancellation");
@@ -182,7 +182,7 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         assert_eq!(detail(&app, second).await.task.unwrap().state, wire::TaskState::Cancelled);
         assert_eq!(domain.calls.load(Ordering::SeqCst), 2);
         let continuation = Uuid::now_v7();
-        assert_eq!(request(&app, "POST", &path, json!({"id":continuation,"tool":"fixture_task","arguments":{"mode":"mrtr"}})).await.0, StatusCode::OK);
+        assert_eq!(request(&app, "POST", &path, json!({"id":continuation,"tool":"fixture__task","arguments":{"mode":"mrtr"}})).await.0, StatusCode::OK);
         let pending = detail(&app, continuation).await;
         assert_eq!(pending.operation.phase, wire::OperationPhase::InputRequired);
         assert!(!serde_json::to_string(&pending).unwrap().contains("protected-fixture-continuation"));
@@ -227,7 +227,7 @@ async fn request_progress_arrives_before_tool_receipt_and_ends_with_it() {
                 &app,
                 "POST",
                 &format!("/chats/{}/operations", chat.as_uuid()),
-                json!({"id":id,"tool":"fixture_task","arguments":{}})
+                json!({"id":id,"tool":"fixture__task","arguments":{}})
             )
             .await
             .0,

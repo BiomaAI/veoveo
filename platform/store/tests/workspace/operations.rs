@@ -230,9 +230,14 @@ async fn operation_claims_are_private_durable_and_never_replay_unknown_dispatch(
 
         // Leaving the room removes history, but does not orphan one's private Task receipt.
         let agent =
-            db.a.add_workspace_agent(&a, chat, runs::admission("Researcher"))
-                .await
-                .unwrap();
+            db.a.add_workspace_agent(
+                &a,
+                chat,
+                uuid::Uuid::now_v7(),
+                runs::admission("Researcher"),
+            )
+            .await
+            .unwrap();
         let agent_id = runs::agent_id(&agent.id);
         let deadline = chrono::Utc::now() + chrono::TimeDelta::seconds(120);
         let turn =

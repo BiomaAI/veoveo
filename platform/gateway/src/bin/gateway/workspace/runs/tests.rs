@@ -14,7 +14,6 @@ use std::{
 };
 use tokio::sync::Notify;
 use tower::ServiceExt;
-use veoveo_mcp_contract::GatewayControlPlane;
 use veoveo_mcp_gateway::GatewayCatalog;
 
 #[derive(Clone)]
@@ -58,7 +57,30 @@ async fn completion(
     };
     Sse::new(stream)
 }
-pub(super) async fn request(app: &Router, path: &str, value: Value) -> (StatusCode, Value) {
+pub(super) async fn request(app: &Router, path: &str, mut value: Value) -> (StatusCode, Value) {
+    if path.ends_with("/agents") && value.get("definition").is_some() {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/workspace-api/operator/agents")
+                    .header("authorization", "Bearer explicit-workspace-fixture")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = to_bytes(response.into_body(), 65536).await.unwrap();
+        let catalog: Value = serde_json::from_slice(&bytes).unwrap();
+        let found = catalog["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == value["definition"])
+            .unwrap();
+        value["revision"] = found["revision"].clone();
+        value["requestId"] = json!(uuid::Uuid::now_v7());
+    }
     let response = app
         .clone()
         .oneshot(
@@ -77,19 +99,109 @@ pub(super) async fn request(app: &Router, path: &str, value: Value) -> (StatusCo
     (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
 }
 pub(super) fn catalog() -> GatewayCatalog {
-    let plane: GatewayControlPlane = serde_json::from_str(include_str!(
-        "../../../../../../../configs/gateway.smoke.json"
-    ))
-    .unwrap();
-    GatewayCatalog::from_control_plane(plane).unwrap()
+    crate::agent_management::tests::fixture_catalog()
 }
-pub(super) fn definition(id: &str, base_url: &str) -> config::Definition {
-    serde_json::from_value(
-        json!({"id":id,"name":id,"description":"Explicit fixture","provider":"Fixture",
-        "tenant":"test","work_contexts":["shared"],"instructions":"Respond to the current request.","tools":[],
-        "model":{"base_url":base_url,"name":id,"api_key":"fixture-key","max_output_tokens":128}}),
-    )
-    .unwrap()
+pub(super) fn definition(id: &str, base_url: &str) -> ResolvedAgent {
+    let budgets = veoveo_mcp_contract::agent_management::Budgets {
+        max_output_tokens: 128,
+        max_completion_calls: 4,
+        max_tool_calls: 8,
+        deadline_seconds: 120,
+    };
+    let model = crate::agent_management::models::ModelConnection {
+        id: veoveo_mcp_contract::agent_management::AgentModelId::new(format!("{id}-model"))
+            .unwrap(),
+        name: id.into(),
+        provider: "Fixture".into(),
+        tenant: "test".parse().unwrap(),
+        work_contexts: vec!["shared".parse().unwrap()],
+        required_scopes: Default::default(),
+        base_url: base_url.into(),
+        model: id.into(),
+        api_key: "fixture-key".parse().unwrap(),
+        limits: budgets.clone(),
+    };
+    ResolvedAgent {
+        id: id.into(),
+        name: id.into(),
+        revision: String::new(),
+        model,
+        instructions: "Respond to the current request.".into(),
+        tools: vec![],
+        budgets,
+    }
+}
+
+pub(super) async fn registry(
+    store: &PlatformStore,
+    catalog: &GatewayCatalogHandle,
+    operations: &OperationState,
+    stop: &CancellationToken,
+    definitions: &[ResolvedAgent],
+) -> AgentManagementState {
+    use veoveo_platform_store::agent_management::*;
+    let state = AgentManagementState {
+        gateway: GatewayState::new(store.clone()),
+        catalog: catalog.clone(),
+        operations: operations.clone(),
+        stop: stop.clone(),
+        definition_limit: 100,
+        models: Arc::new(definitions.iter().map(|d| d.model.clone()).collect()),
+    };
+    let mut subject = super::super::tests::subject("Alice");
+    subject.access_token.session_family = None;
+    let actor = state
+        .execution_authority(&"operator".parse().unwrap(), &subject)
+        .await
+        .unwrap();
+    for definition in definitions {
+        let content = AgentContent {
+            model: AgentModelReference {
+                id: definition.model.id.to_string(),
+                revision: definition.model.revision().hex().to_owned(),
+            },
+            instructions: definition.instructions.clone(),
+            tools: definition.tools.iter().map(ToString::to_string).collect(),
+            budgets: AgentBudgets {
+                max_output_tokens: 128,
+                max_completion_calls: 4,
+                max_tool_calls: 8,
+                deadline_seconds: 120,
+            },
+            execution: AgentExecution::Chat,
+        };
+        let draft = store
+            .mutate_agent_definition(
+                &actor,
+                &definition.id,
+                uuid::Uuid::now_v7(),
+                None,
+                AgentDefinitionMutation::Create {
+                    name: definition.name.clone(),
+                    description: "Explicit fixture".into(),
+                    content,
+                },
+            )
+            .await
+            .unwrap();
+        store
+            .mutate_agent_definition(
+                &actor,
+                &definition.id,
+                uuid::Uuid::now_v7(),
+                Some(draft.revision),
+                AgentDefinitionMutation::Publish {
+                    digest: draft.draft_digest,
+                    audience: vec![AgentPublicationContext {
+                        work_context: actor.work_context.clone(),
+                        context_digest: actor.context_digest.clone(),
+                    }],
+                },
+            )
+            .await
+            .unwrap();
+    }
+    state
 }
 
 #[tokio::test]
@@ -124,25 +236,17 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         subject.access_token.session_family = None; // signature/session admission is a separate explicit fixture boundary
         let stop = CancellationToken::new();
         let _stop_guard = stop.clone().drop_guard();
+        let catalog = GatewayCatalogHandle::new(Arc::new(catalog()));
+        let operations = OperationState::new(db.a.clone(), GatewayState::new(db.b.clone()), catalog.clone(), stop.clone(), 1, "https://workspace.test").unwrap();
+        let agents = registry(&db.a, &catalog, &operations, &stop, &[definition("writer", &origin), definition("reviewer", &origin)]).await;
         let state = RunState {
-            operations: OperationState::new(
-                db.a.clone(),
-                GatewayState::new(db.b.clone()),
-                GatewayCatalogHandle::new(Arc::new(catalog())),
-                stop.clone(),
-                1,
-                "https://workspace.test",
-            )
-            .unwrap(),
+            operations,
             workspace: WorkspaceState {
                 store: db.a.clone(),
             },
             gateway: GatewayState::new(db.b.clone()),
-            catalog: GatewayCatalogHandle::new(Arc::new(catalog())),
-            definitions: Arc::new(vec![
-                definition("writer", &origin),
-                definition("reviewer", &origin),
-            ]),
+            catalog,
+            agents,
             limits: Arc::new(Semaphore::new(16)),
             stop,
             http: reqwest::Client::builder()
@@ -269,31 +373,34 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
 fn model_admission_requires_exact_context_registered_provider_secret_and_bounded_output() {
     let catalog = catalog();
     let context = &catalog.control_plane().work_contexts[0];
-    let mut definition = definition("helper", "https://model.example/v1");
+    let mut definition = definition("helper", "https://model.example/v1").model;
     definition.tenant = context.tenant.clone();
     definition.work_contexts = vec![context.id.clone()];
-    definition.model.api_key =
+    definition.api_key =
         veoveo_mcp_contract::SecretReferenceId::new("media_provider_api_key").unwrap();
-    config::validate(&[definition.clone()], &catalog).unwrap();
+    crate::agent_management::models::validate(&[definition.clone()], &catalog).unwrap();
     for destination in [
         "https://credential@model.example/v1",
         "https://model.example/v1?key=secret",
         "file:///tmp/model",
     ] {
         let mut invalid = definition.clone();
-        invalid.model.base_url = destination.into();
-        assert!(config::validate(&[invalid], &catalog).is_err());
+        invalid.base_url = destination.into();
+        assert!(crate::agent_management::models::validate(&[invalid], &catalog).is_err());
     }
     let mut invalid = definition.clone();
-    invalid.model.max_output_tokens = 9000;
-    assert!(config::validate(&[invalid], &catalog).is_err());
+    invalid.limits.max_output_tokens = 9000;
+    assert!(crate::agent_management::models::validate(&[invalid], &catalog).is_err());
     let mut invalid = definition.clone();
     invalid.tenant = veoveo_mcp_contract::TenantId::new("foreign").unwrap();
-    assert!(config::validate(&[invalid], &catalog).is_err());
+    assert!(crate::agent_management::models::validate(&[invalid], &catalog).is_err());
     let mut invalid = definition.clone();
-    invalid.model.api_key = veoveo_mcp_contract::SecretReferenceId::new("unregistered").unwrap();
-    assert!(config::validate(&[invalid], &catalog).is_err());
-    assert!(config::validate(&[definition.clone(), definition], &catalog).is_err());
+    invalid.api_key = veoveo_mcp_contract::SecretReferenceId::new("unregistered").unwrap();
+    assert!(crate::agent_management::models::validate(&[invalid], &catalog).is_err());
+    assert!(
+        crate::agent_management::models::validate(&[definition.clone(), definition], &catalog)
+            .is_err()
+    );
 }
 
 /// Human-only deployment with no configured model is a supported router state.
@@ -301,22 +408,31 @@ pub(crate) fn empty_routes(store: &PlatformStore) -> Router {
     let gateway = GatewayState::new(store.clone());
     let catalog = GatewayCatalogHandle::new(Arc::new(catalog()));
     let stop = CancellationToken::new();
+    let operations = OperationState::new(
+        store.clone(),
+        gateway.clone(),
+        catalog.clone(),
+        stop.clone(),
+        1,
+        "https://workspace.test",
+    )
+    .unwrap();
+    let agents = AgentManagementState {
+        gateway: gateway.clone(),
+        catalog: catalog.clone(),
+        models: Arc::new(vec![]),
+        operations: operations.clone(),
+        stop: stop.clone(),
+        definition_limit: 100,
+    };
     routes(RunState {
-        operations: OperationState::new(
-            store.clone(),
-            gateway.clone(),
-            catalog.clone(),
-            stop.clone(),
-            1,
-            "https://workspace.test",
-        )
-        .unwrap(),
+        operations,
         workspace: WorkspaceState {
             store: store.clone(),
         },
         gateway,
         catalog,
-        definitions: Arc::new(vec![]),
+        agents,
         limits: Arc::new(Semaphore::new(16)),
         stop,
         http: reqwest::Client::new(),

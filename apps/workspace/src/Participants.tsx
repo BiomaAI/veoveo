@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { AgentRevisionUpdate } from "./AgentRevisionUpdate.tsx";
+import { uuidV7 } from "../../console/web/src/agentControl.ts";
+import { useEffect, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Check, Search, UserPlus, X } from "lucide-react";
 import { api } from "./api.ts";
 import { AgentParticipation } from "./AgentParticipation.tsx";
@@ -23,9 +25,21 @@ export function Participants({ snapshot, personId, onChanged, close }: {
     catch (error) { setError(error instanceof Error ? error.message : "Could not update this chat."); }
     finally { setBusy(false); }
   }
-  const catalog = useQuery({ queryKey: ["agent-catalog"], queryFn: ({ signal }) => api.agents(signal), enabled: owner && !chat.archived });
+  const client = useQueryClient();
+  const catalog = useInfiniteQuery({ queryKey: ["agent-catalog"], initialPageParam: undefined as string | undefined,
+    queryFn: ({ signal, pageParam }) => api.agents(pageParam, signal), getNextPageParam: page => page.next ?? undefined,
+    enabled: owner && !chat.archived });
+  const choices = catalog.data?.pages.flatMap(page => page.items) ?? [];
+  const addRequests = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (!owner || chat.archived) return;
+    const events = new EventSource("/workspace/api/agent-events");
+    const refresh = () => { void client.invalidateQueries({ queryKey:["agent-catalog"] }); };
+    events.addEventListener("change", refresh);
+    return () => events.close();
+  }, [client, owner, chat.archived]);
   const [choice, setChoice] = useState("");
-  const candidate = catalog.data?.find(agent => agent.id === choice);
+  const candidate = choices.find(agent => agent.id === choice);
   const settings = { expectedRevision: chat.revision, title, archived: chat.archived, membersCanInvite: chat.membersCanInvite, owner: chat.owner, participation: chat.participation };
   return <aside className="details" aria-label="Chat details">
     <div className="details-heading"><h2>Chat details</h2><button className="icon-button" onClick={close} aria-label="Close chat details"><X size={19}/></button></div>
@@ -50,16 +64,20 @@ export function Participants({ snapshot, personId, onChanged, close }: {
         <span className="avatar small agent-avatar"><Bot size={16}/></span><div><strong>{agent.name}</strong><span>{agent.provider} · {agent.model}</span></div>
         {owner && <button className="icon-button" aria-label={`Remove ${agent.name}`} disabled={busy} onClick={() => void act(() => api.removeAgent(chat.id, agent.id))}><X size={14}/></button>}
       </div>)}
+      {owner && !chat.archived && snapshot.activity.agents.filter(agent => agent.active).map(agent => <AgentRevisionUpdate key={agent.id} chat={chat.id} agent={agent} latest={choices.find(d => d.id === agent.definition)?.revision} changed={onChanged}/>)}
       {owner && !chat.archived && <>
         {catalog.error && <p className="error">{catalog.error.message}</p>}
         <label>Add an agent<select aria-label="Choose an agent" value={choice} onChange={event => setChoice(event.target.value)}>
           <option value="">Choose an agent…</option>
-          {catalog.data?.filter(agent => !snapshot.activity.agents.some(member => member.active && member.definition === agent.id)).map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+          {choices.filter(agent => !snapshot.activity.agents.some(member => member.active && member.definition === agent.id)).map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
         </select></label>
+        {catalog.hasNextPage && <button disabled={catalog.isFetchingNextPage} onClick={() => void catalog.fetchNextPage()}>Load more agents</button>}
         {candidate && <div className="agent-disclosure"><p>{candidate.description}</p><p className="muted">{candidate.provider} · {candidate.model}. This agent receives the shared history when asked to respond.</p>
           <p className="muted">{candidate.tools.length ? `Capabilities: ${candidate.tools.join(", ")}. Each use requires the requesting person's current permissions. Results stay in their private Activity.` : "This agent has no external capabilities."}</p>
-          <button disabled={busy} onClick={() => void act(async () => { await api.addAgent(chat.id, candidate.id); setChoice(""); })}>Add {candidate.name}</button></div>}
-        {catalog.data?.length === 0 && <p className="muted">No agents are configured for this Work Context.</p>}
+          <button disabled={busy} onClick={() => void act(async () => { const fingerprint = `${candidate.id}:${candidate.revision}`; let request = addRequests.current.get(fingerprint);
+            if (!request) { request = uuidV7(); addRequests.current.set(fingerprint, request); }
+            await api.addAgent(chat.id, candidate.id, candidate.revision, request); addRequests.current.delete(fingerprint); setChoice(""); })}>Add {candidate.name}</button></div>}
+        {!catalog.isPending && choices.length === 0 && <p className="muted">No published agents are available in this Work Context.</p>}
       </>}
     </section>
     {owner && <section className="settings"><h3>Owner controls</h3>

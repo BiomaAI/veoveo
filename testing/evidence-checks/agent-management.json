@@ -95,6 +95,37 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store",
+          "veoveo-mcp-gateway",
+          "veoveo-console-bff"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs/gateway.smoke.json"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }
