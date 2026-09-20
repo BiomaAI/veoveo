@@ -1009,7 +1009,10 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 The [managed instance store](../platform/store/src/agent_management/instances/DESIGN.md)
 owns admitted provisioning intent, retained capacity, durable service registration
-and controller generation fences. Its implementation is in progress.
+and controller generation fences.
+[`instances/`](../platform/gateway/src/bin/gateway/agent_management/instances/) in
+the management gateway owns template-derived admission, lifecycle operations and
+public projections. The lifecycle controller remains in progress.
 
 The [agent catalog store](../platform/store/src/agent_management/DESIGN.md) owns
 definition authoring, immutable executable revisions, mutation replay and publication

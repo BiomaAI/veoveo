@@ -21,7 +21,54 @@ pub fn managed_agent_record(tenant: &RecordId, key: &str) -> Result<RecordId> {
     ))
 }
 
+fn operation_record(authority: &AgentCatalogAuthority, request_id: Uuid) -> RecordId {
+    RecordId::new(
+        "managed_agent_operation",
+        surrealdb::types::Uuid::from(Uuid::new_v5(
+            &request_id,
+            format!(
+                "{}:{}",
+                authority.tenant.to_sql(),
+                authority.principal.to_sql()
+            )
+            .as_bytes(),
+        )),
+    )
+}
+
 impl PlatformStore {
+    /// Recover an admitted mutation before revalidating an execution configuration
+    /// that may have changed since the caller lost its first response.
+    pub async fn replay_managed_agent(
+        &self,
+        authority: &AgentCatalogAuthority,
+        key: &str,
+        request_id: Uuid,
+        expected_generation: Option<i64>,
+        mutation: &ManagedAgentMutation,
+    ) -> Result<Option<ManagedAgentOperation>> {
+        if request_id.get_version_num() != 7 {
+            return Err(AgentManagementError::Invalid("request"));
+        }
+        #[derive(Clone, SurrealValue)]
+        struct Replay {
+            instance: RecordId,
+            operation: RecordId,
+            fingerprint: String,
+        }
+        self.agent_query(authority, Replay {
+            instance: managed_agent_record(&authority.tenant, key)?,
+            operation: operation_record(authority, request_id),
+            fingerprint: super::validation::hash(&(key, expected_generation, mutation))?,
+        }, "IF $authority.membership = 'viewer' { THROW 'agent_forbidden'; }; LET $instance = SELECT * FROM ONLY $command.instance; IF $instance != NONE AND !fn::managed_agent_editor($authority, $instance) { THROW 'agent_not_found'; }; LET $receipt = SELECT * FROM ONLY $command.operation; IF $receipt = NONE { RETURN NONE; }; IF $receipt.fingerprint != $command.fingerprint OR $receipt.work_context != $authority.work_context { THROW 'agent_conflict'; }; RETURN $receipt;").await
+    }
+
+    pub async fn agent_management_head(&self, authority: &AgentCatalogAuthority) -> Result<i64> {
+        self.agent_query(authority, false,
+            "RETURN array::first(SELECT VALUE sequence FROM outbox_event WHERE tenant = $authority.tenant AND ((aggregate_type = 'agent_definition' AND $authority.work_context IN payload.affected_contexts) OR (aggregate_type = 'managed_agent' AND payload.work_context = $authority.work_context AND (payload.operation.instance.owner = $authority.principal OR $authority.manage_context))) ORDER BY sequence DESC LIMIT 1) ?? 0;"
+        ).await
+    }
+
     pub async fn managed_agent_registration(
         &self,
         client_id: &str,
@@ -71,18 +118,7 @@ impl PlatformStore {
         };
         let command = InstanceCommand {
             instance: managed_agent_record(&authority.tenant, key)?,
-            operation: RecordId::new(
-                "managed_agent_operation",
-                surrealdb::types::Uuid::from(Uuid::new_v5(
-                    &request_id,
-                    format!(
-                        "{}:{}",
-                        authority.tenant.to_sql(),
-                        authority.principal.to_sql()
-                    )
-                    .as_bytes(),
-                )),
-            ),
+            operation: operation_record(authority, request_id),
             fingerprint: super::validation::hash(&(key, expected_generation, &mutation))?,
             request_id,
             key: key.to_owned(),

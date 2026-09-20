@@ -34,3 +34,21 @@ must validate the full template before admitting an instance.
 requests. Its `ManagedAgentToken` is a signed repository extension to access tokens,
 binding the instance key, active generation and dispatch epoch. A token is evidence
 of issuance; current durable registration still determines whether it can be used.
+
+Managed inventory lives at `/admin/{profile}/agent-instances`, with operation reads
+at `/admin/{profile}/agent-operations/{id}`. Both browser edges expose the same suffixes.
+Provisioning and lifecycle mutations return HTTP 202 with a durable operation identity.
+The response reports accepted intent; `desired`, `observed`, `generation` and
+`activeGeneration` distinguish that intent from completed convergence.
+
+An owner or context manager can inspect an instance. Deploy and control are separate
+policy actions. Resume, retry and revision changes also require deployment authority
+and current template/model admission; pause, stop and archive remain available when
+a template has been removed. Replaying an already admitted request retains its original
+operation even after configuration changes. Shared per-context capacity includes
+archived instances and their retained storage. Installation limits are
+`VEOVEO_AGENT_INSTANCE_LIMIT` and `VEOVEO_AGENT_STORAGE_LIMIT_GIB`.
+
+The existing contentless agent event stream includes authorized lifecycle changes.
+Durable event heads recover missed hints; observation does not call a model or query
+a provider's job status. Public projections omit deployment Secret and image details.

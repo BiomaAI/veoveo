@@ -52,3 +52,8 @@ typed IDs, phases and bounded diagnostics. They cannot carry Kubernetes Secret
 payloads, provider keys or arbitrary objects into management responses or outbox
 events. The effective identity resolver must reject collisions between static and
 managed registrations and recheck this record for already-issued tokens.
+
+Mutation receipts can be recovered before repeating external configuration validation.
+Replay still checks the current actor and Work Context and rejects a changed payload.
+Management event heads include only instance changes visible to the current owner or
+context manager. Definition and lifecycle invalidations share the existing browser stream.
