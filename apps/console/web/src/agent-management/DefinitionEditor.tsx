@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { uuidV7 } from "../agentControl";
-import type { Authoring, CapabilityChoice, Content, Definition, PublishedRevision, Validation } from "../generated/agent-management";
+import type { Authoring, CapabilityChoice, Content, Definition, PublishedRevision, Validation, TemplateChoice } from "../generated/agent-management";
 import { AgentApi } from "./api";
+import { DeployInstance } from "./DeployInstance";
 import { ContentEditor } from "./ContentEditor";
 
-export function DefinitionEditor({ api, initial, authoring, changed, duplicate }: {
-  api: AgentApi; initial: Definition; authoring: Authoring; changed: () => void; duplicate: (definition: Definition) => void;
+export function DefinitionEditor({ api, initial, authoring, templates, changed, duplicate }: {
+  api: AgentApi; initial: Definition; authoring: Authoring; templates: TemplateChoice[]; changed: () => void; duplicate: (definition: Definition) => void;
 }) {
+  const [deploying, setDeploying] = useState(false);
   const [definition, setDefinition] = useState(initial);
   const [content, setContent] = useState<Content>();
   const [saved, setSaved] = useState<Content>();
@@ -76,7 +78,7 @@ export function DefinitionEditor({ api, initial, authoring, changed, duplicate }
         setDefinition(result); setReview(undefined); setNotice("Details saved.");
       })}>Save details</button>}
     </fieldset>
-    {content ? <><ContentEditor authoring={authoring} capabilities={capabilities} value={content} change={v => { setContent(v); setReview(undefined); }} disabled={!!busy || !permission.edit || definition.status === "archived"}/>
+    {content ? <><ContentEditor authoring={authoring} templates={templates} capabilities={capabilities} value={content} change={v => { setContent(v); setReview(undefined); }} disabled={!!busy || !permission.edit || definition.status === "archived"}/>
       <div className="am-actions"><button disabled={!!busy} onClick={() => void act("Loading capabilities", async () => setCapabilities(await api.capabilities()))}>Load capabilities</button>
         {permission.edit && <button className="am-primary" disabled={!!busy || !dirty || definition.status === "archived"} onClick={() => void act("Saving draft", async () => {
           const result = await api.save(id, { requestId: requestId("draft", content), expectedRevision: definition.revision, content });
@@ -84,7 +86,7 @@ export function DefinitionEditor({ api, initial, authoring, changed, duplicate }
         })}>Save draft</button>}
       </div></> : <p>{permission.readContent ? "Loading draft…" : "Your permissions allow metadata access. Private instructions require content access."}</p>}
     {permission.publish && definition.status !== "archived" && <section className="am-publication"><h3>Publish</h3>
-      <p>Chat participants keep their current revision until their owner applies an update.</p>
+      <p>Existing participants and managed instances keep their revision until an authorized owner applies an update.</p>
       <label>Work Contexts<input value={audience} disabled={!!busy} onChange={e => { setAudience(e.target.value); setReview(undefined); }} aria-describedby="am-audience-help"/></label>
       <small id="am-audience-help">Separate context IDs with commas. Publication into another context requires authority there.</small>
       <button disabled={!!busy || dirty || definition.disabled} onClick={() => void act("Validating publication", async () => {
@@ -106,6 +108,7 @@ export function DefinitionEditor({ api, initial, authoring, changed, duplicate }
       {next && <button disabled={!!busy} onClick={() => void act("Loading history", async () => { const page = await api.revisions(id, next); setHistory(values => [...values, ...page.items]); setNext(page.next); })}>Load older revisions</button>}
     </section>
     <div className="am-actions">
+      {permission.deploy && published?.content.execution.kind === "managed" && definition.status === "enabled" && !definition.disabled && <button disabled={!!busy} onClick={() => setDeploying(true)}>Deploy instance</button>}
       {permission.create && permission.readContent && definition.publishedDigest && <button disabled={!!busy} onClick={() => duplicate(definition)}>Duplicate published version</button>}
       {permission.control && definition.status !== "archived" && <button disabled={!!busy} onClick={() => definition.disabled ? void act("Enabling", () => update("enable")) : setConfirm("disable")}>{definition.disabled ? "Enable" : "Disable"}</button>}
       {permission.archive && definition.status !== "archived" && <button disabled={!!busy} onClick={() => setConfirm("archive")}>Archive</button>}
@@ -115,6 +118,7 @@ export function DefinitionEditor({ api, initial, authoring, changed, duplicate }
       await api.metadata(id, { requestId: requestId("transfer", owner), expectedRevision: definition.revision, change: { kind: "transfer", owner } });
       changed(); setNotice("Ownership transferred.");
     })}>Transfer</button></details>}
+    {deploying && published && <DeployInstance api={api} definition={definition} revision={published} templates={templates} close={() => setDeploying(false)} created={operation => { setDeploying(false); setNotice(`Instance ${operation.instance} accepted. Follow provisioning in Managed instances.`); changed(); }}/>}
     {busy && <p role="status">{busy}…</p>}
   </article>;
 }

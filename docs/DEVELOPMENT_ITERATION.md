@@ -727,3 +727,9 @@ binary suite now records one scoped result, which avoids two evidence-publicatio
 passes for the same source inputs. New template validation binds immutable configuration
 content before resource creation, avoiding runtime surprises that would otherwise
 require a deployment repair.
+
+The managed client uses the existing definition SSE connection for instance invalidation.
+This avoids a second long-lived stream per editor. Its headed fixture completed in
+about four seconds before screenshot capture was added. Console's bundle took 2.6
+seconds and Workspace's warm bundle took under one second. Runtime lifecycle acceptance
+remains separate from these explicit HTTP fixture results.

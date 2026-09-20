@@ -5,7 +5,8 @@ delivery goal. Registry persistence and the authoring API/client layer are imple
 checkpoints. Registry-backed chat execution and explicit revision adoption are deployed
 and have installed browser/model evidence. Managed lifecycle persistence has local
 qualification. Reviewed templates and effective managed OAuth registration are implemented
-locally; provisioning, kernel integration and UAV migration remain outstanding. Current component
+locally. Managed lifecycle admission and its shared client controls are locally qualified;
+resource reconciliation, kernel integration and UAV migration remain outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols

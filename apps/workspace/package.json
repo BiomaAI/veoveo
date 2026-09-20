@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "node --experimental-strip-types --test src/*.test.ts",
-    "test:browser": "node --test tests/browser.test.mjs"
+    "test:browser": "node --test --test-concurrency=1 tests/browser.test.mjs tests/agent-management.test.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "0.15.20",
