@@ -117,6 +117,18 @@ pub struct ManagedAgentRegistration {
     pub enabled: bool,
 }
 
+/// Controller-only snapshot of the requested generation and current runtime.
+#[derive(Clone, Debug, SurrealValue)]
+pub struct ManagedAgentReconciliation {
+    pub instance: ManagedAgentInstance,
+    pub revision: super::super::AgentRevision,
+    pub runtime: Option<crate::AgentRecord>,
+    pub episode_running: bool,
+    pub tenant_key: String,
+    pub context_key: String,
+    pub enabled: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct ManagedAgentOperation {
     pub id: RecordId,

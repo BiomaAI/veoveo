@@ -358,7 +358,7 @@ async fn controller_recovery_fences_stale_workers_and_never_rotates_an_uncertain
         .await
         .unwrap();
     assert_eq!(
-        db.a.pending_managed_agent_operations(20)
+        db.a.pending_managed_agent_operations("agents", 20, false)
             .await
             .unwrap()
             .len(),
@@ -429,7 +429,7 @@ async fn controller_recovery_fences_stale_workers_and_never_rotates_an_uncertain
         .await
         .unwrap();
     assert!(
-        db.a.pending_managed_agent_operations(20)
+        db.a.pending_managed_agent_operations("agents", 20, false)
             .await
             .unwrap()
             .is_empty()
@@ -668,5 +668,75 @@ async fn current_revocation_and_context_changes_override_retained_instance_revis
         )
         .await,
         Err(AgentManagementError::Forbidden)
+    );
+}
+
+#[tokio::test]
+async fn controller_inventory_is_namespace_scoped_and_recovers_settled_generations() {
+    let db = TestDb::new().await;
+    let alice = identity(&db.a, "instances", "alice").await;
+    context(&db.a, &alice, "operations").await;
+    let actor = authority(&db.a, &alice, "operations").await;
+    let definition = managed_definition(&db.a, &actor).await;
+    let operation =
+        db.a.mutate_managed_agent(
+            &actor,
+            "one",
+            Uuid::now_v7(),
+            None,
+            plan(&definition, "one"),
+            LIMITS,
+        )
+        .await
+        .unwrap();
+    assert!(
+        db.a.pending_managed_agent_operations("another-namespace", 20, true)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let first = claim(&db.a, &operation).await;
+    let snapshot = db.a.managed_agent_reconciliation(&first).await.unwrap();
+    assert_eq!(snapshot.instance.generation, 1);
+    assert!(snapshot.runtime.is_none());
+    assert!(!snapshot.episode_running);
+    assert_eq!(snapshot.revision.digest, definition.draft_digest);
+    provision_through_workload(&db.a, &first).await;
+    db.a.observe_managed_agent(&first, ManagedAgentPhase::Ready, None)
+        .await
+        .unwrap();
+    assert!(
+        db.a.pending_managed_agent_operations("agents", 20, false)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        db.a.pending_managed_agent_operations("agents", 20, true)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    let recovered = claim(&db.b, &operation).await;
+    assert!(recovered.fence > first.fence);
+    assert_eq!(
+        db.a.managed_agent_reconciliation(&first).await.unwrap_err(),
+        AgentManagementError::Conflict
+    );
+    db.b.observe_managed_agent(&recovered, ManagedAgentPhase::Workload, None)
+        .await
+        .unwrap();
+    db.b.release_managed_agent_claim(&recovered).await.unwrap();
+    assert_eq!(
+        db.a.pending_managed_agent_operations("agents", 20, false)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        db.b.renew_managed_agent_claim(&recovered).await,
+        Err(AgentManagementError::Conflict)
     );
 }

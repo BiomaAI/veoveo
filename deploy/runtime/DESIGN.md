@@ -386,7 +386,7 @@ workload. Selected CLI acceptance is described in the
 
 The extraction reuses the existing resolved dependency graph. Direct upstream dependencies
 are pinned exactly in the workspace: `anyhow 1.0.104`, `hex 0.4.3`, `jsonwebtoken 11.0.0`,
-`reqwest 0.13.4`, `serde 1.0.229`, `serde_json 1.0.151`, `serde_yaml_ng 0.10.0`, `sha2 0.11.0`,
+`reqwest 0.13.5`, `serde 1.0.229`, `serde_json 1.0.151`, `serde_yaml_ng 0.10.0`, `sha2 0.11.0`,
 `tempfile 3.27.0`, and `url 2.5.8`. Each was verified as its latest non-yanked stable release
 from its authoritative `https://crates.io/api/v1/crates/{name}` metadata on September 7,
 2026. No upstream package version changed during extraction.

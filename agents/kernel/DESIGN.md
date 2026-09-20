@@ -18,7 +18,8 @@ revision. It checks that identity and model match, then overlays authored
 instructions, subscriptions and execution limits after manifest environment
 expansion. Authored text never becomes an environment template.
 
-Each episode retains its generation and dispatch epoch. The kernel checks current
+Each episode retains its generation and dispatch epoch. Dispatch also requires the
+current scheduler lease owner and fence, including replacement within one generation. The kernel checks current
 gateway authority before model and tool calls, including its local tools. Stop and
 disable close further dispatch. Pause allows the bounded current episode to drain
 and retains Task observation without admitting new model work. Task completion

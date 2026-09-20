@@ -1027,6 +1027,14 @@ controller remain tracked in the active agent-management plan.
 The [durable runtime design](../agents/runtime/DESIGN.md) defines scheduler leases,
 atomic managed episode admission, terminal stop semantics and Task result retention.
 
+### `agents/manager`
+
+The [manager design](../agents/manager/DESIGN.md) owns namespace-scoped managed
+kernel provisioning. `reconcile.rs` advances durable claims, `credentials.rs`
+correlates retained signing keys, `resources.rs` composes fixed workloads, and
+`kubernetes.rs` owns bounded HTTPS requests and native watch recovery. Installation
+admission policy constrains the controller's Kubernetes authority.
+
 ### `agents/kernel`
 
 The [kernel design](../agents/kernel/DESIGN.md) owns managed publication overlays,
