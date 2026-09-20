@@ -1,0 +1,124 @@
+{{- if and (include "veoveo.componentEnabled" (list . "agent-runtime-support")) .Values.gateway.agents.templates }}
+{{- $manager := .Values.agentManager }}
+{{- if not $manager.kubernetesApiEgress }}{{ fail "agentManager.kubernetesApiEgress must admit the installation API endpoints" }}{{ end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: managed-default-deny
+  namespace: {{ $manager.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: managed-dns
+  namespace: {{ $manager.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {{ .Values.networkPolicy.dnsNamespaceSelector | toJson }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: managed-store
+  namespace: {{ $manager.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: surrealdb
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: managed-controller-api
+  namespace: {{ $manager.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: agent-manager
+  policyTypes: [Egress]
+  egress:
+    {{- range $manager.kubernetesApiEgress }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: managed-kernel-gateway
+  namespace: {{ $manager.namespace }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: veoveo.ai/managed-agent
+        operator: Exists
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: gateway
+      ports:
+        - protocol: TCP
+          port: 8788
+    {{- range $manager.modelEgress }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+{{- range $service := list (dict "name" "gateway" "port" 8788) (dict "name" "surrealdb" "port" 8000) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: managed-{{ $service.name }}-ingress
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $service.name }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $manager.namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ $service.port }}
+{{- end }}
+{{- end }}

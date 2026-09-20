@@ -390,3 +390,8 @@ repositories, resolves distinct commits, loads installation-owned Helm values fr
 installation repository, validates the source-qualified exact image plan, and produces
 one combined lock. It does not introduce an installation coordinator or prescribe the
 extension's build system.
+
+`agent-runtime-support` includes the generic kernel and the separate lifecycle-manager
+image. A template installation contributes its isolated namespace, admission policies,
+RBAC and network policies to the owning Helm unit. Creating an agent changes none of
+those installation artifacts and builds no image.

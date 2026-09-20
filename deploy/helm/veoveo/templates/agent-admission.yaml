@@ -1,0 +1,113 @@
+{{- if and (include "veoveo.componentEnabled" (list . "agent-runtime-support")) .Values.gateway.agents.templates }}
+{{- $namespace := .Values.agentManager.namespace }}
+{{- $prefix := printf "%s-managed" $namespace }}
+{{- $parameters := list }}
+{{- range .Values.gateway.agents.templates }}{{ range .parameters }}{{ $parameters = append $parameters .environment_variable }}{{ end }}{{ end }}
+{{- range $kind := list "deployments" "pods" }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $prefix }}-{{ $kind }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ $namespace }}
+    resourceRules:
+      - apiGroups: [{{ if eq $kind "pods" }}""{{ else }}apps{{ end }}]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [{{ $kind }}]
+  matchConditions:
+    - name: managed-workload
+      expression: >-
+        {{ if eq $kind "pods" }}object.spec.serviceAccountName != 'veoveo-agent-manager'{{ else }}object.metadata.name != 'veoveo-agent-manager'{{ end }}
+  variables:
+    - name: pod
+      expression: {{ if eq $kind "pods" }}object.spec{{ else }}object.spec.template.spec{{ end }}
+    - name: meta
+      expression: {{ if eq $kind "pods" }}object.metadata{{ else }}object.spec.template.metadata{{ end }}
+    - name: owner
+      expression: variables.meta.labels['veoveo.ai/managed-agent']
+    - name: kernel
+      expression: variables.pod.containers[0]
+  validations:
+    {{- include "veoveo.agentPodValidations" (dict "root" $ "parameterNames" $parameters) | nindent 4 }}
+    {{- if eq $kind "deployments" }}
+    - expression: object.metadata.name == variables.owner && object.spec.replicas <= 1 && object.spec.strategy.type == 'Recreate'
+      message: Managed kernels require one Recreate workload with the admitted identity.
+    {{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $prefix }}-{{ $kind }}
+spec:
+  policyName: {{ $prefix }}-{{ $kind }}
+  validationActions: [Deny]
+{{- end }}
+{{- range $resource := list "deployments" "secrets" "persistentvolumeclaims" }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $prefix }}-controller-{{ $resource }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ $namespace }}
+    resourceRules:
+      - apiGroups: [{{ if eq $resource "deployments" }}apps{{ else }}""{{ end }}]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE, DELETE]
+        resources: [{{ $resource }}]
+  matchConditions:
+    - name: controller
+      expression: request.userInfo.username == {{ printf "system:serviceaccount:%s:veoveo-agent-manager" $namespace | toJson }}
+  variables:
+    - name: resource
+      expression: "request.operation == 'DELETE' ? oldObject : object"
+    - name: owner
+      expression: variables.resource.metadata.labels['veoveo.ai/managed-agent']
+  validations:
+    - expression: >-
+        variables.owner.matches('^agent-[a-f0-9]{32}$') &&
+        variables.resource.metadata.annotations['veoveo.ai/managed-generation'].matches('^[1-9][0-9]*$') &&
+        variables.resource.metadata.name == variables.owner {{ if eq $resource "secrets" }}+ '-key'{{ else if eq $resource "persistentvolumeclaims" }}+ '-memory'{{ end }}
+      message: The controller may mutate only admitted managed resource identities.
+    - expression: >-
+        request.operation == 'CREATE' ||
+        oldObject.metadata.labels['veoveo.ai/managed-agent'] == variables.owner
+      message: Resource ownership cannot be transferred by the controller.
+    {{- if eq $resource "secrets" }}
+    - expression: >-
+        variables.resource.type == 'Opaque' && variables.resource.immutable &&
+        size(variables.resource.data) == 2 &&
+        variables.resource.data.all(k, k in ['private-key-der-b64', 'kid']) &&
+        (request.operation != 'UPDATE' || oldObject.data == object.data)
+      message: Managed credentials are immutable and contain only the signing key and key ID.
+    {{- else if eq $resource "persistentvolumeclaims" }}
+    - expression: >-
+        request.operation == 'CREATE' &&
+        variables.resource.spec.accessModes == ['ReadWriteOnce'] &&
+        !has(variables.resource.spec.volumeName) &&
+        !has(variables.resource.spec.dataSource) && !has(variables.resource.spec.dataSourceRef) &&
+        ({{- range $i, $template := $.Values.gateway.agents.templates }}
+        {{ if $i }} || {{ end }}(variables.resource.spec.storageClassName == {{ $template.workload.storage_class | toJson }} && quantity(variables.resource.spec.resources.requests['storage']) == quantity({{ printf "%vGi" $template.workload.storage_gib | toJson }}))
+        {{- end }})
+      message: Retained memory may only be created at an approved capacity; deletion and rebinding require the storage operator.
+    {{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $prefix }}-controller-{{ $resource }}
+spec:
+  policyName: {{ $prefix }}-controller-{{ $resource }}
+  validationActions: [Deny]
+{{- end }}
+{{- end }}

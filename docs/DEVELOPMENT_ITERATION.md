@@ -751,3 +751,12 @@ dependencies: the gateway check took 71 seconds while the manager's warm check t
 3.3 seconds. Clippy took 12 seconds after its fixes. These are local recorded checks,
 not image-build or installed-controller timings. Two inadvertently overlapping test
 commands waited on Cargo's build lock; subsequent evidence commands ran serially.
+
+Managed installation qualification used the actual Kubernetes admission API with
+server-dry-run workload requests. The recorded fixture passed in 6.7 seconds and
+removed its namespace, RBAC and admission objects. Policy corrections addressed
+Pod default omission and the fixture namespace before that passing attempt. The
+chart tests passed in 42.7 seconds including HTTP dependency recompilation; their
+assertions took 0.22 seconds. The warm manager, deployment contract and image-plan
+checks took 0.5, 1.2 and 1.8 seconds. Native admission remains point-in-time runtime
+evidence and is deliberately not reusable source-only coverage.

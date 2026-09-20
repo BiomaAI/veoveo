@@ -20,6 +20,7 @@
     }
   ],
   "veoveo_images": [
+    {"ref": "veoveo/agent-manager:0.1.0", "dockerfile": "agents/manager/Dockerfile"},
     {"ref": "veoveo/agent-kernel:0.1.0", "dockerfile": "agents/kernel/Dockerfile"},
     {"ref": "veoveo/artifact-mcp:0.1.0", "dockerfile": "servers/artifact-mcp/Dockerfile"},
     {"ref": "veoveo/artifact-service:0.1.0", "dockerfile": "platform/artifacts/service/Dockerfile"},

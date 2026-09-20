@@ -24,3 +24,7 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store.workspace = true
+
+[dev-dependencies]
+# Latest stable serde_yaml_ng verified on docs.rs on 2026-09-19.
+serde_yaml_ng.workspace = true

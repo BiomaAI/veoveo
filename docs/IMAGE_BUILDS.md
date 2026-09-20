@@ -6,7 +6,7 @@
 |---|---|
 | Docker Buildx 0.37.0 | canonical Bake execution client |
 | Docker BuildKit 0.33.0 | digest-pinned `docker-container` worker |
-| Dockerfile frontend 1.25.0 | digest-pinned Dockerfile parser for touched Rust images |
+| Dockerfile frontend 1.25.0 and 1.27.0 | Existing Rust recipes retain their pins; the managed-agent controller uses the current 1.27.0 parser |
 | Docker Buildx Bake | checked-in image catalog and named-context graph |
 | OCI images | `linux/amd64` release output with immutable Git revision tags |
 | `veoveo.io/image-build-plan/v2` | repository-owned resolved build-plan evidence with the source commit timestamp |
