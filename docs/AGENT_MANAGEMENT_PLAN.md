@@ -10,7 +10,7 @@ Installed acceptance covers real model execution, pause/resume, manager replacem
 explicit image adoption and idle credential renewal without model calls. Publication
 now waits for native capability-list notifications when required servers are still
 settling. Qualification found a Console lease projection defect; its database replay
-correction is being deployed. Required remaining acceptance covers an authorized
+correction is deployed and verified across successive live lease updates. Required remaining acceptance covers an authorized
 mission by the newly authored pilot, wrong-vehicle denial, named Computer authority,
 and a real installed MCP Task through navigation and worker replacement. The goal
 remains open until those checks and final lifecycle acceptance are recorded.
@@ -580,3 +580,25 @@ those kernels remained healthy. The store tests now include unrelated database
 traffic ahead of agent writes and a multi-table transaction cut by a page boundary.
 The shared replay correction and its installed browser observation are tracked as
 part of this goal; an instance being Ready alone does not establish accurate UI state.
+
+
+### Installed Reactive Projection — September 20, 2026
+
+Gateway image `fd9b981e56de` restores the Console's current runtime leases. A headed
+RTX 4090 browser received 25 agent events between `08:58:01Z` and `08:58:41Z`.
+All five cards stayed idle without a page reload. The native changefeed regression,
+71 gateway tests including complete picker settlement, and affected Rust lint pass.
+
+The capability picker needed the same notification settlement as publication.
+Its previous first response could contain only Time tools while Map and UAV discovery
+were still pending. The picker now requests complete discovery within its existing
+eight-second deadline and reports unavailable discovery rather than silently presenting
+a provisional subset. Publication with selected tools still ignores unrelated degraded
+servers. Image activation and the full pilot selection flow qualify this correction.
+
+Computer acceptance found an additional deployment dependency. The Computers image
+predated the new agent-management policy actions and rejected the current control
+plane while its Pods remained Ready. The current reader passes 19 domain tests and
+17 service tests covering access, automation grants, lifecycle, HTTP/MCP Tasks and
+revocation. Its refreshed image is included with the picker activation; installed
+availability and named-grant use remain required checks.
