@@ -760,3 +760,15 @@ chart tests passed in 42.7 seconds including HTTP dependency recompilation; thei
 assertions took 0.22 seconds. The warm manager, deployment contract and image-plan
 checks took 0.5, 1.2 and 1.8 seconds. Native admission remains point-in-time runtime
 evidence and is deliberately not reusable source-only coverage.
+
+The managed runtime release published only gateway, browser edge, kernel and manager
+from `cbb0feee` in 417.8 seconds. It reused the existing simulator images. Source
+checks had accumulated 240 GiB of older incremental directories, test executables
+and superseded library variants; targeted removal preserved current outputs and
+freed that allocation. Unused Docker images reclaimed another 6.1 GB. Free space
+rose to 428 GiB before publication and remained 424 GiB afterward. The release
+preflight passed with a 40 GiB growth allowance and the normal 20 percent reserve.
+A later Helm schema check rebuilt a previously cached host feature combination and
+took 110 seconds; its assertions still took 0.23 seconds. Cache cleanup exchanged
+that one-time rebuild cost for deployment headroom, without deleting registry
+artifacts, the managed compiler cache or any production volume.

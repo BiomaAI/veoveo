@@ -662,7 +662,8 @@
                         "enum": [
                           "viewer",
                           "contributor",
-                          "manager"
+                          "custodian",
+                          "owner"
                         ]
                       },
                       "models": {
