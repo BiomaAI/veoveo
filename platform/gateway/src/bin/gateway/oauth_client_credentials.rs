@@ -3,10 +3,13 @@ use std::time::Instant;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    AuthOutcome, AuthReasonCode, OAuthClientAuthMethod, OAuthClientId, OAuthGrantType,
+    AuthOutcome, AuthReasonCode, OAuthClientAuthMethod, OAuthGrantType,
     ResourceAuthorizationServer, WorkContextId,
 };
-use veoveo_mcp_gateway::{ClientAssertionConfig, ClientAssertionVerifier, GatewayCatalog};
+use veoveo_mcp_gateway::{
+    ClientAssertionConfig, ClientAssertionVerifier, GatewayCatalog,
+    managed_agents::EffectiveOAuthClient,
+};
 
 use crate::{
     audit::{AuthAuditRecord, auth_audit_error_response, record_token_auth_audit},
@@ -32,6 +35,7 @@ pub(super) async fn token_endpoint_client_credentials(
     resource: ResolvedOAuthResource<'_>,
     authorization_server: &ResourceAuthorizationServer,
     request: TokenRequest,
+    effective: EffectiveOAuthClient,
     started_at: Instant,
 ) -> axum::response::Response {
     if request.grant_type != "client_credentials" || !resource.supports_client_credentials() {
@@ -59,89 +63,7 @@ pub(super) async fn token_endpoint_client_credentials(
         );
     }
 
-    let client_id = match OAuthClientId::new(request.client_id.trim()) {
-        Ok(client_id) => client_id,
-        Err(_) => {
-            if let Err(err) = record_token_auth_audit(
-                &state.gateway_state,
-                resource.audit_target(),
-                AuthAuditRecord {
-                    authorization_server: Some(authorization_server),
-                    client_id: None,
-                    principal: None,
-                    jwt_id: None,
-                    outcome: AuthOutcome::Deny,
-                    reason: AuthReasonCode::InvalidClient,
-                    started_at,
-                },
-            )
-            .await
-            {
-                return auth_audit_error_response(err);
-            }
-            return oauth_error_response(
-                StatusCode::UNAUTHORIZED,
-                "invalid_client",
-                "client authentication failed",
-            );
-        }
-    };
-    let effective = match state
-        .gateway_state
-        .effective_oauth_client(catalog, &client_id)
-        .await
-    {
-        Ok(client) => client,
-        Err(error) => {
-            tracing::warn!(%error, "effective OAuth registration unavailable");
-            if let Err(error) = record_token_auth_audit(
-                &state.gateway_state,
-                resource.audit_target(),
-                AuthAuditRecord {
-                    authorization_server: Some(authorization_server),
-                    client_id: Some(&client_id),
-                    principal: None,
-                    jwt_id: None,
-                    outcome: AuthOutcome::Deny,
-                    reason: AuthReasonCode::AuthStateUnavailable,
-                    started_at,
-                },
-            )
-            .await
-            {
-                return auth_audit_error_response(error);
-            }
-            return oauth_error_response(
-                StatusCode::UNAUTHORIZED,
-                "invalid_client",
-                "client authentication failed",
-            );
-        }
-    };
-    let Some(effective) = effective else {
-        if let Err(err) = record_token_auth_audit(
-            &state.gateway_state,
-            resource.audit_target(),
-            AuthAuditRecord {
-                authorization_server: Some(authorization_server),
-                client_id: Some(&client_id),
-                principal: None,
-                jwt_id: None,
-                outcome: AuthOutcome::Deny,
-                reason: AuthReasonCode::InvalidClient,
-                started_at,
-            },
-        )
-        .await
-        {
-            return auth_audit_error_response(err);
-        }
-        return oauth_error_response(
-            StatusCode::UNAUTHORIZED,
-            "invalid_client",
-            "client authentication failed",
-        );
-    };
+    let client_id = effective.registration.id.clone();
     let client = &effective.registration;
     if &client.authorization_server != resource.authorization_server()
         || !client

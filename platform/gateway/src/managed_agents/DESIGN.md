@@ -1,6 +1,6 @@
 # Managed Agent Authentication
 
-Status: implementation in progress; this module is not yet installed.
+Status: installed resolver and managed API; lifecycle qualification is in progress.
 
 ## Standards And Protocols
 
@@ -16,6 +16,9 @@ Status: implementation in progress; this module is not yet installed.
 
 One resolver reads the installation catalog and durable managed registration. Any
 collision fails closed, including a disabled or archived managed registration.
+The token HTTP entrypoint resolves this effective registration before selecting a
+protected resource. It passes that same registration to client-credentials
+validation; a static-catalog lookup cannot reject a durable client first.
 Managed clients obtain exactly their approved template's automated identity, scopes
 and Work Context membership. A definition author cannot choose these fields.
 

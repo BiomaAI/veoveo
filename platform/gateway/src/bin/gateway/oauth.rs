@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 use veoveo_mcp_contract::{
     AuthOutcome, AuthReasonCode, AuthorizationServerId, GatewayProfile, OAuthClientId,
-    ProtectedResourceId, RecordingIngestResource, ScopeName,
+    OAuthClientRegistration, ProtectedResourceId, RecordingIngestResource, ScopeName,
 };
 use veoveo_mcp_gateway::GatewayCatalog;
 
@@ -39,9 +39,25 @@ pub(super) async fn token_endpoint(
 ) -> axum::response::Response {
     let started_at = Instant::now();
     let catalog = current_catalog(&state.catalog);
-    let resource = match resolve_oauth_resource(
+    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+        Ok(id) => id,
+        Err(_) => return *invalid_client(),
+    };
+    let effective = match state
+        .gateway_state
+        .effective_oauth_client(&catalog, &client_id)
+        .await
+    {
+        Ok(Some(client)) => client,
+        Ok(None) => return *invalid_client(),
+        Err(error) => {
+            tracing::warn!(%error, "effective OAuth registration unavailable");
+            return *invalid_client();
+        }
+    };
+    let resource = match resolve_client_resource(
         &catalog,
-        request.client_id.as_str(),
+        &effective.registration,
         request.resource.as_deref(),
     ) {
         Ok(resource) => resource,
@@ -127,6 +143,7 @@ pub(super) async fn token_endpoint(
         resource,
         authorization_server,
         request,
+        effective,
         started_at,
     )
     .await
@@ -226,6 +243,14 @@ pub(super) fn resolve_oauth_resource<'a>(
     let client = catalog
         .oauth_client(&client_id)
         .ok_or_else(invalid_client)?;
+    resolve_client_resource(catalog, client, raw_resource)
+}
+
+fn resolve_client_resource<'a>(
+    catalog: &'a GatewayCatalog,
+    client: &OAuthClientRegistration,
+    raw_resource: Option<&str>,
+) -> Result<ResolvedOAuthResource<'a>, Box<axum::response::Response>> {
     let resource = match raw_resource
         .map(str::trim)
         .filter(|resource| !resource.is_empty())
