@@ -1005,3 +1005,42 @@ compiled for 172 seconds. Both passed. A stable dependency feature closure per R
 image family is a concrete follow-up: changing target selection repeatedly rebuilt
 Reqwest, SurrealDB and other shared crates during this goal. Do not count those cold
 feature transitions as the warm source-edit baseline.
+
+### Installed Closeout And Remaining Churn — September 20, 2026
+
+The gateway/Computers activation converged passively in 52.248 seconds. Authoring the
+acceptance pilot's capabilities and adopting its revision then required no image
+build. Installed Task acceptance completed through replacement of both gateway
+workers, with one execution retained for the original command.
+
+The final revision-selector fix touched shared client code. Its browser regression
+took 3.9 seconds, Console lint 8.6 seconds, Console build 8.3 seconds and Workspace
+build 4.9 seconds. Staging only the browser-edge image still took 183.718 seconds,
+including a 93.839-second Rust compile window and 127.157 seconds of overlapping
+extraction activity. This was a cold browser compiler/cache path, despite the product
+change being a UI refresh. Preserve that compiler cache and decouple unchanged Rust
+artifact reuse from client-only edits before treating this as a warm iteration result.
+
+The client activation took 88.796 seconds: 68.734 seconds waiting for source fetch and
+19.362 seconds applying desired state. A native, single-owner expedited source
+reconcile is a measurable opportunity when the normal one-minute GitOps interval
+dominates. The GitHub Build status job spent about 158 seconds displaying the committed
+report. Receipt manifest duplication and report startup deserve their own small
+improvement; adding more source checks is not a substitute for reducing that overhead.
+
+Acceptance scripting also caused avoidable churn: CSS-capitalized status text differed
+from accessible text, an exact label selector included select-option text, and several
+shell probes used unquoted globs or guessed paths. Use the existing accessible-role
+fixtures and `rg --files` before constructing installed checks. None of those diagnostic
+errors requires rebuilding a product image.
+
+The simulator's Cesium crash interrupted a mission independently of the image rollout.
+The new agent reported the failed Task without replaying the flight. A later route
+failed its real climb limit. Preserve those as domain qualification issues rather than
+spending the agent-authoring acceptance window on another simulator rebuild. Model
+handoff generation also hit the 4,096-output-token limit once before a bounded retry;
+passing immutable domain references instead of reproducing large handoff payloads is
+a separate orchestration-efficiency investigation.
+
+Free disk remained about 274 GiB. No disk-pressure cleanup or unrelated image rebuild
+was needed for the final client activation.

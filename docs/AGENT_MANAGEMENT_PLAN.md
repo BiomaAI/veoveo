@@ -1,19 +1,15 @@
 # Agent Creation And Management Plan
 
-Status: active delivery goal, accepted September 19, 2026. Authoring, publication,
-registry-backed chat execution and explicit revision adoption are deployed at
-`veoveo.bioma.ai`. Five managed instances run the current kernel. The four migrated
-UAV pilots retain their original runtime IDs, principals, signing keys and physical
-memory volumes. Per-pilot Helm ownership is removed and normal reconciliation is active.
+Status: delivered September 20, 2026. Governed authoring, publication, explicit
+revision adoption and managed lifecycle are deployed at `veoveo.bioma.ai`. The four
+migrated UAV pilots retain their original runtime IDs, principals, signing keys and
+physical memory volumes. Normal GitOps reconciliation is active.
 
-Installed acceptance covers real model execution, pause/resume, manager replacement,
-explicit image adoption and idle credential renewal without model calls. Publication
-now waits for native capability-list notifications when required servers are still
-settling. Qualification found a Console lease projection defect; its database replay
-correction is deployed and verified across successive live lease updates. Required remaining acceptance covers an authorized
-mission by the newly authored pilot, wrong-vehicle denial, named Computer authority,
-and a real installed MCP Task through navigation and worker replacement. The goal
-remains open until those checks and final lifecycle acceptance are recorded.
+Installed checks cover real chat and managed model execution, native MCP Task
+navigation and gateway replacement, named Computer grants, wrong-vehicle denial,
+stop/archive, retained memory and credential revocation. Idle credential renewal
+adds no model calls. The completion checkpoint below distinguishes these passing
+feature checks from the outstanding simulator flight and broader qualification work.
 
 ## Standards And Protocols
 
@@ -21,7 +17,7 @@ remains open until those checks and final lifecycle acceptance are recorded.
 |---|---|
 | Veoveo management API | Authenticated HTTP JSON, typed Rust DTOs and generated TypeScript; revision preconditions, idempotent mutations and cursor-based SSE observation are repository-owned contracts |
 | Browser identity | Existing OAuth authorization-code flow with PKCE, separate Console/Workspace cookie authority and same-origin CSRF protection |
-| Managed agent identity | Existing OAuth client-credentials flow with signed client assertions, explicit scopes, automated invocation provenance and current Work Context membership; managed registration is a proposed extension |
+| Managed agent identity | Existing OAuth client-credentials flow with signed client assertions, explicit scopes, automated invocation provenance and current Work Context membership; managed registration is a repository-owned extension |
 | MCP `2026-07-28` | Current [hosted-server profile](../mcp/contract/DESIGN.md), including discovery, notifications, subscriptions, Tasks and input requests; management HTTP routes are not an MCP server |
 | Models | Existing repository-qualified Rig adapter and approved provider connections; the internal Chat Completions adapter does not imply support for every provider API |
 | Kubernetes | Existing installation API and namespace policy for kernel workloads, retained storage and private credentials; lifecycle observation uses native watches and explicit recovery |
@@ -205,7 +201,7 @@ revocation while preserving retained data and audit evidence.
 
 ## API And Client Experience
 
-Use the existing gateway and browser edge. The following routes are proposed additions
+Use the existing gateway and browser edge. The following routes are implemented additions
 under `/admin/{profile}`; final DTOs and handlers belong in their owning components.
 
 | Route | Operation |
@@ -216,7 +212,6 @@ under `/admin/{profile}`; final DTOs and handlers belong in their owning compone
 | `POST /agent-definitions/{id}/validate` | Return typed publication findings |
 | `POST /agent-definitions/{id}/publish` | Publish the exact validated draft revision |
 | `GET /agent-definitions/{id}/revisions` | Paginated immutable revision history |
-| `POST /agent-definitions/{id}/test` | Admit an explicit bounded test run |
 | `POST /agent-definitions/{id}/disable` | Close admission and fence affected execution |
 | `POST /agent-definitions/{id}/enable` | Restore admission after current validation |
 | `POST /agent-definitions/{id}/archive` | Retire from new participant/instance admission and retain existing bindings |
@@ -345,14 +340,14 @@ migration. None of these phases is implemented by writing this plan.
 |---|---|---|
 | 1. Registry and policy | Typed definitions/revisions/drafts, model-choice projection, mutation authorization, quotas, audit, events and API. Prove publication, concurrency conflicts, replica invalidation and denial cases. | `mcp/contract`, `platform/store`, `platform/policy`, focused gateway agent-management modules |
 | 2. Chat authoring | Console editor, delegated Workspace editor, explicit revision adoption and registry-backed worker resolution. Import Assistant/Reviewer and remove environment-defined catalog. Create, publish and use an agent without restart. | `apps/console`, `apps/workspace`, gateway Workspace runs, Helm and Bioma seed configuration |
-| 3. Managed execution | Instance API, durable managed identity resolution, lifecycle manager, safe template admission and kernel instance binding. Prove creation/recovery, pause/resume, revocation and retained memory. | `agents/runtime`, `agents/kernel`, proposed `agents/manager`, gateway identity and store, deployment chart |
+| 3. Managed execution | Instance API, durable managed identity resolution, lifecycle manager, safe template admission and kernel instance binding. Prove creation/recovery, pause/resume, revocation and retained memory. | `agents/runtime`, `agents/kernel`, `agents/manager`, gateway identity and store, deployment chart |
 | 4. UAV template and cutover | Package the existing pilot configuration as an approved template, preserve current identities/grants, transfer workloads and delete per-pilot deployment ownership. Provision a pilot through Console/API and run an authorized mission. | `showcase/uav-sim`, UAV domain grants, installation configuration and managed runtime |
 | 5. Installed qualification | Real model and MCP Task flows, Computer grants, replica/process recovery, headed hardware browser acceptance, scoped release evidence and measured iteration costs at `veoveo.bioma.ai`. | Existing Rust smoke owners, client test owners and component release workflow |
 
 Place domain persistence under a focused `platform/store/src/agent_management/`
 module, with shared management DTOs separate from `mcp/contract/src/agents.rs` control
 projections. Agent management handlers must not expand the existing control route file
-into a mixed responsibility module. The proposed manager keeps provider-independent
+into a mixed responsibility module. The manager keeps provider-independent
 lifecycle decisions separate from Kubernetes resource application.
 
 Each new contract-bearing component gets an adjacent `DESIGN.md` before implementation.
@@ -602,3 +597,68 @@ plane while its Pods remained Ready. The current reader passes 19 domain tests a
 17 service tests covering access, automation grants, lifecycle, HTTP/MCP Tasks and
 revocation. Its refreshed image is included with the picker activation; installed
 availability and named-grant use remain required checks.
+
+### Installed Completion Checkpoint — September 20, 2026
+
+Agent authoring and managed lifecycle are deployed and usable. Commit `78153e82`
+activates the final client image; GitHub run `35502906956` passed. The gateway uses
+`b385f7445c3e`, Computers uses `4415707cf60a`, and the browser edge uses
+`3e7e97e6bd4b`. These are immutable development images, not a qualified release.
+
+| Boundary | Installed result |
+|---|---|
+| Complete authoring catalog | The pilot picker returned all 18 admitted tools on its first load; publication and explicit adoption reached generation 9 without a build or gateway rollout. |
+| Reactive revision review | A publication appeared in an already-open selector without changing its selected revision or the running instance. The original UAV 1 publication was restored after this check. |
+| Managed domain authority | The new principal saw only its UAV 1 grant. A real `arm_vehicle` call for UAV 2 returned `vehicle control is not authorized`. |
+| Mission orchestration | The authored pilot resolved Brooklyn Bridge Center, completed a durable Map route, obtained a validated handoff, admitted a UAV 1 mission and dispatched its execution Task. The independent simulator crash terminated that flight; the pilot reported failure and did not replay it. |
+| Named Computer authority | A new chat revision executed under the initiating human's explicit, expiring Workspace grant. Selecting the tool alone did not confer access. |
+| Durable Task and navigation | Task `gtr_U_sQoKP2bawtulSQi_TWLk79pfBJSTo03bk2P7_Z384` remained observable after navigation and replacement of both original gateway workers. The command exited successfully; storage contained one operation and one execution. |
+| Cancellation and revocation | A second command Task became cancelled. Its declared interruption policy stopped the Computer; the Computer was restarted with its retained home. Revoking the named grant denied a later command before Task or execution admission. |
+| Stop current run | The active episode `01a0be2f-3603-7851-968d-7535cd3df6dd` became `stopped` with the operator-stop explanation. |
+| Archive and credentials | The acceptance instance reached archived generation 13. Its Deployment and signing Secret were removed. New token issuance and discovery using a previously valid, still-unexpired token both failed. The original bound PVC and its 17 retained files remained. |
+| Idle behavior and migration | Earlier installed checks proved zero additional model calls across two heartbeat intervals and credential renewal. All four migrated pilots remain on generation 5 with their original principals, keys and physical memory volumes. |
+
+The headed acceptance browser used the RTX 4090 through WebGL. Its fallback WebGPU
+adapter was not counted as hardware evidence. The shared browser regression passed,
+as did both client builds and Console lint. Domain authorization, Task ownership,
+private-result isolation and lifecycle recovery also retain their recorded native
+qualification. This session used one real human identity; the second-identity cases
+remain fixture evidence rather than a claim about a second human session.
+
+Local installed evidence is under `output/development/agent-management/`. The key
+records are `managed-acceptance-capability-adoption.json`,
+`installed-selector-refresh.json`, `managed-wrong-vehicle-denial.json`,
+`chat-computer-task-settled.json`, `chat-task-gateway-replacement.json`,
+`chat-computer-single-invocation.json`, `chat-computer-task-cancelled.json`,
+`chat-computer-revoked-denial.json`, `managed-stop-conversation.json`,
+`managed-archive-credential-denial.json` and `managed-archive-retention.json`.
+They contain no access token or signing key. Both temporary vehicle grants and the
+Computer grant are revoked. The acceptance instance is archived; the four original
+pilots remain running, and both pre-existing Computers are Ready.
+
+### Remaining Qualification And Scope
+
+Successful arrival of the installed mission is not claimed. At `09:31:19Z`, the
+existing Isaac/Cesium runtime crashed in the Cesium asset-troubleshooting path and
+restarted. A separately authorized fresh route after recovery failed Map handoff
+validation with `ClimbLimitExceeded`; the agent issued no mission for that rejected
+route. Stable flight completion belongs to the simulation/Map follow-up, with these
+failures retained as evidence. Do not replay an interrupted flight implicitly or
+weaken the mobility profile to make acceptance pass.
+
+The installed managed template is the UAV pilot. Workspace chat agents use Computer
+grants under the initiating human's current identity. A future managed template that
+admits Computer tools must first extend the Computers authority reader and grant
+choices to resolve governed managed registrations; they currently resolve installation
+OAuth clients. Adding a tool to a template must not bypass that admission boundary.
+
+The optional standalone draft-test endpoint was not introduced. Published chat agents
+and managed messages provide explicit real runs under their admitted budgets and
+authority. A separate draft-test UX remains optional future work. Installed multi-round
+input-request coverage is also pending a production tool that emits such a request;
+current form, ownership and continuation coverage uses native fixtures.
+
+Broad p95/load measurements and a second-person usability session remain follow-ups.
+The single-request and build measurements in this plan establish observations, not
+percentiles. These follow-ups do not prevent using the delivered authoring and
+lifecycle capabilities.
