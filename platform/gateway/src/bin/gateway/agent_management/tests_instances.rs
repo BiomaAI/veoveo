@@ -245,7 +245,36 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
         generation: 1,
         epoch: 1,
     });
-    let body = json!({"generation":1,"epoch":1});
+    let runtime = veoveo_agent_runtime::AgentRuntime::register(
+        db.a.clone(),
+        veoveo_agent_runtime::AgentSpec {
+            tenant_key: "test".into(),
+            agent_key: "worker-one".into(),
+            display_name: "Worker".into(),
+            profile: "operator".into(),
+            authority: db
+                .a
+                .automated_authority_for_oauth_client(
+                    "test",
+                    "shared",
+                    &instance.identity.client_id,
+                )
+                .await
+                .unwrap()
+                .unwrap(),
+            manifest: veoveo_platform_store::OpenObject::default(),
+            memory_database: "memory.duckdb".into(),
+        },
+        veoveo_agent_runtime::AgentInstanceId::new(),
+    )
+    .await
+    .unwrap();
+    runtime
+        .acquire_lease(std::time::Duration::from_secs(60))
+        .await
+        .unwrap()
+        .unwrap();
+    let body = json!({"generation":1,"epoch":1,"leaseOwner":runtime.instance_id().as_uuid(),"leaseFence":runtime.lease_fence().unwrap()});
     let worker = app(&state, service.clone());
     assert_eq!(
         request(&worker, "POST", "agent-runtime/dispatch", body.clone())
@@ -264,10 +293,18 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
             &worker,
             "POST",
             "agent-runtime/dispatch",
-            json!({"generation":2,"epoch":1})
+            json!({"generation":2,"epoch":1,"leaseOwner":runtime.instance_id().as_uuid(),"leaseFence":runtime.lease_fence().unwrap()})
         )
         .await
         .0,
+        StatusCode::FORBIDDEN
+    );
+    let mut stale_lease = body.clone();
+    stale_lease["leaseOwner"] = json!(uuid::Uuid::now_v7());
+    assert_eq!(
+        request(&worker, "POST", "agent-runtime/dispatch", stale_lease)
+            .await
+            .0,
         StatusCode::FORBIDDEN
     );
     let mut removed_model = state.clone();

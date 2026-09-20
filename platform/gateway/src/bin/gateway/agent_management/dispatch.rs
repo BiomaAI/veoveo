@@ -43,7 +43,13 @@ pub(super) async fn check(
         || managed.context_key != subject.authority.work_context.as_str()
         || !state
             .store()
-            .managed_agent_dispatch(managed.instance.id, request.generation, request.epoch)
+            .managed_agent_kernel_dispatch(
+                managed.instance.id,
+                request.generation,
+                request.epoch,
+                request.lease_owner,
+                request.lease_fence,
+            )
             .await?
     {
         return Err(forbidden());

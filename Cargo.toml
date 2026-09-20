@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "agents/kernel",
+    "agents/manager",
     "agents/runtime",
     "apps/console/bff",
     "deploy/contract",
@@ -119,7 +120,7 @@ proj = { version = "0.31.0", default-features = false, features = ["geo-types", 
 quote = "1.0.47"
 rayon = "1.12.0"
 rangemap = "1.8.0"
-reqwest = { version = "=0.13.4", default-features = false }
+reqwest = { version = "=0.13.5", default-features = false }
 # This fork pin carries acknowledged MCP 2026-07-28 resource subscriptions,
 # governed resource reads, and request-boundary preflight not yet released upstream.
 rig = { git = "https://github.com/rozgo/rig.git", rev = "6a92dacd7802d9105f106344a8e85a8a19ec88b2", features = ["rmcp"] }

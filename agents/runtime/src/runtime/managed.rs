@@ -4,6 +4,10 @@ use crate::ManagedRuntimeBinding;
 use veoveo_platform_store::agent_management::instances::ManagedKernelReady;
 
 impl AgentRuntime {
+    pub fn lease_fence(&self) -> Result<i64> {
+        self.fence()
+    }
+
     /// Observe a live episode fence. Notifications reduce stop latency; the
     /// bounded reread recovers a missed edge without any model/provider query.
     pub async fn wait_for_managed_dispatch_revocation(
@@ -19,7 +23,13 @@ impl AgentRuntime {
         loop {
             if !self
                 .store
-                .managed_agent_dispatch(binding.instance.clone(), binding.generation, binding.epoch)
+                .managed_agent_kernel_dispatch(
+                    binding.instance.clone(),
+                    binding.generation,
+                    binding.epoch,
+                    self.instance_id.as_uuid(),
+                    self.fence()?,
+                )
                 .await
                 .map_err(|_| AgentRuntimeError::InvalidField {
                     field: "managed dispatch",
@@ -32,7 +42,7 @@ impl AgentRuntime {
                 tokio::select! {
                     _ = recovery.tick() => break,
                     event = live.next() => match event {
-                        Some(Ok(event)) if matches!(event.data.aggregate_type.as_str(), "managed_agent" | "agent_definition" | "principal" | "work_context") => break,
+                        Some(Ok(event)) if matches!(event.data.aggregate_type.as_str(), "managed_agent" | "agent_definition" | "principal" | "work_context" | "agent") => break,
                         Some(Ok(_)) => {},
                         Some(Err(error)) => return Err(AgentRuntimeError::Database(error)),
                         None => return Err(AgentRuntimeError::LeaseLost),

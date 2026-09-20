@@ -290,6 +290,8 @@ impl GatewayConnection {
                 .json(&ManagedDispatch {
                     generation: binding.generation,
                     epoch: binding.epoch,
+                    lease_owner: self.handlers.runtime.instance_id().as_uuid(),
+                    lease_fence: self.handlers.runtime.lease_fence()?,
                 })
                 .send()
                 .await?

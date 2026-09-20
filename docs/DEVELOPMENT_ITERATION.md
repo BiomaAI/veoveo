@@ -743,3 +743,11 @@ recorder's input snapshot; rerunning on frozen inputs passed. Keep broad format
 evidence separate from overlapping implementation work. Kernel checks introduced a
 different combined dependency feature set and rebuilt SurrealDB/Rerun metadata and
 test artifacts. This is local qualification cost, not an image build per agent.
+
+The managed-controller checkpoint added five composition, redaction and cleanup
+checks. The real database suites passed 14 agent-management scenarios, seven runtime
+scenarios and the gateway suite. The reqwest 0.13.5 update rebuilt shared HTTP
+dependencies: the gateway check took 71 seconds while the manager's warm check took
+3.3 seconds. Clippy took 12 seconds after its fixes. These are local recorded checks,
+not image-build or installed-controller timings. Two inadvertently overlapping test
+commands waited on Cargo's build lock; subsequent evidence commands ran serially.

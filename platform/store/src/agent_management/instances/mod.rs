@@ -37,6 +37,29 @@ fn operation_record(authority: &AgentCatalogAuthority, request_id: Uuid) -> Reco
 }
 
 impl PlatformStore {
+    /// Dispatch belongs to the admitted generation and its current scheduler
+    /// lease. A replacement pod in the same generation cannot share dispatch.
+    pub async fn managed_agent_kernel_dispatch(
+        &self,
+        instance: RecordId,
+        generation: i64,
+        epoch: i64,
+        owner: Uuid,
+        fence: i64,
+    ) -> Result<bool> {
+        #[derive(Clone, SurrealValue)]
+        struct Dispatch {
+            instance: RecordId,
+            generation: i64,
+            epoch: i64,
+            owner: String,
+            fence: i64,
+        }
+        self.managed_query(Dispatch { instance, generation, epoch, owner: owner.to_string(), fence },
+            "LET $instance = SELECT * FROM ONLY $command.instance; LET $runtime = array::first(SELECT * FROM agent WHERE tenant = $instance.tenant AND agent_key = $instance.key LIMIT 1); RETURN fn::managed_agent_enabled($command.instance) AND $instance.active_generation > 0 AND $instance.active_revision != NONE AND $instance.active_generation = $command.generation AND $instance.dispatch_epoch = $command.epoch AND $runtime != NONE AND $runtime.lease_owner = $command.owner AND $runtime.fence = $command.fence AND $runtime.lease_expires_at > time::now();"
+        ).await
+    }
+
     /// Recover an admitted mutation before revalidating an execution configuration
     /// that may have changed since the caller lost its first response.
     pub async fn replay_managed_agent(

@@ -6,8 +6,9 @@ checkpoints. Registry-backed chat execution and explicit revision adoption are d
 and have installed browser/model evidence. Managed lifecycle persistence has local
 qualification. Reviewed templates and effective managed OAuth registration are implemented
 locally. Managed lifecycle admission and its shared client controls are locally qualified;
-kernel integration and atomic episode fences are locally qualified. Resource
-reconciliation and UAV migration remain outstanding. Current component
+kernel integration and atomic episode fences are locally qualified. The lifecycle manager now has locally qualified fixed workload composition,
+credential correlation, retained storage and recovery claims. Namespace admission,
+installed reconciliation and UAV migration remain outstanding. Current component
 contracts remain authoritative until their replacement lands.
 
 ## Standards And Protocols

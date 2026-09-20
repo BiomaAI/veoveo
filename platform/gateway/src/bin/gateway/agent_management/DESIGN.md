@@ -97,9 +97,10 @@ configuration is removed. Public projection batches definition/revision metadata
 never returns authored instructions or deployment credentials. Shared event heads
 include the current owner's instance changes and context-managed instances.
 
-The kernel posts its retained generation and epoch to
+The kernel posts its retained generation, epoch, scheduler lease owner and fence to
 `/admin/{profile}/agent-runtime/dispatch` before model and tool dispatch. The
 authenticated route admits only the current managed service registration and exact
-model revision under current connection limits. It performs no model call. Human
+model revision under current connection limits. The scheduler lease must still be
+current and unexpired. It performs no model call. Human
 authoring authority cannot substitute for an instance credential. An older episode
 cannot obtain a new epoch by refreshing its access token.
