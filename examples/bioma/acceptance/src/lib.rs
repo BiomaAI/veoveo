@@ -1,4 +1,5 @@
 //! Owner-local acceptance for the Bioma enterprise composition.
+pub mod pilot_cutover;
 
 #[cfg(test)]
 mod tests {
