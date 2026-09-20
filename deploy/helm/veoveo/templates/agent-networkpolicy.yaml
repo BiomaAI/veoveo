@@ -100,6 +100,7 @@ spec:
         - protocol: TCP
           port: {{ .port }}
     {{- end }}
+{{- if .Values.networkPolicy.enabled }}
 {{- range $service := list (dict "name" "gateway" "port" 8788) (dict "name" "surrealdb" "port" 8000) }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -120,5 +121,6 @@ spec:
       ports:
         - protocol: TCP
           port: {{ $service.port }}
+{{- end }}
 {{- end }}
 {{- end }}

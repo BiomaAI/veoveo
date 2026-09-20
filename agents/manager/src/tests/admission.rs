@@ -69,6 +69,7 @@ impl Drop for Installation {
 
 fn rendered(
     namespace: &str,
+    network_policy: bool,
 ) -> Result<(Installation, Config, ManagedAgentReconciliation, ConfigMap)> {
     let (mut config, mut snapshot, map) = fixture();
     let owner = format!("agent-{}", uuid::Uuid::now_v7().simple());
@@ -83,7 +84,7 @@ fn rendered(
     snapshot.instance.resources.volume_claim = format!("{owner}-memory");
     let directory = std::env::temp_dir().join(namespace);
     std::fs::create_dir(&directory)?;
-    let values = json!({"global":{"publicBaseUrl":"https://gateway.test"},"gateway":{"controlPlaneRevision":"a".repeat(64),"agents":{"models":config.models,"templates":config.templates}},"agentManager":{"namespace":namespace,"existingControlPlaneConfigMap":"fixture-control","kubernetesApiEgress":[{"cidr":"10.43.0.1/32","port":443}]}});
+    let values = json!({"networkPolicy":{"enabled":network_policy},"global":{"publicBaseUrl":"https://gateway.test"},"gateway":{"controlPlaneRevision":"a".repeat(64),"agents":{"models":config.models,"templates":config.templates}},"agentManager":{"namespace":namespace,"existingControlPlaneConfigMap":"fixture-control","kubernetesApiEgress":[{"cidr":"10.43.0.1/32","port":443}]}});
     let path = directory.join("values.json");
     std::fs::write(&path, serde_json::to_vec(&values)?)?;
     let bytes = success(command(
@@ -104,6 +105,7 @@ fn rendered(
         let object = Value::deserialize(document)?;
         if object["metadata"]["namespace"] == namespace
             || object["kind"] == "Namespace"
+            || object["kind"] == "NetworkPolicy"
             || object["kind"]
                 .as_str()
                 .is_some_and(|kind| kind.starts_with("ValidatingAdmissionPolicy"))
@@ -139,7 +141,7 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
         "agent-admission-{}",
         &uuid::Uuid::now_v7().simple().to_string()[..12]
     );
-    let (mut installation, config, snapshot, map) = rendered(&namespace)?;
+    let (mut installation, config, snapshot, map) = rendered(&namespace, true)?;
     let objects: Vec<Value> =
         serde_json::from_slice(&std::fs::read(installation.directory.join("objects.json"))?)?;
     for kind in [
@@ -342,5 +344,42 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
         "extra secret material was admitted"
     );
     installation.cleanup()?;
+    Ok(())
+}
+
+#[test]
+fn managed_network_isolation_preserves_the_installation_ingress_mode() -> Result<()> {
+    for enabled in [false, true] {
+        let namespace = format!("agent-network-{}", uuid::Uuid::now_v7().simple());
+        let (mut installation, _, _, _) = rendered(&namespace, enabled)?;
+        let objects: Vec<Value> =
+            serde_json::from_slice(&std::fs::read(installation.directory.join("objects.json"))?)?;
+        let policies: Vec<_> = objects
+            .iter()
+            .filter(|o| o["kind"] == "NetworkPolicy")
+            .collect();
+        for name in [
+            "managed-default-deny",
+            "managed-dns",
+            "managed-store",
+            "managed-controller-api",
+            "managed-kernel-gateway",
+        ] {
+            anyhow::ensure!(
+                policies
+                    .iter()
+                    .any(|o| o["metadata"]["name"] == name
+                        && o["metadata"]["namespace"] == namespace),
+                "managed policy {name} must always apply"
+            );
+        }
+        for name in ["managed-gateway-ingress", "managed-surrealdb-ingress"] {
+            anyhow::ensure!(
+                policies.iter().any(|o| o["metadata"]["name"] == name) == enabled,
+                "{name} must only extend existing installation isolation"
+            );
+        }
+        installation.cleanup()?;
+    }
     Ok(())
 }
