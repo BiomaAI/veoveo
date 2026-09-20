@@ -436,3 +436,64 @@ async fn apply_reviewed_retained_pilot_adoption() -> Result<()> {
     );
     Ok(())
 }
+
+#[tokio::test]
+#[ignore = "verifies the four resumed Bioma pilots against their private frozen adoption plan"]
+async fn resumed_pilots_retain_runtime_identity_and_memory() -> Result<()> {
+    let root = directory()?;
+    let entries: Vec<PilotAdoption> =
+        serde_json::from_reader(File::open(root.join("adoption-plan.json"))?)?;
+    ownership::verify(&entries, &root)?;
+    let store = installed().await?;
+    for entry in entries {
+        let current: ManagedAgentInstance = store
+            .client()
+            .select(entry.instance.id.clone())
+            .await?
+            .context("adopted instance missing")?;
+        let runtime: AgentRecord = store
+            .client()
+            .select(entry.runtime.id.clone())
+            .await?
+            .context("retained runtime missing")?;
+        let principal: PrincipalRecord = store
+            .client()
+            .select(entry.principal.id.clone())
+            .await?
+            .context("retained principal missing")?;
+        ensure!(
+            current.desired == ManagedAgentDesired::Running
+                && current.observed == ManagedAgentPhase::Ready
+                && current.generation >= 2
+                && current.active_generation == current.generation,
+            "pilot {} has not converged",
+            current.key
+        );
+        ensure!(
+            current.principal == entry.instance.principal
+                && current.identity == entry.instance.identity
+                && current.resources == entry.instance.resources
+                && current.public_key == entry.instance.public_key
+                && runtime.agent_key == entry.runtime.agent_key
+                && runtime.tenant == entry.runtime.tenant
+                && runtime.work_context == entry.runtime.work_context
+                && runtime.memory_database == entry.runtime.memory_database
+                && principal.enabled
+                && principal.issuer == entry.principal.issuer
+                && principal.subject == entry.principal.subject,
+            "retained identity or memory changed for {}",
+            current.key
+        );
+        ensure!(
+            runtime
+                .managed_ready
+                .as_ref()
+                .is_some_and(|ready| ready.generation == current.generation),
+            "retained runtime did not acknowledge the managed generation"
+        );
+    }
+    eprintln!(
+        "Four resumed pilots are Ready with the original runtime IDs, principals, signing keys and physical memory volumes"
+    );
+    Ok(())
+}

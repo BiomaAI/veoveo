@@ -823,3 +823,25 @@ images; do not widen checkout or weaken evidence hashing merely to make this pas
 
 The token-routing repair staged only `mcp-gateway` in 104.5 seconds, with a 94.6-second
 compile window. It reused the browser edge, kernel, manager and simulator images.
+
+
+### Managed pilot cutover — September 20, 2026
+
+The combined gateway/manager stage for source `4295b164` took 90.3 seconds, including
+79.8 seconds of shared compilation. The cutover changed their common contract
+validator and reused the installed kernel and simulator images. Four managed resumes
+then created Ready workloads against retained physical volumes without image builds.
+
+Qualification found two remaining static-client assumptions, first in token routing
+and then in catalog validation. Testing a newly created managed client and a profile
+with no static clients before migration would have caught both in one build cycle.
+Those cases now have focused regression coverage. The first record rehearsal also
+needed recursive removal of absent optional fields before comparing typed SDK values
+with stored SQL objects; the live records were unchanged throughout the rehearsal.
+
+A standalone contract test rebuilt an alternate Cargo feature graph, and one cold
+Clippy pass took 76 seconds. Run checks with the affected component's ordinary feature
+closure where practical. Avoid concurrent Cargo commands against the same target
+folder, since they serialize on its lock. Exact command registration also matters:
+component-scoped evidence avoids the unrelated hydrated-LFS differences observed in
+repository-wide fallback receipts.
