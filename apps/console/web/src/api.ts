@@ -163,7 +163,7 @@ interface AgentConversationWire {
     role: "operator" | "agent";
     actor_id: string;
     content: string;
-    state: "accepted" | "running" | "completed" | "budget_terminated" | "failed";
+    state: "accepted" | "running" | "completed" | "budget_terminated" | "stopped" | "failed";
     occurred_at: string;
     request_id?: string;
     wake_id?: string;

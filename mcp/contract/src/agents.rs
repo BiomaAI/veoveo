@@ -73,6 +73,7 @@ pub enum AgentConversationEntryState {
     Running,
     Completed,
     BudgetTerminated,
+    Stopped,
     Failed,
 }
 

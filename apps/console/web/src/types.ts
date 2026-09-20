@@ -183,7 +183,7 @@ export interface AgentConversationEntry {
   role: "operator" | "agent";
   actorId: string;
   content: string;
-  state: "accepted" | "running" | "completed" | "budget_terminated" | "failed";
+  state: "accepted" | "running" | "completed" | "budget_terminated" | "stopped" | "failed";
   occurredAt: string;
   requestId?: string;
   wakeId?: string;

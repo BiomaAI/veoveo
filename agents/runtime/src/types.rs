@@ -111,6 +111,7 @@ pub struct EpisodeHandle {
     pub episode_id: AgentEpisodeId,
     pub sequence: i64,
     pub retention_pin: TaskRetentionPin,
+    pub managed: Option<veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding>,
 }
 
 #[derive(Clone, Debug)]
@@ -273,4 +274,10 @@ mod tests {
         assert!(json_object(serde_json::json!({"ok": true}), "payload").is_ok());
         assert!(json_object(serde_json::json!([1, 2]), "payload").is_err());
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct ManagedRuntimeBinding {
+    pub instance: RecordId,
+    pub generation: i64,
 }

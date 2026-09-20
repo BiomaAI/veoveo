@@ -575,6 +575,7 @@ const fn episode_conversation_state(state: AgentEpisodeState) -> AgentConversati
         AgentEpisodeState::Running => AgentConversationEntryState::Running,
         AgentEpisodeState::Completed => AgentConversationEntryState::Completed,
         AgentEpisodeState::BudgetTerminated => AgentConversationEntryState::BudgetTerminated,
+        AgentEpisodeState::Stopped => AgentConversationEntryState::Stopped,
         AgentEpisodeState::Failed | AgentEpisodeState::Crashed => {
             AgentConversationEntryState::Failed
         }

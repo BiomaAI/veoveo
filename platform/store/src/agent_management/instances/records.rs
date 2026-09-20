@@ -204,3 +204,21 @@ pub(super) struct InstanceCommand {
     pub principal: Option<RecordId>,
     pub limits: ManagedAgentLimits,
 }
+
+/// Immutable provenance captured in the same transaction that admits an episode.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
+#[serde(deny_unknown_fields)]
+pub struct ManagedEpisodeBinding {
+    pub instance: RecordId,
+    pub revision: RecordId,
+    pub generation: i64,
+    pub epoch: i64,
+}
+
+/// Set only after the matching kernel has connected and installed its tools.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, SurrealValue)]
+#[serde(deny_unknown_fields)]
+pub struct ManagedKernelReady {
+    pub generation: i64,
+    pub pod_uid: Uuid,
+}

@@ -51,6 +51,17 @@ IF $mutation.kind = 'provision' {
         UPDATE ONLY $command.instance SET requested_revision = $revision.id;
     } ELSE IF $mutation.kind = 'stop' {
         UPDATE ONLY $command.instance SET dispatch_epoch += 1;
+        LET $runtime = array::first(SELECT * FROM agent WHERE tenant = $instance.tenant AND agent_key = $instance.key LIMIT 1);
+        LET $episode = SELECT * FROM ONLY $runtime.last_episode;
+        IF $runtime != NONE AND $episode != NONE AND $episode.state = 'running' AND $episode.managed.instance = $instance.id {
+            LET $now = time::now();
+            LET $wakes = SELECT VALUE id FROM wake WHERE agent = $runtime.id AND state = 'claimed' AND claimed_by = $runtime.lease_owner AND claim_fence = $runtime.fence;
+            fn::agent_consume_results($runtime.id, $wakes, $episode.id, $now);
+            UPDATE ONLY $episode.id SET state = 'stopped', final_output = 'Stopped by an authorized operator.', error = NONE, finished_at = $now, revision += 1;
+            UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = $episode.id, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $wakes;
+            CREATE outbox_event SET tenant = $instance.tenant, aggregate_type = 'agent_episode', aggregate_id = type::string(record::id($episode.id)), event_type = 'agent_episode.stopped', schema_version = 1,
+                payload = { actor: $authority.principal, request_id: $command.request_id, managed_instance: $instance.id };
+        };
     } ELSE IF $mutation.kind = 'retry' {
         IF $instance.observed != 'failed' { THROW 'agent_conflict'; };
     } ELSE { THROW 'agent_conflict'; };

@@ -439,6 +439,7 @@ string_enum! {
         Running => "running",
         Completed => "completed",
         BudgetTerminated => "budget_terminated",
+        Stopped => "stopped",
         Failed => "failed",
         Crashed => "crashed",
     }
@@ -1604,6 +1605,7 @@ pub struct AgentRecord {
     pub work_context: RecordId,
     pub policy_revision: String,
     pub authority: InvocationAuthorityRecord,
+    pub managed_ready: Option<crate::agent_management::instances::ManagedKernelReady>,
     pub state: AgentState,
     pub manifest: OpenObject,
     pub memory_database: String,
@@ -1650,6 +1652,7 @@ pub struct AgentEpisodeRecord {
     pub sequence: i64,
     pub retention_pin: String,
     pub wake_note: String,
+    pub managed: Option<crate::agent_management::instances::ManagedEpisodeBinding>,
     pub state: AgentEpisodeState,
     pub final_output: Option<String>,
     pub summary: Option<String>,

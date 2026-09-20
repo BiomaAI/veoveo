@@ -1,8 +1,12 @@
+#[path = "../../../testing/fixtures/store.rs"]
+mod database;
+#[path = "surreal/managed.rs"]
+mod managed;
+
 use std::collections::BTreeSet;
 use std::time::Duration;
 
 use chrono::Utc;
-use secrecy::SecretString;
 use serde_json::json;
 use uuid::Uuid;
 use veoveo_agent_runtime::{
@@ -17,9 +21,8 @@ use veoveo_mcp_contract::{
 use veoveo_platform_store::{
     AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord,
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, OpenObject, PlatformStore,
-    PrincipalKind, StoreConfig, StoreCredentials, WakeKind, WakeRecord, WakeState,
-    WorkContextMembershipLevel as StoreMembership, deterministic_principal_id,
-    deterministic_tenant_id, deterministic_work_context_id,
+    PrincipalKind, WakeKind, WakeRecord, WakeState, WorkContextMembershipLevel as StoreMembership,
+    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition};
 
@@ -57,57 +60,17 @@ fn agent_authority_record() -> InvocationAuthorityRecord {
 }
 
 struct Fixture {
+    _database: database::TestDb,
     root: PlatformStore,
     first: AgentRuntime,
     second: AgentRuntime,
     tasks: TaskRuntime,
 }
 
-async fn fixture() -> Option<Fixture> {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return None;
-    }
-    let endpoint = std::env::var("VEOVEO_SURREAL_ENDPOINT")
-        .or_else(|_| std::env::var("VEOVEO_SURREAL_URL"))
-        .unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let root_user = std::env::var("VEOVEO_SURREAL_USERNAME")
-        .or_else(|_| std::env::var("VEOVEO_SURREAL_USER"))
-        .unwrap_or_else(|_| "root".to_owned());
-    let root_password =
-        std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let namespace = "veoveo_agent_integration";
-    let database = format!("agent_runtime_{}", Uuid::now_v7().simple());
-    let root = PlatformStore::connect(
-        StoreConfig::builder(
-            &endpoint,
-            namespace,
-            &database,
-            StoreCredentials::root(root_user, SecretString::from(root_password)),
-        )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-    let runtime_password = SecretString::from("agent-runtime-integration-password");
-    root.replace_database_editor("agent_runtime", &runtime_password)
-        .await
-        .unwrap();
-    let runtime_store = || async {
-        PlatformStore::connect(
-            StoreConfig::builder(
-                &endpoint,
-                namespace,
-                &database,
-                StoreCredentials::database("agent_runtime", runtime_password.clone()),
-            )
-            .build()
-            .unwrap(),
-        )
-        .await
-        .unwrap()
-    };
+async fn fixture() -> Fixture {
+    let database = database::TestDb::new().await;
+    let root = database.a.clone();
+    let runtime_store = || async { database.b.clone() };
     let spec = |manifest_revision: &str| AgentSpec {
         tenant_key: "integration".to_owned(),
         agent_key: "durability-agent".to_owned(),
@@ -145,19 +108,18 @@ async fn fixture() -> Option<Fixture> {
         .unwrap()
     );
     let tasks = TaskRuntime::new(root.clone(), "integration-server", "integration-worker");
-    Some(Fixture {
+    Fixture {
+        _database: database,
         root,
         first,
         second,
         tasks,
-    })
+    }
 }
 
 #[tokio::test]
 async fn two_replicas_fence_claims_and_recover_expired_work() {
-    let Some(fixture) = fixture().await else {
-        return;
-    };
+    let fixture = fixture().await;
     fixture
         .first
         .acquire_lease(Duration::from_millis(150))
@@ -254,9 +216,7 @@ async fn two_replicas_fence_claims_and_recover_expired_work() {
 
 #[tokio::test]
 async fn idle_wake_acknowledgement_is_terminal_without_an_episode() {
-    let Some(fixture) = fixture().await else {
-        return;
-    };
+    let fixture = fixture().await;
     fixture
         .first
         .acquire_lease(Duration::from_secs(30))
@@ -306,9 +266,7 @@ async fn idle_wake_acknowledgement_is_terminal_without_an_episode() {
 
 #[tokio::test]
 async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
-    let Some(fixture) = fixture().await else {
-        return;
-    };
+    let fixture = fixture().await;
     let control = AgentControl::new(fixture.first.platform_store().clone()).unwrap();
     let target = AgentControlTarget {
         tenant_key: "integration".to_owned(),
@@ -407,9 +365,7 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
 
 #[tokio::test]
 async fn operator_messages_remain_distinct_and_claim_in_acceptance_order() {
-    let Some(fixture) = fixture().await else {
-        return;
-    };
+    let fixture = fixture().await;
     let control = AgentControl::new(fixture.first.platform_store().clone()).unwrap();
     let target = AgentControlTarget {
         tenant_key: "integration".to_owned(),
@@ -475,9 +431,7 @@ async fn operator_messages_remain_distinct_and_claim_in_acceptance_order() {
 
 #[tokio::test]
 async fn input_answer_and_wake_survive_restart_atomically() {
-    let Some(fixture) = fixture().await else {
-        return;
-    };
+    let fixture = fixture().await;
     fixture
         .first
         .acquire_lease(Duration::from_millis(500))
@@ -605,9 +559,7 @@ async fn input_answer_and_wake_survive_restart_atomically() {
 
 #[tokio::test]
 async fn task_settlement_survives_restart_and_is_consumed_once() {
-    let Some(fixture) = fixture().await else {
-        return;
-    };
+    let fixture = fixture().await;
     fixture
         .first
         .acquire_lease(Duration::from_millis(500))
