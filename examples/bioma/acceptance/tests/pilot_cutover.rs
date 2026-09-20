@@ -85,7 +85,7 @@ async fn prepare(store: &PlatformStore) -> Result<Vec<PilotAdoption>> {
         .authorization_server(&profile.authorization_server)
         .context("authorization server")?;
     let keys: Keys = serde_json::from_reader(File::open(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../uav-pilot-jwks.json"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/retained-pilot-jwks.json"),
     )?)?;
     let tenant = deterministic_tenant_id("bioma")?.record_id();
     let context = deterministic_work_context_id("bioma", "operations")?.record_id();

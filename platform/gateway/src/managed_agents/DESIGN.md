@@ -14,6 +14,10 @@ Status: installed resolver and managed API; lifecycle qualification is in progre
 
 ## Effective Registration
 
+A client-credentials profile can be installed before its first managed client exists.
+Control-plane validation does not require a placeholder static service client.
+Interactive authorization modes still require their configured clients.
+
 One resolver reads the installation catalog and durable managed registration. Any
 collision fails closed, including a disabled or archived managed registration.
 The token HTTP entrypoint resolves this effective registration before selecting a

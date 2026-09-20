@@ -31,7 +31,6 @@ configMapGenerator:
       - recording-mcp-publisher-jwks.json
       - operator-client-jwks.json
       - admin-client-jwks.json
-      - uav-pilot-jwks.json
   - name: bioma-gateway-control-plane
     namespace: veoveo-agents
     options:
