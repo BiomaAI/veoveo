@@ -56,7 +56,7 @@ export function AgentManager({ app }: { app: "console" | "workspace" }) {
       {next && <button onClick={() => void api.list(next).then(page => { setDefinitions(values => [...values, ...page.items.filter(d => !values.some(v => v.id === d.id))]); setNext(page.next); }).catch(e => setError(e.message))}>Load more</button>}
     </aside>{current ? <DefinitionEditor key={`${current.id}:${authoring.permissions.readContent}`} api={api} initial={current} authoring={authoring} templates={templates} changed={() => void refresh()} duplicate={value => { setSource(value); setCreating(true); }}/>
       : <div className="am-empty"><h3>Give an agent a clear purpose.</h3><p>Choose a model, write instructions and select the capabilities it can use. Publishing makes it available to chat owners in its admitted contexts.</p></div>}</div>}
-    {authoring && <InstanceManager api={api} authoring={authoring} refreshVersion={catalogGeneration}/>}
+    {authoring && <InstanceManager api={api} authoring={authoring} definitions={definitions} refreshVersion={catalogGeneration}/>}
     {creating && authoring && <CreateAgent api={api} authoring={authoring} templates={templates} source={source} close={() => setCreating(false)} created={definition => { setDefinitions(values => [definition, ...values.filter(v => v.id !== definition.id)]); setSelected(definition.id); setCreating(false); void refresh(); }}/>}
   </section>;
 }
