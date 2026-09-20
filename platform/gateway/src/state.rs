@@ -29,11 +29,27 @@ pub(crate) use task_routes::{GatewayTaskOwnership, GatewayTaskRouteDraft};
 #[derive(Debug, Clone)]
 pub struct GatewayState {
     pub(super) platform: PlatformStore,
+    pub(crate) managed_templates: std::sync::Arc<crate::managed_agents::ManagedTemplateCatalog>,
 }
 
 impl GatewayState {
     pub fn new(platform: PlatformStore) -> Self {
-        Self { platform }
+        Self {
+            platform,
+            managed_templates: Default::default(),
+        }
+    }
+
+    pub fn with_managed_templates(
+        mut self,
+        templates: crate::managed_agents::ManagedTemplateCatalog,
+    ) -> Self {
+        self.managed_templates = std::sync::Arc::new(templates);
+        self
+    }
+
+    pub fn managed_templates(&self) -> &crate::managed_agents::ManagedTemplateCatalog {
+        &self.managed_templates
     }
 
     pub async fn connect(config: StoreConfig) -> Result<Self> {

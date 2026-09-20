@@ -65,6 +65,7 @@ impl JwtVerifier {
         let oauth_client_id =
             OAuthClientId::new(claims.client_id.clone()).map_err(AuthError::Claim)?;
         let token_subject = AccessTokenSubject {
+            managed_agent: claims.managed_agent,
             issuer: issuer.clone(),
             subject: subject.clone(),
             oauth_client_id,

@@ -390,16 +390,32 @@ impl GatewayCatalog {
         &self,
         verified: VerifiedAccessToken,
     ) -> Result<AuthenticatedSubject, GatewayAuthorityError> {
+        let client = self
+            .oauth_client(&verified.access_token.oauth_client_id)
+            .ok_or_else(|| {
+                GatewayAuthorityError::UnknownOAuthClient(
+                    verified.access_token.oauth_client_id.clone(),
+                )
+            })?;
+        let membership = self.work_context_membership(
+            &verified.access_token.oauth_client_id,
+            &verified.access_token.work_context,
+            &verified.principal,
+        )?;
+        self.resolve_subject_with_client(verified, client, membership)
+    }
+
+    pub(crate) fn resolve_subject_with_client(
+        &self,
+        verified: VerifiedAccessToken,
+        client: &OAuthClientRegistration,
+        membership: WorkContextMembershipLevel,
+    ) -> Result<AuthenticatedSubject, GatewayAuthorityError> {
         let VerifiedAccessToken {
             access_token,
             principal,
             principal_display_name,
         } = verified;
-        let client = self
-            .oauth_client(&access_token.oauth_client_id)
-            .ok_or_else(|| {
-                GatewayAuthorityError::UnknownOAuthClient(access_token.oauth_client_id.clone())
-            })?;
         let context = self
             .work_context(&access_token.work_context)
             .ok_or_else(|| {
@@ -412,11 +428,12 @@ impl GatewayCatalog {
                 received: access_token.invocation_mode,
             });
         }
-        let membership = self.work_context_membership(
-            &access_token.oauth_client_id,
-            &access_token.work_context,
-            &principal,
-        )?;
+        if principal.tenant.as_ref() != Some(&context.tenant) {
+            return Err(GatewayAuthorityError::TenantMismatch {
+                context: context.id.clone(),
+                principal: principal.id.clone(),
+            });
+        }
         let (actor, provenance) = match access_token.invocation_mode {
             InvocationMode::Direct => {
                 if access_token.initiator.as_ref() != Some(&principal.id)

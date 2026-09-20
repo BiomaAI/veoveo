@@ -204,7 +204,7 @@ impl GatewayMcp {
         let (mut templates, degradation) = self
             .available_resource_templates(context, subject.clone())
             .await?;
-        if self.client_allows_task_projection(&subject)? {
+        if self.client_allows_task_projection(&subject).await? {
             templates.push(
                 ResourceTemplate::new(GATEWAY_TASK_RESOURCE_TEMPLATE, "task status")
                     .with_title("Gateway task status")
@@ -413,7 +413,7 @@ impl GatewayMcp {
         context: &RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let subject = self.authenticated(context)?;
-        if !self.client_allows_task_projection(&subject)? {
+        if !self.client_allows_task_projection(&subject).await? {
             return Err(mcp_invalid_params(format!(
                 "resource URI is not exposed: {uri}"
             )));

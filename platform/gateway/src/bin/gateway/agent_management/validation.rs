@@ -100,12 +100,74 @@ pub(super) async fn check(
             }
         }
     }
-    if !matches!(content.execution, wire::Execution::Chat) {
-        finding(
-            wire::FindingCode::TemplateUnavailable,
-            "execution",
-            "No managed runtime template is admitted by this gateway yet.",
-        );
+    if let wire::Execution::Managed {
+        template,
+        template_revision,
+        parameters,
+        resource_subscriptions,
+    } = &content.execution
+    {
+        use veoveo_mcp_gateway::managed_agents::{
+            ManagedTemplateCatalog, runtime_template_revision,
+        };
+        match state.gateway.managed_templates().get(template).filter(|t| {
+            ManagedTemplateCatalog::permits(
+                t,
+                &actor.subject.principal,
+                &actor.subject.authority.work_context,
+            ) && runtime_template_revision(t) == *template_revision
+        }) {
+            None => finding(
+                wire::FindingCode::TemplateUnavailable,
+                "execution",
+                "Select a currently approved runtime template in this Work Context.",
+            ),
+            Some(template) => {
+                if !ManagedTemplateCatalog::parameters(template, parameters) {
+                    finding(
+                        wire::FindingCode::InvalidContent,
+                        "execution.parameters",
+                        "Complete the template's parameters using the permitted values.",
+                    );
+                }
+                if !template.models.contains(&content.model.id)
+                    || audience.iter().any(|c| !template.work_contexts.contains(c))
+                {
+                    finding(
+                        wire::FindingCode::TemplateUnavailable,
+                        "execution",
+                        "The template must admit the selected model and every publication context.",
+                    );
+                }
+                if content
+                    .tools
+                    .iter()
+                    .any(|tool| !template.tools.contains(tool))
+                    || resource_subscriptions
+                        .iter()
+                        .any(|uri| !template.resource_subscriptions.contains(uri))
+                {
+                    finding(
+                        wire::FindingCode::CapabilityUnavailable,
+                        "execution",
+                        "The selected capabilities exceed the runtime template's approved authority.",
+                    );
+                }
+                if let Some(model) = state.models.iter().find(|m| m.id == content.model.id)
+                    && !template
+                        .workload
+                        .model_secrets
+                        .iter()
+                        .any(|binding| binding.reference == model.api_key)
+                {
+                    finding(
+                        wire::FindingCode::ModelUnavailable,
+                        "model",
+                        "The runtime template has no approved credential binding for this model.",
+                    );
+                }
+            }
+        }
     }
     if !content.tools.is_empty() {
         let caller = Caller::new(actor.profile.id.clone(), actor.subject.clone(), headers)

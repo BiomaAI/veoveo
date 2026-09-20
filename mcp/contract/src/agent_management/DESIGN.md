@@ -23,3 +23,14 @@ ID. Native MCP Tasks keep their own identities and cancellation semantics.
 
 The [delivery plan](../../../../docs/AGENT_MANAGEMENT_PLAN.md) describes the full
 feature. These types do not establish installed route, client or lifecycle support.
+
+`templates.rs` separates installation-owned runtime packages from their public
+authoring projection. Parameter inputs have closed scalar shapes. Public choices
+disclose the approved service scopes, roles, membership and retained storage; they
+omit image, namespace, Secret and environment bindings. The gateway and manager
+must validate the full template before admitting an instance.
+
+`instances.rs` owns asynchronous provisioning and generation-preconditioned lifecycle
+requests. Its `ManagedAgentToken` is a signed repository extension to access tokens,
+binding the instance key, active generation and dispatch epoch. A token is evidence
+of issuance; current durable registration still determines whether it can be used.

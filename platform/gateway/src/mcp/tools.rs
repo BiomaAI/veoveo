@@ -97,11 +97,10 @@ impl GatewayMcp {
                             .map_err(|err| {
                                 mcp_internal(format!("upstream exposed invalid tool name: {err}"))
                             })?;
-                        if !self.client_allows_compatibility_helper(
-                            subject,
-                            &server_slug,
-                            &local_tool,
-                        )? {
+                        if !self
+                            .client_allows_compatibility_helper(subject, &server_slug, &local_tool)
+                            .await?
+                        {
                             continue;
                         }
                         if !self
@@ -265,7 +264,10 @@ impl GatewayMcp {
             let local_tool = LocalToolName::new(tool.name.as_ref().to_owned()).map_err(|err| {
                 mcp_internal(format!("upstream exposed invalid tool name: {err}"))
             })?;
-            if !self.client_allows_compatibility_helper(subject, server_slug, &local_tool)? {
+            if !self
+                .client_allows_compatibility_helper(subject, server_slug, &local_tool)
+                .await?
+            {
                 continue;
             }
             if !self
@@ -297,11 +299,10 @@ impl GatewayMcp {
         let catalog = self.catalog.current();
         let projection = parse_gateway_tool(&catalog, &request.name)?;
         let subject = self.authenticated(&context)?;
-        if !self.client_allows_compatibility_helper(
-            &subject,
-            &projection.server,
-            &projection.tool,
-        )? {
+        if !self
+            .client_allows_compatibility_helper(&subject, &projection.server, &projection.tool)
+            .await?
+        {
             self.record_policy_denial(
                 &subject,
                 GatewayAction::ToolsCall,
@@ -331,8 +332,9 @@ impl GatewayMcp {
                 .meta
                 .client_capabilities()
                 .is_some_and(|capabilities| capabilities.supports_tasks());
-            let project_tasks = downstream_tasks && self.client_allows_task_projection(&subject)?;
-            let direct_adapter = self.client_uses_direct_task_call_adapter(&subject)?;
+            let project_tasks =
+                downstream_tasks && self.client_allows_task_projection(&subject).await?;
+            let direct_adapter = self.client_uses_direct_task_call_adapter(&subject).await?;
             let server_supports_tasks = catalog
                 .profile_server(&self.profile_id, &projection.server)
                 .is_some_and(|(_, exposure, manifest)| {

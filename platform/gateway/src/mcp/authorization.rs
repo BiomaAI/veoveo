@@ -175,14 +175,18 @@ impl GatewayMcp {
             .ok_or_else(|| mcp_invalid_request("authenticated subject missing"))
     }
 
-    pub(super) fn authenticated_oauth_client(
+    pub(super) async fn authenticated_oauth_client(
         &self,
         subject: &AuthenticatedSubject,
     ) -> Result<OAuthClientRegistration, McpError> {
-        self.catalog
-            .current()
-            .oauth_client(&subject.access_token.oauth_client_id)
-            .cloned()
+        self.state
+            .effective_oauth_client(
+                &self.catalog.current(),
+                &subject.access_token.oauth_client_id,
+            )
+            .await
+            .map_err(|_| mcp_invalid_request("current OAuth registration is unavailable"))?
+            .map(|client| client.registration)
             .ok_or_else(|| mcp_invalid_request("authenticated OAuth client is not registered"))
     }
 
@@ -194,7 +198,7 @@ impl GatewayMcp {
         self.catalog.current().is_compatibility_helper(server, tool)
     }
 
-    pub(super) fn client_allows_compatibility_helper(
+    pub(super) async fn client_allows_compatibility_helper(
         &self,
         subject: &AuthenticatedSubject,
         server: &ServerSlug,
@@ -203,7 +207,7 @@ impl GatewayMcp {
         if !self.is_compatibility_helper(server, tool) {
             return Ok(true);
         }
-        let client = self.authenticated_oauth_client(subject)?;
+        let client = self.authenticated_oauth_client(subject).await?;
         if client.client_surface != OAuthClientSurface::ToolsCompat {
             return Ok(false);
         }
@@ -213,22 +217,22 @@ impl GatewayMcp {
         Ok(client.allowed_compatibility_helpers.contains(&helper))
     }
 
-    pub(super) fn client_allows_task_projection(
+    pub(super) async fn client_allows_task_projection(
         &self,
         subject: &AuthenticatedSubject,
     ) -> Result<bool, McpError> {
-        let client = self.authenticated_oauth_client(subject)?;
+        let client = self.authenticated_oauth_client(subject).await?;
         Ok(client_surface_allows_task_projection(
             client.client_surface,
             client.direct_task_call_adapter,
         ))
     }
 
-    pub(super) fn client_uses_direct_task_call_adapter(
+    pub(super) async fn client_uses_direct_task_call_adapter(
         &self,
         subject: &AuthenticatedSubject,
     ) -> Result<bool, McpError> {
-        let client = self.authenticated_oauth_client(subject)?;
+        let client = self.authenticated_oauth_client(subject).await?;
         Ok(client.client_surface == OAuthClientSurface::ToolsCompat
             && client.direct_task_call_adapter)
     }
@@ -332,13 +336,28 @@ impl GatewayMcp {
         trace_id: TraceId,
     ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
         let catalog = self.catalog.current();
-        let decision = catalog.decide(PolicyRequest {
+        let managed_admitted = match self
+            .state
+            .managed_action_admitted(&catalog, subject, action, &target)
+            .await
+        {
+            Ok(admitted) => admitted,
+            Err(error) => {
+                tracing::warn!(%error, "managed agent authority unavailable");
+                false
+            }
+        };
+        let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &self.profile_id,
             action,
             target: &target,
             trace_id: &trace_id,
         });
+        if !managed_admitted {
+            decision.effect = PolicyEffect::Deny;
+            decision.reason = PolicyReasonCode::PolicyDeny;
+        }
         let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())
             .map_err(|err| mcp_internal(format!("failed to create audit event id: {err}")))?;
         self.state

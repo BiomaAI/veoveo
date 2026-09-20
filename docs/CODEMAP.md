@@ -70,6 +70,7 @@ Component designs live beside the code whose contract they specify:
 | [`apps/console/web/src/agent-management/DESIGN.md`](../apps/console/web/src/agent-management/DESIGN.md) | shared Console/Workspace agent editor, draft publication, approved connection selection and request recovery |
 | [`apps/console/bff/src/agent_management/DESIGN.md`](../apps/console/bff/src/agent_management/DESIGN.md) | fixed-profile authoring HTTP and SSE projection with separate browser session authority |
 | [`platform/gateway/src/bin/gateway/agent_management/DESIGN.md`](../platform/gateway/src/bin/gateway/agent_management/DESIGN.md) | governed definition API, approved model admission, current policy and catalog events |
+| [`platform/gateway/src/managed_agents/DESIGN.md`](../platform/gateway/src/managed_agents/DESIGN.md) | managed template ceilings and effective service registration; current identity and dispatch integration under implementation |
 | [`mcp/contract/src/agent_management/DESIGN.md`](../mcp/contract/src/agent_management/DESIGN.md) | canonical authoring DTOs and generated browser schema |
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client, shared-chat presentation, private activity, reactive observation and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | core retained Computers domain, lifecycle, current authority, named grants, files and maintenance |

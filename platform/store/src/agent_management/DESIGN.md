@@ -47,6 +47,8 @@ computed by Rust. Publication checks that exact digest while creating an immutab
 revision and switching the head in the same transaction. Republishing identical
 content reuses its retained revision. Name/description changes do not change executable
 content. Draft edits do not alter published content.
+The definition's execution kind is fixed at creation. A chat assistant cannot become
+a managed service through a draft edit; create a separate definition for that role.
 
 Request identity binds tenant, actor and payload. A repeated request returns its
 original response snapshot, even after a subsequent edit. A changed payload conflicts.

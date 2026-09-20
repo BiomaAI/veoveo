@@ -234,7 +234,11 @@ pub(super) async fn authenticate_mcp(
             return unauthorized(&state, profile, "invalid bearer token");
         }
     };
-    let subject = match catalog.resolve_authenticated_subject(verified) {
+    let subject = match state
+        .gateway_state
+        .resolve_authenticated_subject(&catalog, verified)
+        .await
+    {
         Ok(subject) => subject,
         Err(err) => {
             tracing::warn!("rejected gateway authority: {err}");

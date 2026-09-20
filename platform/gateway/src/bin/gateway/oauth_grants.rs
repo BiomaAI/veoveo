@@ -439,6 +439,7 @@ pub(super) async fn token_endpoint_authorization_code(
         Some(&code_record.principal_display_name),
         None,
         AccessTokenInvocation {
+            managed_agent: None,
             session_family: refresh
                 .as_ref()
                 .map(|issued| issued.grant.family_id.clone()),

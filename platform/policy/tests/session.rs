@@ -29,6 +29,7 @@ impl Fixture {
             authenticated_at: None,
         };
         let token = AccessTokenSubject {
+            managed_agent: None,
             issuer: principal.issuer.clone(),
             subject: principal.subject.clone(),
             oauth_client_id: OAuthClientId::new("console").unwrap(),

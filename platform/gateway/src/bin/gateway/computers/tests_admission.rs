@@ -46,6 +46,7 @@ fn subject() -> AuthenticatedSubject {
     })).unwrap();
     let now = Utc::now();
     let access_token = AccessTokenSubject {
+        managed_agent: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
         oauth_client_id: OAuthClientId::new("console").unwrap(),

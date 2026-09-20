@@ -59,3 +59,4 @@ macro_rules! identifier {
 identifier!(AgentDefinitionId);
 identifier!(AgentModelId);
 identifier!(AgentTemplateId);
+identifier!(AgentManagedInstanceId);

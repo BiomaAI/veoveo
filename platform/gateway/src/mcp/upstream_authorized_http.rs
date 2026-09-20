@@ -305,6 +305,7 @@ mod tests {
             ServerSlug::new("uav-sim").unwrap(),
             &crate::AuthenticatedSubject {
                 access_token: veoveo_mcp_contract::AccessTokenSubject {
+                    managed_agent: None,
                     issuer: actor.issuer.clone(),
                     subject: actor.subject.clone(),
                     oauth_client_id: veoveo_mcp_contract::OAuthClientId::new("console").unwrap(),

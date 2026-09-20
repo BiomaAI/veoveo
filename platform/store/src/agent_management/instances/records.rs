@@ -106,6 +106,17 @@ pub struct ManagedAgentInstance {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Internal effective-authentication projection. Includes disabled registrations
+/// so source collisions cannot become a fallback to a static client.
+#[derive(Clone, Debug, SurrealValue)]
+pub struct ManagedAgentRegistration {
+    pub instance: ManagedAgentInstance,
+    pub revision: super::super::AgentRevision,
+    pub tenant_key: String,
+    pub context_key: String,
+    pub enabled: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct ManagedAgentOperation {
     pub id: RecordId,

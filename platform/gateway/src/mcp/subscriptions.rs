@@ -152,7 +152,7 @@ impl GatewayMcp {
             .task_ids
             .as_ref()
             .is_some_and(|ids| !ids.is_empty())
-            && !self.client_allows_task_projection(&subject)?
+            && !self.client_allows_task_projection(&subject).await?
         {
             return Err(McpError::missing_required_client_capability(
                 rmcp::model::ClientCapabilities::builder()

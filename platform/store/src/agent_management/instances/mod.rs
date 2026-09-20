@@ -22,6 +22,15 @@ pub fn managed_agent_record(tenant: &RecordId, key: &str) -> Result<RecordId> {
 }
 
 impl PlatformStore {
+    pub async fn managed_agent_registration(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<ManagedAgentRegistration>> {
+        self.managed_query(client_id.to_owned(),
+            "LET $instance = array::first(SELECT * FROM managed_agent WHERE identity.client_id = $command LIMIT 1); IF $instance = NONE { RETURN NONE; }; LET $revision = SELECT * FROM ONLY ($instance.active_revision ?? $instance.requested_revision); RETURN { instance: $instance, revision: $revision, tenant_key: $instance.tenant.slug, context_key: $instance.work_context.context_key, enabled: fn::managed_agent_enabled($instance.id) AND $instance.active_generation > 0 AND $instance.public_key != NONE };"
+        ).await
+    }
+
     pub async fn mutate_managed_agent(
         &self,
         authority: &AgentCatalogAuthority,

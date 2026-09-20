@@ -1,6 +1,10 @@
 //! Agent authoring HTTP contracts. Domain invocation continues to use native MCP.
 mod ids;
 pub use ids::*;
+mod instances;
+pub use instances::*;
+mod templates;
+pub use templates::*;
 
 use std::collections::BTreeMap;
 
@@ -265,6 +269,12 @@ pub struct CatalogWake {
 #[derive(JsonSchema)]
 #[allow(dead_code)]
 struct AgentManagementSchema {
+    template: TemplateChoice,
+    instance: ManagedInstance,
+    instances: InstancePage,
+    provision: ProvisionInstance,
+    update_instance: UpdateInstance,
+    lifecycle: LifecycleOperation,
     definition: Definition,
     page: DefinitionPage,
     draft: Draft,

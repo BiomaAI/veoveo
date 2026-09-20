@@ -8,6 +8,8 @@ pub(crate) mod models;
 mod projection;
 #[cfg(test)]
 pub(crate) mod tests;
+#[cfg(test)]
+mod tests_templates;
 mod validation;
 
 use std::sync::Arc;
@@ -130,6 +132,7 @@ pub(crate) fn router(state: AgentManagementState) -> Router {
         )
         .route("/admin/{profile}/agent-authoring", get(authoring))
         .route("/admin/{profile}/agent-models", get(model_choices))
+        .route("/admin/{profile}/agent-templates", get(template_choices))
         .route(
             "/admin/{profile}/agent-capabilities",
             get(validation::capabilities),
@@ -299,4 +302,16 @@ async fn model_choices(
 ) -> Api<Vec<wire::ModelChoice>> {
     let result = authoring(State(state), Path(profile), Extension(subject)).await?;
     Ok(Json(result.0.models))
+}
+
+async fn template_choices(
+    State(state): State<AgentManagementState>,
+    Path(profile): Path<String>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+) -> Api<Vec<wire::TemplateChoice>> {
+    let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsRead).await?;
+    Ok(Json(state.gateway.managed_templates().choices(
+        &actor.subject.principal,
+        &actor.subject.authority.work_context,
+    )))
 }
