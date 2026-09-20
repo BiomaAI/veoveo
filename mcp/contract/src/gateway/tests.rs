@@ -1409,6 +1409,37 @@ fn control_plane_rejects_missing_oauth_client_for_auth_mode() {
 }
 
 #[test]
+fn control_plane_allows_service_profile_before_durable_client_admission() {
+    let mut profile = default_profile();
+    profile.auth_modes = BTreeSet::from([AuthMode::OAuthClientCredentials]);
+    let mut contexts = default_work_contexts();
+    for context in &mut contexts {
+        for rule in &mut context.memberships {
+            rule.oauth_clients.clear();
+        }
+    }
+    let config = GatewayControlPlane {
+        branding: None,
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![media_manifest()],
+        profiles: vec![profile],
+        recording_ingest_resources: Vec::new(),
+        tenants: default_tenants(),
+        work_contexts: contexts,
+        policies: vec![default_policy()],
+        data_labels: default_data_labels(),
+        oauth_clients: vec![],
+        oidc_clients: vec![],
+        secrets: default_secrets(),
+        metadata: Value::Null,
+    };
+    config
+        .validate()
+        .expect("durable service registration follows installation");
+}
+
+#[test]
 fn control_plane_rejects_missing_oidc_client_for_browser_auth() {
     let mut profile = default_profile();
     profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);

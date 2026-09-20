@@ -378,6 +378,50 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-mcp-contract",
+        "--lib",
+        "control_plane_"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-contract"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "xtask",
+        "smoke",
+        "helm-config"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask",
+          "veoveo-deployment-smoke"
+        ],
+        "roots": [
+          "deploy/helm",
+          "showcase/uav-sim/deploy/helm",
+          "examples/bioma",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

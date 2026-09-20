@@ -700,6 +700,12 @@ impl GatewayControlPlane {
         }
         for profile in &self.profiles {
             for auth_mode in &profile.auth_modes {
+                // Managed service clients are admitted durably after installation.
+                // A profile may start empty; each request still requires an effective
+                // registration bound to its issuer, resource, scopes and authority.
+                if *auth_mode == AuthMode::OAuthClientCredentials {
+                    continue;
+                }
                 let required_grant = OAuthGrantType::from(*auth_mode);
                 let has_client = self.oauth_clients.iter().any(|client| {
                     client.authorization_server == profile.authorization_server

@@ -461,8 +461,10 @@ All four memory archives restore with identical contents and metadata. A native
 isolated-database rehearsal restores 27 targeted records and adopts the pilots
 without changing their runtime identities, principals or grants. It rejects stale
 source records, a still-leased writer and takeover of a later managed generation;
-failed adoption leaves no partial lifecycle or capacity records. The live pilots
-remain paused until storage ownership and static registration cutover complete.
+failed adoption leaves no partial lifecycle or capacity records. The live pilots were adopted paused with their original signing keys and physical
+volumes. The installed native check confirmed the transfer and unchanged runtime
+records, principals and vehicle grants. Static registration and Helm ownership
+cutover precede their managed resume.
 
 Iteration findings: the final gateway fix took about 104 seconds to stage, including
 95 seconds of compilation; GitOps source/root convergence took 11/25 seconds. A prior
